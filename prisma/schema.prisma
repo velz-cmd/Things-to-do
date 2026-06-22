@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Task {
+  id              String   @id @default(cuid())
+  title           String
+  category        String   @default("money_recovery")
+  targetValueUsd  Float
+  successFeeUsd   Float    @default(0.5)
+  budgetUsd       Float    @default(1.0)
+  status          String   @default("created")
+  merchantId      String?
+  userWallet      String?
+  escrowTxHash    String?
+  escrowTaskId    Int?
+  escrowLocked    Boolean  @default(false)
+  proofHash       String?
+  settlementTxHash String?
+  recoveredUsd    Float    @default(0)
+  executionCostUsd Float   @default(0)
+  currentAgent    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  events          TaskEvent[]
+  proofs          Proof[]
+  microPayments   MicroPayment[]
+}
+
+model TaskEvent {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent     String
+  phase     String
+  message   String
+  metadata  String?
+  createdAt DateTime @default(now())
+}
+
+model Proof {
+  id           String   @id @default(cuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  type         String
+  source       String
+  payload      String
+  contentHash  String
+  verified     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model MicroPayment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  purpose   String
+  amountUsd Float
+  txHash    String?
+  createdAt DateTime @default(now())
+}
+
+model Stats {
+  id                    Int @id @default(1)
+  moneyRecoveredUsd     Float @default(0)
+  tasksCompleted        Int   @default(0)
+  executionCostUsd      Float @default(0)
+  subscriptionsCancelled Int  @default(0)
+}

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: deputy
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx prisma db push && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: DATABASE_URL
+        value: file:./deputy.db
+      - key: DEPUTY_DEMO_MODE
+        value: "true"
+      - key: ARC_TESTNET_RPC_URL
+        value: https://rpc.testnet.arc.network
+      - key: NODE_VERSION
+        value: "22"

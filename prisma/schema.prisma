@@ -165,3 +165,16 @@ model BrowserProof {
   hash         String
   createdAt    DateTime @default(now())
 }
+
+/// Singleton RESOLVE agent on ERC-8004 IdentityRegistry (Arc testnet)
+model ResolveAgent {
+  id                   String   @id @default("resolve")
+  agentTokenId         String?
+  registerTxHash       String?
+  metadataUri          String   @default("ipfs://bafkreibdi6623n3xpf7ymk62ckb4bo75o3qemwkpfvp5i25j66itxvsoei")
+  reputationCount      Int      @default(0)
+  lastReputationTxHash String?
+  lastReputationScore  Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}

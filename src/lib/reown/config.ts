@@ -1,6 +1,17 @@
+import { sepolia } from "viem/chains";
 import { cookieStorage, createStorage } from "@wagmi/core";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { AppKitNetwork } from "@reown/appkit/networks";
+
+export const sepoliaNetwork: AppKitNetwork = {
+  id: sepolia.id,
+  name: sepolia.name,
+  nativeCurrency: sepolia.nativeCurrency,
+  rpcUrls: sepolia.rpcUrls,
+  blockExplorers: sepolia.blockExplorers,
+  chainNamespace: "eip155",
+  caipNetworkId: `eip155:${sepolia.id}`,
+};
 
 export const arcTestnetNetwork: AppKitNetwork = {
   id: 5042002,
@@ -16,7 +27,7 @@ export const arcTestnetNetwork: AppKitNetwork = {
   caipNetworkId: "eip155:5042002",
 };
 
-export const networks = [arcTestnetNetwork] as [
+export const networks = [arcTestnetNetwork, sepoliaNetwork] as [
   AppKitNetwork,
   ...AppKitNetwork[],
 ];

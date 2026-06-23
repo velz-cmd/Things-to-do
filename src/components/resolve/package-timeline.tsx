@@ -33,7 +33,10 @@ function stepFromEvents(events: TaskEvent[], status: string) {
     support: phases.has("executing"),
     claim: events.some(
       (e) =>
-        e.message.includes("submitted") || e.message.includes("ticket")
+        e.message.includes("submitted") ||
+        e.message.includes("ticket") ||
+        e.message.includes("Confirmation captured") ||
+        e.phase === "browser"
     ),
     followup:
       phases.has("retrying") || phases.has("waiting_for_response"),
@@ -54,8 +57,10 @@ function stepFromEvents(events: TaskEvent[], status: string) {
         const m = e.message.toLowerCase();
         return (
           (step.key === "booking" && m.includes("booking")) ||
-          (step.key === "claim" && m.includes("ticket")) ||
-          (step.key === "support" && e.phase === "executing") ||
+          (step.key === "claim" &&
+            (m.includes("ticket") || m.includes("confirmation"))) ||
+          (step.key === "support" &&
+            (e.phase === "executing" || e.phase === "browser")) ||
           (step.key === "refund" && ["verified", "settled"].includes(e.phase))
         );
       });

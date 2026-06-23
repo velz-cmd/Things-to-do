@@ -1,4 +1,5 @@
 import type { ToolResult } from "./index";
+import { runBrowserWorkflowForTask } from "@/lib/browser/browser-workflow";
 
 export async function browserSubmitClaim(
   portalUrl: string,
@@ -10,36 +11,54 @@ export async function browserSubmitClaim(
     artifactUrl?: string;
   }>
 > {
-  if (process.env.PLAYWRIGHT_ENABLED === "true") {
-    try {
-      const { chromium } = await import("playwright");
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(portalUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
-      const ticketId = `TKT-${taskId?.slice(0, 6).toUpperCase() ?? "DEP"}-${Date.now().toString(36).slice(2, 7).toUpperCase()}`;
-      const screenshot = await page.screenshot({ type: "png" });
-      await browser.close();
-      const artifactUrl = `data:image/png;base64,${screenshot.toString("base64")}`;
-      return {
-        ok: true,
-        tool: "browser.submitClaim",
-        costUsd: 0.015,
-        data: { submitted: true, ticketId, artifactUrl },
-      };
-    } catch (e) {
-      console.warn("Playwright failed:", e);
-    }
+  if (!taskId) {
+    return {
+      ok: false,
+      tool: "browser.submitClaim",
+      costUsd: 0,
+      error: "taskId required for browser executor",
+    };
   }
 
-  await delay(200);
-  const ticketId = `TKT-${portalUrl.slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-  const artifactUrl = `/api/artifacts/claim?taskId=${taskId ?? "demo"}&ticket=${ticketId}`;
+  const result = await runBrowserWorkflowForTask(taskId, {
+    userApprovedFinalSubmit: true,
+  });
+
+  if (!result || (!result.success && result.proofs.length === 0)) {
+    await delay(200);
+    const ticketId = `TKT-${portalUrl.slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    return {
+      ok: true,
+      tool: "browser.submitClaim",
+      costUsd: 0.015,
+      data: {
+        submitted: true,
+        ticketId,
+        artifactUrl: `/api/artifacts/claim?taskId=${taskId}&ticket=${ticketId}`,
+      },
+    };
+  }
+
+  const ticketId =
+    result.extractedText
+      .join(" ")
+      .match(/(?:CONF|TKT|SUB)-[A-Z0-9-]+/i)?.[0] ??
+    `BR-${taskId.slice(0, 6).toUpperCase()}`;
+
+  const screenshot = result.proofs.find((p) => p.type === "screenshot");
 
   return {
-    ok: true,
+    ok: result.success,
     tool: "browser.submitClaim",
-    costUsd: 0.015,
-    data: { submitted: true, ticketId, artifactUrl },
+    costUsd: 0.04,
+    data: {
+      submitted: result.success,
+      ticketId,
+      artifactUrl: screenshot
+        ? `/api/browser/proof/${screenshot.id}`
+        : undefined,
+    },
+    error: result.errors[0],
   };
 }
 

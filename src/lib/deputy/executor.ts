@@ -166,7 +166,9 @@ export async function runTaskExecutor(taskId: string) {
 
     if (step.status === "executing") {
       const portal = await browserSubmitClaim(
-        `https://portal.${task.merchantId}.demo/claims`,
+        task.merchantId === "streamdemo" || task.category === "subscription"
+          ? "streamly-demo-portal"
+          : `https://portal.${task.merchantId}.demo/claims`,
         taskId
       );
       toolCost += portal.costUsd;
@@ -174,8 +176,10 @@ export async function runTaskExecutor(taskId: string) {
         await logEvent(
           taskId,
           "Executor",
-          "tool",
-          `Portal claim submitted — ticket ${portal.data.ticketId}`,
+          portal.ok ? "browser" : "tool",
+          portal.ok
+            ? `Confirmation captured — ${portal.data.ticketId}`
+            : `Portal claim submitted — ticket ${portal.data.ticketId}`,
           portal.data
         );
       }

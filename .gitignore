@@ -11,3 +11,6 @@ contracts/out
 contracts/cache
 contracts/broadcast
 .vercel
+.resolve
+test-results
+playwright-report

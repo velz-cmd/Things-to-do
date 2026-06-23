@@ -10,6 +10,9 @@
     "db:push": "prisma db push",
     "sync:vercel-env": "./scripts/sync-vercel-env.sh",
     "test:settlement": "tsx scripts/test-settlement.ts",
+    "test:browser": "PLAYWRIGHT_ENABLED=true tsx scripts/test-browser-executor.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "deploy:escrow": "tsx scripts/deploy-escrow.ts",
     "test:integrations": "tsx scripts/test-integrations.ts",
     "postinstall": "prisma generate"
@@ -38,6 +41,7 @@
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
+    "@playwright/test": "^1.61.0",
     "eslint": "^9.28.0",
     "eslint-config-next": "^15.3.4",
     "playwright": "^1.61.0",

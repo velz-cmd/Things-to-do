@@ -19,7 +19,17 @@ vercel deploy --prod
 
 ---
 
-## Rabby shows “DEPUTY treasury” / `TaskCreated` error
+## Agent escrow wallet
+
+User funds are custodied by the RESOLVE agent at:
+
+`0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` → set as `NEXT_PUBLIC_RESOLVE_AGENT_ADDRESS` on Vercel.
+
+On-chain Arc escrow contract (separate): `0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f`
+
+Users must **sign in (Google or email) + connect crypto wallet** before assigning or deploying tasks.
+
+---
 
 Two different addresses — do not mix them up:
 

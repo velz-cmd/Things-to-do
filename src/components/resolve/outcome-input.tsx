@@ -7,9 +7,11 @@ import clsx from "clsx";
 export function OutcomeInput({
   loading,
   onAssign,
+  disabled,
 }: {
   loading: boolean;
   onAssign: (templateId: string) => void;
+  disabled?: boolean;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -34,7 +36,7 @@ export function OutcomeInput({
           <button
             key={ex.label}
             type="button"
-            disabled={loading}
+            disabled={loading || disabled}
             onClick={() => onAssign(ex.templateId)}
             className={clsx(
               "rounded-full border px-3 py-1.5 text-sm transition",

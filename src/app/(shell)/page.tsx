@@ -9,10 +9,13 @@ import { SuccessFeed } from "@/components/resolve/success-feed";
 import { OutcomeInput } from "@/components/resolve/outcome-input";
 import { DemoTimeline } from "@/components/resolve/demo-timeline";
 import { BalanceSummary } from "@/components/wallet/balance-summary";
+import { AccessGateBanner, AgentEscrowBadge } from "@/components/resolve/access-gate";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
 import type { DashboardStats, Task } from "@/lib/deputy/ui-types";
 
 export default function OverviewPage() {
   const router = useRouter();
+  const { ready } = useResolveAccess();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,17 +36,23 @@ export default function OverviewPage() {
   }, [refresh]);
 
   async function assignOutcome(templateId: string) {
+    if (!ready) {
+      toast.error("Sign in and connect wallet first", {
+        description: "Gmail or email + crypto wallet required",
+      });
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId, deferExecution: true }),
+        body: JSON.stringify({ templateId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not assign task");
       toast.success("Mission assigned", {
-        description: "Track progress in Tasks",
+        description: "Lock budget on the task page to deploy",
       });
       refresh();
       if (data.task?.id) router.push(`/tasks/${data.task.id}`);
@@ -72,7 +81,10 @@ export default function OverviewPage() {
         </p>
       </header>
 
-      <OutcomeInput loading={loading} onAssign={assignOutcome} />
+      <OutcomeInput loading={loading} onAssign={assignOutcome} disabled={!ready} />
+
+      <AccessGateBanner />
+      <AgentEscrowBadge />
 
       <BalanceSummary />
 

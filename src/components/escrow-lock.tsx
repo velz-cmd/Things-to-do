@@ -20,7 +20,8 @@ import { taskRefFromId, usdcToWei } from "@/lib/arc/utils";
 import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
 import { useAuth } from "@/components/auth/auth-provider";
 import { toast } from "sonner";
-import clsx from "clsx";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
+import { AgentEscrowBadge } from "@/components/resolve/access-gate";
 
 interface EscrowLockProps {
   taskId: string;
@@ -41,6 +42,7 @@ export function EscrowLock({
 }: EscrowLockProps) {
   const { address, isConnected } = useAccount();
   const { user, refreshBalance } = useAuth();
+  const { ready } = useResolveAccess();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
@@ -161,27 +163,6 @@ export function EscrowLock({
     }
   }
 
-  async function lockDemoEscrow() {
-    setDemoLocking(true);
-    const mockTx =
-      "0x" +
-      Array.from({ length: 64 }, () =>
-        Math.floor(Math.random() * 16).toString(16)
-      ).join("");
-    await fetch("/api/escrow", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        taskId,
-        escrowTxHash: mockTx,
-        escrowTaskId: Math.floor(Math.random() * 10000) + 1,
-        userWallet: address,
-      }),
-    });
-    setDemoLocking(false);
-    onLocked();
-  }
-
   async function lockOnChain() {
     if (!DEPUTY_ESCROW_ADDRESS || isEscrowMisconfigured()) return;
     syncedRef.current = false;
@@ -211,8 +192,16 @@ export function EscrowLock({
     });
   }
 
-  const signedIn = Boolean(user);
-  const preferBalanceLock = signedIn && !showWalletLock;
+  const preferBalanceLock = ready && !showWalletLock;
+
+  if (!ready && !locked) {
+    return (
+      <div className="space-y-2 rounded-lg border border-deputy-border bg-deputy-bg/40 px-3 py-3 text-sm text-deputy-muted">
+        <p>Sign in with Google or email, then connect your crypto wallet to lock funds.</p>
+        <AgentEscrowBadge />
+      </div>
+    );
+  }
 
   if (locked) {
     return (
@@ -241,10 +230,11 @@ export function EscrowLock({
         <div className="rounded-lg border border-deputy-border/80 bg-deputy-bg/40 px-3 py-2">
           <p className="text-xs font-medium text-white">RESOLVE agent escrow</p>
           <p className="mt-1 text-xs leading-relaxed text-deputy-muted">
-            Budget stays in your RESOLVE balance until proof is verified. No
-            transfer to an external treasury wallet — the agent only earns the
-            success fee after resolution.
+            Budget is custodied by the RESOLVE agent until proof is verified.
+            Funds are held against your linked wallet — success fee only after
+            resolution.
           </p>
+          <AgentEscrowBadge className="mt-2" />
         </div>
         <button
           type="button"
@@ -277,33 +267,22 @@ export function EscrowLock({
       <div className="space-y-2">
         {isEscrowMisconfigured() && (
           <p className="rounded-lg border border-deputy-danger/40 bg-deputy-danger/10 px-3 py-2 text-xs text-deputy-danger">
-            Escrow contract misconfigured: must not equal the agent oracle
-            address. Set{" "}
+            Escrow contract misconfigured. Set{" "}
             <code className="font-mono">NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS</code>{" "}
-            to the deployed contract (
-            <code className="font-mono">0x4e9b…f669f</code>), not the agent
-            wallet.
+            to the contract (<code className="font-mono">0x4e9b…f669f</code>),
+            not the agent escrow wallet.
           </p>
         )}
         <button
           type="button"
           disabled={demoLocking}
-          onClick={signedIn ? lockFromBalance : lockDemoEscrow}
-          className={clsx(
-            "w-full rounded-lg border border-deputy-accent/40 bg-deputy-accent/10 py-2 text-sm font-medium text-deputy-accent transition hover:bg-deputy-accent/20 disabled:opacity-50"
-          )}
+          onClick={lockFromBalance}
+          className="w-full rounded-lg border border-deputy-accent/40 bg-deputy-accent/10 py-2 text-sm font-medium text-deputy-accent transition hover:bg-deputy-accent/20 disabled:opacity-50"
         >
           {demoLocking
             ? "Locking…"
-            : signedIn
-              ? `Lock $${budgetUsd.toFixed(2)} from balance`
-              : `Lock $${budgetUsd.toFixed(2)} demo escrow`}
+            : `Lock $${budgetUsd.toFixed(2)} from balance`}
         </button>
-        {contractReady && !isConnected && !signedIn && (
-          <p className="text-xs text-deputy-muted">
-            Sign in or connect Arc wallet for on-chain escrow
-          </p>
-        )}
         {syncError && (
           <p className="text-xs text-deputy-danger">{syncError}</p>
         )}
@@ -313,15 +292,13 @@ export function EscrowLock({
 
   return (
     <div className="space-y-3">
-      {signedIn && (
-        <button
-          type="button"
-          onClick={() => setShowWalletLock(false)}
-          className="text-xs text-deputy-accent underline"
-        >
-          ← Use RESOLVE balance instead (recommended)
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => setShowWalletLock(false)}
+        className="text-xs text-deputy-accent underline"
+      >
+        ← Use RESOLVE balance instead (recommended)
+      </button>
       <div className="rounded-lg border border-deputy-border/80 bg-deputy-bg/40 px-3 py-2 text-xs text-deputy-muted">
         On-chain lock sends USDC to the escrow contract{" "}
         <span className="font-mono text-white">

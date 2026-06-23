@@ -19,7 +19,7 @@ export function useResolveAccess() {
   if (!supabaseReady) {
     message = "Sign-in is not configured on this deployment.";
   } else if (!signedIn) {
-    message = "Sign in with Google or email to get started.";
+    message = null;
   }
 
   return {

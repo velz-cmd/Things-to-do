@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import clsx from "clsx";
@@ -12,6 +12,7 @@ import {
   getMissingRequiredConnectors,
   nextActionLabel,
 } from "@/lib/connectors/connector-service";
+import { useAuth } from "@/components/auth/auth-provider";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useCommand } from "@/components/resolve/command/command-context";
@@ -28,11 +29,18 @@ import { StatusChip } from "@/components/resolve/ui/status-chip";
 import { taskStatusLabel, taskProgress } from "@/lib/resolve/progress";
 import { buildHumanTimeline } from "@/lib/tasks/timeline-humanize";
 import { Mail, Wallet, ChevronRight } from "lucide-react";
+import {
+  fetchUserMemory,
+  readSessionMemory,
+  saveUserMemory,
+  writeSessionMemory,
+} from "@/lib/resolve/workspace-memory";
 
 export function StartWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { ready } = useResolveAccess();
+  const { user } = useAuth();
   const { openSignIn } = useSignInModal();
   const {
     registerSubmitHandler,
@@ -41,10 +49,16 @@ export function StartWorkspace() {
     setDraft,
     pendingTask,
     clearPendingTask,
+    hydrateMemory,
   } = useCommand();
 
-  const prefilledTask = searchParams.get("task") ?? pendingTask ?? "";
-  const missionId = searchParams.get("mission") ?? searchParams.get("id");
+  const prefilledTask =
+    searchParams.get("task") ?? pendingTask ?? readSessionMemory().draft ?? "";
+  const missionId =
+    searchParams.get("mission") ??
+    searchParams.get("id") ??
+    readSessionMemory().activeMissionId ??
+    null;
   const fromHome = searchParams.get("from") === "home";
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -55,6 +69,21 @@ export function StartWorkspace() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showVault, setShowVault] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
+  const memoryLoaded = useRef(false);
+
+  const persistWorkspace = useCallback(
+    (patch: {
+      classification?: TaskClassification | null;
+      showVault?: boolean;
+      showMissions?: boolean;
+      activeMissionId?: string | null;
+      draft?: string;
+    }) => {
+      writeSessionMemory(patch);
+      if (user) void saveUserMemory(patch);
+    },
+    [user]
+  );
 
   const refresh = useCallback(async () => {
     const [t, c] = await Promise.all([
@@ -88,14 +117,47 @@ export function StartWorkspace() {
   }, [refresh]);
 
   useEffect(() => {
+    if (memoryLoaded.current) return;
+    memoryLoaded.current = true;
+
+    void (async () => {
+      const session = readSessionMemory();
+      if (session.showVault) setShowVault(true);
+      if (session.showMissions) setShowMissions(true);
+      if (session.classification) setClassification(session.classification);
+
+      if (user) {
+        const remote = await fetchUserMemory();
+        if (remote.showVault) setShowVault(true);
+        if (remote.showMissions) setShowMissions(true);
+        if (remote.classification) setClassification(remote.classification);
+        if (!missionId && remote.activeMissionId) {
+          router.replace(`/start?mission=${remote.activeMissionId}`);
+        }
+        if (remote.draft) {
+          hydrateMemory({ draft: remote.draft });
+        }
+      } else if (!missionId && session.activeMissionId) {
+        router.replace(`/start?mission=${session.activeMissionId}`);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  useEffect(() => {
     if (missionId) {
       void loadMission(missionId);
+      persistWorkspace({ activeMissionId: missionId });
     } else {
       setActiveTask(null);
       setActiveTaskId(null);
       void loadEvidence();
     }
-  }, [missionId, loadMission, setActiveTaskId, loadEvidence]);
+  }, [missionId, loadMission, setActiveTaskId, loadEvidence, persistWorkspace]);
+
+  useEffect(() => {
+    persistWorkspace({ classification, showVault, showMissions });
+  }, [classification, showVault, showMissions, persistWorkspace]);
 
   useEffect(() => {
     if (prefilledTask && !missionId && (fromHome || searchParams.get("from") === "radar")) {
@@ -124,6 +186,7 @@ export function StartWorkspace() {
         });
         const { classification: cls } = await classifyRes.json();
         setClassification(cls);
+        persistWorkspace({ classification: cls, draft: input });
 
         if (cls.question && cls.missingInputs?.length > 0) {
           toast.message("Need more info", { description: cls.question });
@@ -152,7 +215,7 @@ export function StartWorkspace() {
         setSubmitLoading(false);
       }
     },
-    [ready, openSignIn, setSubmitLoading, router, loadMission, refresh]
+    [ready, openSignIn, setSubmitLoading, router, loadMission, refresh, persistWorkspace]
   );
 
   useEffect(() => {

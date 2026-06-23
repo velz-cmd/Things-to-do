@@ -51,6 +51,26 @@ https://resolve-task.vercel.app/demo-portals/streamly
 
 `missingRecommended` should be empty when everything is set.
 
+## GitHub Actions deploy secrets
+
+The cloud agent cannot write GitHub repository secrets (API 403). To enable the optional CLI deploy path, run locally after `gh auth login` and `npx vercel login`:
+
+```bash
+./scripts/setup-github-vercel-secrets.sh
+```
+
+This sets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` from your local Vercel CLI session.
+
+**Without those secrets**, pushes to `main` still deploy via:
+1. Vercel GitHub integration (already connected to `velz-cmd/Things-to-do`)
+2. GitHub Actions deploy hook (`VERCEL_DEPLOY_HOOK_URL` in workflow)
+
+| Secret | Value source |
+|--------|----------------|
+| `VERCEL_ORG_ID` | `team_apDtKK364C3BW1LjG3M93rhI` |
+| `VERCEL_PROJECT_ID` | `prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd` |
+| `VERCEL_TOKEN` | `~/.local/share/com.vercel.cli/auth.json` or [vercel.com/account/tokens](https://vercel.com/account/tokens) |
+
 ## Build fix (June 2025)
 
 `vercel.json` no longer runs `prisma db push` during build. Schema is migrated on Supabase directly. This fixes 9–21 second deploy failures when `DATABASE_URL` is missing at build time.

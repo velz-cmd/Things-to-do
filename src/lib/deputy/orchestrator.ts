@@ -11,6 +11,7 @@ import {
   resendSendClaim,
 } from "@/lib/deputy/tools";
 import { settleOnArc } from "@/lib/arc/settlement";
+import { generateDeputyPlan } from "@/lib/ai/planner";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -88,6 +89,23 @@ export async function runDeputyExecution(taskId: string) {
     return task;
   }
 
+  const plan = await generateDeputyPlan({
+    title: task.title,
+    description: task.title,
+    targetValueUsd: task.targetValueUsd,
+    category: task.category,
+  });
+
+  if (plan) {
+    await logEvent(
+      taskId,
+      "Planner",
+      "planning",
+      `AI plan: ${plan.objective}`,
+      { steps: plan.steps, estimatedRecoveryUsd: plan.estimatedRecoveryUsd }
+    );
+  }
+
   for (const step of EXECUTION_STEPS) {
     const message = step.message.replace(
       "$TARGET",
@@ -136,6 +154,7 @@ export async function runDeputyExecution(taskId: string) {
         to: `support@${task.merchantId}.demo`,
         subject: `Compensation claim — ${task.title}`,
         body: "Attached evidence package per consumer rights policy.",
+        taskId,
       });
       toolCost += email.costUsd;
       await logEvent(

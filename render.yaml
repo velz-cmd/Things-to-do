@@ -7,10 +7,12 @@ services:
     startCommand: npm run start
     envVars:
       - key: DATABASE_URL
-        value: file:./deputy.db
-      - key: DEPUTY_DEMO_MODE
-        value: "true"
-      - key: ARC_TESTNET_RPC_URL
-        value: https://rpc.testnet.arc.network
-      - key: NODE_VERSION
-        value: "22"
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: DEPUTY_ORACLE_PRIVATE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS
+        value: "0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f"

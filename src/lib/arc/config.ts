@@ -30,6 +30,17 @@ export const DEPUTY_ESCROW_ADDRESS = process.env
 
 export const DEPUTY_ESCROW_ABI = [
   {
+    type: "event",
+    name: "TaskCreated",
+    inputs: [
+      { name: "taskId", type: "uint256", indexed: true },
+      { name: "user", type: "address", indexed: true },
+      { name: "taskRef", type: "bytes32", indexed: false },
+      { name: "lockedAmount", type: "uint256", indexed: false },
+      { name: "successFee", type: "uint256", indexed: false },
+    ],
+  },
+  {
     type: "function",
     name: "createTask",
     inputs: [

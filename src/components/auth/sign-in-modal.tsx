@@ -1,30 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAppKit } from "@reown/appkit/react";
-import { useAccount } from "wagmi";
-import { Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
-import { projectId } from "@/lib/reown/config";
 import { toast } from "sonner";
-import clsx from "clsx";
 
 type Step = "choose" | "verify";
 
 export function SignInModal() {
   const { open, closeSignIn } = useSignInModal();
-  const { signInWithGoogle, signInWithEmail, verifyEmailOtp, user } = useAuth();
-  const { open: openWallet } = useAppKit();
-  const { isConnected, address } = useAccount();
+  const { signInWithGoogle, signInWithEmail, verifyEmailOtp, resendEmailCode, user } =
+    useAuth();
   const [step, setStep] = useState<Step>("choose");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [loading, setLoading] = useState<
-    "google" | "email" | "verify" | "wallet" | null
-  >(null);
+  const [loading, setLoading] = useState<"google" | "email" | "verify" | "resend" | null>(
+    null
+  );
   const codeInputRef = useRef<HTMLInputElement>(null);
-  const walletEnabled = Boolean(projectId);
 
   useEffect(() => {
     if (!open) {
@@ -54,27 +47,6 @@ export function SignInModal() {
     }
   }
 
-  async function handleWallet() {
-    if (!walletEnabled) {
-      toast.error("Wallet connect not configured", {
-        description: "Add NEXT_PUBLIC_REOWN_PROJECT_ID to enable wallets.",
-      });
-      return;
-    }
-    setLoading("wallet");
-    try {
-      openWallet({ view: "Connect" });
-      if (!user) {
-        toast.message("Wallet connected", {
-          description:
-            "Finish with Google or email so RESOLVE can save your missions and proof.",
-        });
-      }
-    } finally {
-      setLoading(null);
-    }
-  }
-
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) {
@@ -84,12 +56,19 @@ export function SignInModal() {
     setLoading("email");
     try {
       await signInWithEmail(email.trim());
-      toast.success("Check your inbox", {
-        description: "Enter the 6-digit code (expires in 30 minutes).",
-      });
       setStep("verify");
     } catch {
       /* toast shown in provider */
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleResend() {
+    if (!email.trim()) return;
+    setLoading("resend");
+    try {
+      await resendEmailCode(email.trim());
     } finally {
       setLoading(null);
     }
@@ -113,29 +92,29 @@ export function SignInModal() {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
       <div
-        className="w-full max-w-md rounded-2xl border border-deputy-border bg-gradient-to-b from-deputy-panel to-deputy-bg p-6 shadow-2xl shadow-black/40"
+        className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-[#0c1219] to-[#05080c] p-6 shadow-2xl shadow-black/40"
         role="dialog"
         aria-modal="true"
         aria-labelledby="sign-in-title"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-deputy-accent">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-400">
               RESOLVE
             </p>
             <h2 id="sign-in-title" className="mt-1 text-xl font-semibold text-white">
-              {step === "verify" ? "Enter your code" : "Sign in"}
+              {step === "verify" ? "Check your email" : "Sign in"}
             </h2>
-            <p className="mt-1 text-sm text-deputy-muted">
+            <p className="mt-1 text-sm text-slate-400">
               {step === "verify"
-                ? `We sent a 6-digit code to ${email}`
-                : "Google, email, or connect a wallet."}
+                ? `Enter the 6-digit code we sent to ${email}`
+                : "Continue with Google or your email."}
             </p>
           </div>
           <button
             type="button"
             onClick={closeSignIn}
-            className="rounded-lg p-1 text-deputy-muted hover:bg-deputy-bg hover:text-white"
+            className="rounded-lg p-1 text-slate-400 hover:bg-white/5 hover:text-white"
             aria-label="Close"
           >
             ✕
@@ -143,61 +122,48 @@ export function SignInModal() {
         </div>
 
         {step === "choose" && (
-          <div className="mt-6 space-y-3">
+          <div className="mt-6 space-y-4">
             <button
               type="button"
               disabled={loading !== null}
               onClick={handleGoogle}
-              className="flex w-full items-center justify-center gap-3 rounded-xl border border-deputy-border bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-50"
             >
               <GoogleIcon />
               {loading === "google" ? "Redirecting…" : "Continue with Google"}
             </button>
 
-            {walletEnabled && (
-              <button
-                type="button"
-                disabled={loading !== null}
-                onClick={handleWallet}
-                className={clsx(
-                  "flex w-full items-center justify-center gap-3 rounded-xl border py-3.5 text-sm font-medium transition disabled:opacity-50",
-                  isConnected && address
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-                    : "border-deputy-border bg-deputy-bg text-white hover:border-deputy-accent/40"
-                )}
-              >
-                <Wallet className="h-4 w-4" />
-                {loading === "wallet"
-                  ? "Opening wallet…"
-                  : isConnected && address
-                    ? `Connected ${address.slice(0, 6)}…${address.slice(-4)}`
-                    : "Connect wallet"}
-              </button>
-            )}
-
-            <div className="flex items-center gap-3 py-1 text-xs text-deputy-muted">
-              <span className="h-px flex-1 bg-deputy-border" />
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <span className="h-px flex-1 bg-white/10" />
               or
-              <span className="h-px flex-1 bg-deputy-border" />
+              <span className="h-px flex-1 bg-white/10" />
             </div>
 
             <form onSubmit={handleSendCode} className="space-y-3">
+              <label className="block text-xs font-medium text-slate-400">
+                Email address
+              </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Work or personal email"
+                placeholder="you@company.com"
                 autoComplete="email"
-                className="w-full rounded-xl border border-deputy-border bg-deputy-bg px-4 py-3.5 text-sm outline-none transition focus:border-deputy-accent/60"
+                className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-500/50"
               />
               <button
                 type="submit"
                 disabled={loading !== null}
-                className="w-full rounded-xl bg-deputy-accent py-3.5 text-sm font-semibold text-deputy-bg transition hover:brightness-110 disabled:opacity-50"
+                className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:opacity-50"
               >
-                {loading === "email" ? "Sending code…" : "Email me a login code"}
+                {loading === "email" ? "Sending code…" : "Send login code"}
               </button>
             </form>
+
+            <p className="text-center text-[11px] leading-relaxed text-slate-500">
+              After signing in, connect a crypto wallet from your account menu if
+              you need onchain settlement.
+            </p>
           </div>
         )}
 
@@ -214,28 +180,41 @@ export function SignInModal() {
                 setCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))
               }
               placeholder="000000"
-              className="w-full rounded-xl border border-deputy-border bg-deputy-bg px-4 py-4 text-center font-mono text-2xl tracking-[0.4em] outline-none focus:border-deputy-accent/60"
+              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-4 text-center font-mono text-2xl tracking-[0.4em] text-white outline-none focus:border-sky-500/50"
             />
             <button
               type="submit"
               disabled={loading !== null || code.length < 6}
-              className="w-full rounded-xl bg-deputy-accent py-3.5 text-sm font-semibold text-deputy-bg disabled:opacity-50"
+              className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white disabled:opacity-50"
             >
-              {loading === "verify" ? "Verifying…" : "Verify & continue"}
+              {loading === "verify" ? "Verifying…" : "Continue"}
             </button>
-            <button
-              type="button"
-              onClick={() => setStep("choose")}
-              className="w-full text-center text-xs text-deputy-muted underline"
-            >
-              Use a different email
-            </button>
+            <div className="flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("choose");
+                  setCode("");
+                }}
+                className="text-slate-500 underline hover:text-white"
+              >
+                Change email
+              </button>
+              <button
+                type="button"
+                disabled={loading !== null}
+                onClick={() => void handleResend()}
+                className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
+              >
+                {loading === "resend" ? "Sending…" : "Resend code"}
+              </button>
+            </div>
           </form>
         )}
 
-        <p className="mt-5 text-center text-[10px] leading-relaxed text-deputy-muted">
-          Login codes expire in 30 minutes. RESOLVE never stores passwords or
-          seed phrases.
+        <p className="mt-5 text-center text-[10px] leading-relaxed text-slate-500">
+          Codes expire in 30 minutes. RESOLVE never stores passwords or seed
+          phrases.
         </p>
       </div>
     </div>

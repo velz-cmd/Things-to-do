@@ -1,17 +1,18 @@
-# DEPUTY — Autonomous Outcome Engine
+# RESOLVE — Pay only on proof
 
-**Assign real-world tasks. Pay only when proof of resolution is verified.**
+**Assign the problem. Come back when it's solved.**
 
-Built for the [Lepton Agents Hackathon](https://lepton.thecanteenapp.com/) — outcome escrow settled on Arc testnet USDC.
+Autonomous consumer advocate for the [Lepton Agents Hackathon](https://lepton.thecanteenapp.com/) — outcome escrow settled on Arc testnet USDC.
 
 ## Routes
 
 | URL | Purpose |
 |-----|---------|
-| `/` | Marketing landing + future outcomes |
-| `/app` | 3-column operations console |
-| `/app/tasks/[id]` | Task detail view |
-| `/merchant` | Demo merchant refund portal |
+| `/` | **Overview** — assign outcomes, snapshot, active missions |
+| `/tasks` | **Tasks** — mission list |
+| `/tasks/[id]` | Task detail — package timeline, agents, evidence, Arc escrow |
+| `/vault` | **Vault** — smart budget, guardian, recovery |
+| `/merchant` | Demo merchant refund portal (judge demo) |
 
 ## Quick start
 
@@ -22,7 +23,7 @@ npx prisma db push
 npm run dev
 ```
 
-Open http://localhost:3000 → **Open console**
+Open http://localhost:3000
 
 ## 90-second demo
 
@@ -47,8 +48,13 @@ See [DEMO.md](./DEMO.md) for the full judge script.
 - `POST /api/tasks` — create / execute task
 - `POST /api/escrow` — sync escrow lock
 - `POST /api/merchant/confirm` — merchant proof webhook
+- `GET /api/artifacts/claim` — claim submission artifact (demo mode)
 - `POST /api/email/test` — Resend smoke test
 - `GET /api/cron/tick` — scheduled retry worker
+
+## Build checklist
+
+See [docs/BUILD_CHECKLIST.md](./docs/BUILD_CHECKLIST.md) for Day 1–6 status and remaining work.
 
 ## License
 

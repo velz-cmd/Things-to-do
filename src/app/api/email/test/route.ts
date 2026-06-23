@@ -23,13 +23,13 @@ export async function POST(req: Request) {
 
   const to =
     body.to ?? process.env.RESEND_CLAIM_TO ?? "podrift.mail@gmail.com";
-  const subject = body.subject ?? "DEPUTY — Hello from Resend";
+  const subject = body.subject ?? "RESOLVE — Hello from Resend";
 
   try {
     const data = await sendEmail({
       to,
       subject,
-      html: "<p>Congrats on sending your <strong>first email</strong> from DEPUTY!</p>",
+      html: "<p>Congrats on sending your <strong>first email</strong> from RESOLVE!</p>",
     });
 
     return NextResponse.json({

@@ -11,7 +11,7 @@
 | Time | Action | Say |
 |------|--------|-----|
 | 0:00 | **Overview** tab | "RESOLVE is not an AI assistant. You assign a real-world outcome and pay only when proof is verified." |
-| 0:10 | Tap **$43 airline refund** example | "User assigns: recover my delayed flight compensation." |
+| 0:10 | Tap **Recover airline refund** example | "User assigns: recover my delayed flight compensation." |
 | 0:15 | Open task → **Connect wallet** → **Lock USDC on Arc** | "Funds lock in escrow on Arc testnet. We only get paid on proof." |
 | 0:25 | **Deploy mission** | "Watch the package timeline — like tracking a parcel, not a chat log." |
 | 0:40 | Point at timeline — Resend email sent | "Real outbound claim email via Resend. Real audit trail in Evidence." |

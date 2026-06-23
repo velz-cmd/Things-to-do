@@ -32,6 +32,7 @@ interface AuthContextValue {
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<void>;
+  verifyEmailOtp: (email: string, token: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   provisionWallet: () => Promise<void>;
@@ -125,18 +126,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
+          shouldCreateUser: true,
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       if (error) {
-        toast.error("Email sign-in failed", { description: error.message });
-      } else {
-        toast.success("Check your email", {
-          description: "We sent a secure sign-in link.",
-        });
+        toast.error("Could not send code", { description: error.message });
+        throw error;
       }
     },
     [supabase]
+  );
+
+  const verifyEmailOtp = useCallback(
+    async (email: string, token: string) => {
+      if (!supabase) {
+        toast.error("Sign-in not configured");
+        return false;
+      }
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: token.replace(/\s/g, ""),
+        type: "email",
+      });
+      if (error) {
+        toast.error("Invalid or expired code", { description: error.message });
+        return false;
+      }
+      if (data.user) {
+        const isNew =
+          data.user.created_at &&
+          Date.now() - new Date(data.user.created_at).getTime() < 120_000;
+        try {
+          await fetch("/api/wallet/provision", { method: "POST" });
+          await fetch("/api/auth/welcome-email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: data.user.email,
+              name:
+                data.user.user_metadata?.full_name ??
+                data.user.user_metadata?.name,
+              isNewUser: isNew,
+            }),
+          });
+        } catch {
+          /* non-blocking */
+        }
+        await refreshBalance();
+        toast.success(isNew ? "Account activated" : "Signed in");
+        return true;
+      }
+      return false;
+    },
+    [supabase, refreshBalance]
   );
 
   const signOut = useCallback(async () => {
@@ -153,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceLoading,
       signInWithGoogle,
       signInWithEmail,
+      verifyEmailOtp,
       signOut,
       refreshBalance,
       provisionWallet,
@@ -164,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceLoading,
       signInWithGoogle,
       signInWithEmail,
+      verifyEmailOtp,
       signOut,
       refreshBalance,
       provisionWallet,

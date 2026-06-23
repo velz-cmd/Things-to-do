@@ -12,6 +12,8 @@ import {
   wagmiConfig,
 } from "@/lib/reown/config";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { SignInProvider } from "@/components/auth/sign-in-context";
+import { SignInModal } from "@/components/auth/sign-in-modal";
 import { WalletLinkEffect } from "@/components/wallet/wallet-link-effect";
 import { AddFundsProvider } from "@/components/wallet/add-funds-context";
 
@@ -47,19 +49,22 @@ export function Providers({
     <WagmiProvider config={wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <AddFundsProvider>
-            <WalletLinkEffect />
-            {children}
-            <Toaster
-              theme="dark"
-              position="bottom-right"
-              toastOptions={{
-                classNames: {
-                  toast: "bg-deputy-panel border-deputy-border text-white",
-                },
-              }}
-            />
-          </AddFundsProvider>
+          <SignInProvider>
+            <AddFundsProvider>
+              <WalletLinkEffect />
+              {children}
+              <SignInModal />
+              <Toaster
+                theme="dark"
+                position="bottom-right"
+                toastOptions={{
+                  classNames: {
+                    toast: "bg-deputy-panel border-deputy-border text-white",
+                  },
+                }}
+              />
+            </AddFundsProvider>
+          </SignInProvider>
         </AuthProvider>
       </QueryClientProvider>
     </WagmiProvider>

@@ -7,13 +7,23 @@ import clsx from "clsx";
 export function OutcomeInput({
   loading,
   onAssign,
-  disabled,
+  onSignInRequired,
+  signedIn,
 }: {
   loading: boolean;
   onAssign: (templateId: string) => void;
-  disabled?: boolean;
+  onSignInRequired?: () => void;
+  signedIn?: boolean;
 }) {
   const [draft, setDraft] = useState("");
+
+  function handleExample(templateId: string) {
+    if (!signedIn) {
+      onSignInRequired?.();
+      return;
+    }
+    onAssign(templateId);
+  }
 
   return (
     <section className="rounded-2xl border border-deputy-border bg-deputy-panel p-6">
@@ -36,8 +46,8 @@ export function OutcomeInput({
           <button
             key={ex.label}
             type="button"
-            disabled={loading || disabled}
-            onClick={() => onAssign(ex.templateId)}
+            disabled={loading}
+            onClick={() => handleExample(ex.templateId)}
             className={clsx(
               "rounded-full border px-3 py-1.5 text-sm transition",
               "border-deputy-accent/40 text-deputy-accent hover:bg-deputy-accent/10 disabled:opacity-50"

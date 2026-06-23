@@ -2,7 +2,13 @@ import Link from "next/link";
 import type { Task } from "@/lib/deputy/ui-types";
 import { taskEmoji, taskProgress, taskStatusLabel } from "@/lib/resolve/progress";
 
-export function ActiveMissions({ tasks }: { tasks: Task[] }) {
+export function ActiveMissions({
+  tasks,
+  basePath = "/missions",
+}: {
+  tasks: Task[];
+  basePath?: string;
+}) {
   return (
     <section>
       <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-deputy-muted">
@@ -14,7 +20,7 @@ export function ActiveMissions({ tasks }: { tasks: Task[] }) {
           return (
             <Link
               key={t.id}
-              href={`/tasks/${t.id}`}
+              href={`${basePath}/${t.id}`}
               className="flex items-center gap-4 rounded-xl border border-deputy-border bg-deputy-panel p-4 transition hover:border-deputy-accent/40"
             >
               <span className="text-2xl">{taskEmoji(t.title, t.merchantId)}</span>

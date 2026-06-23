@@ -1,94 +1,91 @@
 "use client";
 
-import { useAuth } from "@/components/auth/auth-provider";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { ConnectorReadinessPanel } from "@/components/resolve/connector-readiness-panel";
 import { BalanceSummary } from "@/components/wallet/balance-summary";
-import { useAddFunds } from "@/components/wallet/add-funds-context";
-import { AgentEscrowBadge } from "@/components/resolve/access-gate";
+import type { ConnectorStatus } from "@/lib/connectors/connector-types";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
 
 export default function VaultPage() {
-  const { user, balance } = useAuth();
-  const { openAddFunds } = useAddFunds();
+  const [connectors, setConnectors] = useState<ConnectorStatus[]>([]);
+  const [walletAddress, setWalletAddress] = useState("");
+  const { ready } = useResolveAccess();
+
+  useEffect(() => {
+    fetch("/api/connectors/status")
+      .then((r) => r.json())
+      .then((d) => setConnectors(d.connectors ?? []));
+  }, []);
+
+  async function connectGmail() {
+    const res = await fetch("/api/connectors/gmail/connect", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.message ?? data.error);
+      return;
+    }
+    toast.success("Gmail connected");
+    const c = await fetch("/api/connectors/status").then((r) => r.json());
+    setConnectors(c.connectors ?? []);
+  }
+
+  async function saveWallet() {
+    const res = await fetch("/api/connectors/wallet/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: walletAddress }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error(data.error);
+      return;
+    }
+    toast.success("Wallet saved for scanning");
+  }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-6 lg:p-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Vault</h1>
-          <p className="mt-1 text-deputy-muted">
-            Your balance — Arc USDC handled automatically
-          </p>
-          <AgentEscrowBadge className="mt-2" />
-        </div>
-        {user && (
-          <button
-            type="button"
-            onClick={() => openAddFunds()}
-            className="rounded-xl bg-deputy-accent px-4 py-2 text-sm font-semibold text-deputy-bg"
-          >
-            Add funds
-          </button>
-        )}
+    <div className="mx-auto max-w-3xl space-y-6 p-4 lg:p-8">
+      <header>
+        <h1 className="text-2xl font-semibold">Vault</h1>
+        <p className="mt-1 text-sm text-deputy-muted">
+          Connectors, preferences, and safe task memory
+        </p>
       </header>
 
       <BalanceSummary />
 
-      <section className="rounded-2xl border border-deputy-border bg-deputy-panel p-6">
-        <h2 className="text-xs uppercase tracking-wide text-deputy-muted">Guardian</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <GuardRow label="Risk score" value="Low" good />
-          <GuardRow label="Suspicious approvals" value="0" good />
-          <GuardRow label="Large transfer alerts" value="Enabled" good />
-          <GuardRow label="Wallet health" value="98%" good />
+      <ConnectorReadinessPanel connectors={connectors} />
+
+      <section className="rounded-xl border border-deputy-border bg-deputy-panel p-4 space-y-3">
+        <h2 className="font-medium">Connectors</h2>
+        <button
+          type="button"
+          disabled={!ready}
+          onClick={connectGmail}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+        >
+          Connect Gmail
+        </button>
+        <div className="flex gap-2">
+          <input
+            value={walletAddress}
+            onChange={(e) => setWalletAddress(e.target.value)}
+            placeholder="Wallet address for scan"
+            className="flex-1 rounded-lg border border-deputy-border bg-deputy-bg px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={saveWallet}
+            className="rounded-lg border border-deputy-border px-4 py-2 text-sm"
+          >
+            Save wallet
+          </button>
         </div>
-        <p className="mt-4 text-xs text-deputy-muted">
-          Continuous guardian scans run when wallet-protection tasks are active.
+        <p className="text-xs text-deputy-muted">
+          RESOLVE does not store passwords, private keys, seed phrases, or full card numbers.
         </p>
       </section>
-
-      <section className="rounded-2xl border border-deputy-border bg-deputy-panel p-6">
-        <h2 className="text-xs uppercase tracking-wide text-deputy-muted">
-          Recent activity
-        </h2>
-        {balance?.recentActivity?.length ? (
-          <ul className="mt-4 space-y-2">
-            {balance.recentActivity.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-center justify-between rounded-lg bg-deputy-bg/60 px-4 py-3 text-sm"
-              >
-                <span className="text-deputy-muted">
-                  {item.label ?? item.type}
-                </span>
-                <span className="font-mono text-deputy-accent">
-                  {item.type === "deposit" ? "+" : ""}$
-                  {item.amountUsd.toFixed(2)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-4 text-sm text-deputy-muted">
-            No activity yet. Add funds or assign a task to get started.
-          </p>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function GuardRow({
-  label,
-  value,
-  good,
-}: {
-  label: string;
-  value: string;
-  good?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-lg bg-deputy-bg/60 px-4 py-3">
-      <span className="text-sm text-deputy-muted">{label}</span>
-      <span className={good ? "text-deputy-accent" : "text-deputy-warn"}>{value}</span>
     </div>
   );
 }

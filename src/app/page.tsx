@@ -75,14 +75,17 @@ export default function HomePage() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [executionStarted, setExecutionStarted] = useState(false);
+  const [demoMode, setDemoMode] = useState(true);
 
   const refresh = useCallback(async () => {
-    const [s, t] = await Promise.all([
+    const [s, t, c] = await Promise.all([
       fetch("/api/stats").then((r) => r.json()),
       fetch("/api/templates").then((r) => r.json()),
+      fetch("/api/config").then((r) => r.json()),
     ]);
     setStats(s);
     setTemplates(t.outcomes ?? []);
+    setDemoMode(c.demoMode ?? true);
   }, []);
 
   useEffect(() => {
@@ -102,7 +105,7 @@ export default function HomePage() {
       const data = await res.json();
       if (data.task) {
         setActiveTask(data.task);
-        if (data.task.status === "proof_pending") {
+        if (data.task.status === "proof_pending" && demoMode) {
           await fetch("/api/merchant/confirm", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -117,7 +120,7 @@ export default function HomePage() {
       refresh();
     }, 1200);
     return () => clearInterval(interval);
-  }, [activeTask, executionStarted, refresh]);
+  }, [activeTask, executionStarted, refresh, demoMode]);
 
   async function assignTask(templateId: string) {
     setLoading(true);

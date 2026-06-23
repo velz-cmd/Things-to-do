@@ -10,11 +10,11 @@ export async function sendClaimEmail(params: {
 }) {
   const html = `
     <div style="font-family: sans-serif; max-width: 560px;">
-      <p style="color: #3dd68c; font-weight: 600;">DEPUTY — Compensation Claim</p>
+      <p style="color: #3dd68c; font-weight: 600;">RESOLVE — Compensation Claim</p>
       <p>${params.body.replace(/\n/g, "<br/>")}</p>
       ${params.taskId ? `<p style="color: #8b9aab; font-size: 12px;">Task ref: ${params.taskId}</p>` : ""}
       <hr style="border: none; border-top: 1px solid #1e2d3a; margin: 16px 0;" />
-      <p style="color: #8b9aab; font-size: 12px;">Sent autonomously by DEPUTY outcome engine.</p>
+      <p style="color: #8b9aab; font-size: 12px;">Sent autonomously by RESOLVE.</p>
     </div>
   `;
 

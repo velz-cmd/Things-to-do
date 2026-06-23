@@ -58,21 +58,21 @@ export default function MerchantPage() {
             <h1 className="text-xl font-semibold">SkyDemo / StreamDemo Portal</h1>
           </div>
           <Link href="/" className="text-sm text-deputy-accent underline">
-            ← DEPUTY console
+            ← RESOLVE Overview
           </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <p className="mb-6 text-sm text-deputy-muted">
-          Simulates airline/support confirming a refund. When DEPUTY&apos;s
+          Simulates airline/support confirming a refund. When RESOLVE&apos;s
           verification agent receives proof here, Arc escrow releases on the user
           console.
         </p>
 
         {tasks.length === 0 ? (
           <div className="rounded-xl border border-dashed border-deputy-border p-12 text-center text-deputy-muted">
-            No pending claims — assign a task on DEPUTY and wait for proof_pending
+            No pending claims — assign a task on RESOLVE and wait for proof_pending
           </div>
         ) : (
           <ul className="space-y-4">

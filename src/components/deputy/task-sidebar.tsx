@@ -21,7 +21,7 @@ export function TaskSidebar({
         tasks.map((t) => (
           <Link
             key={t.id}
-            href={`/app/tasks/${t.id}`}
+            href={`/tasks/${t.id}`}
             className={clsx(
               "block rounded-lg border p-3 text-sm transition",
               activeId === t.id

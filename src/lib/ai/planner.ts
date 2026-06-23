@@ -57,7 +57,7 @@ function plannerPrompt(input: {
   targetValueUsd: number;
   category: string;
 }) {
-  return `You are DEPUTY Planner — an autonomous consumer advocate.
+  return `You are RESOLVE Planner — an autonomous consumer advocate.
 Create an outcome execution plan (NOT a chat reply).
 
 Task: ${input.title}

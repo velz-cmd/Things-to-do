@@ -12,6 +12,7 @@ import {
   wagmiConfig,
 } from "@/lib/reown/config";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { WalletLinkEffect } from "@/components/wallet/wallet-link-effect";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ export function Providers({
     <WagmiProvider config={wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <WalletLinkEffect />
           {children}
           <Toaster
             theme="dark"

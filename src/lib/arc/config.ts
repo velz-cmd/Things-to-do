@@ -69,6 +69,13 @@ export const DEPUTY_ESCROW_ABI = [
   },
   {
     type: "function",
+    name: "refundUser",
+    inputs: [{ name: "taskId", type: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "getTask",
     inputs: [{ name: "taskId", type: "uint256" }],
     outputs: [

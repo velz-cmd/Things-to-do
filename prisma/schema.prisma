@@ -25,6 +25,7 @@ model Task {
   recoveredUsd    Float    @default(0)
   executionCostUsd Float   @default(0)
   currentAgent    String?
+  nextRunAt       DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   events          TaskEvent[]
@@ -51,6 +52,7 @@ model Proof {
   source       String
   payload      String
   contentHash  String
+  artifactUrl  String?
   verified     Boolean  @default(false)
   createdAt    DateTime @default(now())
 }

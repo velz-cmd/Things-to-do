@@ -4,6 +4,8 @@
 
 Autonomous consumer advocate for the [Lepton Agents Hackathon](https://lepton.thecanteenapp.com/) — outcome escrow settled on Arc testnet USDC.
 
+**Live demo:** https://resolve-task.vercel.app
+
 ## Routes
 
 | URL | Purpose |
@@ -33,7 +35,8 @@ See [DEMO.md](./DEMO.md) for the full judge script.
 
 | Layer | Tech |
 |-------|------|
-| Frontend | Next.js 15, Tailwind, wagmi (Arc) |
+| Frontend | Next.js 15, Tailwind, Reown AppKit, wagmi (Arc) |
+| Auth | Supabase (Google, email) + embedded wallet |
 | Agents | Gemini via Vercel AI SDK + fallback plans |
 | Tools | Gmail OAuth, Resend, Playwright (optional) |
 | Data | Prisma + Supabase Postgres |
@@ -50,7 +53,12 @@ See [DEMO.md](./DEMO.md) for the full judge script.
 - `POST /api/merchant/confirm` — merchant proof webhook
 - `GET /api/artifacts/claim` — claim submission artifact (demo mode)
 - `POST /api/email/test` — Resend smoke test
-- `GET /api/cron/tick` — scheduled retry worker
+- `POST /api/wallet/deposit` — add funds (USDC balance)
+- `GET /api/wallet/balance` — user balance + activity
+
+## Hackathon
+
+See **[docs/HACKATHON_WIN.md](./docs/HACKATHON_WIN.md)** for the full win playbook and judge demo paths.
 
 ## Build checklist
 

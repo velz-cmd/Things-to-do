@@ -1,48 +1,72 @@
 # RESOLVE — 90-Second Hackathon Demo Script
 
-## Setup (before judges arrive)
+**Live:** https://resolve-task.vercel.app
+
+## Setup (before judges)
 
 1. Open https://resolve-task.vercel.app
-2. Confirm Vercel env: `RESEND_API_KEY`, `DATABASE_URL`, `NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS`, `DEPUTY_ORACLE_PRIVATE_KEY`
-3. Fund MetaMask on **Arc Testnet** (chain `5042002`) via https://faucet.circle.com
+2. Confirm `/api/config` shows `escrowDeployed: true`, `resendEnabled: true`
+3. For crypto path: fund Arc Testnet USDC at https://faucet.circle.com
 
-## Script (90 seconds)
+---
+
+## Path A — Non-crypto (recommended, ~90 sec)
 
 | Time | Action | Say |
 |------|--------|-----|
-| 0:00 | **Overview** tab | "RESOLVE is not an AI assistant. You assign a real-world outcome and pay only when proof is verified." |
-| 0:10 | Tap **Recover airline refund** example | "User assigns: recover my delayed flight compensation." |
-| 0:15 | Open task → **Connect wallet** → **Lock USDC on Arc** | "Funds lock in escrow on Arc testnet. We only get paid on proof." |
-| 0:25 | **Deploy mission** | "Watch the package timeline — like tracking a parcel, not a chat log." |
-| 0:40 | Point at timeline — Resend email sent | "Real outbound claim email via Resend. Real audit trail in Evidence." |
-| 0:50 | Open **/merchant** → Approve refund | "Merchant confirms refund — proof engine verifies, not the LLM." |
-| 1:00 | Show **Proof VERIFIED** + Arcscan link | "Arc escrow releases. Net gain: recovered minus execution cost." |
-| 1:10 | **Overview** — money recovered, success feed | "Pay-per-resolution, not pay-per-token." |
-| 1:15 | Optional: **Vault** tab | "Smart budgets and guardian — crypto infrastructure, hidden from the main pitch." |
+| 0:00 | **Overview** | "RESOLVE is not an AI assistant. Assign a real outcome — pay only when proof is verified." |
+| 0:08 | **Sign in** → Google | "No crypto knowledge required. We create a secure wallet behind the scenes." |
+| 0:15 | **Add funds** → $50 → card | "Deposits convert to USDC automatically." |
+| 0:22 | Tap **Recover airline refund** | "User assigns: $43 delayed flight compensation." |
+| 0:28 | **Lock from balance** | "Budget locks. We only get paid on proof." |
+| 0:35 | **Deploy mission** | "Package timeline — like tracking a parcel, not a chat log." |
+| 0:45 | Timeline + **Evidence** (email) | "Real outbound claim via Resend. Real audit trail." |
+| 0:55 | **/merchant** → Approve refund | "Merchant confirms — proof engine verifies, not the LLM." |
+| 1:05 | Proof verified + net gain | "Arc settlement on proof. Pay-per-resolution." |
+| 1:12 | **Vault** — balances + activity | "Infrastructure hidden. Feels like Stripe, not a crypto app." |
 
-## Navigation (3 tabs)
+---
 
-- **Overview** — assign outcomes, financial snapshot, active missions
-- **Tasks** — package-tracking timeline, agents inside the task, evidence
-- **Vault** — escrow budgets, guardian, recovery (coming soon)
+## Path B — Crypto user (Arc story)
 
-## Arc links to show
+Same as Path A, but replace sign-in/funds with:
 
-- Escrow contract: `0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f`
-- Explorer: https://testnet.arcscan.app
+| Step | Action |
+|------|--------|
+| Connect wallet | Reown → MetaMask / Rabby / Coinbase |
+| Network | **Switch to Arc Testnet** if banner shows |
+| Lock | **Lock USDC on Arc** (MetaMask may show "ETH" — on Arc it's USDC) |
+| Proof | Show Arcscan settlement link |
 
-## Test email API
+---
+
+## Navigation
+
+- **Overview** — assign outcomes, balance, missions
+- **Tasks** — package timeline, agents, evidence
+- **Vault** — balances, activity, add funds
+- **/merchant** — demo merchant refund portal
+
+## Arc contract
+
+`0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f` — https://testnet.arcscan.app
+
+## API smoke test
 
 ```bash
+curl https://resolve-task.vercel.app/api/config
+curl https://resolve-task.vercel.app/api/tasks
 curl -X POST https://resolve-task.vercel.app/api/email/test
 ```
 
-## Lepton submission checklist
+## Submission checklist
 
-- [ ] Live URL (Overview, Tasks, Vault)
-- [ ] GitHub repo
+- [x] Live URL — https://resolve-task.vercel.app
+- [x] GitHub — https://github.com/velz-cmd/Things-to-do
 - [ ] Demo video (this script)
 - [ ] Arc testnet tx screenshots
 - [ ] Canteen Discord traction post
 
 **Winning line:** *"RESOLVE is not pay-per-token. It is pay-per-resolution."*
+
+See also: [docs/HACKATHON_WIN.md](./docs/HACKATHON_WIN.md)

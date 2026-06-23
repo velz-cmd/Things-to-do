@@ -3,11 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --background: #0a0f14;
-  --foreground: #e8eef4;
-  --deputy-verified: #3dd68c;
-  --deputy-executing: #f5a524;
-  --deputy-escalated: #f31260;
+  --background: #05080c;
+  --foreground: #f0f4f8;
+  --resolve-bg: #05080c;
+  --resolve-surface: #0c1219;
+  --resolve-primary: #38bdf8;
+  --resolve-success: #34d399;
+  --resolve-warning: #fbbf24;
+  --resolve-danger: #f87171;
+  --resolve-muted: #94a3b8;
 }
 
 body {
@@ -18,4 +22,31 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+@layer utilities {
+  .resolve-grid-bg {
+    background-color: var(--resolve-bg);
+    background-image:
+      radial-gradient(ellipse 100% 80% at 50% -30%, rgba(56, 189, 248, 0.08), transparent 50%),
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 48px 48px, 48px 48px;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse-slow 4s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-slow {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
 }

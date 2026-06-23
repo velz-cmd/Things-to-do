@@ -8,6 +8,7 @@
     "start": "next start --hostname 0.0.0.0 --port 3000",
     "lint": "next lint",
     "db:push": "prisma db push",
+    "sync:vercel-env": "./scripts/sync-vercel-env.sh",
     "deploy:escrow": "tsx scripts/deploy-escrow.ts",
     "test:integrations": "tsx scripts/test-integrations.ts",
     "postinstall": "prisma generate"

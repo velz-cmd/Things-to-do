@@ -14,6 +14,7 @@ import {
   DEPUTY_ESCROW_ABI,
   DEPUTY_ESCROW_ADDRESS,
   arcTestnet,
+  isEscrowMisconfigured,
 } from "@/lib/arc/config";
 import { taskRefFromId, usdcToWei } from "@/lib/arc/utils";
 import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
@@ -45,8 +46,10 @@ export function EscrowLock({
   const publicClient = usePublicClient();
   const [demoLocking, setDemoLocking] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [showWalletLock, setShowWalletLock] = useState(false);
   const syncedRef = useRef(false);
-  const contractReady = Boolean(DEPUTY_ESCROW_ADDRESS);
+  const contractReady =
+    Boolean(DEPUTY_ESCROW_ADDRESS) && !isEscrowMisconfigured();
 
   const { writeContract, data: txHash, isPending, error } = useWriteContract();
   const { data: receipt, isLoading: confirming } =
@@ -60,6 +63,12 @@ export function EscrowLock({
         let onChainTaskId: number | null = null;
 
         for (const log of receipt!.logs) {
+          if (
+            DEPUTY_ESCROW_ADDRESS &&
+            log.address.toLowerCase() !== DEPUTY_ESCROW_ADDRESS.toLowerCase()
+          ) {
+            continue;
+          }
           try {
             const decoded = decodeEventLog({
               abi: DEPUTY_ESCROW_ABI,
@@ -77,8 +86,21 @@ export function EscrowLock({
           }
         }
 
+        if (onChainTaskId == null && DEPUTY_ESCROW_ADDRESS) {
+          const nextId = await publicClient!.readContract({
+            address: DEPUTY_ESCROW_ADDRESS,
+            abi: DEPUTY_ESCROW_ABI,
+            functionName: "nextTaskId",
+          });
+          if (nextId > BigInt(0)) {
+            onChainTaskId = Number(nextId) - 1;
+          }
+        }
+
         if (onChainTaskId == null) {
-          setSyncError("Could not read TaskCreated from receipt");
+          setSyncError(
+            "Transaction confirmed but escrow task id was not found. Try locking from your RESOLVE balance instead."
+          );
           return;
         }
 
@@ -94,6 +116,9 @@ export function EscrowLock({
         });
 
         syncedRef.current = true;
+        toast.success("Escrow locked on Arc", {
+          description: `$${budgetUsd.toFixed(2)} USDC secured`,
+        });
         onLocked();
       } catch (e) {
         setSyncError(e instanceof Error ? e.message : "Escrow sync failed");
@@ -101,10 +126,19 @@ export function EscrowLock({
     }
 
     void syncEscrow();
-  }, [receipt, locked, publicClient, taskId, address, onLocked]);
+  }, [
+    receipt,
+    locked,
+    publicClient,
+    taskId,
+    address,
+    onLocked,
+    budgetUsd,
+  ]);
 
   async function lockFromBalance() {
     setDemoLocking(true);
+    setSyncError(null);
     try {
       const res = await fetch("/api/escrow/balance-lock", {
         method: "POST",
@@ -114,7 +148,7 @@ export function EscrowLock({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Lock failed");
       toast.success("Task budget locked", {
-        description: `$${budgetUsd.toFixed(2)} reserved from your balance`,
+        description: `$${budgetUsd.toFixed(2)} reserved — no wallet signature needed`,
       });
       await refreshBalance();
       onLocked();
@@ -149,7 +183,7 @@ export function EscrowLock({
   }
 
   async function lockOnChain() {
-    if (!DEPUTY_ESCROW_ADDRESS) return;
+    if (!DEPUTY_ESCROW_ADDRESS || isEscrowMisconfigured()) return;
     syncedRef.current = false;
     setSyncError(null);
 
@@ -177,13 +211,13 @@ export function EscrowLock({
     });
   }
 
-  const embeddedUser = Boolean(user);
-  const useBalanceLock = embeddedUser && !isConnected;
+  const signedIn = Boolean(user);
+  const preferBalanceLock = signedIn && !showWalletLock;
 
   if (locked) {
     return (
       <div className="rounded-lg border border-deputy-accent/30 bg-deputy-accent/5 p-3">
-        <p className="text-xs uppercase text-deputy-muted">Arc escrow</p>
+        <p className="text-xs uppercase text-deputy-muted">Budget secured</p>
         <p className="text-sm text-deputy-accent">
           Locked · ${budgetUsd.toFixed(2)} USDC
         </p>
@@ -201,24 +235,38 @@ export function EscrowLock({
     );
   }
 
-  if (useBalanceLock) {
+  if (preferBalanceLock) {
     return (
-      <div>
+      <div className="space-y-3">
+        <div className="rounded-lg border border-deputy-border/80 bg-deputy-bg/40 px-3 py-2">
+          <p className="text-xs font-medium text-white">RESOLVE agent escrow</p>
+          <p className="mt-1 text-xs leading-relaxed text-deputy-muted">
+            Budget stays in your RESOLVE balance until proof is verified. No
+            transfer to an external treasury wallet — the agent only earns the
+            success fee after resolution.
+          </p>
+        </div>
         <button
           type="button"
           disabled={demoLocking}
           onClick={lockFromBalance}
-          className="w-full rounded-lg border border-deputy-accent/40 bg-deputy-accent/10 py-2 text-sm font-medium text-deputy-accent transition hover:bg-deputy-accent/20 disabled:opacity-50"
+          className="w-full rounded-lg bg-deputy-accent py-2.5 text-sm font-semibold text-deputy-bg transition hover:brightness-110 disabled:opacity-50"
         >
           {demoLocking
             ? "Locking budget…"
             : `Lock $${budgetUsd.toFixed(2)} from balance`}
         </button>
-        <p className="mt-2 text-[10px] text-deputy-muted">
-          Deducted from your RESOLVE balance — no wallet signature needed.
-        </p>
+        {contractReady && isConnected && (
+          <button
+            type="button"
+            onClick={() => setShowWalletLock(true)}
+            className="w-full text-xs text-deputy-muted underline hover:text-white"
+          >
+            Or lock on Arc with wallet (advanced)
+          </button>
+        )}
         {syncError && (
-          <p className="mt-1 text-xs text-deputy-danger">{syncError}</p>
+          <p className="text-xs text-deputy-danger">{syncError}</p>
         )}
       </div>
     );
@@ -226,28 +274,62 @@ export function EscrowLock({
 
   if (!contractReady || !isConnected) {
     return (
-      <div>
+      <div className="space-y-2">
+        {isEscrowMisconfigured() && (
+          <p className="rounded-lg border border-deputy-danger/40 bg-deputy-danger/10 px-3 py-2 text-xs text-deputy-danger">
+            Escrow contract misconfigured: must not equal the agent oracle
+            address. Set{" "}
+            <code className="font-mono">NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS</code>{" "}
+            to the deployed contract (
+            <code className="font-mono">0x4e9b…f669f</code>), not the agent
+            wallet.
+          </p>
+        )}
         <button
           type="button"
           disabled={demoLocking}
-          onClick={lockDemoEscrow}
+          onClick={signedIn ? lockFromBalance : lockDemoEscrow}
           className={clsx(
             "w-full rounded-lg border border-deputy-accent/40 bg-deputy-accent/10 py-2 text-sm font-medium text-deputy-accent transition hover:bg-deputy-accent/20 disabled:opacity-50"
           )}
         >
-          {demoLocking ? "Locking escrow…" : `Lock $${budgetUsd.toFixed(2)} demo escrow`}
+          {demoLocking
+            ? "Locking…"
+            : signedIn
+              ? `Lock $${budgetUsd.toFixed(2)} from balance`
+              : `Lock $${budgetUsd.toFixed(2)} demo escrow`}
         </button>
-        {contractReady && !isConnected && (
-          <p className="mt-1 text-xs text-deputy-muted">
-            Connect Arc wallet for on-chain escrow
+        {contractReady && !isConnected && !signedIn && (
+          <p className="text-xs text-deputy-muted">
+            Sign in or connect Arc wallet for on-chain escrow
           </p>
+        )}
+        {syncError && (
+          <p className="text-xs text-deputy-danger">{syncError}</p>
         )}
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="space-y-3">
+      {signedIn && (
+        <button
+          type="button"
+          onClick={() => setShowWalletLock(false)}
+          className="text-xs text-deputy-accent underline"
+        >
+          ← Use RESOLVE balance instead (recommended)
+        </button>
+      )}
+      <div className="rounded-lg border border-deputy-border/80 bg-deputy-bg/40 px-3 py-2 text-xs text-deputy-muted">
+        On-chain lock sends USDC to the escrow contract{" "}
+        <span className="font-mono text-white">
+          {DEPUTY_ESCROW_ADDRESS?.slice(0, 8)}…
+        </span>
+        . Success fee later goes to the RESOLVE agent — not a treasury label in
+        your wallet.
+      </div>
       <button
         type="button"
         disabled={isPending || confirming}
@@ -258,9 +340,9 @@ export function EscrowLock({
           ? "Confirming on Arc…"
           : `Lock $${budgetUsd.toFixed(2)} USDC on Arc`}
       </button>
-      <p className="mt-2 text-[10px] text-deputy-muted">
-        Settles in native Arc USDC (chain 5042002). Some wallets label the gas
-        token &quot;ETH&quot; — on Arc it is USDC. Get testnet USDC from{" "}
+      <p className="text-[10px] leading-relaxed text-deputy-muted">
+        Arc Testnet (chain 5042002). Some wallets show &quot;Simulation Not
+        Supported&quot; — that is normal on testnet. Get USDC from{" "}
         <a
           href="https://faucet.circle.com"
           target="_blank"
@@ -272,7 +354,7 @@ export function EscrowLock({
         .
       </p>
       {(error || syncError) && (
-        <p className="mt-1 text-xs text-deputy-danger">
+        <p className="text-xs text-deputy-danger">
           {error?.message ?? syncError}
         </p>
       )}

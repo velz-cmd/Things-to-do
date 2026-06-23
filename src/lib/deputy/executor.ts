@@ -37,6 +37,11 @@ async function logEvent(
 }
 
 import { recordExecutionCost } from "@/lib/settlement/settlement-db";
+import {
+  computeTimeoutAt,
+  isStatusTimedOut,
+  timeoutFallbackForStatus,
+} from "@/lib/tasks/timeouts";
 
 async function recordMicroPayment(
   taskId: string,
@@ -64,17 +69,29 @@ async function safeTransition(
   agent: AgentRole
 ): Promise<TaskStatus> {
   if (from === to) {
+    const now = new Date();
     await prisma.task.update({
       where: { id: taskId },
-      data: { currentAgent: agent },
+      data: {
+        currentAgent: agent,
+        statusStartedAt: now,
+        statusTimeoutAt: computeTimeoutAt(to, now),
+      },
     });
     return to;
   }
 
   if (canTransition(from, to)) {
+    const now = new Date();
     await prisma.task.update({
       where: { id: taskId },
-      data: { status: to, currentAgent: agent },
+      data: {
+        status: to,
+        currentAgent: agent,
+        statusStartedAt: now,
+        statusTimeoutAt: computeTimeoutAt(to, now),
+        attentionReason: null,
+      },
     });
     return to;
   }
@@ -111,8 +128,29 @@ async function safeTransition(
 export async function runTaskExecutor(taskId: string) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error("Task not found");
-  if (["settled", "failed", "refunded", "verified"].includes(task.status)) {
+  if (task.paused) return task;
+  if (["settled", "failed", "refunded", "verified", "cancelled"].includes(task.status)) {
     return task;
+  }
+
+  if (
+    isStatusTimedOut(task.status, task.statusTimeoutAt) &&
+    task.status !== "needs_attention"
+  ) {
+    const fallback = timeoutFallbackForStatus(task.status as TaskStatus);
+    await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        status: "needs_attention",
+        attentionReason: fallback.reason,
+        currentAgent: "Escalation",
+        statusTimeoutAt: null,
+      },
+    });
+    await logEvent(taskId, "Escalation", "needs_attention", fallback.reason, {
+      nextAction: fallback.nextAction,
+    });
+    return prisma.task.findUnique({ where: { id: taskId } });
   }
 
   const plan = await generateDeputyPlan({
@@ -132,7 +170,10 @@ export async function runTaskExecutor(taskId: string) {
   let currentStatus = task.status as TaskStatus;
 
   for (const step of EXECUTION_STEPS) {
-    if (currentStatus === "escalated") break;
+    if (currentStatus === "escalated" || currentStatus === "needs_attention") break;
+
+    const live = await prisma.task.findUnique({ where: { id: taskId } });
+    if (live?.paused) break;
 
     currentStatus = await safeTransition(
       taskId,
@@ -223,6 +264,7 @@ export async function processScheduledTasks() {
     where: {
       nextRunAt: { lte: new Date() },
       status: { in: ["waiting_for_response", "retrying"] },
+      paused: false,
     },
     take: 5,
   });
@@ -241,5 +283,40 @@ export async function processScheduledTasks() {
     void runTaskExecutor(t.id).catch(console.error);
   }
 
-  return { processed: due.length };
+  const timedOut = await prisma.task.findMany({
+    where: {
+      status: {
+        in: [
+          "evidence_gathering",
+          "planning",
+          "executing",
+          "waiting_for_response",
+          "retrying",
+          "escalated",
+          "proof_pending",
+        ],
+      },
+      statusTimeoutAt: { lte: new Date() },
+      paused: false,
+    },
+    take: 10,
+  });
+
+  for (const t of timedOut) {
+    const fallback = timeoutFallbackForStatus(t.status as TaskStatus);
+    await prisma.task.update({
+      where: { id: t.id },
+      data: {
+        status: "needs_attention",
+        attentionReason: fallback.reason,
+        currentAgent: "Escalation",
+        statusTimeoutAt: null,
+      },
+    });
+    await logEvent(t.id, "Escalation", "needs_attention", fallback.reason, {
+      nextAction: fallback.nextAction,
+    });
+  }
+
+  return { processed: due.length, timedOut: timedOut.length };
 }

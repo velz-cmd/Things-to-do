@@ -2,34 +2,38 @@ import type { TaskStatus } from "@/lib/deputy/types";
 
 const STATUS_PROGRESS: Record<TaskStatus, number> = {
   created: 5,
-  authorized: 12,
-  evidence_gathering: 28,
-  planning: 35,
-  executing: 48,
-  waiting_for_response: 58,
-  retrying: 65,
-  escalated: 80,
+  authorized: 15,
+  evidence_gathering: 30,
+  planning: 45,
+  executing: 60,
+  waiting_for_response: 75,
+  retrying: 80,
+  escalated: 82,
+  needs_attention: 70,
   proof_pending: 90,
-  verified: 98,
+  verified: 95,
   settled: 100,
   failed: 0,
   refunded: 0,
+  cancelled: 0,
 };
 
 const STATUS_LABEL: Record<string, string> = {
   created: "Assigned",
-  authorized: "Budget locked",
+  authorized: "Connectors ready",
   evidence_gathering: "Gathering evidence",
-  planning: "Planning",
-  executing: "Submitting claim",
-  waiting_for_response: "Waiting response",
+  planning: "Policy verified",
+  executing: "Claim prepared",
+  waiting_for_response: "Submitted",
   retrying: "Following up",
   escalated: "Escalated",
-  proof_pending: "Verifying proof",
-  verified: "Verified",
-  settled: "Complete",
+  needs_attention: "Needs attention",
+  proof_pending: "Proof verified",
+  verified: "Proof verified",
+  settled: "Settlement released",
   failed: "Failed",
   refunded: "Refunded",
+  cancelled: "Cancelled",
 };
 
 export function taskProgress(status: string): number {
@@ -51,12 +55,12 @@ export function taskEmoji(title: string, merchantId?: string | null): string {
 }
 
 export const OUTCOME_EXAMPLES = [
-  { label: "Recover airline refund", templateId: "airline-refund-43" },
-  { label: "Cancel subscriptions", templateId: "subscription-cancel" },
-  { label: "Dispute bank charge", templateId: "parcel-compensation" },
-  { label: "Find forgotten assets", templateId: "forgotten-assets" },
-  { label: "Protect my wallet", templateId: "wallet-protection" },
-  { label: "Lower my internet bill", templateId: "internet-bill" },
+  { label: "Cancel StreamDemo Plus", text: "Cancel StreamDemo Plus and prove billing stopped" },
+  { label: "Emirates refund", text: "Get a refund from my delayed Emirates flight" },
+  { label: "Find subscriptions", text: "Find subscriptions I still pay for" },
+  { label: "DHL parcel claim", text: "Recover compensation for my lost DHL parcel" },
+  { label: "Duplicate charge", text: "Dispute this duplicate charge" },
+  { label: "SkyDemo refund", text: "Get my $43 refund from SkyDemo Airlines" },
 ];
 
 export const DEMO_TIMELINE = [

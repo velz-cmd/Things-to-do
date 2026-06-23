@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { Task } from "@/lib/deputy/ui-types";
 import { taskEmoji, taskProgress, taskStatusLabel } from "@/lib/resolve/progress";
+import { GlassPanel } from "@/components/resolve/ui/glass-panel";
+import { PageHeader } from "@/components/resolve/ui/page-header";
+import { StatusChip } from "@/components/resolve/ui/status-chip";
 import {
   getMissingRequiredConnectors,
   nextActionLabel,
@@ -37,18 +40,18 @@ export default function MissionsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 p-4 lg:p-8">
-      <header>
-        <h1 className="text-2xl font-semibold">Missions</h1>
-        <p className="mt-1 text-sm text-deputy-muted">Active and completed tasks</p>
-      </header>
+    <div className="resolve-grid-bg mx-auto max-w-3xl space-y-8 px-4 py-8 lg:px-8">
+      <PageHeader title="Missions" subtitle="Track active outcomes." />
 
       <section>
         <h2 className="mb-3 text-xs uppercase tracking-wide text-deputy-muted">Active</h2>
         {active.length === 0 ? (
-          <p className="text-sm text-deputy-muted">
-            No active missions — assign one from Command
-          </p>
+          <GlassPanel className="p-8 text-center">
+            <p className="text-resolve-muted">No active missions yet.</p>
+            <Link href="/start" className="mt-3 inline-block text-sm font-medium text-sky-400 hover:underline">
+              Start a task →
+            </Link>
+          </GlassPanel>
         ) : (
           <div className="space-y-2">
             {active.map((t) => (
@@ -83,31 +86,46 @@ function MissionCard({
   const missing = getMissingRequiredConnectors(connectors, task.category ?? "manual");
   const next = nextActionLabel(missing, task);
 
+  const isActive = !["settled", "failed", "refunded", "cancelled"].includes(task.status);
+
   return (
-    <Link
-      href={`/missions/${task.id}`}
-      className="block rounded-xl border border-deputy-border bg-deputy-panel p-4 hover:border-blue-500/40"
-    >
-      <div className="flex items-center gap-4">
-        <span className="text-2xl">{taskEmoji(task.title, task.merchantId)}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate font-medium">{task.title}</p>
-            {task.isDemo && (
-              <span className="shrink-0 rounded border border-amber-500/30 px-1.5 text-[9px] uppercase text-amber-400">
-                Demo
-              </span>
+    <Link href={`/missions/${task.id}`} className="block">
+      <GlassPanel className="p-4 transition hover:border-sky-500/30">
+        <div className="flex items-center gap-4">
+          <span className="text-2xl">{taskEmoji(task.title, task.merchantId)}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate font-medium text-white">{task.title}</p>
+              {task.isDemo && <StatusChip label="Demo" variant="demo" />}
+            </div>
+            <p className="mt-1 text-sm text-resolve-muted">
+              {taskStatusLabel(task.status)} · {pct}%
+            </p>
+            <p className="mt-1 text-xs text-resolve-muted">
+              Target ${task.targetValueUsd.toFixed(0)} · Cost ${task.executionCostUsd.toFixed(3)}
+              {task.escrowLocked ? " · Budget locked" : ""}
+            </p>
+            {isActive && (
+              <p className="mt-1.5 text-xs text-sky-400">Next: {next}</p>
             )}
           </div>
-          <p className="text-sm text-deputy-muted">{taskStatusLabel(task.status)} · {pct}%</p>
-          <p className="mt-1 text-xs text-deputy-muted">
-            Target ${task.targetValueUsd.toFixed(0)} · Cost ${task.executionCostUsd.toFixed(3)}
-          </p>
-          {!["settled", "failed", "refunded", "cancelled"].includes(task.status) && (
-            <p className="mt-1 text-xs text-blue-400">Next: {next}</p>
-          )}
+          <div className="hidden h-12 w-12 shrink-0 sm:block">
+            <svg className="-rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+              <circle
+                cx="18"
+                cy="18"
+                r="15"
+                fill="none"
+                stroke="#38bdf8"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={`${pct * 0.94} 100`}
+              />
+            </svg>
+          </div>
         </div>
-      </div>
+      </GlassPanel>
     </Link>
   );
 }

@@ -88,17 +88,17 @@ export function ChatAssistant({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-xl shadow-lg shadow-blue-900/40 hover:bg-blue-500"
+        className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-sky-500/30 bg-sky-500/20 text-sm font-medium text-white shadow-[0_0_24px_-4px_rgba(56,189,248,0.5)] backdrop-blur-md hover:bg-sky-500/30"
         aria-label="Open assistant"
       >
-        💬
+        Ask
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-6 z-40 flex h-[420px] w-[360px] flex-col overflow-hidden rounded-2xl border border-deputy-border bg-deputy-panel shadow-2xl">
-          <header className="border-b border-deputy-border px-4 py-3">
-            <p className="font-semibold">RESOLVE Assistant</p>
-            <p className="text-xs text-deputy-muted">Command & clarification</p>
+        <div className="fixed bottom-20 right-6 z-40 flex h-[420px] w-[360px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-resolve-surface/95 shadow-2xl backdrop-blur-xl">
+          <header className="border-b border-white/[0.06] px-4 py-3">
+            <p className="font-semibold text-white">RESOLVE Assistant</p>
+            <p className="text-xs text-resolve-muted">Clarify tasks and check status</p>
           </header>
 
           <div className="flex-1 space-y-2 overflow-y-auto p-3">
@@ -108,8 +108,8 @@ export function ChatAssistant({
                 className={clsx(
                   "max-w-[90%] rounded-xl px-3 py-2 text-sm",
                   msg.role === "user"
-                    ? "ml-auto bg-blue-600/30 text-white"
-                    : "bg-deputy-bg text-white/90"
+                    ? "ml-auto bg-sky-500/20 text-white"
+                    : "bg-black/30 text-white/90"
                 )}
               >
                 {msg.text}
@@ -117,14 +117,14 @@ export function ChatAssistant({
             ))}
           </div>
 
-          <div className="border-t border-deputy-border p-2">
+          <div className="border-t border-white/[0.06] p-2">
             <div className="mb-2 flex flex-wrap gap-1">
               {QUICK_PROMPTS.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => send(p)}
-                  className="rounded-full border border-deputy-border px-2 py-0.5 text-[10px] text-deputy-muted hover:text-white"
+                  className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-resolve-muted hover:text-white"
                 >
                   {p}
                 </button>
@@ -141,12 +141,12 @@ export function ChatAssistant({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask or assign…"
-                className="flex-1 rounded-lg border border-deputy-border bg-deputy-bg px-3 py-2 text-sm outline-none"
+                className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-sky-500/40"
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                className="rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400 disabled:opacity-50"
               >
                 Send
               </button>

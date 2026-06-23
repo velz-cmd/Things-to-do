@@ -88,13 +88,13 @@ export function SettlementPanel({
         throw new Error(data.error ?? data.settlement?.error ?? "Escrow failed");
       }
       toast.success(
-        data.mode === "live_arc" ? "Arc escrow locked" : "Mock escrow locked",
+        data.mode === "live_arc" ? "Task budget locked" : "Demo budget locked",
         { description: data.message }
       );
       await load();
       onUpdated?.();
     } catch (e) {
-      toast.error("Could not lock Arc escrow", {
+      toast.error("Could not lock task budget", {
         description: e instanceof Error ? e.message : "Try again",
       });
     } finally {
@@ -104,8 +104,8 @@ export function SettlementPanel({
 
   if (!settlement) {
     return (
-      <section className="rounded-2xl border border-deputy-border bg-deputy-panel p-5">
-        <p className="text-sm text-deputy-muted">Loading Arc settlement…</p>
+      <section className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-sm">
+        <p className="text-sm text-resolve-muted">Loading settlement status…</p>
       </section>
     );
   }
@@ -114,23 +114,24 @@ export function SettlementPanel({
   const rows = txRows(settlement);
 
   return (
-    <section className="rounded-2xl border border-deputy-border bg-gradient-to-b from-deputy-panel to-deputy-panel/80 p-5 shadow-lg shadow-black/20">
+    <section className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent p-5 backdrop-blur-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-white">Arc settlement</h2>
-          <p className="mt-1 text-xs text-deputy-muted">
-            ERC-8183 job flow · chain 5042002 · USDC gas
+          <h2 className="text-sm font-semibold text-white">Proof-based payment</h2>
+          <p className="mt-1 text-xs text-resolve-muted">
+            Your task budget stays locked until verified proof exists.
+            {isLive ? " Settled on Arc." : " Demo mode — no real funds."}
           </p>
         </div>
         <span
           className={clsx(
-            "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide",
+            "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide",
             isLive
-              ? "bg-deputy-accent/15 text-deputy-accent"
-              : "bg-deputy-warn/15 text-deputy-warn"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-300"
           )}
         >
-          {isLive ? "Live Arc" : "Mock mode"}
+          {isLive ? "Live" : "Demo mode"}
         </span>
       </div>
 
@@ -141,8 +142,8 @@ export function SettlementPanel({
       </div>
 
       {!isLive && blockers.length > 0 && (
-        <div className="mt-4 rounded-lg border border-deputy-warn/40 bg-deputy-warn/10 px-3 py-2 text-xs text-deputy-warn">
-          <p className="font-medium">Live mode blockers:</p>
+        <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-100">
+          <p className="font-medium">To enable live settlement:</p>
           <ul className="mt-1 list-inside list-disc">
             {blockers.map((b) => (
               <li key={b}>{b}</li>
@@ -152,7 +153,7 @@ export function SettlementPanel({
       )}
 
       {settlement.error && (
-        <p className="mt-3 text-xs text-deputy-danger">{settlement.error}</p>
+        <p className="mt-3 text-xs text-red-400">{settlement.error}</p>
       )}
 
       {settlement.status === "not_started" && (
@@ -160,9 +161,9 @@ export function SettlementPanel({
           type="button"
           disabled={loading}
           onClick={lockArcEscrow}
-          className="mt-4 w-full rounded-xl bg-deputy-accent py-3 text-sm font-semibold text-deputy-bg disabled:opacity-50"
+          className="mt-4 w-full rounded-xl bg-sky-500 py-3 text-sm font-semibold text-white hover:bg-sky-400 disabled:opacity-50"
         >
-          {loading ? "Locking Arc escrow…" : `Lock $${budgetUsd.toFixed(2)} Arc escrow`}
+          {loading ? "Locking task budget…" : `Lock $${budgetUsd.toFixed(2)} task budget`}
         </button>
       )}
 

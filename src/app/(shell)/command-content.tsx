@@ -7,6 +7,7 @@ import { CommandInput } from "@/components/resolve/command-input";
 import { ConnectorReadinessPanel } from "@/components/resolve/connector-readiness-panel";
 import { ChatAssistant } from "@/components/resolve/chat-assistant";
 import { ActiveMissions } from "@/components/resolve/active-missions";
+import { PageHeader } from "@/components/resolve/ui/page-header";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import type { Task } from "@/lib/deputy/ui-types";
@@ -22,13 +23,7 @@ export default function CommandContent() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [connectors, setConnectors] = useState<ConnectorStatus[]>([]);
   const [classification, setClassification] = useState<TaskClassification | null>(null);
-
-  useEffect(() => {
-    const authError = searchParams.get("auth_error");
-    if (authError) {
-      toast.error("Sign-in failed", { description: decodeURIComponent(authError) });
-    }
-  }, [searchParams]);
+  const prefilledTask = searchParams.get("task") ?? "";
 
   const refresh = useCallback(async () => {
     const [t, c] = await Promise.all([
@@ -73,12 +68,12 @@ export default function CommandContent() {
       const data = await createRes.json();
       if (!createRes.ok) throw new Error(data.error ?? "Could not create task");
 
-      toast.success("Mission assigned", {
-        description: cls.isDemo ? "Demo data — lock escrow to start" : "Lock escrow to start",
+      toast.success("Mission created", {
+        description: cls.isDemo ? "Demo data — lock budget to continue" : "Lock task budget to continue",
       });
       router.push(`/missions/${data.task.id}`);
     } catch (e) {
-      toast.error("Assignment failed", {
+      toast.error("Could not start", {
         description: e instanceof Error ? e.message : "Try again",
       });
     } finally {
@@ -91,13 +86,11 @@ export default function CommandContent() {
   );
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-4 lg:p-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Command</h1>
-        <p className="mt-1 text-sm text-deputy-muted">
-          Assign → watch progress → review proof → done
-        </p>
-      </header>
+    <div className="resolve-grid-bg mx-auto max-w-3xl space-y-6 px-4 py-8 lg:px-8">
+      <PageHeader
+        title="Start"
+        subtitle="Tell RESOLVE what to handle."
+      />
 
       <CommandInput
         loading={loading}
@@ -105,6 +98,7 @@ export default function CommandContent() {
         onSignInRequired={openSignIn}
         onSubmit={handleAssign}
         classification={classification}
+        initialValue={prefilledTask}
       />
 
       <ConnectorReadinessPanel connectors={connectors} compact />

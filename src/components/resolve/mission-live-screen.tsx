@@ -11,7 +11,9 @@ import { ResultCard } from "@/components/resolve/result-card";
 import { buildHumanTimeline } from "@/lib/tasks/timeline-humanize";
 import { taskStatusLabel } from "@/lib/resolve/progress";
 import type { ConnectorStatus } from "@/lib/connectors/connector-types";
-import clsx from "clsx";
+import { GlassPanel } from "@/components/resolve/ui/glass-panel";
+import { StatusChip } from "@/components/resolve/ui/status-chip";
+import { ArrowLeft } from "lucide-react";
 
 export function MissionLiveScreen({
   task,
@@ -33,49 +35,62 @@ export function MissionLiveScreen({
   const showResult = task.status === "settled";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-4 lg:p-6">
-      <Link href="/missions" className="text-sm text-blue-400 underline">
-        ← Missions
+    <div className="resolve-grid-bg mx-auto max-w-3xl space-y-4 px-4 py-8 lg:px-8">
+      <Link
+        href="/missions"
+        className="inline-flex items-center gap-1.5 text-sm text-sky-400 hover:text-sky-300"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Missions
       </Link>
 
-      <header className="rounded-2xl border border-deputy-border bg-deputy-panel p-5">
+      <GlassPanel className="p-5" glow>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             {task.isDemo && (
-              <span className="mb-2 inline-block rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-300">
-                Demo data
-              </span>
+              <StatusChip label="Demo data" variant="demo" />
             )}
-            <p className="text-xs uppercase text-deputy-muted">Task</p>
-            <h1 className="text-lg font-semibold leading-snug">{task.title}</h1>
+            <p className="mt-2 text-xs uppercase tracking-wide text-resolve-muted">Mission</p>
+            <h1 className="mt-1 text-xl font-semibold leading-snug text-white">{task.title}</h1>
           </div>
-          <StatusChip status={task.status} />
+          <StatusChip
+            label={taskStatusLabel(task.status)}
+            variant={
+              task.status === "settled"
+                ? "verified"
+                : task.status === "needs_attention"
+                  ? "running"
+                  : task.status === "failed"
+                    ? "blocked"
+                    : "ready"
+            }
+          />
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <MiniStat label="Expected value" value={`$${task.targetValueUsd.toFixed(2)}`} />
           <MiniStat label="Cost so far" value={`$${task.executionCostUsd.toFixed(3)}`} />
           <MiniStat
-            label="Arc escrow"
-            value={task.escrowLocked ? "Locked" : "Awaiting lock"}
+            label="Task budget"
+            value={task.escrowLocked ? "Locked" : "Not locked"}
           />
-          <MiniStat label="Status" value={taskStatusLabel(task.status)} />
+          <MiniStat label="Proof" value={task.status === "proof_pending" || task.status === "verified" || task.status === "settled" ? "Submitted" : "Pending"} />
         </div>
 
         {task.attentionReason && (
-          <p className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+          <p className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-sm text-amber-100">
             {task.attentionReason}
           </p>
         )}
-      </header>
+      </GlassPanel>
 
       {showResult ? (
         <ResultCard task={task} />
       ) : (
         <>
-          <section className="rounded-2xl border border-deputy-border bg-deputy-panel p-5">
+          <GlassPanel className="p-5">
             <MissionProgress status={task.status} label={taskStatusLabel(task.status)} />
-          </section>
+          </GlassPanel>
 
           <ConnectorReadinessPanel connectors={connectors} category={task.category} compact />
 
@@ -84,7 +99,7 @@ export function MissionLiveScreen({
               type="button"
               disabled={actionLoading}
               onClick={onAction}
-              className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+              className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white shadow-[0_0_20px_-5px_rgba(56,189,248,0.4)] hover:bg-sky-400 disabled:opacity-50"
             >
               {actionLoading ? "Working…" : nextAction}
             </button>
@@ -110,29 +125,9 @@ export function MissionLiveScreen({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-[10px] uppercase text-deputy-muted">{label}</p>
-      <p className="mt-0.5 text-sm font-medium">{value}</p>
+    <div className="rounded-lg bg-black/20 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-resolve-muted">{label}</p>
+      <p className="mt-0.5 text-sm font-medium text-white">{value}</p>
     </div>
-  );
-}
-
-function StatusChip({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    settled: "bg-emerald-500/15 text-emerald-300",
-    failed: "bg-red-500/15 text-red-300",
-    needs_attention: "bg-amber-500/15 text-amber-300",
-    executing: "bg-amber-500/15 text-amber-300",
-    waiting_for_response: "bg-zinc-500/15 text-zinc-300",
-  };
-  return (
-    <span
-      className={clsx(
-        "rounded-full px-3 py-1 text-xs font-medium capitalize",
-        styles[status] ?? "bg-blue-500/15 text-blue-300"
-      )}
-    >
-      {taskStatusLabel(status)}
-    </span>
   );
 }

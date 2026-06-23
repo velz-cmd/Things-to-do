@@ -16,9 +16,9 @@
 |------|--------|-----|
 | 0:00 | **Overview** | "RESOLVE is not an AI assistant. Assign a real outcome — pay only when proof is verified." |
 | 0:08 | **Sign in** → Google | "No crypto knowledge required. We create a secure wallet behind the scenes." |
-| 0:15 | **Add funds** → $50 → card | "Deposits convert to USDC automatically." |
+| 0:15 | **Add funds** → Card & PayPal → $50 | "No bridging. RESOLVE handles Arc USDC in the background." |
 | 0:22 | Tap **Recover airline refund** | "User assigns: $43 delayed flight compensation." |
-| 0:28 | **Lock from balance** | "Budget locks. We only get paid on proof." |
+| 0:28 | **Lock from balance** | "Budget locks in agent escrow. We only get paid on proof." |
 | 0:35 | **Deploy mission** | "Package timeline — like tracking a parcel, not a chat log." |
 | 0:45 | Timeline + **Evidence** (email) | "Real outbound claim via Resend. Real audit trail." |
 | 0:55 | **/merchant** → Approve refund | "Merchant confirms — proof engine verifies, not the LLM." |
@@ -29,14 +29,13 @@
 
 ## Path B — Crypto user (Arc story)
 
-Same as Path A, but replace sign-in/funds with:
-
 | Step | Action |
 |------|--------|
-| Connect wallet | Reown → MetaMask / Rabby / Coinbase |
-| Network | **Switch to Arc Testnet** if banner shows |
-| Lock | **Lock USDC on Arc** (MetaMask may show "ETH" — on Arc it's USDC) |
-| Proof | Show Arcscan settlement link |
+| Sign in | Google or email (required) |
+| Connect wallet | Account menu → Connect crypto wallet (Rabby/MetaMask) |
+| Add funds | **Crypto wallet** tab → **Send USDC on Arc** → confirm in wallet |
+| Assign + lock | Same as Path A, or **Lock USDC on Arc** for on-chain escrow |
+| Proof | Show Arcscan link to agent escrow `0xDD81…b65511` |
 
 ---
 

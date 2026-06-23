@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DEPUTY — Autonomous Outcome Engine",
+  title: "RESOLVE — Pay only on proof",
   description:
-    "Assign real-world tasks. Pay only when proof of resolution is verified. Settled on Arc.",
+    "Assign the problem. Come back when it's solved. Autonomous outcomes settled on Arc USDC.",
 };
 
 export default function RootLayout({

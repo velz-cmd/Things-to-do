@@ -6,10 +6,10 @@ import { useParams } from "next/navigation";
 import { PackageTimeline } from "@/components/resolve/package-timeline";
 import { AgentStates } from "@/components/resolve/agent-states";
 import { EvidencePanel } from "@/components/resolve/evidence-panel";
-import { ArcEscrowCard } from "@/components/deputy/arc-escrow-card";
+import { SettlementPanel } from "@/components/settlement/settlement-panel";
+import { ExecutionCostLedger } from "@/components/settlement/execution-cost-ledger";
 import { EscrowLock } from "@/components/escrow-lock";
-import { ArcNetworkBanner } from "@/components/arc-network-banner";
-import { AccessGateBanner, AgentEscrowBadge } from "@/components/resolve/access-gate";
+import { AccessGateBanner } from "@/components/resolve/access-gate";
 import type { Task } from "@/lib/deputy/ui-types";
 import { taskStatusLabel, taskProgress } from "@/lib/resolve/progress";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
@@ -112,12 +112,14 @@ export default function TaskDetailPage() {
         </div>
       </header>
 
+      <SettlementPanel taskId={task.id} budgetUsd={task.budgetUsd} onUpdated={load} />
+
       {!task.escrowLocked && (
         <div className="space-y-3 rounded-xl border border-deputy-border bg-deputy-panel p-4">
           <AccessGateBanner />
-          <ArcNetworkBanner />
-          <AgentEscrowBadge />
-          <p className="text-sm text-deputy-muted">Lock task budget to deploy</p>
+          <p className="text-sm text-deputy-muted">
+            Or lock from RESOLVE balance (custodial)
+          </p>
           <EscrowLock
             taskId={task.id}
             budgetUsd={task.budgetUsd}
@@ -127,6 +129,8 @@ export default function TaskDetailPage() {
           />
         </div>
       )}
+
+      <ExecutionCostLedger taskId={task.id} />
 
       {task.escrowLocked && !executionStarted && !["settled", "failed", "refunded"].includes(task.status) && (
         <button
@@ -144,10 +148,6 @@ export default function TaskDetailPage() {
       <AgentStates currentAgent={task.currentAgent} status={task.status} />
 
       <EvidencePanel proofs={task.proofs ?? []} task={task} />
-
-      {task.escrowLocked && (
-        <ArcEscrowCard task={task} onLocked={load} />
-      )}
 
       {task.status === "settled" && (
         <div className="rounded-xl border border-deputy-accent/40 bg-deputy-accent/10 p-6 text-center">

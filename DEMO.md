@@ -46,9 +46,14 @@
 - **Vault** — balances, activity, add funds
 - **/merchant** — demo merchant refund portal
 
-## Arc contract
+## Arc addresses
 
-`0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f` — https://testnet.arcscan.app
+| Role | Address |
+|------|---------|
+| Agent escrow (user deposits) | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` |
+| On-chain task escrow contract | `0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f` |
+
+https://testnet.arcscan.app
 
 ## API smoke test
 

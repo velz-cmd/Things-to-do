@@ -1,4 +1,19 @@
+"use client";
+
 import type { Proof, Task } from "@/lib/deputy/ui-types";
+import { useEffect, useState } from "react";
+
+type VerifiedTx = {
+  hash: string;
+  label: string;
+  verified: boolean;
+};
+
+async function verifyHash(hash: string): Promise<boolean> {
+  const res = await fetch(`/api/settlement/verify-tx/${hash}`);
+  const data = await res.json();
+  return Boolean(data.verification?.found && data.verification?.success);
+}
 
 export function EvidencePanel({
   proofs,
@@ -7,7 +22,35 @@ export function EvidencePanel({
   proofs: Proof[];
   task: Task;
 }) {
-  const items: { label: string; value: string; href?: string }[] = [];
+  const [verifiedTxs, setVerifiedTxs] = useState<VerifiedTx[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      const candidates: { hash: string; label: string }[] = [];
+      if (task.escrowTxHash) {
+        candidates.push({ hash: task.escrowTxHash, label: "Escrow lock" });
+      }
+      if (task.settlementTxHash) {
+        candidates.push({ hash: task.settlementTxHash, label: "Settlement" });
+      }
+      for (const mp of task.microPayments ?? []) {
+        if (mp.txHash) {
+          candidates.push({ hash: mp.txHash, label: mp.purpose });
+        }
+      }
+
+      const out: VerifiedTx[] = [];
+      for (const c of candidates) {
+        const verified = await verifyHash(c.hash);
+        out.push({ ...c, verified });
+      }
+      setVerifiedTxs(out);
+    }
+    void load();
+  }, [task.escrowTxHash, task.settlementTxHash, task.microPayments]);
+
+  const items: { label: string; value: string; href?: string; pending?: boolean }[] =
+    [];
 
   for (const p of proofs) {
     let payload: Record<string, unknown> = {};
@@ -42,26 +85,20 @@ export function EvidencePanel({
   for (const mp of task.microPayments ?? []) {
     items.push({
       label: mp.purpose,
-      value: `$${mp.amountUsd.toFixed(3)}`,
-      href: mp.txHash
-        ? `https://testnet.arcscan.app/tx/${mp.txHash}`
+      value: `$${mp.amountUsd.toFixed(3)} (offchain metered)`,
+    });
+  }
+
+  for (const vtx of verifiedTxs) {
+    items.push({
+      label: vtx.label,
+      value: vtx.verified
+        ? vtx.hash.slice(0, 18) + "…"
+        : "Pending / not on Arc",
+      href: vtx.verified
+        ? `https://testnet.arcscan.app/tx/${vtx.hash}`
         : undefined,
-    });
-  }
-
-  if (task.escrowTxHash) {
-    items.push({
-      label: "Escrow lock",
-      value: task.escrowTxHash.slice(0, 18) + "…",
-      href: `https://testnet.arcscan.app/tx/${task.escrowTxHash}`,
-    });
-  }
-
-  if (task.settlementTxHash) {
-    items.push({
-      label: "Settlement transaction",
-      value: task.settlementTxHash.slice(0, 18) + "…",
-      href: `https://testnet.arcscan.app/tx/${task.settlementTxHash}`,
+      pending: !vtx.verified,
     });
   }
 
@@ -75,7 +112,7 @@ export function EvidencePanel({
   const placeholders = [
     "Email confirmations",
     "PDF receipts",
-    "Transaction hashes",
+    "Verified Arc transactions only",
     "Support tickets",
     "Screenshots",
   ];
@@ -98,9 +135,9 @@ export function EvidencePanel({
         </div>
       ) : (
         <ul className="space-y-2">
-          {items.map((item) => (
+          {items.map((item, i) => (
             <li
-              key={item.label}
+              key={`${item.label}-${i}`}
               className="flex items-center justify-between rounded-lg bg-deputy-bg/60 px-3 py-2 text-sm"
             >
               <span className="text-deputy-muted">{item.label}</span>
@@ -114,7 +151,11 @@ export function EvidencePanel({
                   {item.value}
                 </a>
               ) : (
-                <span className="font-mono text-xs">{item.value}</span>
+                <span
+                  className={`font-mono text-xs ${item.pending ? "text-deputy-warn" : ""}`}
+                >
+                  {item.value}
+                </span>
               )}
             </li>
           ))}

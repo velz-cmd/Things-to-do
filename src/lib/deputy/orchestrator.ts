@@ -5,6 +5,8 @@ import { settleOnArc } from "@/lib/arc/settlement";
 import { refundEscrowOnArc } from "@/lib/arc/refund";
 import { verifyProof } from "@/lib/deputy/proof-engine";
 import { runTaskExecutor } from "@/lib/deputy/executor";
+import { getSettlementAdapter } from "@/lib/settlement/settlement-service";
+import { verifyArcTx } from "@/lib/settlement/arc-verify";
 
 async function logEvent(
   taskId: string,
@@ -175,24 +177,39 @@ export async function settleTask(taskId: string, proofHash: string) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) throw new Error("Task not found");
 
+  const adapter = getSettlementAdapter();
   let settlementTxHash: string | null = null;
   let settledOnChain = false;
 
-  if (task.escrowTaskId != null) {
+  try {
+    await adapter.submitProof({ taskId, proofHash });
+    const released = await adapter.release({
+      taskId,
+      reason: "proof-verified",
+    });
+    if (released.releaseTxHash) {
+      const verified = await verifyArcTx(released.releaseTxHash);
+      if (verified.found && verified.success) {
+        settlementTxHash = released.releaseTxHash;
+        settledOnChain = released.mode === "live_arc";
+      }
+    }
+  } catch {
+    /* fall through to legacy DeputyEscrow */
+  }
+
+  if (!settlementTxHash && task.escrowTaskId != null) {
     const onChainHash = await settleOnArc(
       task.escrowTaskId,
       proofHash as `0x${string}`
     );
     if (onChainHash) {
-      settlementTxHash = onChainHash;
-      settledOnChain = true;
+      const verified = await verifyArcTx(onChainHash);
+      if (verified.found && verified.success) {
+        settlementTxHash = onChainHash;
+        settledOnChain = true;
+      }
     }
-  }
-
-  if (!settlementTxHash) {
-    settlementTxHash =
-      "0x" +
-      hashProofPayload({ settle: taskId, proofHash, t: Date.now() }).slice(2, 66);
   }
 
   await prisma.task.update({
@@ -201,6 +218,7 @@ export async function settleTask(taskId: string, proofHash: string) {
       status: "settled",
       currentAgent: "Verification",
       settlementTxHash,
+      proofHash,
     },
   });
 
@@ -208,10 +226,12 @@ export async function settleTask(taskId: string, proofHash: string) {
     taskId,
     "Verification",
     "settled",
-    settledOnChain
-      ? `Arc escrow released on-chain — success fee $${task.successFeeUsd.toFixed(2)}`
-      : `Arc escrow released (demo) — success fee $${task.successFeeUsd.toFixed(2)}`,
-    { settlementTxHash, proofHash }
+    settlementTxHash
+      ? settledOnChain
+        ? `Arc settlement released — success fee $${task.successFeeUsd.toFixed(2)}`
+        : `Settlement recorded (mock) — success fee $${task.successFeeUsd.toFixed(2)}`
+      : `Outcome settled off-chain — success fee $${task.successFeeUsd.toFixed(2)}`,
+    { settlementTxHash, proofHash, onChain: settledOnChain }
   );
 
   const netGain = task.recoveredUsd - task.executionCostUsd - task.successFeeUsd;

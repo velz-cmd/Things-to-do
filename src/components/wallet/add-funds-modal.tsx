@@ -14,6 +14,7 @@ import { RESOLVE_AGENT_ESCROW_ADDRESS, arcTestnet } from "@/lib/arc/config";
 import { usdcToWei } from "@/lib/arc/utils";
 import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
 import { AgentEscrowBadge } from "@/components/resolve/access-gate";
+import { CctpBridgePanel } from "@/components/wallet/cctp-bridge-panel";
 import { toast } from "sonner";
 import clsx from "clsx";
 
@@ -26,7 +27,7 @@ const CARD_METHODS = [
 
 const AMOUNTS = [25, 50, 100];
 
-type Tab = "simple" | "crypto";
+type Tab = "simple" | "crypto" | "bridge";
 
 export function AddFundsModal({
   open,
@@ -156,12 +157,15 @@ export function AddFundsModal({
             : "Send USDC on Arc Testnet from your connected wallet."}
         </p>
 
-        <div className="mt-4 flex gap-2 rounded-lg bg-deputy-bg p-1">
+        <div className="mt-4 flex gap-1 rounded-lg bg-black/30 p-1">
           <TabButton active={tab === "simple"} onClick={() => setTab("simple")}>
-            Card & PayPal
+            Card
+          </TabButton>
+          <TabButton active={tab === "bridge"} onClick={() => setTab("bridge")}>
+            Bridge
           </TabButton>
           <TabButton active={tab === "crypto"} onClick={() => setTab("crypto")}>
-            Crypto wallet
+            Arc
           </TabButton>
         </div>
 
@@ -221,6 +225,8 @@ export function AddFundsModal({
               {loading ? "Processing…" : `Add $${amount} to balance`}
             </button>
           </>
+        ) : tab === "bridge" ? (
+          <CctpBridgePanel amount={amount} onSuccess={onClose} />
         ) : (
           <>
             <AgentEscrowBadge className="mt-4" />

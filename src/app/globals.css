@@ -5,6 +5,9 @@
 :root {
   --background: #0a0f14;
   --foreground: #e8eef4;
+  --deputy-verified: #3dd68c;
+  --deputy-executing: #f5a524;
+  --deputy-escalated: #f31260;
 }
 
 body {

@@ -1,21 +1,10 @@
 import { prisma, ensureStats } from "@/lib/db";
-import {
-  EXECUTION_STEPS,
-  hashProofPayload,
-  agentForStatus,
-} from "@/lib/deputy/state-machine";
+import { hashProofPayload, agentForStatus } from "@/lib/deputy/state-machine";
 import type { OutcomeTemplate } from "@/lib/deputy/types";
-import {
-  gmailSearchReceipts,
-  browserSubmitClaim,
-  resendSendClaim,
-} from "@/lib/deputy/tools";
 import { settleOnArc } from "@/lib/arc/settlement";
-import { generateDeputyPlan } from "@/lib/ai/planner";
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+import { refundEscrowOnArc } from "@/lib/arc/refund";
+import { verifyProof } from "@/lib/deputy/proof-engine";
+import { runTaskExecutor } from "@/lib/deputy/executor";
 
 async function logEvent(
   taskId: string,
@@ -33,26 +22,6 @@ async function logEvent(
       metadata: metadata ? JSON.stringify(metadata) : null,
     },
   });
-}
-
-async function recordMicroPayment(
-  taskId: string,
-  purpose: string,
-  amountUsd: number
-) {
-  const txHash =
-    "0x" +
-    hashProofPayload({ taskId, purpose, amountUsd, t: Date.now() }).slice(2, 42);
-  await prisma.microPayment.create({
-    data: { taskId, purpose, amountUsd, txHash },
-  });
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      executionCostUsd: { increment: amountUsd },
-    },
-  });
-  return txHash;
 }
 
 export async function createTaskFromTemplate(
@@ -83,99 +52,7 @@ export async function createTaskFromTemplate(
 }
 
 export async function runDeputyExecution(taskId: string) {
-  const task = await prisma.task.findUnique({ where: { id: taskId } });
-  if (!task) throw new Error("Task not found");
-  if (["settled", "failed", "refunded", "verified"].includes(task.status)) {
-    return task;
-  }
-
-  const plan = await generateDeputyPlan({
-    title: task.title,
-    description: task.title,
-    targetValueUsd: task.targetValueUsd,
-    category: task.category,
-  });
-
-  if (plan) {
-    await logEvent(
-      taskId,
-      "Planner",
-      "planning",
-      `AI plan: ${plan.objective}`,
-      { steps: plan.steps, estimatedRecoveryUsd: plan.estimatedRecoveryUsd }
-    );
-  }
-
-  for (const step of EXECUTION_STEPS) {
-    const message = step.message.replace(
-      "$TARGET",
-      task.targetValueUsd.toFixed(2)
-    );
-
-    await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        status: step.status,
-        currentAgent: step.agent,
-      },
-    });
-
-    await logEvent(taskId, step.agent, step.status, message);
-
-    let toolCost = step.costUsd;
-    if (step.status === "evidence_gathering") {
-      const receipt = await gmailSearchReceipts(task.merchantId ?? "airline");
-      toolCost += receipt.costUsd;
-      if (receipt.data) {
-        await logEvent(
-          taskId,
-          "Evidence",
-          "tool",
-          `Gmail: located booking ${receipt.data.bookingRef}`,
-          receipt.data
-        );
-      }
-    }
-    if (step.status === "executing") {
-      const portal = await browserSubmitClaim(
-        `https://portal.${task.merchantId}.demo/claims`
-      );
-      toolCost += portal.costUsd;
-      if (portal.data) {
-        await logEvent(
-          taskId,
-          "Executor",
-          "tool",
-          `Portal claim submitted — ticket ${portal.data.ticketId}`,
-          portal.data
-        );
-      }
-      const email = await resendSendClaim({
-        to: `support@${task.merchantId}.demo`,
-        subject: `Compensation claim — ${task.title}`,
-        body: "Attached evidence package per consumer rights policy.",
-        taskId,
-      });
-      toolCost += email.costUsd;
-      await logEvent(
-        taskId,
-        "Executor",
-        "tool",
-        email.ok
-          ? `Outbound claim email sent via Resend (${email.data?.messageId})`
-          : `Resend claim email failed: ${email.error}`
-      );
-    }
-
-    await recordMicroPayment(taskId, `${step.agent}:${step.status}`, toolCost);
-
-    await sleep(step.delayMs);
-  }
-
-  return prisma.task.findUnique({
-    where: { id: taskId },
-    include: { events: true, microPayments: true, proofs: true },
-  });
+  return runTaskExecutor(taskId);
 }
 
 export interface MerchantProofInput {
@@ -183,6 +60,7 @@ export interface MerchantProofInput {
   confirmationId: string;
   refundedAmountUsd: number;
   merchantId: string;
+  artifactUrl?: string;
 }
 
 export async function submitMerchantProof(input: MerchantProofInput) {
@@ -192,8 +70,13 @@ export async function submitMerchantProof(input: MerchantProofInput) {
     throw new Error("Merchant mismatch");
   }
 
+  const secret = process.env.MERCHANT_WEBHOOK_SECRET;
+  if (secret && process.env.DEPUTY_DEMO_MODE !== "true") {
+    // Production: caller must pass x-merchant-secret header (checked in route)
+  }
+
   const payload = {
-    type: "refund_confirmation",
+    type: "refund_confirmation_email",
     confirmationId: input.confirmationId,
     refundedAmountUsd: input.refundedAmountUsd,
     merchantId: input.merchantId,
@@ -201,32 +84,29 @@ export async function submitMerchantProof(input: MerchantProofInput) {
     timestamp: new Date().toISOString(),
   };
 
-  const contentHash = hashProofPayload(payload);
+  const verification = verifyProof({
+    type: payload.type,
+    source: `merchant://${input.merchantId}`,
+    payload,
+    category: task.category,
+    targetValueUsd: task.targetValueUsd,
+    artifactUrl: input.artifactUrl,
+  });
 
   const proof = await prisma.proof.create({
     data: {
       taskId: input.taskId,
-      type: "refund_confirmation_email",
+      type: payload.type,
       source: `merchant://${input.merchantId}`,
       payload: JSON.stringify(payload),
-      contentHash,
-      verified: true,
+      contentHash: verification.contentHash,
+      artifactUrl: input.artifactUrl ?? null,
+      verified: verification.verified,
     },
   });
 
-  const verified = verifyRefundProof(task.targetValueUsd, input.refundedAmountUsd);
-
-  if (!verified) {
-    await prisma.task.update({
-      where: { id: input.taskId },
-      data: { status: "failed", currentAgent: "Verification" },
-    });
-    await logEvent(
-      input.taskId,
-      "Verification",
-      "failed",
-      "Proof rejected — refund amount does not match target"
-    );
+  if (!verification.verified) {
+    await failTask(input.taskId, verification.reason);
     return { proof, task: await prisma.task.findUnique({ where: { id: input.taskId } }) };
   }
 
@@ -235,7 +115,7 @@ export async function submitMerchantProof(input: MerchantProofInput) {
     data: {
       status: "verified",
       currentAgent: "Verification",
-      proofHash: contentHash,
+      proofHash: verification.contentHash,
       recoveredUsd: input.refundedAmountUsd,
     },
   });
@@ -244,11 +124,15 @@ export async function submitMerchantProof(input: MerchantProofInput) {
     input.taskId,
     "Verification",
     "verified",
-    `Proof VERIFIED — refund $${input.refundedAmountUsd.toFixed(2)} confirmed`,
-    { contentHash, confirmationId: input.confirmationId }
+    `Proof VERIFIED — ${verification.reason}`,
+    {
+      contentHash: verification.contentHash,
+      confirmationId: input.confirmationId,
+      policy: verification.matchedPolicy,
+    }
   );
 
-  await settleTask(input.taskId, contentHash);
+  await settleTask(input.taskId, verification.contentHash);
 
   return {
     proof,
@@ -259,8 +143,32 @@ export async function submitMerchantProof(input: MerchantProofInput) {
   };
 }
 
-function verifyRefundProof(target: number, refunded: number): boolean {
-  return refunded >= target * 0.95;
+async function failTask(taskId: string, reason: string) {
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!task) return;
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "failed", currentAgent: "Verification" },
+  });
+  await logEvent(taskId, "Verification", "failed", reason);
+
+  if (task.escrowTaskId != null) {
+    const refundTx = await refundEscrowOnArc(task.escrowTaskId);
+    if (refundTx) {
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: "refunded", settlementTxHash: refundTx },
+      });
+      await logEvent(
+        taskId,
+        "Verification",
+        "refunded",
+        "Arc escrow refunded to user on failed outcome",
+        { refundTx }
+      );
+    }
+  }
 }
 
 export async function settleTask(taskId: string, proofHash: string) {

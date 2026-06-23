@@ -4,6 +4,15 @@ import { submitMerchantProof } from "@/lib/deputy/orchestrator";
 
 /// Mock merchant webhook — simulates airline/support confirming refund
 export async function POST(req: Request) {
+  const secret = process.env.MERCHANT_WEBHOOK_SECRET;
+  if (
+    secret &&
+    process.env.DEPUTY_DEMO_MODE !== "true" &&
+    req.headers.get("x-merchant-secret") !== secret
+  ) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
   const { taskId, merchantId, refundedAmountUsd, confirmationId } = body;
 

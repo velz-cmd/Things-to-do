@@ -1,93 +1,50 @@
 # RESOLVE — Build checklist (Day 1–6)
 
-> **Note:** The canonical build prompt (`CURSOR_BUILD_PROMPT.md`) lives on your local machine. Paste it into `docs/CURSOR_BUILD_PROMPT.md` in this repo so cloud agents can read it.
-
 ## Product vision
 
 **One line:** Assign the problem. Come back when it's solved. Pay only on proof.
 
-**UX:** 3-tab nav — Overview, Tasks, Vault. Package-tracking timeline. Infrastructure hidden from main pitch.
-
-**Demo vertical:** $43 SkyDemo Airlines refund on Arc testnet USDC.
+**Live:** https://resolve-task.vercel.app
 
 ---
 
-## Day 1 — Foundation
+## Status
 
-| Task | Status |
-|------|--------|
-| Arc testnet plumbing (wagmi, USDC, escrow contract) | Done |
-| Supabase Postgres + Prisma | Done |
-| RESOLVE design system + 3-tab shell | Done |
-| Vercel deploy config (`vercel.json`) | Done |
+| Day | Area | Status |
+|-----|------|--------|
+| 1 | Arc, Supabase, RESOLVE shell | Done |
+| 2 | Agents, executor, cron | Done |
+| 3 | Resend, Gmail*, Playwright* | Done (*env optional) |
+| 4 | Overview / Tasks / Vault UI | Done |
+| 5 | Arc escrow + Foundry tests | Done |
+| 6 | Demo script, deploy, consumer wallet | Done |
 
-## Day 2 — Agent runtime
+## Shipped features
 
-| Task | Status |
-|------|--------|
-| Gemini planner + fallback static plan | Done |
-| Executor + state machine | Done |
-| Cron retry worker (`/api/cron/tick`) | Done |
+- [x] RESOLVE 3-tab UI (Overview, Tasks, Vault)
+- [x] Reown AppKit — MetaMask, Rabby, Coinbase, WalletConnect
+- [x] Supabase Google + email sign-in
+- [x] Embedded wallet + balance lock (no crypto required)
+- [x] Add funds (card, debit, PayPal, bank → USDC balance)
+- [x] All 6 outcome templates wired
+- [x] Arc Testnet USDC escrow (on-chain path)
+- [x] Merchant proof portal
+- [x] Resend outbound emails
+- [x] Proof engine + package timeline
+- [x] Production deploy + DB sync on build
 
-## Day 3 — Real tools
+## Hackathon deliverables
 
-| Task | Status |
-|------|--------|
-| Resend outbound claim emails | Done (needs `RESEND_API_KEY` on Vercel) |
-| Gmail OAuth evidence search | Code ready — needs `GOOGLE_*` env vars |
-| Playwright browser claims | Optional — `PLAYWRIGHT_ENABLED=true` |
-| Proof engine (`PROOF_POLICIES`) | Done |
+- [x] Live URL
+- [x] GitHub repo
+- [ ] 90-second demo video — [DEMO.md](../DEMO.md)
+- [ ] Arc tx screenshots
+- [ ] Canteen Discord post
 
-## Day 4 — Consumer UI
+## Optional polish
 
-| Task | Status |
-|------|--------|
-| Overview (outcome input, snapshot, missions, feed) | Done |
-| Tasks list + package timeline detail | Done |
-| Evidence panel (proofs, events, txs) | Done |
-| Vault (budget live; guardian/recovery stubs) | Partial |
-
-## Day 5 — Settlement
-
-| Task | Status |
-|------|--------|
-| `DeputyEscrow.sol` deployed on Arc | Done |
-| Oracle release + refund paths | Done |
-| Foundry tests (3 passing) | Done |
-
-## Day 6 — Ship
-
-| Task | Status |
-|------|--------|
-| `DEMO.md` 90-second judge script | Done |
-| README + build checklist | Done |
-| Production redeploy (Vercel) | **Manual** — confirm GitHub → Vercel hook |
-| 90-second demo video | Pending |
-| Lepton submission package | Pending |
-
----
-
-## Remaining to make “real”
-
-- [ ] **Vercel redeploy** — `/tasks` and `/vault` must return 200 on production
-- [ ] **Gmail OAuth** — set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
-- [ ] **Gemini** — valid `GEMINI_API_KEY` (quota was exhausted earlier)
-- [ ] **End-to-end Arc demo** — wallet connect → on-chain lock → oracle settlement on Arcscan
-- [ ] **Three outcome templates** — forgotten assets, wallet protection, internet bill (currently “soon”)
-- [ ] **Vault guardian + recovery** — beyond static stubs
-- [ ] **Demo video** — follow `DEMO.md`
-- [ ] **Canteen traction post**
-
-## Env vars (production)
-
-See `.env.example`. Critical for live demo:
-
-```
-DATABASE_URL
-RESEND_API_KEY
-NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS=0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f
-DEPUTY_ORACLE_PRIVATE_KEY
-DEPUTY_DEMO_MODE=true   # set false for real merchant webhook
-```
+- [ ] Gmail OAuth (`GOOGLE_*` env vars)
+- [ ] Circle production on-ramp (`CIRCLE_*`)
+- [ ] Gemini live planner (quota)
 
 **Winning line:** *"RESOLVE is not pay-per-token. It is pay-per-resolution."*

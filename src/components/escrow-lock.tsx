@@ -17,6 +17,8 @@ import {
 } from "@/lib/arc/config";
 import { taskRefFromId, usdcToWei } from "@/lib/arc/utils";
 import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
+import { useAuth } from "@/components/auth/auth-provider";
+import { toast } from "sonner";
 import clsx from "clsx";
 
 interface EscrowLockProps {
@@ -37,6 +39,7 @@ export function EscrowLock({
   onLocked,
 }: EscrowLockProps) {
   const { address, isConnected } = useAccount();
+  const { user, refreshBalance } = useAuth();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
@@ -100,6 +103,30 @@ export function EscrowLock({
     void syncEscrow();
   }, [receipt, locked, publicClient, taskId, address, onLocked]);
 
+  async function lockFromBalance() {
+    setDemoLocking(true);
+    try {
+      const res = await fetch("/api/escrow/balance-lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Lock failed");
+      toast.success("Task budget locked", {
+        description: `$${budgetUsd.toFixed(2)} reserved from your balance`,
+      });
+      await refreshBalance();
+      onLocked();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Lock failed";
+      setSyncError(msg);
+      toast.error("Could not lock budget", { description: msg });
+    } finally {
+      setDemoLocking(false);
+    }
+  }
+
   async function lockDemoEscrow() {
     setDemoLocking(true);
     const mockTx =
@@ -150,6 +177,9 @@ export function EscrowLock({
     });
   }
 
+  const embeddedUser = Boolean(user);
+  const useBalanceLock = embeddedUser && !isConnected;
+
   if (locked) {
     return (
       <div className="rounded-lg border border-deputy-accent/30 bg-deputy-accent/5 p-3">
@@ -166,6 +196,29 @@ export function EscrowLock({
           >
             {escrowTxHash}
           </a>
+        )}
+      </div>
+    );
+  }
+
+  if (useBalanceLock) {
+    return (
+      <div>
+        <button
+          type="button"
+          disabled={demoLocking}
+          onClick={lockFromBalance}
+          className="w-full rounded-lg border border-deputy-accent/40 bg-deputy-accent/10 py-2 text-sm font-medium text-deputy-accent transition hover:bg-deputy-accent/20 disabled:opacity-50"
+        >
+          {demoLocking
+            ? "Locking budget…"
+            : `Lock $${budgetUsd.toFixed(2)} from balance`}
+        </button>
+        <p className="mt-2 text-[10px] text-deputy-muted">
+          Deducted from your RESOLVE balance — no wallet signature needed.
+        </p>
+        {syncError && (
+          <p className="mt-1 text-xs text-deputy-danger">{syncError}</p>
         )}
       </div>
     );

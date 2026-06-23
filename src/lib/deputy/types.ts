@@ -93,6 +93,30 @@ export const DEMO_OUTCOMES: OutcomeTemplate[] = [
     merchantId: "parceldemo",
     description: "Claim $25 compensation for ParcelDemo late delivery",
   },
+  {
+    id: "forgotten-assets",
+    title: "Find forgotten assets across chains",
+    category: "money_recovery",
+    targetValueUsd: 127,
+    merchantId: "vault-scan",
+    description: "Scan for unclaimed airdrops and dormant USDC",
+  },
+  {
+    id: "wallet-protection",
+    title: "Protect my wallet from suspicious approvals",
+    category: "money_recovery",
+    targetValueUsd: 0,
+    merchantId: "guardian",
+    description: "Run guardian scan and revoke risky token approvals",
+  },
+  {
+    id: "internet-bill",
+    title: "Lower my internet bill",
+    category: "subscription",
+    targetValueUsd: 15,
+    merchantId: "billdemo-isp",
+    description: "Negotiate ISP bill reduction with proof of new rate",
+  },
 ];
 
 export const PROOF_POLICIES: Record<string, string[]> = {

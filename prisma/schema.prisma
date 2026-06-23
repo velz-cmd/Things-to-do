@@ -9,6 +9,8 @@ datasource db {
 
 model Task {
   id              String   @id @default(cuid())
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   title           String
   category        String   @default("money_recovery")
   targetValueUsd  Float
@@ -73,4 +75,30 @@ model Stats {
   tasksCompleted        Int   @default(0)
   executionCostUsd      Float @default(0)
   subscriptionsCancelled Int  @default(0)
+}
+
+model User {
+  id              String   @id
+  email           String?
+  displayName     String?
+  authProvider    String   @default("wallet")
+  walletAddress   String?
+  embeddedWallet  Boolean  @default(false)
+  availableUsd    Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tasks           Task[]
+  transactions    WalletTransaction[]
+}
+
+model WalletTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  method    String?
+  amountUsd Float
+  status    String   @default("completed")
+  label     String?
+  createdAt DateTime @default(now())
 }

@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { OutcomeSnapshot } from "@/components/resolve/outcome-snapshot";
 import { ActiveMissions } from "@/components/resolve/active-missions";
 import { SuccessFeed } from "@/components/resolve/success-feed";
 import { OutcomeInput } from "@/components/resolve/outcome-input";
 import { DemoTimeline } from "@/components/resolve/demo-timeline";
+import { BalanceSummary } from "@/components/wallet/balance-summary";
 import type { DashboardStats, Task } from "@/lib/deputy/ui-types";
 
 export default function OverviewPage() {
@@ -32,15 +34,26 @@ export default function OverviewPage() {
 
   async function assignOutcome(templateId: string) {
     setLoading(true);
-    const res = await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateId, deferExecution: true }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    refresh();
-    if (data.task?.id) router.push(`/tasks/${data.task.id}`);
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId, deferExecution: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not assign task");
+      toast.success("Mission assigned", {
+        description: "Track progress in Tasks",
+      });
+      refresh();
+      if (data.task?.id) router.push(`/tasks/${data.task.id}`);
+    } catch (e) {
+      toast.error("Assignment failed", {
+        description: e instanceof Error ? e.message : "Try again",
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   const active = tasks.filter(
@@ -60,6 +73,8 @@ export default function OverviewPage() {
       </header>
 
       <OutcomeInput loading={loading} onAssign={assignOutcome} />
+
+      <BalanceSummary />
 
       <OutcomeSnapshot stats={stats} />
 

@@ -11,12 +11,13 @@ import { EscrowLock } from "@/components/escrow-lock";
 import { ArcNetworkBanner } from "@/components/arc-network-banner";
 import type { Task } from "@/lib/deputy/ui-types";
 import { taskStatusLabel, taskProgress } from "@/lib/resolve/progress";
+import { toast } from "sonner";
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [task, setTask] = useState<Task | null>(null);
   const [executionStarted, setExecutionStarted] = useState(false);
-  const [demoMode, setDemoMode] = useState(true);
+  const [deploying, setDeploying] = useState(false);
 
   const load = useCallback(async () => {
     const [res, cfg] = await Promise.all([
@@ -59,12 +60,24 @@ export default function TaskDetailPage() {
   }, [task, executionStarted, demoMode, id, load]);
 
   async function startExecution() {
+    setDeploying(true);
     setExecutionStarted(true);
-    await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "execute", taskId: id }),
-    });
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "execute", taskId: id }),
+      });
+      if (!res.ok) throw new Error("Deploy failed");
+      toast.success("Mission deployed", {
+        description: "Agents are working on your outcome",
+      });
+    } catch {
+      toast.error("Deploy failed", { description: "Try again in a moment" });
+      setExecutionStarted(false);
+    } finally {
+      setDeploying(false);
+    }
   }
 
   if (!task) {
@@ -108,10 +121,11 @@ export default function TaskDetailPage() {
       {task.escrowLocked && !executionStarted && !["settled", "failed", "refunded"].includes(task.status) && (
         <button
           type="button"
+          disabled={deploying}
           onClick={startExecution}
-          className="w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg"
+          className="w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg disabled:opacity-50"
         >
-          Deploy mission
+          {deploying ? "Deploying…" : "Deploy mission"}
         </button>
       )}
 

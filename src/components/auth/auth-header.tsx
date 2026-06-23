@@ -129,6 +129,7 @@ export function AuthHeader() {
 
             <MenuItem
               onClick={async () => {
+                if (cryptoConnected) disconnect();
                 await signOut();
                 setMenuOpen(false);
               }}

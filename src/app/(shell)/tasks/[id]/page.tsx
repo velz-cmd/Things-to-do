@@ -9,25 +9,27 @@ import { EvidencePanel } from "@/components/resolve/evidence-panel";
 import { ArcEscrowCard } from "@/components/deputy/arc-escrow-card";
 import { EscrowLock } from "@/components/escrow-lock";
 import { ArcNetworkBanner } from "@/components/arc-network-banner";
+import { AccessGateBanner, AgentEscrowBadge } from "@/components/resolve/access-gate";
 import type { Task } from "@/lib/deputy/ui-types";
 import { taskStatusLabel, taskProgress } from "@/lib/resolve/progress";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { toast } from "sonner";
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [task, setTask] = useState<Task | null>(null);
   const [executionStarted, setExecutionStarted] = useState(false);
-  const [demoMode, setDemoMode] = useState(true);
   const [deploying, setDeploying] = useState(false);
+  const { ready } = useResolveAccess();
 
   const load = useCallback(async () => {
-    const [res, cfg] = await Promise.all([
-      fetch(`/api/tasks/${id}`),
-      fetch("/api/config"),
-    ]);
+    const res = await fetch(`/api/tasks/${id}`);
+    if (res.status === 401) {
+      setTask(null);
+      return;
+    }
     const data = await res.json();
-    setTask(data.task);
-    setDemoMode((await cfg.json()).demoMode ?? true);
+    setTask(data.task ?? null);
   }, [id]);
 
   useEffect(() => {
@@ -35,32 +37,26 @@ export default function TaskDetailPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!task || !executionStarted || ["settled", "failed", "refunded"].includes(task.status)) {
+    if (
+      !task ||
+      !executionStarted ||
+      ["settled", "failed", "refunded"].includes(task.status)
+    ) {
       return;
     }
     const interval = setInterval(async () => {
       const res = await fetch(`/api/tasks/${id}`);
       const data = await res.json();
-      if (data.task) {
-        setTask(data.task);
-        if (data.task.status === "proof_pending" && demoMode) {
-          await fetch("/api/merchant/confirm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              taskId: data.task.id,
-              merchantId: data.task.merchantId,
-              refundedAmountUsd: data.task.targetValueUsd,
-            }),
-          });
-        }
-      }
-      load();
-    }, 1200);
+      if (data.task) setTask(data.task);
+    }, 2000);
     return () => clearInterval(interval);
-  }, [task, executionStarted, demoMode, id, load]);
+  }, [task, executionStarted, id]);
 
   async function startExecution() {
+    if (!ready) {
+      toast.error("Sign in and connect wallet first");
+      return;
+    }
     setDeploying(true);
     setExecutionStarted(true);
     try {
@@ -69,12 +65,16 @@ export default function TaskDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "execute", taskId: id }),
       });
-      if (!res.ok) throw new Error("Deploy failed");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Deploy failed");
       toast.success("Mission deployed", {
         description: "Agents are working on your outcome",
       });
-    } catch {
-      toast.error("Deploy failed", { description: "Try again in a moment" });
+      await load();
+    } catch (e) {
+      toast.error("Deploy failed", {
+        description: e instanceof Error ? e.message : "Try again",
+      });
       setExecutionStarted(false);
     } finally {
       setDeploying(false);
@@ -82,7 +82,12 @@ export default function TaskDetailPage() {
   }
 
   if (!task) {
-    return <div className="p-8 text-deputy-muted">Loading mission…</div>;
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 p-6 lg:p-8">
+        <AccessGateBanner />
+        <p className="text-deputy-muted">Loading mission…</p>
+      </div>
+    );
   }
 
   const confidence = Math.min(94, 70 + taskProgress(task.status) / 5);
@@ -107,7 +112,9 @@ export default function TaskDetailPage() {
 
       {!task.escrowLocked && (
         <div className="space-y-3 rounded-xl border border-deputy-border bg-deputy-panel p-4">
+          <AccessGateBanner />
           <ArcNetworkBanner />
+          <AgentEscrowBadge />
           <p className="text-sm text-deputy-muted">Lock task budget to deploy</p>
           <EscrowLock
             taskId={task.id}

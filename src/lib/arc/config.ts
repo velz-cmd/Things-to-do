@@ -29,15 +29,19 @@ export const USDC_ADDRESS =
 export const DEPUTY_ESCROW_ADDRESS = process.env
   .NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS as `0x${string}` | undefined;
 
-/** On-chain agent oracle — receives success fee after proof. Not the escrow vault. */
-export const RESOLVE_AGENT_ADDRESS = (process.env
+/** RESOLVE agent escrow — custodies locked user budgets until proof. */
+export const RESOLVE_AGENT_ESCROW_ADDRESS = (process.env
   .NEXT_PUBLIC_RESOLVE_AGENT_ADDRESS ??
   "0xDD81E79E22053a4d7036D6E9DB22Dad591b65511") as `0x${string}`;
+
+/** @deprecated use RESOLVE_AGENT_ESCROW_ADDRESS */
+export const RESOLVE_AGENT_ADDRESS = RESOLVE_AGENT_ESCROW_ADDRESS;
 
 export function isEscrowMisconfigured(): boolean {
   if (!DEPUTY_ESCROW_ADDRESS) return false;
   return (
-    DEPUTY_ESCROW_ADDRESS.toLowerCase() === RESOLVE_AGENT_ADDRESS.toLowerCase()
+    DEPUTY_ESCROW_ADDRESS.toLowerCase() ===
+    RESOLVE_AGENT_ESCROW_ADDRESS.toLowerCase()
   );
 }
 

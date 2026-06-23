@@ -2,7 +2,10 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { PageHeader } from "@/components/resolve/ui/page-header";
+import { GlassPanel } from "@/components/resolve/ui/glass-panel";
 import type { Proof } from "@/lib/deputy/ui-types";
+import Link from "next/link";
 
 function ProofContent() {
   const searchParams = useSearchParams();
@@ -31,25 +34,25 @@ function ProofContent() {
   }, [taskFilter]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-4 lg:p-8">
-      <header>
-        <h1 className="text-2xl font-semibold">Proof</h1>
-        <p className="mt-1 text-sm text-deputy-muted">Verified evidence and artifacts</p>
-      </header>
+    <div className="resolve-grid-bg mx-auto max-w-3xl space-y-6 px-4 py-8 lg:px-8">
+      <PageHeader title="Proof" subtitle="Receipts, screenshots, confirmations." />
 
       {proofs.length === 0 ? (
-        <p className="text-sm text-deputy-muted">
-          No proof objects yet. Complete a mission to see verified evidence here.
-        </p>
+        <GlassPanel className="p-8 text-center">
+          <p className="text-resolve-muted">No proof yet.</p>
+          <p className="mt-2 text-sm text-resolve-muted">
+            Start a mission or upload a receipt to create proof.
+          </p>
+          <Link href="/start" className="mt-4 inline-block text-sm font-medium text-sky-400 hover:underline">
+            Start a task →
+          </Link>
+        </GlassPanel>
       ) : (
         <ul className="space-y-3">
           {proofs.map((p) => (
-            <li
-              key={p.id}
-              className="rounded-xl border border-deputy-border bg-deputy-panel p-4"
-            >
+            <GlassPanel key={p.id} className="p-4">
               <div className="flex items-center justify-between">
-                <p className="font-medium">{p.type.replace(/_/g, " ")}</p>
+                <p className="font-medium text-white">{p.type.replace(/_/g, " ")}</p>
                 <span
                   className={
                     p.verified
@@ -60,8 +63,8 @@ function ProofContent() {
                   {p.verified ? "Verified" : "Pending"}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-deputy-muted">Source: {p.source}</p>
-              <p className="mt-2 font-mono text-[10px] text-deputy-muted break-all">
+              <p className="mt-1 text-xs text-resolve-muted">Source: {p.source}</p>
+              <p className="mt-2 font-mono text-[10px] text-resolve-muted break-all">
                 {p.contentHash}
               </p>
               {p.artifactUrl && (
@@ -69,12 +72,12 @@ function ProofContent() {
                   href={p.artifactUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-2 inline-block text-sm text-blue-400 underline"
+                  className="mt-2 inline-block text-sm text-sky-400 underline"
                 >
-                  Open artifact
+                  Open proof
                 </a>
               )}
-            </li>
+            </GlassPanel>
           ))}
         </ul>
       )}

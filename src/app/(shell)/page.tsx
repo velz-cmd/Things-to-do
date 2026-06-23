@@ -1,5 +1,5 @@
-import CommandContent from "./command-content";
+import { HomePage } from "@/components/resolve/home/home-page";
 
-export default function CommandPage() {
-  return <CommandContent />;
+export default function Home() {
+  return <HomePage />;
 }

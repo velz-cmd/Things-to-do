@@ -1,14 +1,24 @@
 "use client";
 
 import clsx from "clsx";
+import { Mail, Globe, Wallet, CreditCard, Send } from "lucide-react";
 import type { ConnectorStatus } from "@/lib/connectors/connector-types";
+import { GlassPanel } from "@/components/resolve/ui/glass-panel";
+
+const ICONS: Record<string, typeof Mail> = {
+  gmail: Mail,
+  browser: Globe,
+  arc: Wallet,
+  finance: CreditCard,
+  resend: Send,
+};
 
 const STATE_STYLES: Record<string, string> = {
-  connected: "bg-blue-500/15 text-blue-300 border-blue-500/30",
-  ready: "bg-blue-500/15 text-blue-300 border-blue-500/30",
-  missing: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
-  needs_auth: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  error: "bg-red-500/15 text-red-300 border-red-500/30",
+  connected: "bg-sky-500/10 text-sky-300 border-sky-500/30",
+  ready: "bg-sky-500/10 text-sky-300 border-sky-500/30",
+  missing: "bg-white/5 text-resolve-muted border-white/10",
+  needs_auth: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+  error: "bg-red-500/10 text-red-300 border-red-500/30",
 };
 
 const STATE_LABEL: Record<string, string> = {
@@ -35,33 +45,39 @@ export function ConnectorReadinessPanel({
     : connectors;
 
   return (
-    <section className="rounded-xl border border-deputy-border bg-deputy-panel/80 p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-deputy-muted">
+    <GlassPanel className="p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-resolve-muted">
         Connector readiness
       </p>
       <div className={clsx("mt-3 grid gap-2", compact ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2")}>
-        {visible.map((c) => (
-          <div
-            key={c.id}
-            className="flex items-center justify-between gap-2 rounded-lg border border-deputy-border/60 bg-deputy-bg/50 px-3 py-2"
-          >
-            <span className="text-sm">{c.label}</span>
-            <span
-              className={clsx(
-                "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase",
-                STATE_STYLES[c.state]
-              )}
+        {visible.map((c) => {
+          const Icon = ICONS[c.id] ?? Globe;
+          return (
+            <div
+              key={c.id}
+              className="flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2.5"
             >
-              {STATE_LABEL[c.state] ?? c.state}
-            </span>
-          </div>
-        ))}
+              <span className="flex items-center gap-2 text-sm text-white">
+                <Icon className="h-3.5 w-3.5 text-resolve-muted" />
+                {c.label}
+              </span>
+              <span
+                className={clsx(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                  STATE_STYLES[c.state]
+                )}
+              >
+                {STATE_LABEL[c.state] ?? c.state}
+              </span>
+            </div>
+          );
+        })}
       </div>
       {category && (
-        <p className="mt-2 text-[11px] text-deputy-muted">
+        <p className="mt-2 text-[11px] text-resolve-muted">
           Requirements for {category.replace(/_/g, " ")}
         </p>
       )}
-    </section>
+    </GlassPanel>
   );
 }

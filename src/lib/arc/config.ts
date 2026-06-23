@@ -1,5 +1,6 @@
 import { defineChain } from "viem";
 
+/// Arc Testnet — native gas token is USDC (18 decimals). See docs.arc.network
 export const arcTestnet = defineChain({
   id: 5042002,
   name: "Arc Testnet",

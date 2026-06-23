@@ -6,13 +6,17 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
   usePublicClient,
+  useChainId,
+  useSwitchChain,
 } from "wagmi";
 import { decodeEventLog } from "viem";
 import {
   DEPUTY_ESCROW_ABI,
   DEPUTY_ESCROW_ADDRESS,
+  arcTestnet,
 } from "@/lib/arc/config";
 import { taskRefFromId, usdcToWei } from "@/lib/arc/utils";
+import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
 import clsx from "clsx";
 
 interface EscrowLockProps {
@@ -33,6 +37,8 @@ export function EscrowLock({
   onLocked,
 }: EscrowLockProps) {
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
   const [demoLocking, setDemoLocking] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -115,11 +121,27 @@ export function EscrowLock({
     onLocked();
   }
 
-  function lockOnChain() {
+  async function lockOnChain() {
     if (!DEPUTY_ESCROW_ADDRESS) return;
     syncedRef.current = false;
     setSyncError(null);
+
+    try {
+      await ensureArcNetwork();
+      if (!isArcChain(chainId)) {
+        await switchChainAsync({ chainId: arcTestnet.id });
+      }
+    } catch (e) {
+      setSyncError(
+        e instanceof Error
+          ? e.message
+          : "Switch wallet to Arc Testnet (chain 5042002)"
+      );
+      return;
+    }
+
     writeContract({
+      chainId: arcTestnet.id,
       address: DEPUTY_ESCROW_ADDRESS,
       abi: DEPUTY_ESCROW_ABI,
       functionName: "createTask",
@@ -183,6 +205,19 @@ export function EscrowLock({
           ? "Confirming on Arc…"
           : `Lock $${budgetUsd.toFixed(2)} USDC on Arc`}
       </button>
+      <p className="mt-2 text-[10px] text-deputy-muted">
+        Settles in native Arc USDC (chain 5042002). Some wallets label the gas
+        token &quot;ETH&quot; — on Arc it is USDC. Get testnet USDC from{" "}
+        <a
+          href="https://faucet.circle.com"
+          target="_blank"
+          rel="noreferrer"
+          className="text-deputy-accent underline"
+        >
+          faucet.circle.com
+        </a>
+        .
+      </p>
       {(error || syncError) && (
         <p className="mt-1 text-xs text-deputy-danger">
           {error?.message ?? syncError}

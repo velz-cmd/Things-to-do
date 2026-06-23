@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useAccount,
   useWriteContract,
@@ -213,19 +213,12 @@ export function EscrowLock({
   if (locked) {
     return (
       <div className="rounded-lg border border-deputy-accent/30 bg-deputy-accent/5 p-3">
-        <p className="text-xs uppercase text-deputy-muted">Budget secured</p>
+        <p className="text-xs uppercase text-deputy-muted">Balance secured</p>
         <p className="text-sm text-deputy-accent">
           Locked · ${budgetUsd.toFixed(2)} USDC
         </p>
         {escrowTxHash && (
-          <a
-            href={`https://testnet.arcscan.app/tx/${escrowTxHash}`}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-1 block truncate font-mono text-xs text-deputy-muted underline"
-          >
-            {escrowTxHash}
-          </a>
+          <VerifiedTxLink hash={escrowTxHash} />
         )}
       </div>
     );
@@ -349,5 +342,43 @@ export function EscrowLock({
         </p>
       )}
     </div>
+  );
+}
+
+function VerifiedTxLink({ hash }: { hash: string }) {
+  const [status, setStatus] = useState<"loading" | "verified" | "pending">("loading");
+
+  useEffect(() => {
+    fetch(`/api/settlement/verify-tx/${hash}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setStatus(
+          d.verification?.found && d.verification?.success ? "verified" : "pending"
+        );
+      })
+      .catch(() => setStatus("pending"));
+  }, [hash]);
+
+  if (status === "loading") {
+    return <p className="mt-1 text-xs text-deputy-muted">Verifying on Arc…</p>;
+  }
+
+  if (status === "verified") {
+    return (
+      <a
+        href={`https://testnet.arcscan.app/tx/${hash}`}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-1 block truncate font-mono text-xs text-deputy-accent underline"
+      >
+        {hash}
+      </a>
+    );
+  }
+
+  return (
+    <p className="mt-1 text-xs text-deputy-warn">
+      Tx pending / not indexed on Arc — no explorer link shown
+    </p>
   );
 }

@@ -33,6 +33,8 @@ model Task {
   events          TaskEvent[]
   proofs          Proof[]
   microPayments   MicroPayment[]
+  settlement      Settlement?
+  executionCosts  ExecutionCostEvent[]
 }
 
 model TaskEvent {
@@ -101,4 +103,41 @@ model WalletTransaction {
   status    String   @default("completed")
   label     String?
   createdAt DateTime @default(now())
+}
+
+model Settlement {
+  id                String   @id @default(cuid())
+  taskId            String   @unique
+  task              Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  mode              String   @default("mock_arc")
+  status            String   @default("not_started")
+  amountUsdc        String
+  executionCostUsdc String   @default("0")
+  chainId           Int      @default(5042002)
+  contractAddress   String?
+  jobId             String?
+  proofHash         String?
+  createJobTxHash   String?
+  approveTxHash     String?
+  fundTxHash        String?
+  submitProofTxHash String?
+  releaseTxHash     String?
+  refundTxHash      String?
+  explorerUrls      Json     @default("[]")
+  lastVerifiedAt    DateTime?
+  error             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ExecutionCostEvent {
+  id           String   @id @default(cuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent        String
+  action       String
+  amountUsdc   Float
+  meteringMode String   @default("offchain_metered")
+  txHash       String?
+  createdAt    DateTime @default(now())
 }

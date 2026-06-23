@@ -36,20 +36,24 @@ async function logEvent(
   });
 }
 
+import { recordExecutionCost } from "@/lib/settlement/settlement-db";
+
 async function recordMicroPayment(
   taskId: string,
   purpose: string,
-  amountUsd: number
+  amountUsd: number,
+  agent = "Executor"
 ) {
-  const txHash =
-    "0x" +
-    hashProofPayload({ taskId, purpose, amountUsd, t: Date.now() }).slice(2, 42);
   await prisma.microPayment.create({
-    data: { taskId, purpose, amountUsd, txHash },
+    data: { taskId, purpose, amountUsd, txHash: null },
   });
-  await prisma.task.update({
-    where: { id: taskId },
-    data: { executionCostUsd: { increment: amountUsd } },
+  await recordExecutionCost({
+    taskId,
+    agent,
+    action: purpose,
+    amountUsdc: amountUsd,
+    meteringMode: "offchain_metered",
+    txHash: null,
   });
 }
 

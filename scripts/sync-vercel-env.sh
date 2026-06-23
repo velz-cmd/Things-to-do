@@ -11,8 +11,7 @@ if [[ ! -f .env ]]; then
 fi
 
 if ! command -v vercel &>/dev/null; then
-  echo "Install Vercel CLI: npm i -g vercel && vercel login"
-  exit 1
+  vercel() { npx vercel@54 "$@"; }
 fi
 
 # Vars required for RESOLVE on Vercel

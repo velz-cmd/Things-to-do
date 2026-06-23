@@ -1,13 +1,6 @@
-import { Resend } from "resend";
+import { sendEmail } from "@/lib/resend/client";
 
-let resendClient: Resend | null = null;
-
-function getResend() {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return null;
-  if (!resendClient) resendClient = new Resend(key);
-  return resendClient;
-}
+export { getResendClient, sendEmail } from "@/lib/resend/client";
 
 export async function sendClaimEmail(params: {
   to: string;
@@ -15,12 +8,6 @@ export async function sendClaimEmail(params: {
   body: string;
   taskId?: string;
 }) {
-  const resend = getResend();
-  if (!resend) return null;
-
-  const from = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
-  const to = process.env.RESEND_CLAIM_TO ?? params.to;
-
   const html = `
     <div style="font-family: sans-serif; max-width: 560px;">
       <p style="color: #3dd68c; font-weight: 600;">DEPUTY — Compensation Claim</p>
@@ -31,13 +18,11 @@ export async function sendClaimEmail(params: {
     </div>
   `;
 
-  const { data, error } = await resend.emails.send({
-    from,
-    to: [to],
+  const to = process.env.RESEND_CLAIM_TO ?? params.to;
+
+  return sendEmail({
+    to,
     subject: params.subject,
     html,
   });
-
-  if (error) throw new Error(error.message);
-  return data;
 }

@@ -161,7 +161,9 @@ export async function runDeputyExecution(taskId: string) {
         taskId,
         "Executor",
         "tool",
-        `Outbound claim email sent (${email.data?.messageId})`
+        email.ok
+          ? `Outbound claim email sent via Resend (${email.data?.messageId})`
+          : `Resend claim email failed: ${email.error}`
       );
     }
 

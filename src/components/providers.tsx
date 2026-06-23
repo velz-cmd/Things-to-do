@@ -19,24 +19,22 @@ import { AddFundsProvider } from "@/components/wallet/add-funds-context";
 
 const queryClient = new QueryClient();
 
-if (projectId) {
-  createAppKit({
-    adapters: [wagmiAdapter],
-    networks,
-    projectId,
-    metadata: appKitMetadata,
-    themeMode: "dark",
-    features: {
-      analytics: false,
-      email: false,
-      socials: false,
-    },
-    enableWalletConnect: true,
-    enableInjected: true,
-    enableCoinbase: true,
-    enableEIP6963: true,
-  });
-}
+createAppKit({
+  adapters: [wagmiAdapter],
+  networks,
+  projectId: projectId || "00000000000000000000000000000000",
+  metadata: appKitMetadata,
+  themeMode: "dark",
+  features: {
+    analytics: false,
+    email: false,
+    socials: false,
+  },
+  enableWalletConnect: true,
+  enableInjected: true,
+  enableCoinbase: true,
+  enableEIP6963: true,
+});
 
 export function Providers({
   children,

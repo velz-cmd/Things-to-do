@@ -1,8 +1,36 @@
 # Deploy RESOLVE (non-technical guide)
 
-Your code **is saved on GitHub**. Vercel just has not built the newest version yet.
+---
 
-Live site is still the **old** DEPUTY page. New code has **RESOLVE** (sidebar: Overview · Tasks · Vault).
+## Build failed: missing `DATABASE_URL` (P1012)
+
+Add in Vercel → **things-to-do** → **Environment Variables**:
+
+- `DATABASE_URL` — Supabase → Settings → Database → Connection string (pooler URI)
+- Enable **Production**, **Preview**, and **Development**
+- Redeploy from `main`
+
+Or from your machine (after `vercel login`):
+
+```bash
+./scripts/sync-vercel-env.sh
+vercel deploy --prod
+```
+
+---
+
+## Rabby shows “DEPUTY treasury” / `TaskCreated` error
+
+Two different addresses — do not mix them up:
+
+| Role | Address |
+|------|---------|
+| **Escrow contract** (where budget locks) | `0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f` → `NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS` |
+| **RESOLVE agent oracle** (success fee only) | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` → `NEXT_PUBLIC_RESOLVE_AGENT_ADDRESS` |
+
+If Vercel has the **agent** address as `NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS`, Rabby will show a plain “Send Token” to your treasury label and the app will fail with **Could not read TaskCreated from receipt**.
+
+**Recommended for judges:** sign in → **Lock from balance** (no Rabby signature).
 
 ---
 

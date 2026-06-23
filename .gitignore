@@ -11,6 +11,7 @@ contracts/out
 contracts/cache
 contracts/broadcast
 .vercel
+.vercel-deploy-hook
 .resolve
 test-results
 playwright-report

@@ -9,61 +9,36 @@ concurrency:
   group: vercel-production
   cancel-in-progress: true
 
+env:
+  VERCEL_ORG_ID: team_apDtKK364C3BW1LjG3M93rhI
+  VERCEL_PROJECT_ID: prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd
+  # Deploy hook on things-to-do / main (revoke in Vercel dashboard if leaked)
+  VERCEL_DEPLOY_HOOK_URL: https://api.vercel.com/v1/integrations/deploy/prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd/krAQUtlB2i
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Vercel credentials
-        id: creds
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Trigger Vercel production deploy
         run: |
-          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Vercel deploy skipped — add VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID to GitHub repository secrets."
-            echo "Deploy locally with: npx vercel deploy --prod"
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "Triggering Vercel deploy hook for main..."
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
+          echo "Production deploy started on Vercel."
+
+      - name: CLI deploy (optional — when VERCEL_TOKEN secret is set)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ env.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ env.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN not in GitHub secrets — hook deploy only."
+            echo "Run ./scripts/setup-github-vercel-secrets.sh locally to enable CLI path."
+            exit 0
           fi
-
-      - uses: actions/setup-node@v4
-        if: steps.creds.outputs.configured == 'true'
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install dependencies
-        if: steps.creds.outputs.configured == 'true'
-        run: npm ci --legacy-peer-deps
-
-      - name: Install Vercel CLI
-        if: steps.creds.outputs.configured == 'true'
-        run: npm install -g vercel@54
-
-      - name: Pull Vercel environment
-        if: steps.creds.outputs.configured == 'true'
-        run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Build
-        if: steps.creds.outputs.configured == 'true'
-        run: vercel build --prod --token=$VERCEL_TOKEN
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Deploy to production
-        if: steps.creds.outputs.configured == 'true'
-        run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          npm install -g vercel@54
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"

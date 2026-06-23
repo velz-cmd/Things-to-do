@@ -1,23 +1,30 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAppKit } from "@reown/appkit/react";
+import { useAccount } from "wagmi";
+import { Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { projectId } from "@/lib/reown/config";
 import { toast } from "sonner";
 import clsx from "clsx";
 
-type Step = "choose" | "email" | "verify";
+type Step = "choose" | "verify";
 
 export function SignInModal() {
   const { open, closeSignIn } = useSignInModal();
-  const { signInWithGoogle, signInWithEmail, verifyEmailOtp } = useAuth();
+  const { signInWithGoogle, signInWithEmail, verifyEmailOtp, user } = useAuth();
+  const { open: openWallet } = useAppKit();
+  const { isConnected, address } = useAccount();
   const [step, setStep] = useState<Step>("choose");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [loading, setLoading] = useState<"google" | "email" | "verify" | null>(
-    null
-  );
+  const [loading, setLoading] = useState<
+    "google" | "email" | "verify" | "wallet" | null
+  >(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
+  const walletEnabled = Boolean(projectId);
 
   useEffect(() => {
     if (!open) {
@@ -32,12 +39,37 @@ export function SignInModal() {
     if (step === "verify") codeInputRef.current?.focus();
   }, [step]);
 
+  useEffect(() => {
+    if (user && open) closeSignIn();
+  }, [user, open, closeSignIn]);
+
   if (!open) return null;
 
   async function handleGoogle() {
     setLoading("google");
     try {
       await signInWithGoogle();
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleWallet() {
+    if (!walletEnabled) {
+      toast.error("Wallet connect not configured", {
+        description: "Add NEXT_PUBLIC_REOWN_PROJECT_ID to enable wallets.",
+      });
+      return;
+    }
+    setLoading("wallet");
+    try {
+      openWallet({ view: "Connect" });
+      if (!user) {
+        toast.message("Wallet connected", {
+          description:
+            "Finish with Google or email so RESOLVE can save your missions and proof.",
+        });
+      }
     } finally {
       setLoading(null);
     }
@@ -53,7 +85,7 @@ export function SignInModal() {
     try {
       await signInWithEmail(email.trim());
       toast.success("Check your inbox", {
-        description: "Enter the 6-digit code we sent you.",
+        description: "Enter the 6-digit code (expires in 30 minutes).",
       });
       setStep("verify");
     } catch {
@@ -96,8 +128,8 @@ export function SignInModal() {
             </h2>
             <p className="mt-1 text-sm text-deputy-muted">
               {step === "verify"
-                ? `We sent a login code to ${email}`
-                : "Google, email, or connect a wallet after sign-in."}
+                ? `We sent a 6-digit code to ${email}`
+                : "Google, email, or connect a wallet."}
             </p>
           </div>
           <button
@@ -121,6 +153,27 @@ export function SignInModal() {
               <GoogleIcon />
               {loading === "google" ? "Redirecting…" : "Continue with Google"}
             </button>
+
+            {walletEnabled && (
+              <button
+                type="button"
+                disabled={loading !== null}
+                onClick={handleWallet}
+                className={clsx(
+                  "flex w-full items-center justify-center gap-3 rounded-xl border py-3.5 text-sm font-medium transition disabled:opacity-50",
+                  isConnected && address
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                    : "border-deputy-border bg-deputy-bg text-white hover:border-deputy-accent/40"
+                )}
+              >
+                <Wallet className="h-4 w-4" />
+                {loading === "wallet"
+                  ? "Opening wallet…"
+                  : isConnected && address
+                    ? `Connected ${address.slice(0, 6)}…${address.slice(-4)}`
+                    : "Connect wallet"}
+              </button>
+            )}
 
             <div className="flex items-center gap-3 py-1 text-xs text-deputy-muted">
               <span className="h-px flex-1 bg-deputy-border" />
@@ -181,8 +234,8 @@ export function SignInModal() {
         )}
 
         <p className="mt-5 text-center text-[10px] leading-relaxed text-deputy-muted">
-          New accounts receive a one-time activation email after verification.
-          No crypto knowledge required.
+          Login codes expire in 30 minutes. RESOLVE never stores passwords or
+          seed phrases.
         </p>
       </div>
     </div>

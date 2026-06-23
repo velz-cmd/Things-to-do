@@ -13,18 +13,15 @@ export async function POST(req: Request) {
     "https://resolve-task.vercel.app";
 
   const subject = isNewUser
-    ? "Welcome to RESOLVE — activate your account"
+    ? "Welcome to RESOLVE"
     : "Signed in to RESOLVE";
 
   const body = isNewUser
     ? `Hi${name ? ` ${name}` : ""},
 
-Your RESOLVE account is ready. We verified your email and created a secure agent wallet for outcome-based missions.
+Your RESOLVE account is ready. Assign a real-world outcome, upload proof, and unlock proof-based payment only when verified.
 
-Activate your account (one-time):
-${appUrl}/?activated=1
-
-Assign a real-world outcome, lock escrow on Arc, and pay only when proof is verified.
+Open RESOLVE: ${appUrl}
 
 — RESOLVE`
     : `Hi${name ? ` ${name}` : ""},

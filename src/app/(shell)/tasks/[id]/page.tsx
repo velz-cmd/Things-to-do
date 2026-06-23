@@ -17,6 +17,7 @@ export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [task, setTask] = useState<Task | null>(null);
   const [executionStarted, setExecutionStarted] = useState(false);
+  const [demoMode, setDemoMode] = useState(true);
   const [deploying, setDeploying] = useState(false);
 
   const load = useCallback(async () => {

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, isSupabaseAdminConfigured, getSupabaseServerUrl, getSupabaseServiceRoleKey } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/resend/client";
+
+export const runtime = "nodejs";
 
 const SEND_COOLDOWN_MS = 60_000;
 const recentSends = new Map<string, number>();
@@ -57,10 +59,16 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
   if (!admin) {
+    const hasUrl = Boolean(getSupabaseServerUrl());
+    const hasKey = Boolean(getSupabaseServiceRoleKey());
     return NextResponse.json(
       {
-        error:
-          "Login codes are not configured. Add SUPABASE_SERVICE_ROLE_KEY on the server.",
+        error: hasKey
+          ? "Supabase URL missing on server. Add SUPABASE_URL in Vercel env."
+          : hasUrl
+            ? "Login codes need SUPABASE_SERVICE_ROLE_KEY on the server."
+            : "Login codes are not configured on the server.",
+        debug: { hasUrl, hasKey },
       },
       { status: 503 }
     );

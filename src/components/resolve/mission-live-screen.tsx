@@ -13,6 +13,8 @@ import { taskStatusLabel } from "@/lib/resolve/progress";
 import type { ConnectorStatus } from "@/lib/connectors/connector-types";
 import { GlassPanel } from "@/components/resolve/ui/glass-panel";
 import { StatusChip } from "@/components/resolve/ui/status-chip";
+import { ExecutionCostLedger } from "@/components/settlement/execution-cost-ledger";
+import { AgentCredentialPanel } from "@/components/resolve/agent-credential-panel";
 import { ArrowLeft } from "lucide-react";
 
 export function MissionLiveScreen({
@@ -106,6 +108,10 @@ export function MissionLiveScreen({
           )}
 
           <HumanTimeline items={timeline} />
+
+          <ExecutionCostLedger taskId={task.id} />
+
+          <AgentCredentialPanel compact />
 
           <SettlementPanel
             taskId={task.id}

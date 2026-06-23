@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/resolve/ui/page-header";
 import { GlassPanel } from "@/components/resolve/ui/glass-panel";
+import { AgentCredentialPanel } from "@/components/resolve/agent-credential-panel";
 import type { Proof } from "@/lib/deputy/ui-types";
 import Link from "next/link";
 
@@ -36,6 +37,8 @@ function ProofContent() {
   return (
     <div className="resolve-grid-bg mx-auto max-w-3xl space-y-6 px-4 py-8 lg:px-8">
       <PageHeader title="Proof" subtitle="Receipts, screenshots, confirmations." />
+
+      <AgentCredentialPanel compact />
 
       {proofs.length === 0 ? (
         <GlassPanel className="p-8 text-center">

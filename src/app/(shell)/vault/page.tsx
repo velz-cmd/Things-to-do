@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Mail, Wallet } from "lucide-react";
 import { ConnectorReadinessPanel } from "@/components/resolve/connector-readiness-panel";
+import { AgentCredentialPanel } from "@/components/resolve/agent-credential-panel";
 import { PageHeader } from "@/components/resolve/ui/page-header";
 import { GlassPanel } from "@/components/resolve/ui/glass-panel";
 import type { ConnectorStatus } from "@/lib/connectors/connector-types";
@@ -54,6 +55,8 @@ export default function VaultPage() {
       />
 
       <ConnectorReadinessPanel connectors={connectors} />
+
+      <AgentCredentialPanel />
 
       <GlassPanel className="space-y-4 p-5">
         <h2 className="font-medium text-white">Connected accounts</h2>

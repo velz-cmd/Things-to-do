@@ -7,6 +7,8 @@ import { verifyProof } from "@/lib/deputy/proof-engine";
 import { runTaskExecutor } from "@/lib/deputy/executor";
 import { getSettlementAdapter } from "@/lib/settlement/settlement-service";
 import { verifyArcTx } from "@/lib/settlement/arc-verify";
+import { batchExecutionCostsForGateway } from "@/lib/settlement/settlement-db";
+import { recordMissionReputation } from "@/lib/agent/erc8004-client";
 
 async function logEvent(
   taskId: string,
@@ -247,6 +249,34 @@ export async function settleTask(taskId: string, proofHash: string) {
       },
     },
   });
+
+  try {
+    await batchExecutionCostsForGateway(taskId);
+  } catch {
+    /* non-blocking */
+  }
+
+  try {
+    const reputation = await recordMissionReputation({
+      taskId,
+      taskTitle: task.title,
+      proofHash,
+      recoveredUsd: task.recoveredUsd,
+    });
+    if (reputation.txHash || reputation.mode === "mock") {
+      await logEvent(
+        taskId,
+        "Verification",
+        "reputation",
+        reputation.txHash
+          ? `ERC-8004 reputation recorded (score ${reputation.score})`
+          : `Reputation score ${reputation.score} (demo — awaiting Arc credentials)`,
+        { reputationTxHash: reputation.txHash, score: reputation.score }
+      );
+    }
+  } catch {
+    /* non-blocking */
+  }
 
   return { settlementTxHash, netGain };
 }

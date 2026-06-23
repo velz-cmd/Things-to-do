@@ -63,6 +63,29 @@ async function waitForCircleTx(
 
 export async function executeCircleContract(input: {
   walletAddress: string;
+  contractAddress?: `0x${string}`;
+  abiFunctionSignature: string;
+  abiParameters: string[];
+  label: string;
+}): Promise<string> {
+  const contractAddress =
+    input.contractAddress ??
+    (input.abiFunctionSignature.startsWith("approve")
+      ? ARC_USDC_CONTRACT
+      : ARC_AGENTIC_COMMERCE_CONTRACT);
+
+  return executeCircleContractOn({
+    walletAddress: input.walletAddress,
+    contractAddress,
+    abiFunctionSignature: input.abiFunctionSignature,
+    abiParameters: input.abiParameters,
+    label: input.label,
+  });
+}
+
+export async function executeCircleContractOn(input: {
+  walletAddress: string;
+  contractAddress: `0x${string}`;
   abiFunctionSignature: string;
   abiParameters: string[];
   label: string;
@@ -76,9 +99,7 @@ export async function executeCircleContract(input: {
     idempotencyKey: randomUUID(),
     walletAddress: input.walletAddress,
     blockchain: "ARC-TESTNET",
-    contractAddress: input.abiFunctionSignature.startsWith("approve")
-      ? ARC_USDC_CONTRACT
-      : ARC_AGENTIC_COMMERCE_CONTRACT,
+    contractAddress: input.contractAddress,
     abiFunctionSignature: input.abiFunctionSignature,
     abiParameters: input.abiParameters,
     fee: { type: "level", config: { feeLevel: "MEDIUM" } },

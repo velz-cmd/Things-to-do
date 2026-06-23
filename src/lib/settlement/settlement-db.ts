@@ -146,3 +146,19 @@ export async function listExecutionCosts(taskId: string) {
     orderBy: { createdAt: "asc" },
   });
 }
+
+/** Mark execution costs as batched for Circle Gateway settlement (post-mission) */
+export async function batchExecutionCostsForGateway(taskId: string) {
+  const events = await prisma.executionCostEvent.findMany({
+    where: { taskId, meteringMode: "offchain_metered" },
+  });
+  if (events.length === 0) return { count: 0, totalUsdc: 0 };
+
+  await prisma.executionCostEvent.updateMany({
+    where: { taskId, meteringMode: "offchain_metered" },
+    data: { meteringMode: "gateway_batched" },
+  });
+
+  const totalUsdc = events.reduce((s, e) => s + e.amountUsdc, 0);
+  return { count: events.length, totalUsdc };
+}

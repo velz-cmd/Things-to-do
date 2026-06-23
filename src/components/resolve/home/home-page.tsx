@@ -171,7 +171,8 @@ export function HomePage() {
               "Emails and receipts are checked against policy",
               "Payment links only appear after backend verification",
               "Risky actions require your explicit approval",
-              "Technical audit trails stay hidden until you need them",
+              "RESOLVE agent identity registered on Arc (ERC-8004)",
+              "Execution costs batch via Circle Gateway on settlement",
             ].map((line) => (
               <li key={line} className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />

@@ -1,4 +1,5 @@
 import { EscrowLock } from "@/components/escrow-lock";
+import { VerifiedTxLink } from "@/components/settlement/verified-tx-link";
 import type { Task } from "@/lib/deputy/ui-types";
 import { Card } from "@/components/ui";
 
@@ -31,14 +32,10 @@ export function ArcEscrowCard({
             Net gain: +${netGain.toFixed(2)}
           </p>
           {task.settlementTxHash && (
-            <a
-              href={`https://testnet.arcscan.app/tx/${task.settlementTxHash}`}
-              target="_blank"
-              rel="noreferrer"
+            <VerifiedTxLink
+              hash={task.settlementTxHash}
               className="mt-1 block text-xs text-deputy-accent underline"
-            >
-              Settlement on Arcscan
-            </a>
+            />
           )}
         </div>
       )}

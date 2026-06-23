@@ -54,7 +54,9 @@ export default function TaskDetailPage() {
 
   async function startExecution() {
     if (!ready) {
-      toast.error("Sign in and connect wallet first");
+      toast.error("Sign in first", {
+        description: "Use Google or email in the sidebar",
+      });
       return;
     }
     setDeploying(true);

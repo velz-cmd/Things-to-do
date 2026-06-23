@@ -37,8 +37,8 @@ export default function OverviewPage() {
 
   async function assignOutcome(templateId: string) {
     if (!ready) {
-      toast.error("Sign in and connect wallet first", {
-        description: "Gmail or email + crypto wallet required",
+      toast.error("Sign in first", {
+        description: "Google or email — then add funds if needed",
       });
       return;
     }

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { RESOLVE_AGENT_ESCROW_ADDRESS } from "@/lib/arc/config";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { User as DbUser } from "@prisma/client";
+import { ensureUserProfile } from "@/lib/wallet/service";
+import { embeddedWalletFor } from "@/lib/wallet/embedded";
 
 export { getSessionUserId } from "@/lib/wallet/service";
 
@@ -25,30 +27,54 @@ export async function requireSessionUser(): Promise<
   return { user };
 }
 
+export async function ensureProfileForUser(
+  user: SupabaseUser
+): Promise<DbUser> {
+  const provider =
+    user.app_metadata?.provider === "email"
+      ? "email"
+      : user.app_metadata?.provider ?? "google";
+
+  let profile = await ensureUserProfile({
+    id: user.id,
+    email: user.email,
+    displayName:
+      user.user_metadata?.full_name ??
+      user.user_metadata?.name ??
+      user.email?.split("@")[0],
+    authProvider: provider,
+  });
+
+  if (!profile.walletAddress) {
+    profile = await prisma.user.update({
+      where: { id: profile.id },
+      data: {
+        walletAddress: embeddedWalletFor(profile.id),
+        embeddedWallet: true,
+      },
+    });
+  }
+
+  return profile;
+}
+
+/** Signed-in user with auto-provisioned embedded wallet (email-only OK). */
 export async function requireReadyUser(): Promise<
   AuthError | { user: SupabaseUser; profile: DbUser }
 > {
   const session = await requireSessionUser();
   if ("error" in session) return session;
 
-  const profile = await prisma.user.findUnique({
-    where: { id: session.user.id },
-  });
-
-  if (!profile?.walletAddress) {
-    return {
-      error: "Connect your crypto wallet to continue",
-      status: 403,
-    };
-  }
-
+  const profile = await ensureProfileForUser(session.user);
   return { user: session.user, profile };
 }
 
 export async function assertTaskOwner(
   taskId: string,
   userId: string
-): Promise<AuthError | { task: Awaited<ReturnType<typeof prisma.task.findUnique>> & object }> {
+): Promise<
+  AuthError | { task: Awaited<ReturnType<typeof prisma.task.findUnique>> & object }
+> {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) return { error: "Task not found", status: 404 };
   if (task.userId && task.userId !== userId) {

@@ -1,11 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  useAccount,
+  useSendTransaction,
+  useWaitForTransactionReceipt,
+  useSwitchChain,
+  useChainId,
+} from "wagmi";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
+import { RESOLVE_AGENT_ESCROW_ADDRESS, arcTestnet } from "@/lib/arc/config";
+import { usdcToWei } from "@/lib/arc/utils";
+import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
+import { AgentEscrowBadge } from "@/components/resolve/access-gate";
 import { toast } from "sonner";
 import clsx from "clsx";
 
-const METHODS = [
+const CARD_METHODS = [
   { id: "card" as const, label: "Credit card", icon: "💳" },
   { id: "debit" as const, label: "Debit card", icon: "🏦" },
   { id: "paypal" as const, label: "PayPal", icon: "🅿️" },
@@ -14,21 +26,75 @@ const METHODS = [
 
 const AMOUNTS = [25, 50, 100];
 
+type Tab = "simple" | "crypto";
+
 export function AddFundsModal({
   open,
+  suggestedUsd,
   onClose,
 }: {
   open: boolean;
+  suggestedUsd?: number;
   onClose: () => void;
 }) {
-  const { refreshBalance } = useAuth();
-  const [method, setMethod] = useState<(typeof METHODS)[number]["id"]>("card");
+  const { refreshBalance, user } = useAuth();
+  const { cryptoReady } = useResolveAccess();
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
+  const [tab, setTab] = useState<Tab>("simple");
+  const [method, setMethod] = useState<(typeof CARD_METHODS)[number]["id"]>("card");
   const [amount, setAmount] = useState(50);
   const [loading, setLoading] = useState(false);
 
+  const { sendTransaction, data: txHash, isPending, error: sendError } =
+    useSendTransaction();
+  const { isLoading: confirming, isSuccess: txConfirmed } =
+    useWaitForTransactionReceipt({ hash: txHash });
+
+  useEffect(() => {
+    if (suggestedUsd) setAmount(suggestedUsd);
+  }, [suggestedUsd, open]);
+
+  useEffect(() => {
+    if (!txConfirmed || !txHash) return;
+
+    async function credit() {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/wallet/deposit/crypto", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ txHash, amountUsd: amount }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Could not confirm deposit");
+        toast.success("Crypto deposit confirmed", { description: data.message });
+        await refreshBalance();
+        onClose();
+      } catch (e) {
+        toast.error("Deposit confirmation failed", {
+          description: e instanceof Error ? e.message : "Try again",
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void credit();
+  }, [txConfirmed, txHash, amount, refreshBalance, onClose]);
+
+  useEffect(() => {
+    if (!isPending && !confirming) setLoading(false);
+  }, [isPending, confirming]);
+
   if (!open) return null;
 
-  async function handleDeposit() {
+  async function handleCardDeposit() {
+    if (!user) {
+      toast.error("Sign in first");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/wallet/deposit", {
@@ -39,7 +105,7 @@ export function AddFundsModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Deposit failed");
       toast.success("Funds added", {
-        description: data.message ?? `$${amount} USDC ready for tasks`,
+        description: data.message ?? `$${amount} ready for tasks`,
       });
       await refreshBalance();
       onClose();
@@ -52,13 +118,52 @@ export function AddFundsModal({
     }
   }
 
+  async function handleCryptoDeposit() {
+    if (!cryptoReady || !address) {
+      toast.error("Connect your crypto wallet first", {
+        description: "Use the account menu → Connect crypto wallet",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await ensureArcNetwork();
+      if (!isArcChain(chainId)) {
+        await switchChainAsync({ chainId: arcTestnet.id });
+      }
+
+      sendTransaction({
+        chainId: arcTestnet.id,
+        to: RESOLVE_AGENT_ESCROW_ADDRESS,
+        value: usdcToWei(amount),
+      });
+    } catch (e) {
+      toast.error("Could not open wallet", {
+        description: e instanceof Error ? e.message : "Try again",
+      });
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-md rounded-2xl border border-deputy-border bg-deputy-panel p-6">
         <h2 className="text-lg font-semibold">Add funds</h2>
         <p className="mt-1 text-sm text-deputy-muted">
-          Deposits convert to USDC automatically. No bridging required.
+          {tab === "simple"
+            ? "Pay like any app — we convert to USDC on Arc for you."
+            : "Send USDC on Arc Testnet from your connected wallet."}
         </p>
+
+        <div className="mt-4 flex gap-2 rounded-lg bg-deputy-bg p-1">
+          <TabButton active={tab === "simple"} onClick={() => setTab("simple")}>
+            Card & PayPal
+          </TabButton>
+          <TabButton active={tab === "crypto"} onClick={() => setTab("crypto")}>
+            Crypto wallet
+          </TabButton>
+        </div>
 
         <p className="mt-5 text-xs uppercase tracking-wide text-deputy-muted">
           Amount
@@ -81,45 +186,100 @@ export function AddFundsModal({
           ))}
         </div>
 
-        <p className="mt-5 text-xs uppercase tracking-wide text-deputy-muted">
-          Payment method
-        </p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          {METHODS.map((m) => (
+        {tab === "simple" ? (
+          <>
+            <p className="mt-5 text-xs uppercase tracking-wide text-deputy-muted">
+              Payment method
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {CARD_METHODS.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setMethod(m.id)}
+                  className={clsx(
+                    "rounded-lg border px-3 py-2.5 text-left text-sm transition",
+                    method === m.id
+                      ? "border-deputy-accent bg-deputy-accent/10"
+                      : "border-deputy-border hover:border-deputy-accent/30"
+                  )}
+                >
+                  <span className="mr-1">{m.icon}</span> {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-deputy-muted">
+              No crypto knowledge needed. Your email account is linked — RESOLVE
+              handles Arc USDC settlement in the background.
+            </p>
             <button
-              key={m.id}
               type="button"
-              onClick={() => setMethod(m.id)}
-              className={clsx(
-                "rounded-lg border px-3 py-2.5 text-left text-sm transition",
-                method === m.id
-                  ? "border-deputy-accent bg-deputy-accent/10"
-                  : "border-deputy-border hover:border-deputy-accent/30"
-              )}
+              disabled={loading || !user}
+              onClick={handleCardDeposit}
+              className="mt-5 w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg disabled:opacity-50"
             >
-              <span className="mr-1">{m.icon}</span> {m.label}
+              {loading ? "Processing…" : `Add $${amount} to balance`}
             </button>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          disabled={loading}
-          onClick={handleDeposit}
-          className="mt-6 w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg disabled:opacity-50"
-        >
-          {loading ? "Processing…" : `Add $${amount} USDC`}
-        </button>
+          </>
+        ) : (
+          <>
+            <AgentEscrowBadge className="mt-4" />
+            {!cryptoReady && (
+              <p className="mt-3 rounded-lg border border-deputy-warn/40 bg-deputy-warn/10 px-3 py-2 text-xs text-deputy-warn">
+                Connect your wallet from the account menu, then click below — your
+                wallet will open to confirm the transfer.
+              </p>
+            )}
+            <button
+              type="button"
+              disabled={loading || isPending || confirming || !cryptoReady}
+              onClick={handleCryptoDeposit}
+              className="mt-5 w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg disabled:opacity-50"
+            >
+              {isPending || confirming
+                ? "Confirm in wallet…"
+                : `Send $${amount} USDC on Arc`}
+            </button>
+            {sendError && (
+              <p className="mt-2 text-xs text-deputy-danger">{sendError.message}</p>
+            )}
+          </>
+        )}
 
         <button
           type="button"
           onClick={onClose}
-          disabled={loading}
+          disabled={loading || isPending || confirming}
           className="mt-3 w-full text-center text-xs text-deputy-muted underline"
         >
           Cancel
         </button>
       </div>
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        "flex-1 rounded-md py-2 text-xs font-medium transition",
+        active
+          ? "bg-deputy-accent/20 text-deputy-accent"
+          : "text-deputy-muted hover:text-white"
+      )}
+    >
+      {children}
+    </button>
   );
 }

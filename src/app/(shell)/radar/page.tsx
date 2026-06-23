@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Mail, Wallet, Package } from "lucide-react";
 import type { DiscoveryItem } from "@/lib/discover/discovery-service";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
@@ -34,29 +33,12 @@ export default function RadarPage() {
     })();
   }, []);
 
-  async function assignFromDiscovery(text: string) {
+  function assignFromDiscovery(text: string) {
     if (!ready) {
       openSignIn();
       return;
     }
-    try {
-      const classifyRes = await fetch("/api/tasks/classify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: text }),
-      });
-      const { classification } = await classifyRes.json();
-      const createRes = await fetch("/api/tasks/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: text, classification }),
-      });
-      const data = await createRes.json();
-      if (!createRes.ok) throw new Error(data.error);
-      router.push(`/missions/${data.task.id}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    }
+    router.push(`/start?task=${encodeURIComponent(text)}&from=radar`);
   }
 
   async function scanWallet() {
@@ -71,7 +53,7 @@ export default function RadarPage() {
   }
 
   return (
-    <div className="resolve-grid-bg mx-auto max-w-3xl space-y-8 px-4 py-8 lg:px-8">
+    <div className="resolve-grid-bg mx-auto max-w-3xl space-y-8 px-4 py-8 pb-32 lg:px-8">
       <PageHeader
         title="Radar"
         subtitle="Find money leaks and claim opportunities."
@@ -84,8 +66,8 @@ export default function RadarPage() {
           <p className="mt-1 text-xs text-resolve-muted">
             Subscriptions and refund opportunities require Gmail or manual input.
           </p>
-          <Link href="/vault" className="mt-2 inline-block text-xs text-sky-400 hover:underline">
-            Connect in Vault →
+          <Link href="/start" className="mt-2 inline-block text-xs text-sky-400 hover:underline">
+            Connect in Start →
           </Link>
         </div>
       </GlassPanel>

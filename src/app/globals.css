@@ -50,3 +50,35 @@ body {
     transform: translate(-50%, -50%) scale(1.05);
   }
 }
+
+@keyframes resolve-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes resolve-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.92;
+    transform: scale(0.98);
+  }
+}
+
+@layer utilities {
+  .animate-resolve-enter {
+    animation: resolve-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .animate-resolve-exit {
+    animation: resolve-exit 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+}

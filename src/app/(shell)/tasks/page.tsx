@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function LegacyTasksRedirect() {
-  redirect("/missions");
+export default function TasksRedirect() {
+  redirect("/start");
 }

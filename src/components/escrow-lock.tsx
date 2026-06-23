@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { DepositPrompt } from "@/components/wallet/deposit-prompt";
 import { AgentEscrowBadge } from "@/components/resolve/access-gate";
+import { VerifiedTxLink } from "@/components/settlement/verified-tx-link";
 
 interface EscrowLockProps {
   taskId: string;
@@ -218,7 +219,10 @@ export function EscrowLock({
           Locked · ${budgetUsd.toFixed(2)} USDC
         </p>
         {escrowTxHash && (
-          <VerifiedTxLink hash={escrowTxHash} />
+          <VerifiedTxLink
+            hash={escrowTxHash}
+            className="mt-1 block truncate font-mono text-xs text-deputy-accent underline"
+          />
         )}
       </div>
     );
@@ -342,43 +346,5 @@ export function EscrowLock({
         </p>
       )}
     </div>
-  );
-}
-
-function VerifiedTxLink({ hash }: { hash: string }) {
-  const [status, setStatus] = useState<"loading" | "verified" | "pending">("loading");
-
-  useEffect(() => {
-    fetch(`/api/settlement/verify-tx/${hash}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setStatus(
-          d.verification?.found && d.verification?.success ? "verified" : "pending"
-        );
-      })
-      .catch(() => setStatus("pending"));
-  }, [hash]);
-
-  if (status === "loading") {
-    return <p className="mt-1 text-xs text-deputy-muted">Verifying on Arc…</p>;
-  }
-
-  if (status === "verified") {
-    return (
-      <a
-        href={`https://testnet.arcscan.app/tx/${hash}`}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-1 block truncate font-mono text-xs text-deputy-accent underline"
-      >
-        {hash}
-      </a>
-    );
-  }
-
-  return (
-    <p className="mt-1 text-xs text-deputy-warn">
-      Tx pending / not indexed on Arc — no explorer link shown
-    </p>
   );
 }

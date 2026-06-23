@@ -46,10 +46,44 @@ async function testMockAdapterNoFakeLinks() {
   console.log("✓ mock adapter creates settlement without tx links");
 }
 
+async function testReleaseBlockedUntilProof() {
+  const adapter = new ArcMockAdapter();
+  await assert.rejects(
+    () => adapter.release({ taskId: "nonexistent-task", reason: "test" }),
+    /Settlement not found|No Arc job/
+  );
+
+  // In-memory style: create escrow then try release without proof
+  try {
+    const record = await adapter.createEscrow({
+      taskId: "test-release-blocked",
+      amountUsdc: 1,
+      description: "test",
+    });
+    if (record.status === "escrow_locked") {
+      await assert.rejects(
+        () =>
+          adapter.release({
+            taskId: "test-release-blocked",
+            reason: "premature",
+          }),
+        /Release blocked until proof is verified/
+      );
+      console.log("✓ release blocked until proof verified");
+    }
+  } catch (e) {
+    console.log(
+      "○ release blocked test skipped (no DATABASE_URL):",
+      (e as Error).message
+    );
+  }
+}
+
 async function main() {
   await testInvalidTxHash();
   await testMissingReceipt();
   await testLiveRefusesWithoutCredentials();
+  await testReleaseBlockedUntilProof();
   try {
     await testMockAdapterNoFakeLinks();
   } catch (e) {

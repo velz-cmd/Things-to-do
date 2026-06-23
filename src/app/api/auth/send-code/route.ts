@@ -68,7 +68,6 @@ export async function POST(req: Request) {
           : hasUrl
             ? "Login codes need SUPABASE_SERVICE_ROLE_KEY on the server."
             : "Login codes are not configured on the server.",
-        debug: { hasUrl, hasKey },
       },
       { status: 503 }
     );
@@ -116,10 +115,30 @@ export async function POST(req: Request) {
       html: loginCodeEmailHtml(otp),
     });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Could not send email" },
-      { status: 500 }
-    );
+    const message = e instanceof Error ? e.message : "Could not send email";
+    const resendSandbox =
+      message.includes("verify a domain") ||
+      message.includes("testing emails to your own");
+
+    if (resendSandbox) {
+      // Resend sandbox: deliver the same OTP through Supabase Auth mailer.
+      const { error: otpMailError } = await admin.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true },
+      });
+      if (otpMailError) {
+        return NextResponse.json({ error: otpMailError.message }, { status: 500 });
+      }
+      recentSends.set(email, Date.now());
+      return NextResponse.json({
+        ok: true,
+        message: "Login code sent via email",
+        delivery: "supabase",
+        expiresInMinutes: 30,
+      });
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   recentSends.set(email, Date.now());

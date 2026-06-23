@@ -8,6 +8,7 @@ import { AgentStates } from "@/components/resolve/agent-states";
 import { EvidencePanel } from "@/components/resolve/evidence-panel";
 import { ArcEscrowCard } from "@/components/deputy/arc-escrow-card";
 import { EscrowLock } from "@/components/escrow-lock";
+import { ArcNetworkBanner } from "@/components/arc-network-banner";
 import type { Task } from "@/lib/deputy/ui-types";
 import { taskStatusLabel, taskProgress } from "@/lib/resolve/progress";
 
@@ -91,8 +92,9 @@ export default function TaskDetailPage() {
       </header>
 
       {!task.escrowLocked && (
-        <div className="rounded-xl border border-deputy-border bg-deputy-panel p-4">
-          <p className="mb-2 text-sm text-deputy-muted">Lock task budget to deploy</p>
+        <div className="space-y-3 rounded-xl border border-deputy-border bg-deputy-panel p-4">
+          <ArcNetworkBanner />
+          <p className="text-sm text-deputy-muted">Lock task budget to deploy</p>
           <EscrowLock
             taskId={task.id}
             budgetUsd={task.budgetUsd}

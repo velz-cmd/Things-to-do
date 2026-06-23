@@ -10,3 +10,4 @@ prisma/*.db
 contracts/out
 contracts/cache
 contracts/broadcast
+.vercel

@@ -123,11 +123,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toast.error("Sign-in not configured");
         return;
       }
+      // Do not pass emailRedirectTo — that triggers magic-link emails.
+      // Supabase Magic Link template must use {{ .Token }} for 6-digit OTP codes.
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       if (error) {
@@ -174,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           /* non-blocking */
         }
         await refreshBalance();
-        toast.success(isNew ? "Account activated" : "Signed in");
+        toast.success(isNew ? "Welcome to RESOLVE" : "Signed in");
         return true;
       }
       return false;

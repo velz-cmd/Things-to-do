@@ -21,6 +21,7 @@ import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
 import { useAuth } from "@/components/auth/auth-provider";
 import { toast } from "sonner";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
+import { DepositPrompt } from "@/components/wallet/deposit-prompt";
 import { AgentEscrowBadge } from "@/components/resolve/access-gate";
 
 interface EscrowLockProps {
@@ -48,6 +49,7 @@ export function EscrowLock({
   const publicClient = usePublicClient();
   const [demoLocking, setDemoLocking] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [needsDeposit, setNeedsDeposit] = useState(false);
   const [showWalletLock, setShowWalletLock] = useState(false);
   const syncedRef = useRef(false);
   const contractReady =
@@ -141,6 +143,7 @@ export function EscrowLock({
   async function lockFromBalance() {
     setDemoLocking(true);
     setSyncError(null);
+    setNeedsDeposit(false);
     try {
       const res = await fetch("/api/escrow/balance-lock", {
         method: "POST",
@@ -157,6 +160,9 @@ export function EscrowLock({
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Lock failed";
       setSyncError(msg);
+      if (msg.toLowerCase().includes("need $") || msg.toLowerCase().includes("add funds")) {
+        setNeedsDeposit(true);
+      }
       toast.error("Could not lock budget", { description: msg });
     } finally {
       setDemoLocking(false);
@@ -167,6 +173,7 @@ export function EscrowLock({
     if (!DEPUTY_ESCROW_ADDRESS || isEscrowMisconfigured()) return;
     syncedRef.current = false;
     setSyncError(null);
+    setNeedsDeposit(false);
 
     try {
       await ensureArcNetwork();
@@ -197,7 +204,7 @@ export function EscrowLock({
   if (!ready && !locked) {
     return (
       <div className="space-y-2 rounded-lg border border-deputy-border bg-deputy-bg/40 px-3 py-3 text-sm text-deputy-muted">
-        <p>Sign in with Google or email, then connect your crypto wallet to lock funds.</p>
+        <p>Sign in with Google or email to lock funds. Add balance from the menu if needed.</p>
         <AgentEscrowBadge />
       </div>
     );
@@ -255,7 +262,10 @@ export function EscrowLock({
             Or lock on Arc with wallet (advanced)
           </button>
         )}
-        {syncError && (
+        {needsDeposit && (
+          <DepositPrompt amountUsd={budgetUsd} className="mt-2" />
+        )}
+        {syncError && !needsDeposit && (
           <p className="text-xs text-deputy-danger">{syncError}</p>
         )}
       </div>
@@ -283,7 +293,10 @@ export function EscrowLock({
             ? "Locking…"
             : `Lock $${budgetUsd.toFixed(2)} from balance`}
         </button>
-        {syncError && (
+        {needsDeposit && (
+          <DepositPrompt amountUsd={budgetUsd} className="mt-2" />
+        )}
+        {syncError && !needsDeposit && (
           <p className="text-xs text-deputy-danger">{syncError}</p>
         )}
       </div>

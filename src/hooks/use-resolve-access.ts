@@ -10,22 +10,23 @@ export function useResolveAccess() {
 
   const signedIn = Boolean(user);
   const walletConnected = isConnected && Boolean(address);
-  const ready = signedIn && walletConnected;
+  /** Email-only users can assign/lock/deploy after sign-in (embedded wallet auto-created). */
+  const ready = signedIn;
+  const cryptoReady = signedIn && walletConnected;
   const supabaseReady = isSupabaseConfigured();
 
   let message: string | null = null;
   if (!supabaseReady) {
     message = "Sign-in is not configured on this deployment.";
   } else if (!signedIn) {
-    message = "Sign in with Google or email to assign outcomes.";
-  } else if (!walletConnected) {
-    message = "Connect your crypto wallet to lock funds and deploy missions.";
+    message = "Sign in with Google or email to get started.";
   }
 
   return {
     signedIn,
     walletConnected,
     ready,
+    cryptoReady,
     authLoading,
     address,
     message,

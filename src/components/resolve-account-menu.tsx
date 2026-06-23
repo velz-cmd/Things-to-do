@@ -6,7 +6,7 @@ import { useAccount, useDisconnect } from "wagmi";
 import clsx from "clsx";
 import { useAuth, isSupabaseConfigured } from "@/components/auth/auth-provider";
 import { SignInModal } from "@/components/auth/sign-in-modal";
-import { AddFundsModal } from "@/components/wallet/add-funds-modal";
+import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { toast } from "sonner";
 
 import { projectId } from "@/lib/reown/config";
@@ -15,8 +15,8 @@ export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { user, signOut, balance, balanceLoading } = useAuth();
+  const { openAddFunds } = useAddFunds();
   const [signInOpen, setSignInOpen] = useState(false);
-  const [addFundsOpen, setAddFundsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const signedIn = Boolean(user);
@@ -43,6 +43,11 @@ export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
             ${balance.availableUsd.toFixed(2)} available
           </p>
         )}
+        {signedIn && cryptoConnected && (
+          <p className="mt-0.5 font-mono text-[10px] text-deputy-muted">
+            {address!.slice(0, 6)}…{address!.slice(-4)}
+          </p>
+        )}
       </button>
 
       {menuOpen && (
@@ -58,7 +63,7 @@ export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
               <>
                 <MenuItem
                   onClick={() => {
-                    setAddFundsOpen(true);
+                    openAddFunds();
                     setMenuOpen(false);
                   }}
                 >
@@ -117,7 +122,6 @@ export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
       )}
 
       <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
-      <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
     </div>
   );
 }

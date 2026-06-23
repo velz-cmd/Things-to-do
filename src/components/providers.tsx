@@ -13,6 +13,7 @@ import {
 } from "@/lib/reown/config";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { WalletLinkEffect } from "@/components/wallet/wallet-link-effect";
+import { AddFundsProvider } from "@/components/wallet/add-funds-context";
 
 const queryClient = new QueryClient();
 
@@ -46,17 +47,19 @@ export function Providers({
     <WagmiProvider config={wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <WalletLinkEffect />
-          {children}
-          <Toaster
-            theme="dark"
-            position="bottom-right"
-            toastOptions={{
-              classNames: {
-                toast: "bg-deputy-panel border-deputy-border text-white",
-              },
-            }}
-          />
+          <AddFundsProvider>
+            <WalletLinkEffect />
+            {children}
+            <Toaster
+              theme="dark"
+              position="bottom-right"
+              toastOptions={{
+                classNames: {
+                  toast: "bg-deputy-panel border-deputy-border text-white",
+                },
+              }}
+            />
+          </AddFundsProvider>
         </AuthProvider>
       </QueryClientProvider>
     </WagmiProvider>

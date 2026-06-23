@@ -2,12 +2,12 @@
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { BalanceSummary } from "@/components/wallet/balance-summary";
-import { AddFundsModal } from "@/components/wallet/add-funds-modal";
-import { useState } from "react";
+import { useAddFunds } from "@/components/wallet/add-funds-context";
+import { AgentEscrowBadge } from "@/components/resolve/access-gate";
 
 export default function VaultPage() {
-  const { user, balance, refreshBalance } = useAuth();
-  const [addFundsOpen, setAddFundsOpen] = useState(false);
+  const { user, balance } = useAuth();
+  const { openAddFunds } = useAddFunds();
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-6 lg:p-8">
@@ -15,13 +15,14 @@ export default function VaultPage() {
         <div>
           <h1 className="text-2xl font-semibold">Vault</h1>
           <p className="mt-1 text-deputy-muted">
-            Balances, protection, and recovery — settled on Arc USDC
+            Your balance — Arc USDC handled automatically
           </p>
+          <AgentEscrowBadge className="mt-2" />
         </div>
         {user && (
           <button
             type="button"
-            onClick={() => setAddFundsOpen(true)}
+            onClick={() => openAddFunds()}
             className="rounded-xl bg-deputy-accent px-4 py-2 text-sm font-semibold text-deputy-bg"
           >
             Add funds
@@ -71,11 +72,6 @@ export default function VaultPage() {
           </p>
         )}
       </section>
-
-      <AddFundsModal open={addFundsOpen} onClose={() => {
-        setAddFundsOpen(false);
-        void refreshBalance();
-      }} />
     </div>
   );
 }

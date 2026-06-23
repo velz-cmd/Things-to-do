@@ -13,10 +13,20 @@ export type ResolveWorkspaceMemory = {
 
 const SESSION_KEY = "resolve.workspace.memory";
 
-export function readSessionMemory(): ResolveWorkspaceMemory {
-  if (typeof window === "undefined") return {};
+function storage() {
+  if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function readSessionMemory(): ResolveWorkspaceMemory {
+  const store = storage();
+  if (!store) return {};
+  try {
+    const raw = store.getItem(SESSION_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as ResolveWorkspaceMemory;
   } catch {
@@ -25,7 +35,8 @@ export function readSessionMemory(): ResolveWorkspaceMemory {
 }
 
 export function writeSessionMemory(patch: ResolveWorkspaceMemory) {
-  if (typeof window === "undefined") return;
+  const store = storage();
+  if (!store) return;
   try {
     const prev = readSessionMemory();
     const next: ResolveWorkspaceMemory = {
@@ -33,14 +44,14 @@ export function writeSessionMemory(patch: ResolveWorkspaceMemory) {
       ...patch,
       updatedAt: new Date().toISOString(),
     };
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
+    store.setItem(SESSION_KEY, JSON.stringify(next));
   } catch {
     /* quota / private mode */
   }
 }
 
 export async function fetchUserMemory(): Promise<ResolveWorkspaceMemory> {
-  const res = await fetch("/api/user/memory");
+  const res = await fetch("/api/user/memory", { credentials: "include" });
   if (!res.ok) return {};
   const data = await res.json();
   return (data.memory ?? {}) as ResolveWorkspaceMemory;
@@ -50,6 +61,7 @@ export async function saveUserMemory(patch: ResolveWorkspaceMemory) {
   const res = await fetch("/api/user/memory", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ memory: patch }),
   });
   if (!res.ok) return false;

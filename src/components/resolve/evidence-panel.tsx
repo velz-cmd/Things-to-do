@@ -23,6 +23,40 @@ export function EvidencePanel({
     });
   }
 
+  for (const e of task.events) {
+    const lower = e.message.toLowerCase();
+    if (
+      lower.includes("email") ||
+      lower.includes("ticket") ||
+      lower.includes("booking") ||
+      lower.includes("receipt") ||
+      lower.includes("submitted")
+    ) {
+      items.push({
+        label: e.agent,
+        value: e.message.length > 48 ? e.message.slice(0, 48) + "…" : e.message,
+      });
+    }
+  }
+
+  for (const mp of task.microPayments ?? []) {
+    items.push({
+      label: mp.purpose,
+      value: `$${mp.amountUsd.toFixed(3)}`,
+      href: mp.txHash
+        ? `https://testnet.arcscan.app/tx/${mp.txHash}`
+        : undefined,
+    });
+  }
+
+  if (task.escrowTxHash) {
+    items.push({
+      label: "Escrow lock",
+      value: task.escrowTxHash.slice(0, 18) + "…",
+      href: `https://testnet.arcscan.app/tx/${task.escrowTxHash}`,
+    });
+  }
+
   if (task.settlementTxHash) {
     items.push({
       label: "Settlement transaction",

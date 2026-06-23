@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getLiveBlockers, isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 
 /** Safe env presence check — never returns secret values. */
 export async function GET() {
@@ -9,6 +10,11 @@ export async function GET() {
     APP_URL: present("APP_URL") || present("NEXT_PUBLIC_APP_URL"),
     PLAYWRIGHT_ENABLED: process.env.PLAYWRIGHT_ENABLED === "true",
     DATABASE_URL: present("DATABASE_URL"),
+    SUPABASE_URL: present("NEXT_PUBLIC_SUPABASE_URL"),
+    SUPABASE_ANON: present("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    SUPABASE_SERVICE_ROLE: present("SUPABASE_SERVICE_ROLE_KEY"),
+    RESEND_API_KEY: present("RESEND_API_KEY"),
+    EMAIL_LOGIN_CODES: isSupabaseAdminConfigured() && present("RESEND_API_KEY"),
     CIRCLE_API_KEY: present("CIRCLE_API_KEY"),
     CIRCLE_ENTITY_SECRET: present("CIRCLE_ENTITY_SECRET"),
     ARC_CLIENT_WALLET_ADDRESS: present("ARC_CLIENT_WALLET_ADDRESS"),

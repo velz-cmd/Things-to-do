@@ -32,6 +32,7 @@ interface AuthContextValue {
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<void>;
+  resendEmailCode: (email: string) => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
@@ -117,74 +118,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) toast.error("Google sign-in failed", { description: error.message });
   }, [supabase]);
 
-  const signInWithEmail = useCallback(
-    async (email: string) => {
-      if (!supabase) {
-        toast.error("Sign-in not configured");
-        return;
-      }
-      // Do not pass emailRedirectTo — that triggers magic-link emails.
-      // Supabase Magic Link template must use {{ .Token }} for 6-digit OTP codes.
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: true,
-        },
-      });
-      if (error) {
-        toast.error("Could not send code", { description: error.message });
-        throw error;
-      }
-    },
-    [supabase]
-  );
+  const signInWithEmail = useCallback(async (email: string) => {
+    const res = await fetch("/api/auth/send-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast.error("Could not send code", { description: data.error ?? "Try again" });
+      throw new Error(data.error ?? "send failed");
+    }
+    toast.success("Code sent", {
+      description: `Check ${email} for your 6-digit login code.`,
+    });
+  }, []);
+
+  const resendEmailCode = useCallback(async (email: string) => {
+    await signInWithEmail(email);
+  }, [signInWithEmail]);
 
   const verifyEmailOtp = useCallback(
     async (email: string, token: string) => {
-      if (!supabase) {
-        toast.error("Sign-in not configured");
-        return false;
-      }
-      const { data, error } = await supabase.auth.verifyOtp({
-        email,
-        token: token.replace(/\s/g, ""),
-        type: "email",
+      const res = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          code: token.replace(/\s/g, ""),
+        }),
       });
-      if (error) {
-        toast.error("Invalid or expired code", { description: error.message });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error("Invalid or expired code", {
+          description: data.error ?? "Request a new code and try again.",
+        });
         return false;
       }
-      if (data.user) {
-        const isNew =
-          data.user.created_at &&
-          Date.now() - new Date(data.user.created_at).getTime() < 120_000;
-        try {
-          await fetch("/api/wallet/provision", { method: "POST" });
+
+      if (supabase) {
+        await supabase.auth.refreshSession();
+        const { data: sessionData } = await supabase.auth.getSession();
+        setUser(sessionData.session?.user ?? null);
+      }
+
+      const isNew = Boolean(data.isNewUser);
+      try {
+        await fetch("/api/wallet/provision", { method: "POST", credentials: "include" });
+        if (isNew) {
           await fetch("/api/auth/welcome-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: data.user.email,
-              name:
-                data.user.user_metadata?.full_name ??
-                data.user.user_metadata?.name,
-              isNewUser: isNew,
-            }),
+            credentials: "include",
+            body: JSON.stringify({ email, isNewUser: true }),
           });
-        } catch {
-          /* non-blocking */
         }
-        await refreshBalance();
-        toast.success(isNew ? "Welcome to RESOLVE" : "Signed in");
-        return true;
+      } catch {
+        /* non-blocking */
       }
-      return false;
+
+      await refreshBalance();
+      toast.success(isNew ? "Welcome to RESOLVE" : "Signed in");
+      return true;
     },
     [supabase, refreshBalance]
   );
 
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
+    setUser(null);
     setBalance(null);
     toast.success("Signed out");
   }, [supabase]);
@@ -197,6 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceLoading,
       signInWithGoogle,
       signInWithEmail,
+      resendEmailCode,
       verifyEmailOtp,
       signOut,
       refreshBalance,
@@ -209,6 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceLoading,
       signInWithGoogle,
       signInWithEmail,
+      resendEmailCode,
       verifyEmailOtp,
       signOut,
       refreshBalance,

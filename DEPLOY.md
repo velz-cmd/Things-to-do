@@ -51,10 +51,9 @@ If deploy logs show:
 ```text
 Error: Environment variable not found: DATABASE_URL.
 error code: P1012
-Command "prisma generate && prisma db push --skip-generate && next build" exited with 1
 ```
 
-**Cause:** Vercel does not have your Supabase Postgres connection string. Prisma needs it during build to generate the client and sync tables (`User`, `Task`, `WalletTransaction`, etc.).
+**Cause:** Runtime needs `DATABASE_URL`. The build no longer runs `prisma db push` (schema is migrated via Supabase separately).
 
 **Fix (2 minutes):**
 
@@ -73,6 +72,13 @@ Also add these if missing (same screen):
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
 | `NEXT_PUBLIC_REOWN_PROJECT_ID` | [cloud.reown.com](https://cloud.reown.com) |
 | `NEXT_PUBLIC_APP_URL` | `https://resolve-task.vercel.app` |
+| `APP_URL` | `https://resolve-task.vercel.app` |
+| `PLAYWRIGHT_ENABLED` | `true` |
+| `NEXT_PUBLIC_RESOLVE_AGENT_ADDRESS` | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` |
+| `ARC_PROVIDER_WALLET_ADDRESS` | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` |
+| `ARC_CLIENT_WALLET_ADDRESS` | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` (or separate funded Circle client wallet) |
+| `CIRCLE_API_KEY` | Circle Developer Console |
+| `CIRCLE_ENTITY_SECRET` | Circle Developer Console |
 | `DEPUTY_DEMO_MODE` | `false` for judge demo (real merchant step) |
 
 Until `DATABASE_URL` is set, **every** redeploy will fail at the Prisma step — npm deprecation warnings in the log are harmless; the red P1012 line is the real blocker.

@@ -5,7 +5,7 @@ import { GlassPanel } from "@/components/resolve/ui/glass-panel";
 
 export function ActiveMissions({
   tasks,
-  basePath = "/missions",
+  basePath = "/start",
 }: {
   tasks: Task[];
   basePath?: string;
@@ -19,7 +19,7 @@ export function ActiveMissions({
         {tasks.map((t) => {
           const pct = taskProgress(t.status);
           return (
-            <Link key={t.id} href={`${basePath}/${t.id}`} className="block">
+            <Link key={t.id} href={`${basePath}?mission=${t.id}`} className="block">
               <GlassPanel className="flex items-center gap-4 p-4 transition hover:border-sky-500/30">
                 <span className="text-2xl">{taskEmoji(t.title, t.merchantId)}</span>
                 <div className="min-w-0 flex-1">

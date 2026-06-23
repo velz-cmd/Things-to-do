@@ -86,7 +86,7 @@ export function LiveMissionPreview() {
         <div>
           <p className="text-xs text-resolve-muted">Live mission</p>
           <Link
-            href={`/missions/${task.id}`}
+            href={`/start?mission=${task.id}`}
             className="mt-1 block text-lg font-semibold text-white hover:text-sky-300"
           >
             {task.title}
@@ -113,7 +113,7 @@ export function LiveMissionPreview() {
         />
       </div>
       <Link
-        href={`/missions/${task.id}`}
+        href={`/start?mission=${task.id}`}
         className="mt-5 inline-block text-sm font-medium text-sky-400 hover:text-sky-300"
       >
         View mission →

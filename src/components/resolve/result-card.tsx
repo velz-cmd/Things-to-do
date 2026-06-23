@@ -39,7 +39,7 @@ export function ResultCard({ task }: { task: Task }) {
 
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         <Link
-          href={`/proof?task=${task.id}`}
+          href={`/start?mission=${task.id}`}
           className="rounded-lg border border-deputy-border px-4 py-2 text-sm hover:bg-deputy-panel"
         >
           View proof

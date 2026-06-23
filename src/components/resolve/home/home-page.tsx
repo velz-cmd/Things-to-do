@@ -13,6 +13,7 @@ import { problemStats, outcomeCategories } from "@/data/problem-stats";
 import { HeroVisual } from "@/components/resolve/home/hero-visual";
 import { LiveMissionPreview } from "@/components/resolve/home/live-mission-preview";
 import { GlassPanel } from "@/components/resolve/ui/glass-panel";
+import { useCommand } from "@/components/resolve/command/command-context";
 
 const ICONS = {
   plane: Plane,
@@ -30,8 +31,10 @@ const FLOW = [
 ];
 
 export function HomePage() {
+  const { focusBar } = useCommand();
+
   return (
-    <div className="resolve-grid-bg min-h-screen">
+    <div className="resolve-grid-bg min-h-screen pb-32">
       {/* Hero */}
       <section className="relative overflow-hidden px-4 pb-20 pt-12 lg:px-8 lg:pb-28 lg:pt-16">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
@@ -50,18 +53,19 @@ export function HomePage() {
               proof, and unlocks proof-based payment only when the outcome is real.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/start"
+              <button
+                type="button"
+                onClick={focusBar}
                 className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_30px_-5px_rgba(56,189,248,0.5)] transition hover:bg-sky-400"
               >
                 Assign a task
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </button>
               <Link
-                href="/missions"
+                href="/radar"
                 className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/10"
               >
-                See live missions
+                See Radar
               </Link>
             </div>
           </div>
@@ -115,7 +119,7 @@ export function HomePage() {
                     {cat.description}
                   </p>
                   <Link
-                    href={`/start?task=${encodeURIComponent(cat.prompt)}`}
+                    href={`/start?task=${encodeURIComponent(cat.prompt)}&from=home`}
                     className="mt-4 text-sm font-medium text-sky-400 hover:text-sky-300"
                   >
                     Start this →
@@ -180,13 +184,14 @@ export function HomePage() {
               </li>
             ))}
           </ul>
-          <Link
-            href="/start"
+          <button
+            type="button"
+            onClick={focusBar}
             className="mt-10 inline-flex items-center gap-2 rounded-full bg-sky-500 px-8 py-3.5 text-sm font-semibold text-white hover:bg-sky-400"
           >
             Give RESOLVE one task
             <ArrowRight className="h-4 w-4" />
-          </Link>
+          </button>
         </div>
       </section>
     </div>

@@ -1,7 +1,8 @@
 /**
  * DEPUTY tool layer — agents call controlled backend tools, never raw APIs.
- * Demo mode uses realistic mocks; swap in real integrations via env keys.
  */
+
+import { sendClaimEmail } from "./resend";
 
 export interface ToolResult<T = unknown> {
   ok: boolean;
@@ -44,15 +45,25 @@ export async function resendSendClaim(params: {
   to: string;
   subject: string;
   body: string;
+  taskId?: string;
 }): Promise<ToolResult<{ messageId: string }>> {
   if (process.env.RESEND_API_KEY) {
-    // Real integration hook — judges see the architecture is ready
-    return {
-      ok: true,
-      tool: "resend.sendClaim",
-      costUsd: 0.01,
-      data: { messageId: `resend-${Date.now()}` },
-    };
+    try {
+      const result = await sendClaimEmail(params);
+      return {
+        ok: true,
+        tool: "resend.sendClaim",
+        costUsd: 0.01,
+        data: { messageId: result?.id ?? `resend-${Date.now()}` },
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        tool: "resend.sendClaim",
+        costUsd: 0,
+        error: e instanceof Error ? e.message : "Resend failed",
+      };
+    }
   }
   await delay(150);
   return {

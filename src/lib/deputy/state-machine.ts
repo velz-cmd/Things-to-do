@@ -23,6 +23,7 @@ export function agentForStatus(status: TaskStatus): AgentRole {
     case "waiting_for_response":
       return "Retry";
     case "escalated":
+    case "needs_attention":
       return "Escalation";
     case "proof_pending":
     case "verified":

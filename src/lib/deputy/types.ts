@@ -20,11 +20,13 @@ export type TaskStatus =
   | "waiting_for_response"
   | "retrying"
   | "escalated"
+  | "needs_attention"
   | "proof_pending"
   | "verified"
   | "settled"
   | "failed"
-  | "refunded";
+  | "refunded"
+  | "cancelled";
 
 export type AgentRole =
   | "Planner"
@@ -44,19 +46,21 @@ export const AGENT_PIPELINE: AgentRole[] = [
 ];
 
 export const TASK_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  created: ["authorized", "failed"],
-  authorized: ["evidence_gathering", "failed"],
-  evidence_gathering: ["planning", "failed"],
-  planning: ["executing", "failed"],
-  executing: ["waiting_for_response", "retrying", "proof_pending", "failed"],
-  waiting_for_response: ["retrying", "proof_pending", "escalated", "failed"],
-  retrying: ["executing", "waiting_for_response", "escalated", "failed"],
-  escalated: ["executing", "proof_pending", "failed"],
-  proof_pending: ["verified", "failed", "retrying"],
+  created: ["authorized", "failed", "cancelled"],
+  authorized: ["evidence_gathering", "failed", "cancelled"],
+  evidence_gathering: ["planning", "failed", "needs_attention"],
+  planning: ["executing", "failed", "needs_attention"],
+  executing: ["waiting_for_response", "retrying", "proof_pending", "failed", "needs_attention"],
+  waiting_for_response: ["retrying", "proof_pending", "escalated", "failed", "needs_attention"],
+  retrying: ["executing", "waiting_for_response", "escalated", "failed", "needs_attention"],
+  escalated: ["executing", "proof_pending", "failed", "needs_attention"],
+  needs_attention: ["executing", "retrying", "proof_pending", "failed", "cancelled"],
+  proof_pending: ["verified", "failed", "retrying", "needs_attention"],
   verified: ["settled", "failed"],
   settled: [],
   failed: ["refunded"],
   refunded: [],
+  cancelled: [],
 };
 
 export interface OutcomeTemplate {

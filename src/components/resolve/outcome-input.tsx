@@ -11,18 +11,18 @@ export function OutcomeInput({
   signedIn,
 }: {
   loading: boolean;
-  onAssign: (templateId: string) => void;
+  onAssign: (text: string) => void;
   onSignInRequired?: () => void;
   signedIn?: boolean;
 }) {
   const [draft, setDraft] = useState("");
 
-  function handleExample(templateId: string) {
+  function handleExample(text: string) {
     if (!signedIn) {
       onSignInRequired?.();
       return;
     }
-    onAssign(templateId);
+    onAssign(text);
   }
 
   return (
@@ -47,7 +47,7 @@ export function OutcomeInput({
             key={ex.label}
             type="button"
             disabled={loading}
-            onClick={() => handleExample(ex.templateId)}
+            onClick={() => handleExample(ex.text)}
             className={clsx(
               "rounded-full border px-3 py-1.5 text-sm transition",
               "border-deputy-accent/40 text-deputy-accent hover:bg-deputy-accent/10 disabled:opacity-50"

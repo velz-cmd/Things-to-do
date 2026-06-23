@@ -15,6 +15,10 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.83",
     "@prisma/client": "^6.9.0",
+    "@reown/appkit": "^1.8.21",
+    "@reown/appkit-adapter-wagmi": "^1.8.21",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-query": "^5.80.7",
     "ai": "^6.0.208",
     "clsx": "^2.1.1",
@@ -22,6 +26,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "resend": "^6.14.0",
+    "sonner": "^2.0.7",
     "viem": "^2.31.0",
     "wagmi": "^2.15.6",
     "zod": "^4.4.3"

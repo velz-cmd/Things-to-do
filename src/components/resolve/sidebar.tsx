@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { WalletConnect } from "@/components/wallet-connect";
+import { ResolveAccountMenu } from "@/components/resolve-account-menu";
 
 const NAV = [
   { href: "/", label: "Overview", icon: "◉" },
@@ -48,7 +48,7 @@ export function ResolveSidebar() {
       </nav>
 
       <div className="mt-auto space-y-3 border-t border-deputy-border pt-4">
-        <WalletConnect compact />
+        <ResolveAccountMenu compact />
         <p className="text-[10px] text-deputy-muted">Pay only on proof</p>
       </div>
     </aside>

@@ -54,9 +54,9 @@ export const OUTCOME_EXAMPLES = [
   { label: "Recover airline refund", templateId: "airline-refund-43" },
   { label: "Cancel subscriptions", templateId: "subscription-cancel" },
   { label: "Dispute bank charge", templateId: "parcel-compensation" },
-  { label: "Find forgotten assets", templateId: null },
-  { label: "Protect my wallet", templateId: null },
-  { label: "Lower my internet bill", templateId: null },
+  { label: "Find forgotten assets", templateId: "forgotten-assets" },
+  { label: "Protect my wallet", templateId: "wallet-protection" },
+  { label: "Lower my internet bill", templateId: "internet-bill" },
 ];
 
 export const DEMO_TIMELINE = [

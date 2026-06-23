@@ -5,7 +5,6 @@ import { useAppKit } from "@reown/appkit/react";
 import { Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
-import { projectId } from "@/lib/reown/config";
 import { toast } from "sonner";
 
 type Step = "choose" | "verify";
@@ -22,14 +21,20 @@ export function SignInModal() {
     "google" | "email" | "verify" | "resend" | "wallet" | null
   >(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
-  const walletEnabled = Boolean(projectId);
+  const EMAIL_KEY = "resolve.signin.email";
 
   useEffect(() => {
     if (!open) {
       setStep("choose");
-      setEmail("");
       setCode("");
       setLoading(null);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(EMAIL_KEY);
+      if (saved) setEmail(saved);
+    } catch {
+      /* ignore */
     }
   }, [open]);
 
@@ -53,10 +58,6 @@ export function SignInModal() {
   }
 
   function handleWallet() {
-    if (!walletEnabled) {
-      toast.error("Wallet connect not configured");
-      return;
-    }
     setLoading("wallet");
     try {
       openWallet({ view: "Connect" });
@@ -73,7 +74,9 @@ export function SignInModal() {
     }
     setLoading("email");
     try {
-      await signInWithEmail(email.trim());
+      const trimmed = email.trim();
+      localStorage.setItem(EMAIL_KEY, trimmed);
+      await signInWithEmail(trimmed);
       setStep("verify");
     } catch {
       /* toast shown in provider */
@@ -151,17 +154,15 @@ export function SignInModal() {
               {loading === "google" ? "Redirecting…" : "Continue with Google"}
             </button>
 
-            {walletEnabled && (
-              <button
-                type="button"
-                disabled={loading !== null}
-                onClick={handleWallet}
-                className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-50"
-              >
-                <Wallet className="h-4 w-4 text-sky-400" />
-                {loading === "wallet" ? "Opening wallet…" : "Connect wallet"}
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={loading !== null}
+              onClick={handleWallet}
+              className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-50"
+            >
+              <Wallet className="h-4 w-4 text-sky-400" />
+              {loading === "wallet" ? "Opening wallet…" : "Connect wallet"}
+            </button>
 
             <div className="flex items-center gap-3 text-xs text-slate-500">
               <span className="h-px flex-1 bg-white/10" />

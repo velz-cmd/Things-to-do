@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(async () => {
     setBalanceLoading(true);
     try {
-      const res = await fetch("/api/wallet/balance");
+      const res = await fetch("/api/wallet/balance", { credentials: "include" });
       if (res.ok) {
         setBalance(await res.json());
       }
@@ -61,7 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const provisionWallet = useCallback(async () => {
-    const res = await fetch("/api/wallet/provision", { method: "POST" });
+    const res = await fetch("/api/wallet/provision", {
+      method: "POST",
+      credentials: "include",
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Wallet setup failed");
     await refreshBalance();
@@ -74,8 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user ?? null);
       setLoading(false);
     });
 
@@ -85,7 +88,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         try {
-          await fetch("/api/wallet/provision", { method: "POST" });
+          await fetch("/api/wallet/provision", {
+            method: "POST",
+            credentials: "include",
+          });
           await refreshBalance();
         } catch {
           /* provision may fail without server config */
@@ -159,9 +165,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (supabase) {
-        await supabase.auth.refreshSession();
-        const { data: sessionData } = await supabase.auth.getSession();
-        setUser(sessionData.session?.user ?? null);
+        const { data: userData } = await supabase.auth.getUser();
+        setUser(userData.user ?? null);
+        if (!userData.user) {
+          await supabase.auth.refreshSession();
+          const { data: sessionData } = await supabase.auth.getSession();
+          setUser(sessionData.session?.user ?? null);
+        }
       }
 
       const isNew = Boolean(data.isNewUser);

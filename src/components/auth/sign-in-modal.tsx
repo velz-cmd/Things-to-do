@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAppKit } from "@reown/appkit/react";
+import { Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { projectId } from "@/lib/reown/config";
 import { toast } from "sonner";
 
 type Step = "choose" | "verify";
@@ -11,13 +14,15 @@ export function SignInModal() {
   const { open, closeSignIn } = useSignInModal();
   const { signInWithGoogle, signInWithEmail, verifyEmailOtp, resendEmailCode, user } =
     useAuth();
+  const { open: openWallet } = useAppKit();
   const [step, setStep] = useState<Step>("choose");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [loading, setLoading] = useState<"google" | "email" | "verify" | "resend" | null>(
-    null
-  );
+  const [loading, setLoading] = useState<
+    "google" | "email" | "verify" | "resend" | "wallet" | null
+  >(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
+  const walletEnabled = Boolean(projectId);
 
   useEffect(() => {
     if (!open) {
@@ -42,6 +47,19 @@ export function SignInModal() {
     setLoading("google");
     try {
       await signInWithGoogle();
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  function handleWallet() {
+    if (!walletEnabled) {
+      toast.error("Wallet connect not configured");
+      return;
+    }
+    setLoading("wallet");
+    try {
+      openWallet({ view: "Connect" });
     } finally {
       setLoading(null);
     }
@@ -108,7 +126,7 @@ export function SignInModal() {
             <p className="mt-1 text-sm text-slate-400">
               {step === "verify"
                 ? `Enter the 6-digit code we sent to ${email}`
-                : "Continue with Google or your email."}
+                : "Google, wallet, or email."}
             </p>
           </div>
           <button
@@ -132,6 +150,18 @@ export function SignInModal() {
               <GoogleIcon />
               {loading === "google" ? "Redirecting…" : "Continue with Google"}
             </button>
+
+            {walletEnabled && (
+              <button
+                type="button"
+                disabled={loading !== null}
+                onClick={handleWallet}
+                className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-50"
+              >
+                <Wallet className="h-4 w-4 text-sky-400" />
+                {loading === "wallet" ? "Opening wallet…" : "Connect wallet"}
+              </button>
+            )}
 
             <div className="flex items-center gap-3 text-xs text-slate-500">
               <span className="h-px flex-1 bg-white/10" />
@@ -159,11 +189,6 @@ export function SignInModal() {
                 {loading === "email" ? "Sending code…" : "Send login code"}
               </button>
             </form>
-
-            <p className="text-center text-[11px] leading-relaxed text-slate-500">
-              After signing in, connect a crypto wallet from your account menu if
-              you need onchain settlement.
-            </p>
           </div>
         )}
 
@@ -211,11 +236,6 @@ export function SignInModal() {
             </div>
           </form>
         )}
-
-        <p className="mt-5 text-center text-[10px] leading-relaxed text-slate-500">
-          Codes expire in 30 minutes. RESOLVE never stores passwords or seed
-          phrases.
-        </p>
       </div>
     </div>
   );

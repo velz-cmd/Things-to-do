@@ -56,6 +56,10 @@ See [DEMO.md](./DEMO.md) for the full judge script.
 
 See [docs/BUILD_CHECKLIST.md](./docs/BUILD_CHECKLIST.md) for Day 1–6 status and remaining work.
 
+## Deploy
+
+Production stuck on an old build? See **[DEPLOY.md](./DEPLOY.md)** — one-click Vercel redeploy steps.
+
 ## License
 
 MIT

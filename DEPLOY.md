@@ -6,6 +6,41 @@ Live site is still the **old** DEPUTY page. New code has **RESOLVE** (sidebar: O
 
 ---
 
+## Build failed: `DATABASE_URL` not found (P1012)
+
+If deploy logs show:
+
+```text
+Error: Environment variable not found: DATABASE_URL.
+error code: P1012
+Command "prisma generate && prisma db push --skip-generate && next build" exited with 1
+```
+
+**Cause:** Vercel does not have your Supabase Postgres connection string. Prisma needs it during build to generate the client and sync tables (`User`, `Task`, `WalletTransaction`, etc.).
+
+**Fix (2 minutes):**
+
+1. Open [Supabase](https://supabase.com/dashboard) → your project → **Settings** → **Database**
+2. Copy **Connection string** → **URI** (use the **pooler** URL for serverless, port `6543`, with `?pgbouncer=true`)
+3. Vercel → project **things-to-do** → **Settings** → **Environment Variables**
+4. Add `DATABASE_URL` = that URI
+5. Check **Production**, **Preview**, and **Development**
+6. **Deployments** → **Create Deployment** → branch `main` → **Production** → Deploy
+
+Also add these if missing (same screen):
+
+| Variable | Where to get it |
+|----------|-----------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
+| `NEXT_PUBLIC_REOWN_PROJECT_ID` | [cloud.reown.com](https://cloud.reown.com) |
+| `NEXT_PUBLIC_APP_URL` | `https://resolve-task.vercel.app` |
+| `DEPUTY_DEMO_MODE` | `false` for judge demo (real merchant step) |
+
+Until `DATABASE_URL` is set, **every** redeploy will fail at the Prisma step — npm deprecation warnings in the log are harmless; the red P1012 line is the real blocker.
+
+---
+
 ## Easiest fix — 4 clicks in Vercel
 
 You are already on the right page (**Deployments**).

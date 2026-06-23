@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RESOLVE — Pay only on proof",
+  title: "RESOLVE — Assign it. Get proof it is done.",
   description:
-    "Assign the problem. Come back when it's solved. Autonomous outcomes settled on Arc USDC.",
+    "Real-world tasks, finished by agents. Refunds, cancellations, claims, and protection with proof-based payment.",
 };
 
 export default async function RootLayout({

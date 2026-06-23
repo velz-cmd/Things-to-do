@@ -5,14 +5,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        resolve: {
+          bg: "#05080c",
+          surface: "#0c1219",
+          panel: "#111a24",
+          border: "rgba(255,255,255,0.08)",
+          primary: "#38bdf8",
+          success: "#34d399",
+          warning: "#fbbf24",
+          danger: "#f87171",
+          muted: "#94a3b8",
+          proof: "#a78bfa",
+        },
         deputy: {
-          bg: "#0a0f14",
-          panel: "#111a22",
-          border: "#1e2d3a",
-          accent: "#3dd68c",
-          warn: "#f5a524",
-          danger: "#f31260",
-          muted: "#8b9aab",
+          bg: "#05080c",
+          panel: "#0c1219",
+          border: "rgba(255,255,255,0.08)",
+          accent: "#38bdf8",
+          warn: "#fbbf24",
+          danger: "#f87171",
+          muted: "#94a3b8",
         },
       },
       fontFamily: {

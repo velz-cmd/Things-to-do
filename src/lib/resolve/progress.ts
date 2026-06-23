@@ -54,14 +54,17 @@ export function taskEmoji(title: string, merchantId?: string | null): string {
   return "🎯";
 }
 
-export const OUTCOME_EXAMPLES = [
-  { label: "Cancel StreamDemo Plus", text: "Cancel StreamDemo Plus and prove billing stopped" },
-  { label: "Emirates refund", text: "Get a refund from my delayed Emirates flight" },
+export const START_EXAMPLES = [
   { label: "Find subscriptions", text: "Find subscriptions I still pay for" },
-  { label: "DHL parcel claim", text: "Recover compensation for my lost DHL parcel" },
-  { label: "Duplicate charge", text: "Dispute this duplicate charge" },
-  { label: "SkyDemo refund", text: "Get my $43 refund from SkyDemo Airlines" },
+  { label: "Flight compensation", text: "Get flight compensation from my delayed trip" },
+  { label: "Delayed parcel", text: "Claim compensation for my delayed DHL parcel" },
+  { label: "Dispute charge", text: "Dispute this duplicate charge" },
+  { label: "Wallet risks", text: "Scan my wallet for risky approvals" },
+  { label: "Idle funds", text: "Find idle USDC across my wallets" },
 ];
+
+/** @deprecated use START_EXAMPLES */
+export const OUTCOME_EXAMPLES = START_EXAMPLES;
 
 export const DEMO_TIMELINE = [
   { done: true, label: "Found booking" },

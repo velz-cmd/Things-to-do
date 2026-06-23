@@ -29,6 +29,18 @@ export const USDC_ADDRESS =
 export const DEPUTY_ESCROW_ADDRESS = process.env
   .NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS as `0x${string}` | undefined;
 
+/** On-chain agent oracle — receives success fee after proof. Not the escrow vault. */
+export const RESOLVE_AGENT_ADDRESS = (process.env
+  .NEXT_PUBLIC_RESOLVE_AGENT_ADDRESS ??
+  "0xDD81E79E22053a4d7036D6E9DB22Dad591b65511") as `0x${string}`;
+
+export function isEscrowMisconfigured(): boolean {
+  if (!DEPUTY_ESCROW_ADDRESS) return false;
+  return (
+    DEPUTY_ESCROW_ADDRESS.toLowerCase() === RESOLVE_AGENT_ADDRESS.toLowerCase()
+  );
+}
+
 export const DEPUTY_ESCROW_ABI = [
   {
     type: "event",
@@ -74,6 +86,13 @@ export const DEPUTY_ESCROW_ABI = [
     inputs: [{ name: "taskId", type: "uint256" }],
     outputs: [],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "nextTaskId",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
   },
   {
     type: "function",

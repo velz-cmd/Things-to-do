@@ -28,6 +28,8 @@ export interface Task {
   id: string;
   title: string;
   status: string;
+  category?: string;
+  company?: string | null;
   targetValueUsd: number;
   recoveredUsd: number;
   executionCostUsd: number;
@@ -39,6 +41,11 @@ export interface Task {
   escrowTxHash: string | null;
   escrowLocked: boolean;
   merchantId: string | null;
+  attentionReason?: string | null;
+  isDemo?: boolean;
+  paused?: boolean;
+  statusTimeoutAt?: string | null;
+  intakeJson?: string | null;
   events: TaskEvent[];
   proofs?: Proof[];
   microPayments?: MicroPayment[];

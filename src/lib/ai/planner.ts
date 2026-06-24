@@ -1,11 +1,6 @@
-import { generateObject } from "ai";
-import { google } from "@ai-sdk/google";
 import { z } from "zod";
-import {
-  isQwenConfigured,
-  qwenModel,
-  qwenPlannerModels,
-} from "@/lib/ai/qwen";
+import { generateObjectWithFallback } from "@/lib/ai/gateway";
+import { listConfiguredProviders } from "@/lib/ai/gateway";
 
 const planSchema = z.object({
   objective: z.string(),
@@ -21,7 +16,7 @@ const planSchema = z.object({
       ]),
       action: z.string(),
       proofRequired: z.string(),
-    })
+    }),
   ),
   estimatedRecoveryUsd: z.number(),
 });
@@ -34,40 +29,22 @@ export async function generateDeputyPlan(input: {
   targetValueUsd: number;
   category: string;
 }): Promise<DeputyPlan | null> {
-  if (isQwenConfigured()) {
-    for (const modelId of qwenPlannerModels()) {
-      try {
-        const { object } = await generateObject({
-          model: qwenModel(modelId, { enableThinking: true }),
-          schema: planSchema,
-          prompt: plannerPrompt(input),
-        });
-        return object;
-      } catch (e) {
-        console.warn(`Qwen planner ${modelId} failed:`, e);
-      }
-    }
+  const providers = listConfiguredProviders();
+  if (!providers.tiers.quality.length) {
+    return fallbackPlan(input);
   }
 
-  const apiKey =
-    process.env.GEMINI_API_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!apiKey) return fallbackPlan(input);
-
-  const geminiModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-  for (const modelId of geminiModels) {
-    try {
-      const { object } = await generateObject({
-        model: google(modelId),
-        schema: planSchema,
-        prompt: plannerPrompt(input),
-      });
-      return object;
-    } catch (e) {
-      console.warn(`Gemini planner ${modelId} failed:`, e);
-    }
+  try {
+    const { object } = await generateObjectWithFallback({
+      tier: "quality",
+      schema: planSchema,
+      prompt: plannerPrompt(input),
+    });
+    return object;
+  } catch (e) {
+    console.warn("Quality planner failed, using fallback:", e);
+    return fallbackPlan(input);
   }
-
-  return fallbackPlan(input);
 }
 
 function plannerPrompt(input: {
@@ -76,13 +53,13 @@ function plannerPrompt(input: {
   targetValueUsd: number;
   category: string;
 }) {
-  return `You are RESOLVE Planner — an autonomous consumer advocate.
-Create an outcome execution plan (NOT a chat reply).
+  return `You are RESOLVE Planner — an autonomous outcome advocate.
+Create an execution plan (NOT a chat reply).
 
 Task: ${input.title}
 Description: ${input.description}
 Category: ${input.category}
-Target recovery: $${input.targetValueUsd}
+Target value: $${input.targetValueUsd}
 
 Rules:
 - Optimize for verified resolution, not advice

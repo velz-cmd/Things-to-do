@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { getSupabaseServerUrl } from "@/lib/supabase/admin";
+import { ensureProfileForUser } from "@/lib/auth/session";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -17,8 +19,10 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${requestUrl.origin}/?auth_error=${msg}`);
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = getSupabaseServerUrl();
+  const anonKey =
+    process.env.SUPABASE_ANON_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
   if (!url || !anonKey) {
     return NextResponse.redirect(
@@ -45,7 +49,7 @@ export async function GET(request: Request) {
   });
 
   if (tokenHash) {
-    const { error: verifyError } = await supabase.auth.verifyOtp({
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type,
     });
@@ -54,18 +58,35 @@ export async function GET(request: Request) {
         `${requestUrl.origin}/?auth_error=${encodeURIComponent(verifyError.message)}`
       );
     }
+    if (data.user) {
+      try {
+        await ensureProfileForUser(data.user);
+      } catch {
+        /* provisioned on next API call */
+      }
+    }
     return NextResponse.redirect(new URL(next, request.url));
   }
 
   if (code) {
-    const { error: exchangeError } =
+    const { data, error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
     if (exchangeError) {
       return NextResponse.redirect(
         `${requestUrl.origin}/?auth_error=${encodeURIComponent(exchangeError.message)}`
       );
     }
+    if (data.user) {
+      try {
+        await ensureProfileForUser(data.user);
+      } catch {
+        /* provisioned on next API call */
+      }
+    }
+    return NextResponse.redirect(new URL(next, request.url));
   }
 
-  return NextResponse.redirect(new URL(next, request.url));
+  return NextResponse.redirect(
+    `${requestUrl.origin}/?auth_error=${encodeURIComponent("Sign-in link expired or already used. Request a new one.")}`
+  );
 }

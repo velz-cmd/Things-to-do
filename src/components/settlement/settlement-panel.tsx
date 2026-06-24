@@ -161,7 +161,7 @@ export function SettlementPanel({
           type="button"
           disabled={loading}
           onClick={lockArcEscrow}
-          className="mt-4 w-full rounded-xl bg-sky-500 py-3 text-sm font-semibold text-white hover:bg-sky-400 disabled:opacity-50"
+          className="mt-4 w-full rounded-md bg-resolve-accent py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
         >
           {loading ? "Locking task budget…" : `Lock $${budgetUsd.toFixed(2)} task budget`}
         </button>

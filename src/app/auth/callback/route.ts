@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = (requestUrl.searchParams.get("type") ?? "email") as EmailOtpType;
-  const next = requestUrl.searchParams.get("next") ?? "/start";
+  const next = requestUrl.searchParams.get("next") ?? "/missions";
   const authError =
     requestUrl.searchParams.get("error_description") ??
     requestUrl.searchParams.get("error");

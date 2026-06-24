@@ -37,13 +37,13 @@ export function HomePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
           <div>
-            <p className="text-sm font-medium text-sky-400">
+            <p className="text-sm font-medium text-resolve-accent">
               The outcome network on Arc — not another AI assistant.
             </p>
             <h1 className="mt-4 text-4xl font-semibold leading-[1.1] tracking-tight text-white md:text-5xl lg:text-[3.25rem]">
               Work gets funded
               <br />
-              <span className="text-sky-300">only when verified.</span>
+              <span className="text-blue-300">only when verified.</span>
             </h1>
             <p className="mt-6 max-w-lg text-base leading-relaxed text-resolve-muted">
               RESOLVE runs economic missions: bounties, contributor payouts, and
@@ -52,15 +52,15 @@ export function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href="/start"
-                className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_30px_-5px_rgba(56,189,248,0.5)] transition hover:bg-sky-400"
+                href="/missions"
+                className="inline-flex items-center gap-2 rounded-md bg-resolve-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
               >
                 Create mission
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/distribute"
-                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-md border border-resolve-border-strong px-6 py-3 text-sm font-medium text-white transition hover:bg-resolve-hover"
               >
                 Distribute to creators
               </Link>
@@ -83,7 +83,7 @@ export function HomePage() {
             {problemStats.map((stat) => (
               <GlassPanel key={stat.label} className="p-5">
                 <p className="text-2xl font-semibold text-white">{stat.value}</p>
-                <p className="mt-1 text-sm font-medium text-sky-300">{stat.label}</p>
+                <p className="mt-1 text-sm font-medium text-blue-300">{stat.label}</p>
                 <p className="mt-2 text-xs leading-relaxed text-resolve-muted">
                   {stat.description}
                 </p>
@@ -91,7 +91,7 @@ export function HomePage() {
                   href={stat.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-3 inline-block text-[10px] text-sky-400/80 underline hover:text-sky-300"
+                  className="mt-3 inline-block text-[10px] text-resolve-accent/80 underline hover:text-blue-300"
                 >
                   {stat.sourceName} · {stat.year}
                 </a>
@@ -110,16 +110,16 @@ export function HomePage() {
               const Icon = ICONS[cat.icon];
               return (
                 <GlassPanel key={cat.id} className="flex flex-col p-5">
-                  <Icon className="h-5 w-5 text-sky-400" />
+                  <Icon className="h-5 w-5 text-resolve-accent" />
                   <h3 className="mt-3 font-semibold text-white">{cat.title}</h3>
                   <p className="mt-1 flex-1 text-sm text-resolve-muted">
                     {cat.description}
                   </p>
                   <Link
-                    href={`/start?task=${encodeURIComponent(cat.prompt)}&from=home`}
-                    className="mt-4 text-sm font-medium text-sky-400 hover:text-sky-300"
+                    href="/missions"
+                    className="mt-4 text-sm font-medium text-resolve-accent hover:text-blue-300"
                   >
-                    Start this →
+                    Open console →
                   </Link>
                 </GlassPanel>
               );
@@ -136,7 +136,7 @@ export function HomePage() {
             {FLOW.map((item, i) => (
               <div key={item.step} className="flex items-center gap-3">
                 <GlassPanel className="flex min-w-[140px] flex-col p-4">
-                  <span className="text-xs font-medium text-sky-400">{item.step}</span>
+                  <span className="text-xs font-medium text-resolve-accent">{item.step}</span>
                   <span className="mt-1 font-semibold text-white">{item.title}</span>
                   <span className="mt-1 text-xs text-resolve-muted">{item.desc}</span>
                 </GlassPanel>
@@ -182,8 +182,8 @@ export function HomePage() {
             ))}
           </ul>
           <Link
-            href="/start"
-            className="mt-10 inline-flex items-center gap-2 rounded-full bg-sky-500 px-8 py-3.5 text-sm font-semibold text-white hover:bg-sky-400"
+            href="/missions"
+            className="mt-10 inline-flex items-center gap-2 rounded-md bg-resolve-accent px-8 py-3.5 text-sm font-semibold text-white hover:bg-blue-500"
           >
             Create a mission
             <ArrowRight className="h-4 w-4" />

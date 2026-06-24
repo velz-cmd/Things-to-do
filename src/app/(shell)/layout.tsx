@@ -26,6 +26,9 @@ function MarketingShell({ children }: { children: React.ReactNode }) {
               <Link href="/radar" className="text-xs font-medium text-resolve-muted hover:text-white">
                 Radar
               </Link>
+              <Link href="/stack" className="text-xs font-medium text-resolve-muted hover:text-white">
+                Stack
+              </Link>
             </nav>
             <AuthHeader />
           </div>

@@ -121,6 +121,38 @@ export const DEMO_OUTCOMES: OutcomeTemplate[] = [
     merchantId: "billdemo-isp",
     description: "Negotiate ISP bill reduction with proof of new rate",
   },
+  {
+    id: "bounty-designer-200",
+    title: "Pay designer when logo approved",
+    category: "bounty",
+    targetValueUsd: 200,
+    merchantId: "demo/logo-bounty",
+    description: "Release $200 USDC bounty when GitHub PR is merged and logo approved",
+  },
+  {
+    id: "bounty-researcher-500",
+    title: "Pay researcher when report delivered",
+    category: "contributor",
+    targetValueUsd: 500,
+    merchantId: "demo/research-bounty",
+    description: "Release $500 when research report is delivered and signed off",
+  },
+  {
+    id: "bounty-pr-merge",
+    title: "Release bounty when PR merged",
+    category: "bounty",
+    targetValueUsd: 150,
+    merchantId: "demo/oss-bounty",
+    description: "Pay contributor when pull request is merged on GitHub",
+  },
+  {
+    id: "distribute-creators",
+    title: "Distribute to open-source creators",
+    category: "distribution",
+    targetValueUsd: 50,
+    merchantId: "founder-distribution",
+    description: "Batch distribute verified creator events to contributor wallets",
+  },
 ];
 
 export const PROOF_POLICIES: Record<string, string[]> = {
@@ -133,5 +165,27 @@ export const PROOF_POLICIES: Record<string, string[]> = {
     "cancellation_confirmation_email",
     "portal_status_cancelled",
     "support_ticket_closed",
+  ],
+  bounty: [
+    "github_pr_merged",
+    "deliverable_approved",
+    "milestone_signed_off",
+    "issue_closed",
+  ],
+  contributor: [
+    "github_pr_merged",
+    "deliverable_approved",
+    "milestone_signed_off",
+    "review_approved",
+  ],
+  distribution: [
+    "scrobble_verified",
+    "subsonic_scrobble_log",
+    "stream_presence_verified",
+    "owncast_user_joined_parted",
+    "shared_link_verified",
+    "immich_resolve_log",
+    "citation_verified",
+    "vod_session_verified",
   ],
 };

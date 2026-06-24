@@ -22,6 +22,17 @@ export function isCloudflareGatewayConfigured(): boolean {
   );
 }
 
+/** Unity swarm — cross-tier validation (Groq → Llama → Gemini). Opt out with AI_SWARM_ENABLED=false. */
+export function isSwarmEnabled(): boolean {
+  if (process.env.AI_SWARM_ENABLED === "false") return false;
+  const tiers = [
+    isGroqConfigured(),
+    isOpenRouterConfigured(),
+    isGeminiConfigured(),
+  ].filter(Boolean).length;
+  return tiers >= 2;
+}
+
 export function getAppReferer(): string {
   return (
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||

@@ -1,28 +1,47 @@
-import { generateTextWithFallback } from "@/lib/ai/gateway";
+import { generateTextWithFallback, runSwarmText } from "@/lib/ai/gateway";
 
 /** Llama research layer — long documents, repo notes, bulk summaries. */
 export async function summarizeResearch(input: {
   title: string;
   content: string;
   maxWords?: number;
-}): Promise<{ summary: string; modelId: string } | null> {
+}): Promise<{
+  summary: string;
+  modelId: string;
+  swarm?: { consensus: boolean; confidence: number; stages: unknown[] };
+} | null> {
   const trimmed = input.content.trim();
   if (!trimmed) return null;
 
-  try {
-    const { text, meta } = await generateTextWithFallback({
-      tier: "research",
-      system:
-        "You are RESOLVE Research — summarize open-source and operational context for payout missions. Be factual and concise.",
-      prompt: `Title: ${input.title}
+  const system =
+    "You are RESOLVE Research — summarize open-source and operational context for payout missions. Be factual and concise.";
+  const prompt = `Title: ${input.title}
 
 Content:
 ${trimmed.slice(0, 24_000)}
 
-Summarize in ${input.maxWords ?? 200} words or less. Highlight contributors, deliverables, and verification signals.`,
+Summarize in ${input.maxWords ?? 200} words or less. Highlight contributors, deliverables, and verification signals.`;
+
+  try {
+    const swarm = await runSwarmText({
+      task: `Summarize: ${input.title}`,
+      producerSystem: system,
+      producerPrompt: prompt,
       maxOutputTokens: 800,
     });
-    return { summary: text.trim(), modelId: meta.modelId };
+    const modelId =
+      swarm.stages.find((s) => s.role === "producer")?.modelId ??
+      swarm.stages[0]?.modelId ??
+      "swarm";
+    return {
+      summary: swarm.output.trim(),
+      modelId,
+      swarm: {
+        consensus: swarm.consensus,
+        confidence: swarm.confidence,
+        stages: swarm.stages,
+      },
+    };
   } catch (e) {
     console.warn("Research summary failed:", e);
     return null;
@@ -33,7 +52,11 @@ export async function analyzeGithubContext(input: {
   repoFullName: string;
   prTitle?: string;
   prBody?: string;
-}): Promise<{ analysis: string; modelId: string } | null> {
+}): Promise<{
+  analysis: string;
+  modelId: string;
+  swarm?: { consensus: boolean; confidence: number; stages: unknown[] };
+} | null> {
   const body = [
     `Repository: ${input.repoFullName}`,
     input.prTitle ? `PR title: ${input.prTitle}` : "",
@@ -42,17 +65,30 @@ export async function analyzeGithubContext(input: {
     .filter(Boolean)
     .join("\n");
 
-  try {
-    const { text, meta } = await generateTextWithFallback({
-      tier: "research",
-      system:
-        "You analyze GitHub work for bounty and contributor payout missions on RESOLVE.",
-      prompt: `${body}
+  const system =
+    "You analyze GitHub work for bounty and contributor payout missions on RESOLVE.";
+  const prompt = `${body}
 
-In 3-5 bullet points: what was delivered, who should be credited, and what proof exists for settlement.`,
+In 3-5 bullet points: what was delivered, who should be credited, and what proof exists for settlement.`;
+
+  try {
+    const swarm = await runSwarmText({
+      task: `Analyze GitHub: ${input.repoFullName}`,
+      producerSystem: system,
+      producerPrompt: prompt,
       maxOutputTokens: 500,
     });
-    return { analysis: text.trim(), modelId: meta.modelId };
+    const modelId =
+      swarm.stages.find((s) => s.role === "producer")?.modelId ?? "swarm";
+    return {
+      analysis: swarm.output.trim(),
+      modelId,
+      swarm: {
+        consensus: swarm.consensus,
+        confidence: swarm.confidence,
+        stages: swarm.stages,
+      },
+    };
   } catch (e) {
     console.warn("GitHub analysis failed:", e);
     return null;

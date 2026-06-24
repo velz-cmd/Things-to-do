@@ -30,10 +30,6 @@ test.describe("RESOLVE auth smoke", () => {
   });
 
   test("4. continue with wallet opens wallet picker", async ({ page }) => {
-    const caps = await page.request.get("/api/auth/capabilities");
-    const data = await caps.json();
-    test.skip(!data.wallet, "Wallet connector not configured");
-
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.getByRole("button", { name: "Continue with wallet" }).click();
     await expect(page.getByRole("heading", { name: "Choose wallet" })).toBeVisible();
@@ -67,11 +63,9 @@ test.describe("RESOLVE auth smoke", () => {
       ).not.toBeVisible();
     }
 
-    if (data.wallet) {
-      await expect(
-        page.getByRole("button", { name: "Continue with wallet" })
-      ).toBeVisible();
-    }
+    await expect(
+      page.getByRole("button", { name: "Continue with wallet" })
+    ).toBeVisible();
 
     await expect(
       page.getByText(/temporarily unavailable/i)

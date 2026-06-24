@@ -13,17 +13,12 @@ import {
 
 export const runtime = "nodejs";
 
-function parseCooldown(message: string): number | undefined {
-  const match = message.match(/after (\d+) seconds?/i);
-  return match ? Number(match[1]) : undefined;
-}
-
-/** Rate-limit check + authorize browser magic-link send (Supabase delivers the email). */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const email = String((body as { email?: string }).email ?? "")
     .trim()
     .toLowerCase();
+  const confirm = Boolean((body as { confirm?: boolean }).confirm);
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
@@ -64,7 +59,10 @@ export async function POST(req: Request) {
     );
   }
 
-  await recordEmailLinkRequest(email);
+  if (confirm) {
+    await recordEmailLinkRequest(email);
+    return NextResponse.json({ ok: true, recorded: true });
+  }
 
   return NextResponse.json({
     ok: true,

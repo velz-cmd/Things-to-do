@@ -317,11 +317,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return {
             ok: false,
             cooldownSeconds,
-            message: cooldownSeconds
-              ? error.message
-              : error.message,
+            message: error.message,
           };
         }
+
+        await fetch("/api/auth/send-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmed, confirm: true }),
+        }).catch(() => {
+          /* non-fatal — link was already sent */
+        });
 
         return {
           ok: true,

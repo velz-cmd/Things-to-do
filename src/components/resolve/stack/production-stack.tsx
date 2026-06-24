@@ -311,7 +311,7 @@ export function ProductionStack() {
                 </p>
                 <p className="mt-2 text-xs leading-relaxed text-resolve-muted">
                   If validator disputes, Gemini arbitrates and produces the final
-                  corrected output. Research text flows reverse: Llama → Gemini → Groq.
+                  corrected output. Research text: Llama produces → Groq validates → Gemini arbitrates.
                 </p>
               </Panel>
             </div>

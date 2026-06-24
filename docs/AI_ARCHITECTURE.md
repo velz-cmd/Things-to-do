@@ -39,7 +39,7 @@ Each AI tier **reviews the previous tier's work** before the pipeline accepts ou
 | **Validator** | Llama (research) | Approve or reject producer output with confidence + issues |
 | **Arbiter** | Gemini (quality) | If disputed, correct output and reach final consensus |
 
-Research text flows use the reverse validation path: **Llama produces → Gemini validates → Groq arbitrates**.
+Research text flows: **Llama produces → Groq validates → Gemini arbitrates**.
 
 Set `AI_SWARM_ENABLED=false` to disable. Requires at least two configured providers.
 

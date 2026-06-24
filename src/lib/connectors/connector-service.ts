@@ -34,7 +34,9 @@ export async function getConnectorStatuses(
     "GOOGLE_REFRESH_TOKEN"
   );
   const gmailUserConnected = user?.gmailConnected ?? false;
-  const gmailConnected = gmailServerConnected || gmailUserConnected;
+  const gmailConnected = userId
+    ? gmailUserConnected
+    : gmailServerConnected || gmailUserConnected;
 
   const arcConnected = hasEnv("CIRCLE_API_KEY") && hasEnv("ARC_AGENT_WALLET_ADDRESS");
   const browserReady =

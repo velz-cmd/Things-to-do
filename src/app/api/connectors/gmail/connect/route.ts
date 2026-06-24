@@ -1,36 +1,28 @@
 import { NextResponse } from "next/server";
 import { requireReadyUser } from "@/lib/auth/session";
-import { prisma } from "@/lib/db";
+import { googleOAuthConfigured } from "@/lib/google/oauth";
 
-export async function POST() {
+/** Legacy POST — prefer GET /api/connectors/gmail/authorize for OAuth consent. */
+export async function POST(req: Request) {
   const ready = await requireReadyUser();
   if ("error" in ready) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
   }
 
-  const hasServerGmail = Boolean(
-    process.env.GOOGLE_CLIENT_ID &&
-      process.env.GOOGLE_REFRESH_TOKEN &&
-      process.env.GOOGLE_CLIENT_SECRET
-  );
-
-  if (!hasServerGmail) {
+  if (!googleOAuthConfigured()) {
     return NextResponse.json({
       ok: false,
       state: "needs_auth",
       message:
-        "Gmail OAuth is not configured on this deployment. Use demo receipt upload or contact support.",
+        "Gmail OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
     });
   }
 
-  await prisma.user.update({
-    where: { id: ready.user.id },
-    data: { gmailConnected: true },
-  });
-
+  const origin = new URL(req.url).origin;
   return NextResponse.json({
     ok: true,
-    state: "connected",
-    message: "Gmail connector enabled for this account",
+    state: "needs_auth",
+    authorizeUrl: `${origin}/api/connectors/gmail/authorize`,
+    message: "Redirect to Gmail authorization",
   });
 }

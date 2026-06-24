@@ -1,9 +1,9 @@
 "use client";
 
-import { useAccount } from "wagmi";
 import clsx from "clsx";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { useResolveAccount } from "@/hooks/use-resolve-account";
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -13,18 +13,11 @@ function initials(name: string) {
 
 /** Compact account chip for sidebar — primary sign-in is top-right AuthHeader */
 export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
-  const { user, balance, balanceLoading } = useAuth();
+  const { balance, balanceLoading } = useAuth();
+  const account = useResolveAccount();
   const { openSignIn } = useSignInModal();
-  const { address, isConnected } = useAccount();
 
-  const signedIn = Boolean(user);
-  const displayName =
-    user?.user_metadata?.full_name ??
-    user?.user_metadata?.name ??
-    user?.email?.split("@")[0] ??
-    "Account";
-
-  if (!signedIn) {
+  if (!account.isAuthenticated) {
     return (
       <button
         type="button"
@@ -38,6 +31,8 @@ export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
       </button>
     );
   }
+
+  const displayName = account.displayName ?? "Account";
 
   return (
     <div
@@ -59,11 +54,14 @@ export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
           )}
         </div>
       </div>
-      {isConnected && address && (
+      {account.walletAddress && (
         <p className="mt-1 font-mono text-[10px] text-deputy-muted">
-          {address.slice(0, 6)}…{address.slice(-4)}
+          {account.walletAddress.slice(0, 6)}…{account.walletAddress.slice(-4)}
         </p>
       )}
+      <p className="mt-1 text-[10px] text-deputy-muted">
+        Gmail: {account.gmailConnected ? "connected" : "not connected"}
+      </p>
     </div>
   );
 }

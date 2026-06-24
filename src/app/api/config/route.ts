@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { describeSwarmCapabilities, listConfiguredProviders } from "@/lib/ai/gateway";
 import { listSearchProviders, isSearchConfigured } from "@/lib/search";
+import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
+import { isWalletLabelsConfigured } from "@/lib/wallet/wallet-labels";
+import { ARC_MEMO_CONTRACT } from "@/lib/arc/memo-abi";
 
 export async function GET() {
   const ai = listConfiguredProviders();
@@ -17,6 +21,15 @@ export async function GET() {
     llmProvider: ai.gemini ? "gemini-primary" : ai.groq ? "groq-primary" : "none",
     ai: { ...ai, swarm },
     search: { ...search, enabled: isSearchConfigured() },
+    arcMemos: {
+      enabled: isLiveArcEnabled(),
+      memoContract: ARC_MEMO_CONTRACT,
+      distributionPayouts: isLiveArcEnabled() ? "onchain_memo" : "offchain_only",
+    },
+    walletIntelligence: {
+      alchemy: isAlchemyConfigured(),
+      walletLabels: isWalletLabelsConfigured(),
+    },
     qwenEnabled: Boolean(process.env.DASHSCOPE_API_KEY),
     geminiEnabled: ai.gemini,
     groqEnabled: ai.groq,
@@ -24,5 +37,6 @@ export async function GET() {
     cloudflareGateway: ai.cloudflareGateway,
     swarmEnabled: swarm.enabled,
     swarmFlow: swarm.flow,
+    liveArc: isLiveArcEnabled(),
   });
 }

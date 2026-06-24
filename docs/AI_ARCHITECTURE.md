@@ -29,6 +29,32 @@ User → Cloudflare AI Gateway → Groq → Llama → Gemini → Supabase → Ar
 User request → Groq (intent) → Llama (research) → Gemini (verdict) → Supabase + Arc payments
 ```
 
+## Unity Swarm (cross-validation)
+
+Each AI tier **reviews the previous tier's work** before the pipeline accepts output.
+
+| Role | Agent | Action |
+|------|-------|--------|
+| **Producer** | Groq (fast) | Classify intent, produce structured output |
+| **Validator** | Llama (research) | Approve or reject producer output with confidence + issues |
+| **Arbiter** | Gemini (quality) | If disputed, correct output and reach final consensus |
+
+Research text flows use the reverse validation path: **Llama produces → Gemini validates → Groq arbitrates**.
+
+Set `AI_SWARM_ENABLED=false` to disable. Requires at least two configured providers.
+
+```bash
+# Classify with swarm stages in response
+curl -X POST https://resolve-task.vercel.app/api/tasks/classify \
+  -H "Content-Type: application/json" \
+  -d '{"input":"Pay designer when logo is approved on GitHub"}'
+
+# Direct swarm run
+curl -X POST https://resolve-task.vercel.app/api/ai/swarm \
+  -H "Content-Type: application/json" \
+  -d '{"task":"Analyze unpaid maintainers for react repo","mode":"analyze"}'
+```
+
 ## Tiers (implementation)
 
 | Tier | Primary | Fallback | Use in RESOLVE |
@@ -47,6 +73,7 @@ CLOUDFLARE_ACCOUNT_ID=       # optional gateway
 CLOUDFLARE_AI_GATEWAY_ID=resolve
 CLOUDFLARE_AI_GATEWAY_ENABLED=true   # set false to call Groq/OpenRouter/Gemini directly
 CLOUDFLARE_API_TOKEN=        # Workers AI / Gateway token
+AI_SWARM_ENABLED=true        # Groq/Llama/Gemini cross-validate (default on)
 ```
 
 Set on Vercel (Production + Preview). Trigger a **new deployment** after changes.
@@ -56,7 +83,9 @@ Set on Vercel (Production + Preview). Trigger a **new deployment** after changes
 - `GET /api/ai/chat` — provider status and tier map
 - `POST /api/ai/chat` — `{ "tier": "fast|research|quality", "messages": [...] }`
 - `POST /api/ai/research` — `{ "repoFullName", "prTitle", "prBody" }`
-- `POST /api/tasks/classify` — rules + Groq enhancement
+- `POST /api/tasks/classify` — rules + Unity Swarm classification
+- `GET /api/ai/swarm` — swarm capabilities
+- `POST /api/ai/swarm` — `{ "task", "mode": "classify|analyze|custom" }`
 
 ## Cloudflare AI Gateway
 

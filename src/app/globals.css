@@ -6,12 +6,17 @@
   --background: #05080c;
   --foreground: #f0f4f8;
   --resolve-bg: #05080c;
-  --resolve-surface: #0c1219;
-  --resolve-primary: #38bdf8;
+  --resolve-raised: #0c1219;
+  --resolve-hover: #111a24;
+  --resolve-border: rgba(255, 255, 255, 0.06);
+  --resolve-border-strong: rgba(255, 255, 255, 0.1);
+  --resolve-accent: #3b82f6;
+  --resolve-accent-muted: rgba(59, 130, 246, 0.12);
   --resolve-success: #34d399;
   --resolve-warning: #fbbf24;
   --resolve-danger: #f87171;
   --resolve-muted: #94a3b8;
+  --resolve-muted-dim: #64748b;
 }
 
 body {
@@ -28,33 +33,21 @@ body {
   .resolve-grid-bg {
     background-color: var(--resolve-bg);
     background-image:
-      radial-gradient(ellipse 100% 80% at 50% -30%, rgba(56, 189, 248, 0.08), transparent 50%),
-      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      radial-gradient(ellipse 100% 80% at 50% -30%, rgba(59, 130, 246, 0.06), transparent 50%),
+      linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
     background-size: 100% 100%, 48px 48px, 48px 48px;
   }
 
-  .animate-pulse-slow {
-    animation: pulse-slow 4s ease-in-out infinite;
-  }
-}
-
-@keyframes pulse-slow {
-  0%,
-  100% {
-    opacity: 0.6;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.05);
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 @keyframes resolve-enter {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -62,23 +55,8 @@ body {
   }
 }
 
-@keyframes resolve-exit {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0.92;
-    transform: scale(0.98);
-  }
-}
-
 @layer utilities {
   .animate-resolve-enter {
-    animation: resolve-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-
-  .animate-resolve-exit {
-    animation: resolve-exit 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: resolve-enter 0.2s ease-out forwards;
   }
 }

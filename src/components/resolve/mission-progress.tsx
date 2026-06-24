@@ -28,7 +28,7 @@ export function MissionProgress({
       <div className="relative h-2 overflow-hidden rounded-full bg-black/40">
         <div
           className={clsx(
-            "absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 transition-all duration-700 ease-out",
+            "absolute inset-y-0 left-0 rounded-full bg-resolve-accent transition-all duration-200 ease-out",
             status === "needs_attention" && "from-amber-500 to-amber-400",
             status === "settled" && "from-emerald-500 to-emerald-400",
             status === "failed" && "from-red-500 to-red-400",

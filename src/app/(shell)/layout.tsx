@@ -1,21 +1,47 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { CommandProvider } from "@/components/resolve/command/command-context";
-import { FloatingCommandBar } from "@/components/resolve/command/floating-command-bar";
-import { ResolveTopNav } from "@/components/resolve/nav/top-nav";
+import { AppShell } from "@/components/resolve/layout/app-shell";
+import { AuthHeader } from "@/components/auth/auth-header";
+
+function MarketingShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-resolve-bg text-white">
+      <header className="border-b border-resolve-border">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+          <Link href="/">
+            <p className="text-sm font-semibold">RESOLVE</p>
+            <p className="text-[10px] text-resolve-muted-dim">Outcome network on Arc</p>
+          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/missions"
+              className="text-xs font-medium text-resolve-muted hover:text-white"
+            >
+              Open console
+            </Link>
+            <AuthHeader />
+          </div>
+        </div>
+      </header>
+      {children}
+    </div>
+  );
+}
 
 export default function ShellLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <CommandProvider>
-      <div className="flex min-h-screen flex-col bg-resolve-bg text-white">
-        <ResolveTopNav />
-        <main className="flex-1">{children}</main>
-        <FloatingCommandBar />
-      </div>
-    </CommandProvider>
-  );
+  const pathname = usePathname();
+  const isMarketing = pathname === "/";
+
+  if (isMarketing) {
+    return <CommandProvider><MarketingShell>{children}</MarketingShell></CommandProvider>;
+  }
+
+  return <AppShell>{children}</AppShell>;
 }

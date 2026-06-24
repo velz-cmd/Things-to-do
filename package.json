@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.83",
+    "@ai-sdk/openai": "^3.0.74",
     "@circle-fin/developer-controlled-wallets": "^10.6.0",
     "@prisma/client": "^6.9.0",
     "@reown/appkit": "^1.8.21",
@@ -30,6 +31,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",
     "next": "^15.3.4",
+    "openai": "^6.45.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "resend": "^6.14.0",

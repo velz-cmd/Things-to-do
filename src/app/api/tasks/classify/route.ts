@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { classifyTaskInput } from "@/lib/tasks/classifier";
 import { classifyTaskInputWithAi } from "@/lib/tasks/classifier-ai";
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   const body = await req.json();
   const input = String(body.input ?? "").trim();

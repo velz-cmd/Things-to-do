@@ -7,6 +7,7 @@ import {
   GitBranch,
   Layers,
   Mail,
+  Search,
   Shield,
   Sparkles,
   Wallet,
@@ -457,6 +458,57 @@ export function ProductionStack() {
                 ]}
               />
             </div>
+          </section>
+
+          <section>
+            <SectionTitle
+              title="Search intelligence"
+              badge="Live"
+              description="Tavily → Serper → WebSearch API with 5-minute cache and automatic fallback"
+            />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <TierCard
+                icon={Search}
+                subtitle="Primary"
+                title="Tavily"
+                accent="sky"
+                items={[
+                  "Deep research for maintainers and funding",
+                  "Domain-filtered GitHub discovery",
+                  "First provider in fallback chain",
+                ]}
+              />
+              <TierCard
+                icon={Search}
+                subtitle="Secondary"
+                title="Serper"
+                accent="violet"
+                items={[
+                  "Google-style SERP results",
+                  "Fast structured JSON",
+                  "Fallback when Tavily rate-limits",
+                ]}
+              />
+              <TierCard
+                icon={Search}
+                subtitle="Tertiary"
+                title="WebSearch API"
+                accent="emerald"
+                items={[
+                  "Final fallback provider",
+                  "AI-optimized web results",
+                  "Retries with provider latency logs",
+                ]}
+              />
+            </div>
+            <Panel className="mt-4 border-sky-500/20 bg-sky-500/5 p-4">
+              <p className="text-xs font-medium text-sky-300">Capabilities</p>
+              <p className="mt-2 text-sm text-resolve-muted">
+                Find repositories, maintainers, funding pages, GitHub issues, documentation,
+                and payment integrations. Results deduplicated and ranked — GitHub and official
+                docs prioritized. API: <code className="text-sky-300">POST /api/search</code>
+              </p>
+            </Panel>
           </section>
 
           <section>

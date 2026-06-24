@@ -1,42 +1,49 @@
 import type { AgentRole } from "@/lib/deputy/types";
-import { QWEN_MODELS } from "@/lib/ai/qwen";
+import { AI_MODELS } from "@/lib/ai/gateway";
 
 export const AGENT_DEFINITIONS: Record<
   AgentRole,
-  { model: string; responsibility: string; usesLlm: boolean }
+  { model: string; tier: string; responsibility: string; usesLlm: boolean }
 > = {
   Planner: {
-    model: QWEN_MODELS.plus,
+    model: AI_MODELS.gemini.quality,
+    tier: "quality",
     responsibility: "Parse intent → outcome checklist",
     usesLlm: true,
   },
   Evidence: {
-    model: QWEN_MODELS.flash,
+    model: AI_MODELS.groq.fast,
+    tier: "fast",
     responsibility: "Search inbox, find booking refs",
     usesLlm: true,
   },
   Executor: {
-    model: QWEN_MODELS.flash,
+    model: AI_MODELS.groq.fast,
+    tier: "fast",
     responsibility: "Draft/submit claim, send email",
     usesLlm: true,
   },
   Retry: {
-    model: QWEN_MODELS.flash,
+    model: AI_MODELS.groq.fast,
+    tier: "fast",
     responsibility: "Follow-up timing, escalation copy",
     usesLlm: true,
   },
   Negotiator: {
-    model: QWEN_MODELS.plus,
+    model: AI_MODELS.gemini.quality,
+    tier: "quality",
     responsibility: "Merchant negotiation language",
     usesLlm: true,
   },
   Verification: {
     model: "deterministic",
+    tier: "none",
     responsibility: "Apply PROOF_POLICIES — never trust LLM",
     usesLlm: false,
   },
   Escalation: {
-    model: QWEN_MODELS.max,
+    model: AI_MODELS.openrouter.research,
+    tier: "research",
     responsibility: "Human handoff package when blocked",
     usesLlm: true,
   },

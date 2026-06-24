@@ -15,12 +15,12 @@ import { enableGuestExploring } from "@/lib/auth/guest";
 import { getRememberedEmail } from "@/lib/auth/remember";
 import { detectInjectedWallets } from "@/lib/wallet/detect";
 
-type Step = "welcome" | "otp" | "magic-sent" | "wallet-picker";
+type Step = "welcome" | "verify" | "wallet-picker";
 type AuthAction = "email" | "google" | "wallet" | "verify" | "guest" | null;
 
 const COOLDOWN_KEY = "resolve.signin.cooldownUntil";
 const EMAIL_KEY = "resolve.signin.email";
-const SENT_STEP_KEY = "resolve.signin.sentStep";
+const VERIFY_STEP_KEY = "resolve.signin.verifyPending";
 
 function getCooldownRemaining(): number {
   try {
@@ -115,12 +115,12 @@ export function SignInModal() {
     const remaining = getCooldownRemaining();
     setCooldown(remaining);
 
-    if (cooldown > 0 && savedEmail) {
+    if (remaining > 0 && savedEmail) {
       try {
-        const sentStep = localStorage.getItem(SENT_STEP_KEY) as Step | null;
-        setStep(sentStep === "otp" ? "otp" : "magic-sent");
+        const verifyPending = localStorage.getItem(VERIFY_STEP_KEY);
+        if (verifyPending === "1") setStep("verify");
       } catch {
-        setStep("magic-sent");
+        /* ignore */
       }
     }
   }, [open]);
@@ -156,17 +156,17 @@ export function SignInModal() {
 
   if (!open) return null;
 
-  function goToSentStep(method: "otp" | "magic_link") {
-    const nextStep: Step = method === "otp" ? "otp" : "magic-sent";
-    setStep(nextStep);
+  function goToVerifyStep() {
+    setStep("verify");
     try {
-      localStorage.setItem(SENT_STEP_KEY, nextStep);
+      localStorage.setItem(VERIFY_STEP_KEY, "1");
     } catch {
       /* ignore */
     }
     setCooldownSeconds(60);
     setCooldown(60);
     setMethodError((prev) => ({ ...prev, email: undefined }));
+    setInlineError(null);
   }
 
   async function handleGoogle() {
@@ -228,44 +228,44 @@ export function SignInModal() {
     }
 
     if (cooldown > 0) {
-      const priorStep =
-        (localStorage.getItem(SENT_STEP_KEY) as "otp" | "magic-sent" | null) ??
-        "magic_link";
-      setMethodError((prev) => ({
-        ...prev,
-        email: `Sign-in already sent. Resend in ${cooldown}s.`,
-      }));
-      goToSentStep(priorStep === "otp" ? "otp" : "magic_link");
-      return;
+      try {
+        if (localStorage.getItem(VERIFY_STEP_KEY) === "1") {
+          goToVerifyStep();
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
     }
 
     setAuthAction("email");
     try {
       localStorage.setItem(EMAIL_KEY, trimmed);
-      const result = await sendLoginCode(trimmed, { method: "magic_link" });
+      const result = await sendLoginCode(trimmed);
 
       if (!result.ok) {
         if (result.cooldownSeconds) {
           setCooldownSeconds(result.cooldownSeconds);
           setCooldown(result.cooldownSeconds);
+          goToVerifyStep();
         }
         setMethodError((prev) => ({ ...prev, email: result.message }));
         return;
       }
 
-      goToSentStep(result.method ?? "magic_link");
+      goToVerifyStep();
     } finally {
       setAuthAction(null);
     }
   }
 
-  async function handleResend(method: "otp" | "magic_link" = "magic_link") {
+  async function handleResend() {
     if (cooldown > 0 || authAction === "email") return;
     setAuthAction("email");
     setMethodError((prev) => ({ ...prev, email: undefined }));
     setInlineError(null);
     try {
-      const result = await sendLoginCode(email.trim(), { method });
+      const result = await sendLoginCode(email.trim());
       if (!result.ok) {
         if (result.cooldownSeconds) {
           setCooldownSeconds(result.cooldownSeconds);
@@ -277,39 +277,7 @@ export function SignInModal() {
         }));
         return;
       }
-      goToSentStep(result.method ?? method);
-    } finally {
-      setAuthAction(null);
-    }
-  }
-
-  async function handleSwitchToOtp() {
-    setInlineError(null);
-    setMethodError((prev) => ({ ...prev, email: undefined }));
-    setStep("otp");
-    try {
-      localStorage.setItem(SENT_STEP_KEY, "otp");
-    } catch {
-      /* ignore */
-    }
-
-    if (cooldown > 0) {
-      setInlineError(`Resend a code in ${cooldown}s, or use the magic link email.`);
-      return;
-    }
-
-    setAuthAction("email");
-    try {
-      const result = await sendLoginCode(email.trim(), { method: "otp" });
-      if (!result.ok) {
-        if (result.cooldownSeconds) {
-          setCooldownSeconds(result.cooldownSeconds);
-          setCooldown(result.cooldownSeconds);
-        }
-        setInlineError(result.message);
-        return;
-      }
-      goToSentStep("otp");
+      goToVerifyStep();
     } finally {
       setAuthAction(null);
     }
@@ -329,6 +297,11 @@ export function SignInModal() {
       if (!result.ok) {
         setInlineError(result.message);
         return;
+      }
+      try {
+        localStorage.removeItem(VERIFY_STEP_KEY);
+      } catch {
+        /* ignore */
       }
       if (result.walletPending) {
         setWalletPending(true);
@@ -365,15 +338,13 @@ export function SignInModal() {
   const subtitle =
     step === "wallet-picker"
       ? "Pick the wallet you want to connect."
-      : step === "otp"
-        ? `Enter the code sent to ${email}`
-        : step === "magic-sent"
-          ? `Check your inbox at ${email}`
-          : showEmail && showWallet
-            ? "Enter your email or connect a wallet to get started."
-            : showWallet
-              ? "Connect a wallet to get started."
-              : "Enter your email to get started.";
+      : step === "verify"
+        ? `We sent a sign-in email to ${email}. Enter the code below or open the magic link in that email.`
+        : showEmail && showWallet
+          ? "Enter your email or connect a wallet to get started."
+          : showWallet
+            ? "Connect a wallet to get started."
+            : "Enter your email to get started.";
 
   const emailReady = isValidEmail(email);
   const walletBusy =
@@ -393,7 +364,7 @@ export function SignInModal() {
           aria-modal="true"
           aria-labelledby="sign-in-title"
         >
-          {(step === "wallet-picker" || step === "otp" || step === "magic-sent") && (
+          {(step === "wallet-picker" || step === "verify") && (
             <button
               type="button"
               onClick={() => {
@@ -415,15 +386,13 @@ export function SignInModal() {
                 RESOLVE
               </p>
               <h2 id="sign-in-title" className="mt-1 text-2xl font-semibold text-white">
-                {step === "otp"
-                  ? "Enter your code"
-                  : step === "magic-sent"
-                    ? "Check your email"
-                      : step === "wallet-picker"
-                      ? "Choose wallet"
-                      : getRememberedEmail() && email
-                        ? "Welcome back"
-                        : "Welcome"}
+                {step === "verify"
+                  ? "Check your email"
+                  : step === "wallet-picker"
+                    ? "Choose wallet"
+                    : getRememberedEmail() && email
+                      ? "Welcome back"
+                      : "Welcome"}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-slate-400">{subtitle}</p>
             </div>
@@ -457,14 +426,13 @@ export function SignInModal() {
                     disabled={authAction === "email" || !emailReady}
                     className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {authAction === "email"
-                      ? "Sending…"
-                      : cooldown > 0
-                        ? "Check your email"
-                        : "Continue"}
+                    {authAction === "email" ? "Sending…" : "Continue"}
                   </button>
                   {inlineError && (
                     <p className="text-xs text-amber-200">{inlineError}</p>
+                  )}
+                  {methodError.email && (
+                    <p className="text-xs text-amber-200">{methodError.email}</p>
                   )}
                 </form>
               )}
@@ -569,7 +537,7 @@ export function SignInModal() {
             </div>
           )}
 
-          {step === "otp" && showEmail && (
+          {step === "verify" && showEmail && (
             <form onSubmit={handleVerifyOtp} className="mt-6 space-y-5">
               <OtpInput
                 value={otp}
@@ -579,6 +547,9 @@ export function SignInModal() {
               />
               {inlineError && (
                 <p className="text-center text-xs text-amber-200">{inlineError}</p>
+              )}
+              {methodError.email && (
+                <p className="text-center text-xs text-amber-200">{methodError.email}</p>
               )}
               {walletPending ? (
                 <div className="space-y-3 rounded-xl border border-white/10 bg-black/30 p-4">
@@ -603,32 +574,6 @@ export function SignInModal() {
                   {authAction === "verify" ? "Verifying…" : "Continue"}
                 </button>
               )}
-              <div className="flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  onClick={() => setStep("magic-sent")}
-                  className="text-slate-500 underline hover:text-white"
-                >
-                  Use magic link instead
-                </button>
-                <button
-                  type="button"
-                  disabled={authAction === "email" || cooldown > 0}
-                  onClick={() => void handleResend("otp")}
-                  className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
-                >
-                  {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {step === "magic-sent" && showEmail && (
-            <div className="mt-6 space-y-4">
-              <p className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-300">
-                We sent a sign-in link to your email. Open it on this device to
-                continue.
-              </p>
               <button
                 type="button"
                 onClick={handleOpenWalletPicker}
@@ -637,27 +582,17 @@ export function SignInModal() {
                 <Wallet className="h-4 w-4 text-sky-400" />
                 Continue with wallet instead
               </button>
-              {methodError.email && (
-                <p className="text-xs text-amber-200">{methodError.email}</p>
-              )}
-              <div className="flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  onClick={() => void handleSwitchToOtp()}
-                  className="text-slate-500 underline hover:text-white"
-                >
-                  Enter code instead
-                </button>
+              <div className="flex items-center justify-end text-xs">
                 <button
                   type="button"
                   disabled={authAction === "email" || cooldown > 0}
-                  onClick={() => void handleResend("magic_link")}
+                  onClick={() => void handleResend()}
                   className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
                 >
-                  {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend link"}
+                  {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend email"}
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
           <p className="mt-6 text-center text-[10px] leading-relaxed text-slate-500">

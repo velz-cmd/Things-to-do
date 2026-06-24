@@ -7,6 +7,8 @@ import {
   runSwarmText,
 } from "@/lib/ai/gateway";
 
+export const maxDuration = 60;
+
 const bodySchema = z.object({
   task: z.string().min(1),
   mode: z.enum(["classify", "analyze", "custom"]).optional(),
@@ -48,42 +50,48 @@ export async function POST(req: Request) {
 
   const mode = body.mode ?? "custom";
 
-  if (mode === "classify") {
+  try {
+    if (mode === "classify") {
+      const result = await runSwarmObject({
+        schema: classifySchema,
+        task: body.task,
+        producerSystem:
+          body.system ??
+          "Classify the user mission for RESOLVE. Return category, objective, confidence, reasoning.",
+        producerPrompt: body.prompt ?? body.task,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (mode === "analyze" || body.output === "text") {
+      const result = await runSwarmText({
+        task: body.task,
+        producerSystem:
+          body.system ??
+          "You analyze missions for RESOLVE payout operations. Be factual.",
+        producerPrompt: body.prompt ?? body.task,
+        maxOutputTokens: 400,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (!body.system || !body.prompt) {
+      return NextResponse.json(
+        { error: "custom mode requires system and prompt" },
+        { status: 400 },
+      );
+    }
+
     const result = await runSwarmObject({
       schema: classifySchema,
       task: body.task,
-      producerSystem:
-        body.system ??
-        "Classify the user mission for RESOLVE. Return category, objective, confidence, reasoning.",
-      producerPrompt: body.prompt ?? body.task,
+      producerSystem: body.system,
+      producerPrompt: body.prompt,
     });
     return NextResponse.json(result);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Swarm pipeline failed";
+    console.error("[swarm]", e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  if (mode === "analyze" || body.output === "text") {
-    const result = await runSwarmText({
-      task: body.task,
-      producerSystem:
-        body.system ??
-        "You analyze missions for RESOLVE payout operations. Be factual.",
-      producerPrompt: body.prompt ?? body.task,
-      maxOutputTokens: 600,
-    });
-    return NextResponse.json(result);
-  }
-
-  if (!body.system || !body.prompt) {
-    return NextResponse.json(
-      { error: "custom mode requires system and prompt" },
-      { status: 400 },
-    );
-  }
-
-  const result = await runSwarmObject({
-    schema: classifySchema,
-    task: body.task,
-    producerSystem: body.system,
-    producerPrompt: body.prompt,
-  });
-  return NextResponse.json(result);
 }

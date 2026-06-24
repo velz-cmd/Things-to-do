@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AiTier } from "./models";
 import { isGeminiConfigured, isGroqConfigured, isOpenRouterConfigured, isSwarmEnabled } from "./config";
-import { generateObjectOnTier, generateTextOnTier, type AiRunMeta } from "./resolve";
+import { generateObjectOnTier, generateObjectWithFallback, generateTextOnTier, generateTextWithFallback, type AiRunMeta } from "./resolve";
 
 const APPROVAL_THRESHOLD = 0.75;
 
@@ -63,6 +63,35 @@ function canRunValidatorSwarm(): boolean {
   return isGroqConfigured() && isOpenRouterConfigured();
 }
 
+async function validatePeer(input: {
+  tier: AiTier;
+  task: string;
+  output: string;
+}): Promise<{ validation: z.infer<typeof peerReviewSchema>; meta: AiRunMeta } | null> {
+  try {
+    return await generateObjectOnTier({
+      tier: input.tier,
+      schema: peerReviewSchema,
+      system: `You are a RESOLVE Unity Swarm peer reviewer.
+Approve only if the output matches the task. Return approved, confidence (0-1), issues, reasoning.`,
+      prompt: `Task:\n${input.task}\n\nOutput to review:\n${input.output}\n\nIs this correct?`,
+    }).then(({ object, meta }) => ({ validation: object, meta }));
+  } catch (e) {
+    console.warn(`[swarm] validator (${input.tier}) failed:`, e);
+    try {
+      const { object, meta } = await generateObjectWithFallback({
+        tier: input.tier,
+        schema: peerReviewSchema,
+        system: "RESOLVE swarm peer review. Return approved, confidence, issues, reasoning.",
+        prompt: `Task: ${input.task}\nOutput: ${input.output.slice(0, 4000)}`,
+      });
+      return { validation: object, meta };
+    } catch {
+      return null;
+    }
+  }
+}
+
 /**
  * Unity swarm — each AI tier reviews the previous tier's work.
  * Groq produces → Llama validates → Gemini arbitrates if disputed.
@@ -90,33 +119,37 @@ export async function runSwarmObject<T extends z.ZodType>(input: {
 
   const stages: SwarmStage[] = [];
 
-  const { object: produced, meta: producerMeta } = await generateObjectOnTier({
-    tier: "fast",
-    schema: input.schema,
-    system: input.producerSystem,
-    prompt: input.producerPrompt,
-  });
+  let produced: z.infer<T>;
+  let producerMeta: AiRunMeta;
+  try {
+    const result = await generateObjectWithFallback({
+      tier: "fast",
+      schema: input.schema,
+      system: input.producerSystem,
+      prompt: input.producerPrompt,
+    });
+    produced = result.object;
+    producerMeta = result.meta;
+  } catch (e) {
+    throw e;
+  }
   stages.push(stageFromMeta(producerMeta, "producer"));
 
   if (!canRunValidatorSwarm()) {
     return { output: produced, consensus: true, confidence: 0.7, stages };
   }
 
-  const { object: validation, meta: validatorMeta } = await generateObjectOnTier({
+  const validatorResult = await validatePeer({
     tier: "research",
-    schema: peerReviewSchema,
-    system: `You are the RESOLVE Unity Swarm validator (research layer).
-Review the producer's structured output against the original task.
-Approve only if category, objectives, and evidence requirements are correct.
-Be strict — payout missions need accurate classification.`,
-    prompt: `Original task:
-${input.task}
-
-Producer output (fast tier):
-${JSON.stringify(produced, null, 2)}
-
-Did the producer do the right work? Return JSON with approved, confidence, issues, reasoning.`,
+    task: input.task,
+    output: JSON.stringify(produced),
   });
+
+  if (!validatorResult) {
+    return { output: produced, consensus: true, confidence: 0.65, stages };
+  }
+
+  const { validation, meta: validatorMeta } = validatorResult;
   stages.push(stageFromMeta(validatorMeta, "validator", validation));
 
   if (validation.approved && validation.confidence >= APPROVAL_THRESHOLD) {
@@ -144,46 +177,46 @@ Did the producer do the right work? Return JSON with approved, confidence, issue
     output: input.schema,
   });
 
-  const { object: arbiter, meta: arbiterMeta } = await generateObjectOnTier({
-    tier: "quality",
-    schema: arbiterSchema,
-    system: `You are the RESOLVE Unity Swarm arbiter (quality layer).
-The fast tier produced output. The research tier validated it.
-If the validator found real issues, correct the output. If the producer was right, confirm it.
-Always return the final correct structured output.`,
-    prompt: `Original task:
-${input.task}
+  try {
+    const { object: arbiter, meta: arbiterMeta } = await generateObjectOnTier({
+      tier: "quality",
+      schema: arbiterSchema,
+      system: `You are the RESOLVE Unity Swarm arbiter (quality layer).
+If the validator found real issues, correct the output. If the producer was right, confirm it.`,
+      prompt: `Task: ${input.task}
+Producer: ${JSON.stringify(produced)}
+Validator: approved=${validation.approved}, issues=${validation.issues.join("; ")}
+Return consensus, confidence, reasoning, and final output.`,
+    });
 
-Producer output:
-${JSON.stringify(produced, null, 2)}
+    const finalOutput = (arbiter as { output: z.infer<T> }).output;
 
-Validator review:
-approved=${validation.approved}, confidence=${validation.confidence}
-issues: ${validation.issues.join("; ") || "none"}
-reasoning: ${validation.reasoning}
+    stages.push({
+      agent: agentForProvider(arbiterMeta.provider),
+      role: "arbiter",
+      tier: arbiterMeta.tier,
+      modelId: arbiterMeta.modelId,
+      approved: arbiter.consensus,
+      confidence: arbiter.confidence,
+      reasoning: arbiter.reasoning,
+      issues: validation.issues,
+    });
 
-Return consensus, confidence, reasoning, and the final output object.`,
-  });
-
-  const finalOutput = (arbiter as { output: z.infer<T> }).output;
-
-  stages.push({
-    agent: agentForProvider(arbiterMeta.provider),
-    role: "arbiter",
-    tier: arbiterMeta.tier,
-    modelId: arbiterMeta.modelId,
-    approved: arbiter.consensus,
-    confidence: arbiter.confidence,
-    reasoning: arbiter.reasoning,
-    issues: validation.issues,
-  });
-
-  return {
-    output: finalOutput,
-    consensus: arbiter.consensus,
-    confidence: arbiter.confidence,
-    stages,
-  };
+    return {
+      output: finalOutput,
+      consensus: arbiter.consensus,
+      confidence: arbiter.confidence,
+      stages,
+    };
+  } catch (e) {
+    console.warn("[swarm] arbiter failed, using producer output:", e);
+    return {
+      output: produced,
+      consensus: false,
+      confidence: validation.confidence,
+      stages,
+    };
+  }
 }
 
 /** Text pipeline: research produces → quality validates → fast sanity-checks if disputed. */
@@ -210,31 +243,44 @@ export async function runSwarmText(input: {
 
   const stages: SwarmStage[] = [];
 
-  const { text: produced, meta: producerMeta } = await generateTextOnTier({
-    tier: "research",
-    system: input.producerSystem,
-    prompt: input.producerPrompt,
-    maxOutputTokens: input.maxOutputTokens,
-  });
+  let produced: string;
+  let producerMeta: AiRunMeta;
+  try {
+    const result = await generateTextWithFallback({
+      tier: "research",
+      system: input.producerSystem,
+      prompt: input.producerPrompt,
+      maxOutputTokens: input.maxOutputTokens ?? 500,
+    });
+    produced = result.text;
+    producerMeta = result.meta;
+  } catch (e) {
+    const fallback = await generateTextWithFallback({
+      tier: "fast",
+      system: input.producerSystem,
+      prompt: input.producerPrompt,
+      maxOutputTokens: input.maxOutputTokens ?? 500,
+    });
+    produced = fallback.text;
+    producerMeta = fallback.meta;
+  }
   stages.push(stageFromMeta(producerMeta, "producer"));
 
-  if (!isGeminiConfigured()) {
+  if (!isGroqConfigured()) {
     return { output: produced, consensus: true, confidence: 0.7, stages };
   }
 
-  const { object: validation, meta: validatorMeta } = await generateObjectOnTier({
-    tier: "quality",
-    schema: peerReviewSchema,
-    system: `You are the RESOLVE Unity Swarm validator (quality layer).
-Review research output for factual accuracy, completeness, and relevance to payout missions.`,
-    prompt: `Task:
-${input.task}
-
-Research output:
-${produced}
-
-Is this analysis correct and complete enough to act on?`,
+  const validatorResult = await validatePeer({
+    tier: "fast",
+    task: input.task,
+    output: produced,
   });
+
+  if (!validatorResult) {
+    return { output: produced, consensus: true, confidence: 0.65, stages };
+  }
+
+  const { validation, meta: validatorMeta } = validatorResult;
   stages.push(stageFromMeta(validatorMeta, "validator", validation));
 
   if (validation.approved && validation.confidence >= APPROVAL_THRESHOLD) {
@@ -246,7 +292,7 @@ Is this analysis correct and complete enough to act on?`,
     };
   }
 
-  if (!isGroqConfigured()) {
+  if (!isGeminiConfigured()) {
     return {
       output: produced,
       consensus: false,
@@ -255,39 +301,40 @@ Is this analysis correct and complete enough to act on?`,
     };
   }
 
-  const { text: revised, meta: arbiterMeta } = await generateTextOnTier({
-    tier: "fast",
-    system: `You are the RESOLVE Unity Swarm arbiter (fast layer).
-Fix or confirm research output based on the quality validator's review.`,
-    prompt: `Task: ${input.task}
+  try {
+    const { text: revised, meta: arbiterMeta } = await generateTextWithFallback({
+      tier: "quality",
+      system: "RESOLVE Unity Swarm arbiter. Fix research output based on validator review.",
+      prompt: `Task: ${input.task}\nOutput: ${produced}\nIssues: ${validation.issues.join("; ")}\nReturn corrected analysis.`,
+      maxOutputTokens: input.maxOutputTokens ?? 500,
+    });
 
-Research output:
-${produced}
+    stages.push({
+      agent: agentForProvider(arbiterMeta.provider),
+      role: "arbiter",
+      tier: arbiterMeta.tier,
+      modelId: arbiterMeta.modelId,
+      approved: true,
+      confidence: validation.confidence,
+      reasoning: `Revised: ${validation.reasoning}`,
+      issues: validation.issues,
+    });
 
-Validator: approved=${validation.approved}, issues: ${validation.issues.join("; ")}
-${validation.reasoning}
-
-Return the corrected final analysis (plain text, concise).`,
-    maxOutputTokens: input.maxOutputTokens,
-  });
-
-  stages.push({
-    agent: agentForProvider(arbiterMeta.provider),
-    role: "arbiter",
-    tier: arbiterMeta.tier,
-    modelId: arbiterMeta.modelId,
-    approved: true,
-    confidence: validation.confidence,
-    reasoning: `Revised after validator rejection: ${validation.reasoning}`,
-    issues: validation.issues,
-  });
-
-  return {
-    output: revised,
-    consensus: true,
-    confidence: validation.confidence,
-    stages,
-  };
+    return {
+      output: revised,
+      consensus: true,
+      confidence: validation.confidence,
+      stages,
+    };
+  } catch (e) {
+    console.warn("[swarm] text arbiter failed:", e);
+    return {
+      output: produced,
+      consensus: false,
+      confidence: validation.confidence,
+      stages,
+    };
+  }
 }
 
 export function describeSwarmCapabilities(): {

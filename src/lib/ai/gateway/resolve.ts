@@ -1,6 +1,7 @@
 import { generateObject, generateText } from "ai";
 import type { z } from "zod";
 import type { AiTier } from "./models";
+import { isCloudflareGatewayConfigured } from "./config";
 import { candidatesForTier, type ModelCandidate } from "./providers";
 
 export type AiRunMeta = {
@@ -119,7 +120,7 @@ export function listConfiguredProviders(): {
     openrouter: [...tiers.fast, ...tiers.research, ...tiers.quality].some((id) =>
       id.startsWith("openrouter"),
     ),
-    cloudflareGateway: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID),
+    cloudflareGateway: isCloudflareGatewayConfigured(),
     tiers,
   };
 }

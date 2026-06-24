@@ -15,7 +15,8 @@ export function isOpenRouterConfigured(): boolean {
 
 export function isCloudflareGatewayConfigured(): boolean {
   return Boolean(
-    process.env.CLOUDFLARE_ACCOUNT_ID?.trim() &&
+    process.env.CLOUDFLARE_AI_GATEWAY_ENABLED === "true" &&
+      process.env.CLOUDFLARE_ACCOUNT_ID?.trim() &&
       (process.env.CLOUDFLARE_AI_GATEWAY_ID?.trim() ||
         process.env.CLOUDFLARE_AI_GATEWAY_NAME?.trim()),
   );

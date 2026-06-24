@@ -10,6 +10,7 @@ const PROVIDER_PATHS: Record<GatewayProvider, string> = {
 
 /** Cloudflare AI Gateway base URL for a provider, or null to call provider directly. */
 export function getGatewayBaseUrl(provider: GatewayProvider): string | null {
+  if (process.env.CLOUDFLARE_AI_GATEWAY_ENABLED !== "true") return null;
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
   const gatewayId =
     process.env.CLOUDFLARE_AI_GATEWAY_ID?.trim() ||

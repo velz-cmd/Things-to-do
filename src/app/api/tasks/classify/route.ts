@@ -15,9 +15,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ classification: ruleBased, source: "rules" });
   }
 
-  const ai = await classifyTaskInputWithAi(input, ruleBased);
-  if (ai && ai.confidence >= ruleBased.confidence) {
-    return NextResponse.json({ classification: ai, source: "ai" });
+  const aiResult = await classifyTaskInputWithAi(input, ruleBased);
+  if (aiResult && aiResult.classification.confidence >= ruleBased.confidence) {
+    return NextResponse.json({
+      classification: aiResult.classification,
+      source: aiResult.swarm ? "swarm" : "ai",
+      swarm: aiResult.swarm
+        ? {
+            consensus: aiResult.swarm.consensus,
+            confidence: aiResult.swarm.confidence,
+            stages: aiResult.swarm.stages,
+          }
+        : undefined,
+    });
   }
 
   return NextResponse.json({ classification: ruleBased, source: "rules" });

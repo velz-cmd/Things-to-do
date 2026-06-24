@@ -98,6 +98,63 @@ export async function generateObjectWithFallback<T extends z.ZodType>(input: {
     : new Error(`All ${input.tier} providers failed (object)`);
 }
 
+/** Run on a single tier (first candidate) — used by swarm peer review. */
+export async function generateObjectOnTier<T extends z.ZodType>(input: {
+  tier: AiTier;
+  schema: T;
+  prompt: string;
+  system?: string;
+}): Promise<{ object: z.infer<T>; meta: AiRunMeta }> {
+  const candidates = candidatesForTier(input.tier);
+  if (!candidates.length) {
+    throw new Error(`No AI providers configured for tier: ${input.tier}`);
+  }
+  const candidate = candidates[0];
+  const result = await generateObject({
+    model: candidate.model,
+    schema: input.schema,
+    system: input.system,
+    prompt: input.prompt,
+  });
+  return {
+    object: result.object as z.infer<T>,
+    meta: {
+      modelId: candidate.id,
+      provider: candidate.provider,
+      tier: input.tier,
+      attempts: 1,
+    },
+  };
+}
+
+export async function generateTextOnTier(input: {
+  tier: AiTier;
+  prompt: string;
+  system?: string;
+  maxOutputTokens?: number;
+}): Promise<TextWithMeta> {
+  const candidates = candidatesForTier(input.tier);
+  if (!candidates.length) {
+    throw new Error(`No AI providers configured for tier: ${input.tier}`);
+  }
+  const candidate = candidates[0];
+  const result = await generateText({
+    model: candidate.model,
+    system: input.system,
+    prompt: input.prompt,
+    maxOutputTokens: input.maxOutputTokens,
+  });
+  return {
+    text: result.text,
+    meta: {
+      modelId: candidate.id,
+      provider: candidate.provider,
+      tier: input.tier,
+      attempts: 1,
+    },
+  };
+}
+
 export function listConfiguredProviders(): {
   gemini: boolean;
   groq: boolean;

@@ -279,6 +279,53 @@ export function ProductionStack() {
             </Panel>
           </section>
 
+          {/* Unity Swarm */}
+          <section>
+            <SectionTitle
+              title="Unity swarm"
+              badge="Cross-validation"
+              description="Each AI confirms the previous tier did the right work before consensus"
+            />
+            <div className="grid gap-3 md:grid-cols-3">
+              <Panel className="p-4">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-sky-300">
+                  Groq — Producer
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-resolve-muted">
+                  Fast classification and structured outputs. First pass on intent,
+                  category, and mission scoring.
+                </p>
+              </Panel>
+              <Panel className="p-4">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+                  Llama — Validator
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-resolve-muted">
+                  Reviews Groq&apos;s output against the original task. Flags issues,
+                  approves or rejects with confidence score.
+                </p>
+              </Panel>
+              <Panel className="p-4">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-violet-300">
+                  Gemini — Arbiter
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-resolve-muted">
+                  If validator disputes, Gemini arbitrates and produces the final
+                  corrected output. Research text flows reverse: Llama → Gemini → Groq.
+                </p>
+              </Panel>
+            </div>
+            <Panel className="mt-4 border-emerald-500/20 bg-emerald-500/5 p-4">
+              <p className="text-xs font-medium text-emerald-300">Consensus rule</p>
+              <p className="mt-2 text-sm text-resolve-muted">
+                Validator confidence ≥ 75% → accept producer output. Otherwise the arbiter
+                tier corrects or confirms. Every stage is logged in{" "}
+                <code className="text-sky-300">/api/tasks/classify</code> and{" "}
+                <code className="text-sky-300">/api/ai/swarm</code> responses.
+              </p>
+            </Panel>
+          </section>
+
           {/* Why This Stack Wins */}
           <section>
             <SectionTitle title="Why this stack wins" />
@@ -306,6 +353,7 @@ export function ProductionStack() {
                     "Gemini for quality",
                     "Groq for speed",
                     "Llama for research",
+                    "Unity swarm cross-validation",
                     "Cloudflare for reliability",
                     "Arc for real payments",
                     "Supabase for production infrastructure",

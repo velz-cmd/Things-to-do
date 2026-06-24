@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   candidatesForTier,
+  describeSwarmCapabilities,
   generateTextWithFallback,
   listConfiguredProviders,
 } from "@/lib/ai/gateway";
@@ -77,9 +78,11 @@ export async function POST(req: Request) {
 
 export async function GET() {
   const providers = listConfiguredProviders();
+  const swarm = describeSwarmCapabilities();
   return NextResponse.json({
     architecture:
-      "Cloudflare Gateway → Groq (fast) → Llama (research) → Gemini (quality)",
+      "Cloudflare Gateway → Unity Swarm (Groq → Llama → Gemini cross-validation)",
+    swarm,
     providers,
     tiers: {
       fast: "Intent classification, tagging, routing, quick summaries",

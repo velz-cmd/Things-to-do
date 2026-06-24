@@ -147,6 +147,88 @@ export async function submitMerchantProof(input: MerchantProofInput) {
   };
 }
 
+export interface OutcomeProofInput {
+  taskId: string;
+  type: string;
+  merchantId: string;
+  payload: Record<string, unknown>;
+  artifactUrl?: string;
+}
+
+export async function submitOutcomeProof(input: OutcomeProofInput) {
+  const task = await prisma.task.findUnique({ where: { id: input.taskId } });
+  if (!task) throw new Error("Task not found");
+  if (task.merchantId !== input.merchantId) {
+    throw new Error("Merchant/repo mismatch");
+  }
+
+  const payload = {
+    ...input.payload,
+    type: input.type,
+    merchantId: input.merchantId,
+    taskId: input.taskId,
+    timestamp: new Date().toISOString(),
+  };
+
+  const verification = verifyProof({
+    type: input.type,
+    source: `outcome://${input.merchantId}`,
+    payload,
+    category: task.category,
+    targetValueUsd: task.targetValueUsd,
+    artifactUrl: input.artifactUrl,
+  });
+
+  const proof = await prisma.proof.create({
+    data: {
+      taskId: input.taskId,
+      type: input.type,
+      source: `outcome://${input.merchantId}`,
+      payload: JSON.stringify(payload),
+      contentHash: verification.contentHash,
+      artifactUrl: input.artifactUrl ?? null,
+      verified: verification.verified,
+    },
+  });
+
+  if (!verification.verified) {
+    await failTask(input.taskId, verification.reason);
+    return { proof, task: await prisma.task.findUnique({ where: { id: input.taskId } }) };
+  }
+
+  await prisma.task.update({
+    where: { id: input.taskId },
+    data: {
+      status: "verified",
+      currentAgent: "Verification",
+      proofHash: verification.contentHash,
+      recoveredUsd: task.targetValueUsd,
+    },
+  });
+
+  await logEvent(
+    input.taskId,
+    "Verification",
+    "verified",
+    `Outcome VERIFIED — ${verification.reason}`,
+    {
+      contentHash: verification.contentHash,
+      policy: verification.matchedPolicy,
+      type: input.type,
+    }
+  );
+
+  await settleTask(input.taskId, verification.contentHash);
+
+  return {
+    proof,
+    task: await prisma.task.findUnique({
+      where: { id: input.taskId },
+      include: { events: true, proofs: true, microPayments: true },
+    }),
+  };
+}
+
 async function failTask(taskId: string, reason: string) {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) return;

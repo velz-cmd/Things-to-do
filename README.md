@@ -1,8 +1,8 @@
-# RESOLVE — Pay only on proof
+# RESOLVE — Outcome Network on Arc
 
-**Assign the problem. Come back when it's solved.**
+**Assign a financial mission. Funds release only when outcomes are verified.**
 
-Autonomous consumer advocate for the [Lepton Agents Hackathon](https://lepton.thecanteenapp.com/) — outcome escrow settled on Arc testnet USDC.
+Autonomous outcome-backed payments for the [Lepton Agents Hackathon](https://lepton.thecanteenapp.com/) — bounties, contributor payouts, founder distribution, Arc USDC escrow.
 
 **Live demo:** https://resolve-task.vercel.app
 
@@ -14,7 +14,9 @@ Autonomous consumer advocate for the [Lepton Agents Hackathon](https://lepton.th
 | `/tasks` | **Tasks** — mission list |
 | `/tasks/[id]` | Task detail — package timeline, agents, evidence, Arc escrow |
 | `/vault` | **Vault** — smart budget, guardian, recovery |
-| `/merchant` | Demo merchant refund portal (judge demo) |
+| `/treasury` | **Treasury** — escrow totals, batch history, Arcscan |
+| `/distribute` | **Distribute** — founder batch payouts to creators |
+| `/contributors` | **Registry** — attribution → wallet mappings |
 
 ## Quick start
 

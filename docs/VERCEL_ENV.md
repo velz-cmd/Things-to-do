@@ -34,6 +34,24 @@ Enable **Production**, **Preview**, and **Development** for each.
 |------|-------|
 | `PLAYWRIGHT_ENABLED` | `true` |
 
+## Qwen / DashScope (AI planner + chat)
+
+| Name | Value |
+|------|-------|
+| `DASHSCOPE_API_KEY` | Model Studio API key (`sk-ws-...`) |
+| `QWEN_OPENAI_BASE_URL` | `https://ws-yn23kv194w5nn7tx.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` |
+| `QWEN_PLANNER_MODEL` | `qwen-plus-2025-12-01` |
+| `QWEN_FAST_MODEL` | `qwen3.6-flash` |
+| `QWEN_REASONING_MODEL` | `qwen3.6-max-preview` |
+
+After saving env vars, trigger a **new deployment** (Git push to `main` or deploy hook). Do not use **Redeploy** on a prebuilt deployment — it will not pick up new env vars.
+
+```bash
+curl -X POST https://api.vercel.com/v1/integrations/deploy/prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd/krAQUtlB2i
+```
+
+Verify: `https://resolve-task.vercel.app/api/config` should show `"qwenEnabled":true`.
+
 ## Escrow + agent
 
 | Name | Value |

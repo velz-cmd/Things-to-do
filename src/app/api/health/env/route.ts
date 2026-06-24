@@ -31,6 +31,8 @@ export async function GET() {
     ARC_RPC_URL: present("ARC_RPC_URL"),
     ARC_PROVIDER_WALLET_ID: present("ARC_PROVIDER_WALLET_ID"),
     ARC_CLIENT_WALLET_ID: present("ARC_CLIENT_WALLET_ID"),
+    DASHSCOPE_API_KEY: present("DASHSCOPE_API_KEY"),
+    QWEN_OPENAI_BASE_URL: present("QWEN_OPENAI_BASE_URL"),
   };
 
   const missing: string[] = [];

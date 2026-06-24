@@ -195,3 +195,10 @@ model EvidenceFile {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+/// Key-value app configuration (e.g. Circle wallet set ID when not in env).
+model AppConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

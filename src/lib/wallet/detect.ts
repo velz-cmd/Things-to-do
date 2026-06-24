@@ -29,6 +29,7 @@ export function detectInjectedWallets(): DetectedWallet[] {
 }
 
 export function walletConnectorAvailable(): boolean {
+  if (typeof window !== "undefined") return true;
   return Boolean(
     process.env.NEXT_PUBLIC_REOWN_PROJECT_ID ??
       process.env.NEXT_PUBLIC_PROJECT_ID

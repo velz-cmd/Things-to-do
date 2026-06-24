@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureUserProfile } from "@/lib/wallet/service";
-import { embeddedWalletFor } from "@/lib/wallet/embedded";
-import { prisma } from "@/lib/db";
+import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
 
 export async function POST() {
   const supabase = await createClient();
@@ -34,20 +33,13 @@ export async function POST() {
     authProvider: provider,
   });
 
-  if (!user.walletAddress) {
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        walletAddress: embeddedWalletFor(user.id),
-        embeddedWallet: true,
-      },
-    });
-  }
+  user = await ensureAppWalletForUser(user);
 
   return NextResponse.json({
     ok: true,
     walletAddress: user.walletAddress,
     embedded: user.embeddedWallet,
+    externalWalletAddress: user.scanWalletAddress,
     needsExternalWallet: false,
     email: user.email,
   });

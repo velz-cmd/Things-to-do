@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppKit } from "@reown/appkit/react";
-import { useAccount } from "wagmi";
+import { useAccount, useConnect } from "wagmi";
 import { ArrowLeft, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -19,6 +19,7 @@ type AuthAction = "email" | "google" | "wallet" | "verify" | "guest" | null;
 
 const COOLDOWN_KEY = "resolve.signin.cooldownUntil";
 const EMAIL_KEY = "resolve.signin.email";
+const SENT_STEP_KEY = "resolve.signin.sentStep";
 
 function getCooldownRemaining(): number {
   try {
@@ -26,6 +27,14 @@ function getCooldownRemaining(): number {
     return Math.max(0, Math.ceil((until - Date.now()) / 1000));
   } catch {
     return 0;
+  }
+}
+
+function setCooldownSeconds(seconds: number) {
+  try {
+    localStorage.setItem(COOLDOWN_KEY, String(Date.now() + seconds * 1000));
+  } catch {
+    /* ignore */
   }
 }
 
@@ -37,7 +46,6 @@ export function SignInModal() {
   const { open, closeSignIn } = useSignInModal();
   const {
     sendLoginCode,
-    signInWithEmail,
     signInWithGoogle,
     verifyEmailOtp,
     provisionWallet,
@@ -48,6 +56,7 @@ export function SignInModal() {
   const account = useResolveAccount();
   const { open: openWallet, close: closeWallet } = useAppKit();
   const { address, isConnected } = useAccount();
+  const { connect, connectors, isPending: connectPending } = useConnect();
 
   const [step, setStep] = useState<Step>("welcome");
   const [email, setEmail] = useState("");
@@ -64,10 +73,9 @@ export function SignInModal() {
   const [walletPending, setWalletPending] = useState(false);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const walletEnabled = capabilities.wallet;
-  const showEmail = capabilities.loaded && emailEnabled;
+  const showEmail = emailEnabled;
   const showGoogle = capabilities.loaded && googleEnabled;
-  const showWallet = capabilities.loaded && walletEnabled;
+  const showWallet = true;
   const showDivider = showEmail && (showGoogle || showWallet);
   const injectedWallets = detectInjectedWallets();
 
@@ -91,13 +99,26 @@ export function SignInModal() {
       setWalletPending(false);
       return;
     }
+
+    let savedEmail = "";
     try {
-      const saved = localStorage.getItem(EMAIL_KEY);
-      if (saved) setEmail(saved);
+      savedEmail = localStorage.getItem(EMAIL_KEY) ?? "";
+      if (savedEmail) setEmail(savedEmail);
     } catch {
       /* ignore */
     }
-    setCooldown(getCooldownRemaining());
+
+    const remaining = getCooldownRemaining();
+    setCooldown(remaining);
+
+    if (savedEmail && remaining > 0) {
+      try {
+        const sentStep = localStorage.getItem(SENT_STEP_KEY) as Step | null;
+        setStep(sentStep === "otp" ? "otp" : "magic-sent");
+      } catch {
+        setStep("magic-sent");
+      }
+    }
   }, [open]);
 
   useEffect(() => {
@@ -106,11 +127,7 @@ export function SignInModal() {
       return;
     }
     cooldownRef.current = setInterval(() => {
-      const remaining = getCooldownRemaining();
-      setCooldown(remaining);
-      if (remaining <= 0 && cooldownRef.current) {
-        clearInterval(cooldownRef.current);
-      }
+      setCooldown(getCooldownRemaining());
     }, 1000);
     return () => {
       if (cooldownRef.current) clearInterval(cooldownRef.current);
@@ -135,6 +152,19 @@ export function SignInModal() {
 
   if (!open) return null;
 
+  function goToSentStep(method: "otp" | "magic_link") {
+    const nextStep: Step = method === "otp" ? "otp" : "magic-sent";
+    setStep(nextStep);
+    try {
+      localStorage.setItem(SENT_STEP_KEY, nextStep);
+    } catch {
+      /* ignore */
+    }
+    setCooldownSeconds(60);
+    setCooldown(60);
+    setMethodError((prev) => ({ ...prev, email: undefined }));
+  }
+
   async function handleGoogle() {
     setMethodError((prev) => ({ ...prev, google: undefined }));
     setAuthAction("google");
@@ -154,11 +184,28 @@ export function SignInModal() {
     setStep("wallet-picker");
   }
 
+  function connectInjected() {
+    const injected =
+      connectors.find((c) => c.id === "injected") ??
+      connectors.find((c) => c.type === "injected") ??
+      connectors[0];
+    if (!injected) {
+      openWallet({ view: "Connect" });
+      return;
+    }
+    connect({ connector: injected });
+  }
+
   function handleConnectWallet() {
     setMethodError((prev) => ({ ...prev, wallet: undefined }));
     setAuthAction("wallet");
     setWalletConnecting(true);
-    openWallet({ view: "Connect" });
+    const hasInjected = injectedWallets.length > 0;
+    if (hasInjected) {
+      connectInjected();
+    } else {
+      openWallet({ view: "Connect" });
+    }
   }
 
   async function handleEmailContinue(e?: React.FormEvent) {
@@ -175,11 +222,13 @@ export function SignInModal() {
       setInlineError("Enter a valid email address.");
       return;
     }
+
     if (cooldown > 0) {
-      setMethodError((prev) => ({
-        ...prev,
-        email: `Already sent. Try again in ${cooldown} seconds.`,
-      }));
+      goToSentStep(
+        (localStorage.getItem(SENT_STEP_KEY) as "otp" | "magic-sent") === "otp"
+          ? "otp"
+          : "magic_link"
+      );
       return;
     }
 
@@ -190,40 +239,37 @@ export function SignInModal() {
 
       if (!result.ok) {
         if (result.cooldownSeconds) {
-          const until = Date.now() + result.cooldownSeconds * 1000;
-          localStorage.setItem(COOLDOWN_KEY, String(until));
+          setCooldownSeconds(result.cooldownSeconds);
           setCooldown(result.cooldownSeconds);
         }
         setMethodError((prev) => ({ ...prev, email: result.message }));
         return;
       }
 
-      const until = Date.now() + 60_000;
-      localStorage.setItem(COOLDOWN_KEY, String(until));
-      setCooldown(60);
-      setStep(result.method === "magic_link" ? "magic-sent" : "otp");
+      goToSentStep(result.method ?? "magic_link");
     } finally {
       setAuthAction(null);
     }
   }
 
-  async function handleResendMagicLink() {
+  async function handleResend() {
     if (cooldown > 0 || authAction === "email") return;
     setAuthAction("email");
+    setMethodError((prev) => ({ ...prev, email: undefined }));
     try {
-      const result = await signInWithEmail(email.trim());
+      const result = await sendLoginCode(email.trim());
       if (!result.ok) {
         if (result.cooldownSeconds) {
-          const until = Date.now() + result.cooldownSeconds * 1000;
-          localStorage.setItem(COOLDOWN_KEY, String(until));
+          setCooldownSeconds(result.cooldownSeconds);
           setCooldown(result.cooldownSeconds);
         }
-        setMethodError((prev) => ({ ...prev, email: result.message }));
+        setMethodError((prev) => ({
+          ...prev,
+          email: `Resend available in ${getCooldownRemaining()}s`,
+        }));
         return;
       }
-      const until = Date.now() + 60_000;
-      localStorage.setItem(COOLDOWN_KEY, String(until));
-      setCooldown(60);
+      goToSentStep(result.method ?? "magic_link");
     } finally {
       setAuthAction(null);
     }
@@ -279,15 +325,19 @@ export function SignInModal() {
   const subtitle =
     step === "wallet-picker"
       ? "Pick the wallet you want to connect."
-      : showEmail && showWallet
-        ? "Enter your email or connect a wallet to get started."
-        : showWallet
-          ? "Connect a wallet to get started."
-          : showEmail
-            ? "Enter your email to get started."
-            : "Choose how to continue.";
+      : step === "otp"
+        ? `Enter the code sent to ${email}`
+        : step === "magic-sent"
+          ? `Check your inbox at ${email}`
+          : showEmail && showWallet
+            ? "Enter your email or connect a wallet to get started."
+            : showWallet
+              ? "Connect a wallet to get started."
+              : "Enter your email to get started.";
 
   const emailReady = isValidEmail(email);
+  const walletBusy =
+    authAction === "wallet" || walletConnecting || connectPending;
 
   return (
     <>
@@ -303,13 +353,14 @@ export function SignInModal() {
           aria-modal="true"
           aria-labelledby="sign-in-title"
         >
-          {(step === "wallet-picker" || step === "otp") && (
+          {(step === "wallet-picker" || step === "otp" || step === "magic-sent") && (
             <button
               type="button"
               onClick={() => {
                 setStep("welcome");
                 setOtp("");
                 setInlineError(null);
+                setMethodError({});
               }}
               className="mb-4 flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
             >
@@ -361,22 +412,15 @@ export function SignInModal() {
                   />
                   <button
                     type="submit"
-                    disabled={
-                      authAction === "email" ||
-                      !emailReady ||
-                      cooldown > 0
-                    }
+                    disabled={authAction === "email" || !emailReady}
                     className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {authAction === "email"
                       ? "Sending…"
                       : cooldown > 0
-                        ? `Try again in ${cooldown}s`
+                        ? "Check your email"
                         : "Continue"}
                   </button>
-                  {methodError.email && (
-                    <p className="text-xs text-amber-200">{methodError.email}</p>
-                  )}
                   {inlineError && (
                     <p className="text-xs text-amber-200">{inlineError}</p>
                   )}
@@ -398,7 +442,7 @@ export function SignInModal() {
                       type="button"
                       disabled={authAction === "google"}
                       onClick={() => void handleGoogle()}
-                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
+                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-70"
                     >
                       <GoogleIcon />
                       {authAction === "google"
@@ -411,44 +455,37 @@ export function SignInModal() {
                   </>
                 )}
 
-                {showWallet && (
-                  <>
-                    <button
-                      type="button"
-                      disabled={authAction === "wallet" || walletConnecting}
-                      onClick={handleOpenWalletPicker}
-                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      <Wallet className="h-4 w-4 text-sky-400" />
-                      {walletConnecting
-                        ? "Waiting for wallet…"
-                        : "Continue with wallet"}
-                    </button>
-                    {methodError.wallet && (
-                      <p className="text-xs text-amber-200">{methodError.wallet}</p>
-                    )}
-                  </>
+                <button
+                  type="button"
+                  disabled={walletBusy}
+                  onClick={handleOpenWalletPicker}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-70"
+                >
+                  <Wallet className="h-4 w-4 text-sky-400" />
+                  {walletBusy ? "Waiting for wallet…" : "Continue with wallet"}
+                </button>
+                {methodError.wallet && (
+                  <p className="text-xs text-amber-200">{methodError.wallet}</p>
                 )}
               </div>
 
               <button
                 type="button"
-                disabled={authAction === "guest"}
                 onClick={handleGuestContinue}
-                className="w-full text-center text-xs text-slate-500 underline hover:text-slate-300 disabled:opacity-50"
+                className="w-full text-center text-xs text-slate-500 underline hover:text-slate-300"
               >
                 Continue without sign-in
               </button>
             </div>
           )}
 
-          {step === "wallet-picker" && showWallet && (
+          {step === "wallet-picker" && (
             <div className="mt-6 space-y-3">
               {injectedWallets.map((w) => (
                 <button
                   key={w.id}
                   type="button"
-                  disabled={authAction === "wallet" || walletConnecting}
+                  disabled={walletBusy}
                   onClick={handleConnectWallet}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-70"
                 >
@@ -459,7 +496,7 @@ export function SignInModal() {
               {injectedWallets.length === 0 && (
                 <button
                   type="button"
-                  disabled={authAction === "wallet" || walletConnecting}
+                  disabled={walletBusy}
                   onClick={handleConnectWallet}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-70"
                 >
@@ -469,13 +506,17 @@ export function SignInModal() {
               )}
               <button
                 type="button"
-                disabled={authAction === "wallet" || walletConnecting}
-                onClick={handleConnectWallet}
+                disabled={walletBusy}
+                onClick={() => {
+                  setAuthAction("wallet");
+                  setWalletConnecting(true);
+                  openWallet({ view: "Connect" });
+                }}
                 className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-70"
               >
                 WalletConnect
               </button>
-              {walletConnecting && (
+              {walletBusy && (
                 <p className="text-xs text-slate-500">
                   Approve the connection in your wallet extension.
                 </p>
@@ -515,7 +556,7 @@ export function SignInModal() {
                 <button
                   type="submit"
                   disabled={authAction === "verify" || otp.length < 6}
-                  className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:opacity-50"
                 >
                   {authAction === "verify" ? "Verifying…" : "Continue"}
                 </button>
@@ -523,18 +564,15 @@ export function SignInModal() {
               <div className="flex items-center justify-between text-xs">
                 <button
                   type="button"
-                  onClick={() => {
-                    setStep("welcome");
-                    setOtp("");
-                  }}
+                  onClick={() => setStep("magic-sent")}
                   className="text-slate-500 underline hover:text-white"
                 >
-                  Change email
+                  Use magic link instead
                 </button>
                 <button
                   type="button"
                   disabled={authAction === "email" || cooldown > 0}
-                  onClick={() => void handleEmailContinue()}
+                  onClick={() => void handleResend()}
                   className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
                 >
                   {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
@@ -546,26 +584,32 @@ export function SignInModal() {
           {step === "magic-sent" && showEmail && (
             <div className="mt-6 space-y-4">
               <p className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-300">
-                Magic link sent. Open the email and tap the sign-in link.
+                We sent a sign-in link to your email. Open it on this device to
+                continue.
               </p>
+              <button
+                type="button"
+                onClick={handleOpenWalletPicker}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/30 py-3 text-sm text-white hover:border-sky-500/40"
+              >
+                <Wallet className="h-4 w-4 text-sky-400" />
+                Continue with wallet instead
+              </button>
               {methodError.email && (
-                <p className="text-xs text-sky-200">{methodError.email}</p>
+                <p className="text-xs text-amber-200">{methodError.email}</p>
               )}
               <div className="flex items-center justify-between text-xs">
                 <button
                   type="button"
-                  onClick={() => {
-                    setStep("welcome");
-                    setMethodError({});
-                  }}
+                  onClick={() => setStep("otp")}
                   className="text-slate-500 underline hover:text-white"
                 >
-                  Change email
+                  Enter code instead
                 </button>
                 <button
                   type="button"
                   disabled={authAction === "email" || cooldown > 0}
-                  onClick={() => void handleResendMagicLink()}
+                  onClick={() => void handleResend()}
                   className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
                 >
                   {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend link"}

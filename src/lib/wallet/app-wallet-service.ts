@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import type { User as DbUser } from "@prisma/client";
 import { embeddedWalletFor } from "@/lib/wallet/embedded";
 import { getCircleClient } from "@/lib/settlement/circle-client";
-import { hasCircleCredentials } from "@/lib/settlement/arc-config";
 import { getCircleWalletSetId } from "@/lib/wallet/circle-config";
 
 type AppWalletMeta = {
@@ -37,12 +36,9 @@ async function createCircleAppWallet(userId: string): Promise<{
   address: `0x${string}`;
   circleWalletId: string;
 } | null> {
-  if (!hasCircleCredentials()) return null;
   const walletSetId = await getCircleWalletSetId();
-  if (!walletSetId) return null;
-
   const circle = await getCircleClient();
-  if (!circle) return null;
+  if (!circle || !walletSetId) return null;
 
   try {
     const res = await circle.createWallets({

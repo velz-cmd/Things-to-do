@@ -19,7 +19,12 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       ...result,
-      hint: "Add CIRCLE_WALLET_SET_ID to Vercel env for faster cold starts (optional; also stored in DB).",
+      hints: [
+        result.entitySecretFix?.updateVercelEnv
+          ? "Update CIRCLE_ENTITY_SECRET on Vercel: remove the colon if present (64 hex chars, no separators)."
+          : null,
+        "Optional: set CIRCLE_WALLET_SET_ID on Vercel for faster cold starts (also stored in DB).",
+      ].filter(Boolean),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Circle wallet set setup failed";

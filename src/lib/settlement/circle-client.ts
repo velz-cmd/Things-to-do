@@ -4,8 +4,8 @@ import {
   ARC_CLIENT_WALLET_ADDRESS,
   ARC_PROVIDER_WALLET_ADDRESS,
   ARC_USDC_CONTRACT,
-  hasCircleCredentials,
 } from "@/lib/settlement/arc-config";
+import { getCircleEntitySecret } from "@/lib/wallet/circle-config";
 import { ERC8183_ABI, ERC20_APPROVE_ABI } from "@/lib/settlement/erc8183-abi";
 import { verifyArcTx } from "@/lib/settlement/arc-verify";
 import { usdcToWei } from "@/lib/arc/utils";
@@ -15,17 +15,26 @@ type CircleClient = ReturnType<
 >;
 
 let clientPromise: Promise<CircleClient | null> | null = null;
+let clientSecretKey: string | null = null;
 
 export async function getCircleClient(): Promise<CircleClient | null> {
-  if (!hasCircleCredentials()) return null;
+  const apiKey = process.env.CIRCLE_API_KEY?.trim();
+  const entitySecret = await getCircleEntitySecret();
+  if (!apiKey || !entitySecret) return null;
+
+  if (clientSecretKey !== entitySecret) {
+    clientPromise = null;
+    clientSecretKey = entitySecret;
+  }
+
   if (!clientPromise) {
     clientPromise = (async () => {
       const { initiateDeveloperControlledWalletsClient } = await import(
         "@circle-fin/developer-controlled-wallets"
       );
       return initiateDeveloperControlledWalletsClient({
-        apiKey: process.env.CIRCLE_API_KEY!,
-        entitySecret: process.env.CIRCLE_ENTITY_SECRET!,
+        apiKey,
+        entitySecret,
       });
     })();
   }

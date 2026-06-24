@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { generateObjectWithFallback, isGroqConfigured } from "@/lib/ai/gateway";
+import {
+  isGroqConfigured,
+  isSwarmEnabled,
+  runSwarmObject,
+} from "@/lib/ai/gateway";
 import type { TaskClassification } from "./classifier";
 
 const classificationSchema = z.object({
@@ -22,24 +26,46 @@ export function canClassifyWithAi(): boolean {
   return isGroqConfigured();
 }
 
-/** Groq fast layer — intent classification with Gemini/Llama fallback inside gateway. */
+const CLASSIFIER_SYSTEM = `You classify financial outcome missions for RESOLVE (refunds, subscriptions, bounties, founder distributions, parcel claims).
+Return JSON only. Categories include: airline_refund, subscription_cancellation, parcel_claim, charge_dispute, wallet_guardian, bounty, distribution, manual.
+Use requiredConnectors from: gmail, browser, arc, wallet.`;
+
+/** Groq fast layer with Unity Swarm cross-validation when enabled. */
 export async function classifyTaskInputWithAi(
   input: string,
   ruleHint?: TaskClassification,
-): Promise<TaskClassification | null> {
+): Promise<{
+  classification: TaskClassification;
+  swarm?: import("@/lib/ai/gateway").SwarmResult<TaskClassification>;
+} | null> {
   if (!canClassifyWithAi()) return null;
 
+  const prompt = `User input: ${input}
+${ruleHint ? `Rule-based hint (may improve): ${JSON.stringify(ruleHint)}` : ""}`;
+
   try {
+    if (isSwarmEnabled()) {
+      const swarm = await runSwarmObject({
+        schema: classificationSchema,
+        task: input,
+        producerSystem: CLASSIFIER_SYSTEM,
+        producerPrompt: prompt,
+      });
+      const classification = {
+        ...swarm.output,
+        confidence: Math.max(swarm.output.confidence, swarm.confidence),
+      } as TaskClassification;
+      return { classification, swarm };
+    }
+
+    const { generateObjectWithFallback } = await import("@/lib/ai/gateway");
     const { object } = await generateObjectWithFallback({
       tier: "fast",
       schema: classificationSchema,
-      system: `You classify financial outcome missions for RESOLVE (refunds, subscriptions, bounties, founder distributions, parcel claims).
-Return JSON only. Categories include: airline_refund, subscription_cancellation, parcel_claim, charge_dispute, wallet_guardian, bounty, distribution, manual.
-Use requiredConnectors from: gmail, browser, arc, wallet.`,
-      prompt: `User input: ${input}
-${ruleHint ? `Rule-based hint (may improve): ${JSON.stringify(ruleHint)}` : ""}`,
+      system: CLASSIFIER_SYSTEM,
+      prompt,
     });
-    return object as TaskClassification;
+    return { classification: object as TaskClassification };
   } catch (e) {
     console.warn("AI classification failed:", e);
     return null;

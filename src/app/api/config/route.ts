@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { listConfiguredProviders } from "@/lib/ai/gateway";
+import { describeSwarmCapabilities, listConfiguredProviders } from "@/lib/ai/gateway";
 
 export async function GET() {
   const ai = listConfiguredProviders();
+  const swarm = describeSwarmCapabilities();
   const hasLlm =
     ai.gemini || ai.groq || ai.openrouter || Boolean(process.env.DASHSCOPE_API_KEY);
 
@@ -12,11 +13,13 @@ export async function GET() {
     resendEnabled: Boolean(process.env.RESEND_API_KEY),
     llmEnabled: hasLlm,
     llmProvider: ai.gemini ? "gemini-primary" : ai.groq ? "groq-primary" : "none",
-    ai,
+    ai: { ...ai, swarm },
     qwenEnabled: Boolean(process.env.DASHSCOPE_API_KEY),
     geminiEnabled: ai.gemini,
     groqEnabled: ai.groq,
     openrouterEnabled: ai.openrouter,
     cloudflareGateway: ai.cloudflareGateway,
+    swarmEnabled: swarm.enabled,
+    swarmFlow: swarm.flow,
   });
 }

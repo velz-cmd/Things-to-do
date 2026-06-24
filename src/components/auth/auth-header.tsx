@@ -3,13 +3,18 @@
 import { useState } from "react";
 import { useAppKit } from "@reown/appkit/react";
 import { useDisconnect } from "wagmi";
-import { Mail, Wallet } from "lucide-react";
+import { Copy, Mail, Wallet } from "lucide-react";
 import clsx from "clsx";
+import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { projectId } from "@/lib/reown/config";
+import {
+  GMAIL_AFTER_AUTH_KEY,
+  setLocalNotificationEmail,
+} from "@/lib/auth/guest";
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -22,16 +27,62 @@ function shortAddress(address: string) {
 }
 
 export function AuthHeader() {
-  const { signOut, balance, balanceLoading } = useAuth();
+  const { signOut, signInWithGoogle, balance, balanceLoading } = useAuth();
   const account = useResolveAccount();
   const { openSignIn } = useSignInModal();
   const { openAddFunds } = useAddFunds();
   const { disconnect } = useDisconnect();
   const { open } = useAppKit();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationDraft, setNotificationDraft] = useState("");
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
 
   const displayName = account.displayName ?? "Account";
   const walletOnly = account.authMethod === "wallet";
+  const hasEmailSession =
+    account.authMethod === "email" ||
+    account.authMethod === "google" ||
+    account.authMethod === "both";
+  const appWallet = account.wallets.find((w) => w.type === "app_managed");
+
+  async function handleConnectGmail() {
+    setMenuOpen(false);
+    if (walletOnly) {
+      try {
+        sessionStorage.setItem(GMAIL_AFTER_AUTH_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      await signInWithGoogle();
+      return;
+    }
+    window.location.href = "/api/connectors/gmail/authorize";
+  }
+
+  async function saveNotificationEmail() {
+    const email = notificationDraft.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Enter a valid email");
+      return;
+    }
+    setLocalNotificationEmail(email);
+    await fetch("/api/account/notification-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email }),
+    }).catch(() => null);
+    toast.success("Notification email saved", {
+      description: hasEmailSession ? undefined : "Not verified",
+    });
+    setShowEmailCapture(false);
+    setMenuOpen(false);
+  }
+
+  function copyAddress(addr: string) {
+    void navigator.clipboard.writeText(addr);
+    toast.success("Address copied");
+  }
 
   if (!account.isAuthenticated) {
     return (
@@ -52,7 +103,7 @@ export function AuthHeader() {
         onClick={() => setMenuOpen((o) => !o)}
         className="flex items-center gap-2.5 rounded-full border border-deputy-border bg-deputy-panel/80 py-1.5 pl-1.5 pr-3 transition hover:border-deputy-accent/40"
       >
-        {walletOnly ? (
+        {walletOnly && !hasEmailSession ? (
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-deputy-accent/20">
             <Wallet className="h-4 w-4 text-deputy-accent" />
           </span>
@@ -69,8 +120,8 @@ export function AuthHeader() {
           </span>
         )}
         <span className="hidden max-w-[120px] truncate text-sm font-medium text-white sm:block">
-          {walletOnly && account.walletAddress
-            ? shortAddress(account.walletAddress)
+          {walletOnly && !account.email
+            ? shortAddress(account.walletAddress ?? displayName)
             : displayName}
         </span>
         {account.authMethod === "both" && (
@@ -90,124 +141,198 @@ export function AuthHeader() {
             onClick={() => setMenuOpen(false)}
           />
           <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-deputy-border bg-deputy-panel p-2 shadow-xl">
-            <div className="border-b border-deputy-border px-3 py-2.5">
-              <p className="truncate text-sm font-medium text-white">{displayName}</p>
+            <Section title="Account">
               {account.email && (
-                <p className="truncate text-xs text-deputy-muted">{account.email}</p>
+                <p className="truncate px-3 text-sm font-medium text-white">
+                  {account.email}
+                </p>
               )}
-              {account.walletAddress && (
-                <p className="mt-1 font-mono text-[10px] text-deputy-muted">
+              {walletOnly && account.walletAddress && (
+                <p className="px-3 font-mono text-xs text-deputy-muted">
                   Wallet connected · {shortAddress(account.walletAddress)}
                 </p>
               )}
-              {!balanceLoading && balance && account.authMethod !== "wallet" && (
-                <p className="mt-1 text-xs text-deputy-accent">
+              {appWallet && (
+                <div className="mx-2 mt-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-deputy-muted">
+                    App wallet
+                  </p>
+                  <p className="mt-0.5 font-mono text-xs text-sky-300">
+                    EVM: {shortAddress(appWallet.address)}
+                  </p>
+                  {account.appWalletPending && (
+                    <p className="mt-1 text-[10px] text-amber-300">
+                      App wallet setup pending
+                    </p>
+                  )}
+                </div>
+              )}
+              {!balanceLoading && balance && hasEmailSession && (
+                <p className="mt-1 px-3 text-xs text-deputy-accent">
                   ${balance.availableUsd.toFixed(2)} available
                 </p>
               )}
-            </div>
+            </Section>
 
-            <ConnectorRow
-              label="Account"
-              connected={
-                account.authMethod === "supabase" || account.authMethod === "both"
-              }
-              detail={
-                account.email ??
-                (walletOnly ? "Wallet identity" : undefined)
-              }
-            />
-            <ConnectorRow
-              label="Gmail"
-              connected={account.gmailConnected}
-              detail={account.gmailConnected ? "Connected" : "Not connected"}
-            />
+            <Section title="Notifications">
+              {account.notificationEmail ? (
+                <p className="px-3 text-xs text-deputy-muted">
+                  {account.notificationEmail}
+                  {!account.notificationEmailVerified && (
+                    <span className="ml-1 text-amber-400">· Not verified</span>
+                  )}
+                </p>
+              ) : showEmailCapture ? (
+                <div className="space-y-2 px-2 pb-2">
+                  <input
+                    type="email"
+                    value={notificationDraft}
+                    onChange={(e) => setNotificationDraft(e.target.value)}
+                    placeholder="you@company.com"
+                    className="w-full rounded-lg border border-deputy-border bg-deputy-bg px-3 py-2 text-xs text-white outline-none focus:border-deputy-accent/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void saveNotificationEmail()}
+                    className="w-full rounded-lg bg-deputy-accent/20 py-2 text-xs font-medium text-deputy-accent"
+                  >
+                    Save email
+                  </button>
+                </div>
+              ) : (
+                <MenuItem onClick={() => setShowEmailCapture(true)}>
+                  Add notification email
+                </MenuItem>
+              )}
+            </Section>
+
+            <Section title="Connectors">
+              <ConnectorRow
+                label="Gmail"
+                connected={account.gmailConnected}
+                detail={account.gmailConnected ? "Connected" : "Not connected"}
+              />
+              <ConnectorRow
+                label="Wallet"
+                connected={Boolean(account.walletAddress)}
+                detail={
+                  account.walletAddress
+                    ? shortAddress(account.walletAddress)
+                    : "Not connected"
+                }
+              />
+            </Section>
 
             {!account.gmailConnected && (
               <div className="mx-2 mb-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5">
                 <p className="text-xs text-slate-300">
-                  Connect Gmail to receive refund updates, find receipts, and verify
-                  confirmations.
+                  Connect Gmail to receive refund updates, find receipts, and
+                  verify confirmations.
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (walletOnly) {
-                      openSignIn();
-                    } else {
-                      window.location.href = "/api/connectors/gmail/authorize";
-                    }
-                    setMenuOpen(false);
-                  }}
+                  onClick={() => void handleConnectGmail()}
                   className="mt-2 w-full rounded-lg bg-sky-500/20 px-3 py-2 text-left text-sm font-medium text-sky-300 transition hover:bg-sky-500/30"
                 >
-                  {walletOnly
-                    ? "Sign in to connect Gmail"
-                    : "Connect Gmail for updates"}
+                  Connect Gmail
                 </button>
+                {walletOnly && (
+                  <p className="mt-2 text-[10px] text-slate-500">
+                    Google permission is needed so RESOLVE can find receipts and
+                    send refund updates.
+                  </p>
+                )}
               </div>
             )}
 
-            {account.authMethod !== "wallet" && (
-              <MenuItem
-                onClick={() => {
-                  openAddFunds();
-                  setMenuOpen(false);
-                }}
-              >
-                Add funds
-              </MenuItem>
-            )}
+            <Section title="Actions">
+              {account.walletAddress && (
+                <MenuItem onClick={() => copyAddress(account.walletAddress!)}>
+                  <Copy className="mr-2 inline h-3.5 w-3.5" />
+                  Copy address
+                </MenuItem>
+              )}
 
-            {projectId && (
-              <MenuItem
-                onClick={() => {
-                  open({ view: "Connect" });
-                  setMenuOpen(false);
-                }}
-              >
-                {account.walletAddress ? "Wallet settings" : "Connect crypto wallet"}
-              </MenuItem>
-            )}
+              {hasEmailSession && (
+                <MenuItem
+                  onClick={() => {
+                    openAddFunds();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Add funds
+                </MenuItem>
+              )}
 
-            {account.walletAddress && (
-              <MenuItem
-                onClick={() => {
-                  disconnect();
-                  setMenuOpen(false);
-                }}
-              >
-                Disconnect wallet
-              </MenuItem>
-            )}
+              {projectId && (
+                <MenuItem
+                  onClick={() => {
+                    open({ view: "Connect" });
+                    setMenuOpen(false);
+                  }}
+                >
+                  {account.walletAddress
+                    ? "Connect your own wallet"
+                    : "Connect crypto wallet"}
+                </MenuItem>
+              )}
 
-            {account.authMethod !== "wallet" && (
-              <MenuItem
-                onClick={async () => {
-                  if (account.walletAddress) disconnect();
-                  await signOut();
-                  setMenuOpen(false);
-                }}
-                className="text-deputy-warn"
-              >
-                Sign out
-              </MenuItem>
-            )}
+              {account.walletAddress && (
+                <MenuItem
+                  onClick={() => {
+                    disconnect();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Disconnect wallet
+                </MenuItem>
+              )}
 
-            {walletOnly && (
-              <MenuItem
-                onClick={() => {
-                  disconnect();
-                  setMenuOpen(false);
-                }}
-                className="text-deputy-warn"
-              >
-                Disconnect wallet
-              </MenuItem>
-            )}
+              {hasEmailSession && (
+                <MenuItem
+                  onClick={async () => {
+                    if (account.walletAddress) disconnect();
+                    await signOut();
+                    setMenuOpen(false);
+                  }}
+                  className="text-deputy-warn"
+                >
+                  Sign out
+                </MenuItem>
+              )}
+
+              {walletOnly && !hasEmailSession && (
+                <MenuItem
+                  onClick={() => {
+                    disconnect();
+                    setMenuOpen(false);
+                  }}
+                  className="text-deputy-warn"
+                >
+                  Disconnect wallet
+                </MenuItem>
+              )}
+            </Section>
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border-b border-deputy-border py-1 last:border-0">
+      <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-deputy-muted">
+        {title}
+      </p>
+      {children}
     </div>
   );
 }
@@ -222,12 +347,12 @@ function ConnectorRow({
   detail?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+    <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs">
       <span className="flex items-center gap-2 text-deputy-muted">
         {label === "Gmail" ? (
           <Mail className="h-3.5 w-3.5" />
         ) : (
-          <span className="h-3.5 w-3.5 rounded-full border border-deputy-border" />
+          <Wallet className="h-3.5 w-3.5" />
         )}
         {label}
       </span>

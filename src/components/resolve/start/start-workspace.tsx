@@ -45,7 +45,7 @@ export function StartWorkspace() {
   return <MissionsWorkspace />;
 }
 
-export function MissionsWorkspace() {
+export function MissionsWorkspace({ embedded }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { ready } = useResolveAccess();
@@ -293,7 +293,7 @@ export function MissionsWorkspace() {
   const nextAction = activeTask ? nextActionLabel(missing, activeTask) : "Start task";
 
   return (
-    <div className={clsx("mx-auto max-w-6xl animate-resolve-enter px-6 py-6", fromHome && "")}>
+    <div className={clsx(embedded ? "px-0 py-0" : "mx-auto max-w-6xl animate-resolve-enter px-6 py-6", fromHome && "")}>
       {activeTask ? (
         <div className="mb-6">
           <MissionStepper status={activeTask.status} />

@@ -15,13 +15,18 @@ function MarketingShell({ children }: { children: React.ReactNode }) {
             <p className="text-sm font-semibold">RESOLVE</p>
             <p className="text-[10px] text-resolve-muted-dim">Outcome network on Arc</p>
           </Link>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/missions"
-              className="text-xs font-medium text-resolve-muted hover:text-white"
-            >
-              Open console
-            </Link>
+          <div className="flex items-center gap-4">
+            <nav className="hidden items-center gap-3 sm:flex">
+              <Link href="/" className="text-xs font-medium text-white">
+                Home
+              </Link>
+              <Link href="/missions" className="text-xs font-medium text-resolve-muted hover:text-white">
+                Mission
+              </Link>
+              <Link href="/radar" className="text-xs font-medium text-resolve-muted hover:text-white">
+                Radar
+              </Link>
+            </nav>
             <AuthHeader />
           </div>
         </div>

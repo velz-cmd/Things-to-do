@@ -4,8 +4,8 @@ type GatewayProvider = "groq" | "openrouter" | "google-ai-studio";
 
 const PROVIDER_PATHS: Record<GatewayProvider, string> = {
   groq: "groq/openai/v1",
-  openrouter: "openrouter/api/v1",
-  "google-ai-studio": "google-ai-studio",
+  openrouter: "openrouter",
+  "google-ai-studio": "google-ai-studio/v1beta",
 };
 
 /** Cloudflare AI Gateway base URL for a provider, or null to call provider directly. */

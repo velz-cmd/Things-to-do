@@ -29,8 +29,12 @@ export interface WalletBalance {
 }
 
 export type EmailSendResult =
-  | { ok: true }
+  | { ok: true; method?: "otp" | "magic_link" }
   | { ok: false; cooldownSeconds?: number; message: string };
+
+export type VerifyOtpResult =
+  | { ok: true; walletPending?: boolean }
+  | { ok: false; message: string };
 
 function parseOtpCooldown(message: string): number | undefined {
   const match = message.match(/after (\d+) seconds?/i);
@@ -54,6 +58,8 @@ interface AuthContextValue {
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<EmailSendResult>;
+  sendLoginCode: (email: string) => Promise<EmailSendResult>;
+  verifyEmailOtp: (email: string, code: string) => Promise<VerifyOtpResult>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   provisionWallet: () => Promise<void>;
@@ -166,15 +172,89 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return {
             ok: false,
             cooldownSeconds,
-            message: `Link already sent. Try again in ${cooldownSeconds} seconds.`,
+            message: `Magic link already sent. Try again in ${cooldownSeconds} seconds.`,
           };
         }
         return { ok: false, message: error.message };
       }
 
-      return { ok: true };
+      return { ok: true, method: "magic_link" };
     },
     [supabase]
+  );
+
+  const sendLoginCode = useCallback(
+    async (email: string): Promise<EmailSendResult> => {
+      const trimmed = email.trim().toLowerCase();
+      const res = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const msg = String(data.error ?? "Could not send code");
+        if (res.status === 429 || msg.toLowerCase().includes("wait")) {
+          const cooldownSeconds = parseOtpCooldown(msg) ?? 60;
+          return {
+            ok: false,
+            cooldownSeconds,
+            message: `Code already sent. Try again in ${cooldownSeconds} seconds.`,
+          };
+        }
+        if (res.status === 503) {
+          return signInWithEmail(trimmed);
+        }
+        return { ok: false, message: msg };
+      }
+
+      return { ok: true, method: "otp" };
+    },
+    [signInWithEmail]
+  );
+
+  const verifyEmailOtp = useCallback(
+    async (email: string, code: string): Promise<VerifyOtpResult> => {
+      const res = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim().toLowerCase(), code }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: String(data.error ?? "Invalid or expired code."),
+        };
+      }
+
+      if (supabase) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        setSession(sessionData.session);
+        setUser(sessionData.session?.user ?? null);
+      }
+
+      let walletPending = false;
+      try {
+        const walletRes = await fetch("/api/account/app-wallet/create", {
+          method: "POST",
+          credentials: "include",
+        });
+        const walletData = await walletRes.json().catch(() => ({}));
+        walletPending = walletData.status === "wallet_pending";
+        if (walletRes.ok && !walletPending) {
+          await refreshBalance();
+        }
+      } catch {
+        walletPending = true;
+      }
+
+      return { ok: true, walletPending };
+    },
+    [supabase, refreshBalance]
   );
 
   const signOut = useCallback(async () => {
@@ -195,6 +275,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceLoading,
       signInWithGoogle,
       signInWithEmail,
+      sendLoginCode,
+      verifyEmailOtp,
       signOut,
       refreshBalance,
       provisionWallet,
@@ -208,6 +290,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceLoading,
       signInWithGoogle,
       signInWithEmail,
+      sendLoginCode,
+      verifyEmailOtp,
       signOut,
       refreshBalance,
       provisionWallet,

@@ -3,35 +3,66 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/auth/auth-provider";
+import {
+  clearGuestExploring,
+  getLocalNotificationEmail,
+  isGuestExploring,
+} from "@/lib/auth/guest";
+import type { ResolveAccountState, ResolveAuthMethod, ResolveWallet } from "@/lib/auth/types";
 
-export type ResolveAccountState = {
-  isAuthenticated: boolean;
-  authMethod: "supabase" | "wallet" | "both" | "none";
-  email?: string;
-  walletAddress?: string;
-  displayName?: string;
-  avatarUrl?: string;
-  gmailConnected: boolean;
-  arcConnected: boolean;
-  loading: boolean;
-};
+export type { ResolveAccountState, ResolveWallet } from "@/lib/auth/types";
+
+function resolveAuthMethod(
+  hasSupabase: boolean,
+  hasWallet: boolean,
+  provider?: string
+): ResolveAuthMethod {
+  if (hasSupabase && hasWallet) return "both";
+  if (hasWallet) return "wallet";
+  if (!hasSupabase) return "none";
+  if (provider === "email") return "email";
+  if (provider === "google") return "google";
+  return "email";
+}
 
 export function useResolveAccount(): ResolveAccountState {
   const { user, loading: authLoading } = useAuth();
   const { address, isConnected } = useAccount();
   const [gmailConnected, setGmailConnected] = useState(false);
   const [arcConnected, setArcConnected] = useState(false);
+  const [wallets, setWallets] = useState<ResolveWallet[]>([]);
+  const [appWalletPending, setAppWalletPending] = useState(false);
   const [connectorsLoading, setConnectorsLoading] = useState(false);
+  const [walletsLoading, setWalletsLoading] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [localNotificationEmail, setLocalNotificationEmail] = useState<
+    string | undefined
+  >();
 
   const walletAddress = isConnected && address ? address : undefined;
   const hasSupabase = Boolean(user);
   const hasWallet = Boolean(walletAddress);
   const userId = user?.id;
+  const provider = user?.app_metadata?.provider as string | undefined;
+
+  useEffect(() => {
+    setIsGuest(isGuestExploring());
+    setLocalNotificationEmail(getLocalNotificationEmail());
+  }, []);
+
+  useEffect(() => {
+    if (hasSupabase || hasWallet) {
+      clearGuestExploring();
+      setIsGuest(false);
+    }
+  }, [hasSupabase, hasWallet]);
 
   useEffect(() => {
     if (!userId) {
       setGmailConnected(false);
       setArcConnected(false);
+      setWallets([]);
+      setAppWalletPending(false);
       return;
     }
 
@@ -57,6 +88,21 @@ export function useResolveAccount(): ResolveAccountState {
         if (!cancelled) setConnectorsLoading(false);
       });
 
+    setWalletsLoading(true);
+    fetch("/api/account/wallets", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setWallets(data.wallets ?? []);
+        setAppWalletPending(Boolean(data.appWalletPending));
+      })
+      .catch(() => {
+        /* non-fatal */
+      })
+      .finally(() => {
+        if (!cancelled) setWalletsLoading(false);
+      });
+
     return () => {
       cancelled = true;
     };
@@ -64,37 +110,61 @@ export function useResolveAccount(): ResolveAccountState {
 
   return useMemo(() => {
     const email = user?.email ?? undefined;
+    const notificationEmail = email ?? localNotificationEmail;
+    const notificationEmailVerified = Boolean(email);
+
+    const appWallet = wallets.find((w) => w.type === "app_managed");
+    const externalWallet = wallets.find((w) => w.type === "external");
+    const primaryWallet =
+      wallets.find((w) => w.isPrimary) ?? externalWallet ?? appWallet;
+
+    const displayWalletAddress = hasWallet
+      ? walletAddress
+      : primaryWallet?.address;
+
     const displayName =
       (user?.user_metadata?.full_name as string | undefined) ??
       (user?.user_metadata?.name as string | undefined) ??
       email?.split("@")[0] ??
-      (walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : undefined);
-    const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+      (displayWalletAddress
+        ? `${displayWalletAddress.slice(0, 6)}…${displayWalletAddress.slice(-4)}`
+        : undefined);
 
-    let authMethod: ResolveAccountState["authMethod"] = "none";
-    if (hasSupabase && hasWallet) authMethod = "both";
-    else if (hasSupabase) authMethod = "supabase";
-    else if (hasWallet) authMethod = "wallet";
+    const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+    const authMethod = resolveAuthMethod(hasSupabase, hasWallet, provider);
 
     return {
       isAuthenticated: hasSupabase || hasWallet,
       authMethod,
       email,
-      walletAddress,
+      notificationEmail,
+      notificationEmailVerified,
+      walletAddress: displayWalletAddress,
+      wallets,
       displayName,
       avatarUrl,
       gmailConnected,
       arcConnected,
-      loading: (authLoading && !hasWallet && !hasSupabase) || (hasSupabase && connectorsLoading),
+      appWalletPending,
+      loading:
+        (authLoading && !hasWallet && !hasSupabase) ||
+        (hasSupabase && (connectorsLoading || walletsLoading)),
+      isGuest: isGuest && !hasSupabase && !hasWallet,
     };
   }, [
     user,
     walletAddress,
     hasSupabase,
     hasWallet,
+    provider,
     gmailConnected,
     arcConnected,
+    wallets,
+    appWalletPending,
     authLoading,
     connectorsLoading,
+    walletsLoading,
+    isGuest,
+    localNotificationEmail,
   ]);
 }

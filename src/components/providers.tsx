@@ -14,6 +14,7 @@ import {
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { SignInProvider } from "@/components/auth/sign-in-context";
 import { SignInModal } from "@/components/auth/sign-in-modal";
+import { GmailAfterAuthEffect } from "@/components/auth/gmail-after-auth-effect";
 import { WalletLinkEffect } from "@/components/wallet/wallet-link-effect";
 import { AddFundsProvider } from "@/components/wallet/add-funds-context";
 
@@ -50,6 +51,7 @@ export function Providers({
           <SignInProvider>
             <AddFundsProvider>
               <WalletLinkEffect />
+              <GmailAfterAuthEffect />
               {children}
               <SignInModal />
               <Toaster

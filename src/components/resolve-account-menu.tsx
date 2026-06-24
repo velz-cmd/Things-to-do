@@ -54,14 +54,23 @@ export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
           )}
         </div>
       </div>
-      {account.walletAddress && (
+      {account.appWalletAddress && account.accountVerified && (
         <p className="mt-1 font-mono text-[10px] text-deputy-muted">
-          {account.walletAddress.slice(0, 6)}…{account.walletAddress.slice(-4)}
+          RESOLVE wallet · {account.appWalletAddress.slice(0, 6)}…
+          {account.appWalletAddress.slice(-4)}
         </p>
       )}
-      <p className="mt-1 text-[10px] text-deputy-muted">
-        Gmail: {account.gmailConnected ? "connected" : "not connected"}
-      </p>
+      {!account.appWalletAddress && account.externalWalletAddress && (
+        <p className="mt-1 font-mono text-[10px] text-deputy-muted">
+          {account.externalWalletAddress.slice(0, 6)}…
+          {account.externalWalletAddress.slice(-4)}
+        </p>
+      )}
+      {account.accountVerified && (
+        <p className="mt-1 text-[10px] text-deputy-muted">
+          Signed in · wallet locked to account
+        </p>
+      )}
     </div>
   );
 }

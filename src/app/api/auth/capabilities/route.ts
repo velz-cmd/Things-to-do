@@ -36,10 +36,9 @@ export async function GET() {
     }
   }
 
-  const emailOtp =
-    isSupabaseAdminConfigured() && Boolean(process.env.RESEND_API_KEY?.trim());
+  const emailOtp = isSupabaseAdminConfigured();
   const emailMagicLink = supabase;
-  const email = emailMagicLink || emailOtp;
+  const email = Boolean(supabase && isSupabaseAdminConfigured());
 
   const wallet = true;
 

@@ -18,6 +18,11 @@ import {
   useAuthCapabilities,
   markGoogleAuthBroken,
 } from "@/hooks/use-auth-capabilities";
+import { syncLocalMemoryToServer } from "@/lib/auth/memory-sync";
+import {
+  setRememberedEmail,
+  setRememberedProvider,
+} from "@/lib/auth/remember";
 import { toast } from "sonner";
 
 export interface WalletBalance {
@@ -72,7 +77,10 @@ interface AuthContextValue {
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<EmailSendResult>;
-  sendLoginCode: (email: string) => Promise<EmailSendResult>;
+  sendLoginCode: (
+    email: string,
+    options?: { method?: "otp" | "magic_link" }
+  ) => Promise<EmailSendResult>;
   verifyEmailOtp: (email: string, code: string) => Promise<VerifyOtpResult>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
@@ -152,10 +160,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       if (nextSession?.user) {
+        const email = nextSession.user.email?.trim().toLowerCase();
+        if (email) {
+          setRememberedEmail(email);
+          const provider =
+            nextSession.user.app_metadata?.provider === "google"
+              ? "google"
+              : nextSession.user.app_metadata?.provider === "email"
+                ? "email"
+                : "email";
+          setRememberedProvider(provider);
+        }
+
+        void syncLocalMemoryToServer().catch(() => {
+          /* non-fatal */
+        });
+
         void fetch("/api/wallet/provision", {
           method: "POST",
           credentials: "include",
@@ -164,6 +188,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .catch(() => {
             /* non-fatal */
           });
+      } else if (event === "SIGNED_OUT") {
+        setBalance(null);
       } else {
         setBalance(null);
       }
@@ -238,56 +264,82 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [supabase, emailEnabled]
   );
 
-  const sendLoginCode = useCallback(
+  const sendOtpCode = useCallback(
     async (email: string): Promise<EmailSendResult> => {
+      if (!capabilities.emailOtp) {
+        return {
+          ok: false,
+          message: "Email codes are not configured. Use the magic link instead.",
+        };
+      }
+
+      try {
+        const res = await withTimeout(
+          fetch("/api/auth/send-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          }),
+          15_000
+        );
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          return { ok: true, method: "otp" };
+        }
+
+        const msg = String(data.error ?? "Could not send code");
+        const cooldownSeconds = parseOtpCooldown(msg);
+        if (res.status === 429 || cooldownSeconds !== undefined) {
+          return {
+            ok: false,
+            cooldownSeconds: cooldownSeconds ?? 60,
+            message: cooldownSeconds
+              ? `Code already sent. Try again in ${cooldownSeconds} seconds.`
+              : msg,
+          };
+        }
+
+        return { ok: false, message: msg };
+      } catch (e) {
+        if (e instanceof Error && e.message === "timeout") {
+          return { ok: false, message: "Email send timed out. Try again." };
+        }
+        return { ok: false, message: "Could not send code. Try again." };
+      }
+    },
+    [capabilities.emailOtp]
+  );
+
+  const sendLoginCode = useCallback(
+    async (
+      email: string,
+      options?: { method?: "otp" | "magic_link" }
+    ): Promise<EmailSendResult> => {
       const trimmed = email.trim().toLowerCase();
+      const preferOtp = options?.method === "otp";
+
+      if (preferOtp) {
+        return sendOtpCode(trimmed);
+      }
 
       if (capabilities.emailMagicLink && supabase) {
         const magic = await signInWithEmail(trimmed);
         if (magic.ok) return magic;
         if (magic.cooldownSeconds) {
           return {
-            ok: true,
-            method: "magic_link",
-            alreadySent: true,
+            ok: false,
+            cooldownSeconds: magic.cooldownSeconds,
+            message: magic.message,
           };
         }
       }
 
       if (capabilities.emailOtp) {
-        try {
-          const res = await withTimeout(
-            fetch("/api/auth/send-code", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email: trimmed }),
-            }),
-            15_000
-          );
-          const data = await res.json().catch(() => ({}));
-
-          if (res.ok) {
-            return { ok: true, method: "otp" };
-          }
-
-          const msg = String(data.error ?? "Could not send code");
-          const cooldownSeconds = parseOtpCooldown(msg);
-          if (
-            res.status === 429 ||
-            cooldownSeconds !== undefined ||
-            msg.toLowerCase().includes("wait") ||
-            msg.toLowerCase().includes("security")
-          ) {
-            return {
-              ok: true,
-              method: "otp",
-              alreadySent: true,
-            };
-          }
-        } catch (e) {
-          if (e instanceof Error && e.message === "timeout") {
-            return { ok: false, message: "Email send timed out. Try again." };
-          }
+        const otp = await sendOtpCode(trimmed);
+        if (otp.ok) return otp;
+        if (!capabilities.emailMagicLink || !supabase) {
+          return otp;
         }
       }
 
@@ -302,6 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       capabilities.emailMagicLink,
       supabase,
       signInWithEmail,
+      sendOtpCode,
     ]
   );
 
@@ -323,13 +376,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (supabase) {
+        await supabase.auth.refreshSession();
         const { data: sessionData } = await supabase.auth.getSession();
         setSession(sessionData.session);
         setUser(sessionData.session?.user ?? null);
+        if (sessionData.session?.user?.email) {
+          setRememberedEmail(sessionData.session.user.email);
+          setRememberedProvider("email");
+        }
       }
 
       let walletPending = false;
       try {
+        await syncLocalMemoryToServer();
         const walletRes = await fetch("/api/account/app-wallet/create", {
           method: "POST",
           credentials: "include",

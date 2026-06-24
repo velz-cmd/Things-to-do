@@ -12,6 +12,7 @@ import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { WalletAuthEffect } from "@/components/wallet/wallet-auth-effect";
 import { OtpInput } from "@/components/auth/otp-input";
 import { enableGuestExploring } from "@/lib/auth/guest";
+import { getRememberedEmail } from "@/lib/auth/remember";
 import { detectInjectedWallets } from "@/lib/wallet/detect";
 
 type Step = "welcome" | "otp" | "magic-sent" | "wallet-picker";
@@ -102,7 +103,10 @@ export function SignInModal() {
 
     let savedEmail = "";
     try {
-      savedEmail = localStorage.getItem(EMAIL_KEY) ?? "";
+      savedEmail =
+        localStorage.getItem(EMAIL_KEY) ??
+        getRememberedEmail() ??
+        "";
       if (savedEmail) setEmail(savedEmail);
     } catch {
       /* ignore */
@@ -111,7 +115,7 @@ export function SignInModal() {
     const remaining = getCooldownRemaining();
     setCooldown(remaining);
 
-    if (savedEmail && remaining > 0) {
+    if (cooldown > 0 && savedEmail) {
       try {
         const sentStep = localStorage.getItem(SENT_STEP_KEY) as Step | null;
         setStep(sentStep === "otp" ? "otp" : "magic-sent");
@@ -224,18 +228,21 @@ export function SignInModal() {
     }
 
     if (cooldown > 0) {
-      goToSentStep(
-        (localStorage.getItem(SENT_STEP_KEY) as "otp" | "magic-sent") === "otp"
-          ? "otp"
-          : "magic_link"
-      );
+      const priorStep =
+        (localStorage.getItem(SENT_STEP_KEY) as "otp" | "magic-sent" | null) ??
+        "magic_link";
+      setMethodError((prev) => ({
+        ...prev,
+        email: `Sign-in already sent. Resend in ${cooldown}s.`,
+      }));
+      goToSentStep(priorStep === "otp" ? "otp" : "magic_link");
       return;
     }
 
     setAuthAction("email");
     try {
       localStorage.setItem(EMAIL_KEY, trimmed);
-      const result = await sendLoginCode(trimmed);
+      const result = await sendLoginCode(trimmed, { method: "magic_link" });
 
       if (!result.ok) {
         if (result.cooldownSeconds) {
@@ -252,12 +259,13 @@ export function SignInModal() {
     }
   }
 
-  async function handleResend() {
+  async function handleResend(method: "otp" | "magic_link" = "magic_link") {
     if (cooldown > 0 || authAction === "email") return;
     setAuthAction("email");
     setMethodError((prev) => ({ ...prev, email: undefined }));
+    setInlineError(null);
     try {
-      const result = await sendLoginCode(email.trim());
+      const result = await sendLoginCode(email.trim(), { method });
       if (!result.ok) {
         if (result.cooldownSeconds) {
           setCooldownSeconds(result.cooldownSeconds);
@@ -265,11 +273,43 @@ export function SignInModal() {
         }
         setMethodError((prev) => ({
           ...prev,
-          email: `Resend available in ${getCooldownRemaining()}s`,
+          email: result.message,
         }));
         return;
       }
-      goToSentStep(result.method ?? "magic_link");
+      goToSentStep(result.method ?? method);
+    } finally {
+      setAuthAction(null);
+    }
+  }
+
+  async function handleSwitchToOtp() {
+    setInlineError(null);
+    setMethodError((prev) => ({ ...prev, email: undefined }));
+    setStep("otp");
+    try {
+      localStorage.setItem(SENT_STEP_KEY, "otp");
+    } catch {
+      /* ignore */
+    }
+
+    if (cooldown > 0) {
+      setInlineError(`Resend a code in ${cooldown}s, or use the magic link email.`);
+      return;
+    }
+
+    setAuthAction("email");
+    try {
+      const result = await sendLoginCode(email.trim(), { method: "otp" });
+      if (!result.ok) {
+        if (result.cooldownSeconds) {
+          setCooldownSeconds(result.cooldownSeconds);
+          setCooldown(result.cooldownSeconds);
+        }
+        setInlineError(result.message);
+        return;
+      }
+      goToSentStep("otp");
     } finally {
       setAuthAction(null);
     }
@@ -379,9 +419,11 @@ export function SignInModal() {
                   ? "Enter your code"
                   : step === "magic-sent"
                     ? "Check your email"
-                    : step === "wallet-picker"
+                      : step === "wallet-picker"
                       ? "Choose wallet"
-                      : "Welcome"}
+                      : getRememberedEmail() && email
+                        ? "Welcome back"
+                        : "Welcome"}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-slate-400">{subtitle}</p>
             </div>
@@ -572,7 +614,7 @@ export function SignInModal() {
                 <button
                   type="button"
                   disabled={authAction === "email" || cooldown > 0}
-                  onClick={() => void handleResend()}
+                  onClick={() => void handleResend("otp")}
                   className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
                 >
                   {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
@@ -601,7 +643,7 @@ export function SignInModal() {
               <div className="flex items-center justify-between text-xs">
                 <button
                   type="button"
-                  onClick={() => setStep("otp")}
+                  onClick={() => void handleSwitchToOtp()}
                   className="text-slate-500 underline hover:text-white"
                 >
                   Enter code instead
@@ -609,7 +651,7 @@ export function SignInModal() {
                 <button
                   type="button"
                   disabled={authAction === "email" || cooldown > 0}
-                  onClick={() => void handleResend()}
+                  onClick={() => void handleResend("magic_link")}
                   className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
                 >
                   {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend link"}

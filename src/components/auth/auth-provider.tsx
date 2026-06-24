@@ -39,7 +39,7 @@ export interface WalletBalance {
 }
 
 export type EmailSendResult =
-  | { ok: true; method?: "otp" | "magic_link"; alreadySent?: boolean }
+  | { ok: true; alreadySent?: boolean }
   | { ok: false; cooldownSeconds?: number; message: string };
 
 export type VerifyOtpResult =
@@ -77,10 +77,7 @@ interface AuthContextValue {
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<EmailSendResult>;
-  sendLoginCode: (
-    email: string,
-    options?: { method?: "otp" | "magic_link" }
-  ) => Promise<EmailSendResult>;
+  sendLoginCode: (email: string) => Promise<EmailSendResult>;
   verifyEmailOtp: (email: string, code: string) => Promise<VerifyOtpResult>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
@@ -259,18 +256,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, message: error.message };
       }
 
-      return { ok: true, method: "magic_link" };
+      return { ok: true };
     },
     [supabase, emailEnabled]
   );
 
-  const sendOtpCode = useCallback(
+  const sendLoginCode = useCallback(
     async (email: string): Promise<EmailSendResult> => {
-      if (!capabilities.emailOtp) {
-        return {
-          ok: false,
-          message: "Email codes are not configured. Use the magic link instead.",
-        };
+      const trimmed = email.trim().toLowerCase();
+
+      if (!emailEnabled) {
+        return { ok: false, message: "Email sign-in is not available" };
       }
 
       try {
@@ -278,84 +274,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           fetch("/api/auth/send-code", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email: trimmed }),
           }),
-          15_000
+          20_000
         );
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          cooldownSeconds?: number;
+        };
 
         if (res.ok) {
-          return { ok: true, method: "otp" };
+          return { ok: true };
         }
 
-        const msg = String(data.error ?? "Could not send code");
-        const cooldownSeconds = parseOtpCooldown(msg);
-        if (res.status === 429 || cooldownSeconds !== undefined) {
-          return {
-            ok: false,
-            cooldownSeconds: cooldownSeconds ?? 60,
-            message: cooldownSeconds
-              ? `Code already sent. Try again in ${cooldownSeconds} seconds.`
-              : msg,
-          };
-        }
+        const cooldownSeconds =
+          data.cooldownSeconds ?? parseOtpCooldown(String(data.error ?? ""));
+        const message = String(data.error ?? "Could not send sign-in email.");
 
-        return { ok: false, message: msg };
+        return {
+          ok: false,
+          cooldownSeconds,
+          message: cooldownSeconds
+            ? `Email already sent. Try again in ${cooldownSeconds} seconds.`
+            : message,
+        };
       } catch (e) {
         if (e instanceof Error && e.message === "timeout") {
           return { ok: false, message: "Email send timed out. Try again." };
         }
-        return { ok: false, message: "Could not send code. Try again." };
+        return { ok: false, message: "Could not send sign-in email." };
       }
     },
-    [capabilities.emailOtp]
-  );
-
-  const sendLoginCode = useCallback(
-    async (
-      email: string,
-      options?: { method?: "otp" | "magic_link" }
-    ): Promise<EmailSendResult> => {
-      const trimmed = email.trim().toLowerCase();
-      const preferOtp = options?.method === "otp";
-
-      if (preferOtp) {
-        return sendOtpCode(trimmed);
-      }
-
-      if (capabilities.emailMagicLink && supabase) {
-        const magic = await signInWithEmail(trimmed);
-        if (magic.ok) return magic;
-        if (magic.cooldownSeconds) {
-          return {
-            ok: false,
-            cooldownSeconds: magic.cooldownSeconds,
-            message: magic.message,
-          };
-        }
-      }
-
-      if (capabilities.emailOtp) {
-        const otp = await sendOtpCode(trimmed);
-        if (otp.ok) return otp;
-        if (!capabilities.emailMagicLink || !supabase) {
-          return otp;
-        }
-      }
-
-      if (capabilities.emailMagicLink && supabase) {
-        return signInWithEmail(trimmed);
-      }
-
-      return { ok: false, message: "Email sign-in is not available" };
-    },
-    [
-      capabilities.emailOtp,
-      capabilities.emailMagicLink,
-      supabase,
-      signInWithEmail,
-      sendOtpCode,
-    ]
+    [emailEnabled]
   );
 
   const verifyEmailOtp = useCallback(

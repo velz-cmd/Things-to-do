@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { createAdminClient, isSupabaseAdminConfigured, getSupabaseServerUrl, getSupabaseServiceRoleKey } from "@/lib/supabase/admin";
+import {
+  createAdminClient,
+  getSupabaseServerUrl,
+  getSupabaseServiceRoleKey,
+} from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/resend/client";
 
 export const runtime = "nodejs";
@@ -22,7 +26,22 @@ function appOrigin(req: Request) {
   );
 }
 
-function loginCodeEmailHtml(code: string) {
+function parseCooldown(message: string): number | undefined {
+  const match = message.match(/after (\d+) seconds?/i);
+  return match ? Number(match[1]) : undefined;
+}
+
+/** Resend sandbox (onboarding@resend.dev) only delivers to RESEND_CLAIM_TO. */
+function canDeliverViaResend(email: string): boolean {
+  if (!process.env.RESEND_API_KEY?.trim()) return false;
+  const from =
+    process.env.RESEND_FROM_EMAIL?.trim() ?? "onboarding@resend.dev";
+  if (!from.includes("resend.dev")) return true;
+  const allowed = process.env.RESEND_CLAIM_TO?.trim().toLowerCase();
+  return Boolean(allowed && email.toLowerCase() === allowed);
+}
+
+function loginEmailHtml(code: string, magicLink: string) {
   return `
 <!DOCTYPE html>
 <html>
@@ -34,15 +53,18 @@ function loginCodeEmailHtml(code: string) {
             <tr>
               <td>
                 <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#38bdf8;font-weight:600;">RESOLVE</p>
-                <h1 style="margin:0 0 12px;font-size:22px;color:#ffffff;">Your login code</h1>
+                <h1 style="margin:0 0 12px;font-size:22px;color:#ffffff;">Sign in to RESOLVE</h1>
                 <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#94a3b8;">
-                  Enter this code in RESOLVE to sign in. It expires in 30 minutes and can only be used once.
+                  Enter the code below in RESOLVE, or tap the button to sign in on this device.
                 </p>
-                <div style="text-align:center;padding:20px;background:#05080c;border-radius:12px;border:1px solid rgba(56,189,248,0.2);">
+                <div style="text-align:center;padding:20px;background:#05080c;border-radius:12px;border:1px solid rgba(56,189,248,0.2);margin-bottom:24px;">
                   <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#38bdf8;font-family:ui-monospace,monospace;">${code}</span>
                 </div>
-                <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#64748b;">
-                  If you didn't request this, you can ignore this email.
+                <div style="text-align:center;margin-bottom:24px;">
+                  <a href="${magicLink}" style="display:inline-block;background:#0ea5e9;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:14px 28px;border-radius:12px;">Sign in with magic link</a>
+                </div>
+                <p style="margin:0;font-size:12px;line-height:1.5;color:#64748b;">
+                  This code and link expire in 30 minutes. If you didn't request this, ignore this email.
                 </p>
               </td>
             </tr>
@@ -82,80 +104,83 @@ export async function POST(req: Request) {
 
   const last = recentSends.get(email) ?? 0;
   if (Date.now() - last < SEND_COOLDOWN_MS) {
+    const remaining = Math.ceil((SEND_COOLDOWN_MS - (Date.now() - last)) / 1000);
     return NextResponse.json(
-      { error: "Please wait a minute before requesting another code." },
+      {
+        error: `Please wait ${remaining} seconds before requesting another email.`,
+        cooldownSeconds: remaining,
+      },
       { status: 429 }
     );
   }
 
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "magiclink",
+  const redirectTo = `${appOrigin(req)}/auth/callback`;
+
+  if (canDeliverViaResend(email)) {
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { redirectTo },
+    });
+
+    if (error) {
+      const cooldownSeconds = parseCooldown(error.message);
+      return NextResponse.json(
+        { error: error.message, cooldownSeconds },
+        { status: cooldownSeconds ? 429 : 400 }
+      );
+    }
+
+    const otp = data.properties?.email_otp;
+    const magicLink = data.properties?.action_link;
+    if (!otp || !magicLink) {
+      return NextResponse.json(
+        { error: "Could not generate sign-in email. Try again." },
+        { status: 500 }
+      );
+    }
+
+    try {
+      await sendEmail({
+        to: email,
+        subject: `${otp} — sign in to RESOLVE`,
+        html: loginEmailHtml(otp, magicLink),
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not send email";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
+    recentSends.set(email, Date.now());
+    return NextResponse.json({
+      ok: true,
+      delivery: "resend",
+      message: "Sign-in email sent",
+      expiresInMinutes: 30,
+    });
+  }
+
+  const { error: otpError } = await admin.auth.signInWithOtp({
     email,
     options: {
-      redirectTo: `${appOrigin(req)}/auth/callback`,
+      shouldCreateUser: true,
+      emailRedirectTo: redirectTo,
     },
   });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
-
-  const otp = data.properties?.email_otp;
-  if (!otp) {
+  if (otpError) {
+    const cooldownSeconds = parseCooldown(otpError.message);
     return NextResponse.json(
-      { error: "Could not generate login code. Try again." },
-      { status: 500 }
+      { error: otpError.message, cooldownSeconds },
+      { status: cooldownSeconds ? 429 : 400 }
     );
-  }
-
-  if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json(
-      { error: "Email delivery is not configured. Add RESEND_API_KEY." },
-      { status: 503 }
-    );
-  }
-
-  try {
-    await sendEmail({
-      to: email,
-      subject: `${otp} is your RESOLVE login code`,
-      html: loginCodeEmailHtml(otp),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Could not send email";
-    const resendSandbox =
-      message.includes("verify a domain") ||
-      message.includes("testing emails to your own");
-
-    if (resendSandbox) {
-      // Resend sandbox: deliver the same OTP through Supabase Auth mailer.
-      const { error: otpMailError } = await admin.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: `${appOrigin(req)}/auth/callback`,
-        },
-      });
-      if (otpMailError) {
-        return NextResponse.json({ error: otpMailError.message }, { status: 500 });
-      }
-      recentSends.set(email, Date.now());
-      return NextResponse.json({
-        ok: true,
-        message: "Login code sent via email",
-        delivery: "supabase",
-        expiresInMinutes: 30,
-      });
-    }
-
-    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   recentSends.set(email, Date.now());
-
   return NextResponse.json({
     ok: true,
-    message: "Login code sent",
+    delivery: "supabase",
+    message: "Sign-in email sent (check inbox for code or magic link)",
     expiresInMinutes: 30,
   });
 }

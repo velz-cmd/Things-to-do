@@ -76,9 +76,50 @@ If `/api/tasks` returns **500**, redeploy from Vercel (build now runs `prisma db
 
 ---
 
-## Phase 3 — Run the judge demo (pick ONE path)
+## Phase 3 — Run the judge demo (90 seconds)
 
-### Path A — Non-crypto user (Stripe-like, recommended for judges)
+**Opening line:** *"We built the outcome network on Arc — work gets funded only when outcomes are verified."*
+
+### Path B — LEAD: Bounty / contributor payout (recommended opener)
+
+| Step | You do | You say |
+|------|--------|---------|
+| 1 | Open `/start` → sign in | "Assign a financial mission — not a chatbot." |
+| 2 | Pick **Pay designer when logo approved** | "Funds lock in Arc escrow." |
+| 3 | Lock budget → Deploy mission | "Agents execute; treasury holds USDC." |
+| 4 | `POST /api/webhooks/github` or Treasury **Trigger PR merge** | "GitHub PR merged — proof arrives." |
+| 5 | Task → Proof verified → Settled | "Payment releases only after verification." |
+
+```bash
+curl -X POST https://resolve-task.vercel.app/api/webhooks/github \
+  -H "Content-Type: application/json" \
+  -d '{"pull_request":{"merged":true,"number":1,"title":"Logo approved"},"repository":{"full_name":"demo/logo-bounty"}}'
+```
+
+### Path C — Founder distribution (Canteen / Distribution Bootstrap)
+
+| Step | You do | You say |
+|------|--------|---------|
+| 1 | Open `/distribute` | "Founders can't distribute to creators — we solve that." |
+| 2 | Click **Seed demo registry** on `/treasury` if needed | "Attribution: who gets paid." |
+| 3 | Click **Distribute when verified** | "RESOLVE resolves wallets, samples verification, batch-settles." |
+| 4 | Show Arcscan link + compliance CSV | "Stripe collects. Sidecars count. RESOLVE proves and pays." |
+
+### Path A — Consumer refund (supporting demo)
+
+| Step | You do | You say |
+|------|--------|---------|
+| 1 | `/start` → airline refund mission | "Same proof rail for consumer outcomes." |
+| 2 | Deploy → `/merchant` approve | "Merchant confirms — proof engine verifies." |
+| 3 | Settled + net gain | "Pay-per-resolution, not pay-per-token." |
+
+**Closing line:** *"We're not building another agent. We built the economic system agents and founders get paid through."*
+
+---
+
+## Phase 3 (legacy) — Full walkthrough tables
+
+### Path A — Non-crypto user
 
 | Step | You do | You say |
 |------|--------|---------|
@@ -112,7 +153,7 @@ Same as Path A but step 2–5:
 - [ ] **Arc tx screenshot** — escrow lock + settlement on Arcscan
 - [ ] **One paragraph pitch:**
 
-  > RESOLVE is an autonomous consumer advocate. Users assign real-world outcomes (refunds, cancellations, disputes). Agents execute with Gmail, Resend, and browser tools. Payment locks in Arc USDC escrow and releases only when the proof engine verifies merchant confirmation — not when the LLM says so. Pay-per-resolution, not pay-per-token.
+  > RESOLVE is the outcome network on Arc. Assign financial missions — bounties, contributor payouts, founder distribution to open-source creators. USDC locks in escrow and releases only when the proof engine verifies the outcome. Same rail for consumer refunds and creator micropayments. Work gets funded only when outcomes are verified.
 
 - [ ] **Canteen Discord** — post demo link + screenshot + "pay only on proof" hook
 - [ ] **Circle/Arc angle** — mention Arc testnet USDC escrow + consumer on-ramp path

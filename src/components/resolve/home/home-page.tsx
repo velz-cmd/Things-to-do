@@ -13,7 +13,6 @@ import { problemStats, outcomeCategories } from "@/data/problem-stats";
 import { HeroVisual } from "@/components/resolve/home/hero-visual";
 import { LiveMissionPreview } from "@/components/resolve/home/live-mission-preview";
 import { GlassPanel } from "@/components/resolve/ui/glass-panel";
-import { useCommand } from "@/components/resolve/command/command-context";
 
 const ICONS = {
   plane: Plane,
@@ -23,16 +22,14 @@ const ICONS = {
 };
 
 const FLOW = [
-  { step: "1", title: "Assign", desc: "Tell RESOLVE what outcome you need" },
-  { step: "2", title: "Gather", desc: "Connect Gmail or add missing details" },
-  { step: "3", title: "Act", desc: "Browser, email, and API tools execute" },
-  { step: "4", title: "Verify", desc: "Proof is captured and checked" },
-  { step: "5", title: "Settle", desc: "Payment unlocks only after proof" },
+  { step: "1", title: "Mission", desc: "Assign a financial outcome or bounty" },
+  { step: "2", title: "Escrow", desc: "USDC locks in Arc treasury" },
+  { step: "3", title: "Execute", desc: "Agents or contributors complete work" },
+  { step: "4", title: "Verify", desc: "Proof engine confirms the outcome" },
+  { step: "5", title: "Settle", desc: "Payment releases only after verification" },
 ];
 
 export function HomePage() {
-  const { focusBar } = useCommand();
-
   return (
     <div className="resolve-grid-bg min-h-screen pb-32">
       {/* Hero */}
@@ -41,31 +38,31 @@ export function HomePage() {
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
           <div>
             <p className="text-sm font-medium text-sky-400">
-              AI assistants give advice. RESOLVE completes outcomes.
+              The outcome network on Arc — not another AI assistant.
             </p>
             <h1 className="mt-4 text-4xl font-semibold leading-[1.1] tracking-tight text-white md:text-5xl lg:text-[3.25rem]">
-              Stop chasing refunds.
+              Work gets funded
               <br />
-              <span className="text-sky-300">Assign the outcome.</span>
+              <span className="text-sky-300">only when verified.</span>
             </h1>
             <p className="mt-6 max-w-lg text-base leading-relaxed text-resolve-muted">
-              RESOLVE finds evidence, submits claims, retries when blocked, verifies
-              proof, and unlocks proof-based payment only when the outcome is real.
+              RESOLVE runs economic missions: bounties, contributor payouts, and
+              founder distribution to open-source creators. Arc escrow holds funds until
+              proof confirms the outcome.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={focusBar}
+              <Link
+                href="/start"
                 className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_30px_-5px_rgba(56,189,248,0.5)] transition hover:bg-sky-400"
               >
-                Assign a task
+                Create mission
                 <ArrowRight className="h-4 w-4" />
-              </button>
+              </Link>
               <Link
-                href="/radar"
+                href="/distribute"
                 className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/10"
               >
-                See Radar
+                Distribute to creators
               </Link>
             </div>
           </div>
@@ -184,14 +181,13 @@ export function HomePage() {
               </li>
             ))}
           </ul>
-          <button
-            type="button"
-            onClick={focusBar}
+          <Link
+            href="/start"
             className="mt-10 inline-flex items-center gap-2 rounded-full bg-sky-500 px-8 py-3.5 text-sm font-semibold text-white hover:bg-sky-400"
           >
-            Give RESOLVE one task
+            Create a mission
             <ArrowRight className="h-4 w-4" />
-          </button>
+          </Link>
         </div>
       </section>
     </div>

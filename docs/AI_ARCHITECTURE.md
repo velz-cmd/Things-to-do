@@ -22,6 +22,7 @@ GROQ_API_KEY=                # console.groq.com (free tier)
 OPENROUTER_API_KEY=          # openrouter.ai — Llama 3.3 70B free
 CLOUDFLARE_ACCOUNT_ID=       # optional gateway
 CLOUDFLARE_AI_GATEWAY_ID=resolve
+CLOUDFLARE_AI_GATEWAY_ENABLED=true   # set false to call Groq/OpenRouter/Gemini directly
 CLOUDFLARE_API_TOKEN=        # Workers AI / Gateway token
 ```
 
@@ -37,7 +38,7 @@ Set on Vercel (Production + Preview). Trigger a **new deployment** after changes
 ## Cloudflare AI Gateway
 
 Create a gateway named `resolve` in the Cloudflare dashboard and add provider API keys there.
-When `CLOUDFLARE_ACCOUNT_ID` is set, RESOLVE routes Groq and OpenRouter through the gateway for logging and rate limits.
+Set `CLOUDFLARE_AI_GATEWAY_ENABLED=true` with account ID and gateway ID to route Groq, OpenRouter, and Gemini through the gateway for logging and rate limits.
 
 ## Verification
 

@@ -1,31 +1,32 @@
 import type { AgentRole } from "@/lib/deputy/types";
+import { QWEN_MODELS } from "@/lib/ai/qwen";
 
 export const AGENT_DEFINITIONS: Record<
   AgentRole,
   { model: string; responsibility: string; usesLlm: boolean }
 > = {
   Planner: {
-    model: "gemini-2.5-flash",
+    model: QWEN_MODELS.plus,
     responsibility: "Parse intent → outcome checklist",
     usesLlm: true,
   },
   Evidence: {
-    model: "gemini-2.5-flash",
+    model: QWEN_MODELS.flash,
     responsibility: "Search inbox, find booking refs",
     usesLlm: true,
   },
   Executor: {
-    model: "gemini-2.5-flash",
+    model: QWEN_MODELS.flash,
     responsibility: "Draft/submit claim, send email",
     usesLlm: true,
   },
   Retry: {
-    model: "gemini-2.5-flash",
+    model: QWEN_MODELS.flash,
     responsibility: "Follow-up timing, escalation copy",
     usesLlm: true,
   },
   Negotiator: {
-    model: "gemini-2.5-flash",
+    model: QWEN_MODELS.plus,
     responsibility: "Merchant negotiation language",
     usesLlm: true,
   },
@@ -35,7 +36,7 @@ export const AGENT_DEFINITIONS: Record<
     usesLlm: false,
   },
   Escalation: {
-    model: "gemini-2.5-flash",
+    model: QWEN_MODELS.max,
     responsibility: "Human handoff package when blocked",
     usesLlm: true,
   },

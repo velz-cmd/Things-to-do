@@ -1,6 +1,11 @@
 import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
+import {
+  isQwenConfigured,
+  qwenModel,
+  qwenPlannerModels,
+} from "@/lib/ai/qwen";
 
 const planSchema = z.object({
   objective: z.string(),
@@ -29,13 +34,27 @@ export async function generateDeputyPlan(input: {
   targetValueUsd: number;
   category: string;
 }): Promise<DeputyPlan | null> {
+  if (isQwenConfigured()) {
+    for (const modelId of qwenPlannerModels()) {
+      try {
+        const { object } = await generateObject({
+          model: qwenModel(modelId, { enableThinking: true }),
+          schema: planSchema,
+          prompt: plannerPrompt(input),
+        });
+        return object;
+      } catch (e) {
+        console.warn(`Qwen planner ${modelId} failed:`, e);
+      }
+    }
+  }
+
   const apiKey =
     process.env.GEMINI_API_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) return fallbackPlan(input);
 
-  const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-
-  for (const modelId of models) {
+  const geminiModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  for (const modelId of geminiModels) {
     try {
       const { object } = await generateObject({
         model: google(modelId),
@@ -44,7 +63,7 @@ export async function generateDeputyPlan(input: {
       });
       return object;
     } catch (e) {
-      console.warn(`Planner ${modelId} failed:`, e);
+      console.warn(`Gemini planner ${modelId} failed:`, e);
     }
   }
 

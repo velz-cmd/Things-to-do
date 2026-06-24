@@ -31,8 +31,7 @@ function parseCooldown(message: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-/** Resend sandbox (onboarding@resend.dev) only delivers to RESEND_CLAIM_TO. */
-function canDeliverViaResend(email: string): boolean {
+function canSendViaResend(email: string): boolean {
   if (!process.env.RESEND_API_KEY?.trim()) return false;
   const from =
     process.env.RESEND_FROM_EMAIL?.trim() ?? "onboarding@resend.dev";
@@ -116,71 +115,58 @@ export async function POST(req: Request) {
 
   const redirectTo = `${appOrigin(req)}/auth/callback`;
 
-  if (canDeliverViaResend(email)) {
-    const { data, error } = await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-      options: { redirectTo },
-    });
-
-    if (error) {
-      const cooldownSeconds = parseCooldown(error.message);
-      return NextResponse.json(
-        { error: error.message, cooldownSeconds },
-        { status: cooldownSeconds ? 429 : 400 }
-      );
-    }
-
-    const otp = data.properties?.email_otp;
-    const magicLink = data.properties?.action_link;
-    if (!otp || !magicLink) {
-      return NextResponse.json(
-        { error: "Could not generate sign-in email. Try again." },
-        { status: 500 }
-      );
-    }
-
-    try {
-      await sendEmail({
-        to: email,
-        subject: `${otp} — sign in to RESOLVE`,
-        html: loginEmailHtml(otp, magicLink),
-      });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Could not send email";
-      return NextResponse.json({ error: message }, { status: 500 });
-    }
-
+  if (!canSendViaResend(email)) {
     recentSends.set(email, Date.now());
     return NextResponse.json({
       ok: true,
-      delivery: "resend",
-      message: "Sign-in email sent",
+      delivery: "supabase",
+      verifyMode: "link",
+      clientSend: true,
+      message: "Sign-in link will be sent to your inbox",
       expiresInMinutes: 30,
     });
   }
 
-  const { error: otpError } = await admin.auth.signInWithOtp({
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "magiclink",
     email,
-    options: {
-      shouldCreateUser: true,
-      emailRedirectTo: redirectTo,
-    },
+    options: { redirectTo },
   });
 
-  if (otpError) {
-    const cooldownSeconds = parseCooldown(otpError.message);
+  if (error) {
+    const cooldownSeconds = parseCooldown(error.message);
     return NextResponse.json(
-      { error: otpError.message, cooldownSeconds },
+      { error: error.message, cooldownSeconds },
       { status: cooldownSeconds ? 429 : 400 }
     );
+  }
+
+  const otp = data.properties?.email_otp;
+  const magicLink = data.properties?.action_link;
+  if (!otp || !magicLink) {
+    return NextResponse.json(
+      { error: "Could not generate sign-in email. Try again." },
+      { status: 500 }
+    );
+  }
+
+  try {
+    await sendEmail({
+      to: email,
+      subject: `${otp} — sign in to RESOLVE`,
+      html: loginEmailHtml(otp, magicLink),
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Could not send email";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   recentSends.set(email, Date.now());
   return NextResponse.json({
     ok: true,
-    delivery: "supabase",
-    message: "Sign-in email sent (check inbox for code or magic link)",
+    delivery: "resend",
+    verifyMode: "code",
+    message: "Sign-in email sent",
     expiresInMinutes: 30,
   });
 }

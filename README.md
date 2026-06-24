@@ -35,14 +35,21 @@ See [DEMO.md](./DEMO.md) for the full judge script.
 
 ## Stack
 
+**[Production stack page](https://resolve-task.vercel.app/stack)** — full architecture for judges.
+
 | Layer | Tech |
 |-------|------|
+| **AI (quality)** | Gemini 2.5 Flash — reasoning, verdicts, treasury insights |
+| **AI (fast)** | Groq Llama 3.1/3.3 — classification, routing, tagging |
+| **AI (research)** | Llama 3.3 via OpenRouter — repo analysis, contributor research |
+| **AI (reliability)** | Cloudflare AI Gateway — routing, failover, rate limits |
 | Frontend | Next.js 15, Tailwind, Reown AppKit, wagmi (Arc) |
-| Auth | Supabase (Google, email) + embedded wallet |
-| Agents | Gemini via Vercel AI SDK + fallback plans |
-| Tools | Gmail OAuth, Resend, Playwright (optional) |
+| Auth | Supabase (Google, email) + wallet connect |
 | Data | Prisma + Supabase Postgres |
-| Settlement | `DeputyEscrow.sol` on Arc Testnet |
+| Email | Resend |
+| Settlement | `DeputyEscrow.sol` on Arc Testnet USDC |
+
+See [docs/AI_ARCHITECTURE.md](./docs/AI_ARCHITECTURE.md) for tier routing and env vars.
 
 ## Arc contract (deployed)
 

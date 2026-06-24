@@ -85,7 +85,7 @@ export function useResolveAccount(): ResolveAccountState {
       avatarUrl,
       gmailConnected,
       arcConnected,
-      loading: authLoading || (hasSupabase && connectorsLoading),
+      loading: (authLoading && !hasWallet && !hasSupabase) || (hasSupabase && connectorsLoading),
     };
   }, [
     user,

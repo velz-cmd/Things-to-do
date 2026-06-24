@@ -89,7 +89,7 @@ export function AuthHeader() {
             aria-label="Close menu"
             onClick={() => setMenuOpen(false)}
           />
-          <div className="absolute right-0 z-50 mt-2 w-72 rounded-xl border border-deputy-border bg-deputy-panel p-2 shadow-xl">
+          <div className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-deputy-border bg-deputy-panel p-2 shadow-xl">
             <div className="border-b border-deputy-border px-3 py-2.5">
               <p className="truncate text-sm font-medium text-white">{displayName}</p>
               {account.email && (
@@ -97,10 +97,10 @@ export function AuthHeader() {
               )}
               {account.walletAddress && (
                 <p className="mt-1 font-mono text-[10px] text-deputy-muted">
-                  {shortAddress(account.walletAddress)}
+                  Wallet connected · {shortAddress(account.walletAddress)}
                 </p>
               )}
-              {!balanceLoading && balance && (
+              {!balanceLoading && balance && account.authMethod !== "wallet" && (
                 <p className="mt-1 text-xs text-deputy-accent">
                   ${balance.availableUsd.toFixed(2)} available
                 </p>
@@ -109,14 +109,44 @@ export function AuthHeader() {
 
             <ConnectorRow
               label="Account"
-              connected={account.authMethod === "supabase" || account.authMethod === "both"}
-              detail={account.email ?? (walletOnly ? "Wallet" : undefined)}
+              connected={
+                account.authMethod === "supabase" || account.authMethod === "both"
+              }
+              detail={
+                account.email ??
+                (walletOnly ? "Wallet identity" : undefined)
+              }
             />
             <ConnectorRow
               label="Gmail"
               connected={account.gmailConnected}
               detail={account.gmailConnected ? "Connected" : "Not connected"}
             />
+
+            {!account.gmailConnected && (
+              <div className="mx-2 mb-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5">
+                <p className="text-xs text-slate-300">
+                  Connect Gmail to receive refund updates, find receipts, and verify
+                  confirmations.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (walletOnly) {
+                      openSignIn();
+                    } else {
+                      window.location.href = "/api/connectors/gmail/authorize";
+                    }
+                    setMenuOpen(false);
+                  }}
+                  className="mt-2 w-full rounded-lg bg-sky-500/20 px-3 py-2 text-left text-sm font-medium text-sky-300 transition hover:bg-sky-500/30"
+                >
+                  {walletOnly
+                    ? "Sign in to connect Gmail"
+                    : "Connect Gmail for updates"}
+                </button>
+              </div>
+            )}
 
             {account.authMethod !== "wallet" && (
               <MenuItem

@@ -38,7 +38,7 @@ export default function RadarPage() {
       openSignIn();
       return;
     }
-    router.push(`/start?task=${encodeURIComponent(text)}&from=radar`);
+    router.push(`/missions?task=${encodeURIComponent(text)}&from=radar`);
   }
 
   async function scanWallet() {
@@ -66,8 +66,8 @@ export default function RadarPage() {
           <p className="mt-1 text-xs text-resolve-muted">
             Subscriptions and refund opportunities require Gmail or manual input.
           </p>
-          <Link href="/start" className="mt-2 inline-block text-xs text-sky-400 hover:underline">
-            Connect in Start →
+          <Link href="/missions" className="mt-2 inline-block text-xs text-sky-400 hover:underline">
+            Connect in Mission →
           </Link>
         </div>
       </GlassPanel>
@@ -104,7 +104,7 @@ export default function RadarPage() {
       <GlassPanel className="flex items-start gap-3 p-4">
         <Package className="mt-0.5 h-5 w-5 text-sky-400" />
         <p className="text-sm text-resolve-muted">
-          Enter a tracking number on <Link href="/start" className="text-sky-400 hover:underline">Start</Link> to check parcel claim options.
+          Enter a tracking number on <Link href="/missions" className="text-sky-400 hover:underline">Mission</Link> to check parcel claim options.
         </p>
       </GlassPanel>
     </div>

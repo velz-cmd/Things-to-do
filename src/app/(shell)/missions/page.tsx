@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { MissionsWorkspace } from "@/components/resolve/missions/missions-workspace";
+import { MissionHub } from "@/components/resolve/missions/mission-hub";
 import { TableSkeleton } from "@/components/resolve/ui/skeleton";
 
 export default function MissionsPage() {
@@ -11,7 +11,7 @@ export default function MissionsPage() {
         </div>
       }
     >
-      <MissionsWorkspace />
+      <MissionHub />
     </Suspense>
   );
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getLiveBlockers, isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { getCircleWalletSetId } from "@/lib/wallet/circle-config";
 import {
   getSupabaseServerUrl,
   getSupabaseServiceRoleKey,
@@ -9,6 +10,7 @@ import {
 /** Safe env presence check — never returns secret values. */
 export async function GET() {
   const present = (key: string) => Boolean(process.env[key]?.trim());
+  const circleWalletSetId = await getCircleWalletSetId();
 
   const env = {
     APP_URL: present("APP_URL") || present("NEXT_PUBLIC_APP_URL"),
@@ -22,6 +24,8 @@ export async function GET() {
     EMAIL_LOGIN_CODES: isSupabaseAdminConfigured() && present("RESEND_API_KEY"),
     CIRCLE_API_KEY: present("CIRCLE_API_KEY"),
     CIRCLE_ENTITY_SECRET: present("CIRCLE_ENTITY_SECRET"),
+    CIRCLE_WALLET_SET_ID: present("CIRCLE_WALLET_SET_ID"),
+    CIRCLE_WALLET_SET_CONFIGURED: Boolean(circleWalletSetId),
     ARC_CLIENT_WALLET_ADDRESS: present("ARC_CLIENT_WALLET_ADDRESS"),
     ARC_PROVIDER_WALLET_ADDRESS: present("ARC_PROVIDER_WALLET_ADDRESS"),
     ARC_RPC_URL: present("ARC_RPC_URL"),

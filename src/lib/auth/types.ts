@@ -30,12 +30,20 @@ export type ResolveAccountState = {
   email?: string;
   notificationEmail?: string;
   notificationEmailVerified: boolean;
+  /** Primary RESOLVE app wallet — persistent per account */
+  appWalletAddress?: string;
+  /** User-connected MetaMask/Rabby wallet */
+  externalWalletAddress?: string;
   walletAddress?: string;
   wallets: ResolveWallet[];
   displayName?: string;
   avatarUrl?: string;
-  gmailConnected: boolean;
+  /** Signed in with Google/email (identity) */
+  accountVerified: boolean;
+  /** Gmail inbox API for receipts (optional, separate from sign-in) */
+  gmailInboxConnected: boolean;
   arcConnected: boolean;
   appWalletPending: boolean;
+  appWalletProvider?: "circle" | "embedded";
   loading: boolean;
 };

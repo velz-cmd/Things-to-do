@@ -39,7 +39,12 @@ export interface WalletBalance {
 }
 
 export type EmailSendResult =
-  | { ok: true; alreadySent?: boolean }
+  | {
+      ok: true;
+      delivery?: "resend" | "supabase";
+      verifyMode?: "code" | "link";
+      alreadySent?: boolean;
+    }
   | { ok: false; cooldownSeconds?: number; message: string };
 
 export type VerifyOtpResult =
@@ -281,22 +286,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
           cooldownSeconds?: number;
+          clientSend?: boolean;
+          delivery?: "resend" | "supabase";
+          verifyMode?: "code" | "link";
         };
 
-        if (res.ok) {
-          return { ok: true };
+        if (!res.ok) {
+          const cooldownSeconds =
+            data.cooldownSeconds ?? parseOtpCooldown(String(data.error ?? ""));
+          const message = String(data.error ?? "Could not send sign-in email.");
+
+          return {
+            ok: false,
+            cooldownSeconds,
+            message: cooldownSeconds
+              ? `Email already sent. Try again in ${cooldownSeconds} seconds.`
+              : message,
+          };
         }
 
-        const cooldownSeconds =
-          data.cooldownSeconds ?? parseOtpCooldown(String(data.error ?? ""));
-        const message = String(data.error ?? "Could not send sign-in email.");
+        if (data.clientSend) {
+          if (!supabase) {
+            return { ok: false, message: "Email sign-in is not available" };
+          }
+
+          const { error } = await withTimeout(
+            supabase.auth.signInWithOtp({
+              email: trimmed,
+              options: {
+                shouldCreateUser: true,
+                emailRedirectTo: `${window.location.origin}/auth/callback`,
+              },
+            }),
+            15_000
+          );
+
+          if (error) {
+            const cooldownSeconds = parseOtpCooldown(error.message);
+            return {
+              ok: false,
+              cooldownSeconds,
+              message: cooldownSeconds
+                ? `Email already sent. Try again in ${cooldownSeconds} seconds.`
+                : error.message,
+            };
+          }
+        }
 
         return {
-          ok: false,
-          cooldownSeconds,
-          message: cooldownSeconds
-            ? `Email already sent. Try again in ${cooldownSeconds} seconds.`
-            : message,
+          ok: true,
+          delivery: data.delivery,
+          verifyMode: data.verifyMode ?? (data.clientSend ? "link" : "code"),
         };
       } catch (e) {
         if (e instanceof Error && e.message === "timeout") {
@@ -305,7 +345,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, message: "Could not send sign-in email." };
       }
     },
-    [emailEnabled]
+    [emailEnabled, supabase]
   );
 
   const verifyEmailOtp = useCallback(

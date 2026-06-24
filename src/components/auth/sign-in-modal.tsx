@@ -21,6 +21,7 @@ type AuthAction = "email" | "google" | "wallet" | "verify" | "guest" | null;
 const COOLDOWN_KEY = "resolve.signin.cooldownUntil";
 const EMAIL_KEY = "resolve.signin.email";
 const VERIFY_STEP_KEY = "resolve.signin.verifyPending";
+const VERIFY_MODE_KEY = "resolve.signin.verifyMode";
 
 function getCooldownRemaining(): number {
   try {
@@ -72,6 +73,7 @@ export function SignInModal() {
     wallet?: string;
   }>({});
   const [walletPending, setWalletPending] = useState(false);
+  const [verifyMode, setVerifyMode] = useState<"code" | "link">("link");
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const showEmail = emailEnabled;
@@ -118,7 +120,11 @@ export function SignInModal() {
     if (remaining > 0 && savedEmail) {
       try {
         const verifyPending = localStorage.getItem(VERIFY_STEP_KEY);
-        if (verifyPending === "1") setStep("verify");
+        const savedMode = localStorage.getItem(VERIFY_MODE_KEY);
+        if (verifyPending === "1") {
+          setVerifyMode(savedMode === "code" ? "code" : "link");
+          setStep("verify");
+        }
       } catch {
         /* ignore */
       }
@@ -156,10 +162,12 @@ export function SignInModal() {
 
   if (!open) return null;
 
-  function goToVerifyStep() {
+  function goToVerifyStep(mode: "code" | "link") {
+    setVerifyMode(mode);
     setStep("verify");
     try {
       localStorage.setItem(VERIFY_STEP_KEY, "1");
+      localStorage.setItem(VERIFY_MODE_KEY, mode);
     } catch {
       /* ignore */
     }
@@ -230,7 +238,8 @@ export function SignInModal() {
     if (cooldown > 0) {
       try {
         if (localStorage.getItem(VERIFY_STEP_KEY) === "1") {
-          goToVerifyStep();
+          const savedMode = localStorage.getItem(VERIFY_MODE_KEY);
+          goToVerifyStep(savedMode === "code" ? "code" : "link");
           return;
         }
       } catch {
@@ -247,13 +256,14 @@ export function SignInModal() {
         if (result.cooldownSeconds) {
           setCooldownSeconds(result.cooldownSeconds);
           setCooldown(result.cooldownSeconds);
-          goToVerifyStep();
+          const savedMode = localStorage.getItem(VERIFY_MODE_KEY);
+          goToVerifyStep(savedMode === "code" ? "code" : "link");
         }
         setMethodError((prev) => ({ ...prev, email: result.message }));
         return;
       }
 
-      goToVerifyStep();
+      goToVerifyStep(result.verifyMode ?? "link");
     } finally {
       setAuthAction(null);
     }
@@ -277,7 +287,7 @@ export function SignInModal() {
         }));
         return;
       }
-      goToVerifyStep();
+      goToVerifyStep(result.verifyMode ?? verifyMode);
     } finally {
       setAuthAction(null);
     }
@@ -339,7 +349,9 @@ export function SignInModal() {
     step === "wallet-picker"
       ? "Pick the wallet you want to connect."
       : step === "verify"
-        ? `We sent a sign-in email to ${email}. Enter the code below or open the magic link in that email.`
+        ? verifyMode === "code"
+          ? `We sent a sign-in email to ${email}. Enter the 6-digit code below, or tap the magic link in that email.`
+          : `We sent a sign-in link to ${email}. Open the email on this device and tap Sign in.`
         : showEmail && showWallet
           ? "Enter your email or connect a wallet to get started."
           : showWallet
@@ -538,41 +550,56 @@ export function SignInModal() {
           )}
 
           {step === "verify" && showEmail && (
-            <form onSubmit={handleVerifyOtp} className="mt-6 space-y-5">
-              <OtpInput
-                value={otp}
-                onChange={setOtp}
-                disabled={authAction === "verify"}
-                error={Boolean(inlineError)}
-              />
-              {inlineError && (
-                <p className="text-center text-xs text-amber-200">{inlineError}</p>
+            <div className="mt-6 space-y-5">
+              {verifyMode === "link" ? (
+                <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-4 text-sm text-slate-300">
+                  <p>
+                    Open the email from Supabase Auth and tap{" "}
+                    <span className="font-medium text-white">Sign in</span>. Keep
+                    this tab open — you will be redirected automatically.
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Check spam if you do not see it within a minute.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleVerifyOtp} className="space-y-5">
+                  <OtpInput
+                    value={otp}
+                    onChange={setOtp}
+                    disabled={authAction === "verify"}
+                    error={Boolean(inlineError)}
+                  />
+                  {inlineError && (
+                    <p className="text-center text-xs text-amber-200">{inlineError}</p>
+                  )}
+                  {walletPending ? (
+                    <div className="space-y-3 rounded-xl border border-white/10 bg-black/30 p-4">
+                      <p className="text-sm text-slate-300">
+                        Account created. App wallet setup needs retry.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void handleRetryWallet()}
+                        disabled={authAction === "verify"}
+                        className="w-full rounded-xl bg-sky-500 py-3 text-sm font-semibold text-white hover:bg-sky-400 disabled:opacity-50"
+                      >
+                        Retry wallet setup
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={authAction === "verify" || otp.length < 6}
+                      className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:opacity-50"
+                    >
+                      {authAction === "verify" ? "Verifying…" : "Continue with code"}
+                    </button>
+                  )}
+                </form>
               )}
               {methodError.email && (
                 <p className="text-center text-xs text-amber-200">{methodError.email}</p>
-              )}
-              {walletPending ? (
-                <div className="space-y-3 rounded-xl border border-white/10 bg-black/30 p-4">
-                  <p className="text-sm text-slate-300">
-                    Account created. App wallet setup needs retry.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void handleRetryWallet()}
-                    disabled={authAction === "verify"}
-                    className="w-full rounded-xl bg-sky-500 py-3 text-sm font-semibold text-white hover:bg-sky-400 disabled:opacity-50"
-                  >
-                    Retry wallet setup
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={authAction === "verify" || otp.length < 6}
-                  className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:opacity-50"
-                >
-                  {authAction === "verify" ? "Verifying…" : "Continue"}
-                </button>
               )}
               <button
                 type="button"
@@ -592,7 +619,7 @@ export function SignInModal() {
                   {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend email"}
                 </button>
               </div>
-            </form>
+            </div>
           )}
 
           <p className="mt-6 text-center text-[10px] leading-relaxed text-slate-500">

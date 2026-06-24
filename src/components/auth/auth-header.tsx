@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAppKit } from "@reown/appkit/react";
 import { useDisconnect } from "wagmi";
-import { Copy, Mail, Wallet } from "lucide-react";
+import { Copy, Mail, User, Wallet } from "lucide-react";
 import clsx from "clsx";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -12,6 +12,7 @@ import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { projectId } from "@/lib/reown/config";
 import {
+  clearGuestExploring,
   GMAIL_AFTER_AUTH_KEY,
   setLocalNotificationEmail,
 } from "@/lib/auth/guest";
@@ -27,7 +28,8 @@ function shortAddress(address: string) {
 }
 
 export function AuthHeader() {
-  const { signOut, signInWithGoogle, balance, balanceLoading } = useAuth();
+  const { signOut, signInWithGoogle, balance, balanceLoading, googleEnabled } =
+    useAuth();
   const account = useResolveAccount();
   const { openSignIn } = useSignInModal();
   const { openAddFunds } = useAddFunds();
@@ -37,17 +39,16 @@ export function AuthHeader() {
   const [notificationDraft, setNotificationDraft] = useState("");
   const [showEmailCapture, setShowEmailCapture] = useState(false);
 
-  const displayName = account.displayName ?? "Account";
-  const walletOnly = account.authMethod === "wallet";
+  const walletOnly = account.mode === "wallet";
   const hasEmailSession =
-    account.authMethod === "email" ||
-    account.authMethod === "google" ||
-    account.authMethod === "both";
+    account.mode === "email" ||
+    account.mode === "google" ||
+    account.mode === "both";
   const appWallet = account.wallets.find((w) => w.type === "app_managed");
 
   async function handleConnectGmail() {
     setMenuOpen(false);
-    if (walletOnly) {
+    if (walletOnly && googleEnabled) {
       try {
         sessionStorage.setItem(GMAIL_AFTER_AUTH_KEY, "1");
       } catch {
@@ -56,7 +57,9 @@ export function AuthHeader() {
       await signInWithGoogle();
       return;
     }
-    window.location.href = "/api/connectors/gmail/authorize";
+    if (!walletOnly) {
+      window.location.href = "/api/connectors/gmail/authorize";
+    }
   }
 
   async function saveNotificationEmail() {
@@ -84,6 +87,41 @@ export function AuthHeader() {
     toast.success("Address copied");
   }
 
+  if (account.mode === "guest") {
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setMenuOpen((o) => !o)}
+          className="rounded-full border border-deputy-border bg-deputy-panel px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-deputy-accent/50"
+        >
+          Guest
+        </button>
+        {menuOpen && (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40"
+              aria-label="Close menu"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-deputy-border bg-deputy-panel p-2 shadow-xl">
+              <MenuItem
+                onClick={() => {
+                  clearGuestExploring();
+                  openSignIn();
+                  setMenuOpen(false);
+                }}
+              >
+                Sign in
+              </MenuItem>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   if (!account.isAuthenticated) {
     return (
       <button
@@ -96,6 +134,13 @@ export function AuthHeader() {
     );
   }
 
+  const chipLabel =
+    walletOnly && account.walletAddress
+      ? shortAddress(account.walletAddress)
+      : account.email
+        ? account.email.split("@")[0]
+        : (account.displayName ?? "Account");
+
   return (
     <div className="relative">
       <button
@@ -103,7 +148,7 @@ export function AuthHeader() {
         onClick={() => setMenuOpen((o) => !o)}
         className="flex items-center gap-2.5 rounded-full border border-deputy-border bg-deputy-panel/80 py-1.5 pl-1.5 pr-3 transition hover:border-deputy-accent/40"
       >
-        {walletOnly && !hasEmailSession ? (
+        {walletOnly ? (
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-deputy-accent/20">
             <Wallet className="h-4 w-4 text-deputy-accent" />
           </span>
@@ -116,15 +161,13 @@ export function AuthHeader() {
           />
         ) : (
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-deputy-accent/20 text-xs font-semibold text-deputy-accent">
-            {initials(displayName)}
+            {initials(chipLabel)}
           </span>
         )}
-        <span className="hidden max-w-[120px] truncate text-sm font-medium text-white sm:block">
-          {walletOnly && !account.email
-            ? shortAddress(account.walletAddress ?? displayName)
-            : displayName}
+        <span className="hidden max-w-[140px] truncate text-sm font-medium text-white sm:block">
+          {chipLabel}
         </span>
-        {account.authMethod === "both" && (
+        {account.mode === "both" && (
           <span
             className="hidden h-2 w-2 rounded-full bg-deputy-accent sm:block"
             title="Wallet connected"
@@ -147,7 +190,7 @@ export function AuthHeader() {
                   {account.email}
                 </p>
               )}
-              {walletOnly && account.walletAddress && (
+              {account.walletAddress && (
                 <p className="px-3 font-mono text-xs text-deputy-muted">
                   Wallet connected · {shortAddress(account.walletAddress)}
                 </p>
@@ -160,11 +203,6 @@ export function AuthHeader() {
                   <p className="mt-0.5 font-mono text-xs text-sky-300">
                     EVM: {shortAddress(appWallet.address)}
                   </p>
-                  {account.appWalletPending && (
-                    <p className="mt-1 text-[10px] text-amber-300">
-                      App wallet setup pending
-                    </p>
-                  )}
                 </div>
               )}
               {!balanceLoading && balance && hasEmailSession && (
@@ -223,7 +261,7 @@ export function AuthHeader() {
               />
             </Section>
 
-            {!account.gmailConnected && (
+            {!account.gmailConnected && (hasEmailSession || googleEnabled) && (
               <div className="mx-2 mb-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5">
                 <p className="text-xs text-slate-300">
                   Connect Gmail to receive refund updates, find receipts, and
@@ -236,12 +274,6 @@ export function AuthHeader() {
                 >
                   Connect Gmail
                 </button>
-                {walletOnly && (
-                  <p className="mt-2 text-[10px] text-slate-500">
-                    Google permission is needed so RESOLVE can find receipts and
-                    send refund updates.
-                  </p>
-                )}
               </div>
             )}
 
@@ -301,7 +333,7 @@ export function AuthHeader() {
                 </MenuItem>
               )}
 
-              {walletOnly && !hasEmailSession && (
+              {walletOnly && (
                 <MenuItem
                   onClick={() => {
                     disconnect();
@@ -351,8 +383,10 @@ function ConnectorRow({
       <span className="flex items-center gap-2 text-deputy-muted">
         {label === "Gmail" ? (
           <Mail className="h-3.5 w-3.5" />
-        ) : (
+        ) : label === "Wallet" ? (
           <Wallet className="h-3.5 w-3.5" />
+        ) : (
+          <User className="h-3.5 w-3.5" />
         )}
         {label}
       </span>

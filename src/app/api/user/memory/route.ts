@@ -13,10 +13,12 @@ export async function GET() {
     select: { taskMemoryJson: true },
   });
 
-  let memory = {};
+  let memory: Record<string, unknown> = {};
   if (user?.taskMemoryJson) {
     try {
-      memory = JSON.parse(user.taskMemoryJson);
+      const parsed = JSON.parse(user.taskMemoryJson) as Record<string, unknown>;
+      const { appWallet: _appWallet, ...workspace } = parsed;
+      memory = workspace;
     } catch {
       memory = {};
     }
@@ -48,11 +50,14 @@ export async function PATCH(req: Request) {
     }
   }
 
-  const merged = {
+  const merged: Record<string, unknown> = {
     ...prev,
     ...patch,
     updatedAt: new Date().toISOString(),
   };
+  if (prev.appWallet !== undefined) {
+    merged.appWallet = prev.appWallet;
+  }
 
   await prisma.user.update({
     where: { id: ready.user.id },

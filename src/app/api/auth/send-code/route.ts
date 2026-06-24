@@ -7,7 +7,14 @@ export const runtime = "nodejs";
 const SEND_COOLDOWN_MS = 60_000;
 const recentSends = new Map<string, number>();
 
-function appOrigin() {
+function appOrigin(req: Request) {
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") ?? "https";
+  if (host && !host.includes("localhost")) {
+    return `${proto}://${host}`;
+  }
+  const origin = req.headers.get("origin");
+  if (origin) return origin.replace(/\/$/, "");
   return (
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.APP_URL ??
@@ -85,7 +92,7 @@ export async function POST(req: Request) {
     type: "magiclink",
     email,
     options: {
-      redirectTo: `${appOrigin()}/auth/callback`,
+      redirectTo: `${appOrigin(req)}/auth/callback`,
     },
   });
 
@@ -124,7 +131,10 @@ export async function POST(req: Request) {
       // Resend sandbox: deliver the same OTP through Supabase Auth mailer.
       const { error: otpMailError } = await admin.auth.signInWithOtp({
         email,
-        options: { shouldCreateUser: true },
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: `${appOrigin(req)}/auth/callback`,
+        },
       });
       if (otpMailError) {
         return NextResponse.json({ error: otpMailError.message }, { status: 500 });

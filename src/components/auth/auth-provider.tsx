@@ -34,7 +34,7 @@ export interface WalletBalance {
 }
 
 export type EmailSendResult =
-  | { ok: true; method?: "otp" | "magic_link" }
+  | { ok: true; method?: "otp" | "magic_link"; alreadySent?: boolean }
   | { ok: false; cooldownSeconds?: number; message: string };
 
 export type VerifyOtpResult =
@@ -242,6 +242,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (email: string): Promise<EmailSendResult> => {
       const trimmed = email.trim().toLowerCase();
 
+      if (capabilities.emailMagicLink && supabase) {
+        const magic = await signInWithEmail(trimmed);
+        if (magic.ok) return magic;
+        if (magic.cooldownSeconds) {
+          return {
+            ok: true,
+            method: "magic_link",
+            alreadySent: true,
+          };
+        }
+      }
+
       if (capabilities.emailOtp) {
         try {
           const res = await withTimeout(
@@ -259,12 +271,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           const msg = String(data.error ?? "Could not send code");
-          if (res.status === 429 || msg.toLowerCase().includes("wait")) {
-            const cooldownSeconds = parseOtpCooldown(msg) ?? 60;
+          const cooldownSeconds = parseOtpCooldown(msg);
+          if (
+            res.status === 429 ||
+            cooldownSeconds !== undefined ||
+            msg.toLowerCase().includes("wait") ||
+            msg.toLowerCase().includes("security")
+          ) {
             return {
-              ok: false,
-              cooldownSeconds,
-              message: `Code already sent. Try again in ${cooldownSeconds} seconds.`,
+              ok: true,
+              method: "otp",
+              alreadySent: true,
             };
           }
         } catch (e) {
@@ -274,13 +291,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      if (capabilities.emailMagicLink) {
+      if (capabilities.emailMagicLink && supabase) {
         return signInWithEmail(trimmed);
       }
 
       return { ok: false, message: "Email sign-in is not available" };
     },
-    [capabilities.emailOtp, capabilities.emailMagicLink, signInWithEmail]
+    [
+      capabilities.emailOtp,
+      capabilities.emailMagicLink,
+      supabase,
+      signInWithEmail,
+    ]
   );
 
   const verifyEmailOtp = useCallback(

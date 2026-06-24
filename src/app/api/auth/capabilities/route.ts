@@ -41,11 +41,7 @@ export async function GET() {
   const emailMagicLink = supabase;
   const email = emailMagicLink || emailOtp;
 
-  const wallet = Boolean(
-    process.env.NEXT_PUBLIC_REOWN_PROJECT_ID?.trim() ||
-      process.env.NEXT_PUBLIC_PROJECT_ID?.trim() ||
-      process.env.REOWN_PROJECT_ID?.trim()
-  );
+  const wallet = true;
 
   return NextResponse.json({
     supabase,

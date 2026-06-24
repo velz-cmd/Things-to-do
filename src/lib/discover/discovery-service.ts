@@ -1,4 +1,6 @@
 import { gmailSearchReceipts } from "@/lib/deputy/tools/gmail";
+import { getArcTransactionCount, getArcUsdcBalance, isAlchemyConfigured } from "@/lib/wallet/alchemy";
+import { isWalletLabelsConfigured, lookupWalletLabel } from "@/lib/wallet/wallet-labels";
 
 export interface DiscoveryItem {
   id: string;
@@ -201,19 +203,68 @@ export async function discoverWallet(address: string): Promise<{
     };
   }
 
-  return {
-    items: [
-      {
-        id: "wallet-usdc",
-        label: `Idle USDC on Arc scan: ${address.slice(0, 6)}…`,
+  if (!isAlchemyConfigured() && !isWalletLabelsConfigured()) {
+    return {
+      items: [],
+      source: "none",
+      message: "Configure ALCHEMY_API_KEY or WALLET_LABELS_API_KEY for live wallet scan",
+    };
+  }
+
+  const items: DiscoveryItem[] = [];
+  const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+
+  try {
+    if (isAlchemyConfigured()) {
+      const { balanceUsd } = await getArcUsdcBalance(address);
+      const txCount = await getArcTransactionCount(address);
+      items.push({
+        id: "wallet-usdc-balance",
+        label:
+          balanceUsd > 0.01
+            ? `${short} — ${balanceUsd.toFixed(2)} USDC on Arc`
+            : `${short} — low Arc USDC (${txCount} txs)`,
         company: "Arc",
-        amountUsd: 76,
-        period: "idle",
-        isDemo: true,
-        source: "demo",
-      },
-    ],
+        amountUsd: balanceUsd,
+        period: balanceUsd > 0.01 ? "balance" : "idle",
+        isDemo: false,
+        source: "alchemy",
+      });
+    }
+  } catch (e) {
+    console.warn("Alchemy wallet scan failed:", e);
+  }
+
+  try {
+    if (isWalletLabelsConfigured()) {
+      const label = await lookupWalletLabel(address);
+      if (label?.name) {
+        items.push({
+          id: "wallet-label",
+          label: `${label.name}${label.category ? ` (${label.category})` : ""}`,
+          company: label.category ?? "Wallet",
+          amountUsd: 0,
+          period: label.risk?.toLowerCase() ?? "labeled",
+          isDemo: false,
+          source: "walletlabels",
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("WalletLabels lookup failed:", e);
+  }
+
+  if (items.length === 0) {
+    return {
+      items: [],
+      source: "scan",
+      message: "No labeled assets found — wallet may be new or unlabeled",
+    };
+  }
+
+  return {
+    items,
     source: "scan",
-    message: "Demo scan results — live Alchemy/GoPlus integration pending",
+    message: "Live scan via Alchemy + WalletLabels",
   };
 }

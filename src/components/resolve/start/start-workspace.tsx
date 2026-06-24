@@ -24,8 +24,13 @@ import { ExecutionCostLedger } from "@/components/settlement/execution-cost-ledg
 import { TechnicalAuditDrawer } from "@/components/resolve/technical-audit-drawer";
 import { ResultCard } from "@/components/resolve/result-card";
 import { ProofUploadPanel, type EvidenceFileRow } from "@/components/resolve/start/proof-upload-panel";
-import { GlassPanel } from "@/components/resolve/ui/glass-panel";
-import { StatusChip } from "@/components/resolve/ui/status-chip";
+import { Panel } from "@/components/resolve/ui/panel";
+import { StatusChip, statusVariantForMission } from "@/components/resolve/ui/status-chip";
+import { MissionStepper } from "@/components/resolve/missions/mission-stepper";
+import { useMissionModal } from "@/components/resolve/missions/mission-modal-context";
+import { EmptyState } from "@/components/resolve/ui/empty-state";
+import { Money } from "@/components/resolve/ui/money";
+import { LayoutList } from "lucide-react";
 import { taskStatusLabel, taskProgress } from "@/lib/resolve/progress";
 import { buildHumanTimeline } from "@/lib/tasks/timeline-humanize";
 import { Mail, Wallet, ChevronRight } from "lucide-react";
@@ -37,11 +42,16 @@ import {
 } from "@/lib/resolve/workspace-memory";
 
 export function StartWorkspace() {
+  return <MissionsWorkspace />;
+}
+
+export function MissionsWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { ready } = useResolveAccess();
   const { user } = useAuth();
   const { openSignIn } = useSignInModal();
+  const { openModal } = useMissionModal();
   const {
     registerSubmitHandler,
     setSubmitLoading,
@@ -132,13 +142,13 @@ export function StartWorkspace() {
         if (remote.showMissions) setShowMissions(true);
         if (remote.classification) setClassification(remote.classification);
         if (!missionId && remote.activeMissionId) {
-          router.replace(`/start?mission=${remote.activeMissionId}`);
+          router.replace(`/missions?mission=${remote.activeMissionId}`);
         }
         if (remote.draft) {
           hydrateMemory({ draft: remote.draft });
         }
       } else if (!missionId && session.activeMissionId) {
-        router.replace(`/start?mission=${session.activeMissionId}`);
+        router.replace(`/missions?mission=${session.activeMissionId}`);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,7 +214,7 @@ export function StartWorkspace() {
         toast.success("Task started", {
           description: cls.isDemo ? "Demo — lock task budget when ready" : "Lock task budget to continue",
         });
-        router.replace(`/start?mission=${data.task.id}`);
+        router.replace(`/missions?mission=${data.task.id}`);
         await loadMission(data.task.id);
         await refresh();
       } catch (e) {
@@ -283,22 +293,15 @@ export function StartWorkspace() {
   const nextAction = activeTask ? nextActionLabel(missing, activeTask) : "Start task";
 
   return (
-    <div
-      className={clsx(
-        "resolve-grid-bg mx-auto max-w-6xl px-4 pb-32 pt-8 lg:px-8",
-        fromHome && "animate-resolve-enter"
-      )}
-    >
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">Start</h1>
-        <p className="mt-1 text-sm text-resolve-muted">
-          Assign tasks, upload proof, track progress, and settle — all in one place.
-        </p>
-      </div>
+    <div className={clsx("mx-auto max-w-6xl animate-resolve-enter px-6 py-6", fromHome && "")}>
+      {activeTask ? (
+        <div className="mb-6">
+          <MissionStepper status={activeTask.status} />
+        </div>
+      ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Main column */}
-        <div className="space-y-6 lg:col-span-3">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
           {/* Task intake / active mission */}
           {activeTask ? (
             <ActiveMissionPanel
@@ -310,23 +313,25 @@ export function StartWorkspace() {
               isTerminal={isTerminal}
             />
           ) : (
-            <GlassPanel className="p-6" glow>
-              <h2 className="text-sm font-semibold text-white">Task intake</h2>
-              <p className="mt-2 text-sm text-resolve-muted">
-                Use the command bar below to tell RESOLVE what to handle.
-              </p>
-              {classification && (
-                <IntakeSummary classification={classification} />
-              )}
-              {!classification && prefilledTask && (
-                <p className="mt-3 text-sm text-sky-300">Draft: {prefilledTask}</p>
-              )}
-            </GlassPanel>
+            <EmptyState
+              icon={LayoutList}
+              title="No mission selected"
+              description="Create a bounty, distribution batch, or recovery mission. Outcomes settle on Arc only after verification."
+              action={
+                <button
+                  type="button"
+                  onClick={openModal}
+                  className="rounded-md bg-resolve-accent px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500"
+                >
+                  New mission
+                </button>
+              }
+            />
           )}
 
           {/* Recent missions drawer toggle */}
           {active.length > 0 && (
-            <GlassPanel className="p-4">
+            <Panel className="p-4">
               <button
                 type="button"
                 onClick={() => setShowMissions(!showMissions)}
@@ -342,7 +347,7 @@ export function StartWorkspace() {
                   {tasks.slice(0, 8).map((t) => (
                     <li key={t.id}>
                       <Link
-                        href={`/start?mission=${t.id}`}
+                        href={`/missions?mission=${t.id}`}
                         className="flex items-center justify-between rounded-lg bg-black/20 px-3 py-2 text-sm hover:bg-black/30"
                       >
                         <span className="truncate text-white">{t.title}</span>
@@ -354,17 +359,17 @@ export function StartWorkspace() {
                   ))}
                 </ul>
               )}
-            </GlassPanel>
+            </Panel>
           )}
 
           {activeTask && !isTerminal && (
             <>
-              <GlassPanel className="p-5">
+              <Panel className="p-5">
                 <MissionProgress
                   status={activeTask.status}
                   label={taskStatusLabel(activeTask.status)}
                 />
-              </GlassPanel>
+              </Panel>
               <HumanTimeline
                 items={buildHumanTimeline(activeTask.events ?? [], activeTask.status)}
               />
@@ -379,8 +384,8 @@ export function StartWorkspace() {
           {activeTask?.status === "settled" && <ResultCard task={activeTask} />}
         </div>
 
-        {/* Right column */}
-        <div className="space-y-6 lg:col-span-2">
+        {/* Escrow rail */}
+        <div className="space-y-6 lg:col-span-1">
           <ConnectorReadinessPanel
             connectors={connectors}
             category={activeTask?.category ?? classification?.category}
@@ -395,23 +400,23 @@ export function StartWorkspace() {
 
           {/* Approvals */}
           {pending.length > 0 && (
-            <GlassPanel className="space-y-3 p-5">
+            <Panel className="space-y-3 p-5">
               <h2 className="text-sm font-semibold text-white">Needs approval</h2>
               {pending.map((t) => (
                 <Link
                   key={t.id}
-                  href={`/start?mission=${t.id}`}
+                  href={`/missions?mission=${t.id}`}
                   className="block rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm hover:bg-amber-500/10"
                 >
                   <p className="font-medium text-white">{t.title}</p>
                   <p className="text-xs text-amber-100">{t.attentionReason ?? "Review required"}</p>
                 </Link>
               ))}
-            </GlassPanel>
+            </Panel>
           )}
 
           {/* Vault drawer */}
-          <GlassPanel className="p-5">
+          <Panel className="p-5">
             <button
               type="button"
               onClick={() => setShowVault(!showVault)}
@@ -424,14 +429,14 @@ export function StartWorkspace() {
             </button>
             {showVault && (
               <div className="mt-4 space-y-3">
-                <VaultAction icon={Mail} label="Gmail" action="Connect Gmail" href="/start" />
+                <VaultAction icon={Mail} label="Gmail" action="Connect Gmail" href="/missions" />
                 <VaultAction icon={Wallet} label="Wallet scan" action="Add in Radar" href="/radar" />
                 <p className="text-[10px] text-resolve-muted">
                   RESOLVE never stores passwords, seed phrases, or private keys.
                 </p>
               </div>
             )}
-          </GlassPanel>
+          </Panel>
 
           {activeTask && (
             <SettlementPanel
@@ -442,7 +447,7 @@ export function StartWorkspace() {
           )}
 
           {activeTask?.proofs && activeTask.proofs.length > 0 && (
-            <GlassPanel className="p-5">
+            <Panel className="p-5">
               <h2 className="text-sm font-semibold text-white">Verified proof</h2>
               <ul className="mt-3 space-y-2">
                 {activeTask.proofs.map((p) => (
@@ -458,7 +463,7 @@ export function StartWorkspace() {
                   </li>
                 ))}
               </ul>
-            </GlassPanel>
+            </Panel>
           )}
         </div>
       </div>
@@ -468,7 +473,7 @@ export function StartWorkspace() {
 
 function IntakeSummary({ classification }: { classification: TaskClassification }) {
   return (
-    <div className="mt-4 space-y-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 text-sm">
+    <div className="mt-4 space-y-2 rounded-md border border-resolve-border-strong bg-resolve-accent-muted p-4 text-sm">
       <p>
         <span className="text-resolve-muted">Detected: </span>
         <span className="text-white">{classification.category.replace(/_/g, " ")}</span>
@@ -502,17 +507,20 @@ function ActiveMissionPanel({
   onAction: () => void;
   isTerminal: boolean;
 }) {
-  const pct = taskProgress(task.status);
-
   return (
-    <GlassPanel className="p-5" glow>
+    <Panel className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          {task.isDemo && <StatusChip label="Demo data" variant="demo" />}
+          {task.isDemo && <StatusChip label="Demo" variant="demo" />}
           <h2 className="mt-2 text-lg font-semibold text-white">{task.title}</h2>
-          <p className="mt-1 text-sm text-resolve-muted">{taskStatusLabel(task.status)} · {pct}%</p>
+          <p className="mt-2">
+            <Money amount={task.targetValueUsd} size="sm" />
+          </p>
         </div>
-        <StatusChip label={taskStatusLabel(task.status)} variant="ready" />
+        <StatusChip
+          label={taskStatusLabel(task.status)}
+          variant={statusVariantForMission(task.status)}
+        />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
         <Stat label="Expected" value={`$${task.targetValueUsd.toFixed(2)}`} />
@@ -530,13 +538,13 @@ function ActiveMissionPanel({
           type="button"
           disabled={actionLoading}
           onClick={onAction}
-          className="mt-4 w-full rounded-xl bg-sky-500 py-3 text-sm font-semibold text-white hover:bg-sky-400 disabled:opacity-50"
+          className="mt-4 w-full rounded-md bg-resolve-accent py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
         >
           {actionLoading ? "Working…" : nextAction}
         </button>
       )}
       {classification && <IntakeSummary classification={classification} />}
-    </GlassPanel>
+    </Panel>
   );
 }
 
@@ -563,10 +571,10 @@ function VaultAction({
   return (
     <div className="flex items-center justify-between rounded-lg bg-black/20 px-3 py-2">
       <span className="flex items-center gap-2 text-sm text-white">
-        <Icon className="h-4 w-4 text-sky-400" />
+        <Icon className="h-4 w-4 text-resolve-accent" />
         {label}
       </span>
-      <Link href={href} className="text-xs text-sky-400 hover:underline">
+      <Link href={href} className="text-xs text-resolve-accent hover:underline">
         {action}
       </Link>
     </div>

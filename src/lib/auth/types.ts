@@ -13,11 +13,19 @@ export type ResolveAuthMethod =
   | "google"
   | "wallet"
   | "both"
-  | "anonymous"
   | "none";
+
+export type AccountMode =
+  | "none"
+  | "guest"
+  | "wallet"
+  | "email"
+  | "google"
+  | "both";
 
 export type ResolveAccountState = {
   isAuthenticated: boolean;
+  mode: AccountMode;
   authMethod: ResolveAuthMethod;
   email?: string;
   notificationEmail?: string;
@@ -30,5 +38,4 @@ export type ResolveAccountState = {
   arcConnected: boolean;
   appWalletPending: boolean;
   loading: boolean;
-  isGuest: boolean;
 };

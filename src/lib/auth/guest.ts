@@ -25,11 +25,14 @@ export function isGuestExploring(): boolean {
   }
 }
 
+export const GUEST_CHANGE_EVENT = "resolve-guest-change";
+
 export function enableGuestExploring(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(GUEST_MODE_KEY, "1");
     getOrCreateGuestId();
+    window.dispatchEvent(new Event(GUEST_CHANGE_EVENT));
   } catch {
     /* ignore */
   }

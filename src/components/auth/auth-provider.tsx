@@ -8,11 +8,16 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { Session, User as SupabaseUser } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { Session, User as SupabaseUser, SupabaseClient } from "@supabase/supabase-js";
 import {
   isSupabaseConfigured,
   tryCreateSupabaseBrowserClient,
 } from "@/lib/supabase/client";
+import {
+  useAuthCapabilities,
+  markGoogleAuthBroken,
+} from "@/hooks/use-auth-capabilities";
 import { toast } from "sonner";
 
 export interface WalletBalance {
@@ -41,12 +46,19 @@ function parseOtpCooldown(message: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-function authConfigError(): string {
-  const isDev = process.env.NODE_ENV === "development";
-  if (isDev) {
-    return "Authentication is not configured. Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.";
-  }
-  return "Sign-in is temporarily unavailable. Please try again later.";
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), ms);
+    promise
+      .then((v) => {
+        clearTimeout(timer);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+  });
 }
 
 interface AuthContextValue {
@@ -54,6 +66,8 @@ interface AuthContextValue {
   session: Session | null;
   loading: boolean;
   supabaseConfigured: boolean;
+  emailEnabled: boolean;
+  googleEnabled: boolean;
   balance: WalletBalance | null;
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
@@ -68,13 +82,33 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const supabase = useMemo(() => tryCreateSupabaseBrowserClient(), []);
-  const supabaseConfigured = isSupabaseConfigured();
+  const capabilities = useAuthCapabilities();
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(() =>
+    tryCreateSupabaseBrowserClient()
+  );
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<WalletBalance | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+
+  const supabaseConfigured =
+    capabilities.supabase ||
+    isSupabaseConfigured() ||
+    Boolean(capabilities.publicConfig);
+  const emailEnabled = capabilities.email;
+  const googleEnabled = capabilities.google;
+
+  useEffect(() => {
+    if (supabase) return;
+    if (!capabilities.publicConfig) return;
+    setSupabase(
+      createBrowserClient(
+        capabilities.publicConfig.url,
+        capabilities.publicConfig.anonKey
+      )
+    );
+  }, [supabase, capabilities.publicConfig]);
 
   const refreshBalance = useCallback(async () => {
     setBalanceLoading(true);
@@ -100,12 +134,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshBalance]);
 
   useEffect(() => {
+    if (!capabilities.loaded) return;
+
     if (!supabase) {
       setLoading(false);
       return;
     }
 
+    let cancelled = false;
+
     supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
@@ -123,48 +162,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
           .then(() => refreshBalance())
           .catch(() => {
-            /* provision may fail without server config */
+            /* non-fatal */
           });
       } else {
         setBalance(null);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [supabase, refreshBalance]);
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [supabase, capabilities.loaded, refreshBalance]);
 
   useEffect(() => {
     if (user) void refreshBalance();
   }, [user, refreshBalance]);
 
   const signInWithGoogle = useCallback(async () => {
-    if (!supabase) {
-      toast.error(authConfigError());
-      return;
+    if (!supabase || !googleEnabled) {
+      throw new Error("Google sign-in is not available");
     }
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        scopes: "openid email profile",
-      },
-    });
-    if (error) toast.error("Google sign-in failed", { description: error.message });
-  }, [supabase]);
+    const { error } = await withTimeout(
+      supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          scopes: "openid email profile",
+        },
+      }),
+      10_000
+    );
+    if (error) {
+      if (
+        error.message.includes("redirect") ||
+        error.message.includes("OAuth")
+      ) {
+        markGoogleAuthBroken();
+      }
+      throw error;
+    }
+  }, [supabase, googleEnabled]);
 
   const signInWithEmail = useCallback(
     async (email: string): Promise<EmailSendResult> => {
-      if (!supabase) {
-        return { ok: false, message: authConfigError() };
+      if (!supabase || !emailEnabled) {
+        return { ok: false, message: "Email sign-in is not available" };
       }
 
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      const { error } = await withTimeout(
+        supabase.auth.signInWithOtp({
+          email: email.trim().toLowerCase(),
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        }),
+        15_000
+      );
 
       if (error) {
         const cooldownSeconds = parseOtpCooldown(error.message);
@@ -180,38 +235,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { ok: true, method: "magic_link" };
     },
-    [supabase]
+    [supabase, emailEnabled]
   );
 
   const sendLoginCode = useCallback(
     async (email: string): Promise<EmailSendResult> => {
       const trimmed = email.trim().toLowerCase();
-      const res = await fetch("/api/auth/send-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
-      });
-      const data = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
-        const msg = String(data.error ?? "Could not send code");
-        if (res.status === 429 || msg.toLowerCase().includes("wait")) {
-          const cooldownSeconds = parseOtpCooldown(msg) ?? 60;
-          return {
-            ok: false,
-            cooldownSeconds,
-            message: `Code already sent. Try again in ${cooldownSeconds} seconds.`,
-          };
+      if (capabilities.emailOtp) {
+        try {
+          const res = await withTimeout(
+            fetch("/api/auth/send-code", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: trimmed }),
+            }),
+            15_000
+          );
+          const data = await res.json().catch(() => ({}));
+
+          if (res.ok) {
+            return { ok: true, method: "otp" };
+          }
+
+          const msg = String(data.error ?? "Could not send code");
+          if (res.status === 429 || msg.toLowerCase().includes("wait")) {
+            const cooldownSeconds = parseOtpCooldown(msg) ?? 60;
+            return {
+              ok: false,
+              cooldownSeconds,
+              message: `Code already sent. Try again in ${cooldownSeconds} seconds.`,
+            };
+          }
+        } catch (e) {
+          if (e instanceof Error && e.message === "timeout") {
+            return { ok: false, message: "Email send timed out. Try again." };
+          }
         }
-        if (res.status === 503) {
-          return signInWithEmail(trimmed);
-        }
-        return { ok: false, message: msg };
       }
 
-      return { ok: true, method: "otp" };
+      if (capabilities.emailMagicLink) {
+        return signInWithEmail(trimmed);
+      }
+
+      return { ok: false, message: "Email sign-in is not available" };
     },
-    [signInWithEmail]
+    [capabilities.emailOtp, capabilities.emailMagicLink, signInWithEmail]
   );
 
   const verifyEmailOtp = useCallback(
@@ -269,8 +338,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       session,
-      loading,
+      loading: loading && capabilities.loaded,
       supabaseConfigured,
+      emailEnabled,
+      googleEnabled,
       balance,
       balanceLoading,
       signInWithGoogle,
@@ -285,7 +356,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       session,
       loading,
+      capabilities.loaded,
       supabaseConfigured,
+      emailEnabled,
+      googleEnabled,
       balance,
       balanceLoading,
       signInWithGoogle,

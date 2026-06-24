@@ -15,8 +15,8 @@ export async function GET() {
     PLAYWRIGHT_ENABLED: process.env.PLAYWRIGHT_ENABLED === "true",
     DATABASE_URL: present("DATABASE_URL"),
     SUPABASE_URL: Boolean(getSupabaseServerUrl()),
-    SUPABASE_ANON:
-      present("SUPABASE_ANON_KEY") || present("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    NEXT_PUBLIC_SUPABASE_URL: present("NEXT_PUBLIC_SUPABASE_URL"),
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: present("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     SUPABASE_SERVICE_ROLE: Boolean(getSupabaseServiceRoleKey()),
     RESEND_API_KEY: present("RESEND_API_KEY"),
     EMAIL_LOGIN_CODES: isSupabaseAdminConfigured() && present("RESEND_API_KEY"),

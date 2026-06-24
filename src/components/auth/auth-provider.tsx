@@ -8,8 +8,11 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import type { Session, User as SupabaseUser } from "@supabase/supabase-js";
+import {
+  isSupabaseConfigured,
+  tryCreateSupabaseBrowserClient,
+} from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 export interface WalletBalance {
@@ -25,15 +28,32 @@ export interface WalletBalance {
   }[];
 }
 
+export type EmailSendResult =
+  | { ok: true }
+  | { ok: false; cooldownSeconds?: number; message: string };
+
+function parseOtpCooldown(message: string): number | undefined {
+  const match = message.match(/after (\d+) seconds?/i);
+  return match ? Number(match[1]) : undefined;
+}
+
+function authConfigError(): string {
+  const isDev = process.env.NODE_ENV === "development";
+  if (isDev) {
+    return "Authentication is not configured. Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.";
+  }
+  return "Sign-in is temporarily unavailable. Please try again later.";
+}
+
 interface AuthContextValue {
   user: SupabaseUser | null;
+  session: Session | null;
   loading: boolean;
+  supabaseConfigured: boolean;
   balance: WalletBalance | null;
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
-  signInWithEmail: (email: string) => Promise<void>;
-  resendEmailCode: (email: string) => Promise<void>;
-  verifyEmailOtp: (email: string, token: string) => Promise<boolean>;
+  signInWithEmail: (email: string) => Promise<EmailSendResult>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   provisionWallet: () => Promise<void>;
@@ -42,7 +62,9 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => tryCreateSupabaseBrowserClient(), []);
+  const supabaseConfigured = isSupabaseConfigured();
+  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<WalletBalance | null>(null);
@@ -77,25 +99,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ?? null);
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setUser(data.session?.user ?? null);
       setLoading(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        try {
-          await fetch("/api/wallet/provision", {
-            method: "POST",
-            credentials: "include",
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      if (nextSession?.user) {
+        void fetch("/api/wallet/provision", {
+          method: "POST",
+          credentials: "include",
+        })
+          .then(() => refreshBalance())
+          .catch(() => {
+            /* provision may fail without server config */
           });
-          await refreshBalance();
-        } catch {
-          /* provision may fail without server config */
-        }
       } else {
         setBalance(null);
       }
@@ -110,94 +133,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     if (!supabase) {
-      toast.error("Sign-in not configured", {
-        description: "Add Supabase URL and anon key in environment variables.",
-      });
+      toast.error(authConfigError());
       return;
     }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: "openid email profile",
       },
     });
     if (error) toast.error("Google sign-in failed", { description: error.message });
   }, [supabase]);
 
-  const signInWithEmail = useCallback(async (email: string) => {
-    const res = await fetch("/api/auth/send-code", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email: email.trim().toLowerCase() }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      toast.error("Could not send code", { description: data.error ?? "Try again" });
-      throw new Error(data.error ?? "send failed");
-    }
-    toast.success("Code sent", {
-      description: `Check ${email} for your 6-digit login code.`,
-    });
-  }, []);
+  const signInWithEmail = useCallback(
+    async (email: string): Promise<EmailSendResult> => {
+      if (!supabase) {
+        return { ok: false, message: authConfigError() };
+      }
 
-  const resendEmailCode = useCallback(async (email: string) => {
-    await signInWithEmail(email);
-  }, [signInWithEmail]);
-
-  const verifyEmailOtp = useCallback(
-    async (email: string, token: string) => {
-      const res = await fetch("/api/auth/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          code: token.replace(/\s/g, ""),
-        }),
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error("Invalid or expired code", {
-          description: data.error ?? "Request a new code and try again.",
-        });
-        return false;
-      }
 
-      if (supabase) {
-        const { data: userData } = await supabase.auth.getUser();
-        setUser(userData.user ?? null);
-        if (!userData.user) {
-          await supabase.auth.refreshSession();
-          const { data: sessionData } = await supabase.auth.getSession();
-          setUser(sessionData.session?.user ?? null);
+      if (error) {
+        const cooldownSeconds = parseOtpCooldown(error.message);
+        if (cooldownSeconds !== undefined) {
+          return {
+            ok: false,
+            cooldownSeconds,
+            message: `Link already sent. Try again in ${cooldownSeconds} seconds.`,
+          };
         }
+        return { ok: false, message: error.message };
       }
 
-      const isNew = Boolean(data.isNewUser);
-      try {
-        await fetch("/api/wallet/provision", { method: "POST", credentials: "include" });
-        if (isNew) {
-          await fetch("/api/auth/welcome-email", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ email, isNewUser: true }),
-          });
-        }
-      } catch {
-        /* non-blocking */
-      }
-
-      await refreshBalance();
-      toast.success(isNew ? "Welcome to RESOLVE" : "Signed in");
-      return true;
+      return { ok: true };
     },
-    [supabase, refreshBalance]
+    [supabase]
   );
 
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
+    setSession(null);
     setUser(null);
     setBalance(null);
     toast.success("Signed out");
@@ -206,26 +188,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       user,
+      session,
       loading,
+      supabaseConfigured,
       balance,
       balanceLoading,
       signInWithGoogle,
       signInWithEmail,
-      resendEmailCode,
-      verifyEmailOtp,
       signOut,
       refreshBalance,
       provisionWallet,
     }),
     [
       user,
+      session,
       loading,
+      supabaseConfigured,
       balance,
       balanceLoading,
       signInWithGoogle,
       signInWithEmail,
-      resendEmailCode,
-      verifyEmailOtp,
       signOut,
       refreshBalance,
       provisionWallet,

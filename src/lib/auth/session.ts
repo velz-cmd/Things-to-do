@@ -4,7 +4,7 @@ import { RESOLVE_AGENT_ESCROW_ADDRESS } from "@/lib/arc/config";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { User as DbUser } from "@prisma/client";
 import { ensureUserProfile } from "@/lib/wallet/service";
-import { embeddedWalletFor } from "@/lib/wallet/embedded";
+import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
 
 export { getSessionUserId } from "@/lib/wallet/service";
 
@@ -45,15 +45,7 @@ export async function ensureProfileForUser(
     authProvider: provider,
   });
 
-  if (!profile.walletAddress) {
-    profile = await prisma.user.update({
-      where: { id: profile.id },
-      data: {
-        walletAddress: embeddedWalletFor(profile.id),
-        embeddedWallet: true,
-      },
-    });
-  }
+  profile = await ensureAppWalletForUser(profile);
 
   return profile;
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfileForUser } from "@/lib/auth/session";
+import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
 import type { ResolveWallet } from "@/lib/auth/types";
 
 export async function GET() {
@@ -18,6 +19,7 @@ export async function GET() {
   const profile = await ensureProfileForUser(authUser);
   const wallets: ResolveWallet[] = [];
   const createdAt = profile.createdAt.toISOString();
+  const provider = appWalletProvider(profile);
 
   if (profile.walletAddress && profile.embeddedWallet) {
     wallets.push({
@@ -25,37 +27,24 @@ export async function GET() {
       type: "app_managed",
       chain: "evm",
       address: profile.walletAddress,
-      provider: "circle",
-      isPrimary: !profile.scanWalletAddress,
-      createdAt,
-    });
-  } else if (profile.walletAddress) {
-    wallets.push({
-      id: `primary-${profile.id}`,
-      type: "app_managed",
-      chain: "evm",
-      address: profile.walletAddress,
+      provider: provider === "circle" ? "circle" : "embedded",
       isPrimary: true,
       createdAt,
     });
   }
 
-  if (
-    profile.scanWalletAddress &&
-    profile.scanWalletAddress.toLowerCase() !==
-      profile.walletAddress?.toLowerCase()
-  ) {
+  if (profile.scanWalletAddress) {
+    const app = wallets.find((w) => w.type === "app_managed");
     wallets.push({
       id: `ext-${profile.scanWalletAddress}`,
       type: "external",
       chain: "evm",
       address: profile.scanWalletAddress,
       provider: "wagmi",
-      isPrimary: true,
+      isPrimary: false,
       createdAt,
     });
-    const appWallet = wallets.find((w) => w.type === "app_managed");
-    if (appWallet) appWallet.isPrimary = false;
+    if (app) app.isPrimary = true;
   }
 
   if (wallets.length === 0) {

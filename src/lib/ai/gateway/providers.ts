@@ -1,6 +1,6 @@
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
 import { gatewayFetch, getGatewayBaseUrl } from "./cloudflare";
 import {
@@ -19,6 +19,25 @@ export type ModelCandidate = {
 
 let groqProvider: ReturnType<typeof createGroq> | null = null;
 let openRouterProvider: ReturnType<typeof createOpenAI> | null = null;
+let geminiProvider: ReturnType<typeof createGoogleGenerativeAI> | null = null;
+
+function getGeminiModel(modelId: string): LanguageModel {
+  const gatewayBase = getGatewayBaseUrl("google-ai-studio");
+  const apiKey =
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
+  if (gatewayBase && apiKey) {
+    if (!geminiProvider) {
+      geminiProvider = createGoogleGenerativeAI({
+        apiKey,
+        baseURL: gatewayBase,
+        fetch: gatewayFetch(),
+      });
+    }
+    return geminiProvider(modelId);
+  }
+  return google(modelId);
+}
 
 function getGroq() {
   if (!groqProvider) {
@@ -66,7 +85,7 @@ export function fastCandidates(): ModelCandidate[] {
     out.push({
       id: `gemini:${AI_MODELS.gemini.fast}`,
       provider: "gemini",
-      model: google(AI_MODELS.gemini.fast),
+      model: getGeminiModel(AI_MODELS.gemini.fast),
     });
   }
   if (isOpenRouterConfigured()) {
@@ -100,7 +119,7 @@ export function researchCandidates(): ModelCandidate[] {
     out.push({
       id: `gemini:${AI_MODELS.gemini.quality}`,
       provider: "gemini",
-      model: google(AI_MODELS.gemini.quality),
+      model: getGeminiModel(AI_MODELS.gemini.quality),
     });
   }
   return out;
@@ -113,12 +132,12 @@ export function qualityCandidates(): ModelCandidate[] {
     out.push({
       id: `gemini:${AI_MODELS.gemini.quality}`,
       provider: "gemini",
-      model: google(AI_MODELS.gemini.quality),
+      model: getGeminiModel(AI_MODELS.gemini.quality),
     });
     out.push({
       id: `gemini:${AI_MODELS.gemini.fast}`,
       provider: "gemini",
-      model: google(AI_MODELS.gemini.fast),
+      model: getGeminiModel(AI_MODELS.gemini.fast),
     });
   }
   if (isGroqConfigured()) {

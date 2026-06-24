@@ -1,19 +1,19 @@
 import clsx from "clsx";
 
-export function GlassPanel({
+export function Panel({
   children,
   className,
-  glow,
+  padding = true,
 }: {
   children: React.ReactNode;
   className?: string;
-  glow?: boolean;
+  padding?: boolean;
 }) {
   return (
     <div
       className={clsx(
         "rounded-lg border border-resolve-border-strong bg-resolve-raised",
-        glow && "ring-1 ring-resolve-accent/20",
+        padding && "p-5",
         className
       )}
     >

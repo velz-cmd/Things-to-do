@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RESOLVE — Assign it. Get proof it is done.",
+  title: "RESOLVE — Outcome network on Arc",
   description:
-    "Real-world tasks, finished by agents. Refunds, cancellations, claims, and protection with proof-based payment.",
+    "Mission control for outcome-backed payments. Bounties, distribution, and verified settlement on Arc USDC.",
 };
 
 export default async function RootLayout({

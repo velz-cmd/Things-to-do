@@ -124,7 +124,7 @@ export function CommandProvider({ children }: { children: ReactNode }) {
       setDraft(text.trim());
       setTransitioning(true);
       setTimeout(() => {
-        router.push(`/start?task=${encodeURIComponent(text.trim())}&from=home`);
+        router.push(`/missions?task=${encodeURIComponent(text.trim())}&from=home`);
         setTransitioning(false);
       }, 380);
     },

@@ -56,13 +56,13 @@ export default function AuthCallbackCompletePage() {
         });
 
         if (!cancelled) {
-          const next = searchParams.get("next") ?? "/start";
+          const next = searchParams.get("next") ?? "/missions";
           router.replace(next);
         }
       } catch (e) {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
-          router.replace("/start");
+          router.replace("/missions");
           return;
         }
         const message =

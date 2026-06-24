@@ -69,8 +69,8 @@ export function LiveMissionPreview() {
           ))}
         </ul>
         <Link
-          href="/start"
-          className="mt-5 inline-block text-sm font-medium text-sky-400 hover:text-sky-300"
+          href="/missions"
+          className="mt-5 inline-block text-sm font-medium text-resolve-accent hover:text-blue-300"
         >
           Start your own mission →
         </Link>
@@ -86,8 +86,8 @@ export function LiveMissionPreview() {
         <div>
           <p className="text-xs text-resolve-muted">Live mission</p>
           <Link
-            href={`/start?mission=${task.id}`}
-            className="mt-1 block text-lg font-semibold text-white hover:text-sky-300"
+            href={`/missions?mission=${task.id}`}
+            className="mt-1 block text-lg font-semibold text-white hover:text-blue-300"
           >
             {task.title}
           </Link>
@@ -113,7 +113,7 @@ export function LiveMissionPreview() {
         />
       </div>
       <Link
-        href={`/start?mission=${task.id}`}
+        href={`/missions?mission=${task.id}`}
         className="mt-5 inline-block text-sm font-medium text-sky-400 hover:text-sky-300"
       >
         View mission →

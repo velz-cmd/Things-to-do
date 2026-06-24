@@ -1,4 +1,5 @@
 import { generateTextWithFallback, runSwarmText } from "@/lib/ai/gateway";
+import { isSearchConfigured, searchMaintainers, searchRepositories } from "@/lib/search";
 
 /** Llama research layer — long documents, repo notes, bulk summaries. */
 export async function summarizeResearch(input: {
@@ -55,6 +56,7 @@ export async function analyzeGithubContext(input: {
 }): Promise<{
   analysis: string;
   modelId: string;
+  searchContext?: { maintainers: string[]; related: string[] };
   swarm?: { consensus: boolean; confidence: number; stages: unknown[] };
 } | null> {
   const body = [
@@ -65,9 +67,34 @@ export async function analyzeGithubContext(input: {
     .filter(Boolean)
     .join("\n");
 
+  let searchBlock = "";
+  let searchContext: { maintainers: string[]; related: string[] } | undefined;
+
+  if (isSearchConfigured()) {
+    try {
+      const [maintainers, related] = await Promise.all([
+        searchMaintainers(`${input.repoFullName} contributors maintainers`, 5),
+        searchRepositories(`${input.repoFullName} funding sponsors`, 5),
+      ]);
+      searchContext = {
+        maintainers: maintainers.results.map((r) => `${r.title} — ${r.url}`),
+        related: related.results.map((r) => `${r.title} — ${r.url}`),
+      };
+      searchBlock = `
+
+Web search — maintainers:
+${searchContext.maintainers.join("\n") || "none"}
+
+Web search — funding / related:
+${searchContext.related.join("\n") || "none"}`;
+    } catch (e) {
+      console.warn("Search enrichment skipped:", e);
+    }
+  }
+
   const system =
     "You analyze GitHub work for bounty and contributor payout missions on RESOLVE.";
-  const prompt = `${body}
+  const prompt = `${body}${searchBlock}
 
 In 3-5 bullet points: what was delivered, who should be credited, and what proof exists for settlement.`;
 
@@ -83,6 +110,7 @@ In 3-5 bullet points: what was delivered, who should be credited, and what proof
     return {
       analysis: swarm.output.trim(),
       modelId,
+      searchContext,
       swarm: {
         consensus: swarm.consensus,
         confidence: swarm.confidence,

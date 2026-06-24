@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { describeSwarmCapabilities, listConfiguredProviders } from "@/lib/ai/gateway";
+import { listSearchProviders, isSearchConfigured } from "@/lib/search";
 
 export async function GET() {
   const ai = listConfiguredProviders();
   const swarm = describeSwarmCapabilities();
+  const search = listSearchProviders();
   const hasLlm =
     ai.gemini || ai.groq || ai.openrouter || Boolean(process.env.DASHSCOPE_API_KEY);
 
@@ -14,6 +16,7 @@ export async function GET() {
     llmEnabled: hasLlm,
     llmProvider: ai.gemini ? "gemini-primary" : ai.groq ? "groq-primary" : "none",
     ai: { ...ai, swarm },
+    search: { ...search, enabled: isSearchConfigured() },
     qwenEnabled: Boolean(process.env.DASHSCOPE_API_KEY),
     geminiEnabled: ai.gemini,
     groqEnabled: ai.groq,

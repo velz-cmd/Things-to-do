@@ -41,15 +41,10 @@ export interface WalletBalance {
 export type EmailSendResult =
   | {
       ok: true;
-      delivery?: "resend" | "supabase";
-      verifyMode?: "code" | "link";
-      alreadySent?: boolean;
+      expiresInMinutes?: number;
+      resendCooldownSeconds?: number;
     }
   | { ok: false; cooldownSeconds?: number; message: string };
-
-export type VerifyOtpResult =
-  | { ok: true; walletPending?: boolean }
-  | { ok: false; message: string };
 
 function parseOtpCooldown(message: string): number | undefined {
   const match = message.match(/after (\d+) seconds?/i);
@@ -83,7 +78,6 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<EmailSendResult>;
   sendLoginCode: (email: string) => Promise<EmailSendResult>;
-  verifyEmailOtp: (email: string, code: string) => Promise<VerifyOtpResult>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   provisionWallet: () => Promise<void>;
@@ -287,56 +281,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error?: string;
           cooldownSeconds?: number;
           clientSend?: boolean;
-          delivery?: "resend" | "supabase";
-          verifyMode?: "code" | "link";
+          expiresInMinutes?: number;
+          resendCooldownSeconds?: number;
         };
 
         if (!res.ok) {
           const cooldownSeconds =
             data.cooldownSeconds ?? parseOtpCooldown(String(data.error ?? ""));
-          const message = String(data.error ?? "Could not send sign-in email.");
+          const message = String(data.error ?? "Could not send sign-in link.");
 
           return {
             ok: false,
             cooldownSeconds,
-            message: cooldownSeconds
-              ? `Email already sent. Try again in ${cooldownSeconds} seconds.`
-              : message,
+            message,
           };
         }
 
-        if (data.clientSend) {
-          if (!supabase) {
-            return { ok: false, message: "Email sign-in is not available" };
-          }
-
-          const { error } = await withTimeout(
-            supabase.auth.signInWithOtp({
-              email: trimmed,
-              options: {
-                shouldCreateUser: true,
-                emailRedirectTo: `${window.location.origin}/auth/callback`,
-              },
-            }),
-            15_000
-          );
-
-          if (error) {
-            const cooldownSeconds = parseOtpCooldown(error.message);
-            return {
-              ok: false,
-              cooldownSeconds,
-              message: cooldownSeconds
-                ? `Email already sent. Try again in ${cooldownSeconds} seconds.`
-                : error.message,
-            };
-          }
+        if (!supabase) {
+          return { ok: false, message: "Email sign-in is not available" };
         }
+
+        const { error } = await withTimeout(
+          supabase.auth.signInWithOtp({
+            email: trimmed,
+            options: {
+              shouldCreateUser: true,
+              emailRedirectTo: `${window.location.origin}/auth/callback`,
+            },
+          }),
+          15_000
+        );
+
+        if (error) {
+          const cooldownSeconds = parseOtpCooldown(error.message);
+          return {
+            ok: false,
+            cooldownSeconds,
+            message: error.message,
+          };
+        }
+
+        await fetch("/api/auth/send-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmed, confirm: true }),
+        }).catch(() => {
+          /* non-fatal — link was already sent */
+        });
 
         return {
           ok: true,
-          delivery: data.delivery,
-          verifyMode: data.verifyMode ?? (data.clientSend ? "link" : "code"),
+          expiresInMinutes: data.expiresInMinutes ?? 5,
+          resendCooldownSeconds: data.resendCooldownSeconds ?? 300,
         };
       } catch (e) {
         if (e instanceof Error && e.message === "timeout") {
@@ -346,55 +342,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [emailEnabled, supabase]
-  );
-
-  const verifyEmailOtp = useCallback(
-    async (email: string, code: string): Promise<VerifyOtpResult> => {
-      const res = await fetch("/api/auth/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email: email.trim().toLowerCase(), code }),
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        return {
-          ok: false,
-          message: String(data.error ?? "Invalid or expired code."),
-        };
-      }
-
-      if (supabase) {
-        await supabase.auth.refreshSession();
-        const { data: sessionData } = await supabase.auth.getSession();
-        setSession(sessionData.session);
-        setUser(sessionData.session?.user ?? null);
-        if (sessionData.session?.user?.email) {
-          setRememberedEmail(sessionData.session.user.email);
-          setRememberedProvider("email");
-        }
-      }
-
-      let walletPending = false;
-      try {
-        await syncLocalMemoryToServer();
-        const walletRes = await fetch("/api/account/app-wallet/create", {
-          method: "POST",
-          credentials: "include",
-        });
-        const walletData = await walletRes.json().catch(() => ({}));
-        walletPending = walletData.status === "wallet_pending";
-        if (walletRes.ok && !walletPending) {
-          await refreshBalance();
-        }
-      } catch {
-        walletPending = true;
-      }
-
-      return { ok: true, walletPending };
-    },
-    [supabase, refreshBalance]
   );
 
   const signOut = useCallback(async () => {
@@ -418,7 +365,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signInWithEmail,
       sendLoginCode,
-      verifyEmailOtp,
       signOut,
       refreshBalance,
       provisionWallet,
@@ -436,7 +382,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signInWithEmail,
       sendLoginCode,
-      verifyEmailOtp,
       signOut,
       refreshBalance,
       provisionWallet,

@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Home, Play, Radar } from "lucide-react";
+import { Home, Play, Radar, Landmark, Wallet } from "lucide-react";
 import { AuthHeader } from "@/components/auth/auth-header";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/start", label: "Start", icon: Play },
+  { href: "/start", label: "Missions", icon: Play },
+  { href: "/treasury", label: "Treasury", icon: Landmark },
+  { href: "/distribute", label: "Distribute", icon: Wallet },
   { href: "/radar", label: "Radar", icon: Radar },
 ];
 
@@ -26,7 +28,7 @@ export function ResolveTopNav() {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 lg:px-8">
         <Link href="/" className="shrink-0">
           <p className="text-lg font-semibold tracking-tight text-white">RESOLVE</p>
-          <p className="text-[10px] text-resolve-muted">Assign it. Get proof it is done.</p>
+          <p className="text-[10px] text-resolve-muted">Outcome network on Arc</p>
         </Link>
 
         <nav className="flex items-center gap-1">

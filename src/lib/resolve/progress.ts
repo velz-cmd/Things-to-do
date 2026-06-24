@@ -55,12 +55,12 @@ export function taskEmoji(title: string, merchantId?: string | null): string {
 }
 
 export const START_EXAMPLES = [
-  { label: "Find subscriptions", text: "Find subscriptions I still pay for" },
+  { label: "Pay designer on approval", text: "Pay designer $200 when logo approved" },
+  { label: "Release PR bounty", text: "Release bounty when GitHub PR merged" },
+  { label: "Distribute to creators", text: "Distribute to open-source creators" },
+  { label: "Pay researcher", text: "Pay researcher when report delivered" },
   { label: "Flight compensation", text: "Get flight compensation from my delayed trip" },
-  { label: "Delayed parcel", text: "Claim compensation for my delayed DHL parcel" },
-  { label: "Dispute charge", text: "Dispute this duplicate charge" },
   { label: "Wallet risks", text: "Scan my wallet for risky approvals" },
-  { label: "Idle funds", text: "Find idle USDC across my wallets" },
 ];
 
 /** @deprecated use START_EXAMPLES */

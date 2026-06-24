@@ -6,9 +6,15 @@ import { useAuth } from "@/components/auth/auth-provider";
 import {
   clearGuestExploring,
   getLocalNotificationEmail,
+  GUEST_CHANGE_EVENT,
   isGuestExploring,
 } from "@/lib/auth/guest";
-import type { ResolveAccountState, ResolveAuthMethod, ResolveWallet } from "@/lib/auth/types";
+import type {
+  AccountMode,
+  ResolveAccountState,
+  ResolveAuthMethod,
+  ResolveWallet,
+} from "@/lib/auth/types";
 
 export type { ResolveAccountState, ResolveWallet } from "@/lib/auth/types";
 
@@ -20,7 +26,20 @@ function resolveAuthMethod(
   if (hasSupabase && hasWallet) return "both";
   if (hasWallet) return "wallet";
   if (!hasSupabase) return "none";
-  if (provider === "email") return "email";
+  if (provider === "google") return "google";
+  return "email";
+}
+
+function resolveMode(
+  isGuest: boolean,
+  hasSupabase: boolean,
+  hasWallet: boolean,
+  provider?: string
+): AccountMode {
+  if (isGuest && !hasSupabase && !hasWallet) return "guest";
+  if (hasSupabase && hasWallet) return "both";
+  if (hasWallet) return "wallet";
+  if (!hasSupabase) return "none";
   if (provider === "google") return "google";
   return "email";
 }
@@ -46,8 +65,13 @@ export function useResolveAccount(): ResolveAccountState {
   const provider = user?.app_metadata?.provider as string | undefined;
 
   useEffect(() => {
-    setIsGuest(isGuestExploring());
-    setLocalNotificationEmail(getLocalNotificationEmail());
+    const syncGuest = () => {
+      setIsGuest(isGuestExploring());
+      setLocalNotificationEmail(getLocalNotificationEmail());
+    };
+    syncGuest();
+    window.addEventListener(GUEST_CHANGE_EVENT, syncGuest);
+    return () => window.removeEventListener(GUEST_CHANGE_EVENT, syncGuest);
   }, []);
 
   useEffect(() => {
@@ -132,9 +156,12 @@ export function useResolveAccount(): ResolveAccountState {
 
     const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
     const authMethod = resolveAuthMethod(hasSupabase, hasWallet, provider);
+    const mode = resolveMode(isGuest, hasSupabase, hasWallet, provider);
+    const isAuthenticated = hasSupabase || hasWallet;
 
     return {
-      isAuthenticated: hasSupabase || hasWallet,
+      isAuthenticated,
+      mode,
       authMethod,
       email,
       notificationEmail,
@@ -147,9 +174,10 @@ export function useResolveAccount(): ResolveAccountState {
       arcConnected,
       appWalletPending,
       loading:
-        (authLoading && !hasWallet && !hasSupabase) ||
-        (hasSupabase && (connectorsLoading || walletsLoading)),
-      isGuest: isGuest && !hasSupabase && !hasWallet,
+        hasSupabase &&
+        authLoading &&
+        !hasWallet &&
+        (connectorsLoading || walletsLoading),
     };
   }, [
     user,

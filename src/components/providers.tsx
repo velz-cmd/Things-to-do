@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { createAppKit } from "@reown/appkit/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, type State } from "wagmi";
@@ -14,6 +15,7 @@ import {
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { SignInProvider } from "@/components/auth/sign-in-context";
 import { SignInModal } from "@/components/auth/sign-in-modal";
+import { AuthErrorEffect } from "@/components/auth/auth-error-effect";
 import { GmailAfterAuthEffect } from "@/components/auth/gmail-after-auth-effect";
 import { WalletLinkEffect } from "@/components/wallet/wallet-link-effect";
 import { AddFundsProvider } from "@/components/wallet/add-funds-context";
@@ -52,6 +54,9 @@ export function Providers({
             <AddFundsProvider>
               <WalletLinkEffect />
               <GmailAfterAuthEffect />
+              <Suspense fallback={null}>
+                <AuthErrorEffect />
+              </Suspense>
               {children}
               <SignInModal />
               <Toaster

@@ -8,16 +8,14 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
+import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { WalletAuthEffect } from "@/components/wallet/wallet-auth-effect";
 import { OtpInput } from "@/components/auth/otp-input";
 import { enableGuestExploring } from "@/lib/auth/guest";
-import {
-  detectInjectedWallets,
-  walletConnectorAvailable,
-} from "@/lib/wallet/detect";
+import { detectInjectedWallets } from "@/lib/wallet/detect";
 
 type Step = "welcome" | "otp" | "magic-sent" | "wallet-picker";
-type AuthAction = "google" | "email" | "wallet" | "verify" | null;
+type AuthAction = "email" | "google" | "wallet" | "verify" | "guest" | null;
 
 const COOLDOWN_KEY = "resolve.signin.cooldownUntil";
 const EMAIL_KEY = "resolve.signin.email";
@@ -38,15 +36,17 @@ function isValidEmail(value: string) {
 export function SignInModal() {
   const { open, closeSignIn } = useSignInModal();
   const {
-    signInWithGoogle,
     sendLoginCode,
     signInWithEmail,
+    signInWithGoogle,
     verifyEmailOtp,
     provisionWallet,
-    supabaseConfigured,
+    emailEnabled,
+    googleEnabled,
   } = useAuth();
+  const capabilities = useAuthCapabilities();
   const account = useResolveAccount();
-  const { open: openWallet } = useAppKit();
+  const { open: openWallet, close: closeWallet } = useAppKit();
   const { address, isConnected } = useAccount();
 
   const [step, setStep] = useState<Step>("welcome");
@@ -64,14 +64,19 @@ export function SignInModal() {
   const [walletPending, setWalletPending] = useState(false);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const walletAvailable = walletConnectorAvailable();
+  const walletEnabled = capabilities.wallet;
+  const showEmail = capabilities.loaded && emailEnabled;
+  const showGoogle = capabilities.loaded && googleEnabled;
+  const showWallet = capabilities.loaded && walletEnabled;
+  const showDivider = showEmail && (showGoogle || showWallet);
   const injectedWallets = detectInjectedWallets();
 
   const handleWalletTimeout = useCallback(() => {
+    setWalletConnecting(false);
+    setAuthAction(null);
     setMethodError((prev) => ({
       ...prev,
-      wallet:
-        "Wallet request timed out. Open your wallet and try again.",
+      wallet: "Wallet request timed out. Open your wallet and try again.",
     }));
   }, []);
 
@@ -113,31 +118,25 @@ export function SignInModal() {
   }, [cooldown]);
 
   useEffect(() => {
-    if (open && account.isAuthenticated) closeSignIn();
-  }, [account.isAuthenticated, open, closeSignIn]);
-
-  useEffect(() => {
-    if (open && isConnected && address) {
+    if (open && account.isAuthenticated) {
       setWalletConnecting(false);
-      setAuthAction(null);
+      void closeWallet();
       closeSignIn();
     }
-  }, [open, isConnected, address, closeSignIn]);
+  }, [account.isAuthenticated, open, closeSignIn, closeWallet]);
+
+  useEffect(() => {
+    if (!open || !isConnected || !address) return;
+    setWalletConnecting(false);
+    setAuthAction(null);
+    void closeWallet();
+    closeSignIn();
+  }, [open, isConnected, address, closeSignIn, closeWallet]);
 
   if (!open) return null;
 
   async function handleGoogle() {
     setMethodError((prev) => ({ ...prev, google: undefined }));
-    if (!supabaseConfigured) {
-      setMethodError((prev) => ({
-        ...prev,
-        google:
-          process.env.NODE_ENV === "development"
-            ? "Google sign-in needs NEXT_PUBLIC_SUPABASE_URL and anon key."
-            : "Google sign-in is temporarily unavailable.",
-      }));
-      return;
-    }
     setAuthAction("google");
     try {
       await signInWithGoogle();
@@ -146,20 +145,12 @@ export function SignInModal() {
         ...prev,
         google: "Google sign-in needs OAuth redirect setup.",
       }));
-    } finally {
       setAuthAction(null);
     }
   }
 
   function handleOpenWalletPicker() {
     setMethodError((prev) => ({ ...prev, wallet: undefined }));
-    if (!walletAvailable) {
-      setMethodError((prev) => ({
-        ...prev,
-        wallet: "Wallet connector is not configured.",
-      }));
-      return;
-    }
     setStep("wallet-picker");
   }
 
@@ -168,7 +159,6 @@ export function SignInModal() {
     setAuthAction("wallet");
     setWalletConnecting(true);
     openWallet({ view: "Connect" });
-    setAuthAction(null);
   }
 
   async function handleEmailContinue(e?: React.FormEvent) {
@@ -188,15 +178,7 @@ export function SignInModal() {
     if (cooldown > 0) {
       setMethodError((prev) => ({
         ...prev,
-        email: `Code already sent. Try again in ${cooldown} seconds.`,
-      }));
-      return;
-    }
-
-    if (!supabaseConfigured) {
-      setMethodError((prev) => ({
-        ...prev,
-        email: "Email sign-in is temporarily unavailable. You can still connect a wallet.",
+        email: `Already sent. Try again in ${cooldown} seconds.`,
       }));
       return;
     }
@@ -219,12 +201,7 @@ export function SignInModal() {
       const until = Date.now() + 60_000;
       localStorage.setItem(COOLDOWN_KEY, String(until));
       setCooldown(60);
-
-      if (result.method === "magic_link") {
-        setStep("magic-sent");
-      } else {
-        setStep("otp");
-      }
+      setStep(result.method === "magic_link" ? "magic-sent" : "otp");
     } finally {
       setAuthAction(null);
     }
@@ -255,7 +232,6 @@ export function SignInModal() {
   async function handleVerifyOtp(e?: React.FormEvent) {
     e?.preventDefault();
     setInlineError(null);
-
     if (otp.replace(/\s/g, "").length < 6) {
       setInlineError("Enter the 6-digit code.");
       return;
@@ -294,18 +270,24 @@ export function SignInModal() {
   }
 
   function handleGuestContinue() {
+    setAuthAction("guest");
     enableGuestExploring();
     closeSignIn();
+    setAuthAction(null);
   }
 
+  const subtitle =
+    step === "wallet-picker"
+      ? "Pick the wallet you want to connect."
+      : showEmail && showWallet
+        ? "Enter your email or connect a wallet to get started."
+        : showWallet
+          ? "Connect a wallet to get started."
+          : showEmail
+            ? "Enter your email to get started."
+            : "Choose how to continue.";
+
   const emailReady = isValidEmail(email);
-  const googleDisabled = authAction === "google" || !supabaseConfigured;
-  const walletDisabled = authAction === "wallet" || walletConnecting;
-  const emailDisabled =
-    !emailReady ||
-    authAction === "email" ||
-    cooldown > 0 ||
-    !supabaseConfigured;
 
   return (
     <>
@@ -321,18 +303,7 @@ export function SignInModal() {
           aria-modal="true"
           aria-labelledby="sign-in-title"
         >
-          {step === "wallet-picker" && (
-            <button
-              type="button"
-              onClick={() => setStep("welcome")}
-              className="mb-4 flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back
-            </button>
-          )}
-
-          {step === "otp" && (
+          {(step === "wallet-picker" || step === "otp") && (
             <button
               type="button"
               onClick={() => {
@@ -361,15 +332,7 @@ export function SignInModal() {
                       ? "Choose wallet"
                       : "Welcome"}
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                {step === "otp"
-                  ? `We sent a login code to ${email}`
-                  : step === "magic-sent"
-                    ? `We sent a secure sign-in link to ${email}.`
-                    : step === "wallet-picker"
-                      ? "Pick the wallet you want to connect."
-                      : "Enter your email or connect a wallet to get started."}
-              </p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">{subtitle}</p>
             </div>
             <button
               type="button"
@@ -383,125 +346,135 @@ export function SignInModal() {
 
           {step === "welcome" && (
             <div className="mt-6 space-y-5">
-              <form onSubmit={handleEmailContinue} className="space-y-3">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setInlineError(null);
-                  }}
-                  placeholder="you@company.com"
-                  autoComplete="email"
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-500/50"
-                />
-                <button
-                  type="submit"
-                  disabled={emailDisabled}
-                  className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {authAction === "email"
-                    ? "Sending…"
-                    : cooldown > 0
-                      ? `Try again in ${cooldown}s`
-                      : "Continue"}
-                </button>
-                {methodError.email && (
-                  <p className="text-xs text-amber-200">{methodError.email}</p>
-                )}
-                {inlineError && (
-                  <p className="text-xs text-amber-200">{inlineError}</p>
-                )}
-              </form>
+              {showEmail && (
+                <form onSubmit={handleEmailContinue} className="space-y-3">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setInlineError(null);
+                    }}
+                    placeholder="you@company.com"
+                    autoComplete="email"
+                    className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-500/50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={
+                      authAction === "email" ||
+                      !emailReady ||
+                      cooldown > 0
+                    }
+                    className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {authAction === "email"
+                      ? "Sending…"
+                      : cooldown > 0
+                        ? `Try again in ${cooldown}s`
+                        : "Continue"}
+                  </button>
+                  {methodError.email && (
+                    <p className="text-xs text-amber-200">{methodError.email}</p>
+                  )}
+                  {inlineError && (
+                    <p className="text-xs text-amber-200">{inlineError}</p>
+                  )}
+                </form>
+              )}
 
-              <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                <span className="h-px flex-1 bg-white/10" />
-                Or continue with
-                <span className="h-px flex-1 bg-white/10" />
-              </div>
+              {showDivider && (
+                <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  <span className="h-px flex-1 bg-white/10" />
+                  Or continue with
+                  <span className="h-px flex-1 bg-white/10" />
+                </div>
+              )}
 
               <div className="space-y-3">
-                <button
-                  type="button"
-                  disabled={googleDisabled}
-                  onClick={() => void handleGoogle()}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <GoogleIcon />
-                  {authAction === "google" ? "Redirecting…" : "Continue with Google"}
-                </button>
-                {methodError.google && (
-                  <p className="text-xs text-amber-200">{methodError.google}</p>
+                {showGoogle && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={authAction === "google"}
+                      onClick={() => void handleGoogle()}
+                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      <GoogleIcon />
+                      {authAction === "google"
+                        ? "Redirecting…"
+                        : "Continue with Google"}
+                    </button>
+                    {methodError.google && (
+                      <p className="text-xs text-amber-200">{methodError.google}</p>
+                    )}
+                  </>
                 )}
 
-                <button
-                  type="button"
-                  disabled={walletDisabled || !walletAvailable}
-                  onClick={handleOpenWalletPicker}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Wallet className="h-4 w-4 text-sky-400" />
-                  {walletConnecting ? "Waiting for wallet…" : "Continue with wallet"}
-                </button>
-                {methodError.wallet && (
-                  <p className="text-xs text-amber-200">{methodError.wallet}</p>
+                {showWallet && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={authAction === "wallet" || walletConnecting}
+                      onClick={handleOpenWalletPicker}
+                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      <Wallet className="h-4 w-4 text-sky-400" />
+                      {walletConnecting
+                        ? "Waiting for wallet…"
+                        : "Continue with wallet"}
+                    </button>
+                    {methodError.wallet && (
+                      <p className="text-xs text-amber-200">{methodError.wallet}</p>
+                    )}
+                  </>
                 )}
               </div>
-
-              {!supabaseConfigured && (
-                <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                  {process.env.NODE_ENV === "development"
-                    ? "Email and Google sign-in are unavailable. Wallet sign-in still works."
-                    : "Email and Google sign-in are temporarily unavailable. Wallet sign-in still works."}
-                </p>
-              )}
 
               <button
                 type="button"
+                disabled={authAction === "guest"}
                 onClick={handleGuestContinue}
-                className="w-full text-center text-xs text-slate-500 underline hover:text-slate-300"
+                className="w-full text-center text-xs text-slate-500 underline hover:text-slate-300 disabled:opacity-50"
               >
                 Continue without sign-in
               </button>
             </div>
           )}
 
-          {step === "wallet-picker" && (
+          {step === "wallet-picker" && showWallet && (
             <div className="mt-6 space-y-3">
-              {injectedWallets.length > 0 ? (
-                injectedWallets.map((w) => (
-                  <button
-                    key={w.id}
-                    type="button"
-                    disabled={walletDisabled}
-                    onClick={handleConnectWallet}
-                    className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-60"
-                  >
-                    <Wallet className="h-4 w-4 text-sky-400" />
-                    Connect {w.label} Wallet
-                  </button>
-                ))
-              ) : (
+              {injectedWallets.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  disabled={authAction === "wallet" || walletConnecting}
+                  onClick={handleConnectWallet}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-70"
+                >
+                  <Wallet className="h-4 w-4 text-sky-400" />
+                  Connect {w.label} Wallet
+                </button>
+              ))}
+              {injectedWallets.length === 0 && (
                 <button
                   type="button"
-                  disabled={walletDisabled}
+                  disabled={authAction === "wallet" || walletConnecting}
                   onClick={handleConnectWallet}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-60"
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-70"
                 >
                   <Wallet className="h-4 w-4 text-sky-400" />
                   Connect wallet
                 </button>
               )}
-              {walletAvailable && (
-                <button
-                  type="button"
-                  disabled={walletDisabled}
-                  onClick={handleConnectWallet}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-60"
-                >
-                  WalletConnect
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={authAction === "wallet" || walletConnecting}
+                onClick={handleConnectWallet}
+                className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-black/30 py-3.5 text-sm font-medium text-white transition hover:border-sky-500/40 hover:bg-white/5 disabled:opacity-70"
+              >
+                WalletConnect
+              </button>
               {walletConnecting && (
                 <p className="text-xs text-slate-500">
                   Approve the connection in your wallet extension.
@@ -513,7 +486,7 @@ export function SignInModal() {
             </div>
           )}
 
-          {step === "otp" && (
+          {step === "otp" && showEmail && (
             <form onSubmit={handleVerifyOtp} className="mt-6 space-y-5">
               <OtpInput
                 value={otp}
@@ -570,7 +543,7 @@ export function SignInModal() {
             </form>
           )}
 
-          {step === "magic-sent" && (
+          {step === "magic-sent" && showEmail && (
             <div className="mt-6 space-y-4">
               <p className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-300">
                 Magic link sent. Open the email and tap the sign-in link.

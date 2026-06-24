@@ -1,12 +1,35 @@
 # RESOLVE AI architecture
 
-Production-grade hackathon stack with automatic fallbacks.
+Production-grade multi-tier stack with automatic fallbacks.
 
 ```
-User → Cloudflare AI Gateway (optional) → Groq → Llama → Gemini → Supabase → Arc
+User → Cloudflare AI Gateway → Groq → Llama → Gemini → Supabase → Arc
 ```
 
-## Tiers
+## Production AI stack
+
+| Role | Provider | Models | Use in RESOLVE |
+|------|----------|--------|----------------|
+| **Primary intelligence** | Gemini | `gemini-2.5-flash`, `gemini-2.0-flash` | Reasoning, mission evaluation, payment recommendations, treasury insights, final verdicts |
+| **High-speed processing** | Groq | `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` | Classification, routing, scoring, tagging, real-time structured outputs |
+| **Research & analysis** | OpenRouter (Llama) | `meta-llama/llama-3.3-70b-instruct:free` | GitHub/repo analysis, contributor research, large-document processing |
+| **Reliability layer** | Cloudflare AI Gateway | `resolve` gateway | Request routing, analytics, failover, rate limiting, caching |
+
+## AI routing
+
+| Stage | Model tier | Responsibilities |
+|-------|------------|------------------|
+| **Groq** | fast | Categorize requests, mission scoring, priority detection |
+| **Llama** | research | Repository analysis, maintainer evaluation, funding discovery |
+| **Gemini** | quality | Decision making, recommendations, treasury explanations |
+
+### Example flow
+
+```
+User request → Groq (intent) → Llama (research) → Gemini (verdict) → Supabase + Arc payments
+```
+
+## Tiers (implementation)
 
 | Tier | Primary | Fallback | Use in RESOLVE |
 |------|---------|----------|----------------|

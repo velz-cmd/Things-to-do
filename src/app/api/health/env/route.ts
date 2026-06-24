@@ -31,6 +31,10 @@ export async function GET() {
     ARC_RPC_URL: present("ARC_RPC_URL"),
     ARC_PROVIDER_WALLET_ID: present("ARC_PROVIDER_WALLET_ID"),
     ARC_CLIENT_WALLET_ID: present("ARC_CLIENT_WALLET_ID"),
+    GEMINI_API_KEY: present("GEMINI_API_KEY") || present("GOOGLE_GENERATIVE_AI_API_KEY"),
+    GROQ_API_KEY: present("GROQ_API_KEY"),
+    OPENROUTER_API_KEY: present("OPENROUTER_API_KEY"),
+    CLOUDFLARE_GATEWAY: present("CLOUDFLARE_ACCOUNT_ID"),
   };
 
   const missing: string[] = [];

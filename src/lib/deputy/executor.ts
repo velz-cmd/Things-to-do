@@ -11,8 +11,7 @@ import {
   resendSendClaim,
 } from "@/lib/deputy/tools";
 import { generateDeputyPlan } from "@/lib/ai/planner";
-import { generateText } from "ai";
-import { resolveFastModel } from "@/lib/ai/qwen";
+import { generateTextWithFallback } from "@/lib/ai/gateway";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -108,8 +107,8 @@ async function safeTransition(
   );
 
   try {
-    const { text } = await generateText({
-      model: resolveFastModel(),
+    const { text } = await generateTextWithFallback({
+      tier: "fast",
       prompt: `Write a 2-sentence escalation note for a consumer advocate task stuck at ${from}.`,
     });
     await logEvent(taskId, "Escalation", "handoff", text);

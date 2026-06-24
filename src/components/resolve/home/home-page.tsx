@@ -111,6 +111,29 @@ export function HomePage() {
           </div>
         </div>
       </section>
+
+      <section className="border-t border-white/[0.06] px-4 py-10 lg:px-8">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
+              Production stack
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-white">
+              Gemini · Groq · Llama · Cloudflare · Arc
+            </h2>
+            <p className="mt-1 max-w-lg text-sm text-resolve-muted">
+              Multi-tier AI routing with real Arc USDC escrow — built for judges to verify live.
+            </p>
+          </div>
+          <Link
+            href="/stack"
+            className="inline-flex items-center gap-2 rounded-md border border-resolve-border-strong px-4 py-2 text-sm text-white hover:bg-resolve-hover"
+          >
+            View full stack
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

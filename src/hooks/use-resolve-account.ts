@@ -15,6 +15,7 @@ import type {
   ResolveAuthMethod,
   ResolveWallet,
 } from "@/lib/auth/types";
+import { WALLET_LINKED_EVENT } from "@/components/wallet/wallet-link-effect";
 
 export type { ResolveAccountState, ResolveWallet } from "@/lib/auth/types";
 
@@ -130,6 +131,28 @@ export function useResolveAccount(): ResolveAccountState {
     return () => {
       cancelled = true;
     };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    function refreshWallets() {
+      setWalletsLoading(true);
+      fetch("/api/account/wallets", { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (!data) return;
+          setWallets(data.wallets ?? []);
+          setAppWalletPending(Boolean(data.appWalletPending));
+        })
+        .catch(() => {
+          /* non-fatal */
+        })
+        .finally(() => setWalletsLoading(false));
+    }
+
+    window.addEventListener(WALLET_LINKED_EVENT, refreshWallets);
+    return () => window.removeEventListener(WALLET_LINKED_EVENT, refreshWallets);
   }, [userId]);
 
   return useMemo(() => {

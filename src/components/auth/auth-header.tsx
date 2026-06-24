@@ -10,7 +10,6 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
-import { projectId } from "@/lib/reown/config";
 import { clearGuestExploring } from "@/lib/auth/guest";
 
 function initials(name: string) {
@@ -199,14 +198,15 @@ export function AuthHeader() {
                 </MenuItem>
               )}
 
-              {projectId && (
+              {hasEmailSession && (
                 <MenuItem
                   onClick={() => {
                     open({ view: "Connect" });
                     setMenuOpen(false);
                   }}
                 >
-                  {hasExternal ? "Connect a different wallet" : "Connect your own wallet"}
+                  <Wallet className="mr-2 inline h-3.5 w-3.5 text-sky-400" />
+                  {hasExternal ? "Use a different wallet" : "Use your own wallet"}
                 </MenuItem>
               )}
 

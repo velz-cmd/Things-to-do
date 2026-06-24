@@ -7,7 +7,10 @@ export function useResolveAccess() {
   const { loading: authLoading, supabaseConfigured } = useAuth();
   const account = useResolveAccount();
 
-  const signedIn = account.authMethod === "supabase" || account.authMethod === "both";
+  const signedIn =
+    account.authMethod === "email" ||
+    account.authMethod === "google" ||
+    account.authMethod === "both";
   const walletConnected = Boolean(account.walletAddress);
   /** Email/Google users can assign/lock/deploy after sign-in (embedded wallet auto-created). */
   const ready = signedIn;

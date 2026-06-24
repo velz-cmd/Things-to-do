@@ -233,11 +233,7 @@ export function StartWorkspace() {
 
     try {
       if (missing.some((m) => m.id === "gmail")) {
-        const res = await fetch("/api/connectors/gmail/connect", { method: "POST" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message ?? data.error);
-        toast.success("Gmail connected");
-        await refresh();
+        window.location.href = "/api/connectors/gmail/authorize";
         return;
       }
 

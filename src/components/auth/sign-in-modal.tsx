@@ -2,31 +2,44 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAppKit } from "@reown/appkit/react";
+import { useAccount } from "wagmi";
 import { Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { toast } from "sonner";
 
-type Step = "choose" | "verify";
+type Step = "choose" | "sent";
+
+const COOLDOWN_KEY = "resolve.signin.cooldownUntil";
+const EMAIL_KEY = "resolve.signin.email";
+
+function getCooldownRemaining(): number {
+  try {
+    const until = Number(localStorage.getItem(COOLDOWN_KEY) ?? 0);
+    return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  } catch {
+    return 0;
+  }
+}
 
 export function SignInModal() {
   const { open, closeSignIn } = useSignInModal();
-  const { signInWithGoogle, signInWithEmail, verifyEmailOtp, resendEmailCode, user } =
-    useAuth();
+  const { signInWithGoogle, signInWithEmail, supabaseConfigured } = useAuth();
+  const account = useResolveAccount();
   const { open: openWallet } = useAppKit();
+  const { address, isConnected } = useAccount();
   const [step, setStep] = useState<Step>("choose");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState<
-    "google" | "email" | "verify" | "resend" | "wallet" | null
-  >(null);
-  const codeInputRef = useRef<HTMLInputElement>(null);
-  const EMAIL_KEY = "resolve.signin.email";
+  const [loading, setLoading] = useState<"google" | "email" | "wallet" | null>(
+    null
+  );
+  const [cooldown, setCooldown] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!open) {
       setStep("choose");
-      setCode("");
       setLoading(null);
       return;
     }
@@ -36,19 +49,45 @@ export function SignInModal() {
     } catch {
       /* ignore */
     }
+    setCooldown(getCooldownRemaining());
   }, [open]);
 
   useEffect(() => {
-    if (step === "verify") codeInputRef.current?.focus();
-  }, [step]);
+    if (cooldown <= 0) {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+      return;
+    }
+    cooldownRef.current = setInterval(() => {
+      const remaining = getCooldownRemaining();
+      setCooldown(remaining);
+      if (remaining <= 0 && cooldownRef.current) {
+        clearInterval(cooldownRef.current);
+      }
+    }, 1000);
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, [cooldown]);
 
   useEffect(() => {
-    if (user && open) closeSignIn();
-  }, [user, open, closeSignIn]);
+    if (open && account.isAuthenticated) closeSignIn();
+  }, [account.isAuthenticated, open, closeSignIn]);
+
+  useEffect(() => {
+    if (open && isConnected && address) closeSignIn();
+  }, [open, isConnected, address, closeSignIn]);
 
   if (!open) return null;
 
   async function handleGoogle() {
+    if (!supabaseConfigured) {
+      toast.error(
+        process.env.NODE_ENV === "development"
+          ? "Authentication is not configured. Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY."
+          : "Sign-in is temporarily unavailable."
+      );
+      return;
+    }
     setLoading("google");
     try {
       await signInWithGoogle();
@@ -66,45 +105,62 @@ export function SignInModal() {
     }
   }
 
-  async function handleSendCode(e: React.FormEvent) {
+  async function handleSendMagicLink(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) {
       toast.error("Enter your email");
       return;
     }
+    if (cooldown > 0) return;
+
     setLoading("email");
     try {
       const trimmed = email.trim();
       localStorage.setItem(EMAIL_KEY, trimmed);
-      await signInWithEmail(trimmed);
-      setStep("verify");
-    } catch {
-      /* toast shown in provider */
+      const result = await signInWithEmail(trimmed);
+
+      if (!result.ok) {
+        if (result.cooldownSeconds) {
+          const until = Date.now() + result.cooldownSeconds * 1000;
+          localStorage.setItem(COOLDOWN_KEY, String(until));
+          setCooldown(result.cooldownSeconds);
+        }
+        toast.message(result.message);
+        if (result.cooldownSeconds) setStep("sent");
+        return;
+      }
+
+      const until = Date.now() + 60_000;
+      localStorage.setItem(COOLDOWN_KEY, String(until));
+      setCooldown(60);
+      toast.success("Magic link sent", {
+        description: `Check ${trimmed} and click the link to sign in.`,
+      });
+      setStep("sent");
     } finally {
       setLoading(null);
     }
   }
 
   async function handleResend() {
-    if (!email.trim()) return;
-    setLoading("resend");
+    if (!email.trim() || cooldown > 0) return;
+    setLoading("email");
     try {
-      await resendEmailCode(email.trim());
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  async function handleVerify(e: React.FormEvent) {
-    e.preventDefault();
-    if (code.replace(/\s/g, "").length < 6) {
-      toast.error("Enter the 6-digit code");
-      return;
-    }
-    setLoading("verify");
-    try {
-      const ok = await verifyEmailOtp(email.trim(), code);
-      if (ok) closeSignIn();
+      const trimmed = email.trim();
+      const result = await signInWithEmail(trimmed);
+      if (!result.ok) {
+        if (result.cooldownSeconds) {
+          const until = Date.now() + result.cooldownSeconds * 1000;
+          localStorage.setItem(COOLDOWN_KEY, String(until));
+          setCooldown(result.cooldownSeconds);
+        }
+        toast.message(result.message);
+        return;
+      }
+      const until = Date.now() + 60_000;
+      localStorage.setItem(COOLDOWN_KEY, String(until));
+      setCooldown(60);
+      toast.success("Magic link sent");
     } finally {
       setLoading(null);
     }
@@ -124,12 +180,12 @@ export function SignInModal() {
               RESOLVE
             </p>
             <h2 id="sign-in-title" className="mt-1 text-xl font-semibold text-white">
-              {step === "verify" ? "Check your email" : "Sign in"}
+              {step === "sent" ? "Check your email" : "Sign in"}
             </h2>
             <p className="mt-1 text-sm text-slate-400">
-              {step === "verify"
-                ? `Enter the 6-digit code we sent to ${email}`
-                : "Google, wallet, or email."}
+              {step === "sent"
+                ? `We sent a sign-in link to ${email}. Click it to continue.`
+                : "Google, wallet, or email magic link."}
             </p>
           </div>
           <button
@@ -146,7 +202,7 @@ export function SignInModal() {
           <div className="mt-6 space-y-4">
             <button
               type="button"
-              disabled={loading !== null}
+              disabled={loading !== null || !supabaseConfigured}
               onClick={handleGoogle}
               className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-50"
             >
@@ -170,7 +226,7 @@ export function SignInModal() {
               <span className="h-px flex-1 bg-white/10" />
             </div>
 
-            <form onSubmit={handleSendCode} className="space-y-3">
+            <form onSubmit={handleSendMagicLink} className="space-y-3">
               <label className="block text-xs font-medium text-slate-400">
                 Email address
               </label>
@@ -184,58 +240,49 @@ export function SignInModal() {
               />
               <button
                 type="submit"
-                disabled={loading !== null}
+                disabled={loading !== null || cooldown > 0 || !supabaseConfigured}
                 className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:opacity-50"
               >
-                {loading === "email" ? "Sending code…" : "Send login code"}
+                {loading === "email"
+                  ? "Sending…"
+                  : cooldown > 0
+                    ? `Try again in ${cooldown}s`
+                    : "Send magic link"}
               </button>
             </form>
+
+            {!supabaseConfigured && process.env.NODE_ENV === "development" && (
+              <p className="text-xs text-amber-400/90">
+                Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.
+              </p>
+            )}
           </div>
         )}
 
-        {step === "verify" && (
-          <form onSubmit={handleVerify} className="mt-6 space-y-4">
-            <input
-              ref={codeInputRef}
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={8}
-              value={code}
-              onChange={(e) =>
-                setCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))
-              }
-              placeholder="000000"
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-4 text-center font-mono text-2xl tracking-[0.4em] text-white outline-none focus:border-sky-500/50"
-            />
-            <button
-              type="submit"
-              disabled={loading !== null || code.length < 6}
-              className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {loading === "verify" ? "Verifying…" : "Continue"}
-            </button>
+        {step === "sent" && (
+          <div className="mt-6 space-y-4">
+            <p className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-slate-300">
+              Open the email and tap the sign-in link. This page will update when
+              you return.
+            </p>
             <div className="flex items-center justify-between text-xs">
               <button
                 type="button"
-                onClick={() => {
-                  setStep("choose");
-                  setCode("");
-                }}
+                onClick={() => setStep("choose")}
                 className="text-slate-500 underline hover:text-white"
               >
                 Change email
               </button>
               <button
                 type="button"
-                disabled={loading !== null}
+                disabled={loading !== null || cooldown > 0}
                 onClick={() => void handleResend()}
                 className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
               >
-                {loading === "resend" ? "Sending…" : "Resend code"}
+                {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend link"}
               </button>
             </div>
-          </form>
+          </div>
         )}
       </div>
     </div>

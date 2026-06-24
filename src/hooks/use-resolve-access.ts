@@ -1,25 +1,21 @@
 "use client";
 
 import { useAuth } from "@/components/auth/auth-provider";
-import { useAccount } from "wagmi";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { useResolveAccount } from "@/hooks/use-resolve-account";
 
 export function useResolveAccess() {
-  const { user, loading: authLoading } = useAuth();
-  const { address, isConnected } = useAccount();
+  const { loading: authLoading, supabaseConfigured } = useAuth();
+  const account = useResolveAccount();
 
-  const signedIn = Boolean(user);
-  const walletConnected = isConnected && Boolean(address);
-  /** Email-only users can assign/lock/deploy after sign-in (embedded wallet auto-created). */
+  const signedIn = account.authMethod === "supabase" || account.authMethod === "both";
+  const walletConnected = Boolean(account.walletAddress);
+  /** Email/Google users can assign/lock/deploy after sign-in (embedded wallet auto-created). */
   const ready = signedIn;
   const cryptoReady = signedIn && walletConnected;
-  const supabaseReady = isSupabaseConfigured();
 
   let message: string | null = null;
-  if (!supabaseReady) {
+  if (!supabaseConfigured && process.env.NODE_ENV === "development") {
     message = "Sign-in is not configured on this deployment.";
-  } else if (!signedIn) {
-    message = null;
   }
 
   return {
@@ -27,8 +23,10 @@ export function useResolveAccess() {
     walletConnected,
     ready,
     cryptoReady,
-    authLoading,
-    address,
+    authLoading: authLoading || account.loading,
+    address: account.walletAddress,
+    isAuthenticated: account.isAuthenticated,
+    account,
     message,
   };
 }

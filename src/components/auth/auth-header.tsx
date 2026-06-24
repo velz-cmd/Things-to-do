@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useAppKit } from "@reown/appkit/react";
-import { useAccount, useDisconnect } from "wagmi";
+import { useDisconnect } from "wagmi";
+import { Mail, Wallet } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
+import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { projectId } from "@/lib/reown/config";
 
 function initials(name: string) {
@@ -15,25 +17,23 @@ function initials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
 
+function shortAddress(address: string) {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
 export function AuthHeader() {
-  const { user, signOut, balance, balanceLoading } = useAuth();
+  const { signOut, balance, balanceLoading } = useAuth();
+  const account = useResolveAccount();
   const { openSignIn } = useSignInModal();
   const { openAddFunds } = useAddFunds();
-  const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { open } = useAppKit();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const signedIn = Boolean(user);
-  const cryptoConnected = isConnected && Boolean(address);
-  const displayName =
-    user?.user_metadata?.full_name ??
-    user?.user_metadata?.name ??
-    user?.email?.split("@")[0] ??
-    "Account";
-  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
+  const displayName = account.displayName ?? "Account";
+  const walletOnly = account.authMethod === "wallet";
 
-  if (!signedIn) {
+  if (!account.isAuthenticated) {
     return (
       <button
         type="button"
@@ -52,10 +52,14 @@ export function AuthHeader() {
         onClick={() => setMenuOpen((o) => !o)}
         className="flex items-center gap-2.5 rounded-full border border-deputy-border bg-deputy-panel/80 py-1.5 pl-1.5 pr-3 transition hover:border-deputy-accent/40"
       >
-        {avatarUrl ? (
+        {walletOnly ? (
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-deputy-accent/20">
+            <Wallet className="h-4 w-4 text-deputy-accent" />
+          </span>
+        ) : account.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={avatarUrl}
+            src={account.avatarUrl}
             alt=""
             className="h-8 w-8 rounded-full object-cover"
           />
@@ -65,10 +69,15 @@ export function AuthHeader() {
           </span>
         )}
         <span className="hidden max-w-[120px] truncate text-sm font-medium text-white sm:block">
-          {displayName}
+          {walletOnly && account.walletAddress
+            ? shortAddress(account.walletAddress)
+            : displayName}
         </span>
-        {cryptoConnected && (
-          <span className="hidden h-2 w-2 rounded-full bg-deputy-accent sm:block" title="Wallet connected" />
+        {account.authMethod === "both" && (
+          <span
+            className="hidden h-2 w-2 rounded-full bg-deputy-accent sm:block"
+            title="Wallet connected"
+          />
         )}
       </button>
 
@@ -80,30 +89,45 @@ export function AuthHeader() {
             aria-label="Close menu"
             onClick={() => setMenuOpen(false)}
           />
-          <div className="absolute right-0 z-50 mt-2 w-64 rounded-xl border border-deputy-border bg-deputy-panel p-2 shadow-xl">
+          <div className="absolute right-0 z-50 mt-2 w-72 rounded-xl border border-deputy-border bg-deputy-panel p-2 shadow-xl">
             <div className="border-b border-deputy-border px-3 py-2.5">
               <p className="truncate text-sm font-medium text-white">{displayName}</p>
-              <p className="truncate text-xs text-deputy-muted">{user?.email}</p>
+              {account.email && (
+                <p className="truncate text-xs text-deputy-muted">{account.email}</p>
+              )}
+              {account.walletAddress && (
+                <p className="mt-1 font-mono text-[10px] text-deputy-muted">
+                  {shortAddress(account.walletAddress)}
+                </p>
+              )}
               {!balanceLoading && balance && (
                 <p className="mt-1 text-xs text-deputy-accent">
                   ${balance.availableUsd.toFixed(2)} available
                 </p>
               )}
-              {cryptoConnected && (
-                <p className="mt-1 font-mono text-[10px] text-deputy-muted">
-                  {address!.slice(0, 6)}…{address!.slice(-4)}
-                </p>
-              )}
             </div>
 
-            <MenuItem
-              onClick={() => {
-                openAddFunds();
-                setMenuOpen(false);
-              }}
-            >
-              Add funds
-            </MenuItem>
+            <ConnectorRow
+              label="Account"
+              connected={account.authMethod === "supabase" || account.authMethod === "both"}
+              detail={account.email ?? (walletOnly ? "Wallet" : undefined)}
+            />
+            <ConnectorRow
+              label="Gmail"
+              connected={account.gmailConnected}
+              detail={account.gmailConnected ? "Connected" : "Not connected"}
+            />
+
+            {account.authMethod !== "wallet" && (
+              <MenuItem
+                onClick={() => {
+                  openAddFunds();
+                  setMenuOpen(false);
+                }}
+              >
+                Add funds
+              </MenuItem>
+            )}
 
             {projectId && (
               <MenuItem
@@ -112,11 +136,11 @@ export function AuthHeader() {
                   setMenuOpen(false);
                 }}
               >
-                {cryptoConnected ? "Wallet settings" : "Connect crypto wallet"}
+                {account.walletAddress ? "Wallet settings" : "Connect crypto wallet"}
               </MenuItem>
             )}
 
-            {cryptoConnected && (
+            {account.walletAddress && (
               <MenuItem
                 onClick={() => {
                   disconnect();
@@ -127,19 +151,66 @@ export function AuthHeader() {
               </MenuItem>
             )}
 
-            <MenuItem
-              onClick={async () => {
-                if (cryptoConnected) disconnect();
-                await signOut();
-                setMenuOpen(false);
-              }}
-              className="text-deputy-warn"
-            >
-              Sign out
-            </MenuItem>
+            {account.authMethod !== "wallet" && (
+              <MenuItem
+                onClick={async () => {
+                  if (account.walletAddress) disconnect();
+                  await signOut();
+                  setMenuOpen(false);
+                }}
+                className="text-deputy-warn"
+              >
+                Sign out
+              </MenuItem>
+            )}
+
+            {walletOnly && (
+              <MenuItem
+                onClick={() => {
+                  disconnect();
+                  setMenuOpen(false);
+                }}
+                className="text-deputy-warn"
+              >
+                Disconnect wallet
+              </MenuItem>
+            )}
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function ConnectorRow({
+  label,
+  connected,
+  detail,
+}: {
+  label: string;
+  connected: boolean;
+  detail?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+      <span className="flex items-center gap-2 text-deputy-muted">
+        {label === "Gmail" ? (
+          <Mail className="h-3.5 w-3.5" />
+        ) : (
+          <span className="h-3.5 w-3.5 rounded-full border border-deputy-border" />
+        )}
+        {label}
+      </span>
+      <span
+        className={clsx(
+          "rounded-full px-2 py-0.5 text-[10px] font-medium",
+          connected
+            ? "bg-deputy-accent/10 text-deputy-accent"
+            : "bg-white/5 text-deputy-muted"
+        )}
+      >
+        {detail ?? (connected ? "Connected" : "Not connected")}
+      </span>
     </div>
   );
 }

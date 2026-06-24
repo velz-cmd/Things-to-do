@@ -1,13 +1,23 @@
 import { sendClaimEmail } from "../src/lib/deputy/tools/resend";
 import { generateDeputyPlan } from "../src/lib/ai/planner";
-import {
-  completeQwenChat,
-  isQwenConfigured,
-  QWEN_MODELS,
-} from "../src/lib/ai/qwen";
+import { listConfiguredProviders } from "../src/lib/ai/gateway";
+import { generateTextWithFallback } from "../src/lib/ai/gateway";
 
 async function main() {
-  console.log("Testing Resend...");
+  console.log("AI providers:", JSON.stringify(listConfiguredProviders(), null, 2));
+
+  console.log("\nTesting fast tier...");
+  try {
+    const fast = await generateTextWithFallback({
+      tier: "fast",
+      prompt: "Reply with one word: OK",
+    });
+    console.log("Fast:", fast.text.trim(), "via", fast.meta.modelId);
+  } catch (e) {
+    console.log("Fast tier skipped:", e instanceof Error ? e.message : e);
+  }
+
+  console.log("\nTesting Resend...");
   const email = await sendClaimEmail({
     to: "test@test.com",
     subject: "RESOLVE claim test",
@@ -16,20 +26,7 @@ async function main() {
   });
   console.log("Resend OK:", email?.id);
 
-  console.log("\nTesting Qwen...");
-  if (!isQwenConfigured()) {
-    console.log("DASHSCOPE_API_KEY not set — skipping Qwen live test");
-  } else {
-    const reply = await completeQwenChat({
-      model: QWEN_MODELS.flash,
-      enableThinking: true,
-      messages: [{ role: "user", content: "Who are you? Reply in one sentence." }],
-    });
-    console.log("Qwen reasoning:", reply.reasoning.slice(0, 120) || "(none)");
-    console.log("Qwen content:", reply.content);
-  }
-
-  console.log("\nTesting mission planner...");
+  console.log("\nTesting quality planner...");
   const plan = await generateDeputyPlan({
     title: "Founder distribution",
     description: "Distribute $500 to community contributors after verified plays",

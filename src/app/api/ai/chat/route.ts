@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  isQwenConfigured,
-  QWEN_MODELS,
-  streamQwenChat,
-  type QwenModelId,
-} from "@/lib/ai/qwen";
+  candidatesForTier,
+  generateTextWithFallback,
+  listConfiguredProviders,
+} from "@/lib/ai/gateway";
 
 const bodySchema = z.object({
   messages: z.array(
@@ -14,20 +13,10 @@ const bodySchema = z.object({
       content: z.string().min(1),
     }),
   ),
-  model: z
-    .enum([QWEN_MODELS.flash, QWEN_MODELS.plus, QWEN_MODELS.max])
-    .optional(),
-  enableThinking: z.boolean().optional(),
+  tier: z.enum(["fast", "research", "quality"]).optional(),
 });
 
 export async function POST(req: Request) {
-  if (!isQwenConfigured()) {
-    return NextResponse.json(
-      { error: "DASHSCOPE_API_KEY is not configured" },
-      { status: 503 },
-    );
-  }
-
   let body: z.infer<typeof bodySchema>;
   try {
     body = bodySchema.parse(await req.json());
@@ -35,24 +24,39 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const model = (body.model ?? QWEN_MODELS.flash) as QwenModelId;
-  const enableThinking = body.enableThinking ?? true;
+  const tier = body.tier ?? "fast";
+  if (!candidatesForTier(tier).length) {
+    return NextResponse.json(
+      { error: "No AI providers configured for this tier" },
+      { status: 503 },
+    );
+  }
+
+  const system = body.messages.find((m) => m.role === "system")?.content;
+  const conversation = body.messages
+    .filter((m) => m.role !== "system")
+    .map((m) => `${m.role}: ${m.content}`)
+    .join("\n");
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of streamQwenChat({
-          model,
-          messages: body.messages,
-          enableThinking,
-        })) {
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
-          );
-        }
+        const { text, meta } = await generateTextWithFallback({
+          tier,
+          system,
+          prompt: conversation,
+        });
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({ type: "content", text, meta })}\n\n`,
+          ),
+        );
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`),
+        );
       } catch (e) {
-        const message = e instanceof Error ? e.message : "Qwen stream failed";
+        const message = e instanceof Error ? e.message : "AI request failed";
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: "error", message })}\n\n`),
         );
@@ -72,11 +76,15 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  const providers = listConfiguredProviders();
   return NextResponse.json({
-    configured: isQwenConfigured(),
-    models: QWEN_MODELS,
-    defaultModel: QWEN_MODELS.flash,
-    plannerModel: process.env.QWEN_PLANNER_MODEL ?? QWEN_MODELS.plus,
-    reasoningModel: process.env.QWEN_REASONING_MODEL ?? QWEN_MODELS.max,
+    architecture:
+      "Cloudflare Gateway → Groq (fast) → Llama (research) → Gemini (quality)",
+    providers,
+    tiers: {
+      fast: "Intent classification, tagging, routing, quick summaries",
+      research: "GitHub/repo analysis, long documents, bulk processing",
+      quality: "Final reasoning, mission evaluation, treasury reports",
+    },
   });
 }

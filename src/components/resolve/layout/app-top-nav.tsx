@@ -9,8 +9,8 @@ import { AuthHeader } from "@/components/auth/auth-header";
 const NAV = [
   { href: "/", label: "Home", icon: Home, exact: true },
   { href: "/discover", label: "Discover", icon: Search },
-  { href: "/missions?panel=distribute", label: "Weight", icon: Scale },
-  { href: "/missions", label: "Mission", icon: LayoutList },
+  { href: "/weight", label: "Weight", icon: Scale },
+  { href: "/methodology", label: "Methodology", icon: LayoutList },
   { href: "/radar", label: "Radar", icon: Radar },
 ];
 

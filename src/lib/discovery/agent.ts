@@ -11,8 +11,8 @@ export type AgentLogEntry = {
 };
 
 const SCAN_TEMPLATES: Omit<AgentLogEntry, "ts">[] = [
-  { level: "SCAN", domain: "github", message: "maintainer graph · 4 repos · 680k deps/mo · $0 funding" },
-  { level: "FLAG", domain: "github", message: "hidden builder · impact 91 · funding readiness 88" },
+  { level: "SCAN", domain: "github", message: "live API · navidrome/navidrome contributors · ranking unpaid value" },
+  { level: "FLAG", domain: "github", message: "live builder · high commits · $0 on-chain payouts detected" },
   { level: "SCAN", domain: "navidrome", message: "scrobble aggregate · artist mbid-night-signals · 14.2k plays/30d" },
   { level: "FLAG", domain: "navidrome", message: "top artist · no payee registry · ~$890 unpaid est." },
   { level: "SCAN", domain: "mastodon", message: "engagement share · @writer@fosstodon.org · 40% of instance" },

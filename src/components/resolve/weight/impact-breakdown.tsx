@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import type { ContributorWeight } from "@/lib/weight/types";
 import { Panel } from "@/components/resolve/ui/panel";
 import { Money } from "@/components/resolve/ui/money";
@@ -18,6 +20,36 @@ export function ImpactBreakdown({
   settling?: boolean;
 }) {
   const totalWeight = contributors.reduce((s, c) => s + c.totalWeight, 0);
+  const [challenging, setChallenging] = useState<string | null>(null);
+  const [pausedPayees, setPausedPayees] = useState<Set<string>>(new Set());
+
+  async function challengeWeight(c: ContributorWeight) {
+    setChallenging(c.payeeKey);
+    try {
+      const res = await fetch("/api/weight/challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          payeeKey: c.payeeKey,
+          claimedSharePercent: c.sharePercent,
+          challengerStakeUsd: 2,
+          reason: "Dispute impact share before settlement",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Challenge failed");
+      setPausedPayees((prev) => new Set(prev).add(c.payeeKey));
+      toast.success(`Challenge opened · ${data.challengeId} · settlement paused for this payee`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Challenge failed");
+    } finally {
+      setChallenging(null);
+    }
+  }
+
+  const topContributor = contributors[0];
+  const canChallenge = (c: ContributorWeight) =>
+    topContributor && c.payeeKey === topContributor.payeeKey && c.sharePercent >= 15;
 
   return (
     <div className="space-y-4">
@@ -55,15 +87,33 @@ export function ImpactBreakdown({
           {contributors.map((c) => (
             <li key={c.payeeKey} className="flex items-start justify-between gap-3 py-2.5">
               <div className="min-w-0">
-                <p className="font-medium text-white">{c.payeeName ?? c.payeeKey}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-white">{c.payeeName ?? c.payeeKey}</p>
+                  {pausedPayees.has(c.payeeKey) && (
+                    <span className="rounded bg-amber-500/20 px-1 py-0.5 text-[9px] text-amber-200">
+                      CHALLENGED
+                    </span>
+                  )}
+                </div>
                 <p className="mt-0.5 text-resolve-muted">{c.topRationale}</p>
                 <p className="mt-1 text-[10px] text-resolve-muted-dim">
                   {c.eventCount} events · weight {c.totalWeight}
                 </p>
+                {canChallenge(c) && !pausedPayees.has(c.payeeKey) && (
+                  <button
+                    type="button"
+                    onClick={() => challengeWeight(c)}
+                    disabled={challenging === c.payeeKey}
+                    className="mt-2 text-[10px] text-amber-300 hover:underline"
+                  >
+                    {challenging === c.payeeKey ? "Opening challenge…" : "Challenge this weight (stake $2)"}
+                  </button>
+                )}
               </div>
               <div className="shrink-0 text-right">
-                <p className="font-semibold tabular-nums text-white">{c.sharePercent}%</p>
-                <Money amount={c.payoutUsd} size="sm" className="mt-0.5" />
+                <p className="text-2xl font-bold tabular-nums text-white">{c.sharePercent}%</p>
+                <p className="text-[9px] uppercase text-resolve-muted">share</p>
+                <Money amount={c.payoutUsd} size="sm" className="mt-1" />
               </div>
             </li>
           ))}
@@ -84,7 +134,7 @@ export function ImpactBreakdown({
           {settling ? "Settling on Arc…" : "Settle on Arc"}
         </button>
         <p className="self-center text-[11px] text-resolve-muted">
-          Proportional split by verified impact — not flat per-event CSV amounts.
+          Mimir settles truth · Rug Jeez prices risk · RESOLVE weights impact
         </p>
       </div>
     </div>

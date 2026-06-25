@@ -62,4 +62,5 @@ export interface HiddenBuilder {
   signals: { label: string; value: string; severity: "high" | "medium" | "low" }[];
   unpaidUsdEstimate: number;
   headline: string;
+  live?: boolean;
 }

@@ -16,7 +16,9 @@ export async function GET() {
       agentLog: "/api/discover/agent-log",
       weight: "/api/weight/evaluate",
       challenge: "/api/weight/challenge",
-      settle: "/api/gateway/distribute",
+      settle: "/api/payment/execute-batch",
+      paymentBlueprint: "/api/payment/blueprint",
+      paymentHistory: "/api/payment/history",
     },
     docs: "/docs/PROTOCOL.md",
   });

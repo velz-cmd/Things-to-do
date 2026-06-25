@@ -10,8 +10,8 @@ import { SettlementReceipt } from "@/components/resolve/missions/settlement-rece
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import type { ContributorWeight } from "@/lib/weight/types";
-import type { DistributeResult } from "@/lib/gateway/types";
 import type { GitHubAllocationResult } from "@/lib/github/types";
+import type { SettlementResult } from "@/lib/payment/types";
 import { DEFAULT_FOUNDER_INTENT } from "@/lib/github/types";
 
 function toContributorWeights(allocation: GitHubAllocationResult): ContributorWeight[] {
@@ -57,7 +57,7 @@ export function GitHubFundingPanel({
   const [intent, setIntent] = useState(DEFAULT_FOUNDER_INTENT);
   const [loading, setLoading] = useState(false);
   const [allocation, setAllocation] = useState<GitHubAllocationResult | null>(null);
-  const [result, setResult] = useState<DistributeResult | null>(null);
+  const [result, setResult] = useState<SettlementResult | null>(null);
 
   async function analyzeAndAllocate() {
     if (!ready) {
@@ -93,40 +93,41 @@ export function GitHubFundingPanel({
     if (!allocation) return;
     setLoading(true);
     try {
-      const events = allocation.contributors.flatMap((c) =>
-        c.verdicts.map((v) => ({
-          eventId: `gh-pr-${v.prNumber}`,
-          type: "github_pr_merged",
-          platformId: c.login,
-          amountUsd: Math.round((v.finalWeight / c.totalWeight) * c.payoutUsd * 100) / 100,
-          payload: {
-            prNumber: v.prNumber,
-            author: c.login,
-            impactScore: v.finalWeight,
-            trustScore: c.trustScore,
-            weightProofHash: allocation.weightProofHash,
-            evidence: v.evidence,
-            demoVerified: true,
-            githubUsername: c.login,
-          },
-        })),
-      );
-
-      const res = await fetch("/api/gateway/distribute", {
+      const res = await fetch("/api/payment/from-allocation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          platform: "github",
-          events,
-          verifySampleRate: 0.1,
-          weightProofHash: allocation.weightProofHash,
+          allocation,
+          execute: true,
+          agentsRun: [
+            "identity_worker",
+            "repository_worker",
+            "pr_worker",
+            "code_worker",
+            "collaboration_worker",
+            "impact_worker",
+            "reputation_worker",
+            "ecosystem_worker",
+            "reasoning_engine",
+          ],
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Settlement failed");
+      if (!res.ok) {
+        if (data.missingWallets?.length) {
+          throw new Error(
+            `Register wallets for: ${data.missingWallets.join(", ")} (Contributor Registry)`,
+          );
+        }
+        throw new Error(data.error ?? "Settlement failed");
+      }
       setResult(data);
       setAllocation(null);
-      toast.success(data.onChain ? "GitHub-weighted batch settled on Arc" : "Verified off-chain");
+      toast.success(
+        data.status === "SETTLED" ?
+          "Mission settled on Arc with memos + nano agent payments"
+        : "Settlement recorded — retry failed wallets via /api/payment/retry",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Settlement failed");
     } finally {
@@ -135,17 +136,33 @@ export function GitHubFundingPanel({
   }
 
   if (result) {
+    const txHash = result.proof?.txHashes?.[0] ?? result.explorerUrls?.[0]?.split("/").pop();
+    const explorerUrl = result.explorerUrls?.[0];
     return (
       <div className={embedded ? "p-3" : "p-6"}>
         <SettlementReceipt
-          title="GitHub impact-weighted settlement"
-          amountUsd={result.totalAmountUsd}
-          payeeCount={result.payeeCount}
-          eventCount={result.eventCount}
-          txHash={result.txHash}
-          explorerUrl={result.explorerUrl}
-          complianceCsv={result.complianceCsv}
+          title="Arc batch settlement with memos"
+          amountUsd={result.plan.contributorTotal}
+          payeeCount={result.plan.intents.length}
+          eventCount={result.nanoPayments.length}
+          txHash={txHash}
+          explorerUrl={explorerUrl}
         />
+        <Panel className="mt-3 p-3 text-xs text-resolve-muted">
+          <p>
+            Settlement <span className="font-mono text-white">{result.settlementId}</span> · Batch{" "}
+            {result.proof?.batchNumber} · Status {result.status}
+          </p>
+          <p className="mt-1">
+            Agent nano payments: ${result.plan.agentNanoTotal.toFixed(2)} · Proof{" "}
+            <span className="font-mono">{result.plan.proofHash.slice(0, 14)}…</span>
+          </p>
+          {result.failedWallets.length > 0 && (
+            <p className="mt-1 text-amber-400">
+              Failed wallets: {result.failedWallets.join(", ")} — retry via payment API
+            </p>
+          )}
+        </Panel>
         <button
           type="button"
           onClick={() => setResult(null)}

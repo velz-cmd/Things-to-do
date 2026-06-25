@@ -1,11 +1,13 @@
 import type { ToolResult } from "./index";
+import { getGmailAccessToken } from "@/lib/google/gmail-token";
 
-export async function gmailSearchReceipts(query: string): Promise<
-  ToolResult<{ bookingRef: string; merchant: string; amountUsd: number }>
-> {
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN) {
+export async function gmailSearchReceipts(
+  query: string,
+  userId?: string | null
+): Promise<ToolResult<{ bookingRef: string; merchant: string; amountUsd: number }>> {
+  const token = await getGmailAccessToken(userId);
+  if (token) {
     try {
-      const token = await refreshGoogleToken();
       const q = encodeURIComponent(`subject:(receipt OR booking OR confirmation) ${query}`);
       const res = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${q}&maxResults=3`,
@@ -23,47 +25,64 @@ export async function gmailSearchReceipts(query: string): Promise<
             snippet?: string;
             payload?: { headers?: { name: string; value: string }[] };
           };
-          const subject =
-            meta.payload?.headers?.find((h) => h.name === "Subject")?.value ??
-            "Booking receipt";
           const refMatch = meta.snippet?.match(/[A-Z]{2,}-\d{3,}/);
+          const fromHeader = meta.payload?.headers?.find((h) => h.name === "From")?.value ?? "";
+          const merchant =
+            fromHeader.replace(/<.*>/, "").trim() ||
+            (query.includes("stream") ? "StreamDemo" : "SkyDemo Airlines");
           return {
             ok: true,
             tool: "gmail.searchReceipts",
             costUsd: 0.004,
             data: {
               bookingRef: refMatch?.[0] ?? `BK-${query.slice(0, 4).toUpperCase()}`,
-              merchant: query.includes("stream") ? "StreamDemo" : "SkyDemo Airlines",
+              merchant,
               amountUsd: 43,
             },
           };
         }
       }
     } catch (e) {
-      console.warn("Gmail API failed, using mock:", e);
+      console.warn("Gmail API failed:", e);
+      return {
+        ok: false,
+        tool: "gmail.searchReceipts",
+        costUsd: 0,
+        error: e instanceof Error ? e.message : "Gmail search failed",
+      };
     }
   }
 
-  await delay(120);
+  if (process.env.DEPUTY_DEMO_MODE === "true") {
+    await delay(120);
+    return {
+      ok: true,
+      tool: "gmail.searchReceipts",
+      costUsd: 0.004,
+      data: {
+        bookingRef: `BK-${query.slice(0, 4).toUpperCase() || "SD482"}`,
+        merchant: query.includes("stream") ? "StreamDemo" : "SkyDemo Airlines",
+        amountUsd: 43,
+      },
+    };
+  }
+
   return {
-    ok: true,
+    ok: false,
     tool: "gmail.searchReceipts",
-    costUsd: 0.004,
-    data: {
-      bookingRef: `BK-${query.slice(0, 4).toUpperCase() || "SD482"}`,
-      merchant: query.includes("stream") ? "StreamDemo" : "SkyDemo Airlines",
-      amountUsd: 43,
-    },
+    costUsd: 0,
+    error: "Gmail not connected — authorize at /api/connectors/gmail/authorize",
   };
 }
 
 export async function gmailFindProof(
   merchantId: string,
-  type: "refund" | "cancellation"
+  type: "refund" | "cancellation",
+  userId?: string | null
 ): Promise<ToolResult<{ found: boolean; confirmationId?: string; snippet?: string }>> {
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN) {
+  const token = await getGmailAccessToken(userId);
+  if (token) {
     try {
-      const token = await refreshGoogleToken();
       const q = encodeURIComponent(
         `from:(${merchantId}) (refund OR cancellation OR confirmed) newer_than:30d`
       );
@@ -85,9 +104,24 @@ export async function gmailFindProof(
           };
         }
       }
+      return {
+        ok: true,
+        tool: "gmail.findProof",
+        costUsd: 0.003,
+        data: { found: false },
+      };
     } catch (e) {
       console.warn("Gmail findProof failed:", e);
     }
+  }
+
+  if (process.env.DEPUTY_DEMO_MODE === "true") {
+    return {
+      ok: true,
+      tool: "gmail.findProof",
+      costUsd: 0.003,
+      data: { found: type === "cancellation" },
+    };
   }
 
   return {
@@ -96,22 +130,6 @@ export async function gmailFindProof(
     costUsd: 0.003,
     data: { found: false },
   };
-}
-
-async function refreshGoogleToken(): Promise<string> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN!,
-      grant_type: "refresh_token",
-    }),
-  });
-  const data = (await res.json()) as { access_token?: string };
-  if (!data.access_token) throw new Error("Gmail token refresh failed");
-  return data.access_token;
 }
 
 function delay(ms: number) {

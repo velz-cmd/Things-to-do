@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { describeSwarmCapabilities, listConfiguredProviders } from "@/lib/ai/gateway";
+import { isCardOnRampEnabled, isDeputyDemoMode } from "@/lib/config/demo-mode";
 import { listSearchProviders, isSearchConfigured } from "@/lib/search";
 import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { getArcReadiness } from "@/lib/treasury/arc-readiness";
 import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
 import { isWalletLabelsConfigured } from "@/lib/wallet/wallet-labels";
+import { googleOAuthConfigured } from "@/lib/google/oauth";
 import { ARC_MEMO_CONTRACT } from "@/lib/arc/memo-abi";
 
 export async function GET() {
@@ -12,9 +15,11 @@ export async function GET() {
   const search = listSearchProviders();
   const hasLlm =
     ai.gemini || ai.groq || ai.openrouter || Boolean(process.env.DASHSCOPE_API_KEY);
+  const arcReadiness = await getArcReadiness();
 
   return NextResponse.json({
-    demoMode: process.env.DEPUTY_DEMO_MODE === "true",
+    demoMode: isDeputyDemoMode(),
+    cardOnRamp: isCardOnRampEnabled(),
     escrowDeployed: Boolean(process.env.NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS),
     resendEnabled: Boolean(process.env.RESEND_API_KEY),
     llmEnabled: hasLlm,
@@ -24,11 +29,33 @@ export async function GET() {
     arcMemos: {
       enabled: isLiveArcEnabled(),
       memoContract: ARC_MEMO_CONTRACT,
-      distributionPayouts: isLiveArcEnabled() ? "onchain_memo" : "offchain_only",
+      distributionPayouts: arcReadiness.canDistributeOnChain
+        ? "onchain_memo"
+        : "offchain_only",
+      treasuryBalanceUsd: arcReadiness.balanceUsd,
+      canDistributeOnChain: arcReadiness.canDistributeOnChain,
+      message: arcReadiness.message,
     },
     walletIntelligence: {
       alchemy: isAlchemyConfigured(),
       walletLabels: isWalletLabelsConfigured(),
+    },
+    integrations: {
+      gmail: {
+        oauthConfigured: googleOAuthConfigured(),
+        authorizePath: "/api/connectors/gmail/authorize",
+        setup:
+          "Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET on Vercel; redirect URI: {APP_URL}/api/connectors/gmail/callback",
+      },
+      walletLabels: {
+        configured: isWalletLabelsConfigured(),
+        setup: "Free API key at https://walletlabels.xyz — set WALLET_LABELS_API_KEY on Vercel",
+      },
+      cardDeposit: {
+        enabled: isCardOnRampEnabled(),
+        productionPath: "Use Add funds → Arc tab (USDC on Arc testnet)",
+      },
+      hackathonMerchants: ["SkyDemo Airlines", "StreamDemo"],
     },
     qwenEnabled: Boolean(process.env.DASHSCOPE_API_KEY),
     geminiEnabled: ai.gemini,
@@ -38,5 +65,6 @@ export async function GET() {
     swarmEnabled: swarm.enabled,
     swarmFlow: swarm.flow,
     liveArc: isLiveArcEnabled(),
+    arcTreasury: arcReadiness,
   });
 }

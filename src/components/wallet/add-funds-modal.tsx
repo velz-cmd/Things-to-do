@@ -43,7 +43,8 @@ export function AddFundsModal({
   const { address } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
-  const [tab, setTab] = useState<Tab>("simple");
+  const [cardOnRamp, setCardOnRamp] = useState(false);
+  const [tab, setTab] = useState<Tab>("crypto");
   const [method, setMethod] = useState<(typeof CARD_METHODS)[number]["id"]>("card");
   const [amount, setAmount] = useState(50);
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,18 @@ export function AddFundsModal({
     useSendTransaction();
   const { isLoading: confirming, isSuccess: txConfirmed } =
     useWaitForTransactionReceipt({ hash: txHash });
+
+  useEffect(() => {
+    if (!open) return;
+    void fetch("/api/config")
+      .then((r) => r.json())
+      .then((cfg) => {
+        const enabled = Boolean(cfg.cardOnRamp);
+        setCardOnRamp(enabled);
+        setTab(enabled ? "simple" : "crypto");
+      })
+      .catch(() => setTab("crypto"));
+  }, [open]);
 
   useEffect(() => {
     if (suggestedUsd) setAmount(suggestedUsd);
@@ -104,7 +117,14 @@ export function AddFundsModal({
         body: JSON.stringify({ amountUsd: amount, method }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Deposit failed");
+      if (!res.ok) {
+        if (data.useCrypto) {
+          toast.error(data.error, { description: data.message });
+          setTab("crypto");
+          return;
+        }
+        throw new Error(data.error ?? "Deposit failed");
+      }
       toast.success("Funds added", {
         description: data.message ?? `$${amount} ready for tasks`,
       });
@@ -153,14 +173,18 @@ export function AddFundsModal({
         <h2 className="text-lg font-semibold">Add funds</h2>
         <p className="mt-1 text-sm text-deputy-muted">
           {tab === "simple"
-            ? "Pay like any app — we convert to USDC on Arc for you."
-            : "Send USDC on Arc Testnet from your connected wallet."}
+            ? "Demo instant credit — not a real Circle on-ramp."
+            : tab === "bridge"
+              ? "Bridge USDC from another chain via CCTP."
+              : "Send USDC on Arc Testnet from your connected wallet."}
         </p>
 
         <div className="mt-4 flex gap-1 rounded-lg bg-black/30 p-1">
-          <TabButton active={tab === "simple"} onClick={() => setTab("simple")}>
-            Card
-          </TabButton>
+          {cardOnRamp && (
+            <TabButton active={tab === "simple"} onClick={() => setTab("simple")}>
+              Card (demo)
+            </TabButton>
+          )}
           <TabButton active={tab === "bridge"} onClick={() => setTab("bridge")}>
             Bridge
           </TabButton>
@@ -213,8 +237,8 @@ export function AddFundsModal({
               ))}
             </div>
             <p className="mt-3 text-xs leading-relaxed text-deputy-muted">
-              No crypto knowledge needed. Your email account is linked — RESOLVE
-              handles Arc USDC settlement in the background.
+              Demo mode only — credits your in-app balance instantly. Production uses
+              Arc USDC deposit (Arc tab).
             </p>
             <button
               type="button"

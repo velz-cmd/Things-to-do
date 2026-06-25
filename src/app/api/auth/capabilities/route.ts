@@ -3,6 +3,10 @@ import {
   getSupabaseServerUrl,
   isSupabaseAdminConfigured,
 } from "@/lib/supabase/admin";
+import {
+  fetchSupabaseAuthSettings,
+  isSupabaseExternalProviderEnabled,
+} from "@/lib/supabase/auth-settings";
 
 function getAnonKey(): string {
   return (
@@ -21,24 +25,10 @@ export async function GET() {
   let google = false;
   let github = false;
   if (supabase) {
-    try {
-      const res = await fetch(`${url}/auth/v1/settings`, {
-        headers: { apikey: anonKey, Accept: "application/json" },
-        next: { revalidate: 60 },
-      });
-      if (res.ok) {
-        const settings = (await res.json()) as {
-          external?: {
-            google?: { enabled?: boolean };
-            github?: { enabled?: boolean };
-          };
-        };
-        google = Boolean(settings.external?.google?.enabled);
-        github = Boolean(settings.external?.github?.enabled);
-      }
-    } catch {
-      google = false;
-      github = false;
+    const settings = await fetchSupabaseAuthSettings(url, anonKey);
+    if (settings?.external) {
+      google = isSupabaseExternalProviderEnabled(settings.external.google);
+      github = isSupabaseExternalProviderEnabled(settings.external.github);
     }
   }
 

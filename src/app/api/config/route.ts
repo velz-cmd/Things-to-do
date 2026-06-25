@@ -83,6 +83,8 @@ export async function GET() {
       evaluateEndpoint: "/api/weight/evaluate",
       githubAllocate: "/api/github/allocate",
       githubOpportunities: "/api/github/opportunities",
+      githubBlueprint: "/api/github/blueprint",
+      githubOsDocs: "/docs/GITHUB-OS.md",
     },
     protocol: {
       name: "RESOLVE Open Impact Settlement Protocol",

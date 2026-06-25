@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { allocateGithubPool } from "@/lib/github/allocate";
+import { runGithubPipeline } from "@/lib/github/allocate";
 
 const intentSchema = z.object({
   infrastructure: z.number().min(0).max(100).optional(),
@@ -19,26 +19,34 @@ const bodySchema = z.object({
   useLlm: z.boolean().optional(),
 });
 
-/** GitHub Phase 1 allocation — Founder Intent + Weight Council + Sybil Shield. */
+/** GitHub Phase 1 — Evidence OS pipeline → allocation. */
 export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid allocation payload" }, { status: 400 });
   }
 
-  const result = await allocateGithubPool(parsed.data);
+  const result = await runGithubPipeline(parsed.data);
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 404 });
   }
 
-  return NextResponse.json(result);
+  return NextResponse.json({
+    ...result.allocation,
+    pipeline: {
+      evidenceCount: result.busEvidenceCount,
+      proof: result.proof,
+      verdictCount: result.verdicts.length,
+    },
+  });
 }
 
 export async function GET() {
   return NextResponse.json({
     name: "RESOLVE GitHub Allocation Engine",
     phase: "github-v1",
-    flow: "Ingest → Sybil Shield → Weight Council → Founder Intent → Proportional Split",
+    flow: "Adapter → Evidence Bus → Workers → Reasoning → Confidence → Allocate → Arc",
+    blueprint: "/api/github/blueprint",
     endpoint: "POST /api/github/allocate",
     requiredEnv: ["GITHUB_TOKEN"],
     optionalEnv: ["GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"],

@@ -56,11 +56,11 @@ export function HomePage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/protocol"
+              href="/blueprint"
               className="inline-flex items-center gap-2 rounded-md border border-resolve-border-strong px-5 py-3 text-sm text-white hover:bg-resolve-hover"
             >
               <GitBranch className="h-4 w-4" />
-              Protocol spec
+              System blueprint
             </Link>
           </div>
         </div>

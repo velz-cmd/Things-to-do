@@ -8,11 +8,11 @@ import { AuthHeader } from "@/components/auth/auth-header";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home, exact: true },
+  { href: "/blueprint", label: "Blueprint", icon: GitBranch },
   { href: "/radar", label: "Radar", icon: Radar },
   { href: "/weight", label: "Weight", icon: Scale },
   { href: "/discover", label: "Discover", icon: Search },
   { href: "/methodology", label: "Signals", icon: LayoutList },
-  { href: "/protocol", label: "Protocol", icon: GitBranch },
 ];
 
 export function AppTopNav() {

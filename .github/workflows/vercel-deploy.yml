@@ -10,8 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  VERCEL_ORG_ID: team_apDtKK364C3BW1LjG3M93rhI
-  VERCEL_PROJECT_ID: prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd
   # Deploy hook on things-to-do / main (revoke in Vercel dashboard if leaked)
   VERCEL_DEPLOY_HOOK_URL: https://api.vercel.com/v1/integrations/deploy/prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd/krAQUtlB2i
 
@@ -19,26 +17,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
       - name: Trigger Vercel production deploy
         run: |
           echo "Triggering Vercel deploy hook for main..."
           curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
           echo "Production deploy started on Vercel."
-
-      - name: CLI deploy (optional — when VERCEL_TOKEN secret is set)
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ env.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ env.VERCEL_PROJECT_ID }}
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "VERCEL_TOKEN not in GitHub secrets — hook deploy only."
-            echo "Run ./scripts/setup-github-vercel-secrets.sh locally to enable CLI path."
-            exit 0
-          fi
-          npm install -g vercel@54
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          vercel build --prod --token="$VERCEL_TOKEN"
-          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"

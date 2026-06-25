@@ -27,12 +27,19 @@ export async function GET(req: Request) {
   }
 
   try {
-    await exchangeGoogleCode(code);
+    const tokens = await exchangeGoogleCode(code);
     await prisma.user.update({
       where: { id: userId },
-      data: { gmailConnected: true },
+      data: {
+        gmailConnected: true,
+        ...(tokens.refresh_token ? { gmailRefreshToken: tokens.refresh_token } : {}),
+      },
     });
-    return NextResponse.redirect(`${origin}/start?gmail_connected=1`);
+    const returnTo = cookieStore.get("gmail_oauth_return")?.value;
+    cookieStore.delete("gmail_oauth_return");
+    const dest = returnTo && returnTo.startsWith("/") ? returnTo : "/start";
+    const suffix = dest.includes("?") ? "&" : "?";
+    return NextResponse.redirect(`${origin}${dest}${suffix}gmail_connected=1`);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Gmail connection failed";
     return NextResponse.redirect(

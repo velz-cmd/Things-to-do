@@ -1,5 +1,8 @@
 import { gmailSearchReceipts } from "@/lib/deputy/tools/gmail";
-import { getArcTransactionCount, getArcUsdcBalance, isAlchemyConfigured } from "@/lib/wallet/alchemy";
+import { isDeputyDemoMode } from "@/lib/config/demo-mode";
+import { googleOAuthConfigured } from "@/lib/google/oauth";
+import { isGmailConnectedForUser } from "@/lib/google/gmail-token";
+import { getArcUsdcBalance, getArcTransactionCount, isAlchemyConfigured } from "@/lib/wallet/alchemy";
 import { isWalletLabelsConfigured, lookupWalletLabel } from "@/lib/wallet/wallet-labels";
 
 export interface DiscoveryItem {
@@ -33,7 +36,7 @@ const DEMO_SUBSCRIPTIONS: DiscoveryItem[] = [
   },
   {
     id: "sub-streamdemo",
-    label: "StreamDemo",
+    label: "StreamDemo (hackathon merchant)",
     company: "StreamDemo",
     amountUsd: 12.99,
     period: "mo",
@@ -45,7 +48,7 @@ const DEMO_SUBSCRIPTIONS: DiscoveryItem[] = [
 const DEMO_REFUNDS: DiscoveryItem[] = [
   {
     id: "ref-skydemo",
-    label: "SkyDemo Airlines delay",
+    label: "SkyDemo Airlines delay (hackathon merchant)",
     company: "SkyDemo Airlines",
     amountUsd: 43,
     period: "estimated",
@@ -84,28 +87,46 @@ const DEMO_PARCELS: DiscoveryItem[] = [
   },
 ];
 
-function gmailConnected(): boolean {
-  return Boolean(
-    process.env.GOOGLE_CLIENT_ID &&
-      process.env.GOOGLE_REFRESH_TOKEN &&
-      process.env.GOOGLE_CLIENT_SECRET
-  );
+function demoHackathonItems(items: DiscoveryItem[]): DiscoveryItem[] {
+  if (!isDeputyDemoMode()) return [];
+  return items;
 }
 
-export async function discoverSubscriptions(): Promise<{
+export async function discoverSubscriptions(userId?: string | null): Promise<{
   items: DiscoveryItem[];
   source: "gmail" | "demo" | "none";
   message?: string;
+  gmailConfigured: boolean;
+  gmailConnected: boolean;
 }> {
-  if (!gmailConnected()) {
+  const gmailConfigured = googleOAuthConfigured();
+  const gmailConnected = await isGmailConnectedForUser(userId);
+
+  if (!gmailConfigured) {
     return {
-      items: [],
-      source: "none",
-      message: "Connect Gmail to discover subscriptions and refund opportunities.",
+      items: demoHackathonItems(DEMO_SUBSCRIPTIONS),
+      source: isDeputyDemoMode() ? "demo" : "none",
+      message: isDeputyDemoMode()
+        ? "Demo subscriptions — add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET on Vercel for live Gmail"
+        : "Gmail OAuth not configured on server — connect when GOOGLE_CLIENT_ID is set",
+      gmailConfigured: false,
+      gmailConnected: false,
     };
   }
 
-  const receipt = await gmailSearchReceipts("subscription renewal billing");
+  if (!gmailConnected) {
+    return {
+      items: demoHackathonItems(DEMO_SUBSCRIPTIONS),
+      source: isDeputyDemoMode() ? "demo" : "none",
+      message: isDeputyDemoMode()
+        ? "Demo data — connect Gmail for live subscription discovery"
+        : "Connect Gmail to discover subscriptions",
+      gmailConfigured: true,
+      gmailConnected: false,
+    };
+  }
+
+  const receipt = await gmailSearchReceipts("subscription renewal billing", userId);
   if (receipt.ok && receipt.data) {
     return {
       items: [
@@ -118,33 +139,58 @@ export async function discoverSubscriptions(): Promise<{
           isDemo: false,
           source: "gmail",
         },
-        ...DEMO_SUBSCRIPTIONS.map((d) => ({ ...d, isDemo: true, source: "demo" })),
+        ...demoHackathonItems(DEMO_SUBSCRIPTIONS),
       ],
       source: "gmail",
+      gmailConfigured: true,
+      gmailConnected: true,
     };
   }
 
   return {
-    items: DEMO_SUBSCRIPTIONS,
-    source: "demo",
-    message: "Demo data — connect Gmail for live discovery",
+    items: demoHackathonItems(DEMO_SUBSCRIPTIONS),
+    source: isDeputyDemoMode() ? "demo" : "none",
+    message: receipt.error ?? "No subscriptions found in Gmail — try again or enter manually",
+    gmailConfigured: true,
+    gmailConnected: true,
   };
 }
 
-export async function discoverRefunds(): Promise<{
+export async function discoverRefunds(userId?: string | null): Promise<{
   items: DiscoveryItem[];
   source: "gmail" | "demo" | "none";
   message?: string;
+  gmailConfigured: boolean;
+  gmailConnected: boolean;
 }> {
-  if (!gmailConnected()) {
+  const gmailConfigured = googleOAuthConfigured();
+  const gmailConnected = await isGmailConnectedForUser(userId);
+
+  if (!gmailConfigured) {
     return {
-      items: [],
-      source: "none",
-      message: "Connect Gmail to find refund opportunities.",
+      items: demoHackathonItems(DEMO_REFUNDS),
+      source: isDeputyDemoMode() ? "demo" : "none",
+      message: isDeputyDemoMode()
+        ? "Demo refunds — SkyDemo/StreamDemo are hackathon merchant paths"
+        : "Gmail OAuth not configured on server",
+      gmailConfigured: false,
+      gmailConnected: false,
     };
   }
 
-  const receipt = await gmailSearchReceipts("flight delayed refund");
+  if (!gmailConnected) {
+    return {
+      items: demoHackathonItems(DEMO_REFUNDS),
+      source: isDeputyDemoMode() ? "demo" : "none",
+      message: isDeputyDemoMode()
+        ? "Demo data — connect Gmail for live refund discovery"
+        : "Connect Gmail to find refund opportunities",
+      gmailConfigured: true,
+      gmailConnected: false,
+    };
+  }
+
+  const receipt = await gmailSearchReceipts("flight delayed refund", userId);
   if (receipt.ok && receipt.data) {
     return {
       items: [
@@ -157,36 +203,44 @@ export async function discoverRefunds(): Promise<{
           isDemo: false,
           source: "gmail",
         },
-        ...DEMO_REFUNDS,
+        ...demoHackathonItems(DEMO_REFUNDS),
       ],
       source: "gmail",
+      gmailConfigured: true,
+      gmailConnected: true,
     };
   }
 
   return {
-    items: DEMO_REFUNDS,
-    source: "demo",
-    message: "Demo data — connect Gmail for live discovery",
+    items: demoHackathonItems(DEMO_REFUNDS),
+    source: isDeputyDemoMode() ? "demo" : "none",
+    message: receipt.error ?? "No refund receipts found — enter booking reference manually",
+    gmailConfigured: true,
+    gmailConnected: true,
   };
 }
 
-export async function discoverParcels(): Promise<{
+export async function discoverParcels(userId?: string | null): Promise<{
   items: DiscoveryItem[];
   source: "gmail" | "demo" | "none";
   message?: string;
 }> {
-  if (!gmailConnected()) {
+  const gmailConnected = await isGmailConnectedForUser(userId);
+
+  if (!gmailConnected) {
     return {
-      items: DEMO_PARCELS,
-      source: "demo",
-      message: "Demo data — connect Gmail or enter tracking number manually",
+      items: demoHackathonItems(DEMO_PARCELS),
+      source: isDeputyDemoMode() ? "demo" : "none",
+      message: isDeputyDemoMode()
+        ? "Demo parcels — connect Gmail or enter tracking on Mission"
+        : "Connect Gmail or enter tracking number on Mission",
     };
   }
 
   return {
-    items: DEMO_PARCELS,
-    source: "demo",
-    message: "Demo parcel candidates — enter tracking for live lookup",
+    items: demoHackathonItems(DEMO_PARCELS),
+    source: isDeputyDemoMode() ? "demo" : "none",
+    message: "Parcel discovery from Gmail shipping labels — enter tracking for live lookup",
   };
 }
 
@@ -249,6 +303,16 @@ export async function discoverWallet(address: string): Promise<{
           source: "walletlabels",
         });
       }
+    } else {
+      items.push({
+        id: "wallet-labels-missing",
+        label: `${short} — WalletLabels not configured`,
+        company: "WalletLabels",
+        amountUsd: 0,
+        period: "needs_api_key",
+        isDemo: false,
+        source: "config",
+      });
     }
   } catch (e) {
     console.warn("WalletLabels lookup failed:", e);
@@ -265,6 +329,8 @@ export async function discoverWallet(address: string): Promise<{
   return {
     items,
     source: "scan",
-    message: "Live scan via Alchemy + WalletLabels",
+    message: isWalletLabelsConfigured()
+      ? "Live scan via Alchemy + WalletLabels"
+      : "Live Arc balance via Alchemy — add WALLET_LABELS_API_KEY for entity labels",
   };
 }

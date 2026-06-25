@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { GITHUB_OS_BLUEPRINT } from "@/lib/github/blueprint";
-import { hasGithubToken } from "@/lib/github/client";
+import { INTEGRATIONS } from "@/lib/integrations/config";
 import { listConfiguredProviders } from "@/lib/ai/gateway/resolve";
 
 /** Machine-readable RESOLVE GitHub OS blueprint. */
@@ -9,13 +9,15 @@ export async function GET() {
   return NextResponse.json({
     ...GITHUB_OS_BLUEPRINT,
     runtime: {
-      githubToken: hasGithubToken(),
+      githubToken: INTEGRATIONS.github(),
       openRouter: ai.openrouter,
       groq: ai.groq,
       gemini: ai.gemini,
-      librariesIo: Boolean(process.env.LIBRARIES_IO_API_KEY),
-      blockscout: Boolean(process.env.BLOCKSCOUT_API_URL ?? "https://testnet.arcscan.app/api"),
-      openAlex: Boolean(process.env.OPENALEX_API_KEY),
+      librariesIo: INTEGRATIONS.librariesIo(),
+      blockscout: INTEGRATIONS.blockscout(),
+      openAlex: INTEGRATIONS.openAlex(),
+      alchemy: INTEGRATIONS.alchemy(),
+      etherscan: INTEGRATIONS.etherscan(),
     },
     endpoints: {
       opportunities: "GET /api/github/opportunities",

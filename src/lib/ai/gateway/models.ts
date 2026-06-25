@@ -9,9 +9,11 @@ export const AI_MODELS = {
     quality: "llama-3.3-70b-versatile",
   },
   openrouter: {
-    research: "meta-llama/llama-3.3-70b-instruct:free",
-    fast: "meta-llama/llama-3.3-70b-instruct:free",
+    /** Code Worker — one model, one task (DeepSeek via OpenRouter) */
+    code: "deepseek/deepseek-chat",
+    research: "meta-llama/llama-3.3-70b-instruct",
+    fast: "google/gemini-2.0-flash-001",
   },
 } as const;
 
-export type AiTier = "fast" | "research" | "quality";
+export type AiTier = "fast" | "research" | "quality" | "code";

@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Home, LayoutList, Radar } from "lucide-react";
+import { Home, LayoutList, Music, Megaphone, Radar } from "lucide-react";
 import { AuthHeader } from "@/components/auth/auth-header";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home, exact: true },
   { href: "/missions", label: "Mission", icon: LayoutList },
+  { href: "/music", label: "Music", icon: Music },
+  { href: "/mastodon", label: "Fediverse", icon: Megaphone },
   { href: "/radar", label: "Radar", icon: Radar },
 ];
 

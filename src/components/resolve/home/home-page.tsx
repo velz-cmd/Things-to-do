@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, LayoutList, Landmark, Users } from "lucide-react";
+import { ArrowRight, LayoutList, Landmark, Music, Megaphone, Users } from "lucide-react";
 import { HeroVisual } from "@/components/resolve/home/hero-visual";
 import { LiveMissionPreview } from "@/components/resolve/home/live-mission-preview";
 import { Panel } from "@/components/resolve/ui/panel";
@@ -35,29 +35,35 @@ export function HomePage() {
         <div className="relative mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-2">
           <div>
             <p className="text-sm font-medium text-resolve-accent">
-              Outcome network on Arc
+              Payout infrastructure for real communities
             </p>
             <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-tight text-white md:text-4xl">
-              Work gets funded
-              <span className="text-blue-300"> only when verified.</span>
+              Pay the people your community
+              <span className="text-blue-300"> already uses.</span>
             </h1>
             <p className="mt-4 max-w-md text-sm leading-relaxed text-resolve-muted">
-              Bounties, team payouts, and community distribution — one mission control with
-              guided setup, treasury, and proof-based settlement.
+              MusicBrainz artists, Navidrome listeners, Mastodon moderators — register once, get paid
+              when verified work happens. Sidecar, plugin, or registry. No new app for your users.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <Link
-                href="/missions"
+                href="/music"
                 className="inline-flex items-center gap-2 rounded-md bg-resolve-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
               >
-                Start guided setup
+                Music payouts
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/radar"
+                href="/mastodon"
                 className="inline-flex items-center gap-2 rounded-md border border-resolve-border-strong px-5 py-2.5 text-sm text-white hover:bg-resolve-hover"
               >
-                Open radar
+                Fediverse campaigns
+              </Link>
+              <Link
+                href="/missions"
+                className="inline-flex items-center gap-2 rounded-md border border-resolve-border-strong px-5 py-2.5 text-sm text-white hover:bg-resolve-hover"
+              >
+                Mission control
               </Link>
             </div>
           </div>
@@ -112,24 +118,70 @@ export function HomePage() {
         </div>
       </section>
 
+      <section className="border-t border-white/[0.06] px-4 py-8 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <h2 className="text-lg font-semibold text-white">Ship where your users already are</h2>
+          <p className="mt-1 max-w-2xl text-sm text-resolve-muted">
+            Plug into open-source networks instead of starting from zero. Register payees, forward
+            scrobbles, or embed campaigns — distribution follows the community.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <Link href="/music" className="group">
+              <Panel className="p-4 transition hover:border-resolve-accent/40">
+                <Music className="h-5 w-5 text-resolve-accent" />
+                <p className="mt-2 text-sm font-medium text-white group-hover:text-blue-200">
+                  MusicBrainz + Navidrome
+                </p>
+                <p className="mt-1 text-xs text-resolve-muted">
+                  Payee registry and scrobble sidecar for self-hosted music.
+                </p>
+              </Panel>
+            </Link>
+            <Link href="/mastodon" className="group">
+              <Panel className="p-4 transition hover:border-resolve-accent/40">
+                <Megaphone className="h-5 w-5 text-resolve-accent" />
+                <p className="mt-2 text-sm font-medium text-white group-hover:text-blue-200">
+                  Mastodon campaigns
+                </p>
+                <p className="mt-1 text-xs text-resolve-muted">
+                  Transparent fundraising API for instance admins and mods.
+                </p>
+              </Panel>
+            </Link>
+            <Link href="/missions?panel=registry" className="group">
+              <Panel className="p-4 transition hover:border-resolve-accent/40">
+                <Users className="h-5 w-5 text-resolve-accent" />
+                <p className="mt-2 text-sm font-medium text-white group-hover:text-blue-200">
+                  Contributor registry
+                </p>
+                <p className="mt-1 text-xs text-resolve-muted">
+                  GitHub, Immich EXIF, ActivityPub — one wallet map for payouts.
+                </p>
+              </Panel>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <section className="border-t border-white/[0.06] px-4 py-10 lg:px-8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
-              Production stack
+              Under the hood
             </p>
             <h2 className="mt-1 text-lg font-semibold text-white">
-              Gemini · Groq · Llama · Cloudflare · Arc
+              Verified payouts on Arc
             </h2>
             <p className="mt-1 max-w-lg text-sm text-resolve-muted">
-              Multi-tier AI routing with real Arc USDC escrow — built for judges to verify live.
+              Treasury, batch distribution, and proof-based settlement — so communities trust where
+              money goes.
             </p>
           </div>
           <Link
             href="/stack"
             className="inline-flex items-center gap-2 rounded-md border border-resolve-border-strong px-4 py-2 text-sm text-white hover:bg-resolve-hover"
           >
-            View full stack
+            View stack
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Home, LayoutList, Radar } from "lucide-react";
+import { Home, LayoutList, Radar, Search, Scale } from "lucide-react";
 import { AuthHeader } from "@/components/auth/auth-header";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home, exact: true },
+  { href: "/discover", label: "Discover", icon: Search },
+  { href: "/missions?panel=distribute", label: "Weight", icon: Scale },
   { href: "/missions", label: "Mission", icon: LayoutList },
   { href: "/radar", label: "Radar", icon: Radar },
 ];
@@ -21,7 +23,7 @@ export function AppTopNav() {
         <div className="flex items-center gap-6">
           <Link href="/" className="shrink-0">
             <p className="text-sm font-semibold tracking-tight text-white">RESOLVE</p>
-            <p className="text-[9px] text-resolve-muted-dim">Outcome network</p>
+            <p className="text-[10px] text-resolve-muted-dim">Weight impact, settle on Arc</p>
           </Link>
 
           <nav className="flex items-center gap-1">

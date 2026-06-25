@@ -263,3 +263,75 @@ model DistributionEvent {
   proofHash    String?
   createdAt    DateTime           @default(now())
 }
+
+/// Payment Layer — immutable mission settlement (no GitHub / AI logic)
+model MissionSettlement {
+  id             String   @id @default(cuid())
+  missionId      String   @unique
+  repo           String?
+  treasuryAmount Float
+  currency       String   @default("USDC")
+  proofHash      String
+  confidence     Float
+  status         String   @default("CREATED")
+  poolsJson      String?
+  packageJson    String?
+  auditHash      String?
+  escrowTxHash   String?
+  batchNumber    Int?
+  proofJson      String?
+  complianceJson String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  intents        PaymentIntent[]
+  nanoPayments   SettlementNanoPayment[]
+  events         PaymentEvent[]
+
+  @@index([proofHash])
+  @@index([status])
+}
+
+model PaymentIntent {
+  id           String            @id @default(cuid())
+  settlementId String
+  settlement   MissionSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  wallet       String
+  login        String?
+  weight       Float
+  amountUsd    Float
+  rank         Int               @default(0)
+  memoId       String?
+  memoText     String?
+  status       String            @default("pending")
+  txHash       String?
+  createdAt    DateTime          @default(now())
+
+  @@index([wallet])
+  @@index([settlementId])
+}
+
+model SettlementNanoPayment {
+  id              String            @id @default(cuid())
+  settlementId    String
+  settlement      MissionSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  agentRole       String
+  purpose         String
+  amountUsd       Float
+  recipientWallet String
+  memoText        String
+  txHash          String?
+  status          String            @default("pending")
+  createdAt       DateTime          @default(now())
+}
+
+model PaymentEvent {
+  id           String             @id @default(cuid())
+  settlementId String
+  settlement   MissionSettlement  @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  type         String
+  payloadJson  String
+  createdAt    DateTime           @default(now())
+
+  @@index([settlementId])
+  @@index([type])
+}

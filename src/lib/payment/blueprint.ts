@@ -1,0 +1,70 @@
+/** Payment & Settlement Layer blueprint — independent of GitHub Intelligence */
+
+export const PAYMENT_LAYER_BLUEPRINT = {
+  name: "RESOLVE Payment & Settlement Layer",
+  version: "1.0.0",
+  philosophy: "Stripe moves money. It never decides who deserves payment.",
+  responsibility: "Receive verified MissionSettlement → execute capital safely on Arc",
+  neverDoes: [
+    "Rescan GitHub",
+    "Recalculate weights",
+    "Call LLMs",
+    "Override proofHash",
+  ],
+  flow: [
+    "Treasury",
+    "Arc Smart Escrow Vault",
+    "Capital Pools (Mission / Bonus / Emergency)",
+    "Settlement Planner",
+    "Circle Nano Payments (agents)",
+    "Arc Batch Settlement (contributors)",
+    "Memo Generator",
+    "Proof Graph",
+  ],
+  states: [
+    "CREATED",
+    "VALIDATING",
+    "ESCROW_LOCKED",
+    "READY",
+    "PROCESSING",
+    "SETTLED",
+    "ARCHIVED",
+    "FAILED",
+  ],
+    apis: {
+    createSettlement: "POST /api/payment/create-settlement",
+    lockEscrow: "POST /api/payment/lock-escrow",
+    executeBatch: "POST /api/payment/execute-batch",
+    fromAllocation: "POST /api/payment/from-allocation",
+    fromGithub: "POST /api/payment/from-github",
+    settlement: "GET /api/payment/settlement/{id}",
+    history: "GET /api/payment/history",
+    contributor: "GET /api/payment/contributor/{wallet}",
+    retry: "POST /api/payment/retry",
+    blueprint: "GET /api/payment/blueprint",
+  },
+  input: "MissionSettlement { missionId, treasuryAmount, proofHash, confidence, contributors[] }",
+  agentNanoRates: {
+    identity_worker: 0.05,
+    repository_worker: 0.05,
+    pr_worker: 0.05,
+    code_worker: 0.75,
+    collaboration_worker: 0.1,
+    impact_worker: 0.1,
+    reputation_worker: 0.05,
+    ecosystem_worker: 0.05,
+    reasoning_engine: 0.15,
+  },
+  pools: { mission: "70%", bonus: "20%", emergency: "10%" },
+  memoExample: {
+    mission: "gh-navidrome-navidrome",
+    contributor: "alice",
+    weight: 92,
+    proof: "0x83ab...",
+    settlement: "Batch-17",
+    role: "contributor",
+  },
+} as const;
+
+/** Alias for UI imports */
+export const PAYMENT_BLUEPRINT = PAYMENT_LAYER_BLUEPRINT;

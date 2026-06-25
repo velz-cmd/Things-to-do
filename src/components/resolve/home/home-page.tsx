@@ -7,9 +7,9 @@ import { Panel } from "@/components/resolve/ui/panel";
 import { Money } from "@/components/resolve/ui/money";
 
 const LOOP = [
-  { step: "01", verb: "Discover", icon: Search, href: "/discover", sub: "Unpaid Value Index" },
-  { step: "02", verb: "Weight", icon: Scale, href: "/weight", sub: "Proof-of-Weight" },
-  { step: "03", verb: "Settle", icon: Landmark, href: "/weight", sub: "Proportional split on Arc" },
+  { step: "01", verb: "Radar", icon: Search, href: "/radar", sub: "Unfunded OSS opportunities" },
+  { step: "02", verb: "Weight", icon: Scale, href: "/weight", sub: "Sybil Shield + Weight Council" },
+  { step: "03", verb: "Settle", icon: Landmark, href: "/weight", sub: "Evidence-based Arc split" },
 ];
 
 export function HomePage() {
@@ -36,23 +36,23 @@ export function HomePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
         <div className="relative mx-auto max-w-3xl text-center">
           <p className="text-sm font-medium text-resolve-accent">
-            Open Impact Settlement Protocol
+            Capital Flow Protocol · Phase 1: GitHub
           </p>
           <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-tight text-white md:text-5xl">
-            Value is everywhere.
-            <span className="block text-blue-300">Valuation isn&apos;t.</span>
+            Money is easy.
+            <span className="block text-blue-300">Knowing where it should go is hard.</span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-resolve-muted">
-            Open source. Any contribution graph. RESOLVE discovers who is unpaid, weights heterogeneous
-            impact with published proofs, and settles proportional splits on Arc — code, music,
-            streams, photos, posts in one protocol.
+            RESOLVE discovers who created the most value in a repository, explains why with
+            evidence, resists sybil attacks, and distributes capital transparently on Arc.
+            Starting with GitHub — every PR, review, and diff is public and verifiable.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <Link
-              href="/discover"
+              href="/radar"
               className="inline-flex items-center gap-2 rounded-md bg-resolve-accent px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500"
             >
-              Unpaid Value Index
+              GitHub Radar
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
@@ -69,7 +69,7 @@ export function HomePage() {
       <section className="border-t border-white/[0.06] px-4 py-8 lg:px-8">
         <div className="mx-auto max-w-4xl">
           <p className="text-center text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
-            One protocol · any graph
+            GitHub first · protocol scales to every community
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {LOOP.map((item) => {
@@ -91,13 +91,13 @@ export function HomePage() {
       <section className="border-t border-white/[0.06] px-4 py-8 lg:px-8">
         <div className="mx-auto max-w-4xl">
           <Panel className="p-5">
-            <h2 className="text-base font-semibold text-white">Why a protocol — not another app</h2>
+            <h2 className="text-base font-semibold text-white">What judges should see</h2>
             <ul className="mt-3 space-y-2 text-sm text-resolve-muted">
-              <li>· <span className="text-white">Multi-party splits</span> — not binary winner-take-all markets</li>
-              <li>· <span className="text-white">Heterogeneous events</span> — one engine for merges, scrobbles, streams, EXIF, citations</li>
-              <li>· <span className="text-white">Discovery first</span> — payees don&apos;t need to be known upfront</li>
-              <li>· <span className="text-white">Published weight proofs</span> — hash + open signals, not operator black boxes</li>
-              <li>· <span className="text-white">Permissionless disputes</span> — stake to challenge a share before settlement</li>
+              <li>· <span className="text-white">Value discovery</span> — high-star repos with maintainer stress and $0 funding</li>
+              <li>· <span className="text-white">Sybil-resistant attribution</span> — trust scores before weighting, not commit counts</li>
+              <li>· <span className="text-white">Founder intent</span> — infra 50%, docs 20% — AI scores within your priorities</li>
+              <li>· <span className="text-white">Transparent evidence</span> — every payout links to PRs, reviews, and reasoning</li>
+              <li>· <span className="text-white">Arc settlement</span> — proportional USDC split with on-chain proof hash</li>
             </ul>
           </Panel>
         </div>

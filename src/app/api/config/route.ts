@@ -73,12 +73,16 @@ export async function GET() {
     },
     impactWeight: {
       enabled: true,
+      phase: "github-v1",
       signals: 7,
-      flow: "UVI → PoW → PSS on Arc",
+      flow: "Radar → Sybil Shield → Weight Council → Founder Intent → Arc",
       methodology: "/methodology",
+      radar: "/radar",
       discovery: "/discover",
       protocol: "/protocol",
       evaluateEndpoint: "/api/weight/evaluate",
+      githubAllocate: "/api/github/allocate",
+      githubOpportunities: "/api/github/opportunities",
     },
     protocol: {
       name: "RESOLVE Open Impact Settlement Protocol",

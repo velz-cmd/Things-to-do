@@ -7,8 +7,11 @@ import { GitBranch, Sparkles } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
 import { Money } from "@/components/resolve/ui/money";
 import { AnalysisProgress } from "@/components/resolve/workspace/analysis-progress";
+import { AnalysisActivityFeed } from "@/components/resolve/workspace/analysis-activity-feed";
 import { ContributorBreakdown } from "@/components/resolve/workspace/contributor-breakdown";
 import { FounderPriorities } from "@/components/resolve/workspace/founder-priorities";
+import { WorkspaceOpportunities } from "@/components/resolve/workspace/workspace-opportunities";
+import { WorkspaceRoles } from "@/components/resolve/workspace/workspace-roles";
 import { PaymentSummary } from "@/components/resolve/payment/payment-summary";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -187,6 +190,15 @@ export function WorkspaceBrain() {
     router.replace("/workspace", { scroll: false });
   }
 
+  function selectOpportunity(selectedOwner: string, selectedRepo: string) {
+    setOwner(selectedOwner);
+    setRepo(selectedRepo);
+    setRepoInput(`${selectedOwner}/${selectedRepo}`);
+    router.replace(`/workspace?owner=${selectedOwner}&repo=${selectedRepo}`, { scroll: false });
+    autoRan.current = true;
+    void runAnalysis();
+  }
+
   if (phase === "complete" && result) {
     const txHash = result.proof?.txHashes?.find(isOnChainTxHash) ?? result.proof?.txHashes?.[0];
     const explorerUrl = result.explorerUrls?.[0] ?? explorerUrlForTx(txHash);
@@ -327,6 +339,8 @@ export function WorkspaceBrain() {
         </p>
       </div>
 
+      <WorkspaceRoles />
+
       <Panel className="p-5">
         <label className="text-sm font-medium text-white" htmlFor="repo-input">
           GitHub repository
@@ -364,7 +378,14 @@ export function WorkspaceBrain() {
 
       <FounderPriorities value={preset} onChange={setPreset} />
 
-      {phase === "analyzing" && <AnalysisProgress active />}
+      <WorkspaceOpportunities onSelect={selectOpportunity} />
+
+      {phase === "analyzing" && (
+        <>
+          <AnalysisProgress active />
+          <AnalysisActivityFeed active />
+        </>
+      )}
     </div>
   );
 }

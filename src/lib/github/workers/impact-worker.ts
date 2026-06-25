@@ -1,29 +1,15 @@
-import { githubFetch } from "@/lib/github/client";
+import { fetchGithubProject } from "@/lib/integrations/libraries-io";
 import type { EvidenceBus } from "@/lib/evidence/bus";
 import { evidenceId } from "@/lib/evidence/bus";
 import type { WorkerEvidence } from "@/lib/evidence/types";
 import { prSubjectId } from "@/lib/evidence/normalizer";
 import type { GitHubPullRequest } from "@/lib/github/types";
 
-async function librariesIoDependents(packageName: string): Promise<number | null> {
-  const key = process.env.LIBRARIES_IO_API_KEY;
-  if (!key) return null;
-  try {
-    const data = await githubFetch<{ dependents_count?: number }>(
-      `https://libraries.io/api/search?platform=GitHub&name=${encodeURIComponent(packageName)}&api_key=${key}`,
-      { revalidate: 86400 },
-    );
-    return data?.dependents_count ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/** Worker 6 — Impact Worker. Reach and criticality via repo graph + optional Libraries.io. */
+/** Worker 6 — Impact Worker. Reach via repo stars + Libraries.io downstream usage. */
 export async function runImpactWorker(
   bus: EvidenceBus,
   pr: GitHubPullRequest,
-  repoContext: { stars: number; forks: number; fullName: string },
+  repoContext: { stars: number; forks: number; fullName: string; librariesDependents?: number },
 ): Promise<void> {
   const hasCore = pr.files.some((f) =>
     /src\/|lib\/|core\/|api\/|security|auth/i.test(f.path),
@@ -45,11 +31,19 @@ export async function runImpactWorker(
     `Impact estimate: ${impact}/100`,
   ];
 
-  const pkgJson = pr.files.find((f) => f.path.endsWith("package.json"));
-  if (pkgJson) {
-    const dependents = await librariesIoDependents(repoContext.fullName.split("/")[1] ?? "");
-    if (dependents !== null) {
-      facts.push(`Libraries.io dependents: ${dependents.toLocaleString()}`);
+  if (repoContext.librariesDependents != null && repoContext.librariesDependents > 0) {
+    const boost = Math.min(25, Math.log10(repoContext.librariesDependents + 1) * 8);
+    impact = Math.min(100, Math.round(impact + boost));
+    facts.push(`Libraries.io downstream dependents: ${repoContext.librariesDependents.toLocaleString()}`);
+  } else {
+    const [owner, repo] = repoContext.fullName.split("/");
+    if (owner && repo && pr.files.some((f) => f.path.endsWith("package.json"))) {
+      const lib = await fetchGithubProject(owner, repo);
+      const deps = lib?.dependents_count ?? lib?.dependent_repos_count;
+      if (deps != null && deps > 0) {
+        impact = Math.min(100, Math.round(impact + Math.min(20, Math.log10(deps + 1) * 6)));
+        facts.push(`Libraries.io dependents: ${deps.toLocaleString()}`);
+      }
     }
   }
 

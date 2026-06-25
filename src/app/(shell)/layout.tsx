@@ -23,11 +23,11 @@ function MarketingShell({ children }: { children: React.ReactNode }) {
               <Link href="/discover" className="text-xs font-medium text-resolve-muted hover:text-white">
                 Discover
               </Link>
+              <Link href="/weight" className="text-xs font-medium text-resolve-muted hover:text-white">
+                Weight
+              </Link>
               <Link href="/methodology" className="text-xs font-medium text-resolve-muted hover:text-white">
                 Methodology
-              </Link>
-              <Link href="/missions" className="text-xs font-medium text-resolve-muted hover:text-white">
-                Mission
               </Link>
               <Link href="/radar" className="text-xs font-medium text-resolve-muted hover:text-white">
                 Radar

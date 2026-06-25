@@ -1,24 +1,52 @@
-name: Deploy to Vercel Production
+name: Verify Vercel Production
+
+# Vercel Git integration already deploys on every push to main.
+# This workflow only verifies production health — it does NOT trigger a second deploy
+# (extra deploy hooks + CLI were hitting the free-tier 100 deploys/day limit).
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      trigger_deploy_hook:
+        description: "Manually trigger deploy hook (use only when Git deploy is stuck)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: vercel-production
   cancel-in-progress: true
 
 env:
-  # Deploy hook on things-to-do / main (revoke in Vercel dashboard if leaked)
+  PRODUCTION_URL: https://resolve-task.vercel.app
+  # Manual redeploy only — do not POST on every push (doubles deploys with Vercel Git)
   VERCEL_DEPLOY_HOOK_URL: https://api.vercel.com/v1/integrations/deploy/prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd/krAQUtlB2i
 
 jobs:
-  deploy:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Vercel production deploy
+      - name: Optional manual deploy hook
+        if: github.event_name == 'workflow_dispatch' && inputs.trigger_deploy_hook == true
         run: |
-          echo "Triggering Vercel deploy hook for main..."
+          echo "Triggering deploy hook (manual)..."
           curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
-          echo "Production deploy started on Vercel."
+          echo "Deploy hook fired. Waiting before health check..."
+
+      - name: Wait for production deployment
+        run: |
+          echo "Verifying $PRODUCTION_URL (Vercel Git deploys automatically on push)..."
+          for i in $(seq 1 40); do
+            if curl -fsS "$PRODUCTION_URL/api/health/env" | grep -q '"ok":true'; then
+              echo "✓ Production healthy (attempt $i)"
+              curl -fsS "$PRODUCTION_URL/api/config" | head -c 400 || true
+              echo ""
+              exit 0
+            fi
+            echo "Waiting for deployment... ($i/40)"
+            sleep 15
+          done
+          echo "Production did not become healthy within 10 minutes"
+          exit 1

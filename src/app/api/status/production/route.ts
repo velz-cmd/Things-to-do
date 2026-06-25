@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
 import { getArcReadiness } from "@/lib/treasury/arc-readiness";
 import { prisma } from "@/lib/db";
+import {
+  fetchSupabaseAuthSettings,
+  isSupabaseExternalProviderEnabled,
+} from "@/lib/supabase/auth-settings";
 
 /** Honest production status — what is real vs not configured */
 export async function GET() {
@@ -13,22 +17,12 @@ export async function GET() {
   ]);
 
   let githubOAuth = false;
-  try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
-    const anon =
-      process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (url && anon) {
-      const res = await fetch(`${url}/auth/v1/settings`, {
-        headers: { apikey: anon, Accept: "application/json" },
-        next: { revalidate: 60 },
-      });
-      if (res.ok) {
-        const s = (await res.json()) as { external?: { github?: { enabled?: boolean } } };
-        githubOAuth = Boolean(s.external?.github?.enabled);
-      }
-    }
-  } catch {
-    githubOAuth = false;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const anon =
+    process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (url && anon) {
+    const settings = await fetchSupabaseAuthSettings(url, anon);
+    githubOAuth = isSupabaseExternalProviderEnabled(settings?.external?.github);
   }
 
   const issues: string[] = [];

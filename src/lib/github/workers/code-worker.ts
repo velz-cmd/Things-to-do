@@ -3,7 +3,7 @@ import type { EvidenceBus } from "@/lib/evidence/bus";
 import { evidenceId } from "@/lib/evidence/bus";
 import type { WorkerEvidence } from "@/lib/evidence/types";
 import { prSubjectId } from "@/lib/evidence/normalizer";
-import { generateObjectWithFallback, listConfiguredProviders } from "@/lib/ai/gateway/resolve";
+import { generateTextWithFallback, listConfiguredProviders } from "@/lib/ai/gateway/resolve";
 import type { GitHubPullRequest } from "@/lib/github/types";
 
 const codeSchema = z.object({
@@ -70,15 +70,22 @@ export async function runCodeWorker(bus: EvidenceBus, pr: GitHubPullRequest): Pr
   }
 
   try {
-    const { object, meta } = await generateObjectWithFallback({
-      tier: "fast",
-      schema: codeSchema,
-      system:
-        "You are a code analyst. Analyze PR diffs for change type and complexity. Penalize whitespace-only changes. AI-assisted code is normal — do not flag as bot. Output structured metadata only.",
+    const { text, meta } = await generateTextWithFallback({
+      tier: "code",
+      system: `You are a code analyst. Return ONLY valid JSON with keys: changeType (architecture|feature|bugfix|refactor|docs|test|chore), complexity (1-100), hasTests (boolean), reasoning (string). No markdown fences. AI-assisted code is normal.`,
       prompt: `PR #${pr.number}: ${pr.title}
 +${pr.additions}/-${pr.deletions}, files: ${pr.files.map((f) => f.path).join(", ")}
 ${pr.diffSnippet?.slice(0, 1500) ?? ""}`,
+      maxOutputTokens: 400,
     });
+
+    const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+    const parsed = codeSchema.safeParse(JSON.parse(cleaned));
+    if (!parsed.success) {
+      bus.publish(heuristicCodeEvidence(pr));
+      return;
+    }
+    const object = parsed.data;
 
     bus.publish({
       id: evidenceId("code", prSubjectId(pr.number), meta.modelId),

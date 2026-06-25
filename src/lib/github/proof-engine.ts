@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import type { EvidenceBus } from "@/lib/evidence/bus";
 import type { ProofBundle, ReasoningVerdict } from "@/lib/evidence/types";
+import { verifyTransaction } from "@/lib/integrations/blockscout";
 
 export function buildProofBundle(input: {
   bus: EvidenceBus;
@@ -25,25 +26,6 @@ export function buildProofBundle(input: {
 }
 
 /** Blockscout verification — post-settlement only, never used for scoring. */
-export async function verifySettlementOnChain(txHash: string): Promise<{
-  verified: boolean;
-  explorerUrl?: string;
-  message: string;
-}> {
-  const base = process.env.BLOCKSCOUT_API_URL ?? "https://testnet.arcscan.app/api";
-  try {
-    const res = await fetch(`${base}?module=transaction&action=gettxreceiptstatus&txhash=${txHash}`);
-    if (!res.ok) {
-      return { verified: false, message: "Blockscout unavailable — verify manually" };
-    }
-    const json = (await res.json()) as { result?: { status?: string } };
-    const ok = json.result?.status === "1";
-    return {
-      verified: ok,
-      explorerUrl: `https://testnet.arcscan.app/tx/${txHash}`,
-      message: ok ? "Settlement confirmed on Arc" : "Transaction not confirmed",
-    };
-  } catch {
-    return { verified: false, message: "Blockscout check skipped" };
-  }
+export async function verifySettlementOnChain(txHash: string) {
+  return verifyTransaction(txHash);
 }

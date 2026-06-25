@@ -2,6 +2,25 @@
 
 ---
 
+## Vercel rate limit (`api-deployments-free-per-day`)
+
+Free tier allows **100 deploys per 24 hours**. If you see:
+
+> Resource is limited — try again in 24 hours (more than 100, code: "api-deployments-free-per-day")
+
+**What to do:**
+
+1. **Stop** clicking Redeploy in Vercel and **do not** run `vercel deploy` or deploy hooks.
+2. **Removing `VERCEL_TOKEN` from GitHub** was correct — it stopped duplicate CLI deploys.
+3. **Production stays live** on the last successful deploy ([resolve-task.vercel.app](https://resolve-task.vercel.app)).
+4. **Wait ~24 hours**, then merge to `main` — Vercel Git will deploy once automatically.
+5. **PR red X from Vercel** is expected while rate-limited; Playwright E2E can still pass. You can merge if branch protection allows (Vercel check is optional).
+6. Preview deploys on PRs are **skipped** (`vercel.json` `ignoreCommand`) so new PR pushes do not burn quota.
+
+**One deploy per merge to `main` only.** No hooks, no CLI, no manual Redeploy unless quota has reset.
+
+---
+
 ## Build failed: missing `DATABASE_URL` (P1012)
 
 Add in Vercel → **things-to-do** → **Environment Variables**:

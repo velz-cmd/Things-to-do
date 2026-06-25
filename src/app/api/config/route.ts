@@ -7,6 +7,11 @@ import { getArcReadiness } from "@/lib/treasury/arc-readiness";
 import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
 import { isWalletLabelsConfigured } from "@/lib/wallet/wallet-labels";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
+import {
+  getAgentX402PremiumUrl,
+  getDefaultPaidSourcePriceUsd,
+  isAgentGatewayEnabled,
+} from "@/lib/agent/gateway-config";
 import { ARC_MEMO_CONTRACT } from "@/lib/arc/memo-abi";
 
 export async function GET() {
@@ -56,6 +61,15 @@ export async function GET() {
         productionPath: "Use Add funds → Arc tab (USDC on Arc testnet)",
       },
       hackathonMerchants: ["SkyDemo Airlines", "StreamDemo"],
+    },
+    agentStack: {
+      enabled: isAgentGatewayEnabled(),
+      x402: true,
+      chain: "arcTestnet",
+      premiumUrl: getAgentX402PremiumUrl(),
+      defaultPriceUsd: getDefaultPaidSourcePriceUsd(),
+      flow: "402 → GatewayClient.pay() → mission continues",
+      docs: "https://agents.circle.com",
     },
     qwenEnabled: Boolean(process.env.DASHSCOPE_API_KEY),
     geminiEnabled: ai.gemini,

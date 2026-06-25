@@ -461,6 +461,46 @@ export function ProductionStack() {
 
           <section>
             <SectionTitle
+              title="Circle Agent Stack"
+              badge="x402"
+              description="Agents pay for paid APIs in USDC — no signup, no card, no workflow break"
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TierCard
+                icon={Zap}
+                subtitle="Buyer — Arc testnet"
+                title="GatewayClient nanopay"
+                accent="emerald"
+                items={[
+                  "On 402 Payment Required → client.pay(url)",
+                  "Gasless batched USDC via Circle Gateway",
+                  "Budget-capped per mission (task.budgetUsd)",
+                ]}
+              />
+              <TierCard
+                icon={Wallet}
+                subtitle="Seller — RESOLVE"
+                title="x402 premium research"
+                accent="sky"
+                items={[
+                  "GET /api/x402/premium-research (~$0.007)",
+                  "Unlocks paid evidence during missions",
+                  "Agent spend on mission receipt + ledger",
+                ]}
+              />
+            </div>
+            <Panel className="mt-4 border-emerald-500/20 bg-emerald-500/5 p-4">
+              <p className="text-xs font-medium text-emerald-300">Flow</p>
+              <p className="mt-2 text-sm text-resolve-muted">
+                Mission hits paywall → agent pays 0.007 USDC → continues automatically.
+                Configure <code className="text-emerald-300">ARC_AGENT_GATEWAY_PRIVATE_KEY</code> on
+                Vercel. Status: <code className="text-emerald-300">GET /api/agent/gateway</code>
+              </p>
+            </Panel>
+          </section>
+
+          <section>
+            <SectionTitle
               title="Search intelligence"
               badge="Live"
               description="Tavily → Serper → WebSearch API with 5-minute cache and automatic fallback"

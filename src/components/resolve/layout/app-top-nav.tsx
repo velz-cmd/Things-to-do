@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Home, LayoutList, Radar, Search, Scale } from "lucide-react";
+import { Home, GitBranch, LayoutList, Radar, Search, Scale } from "lucide-react";
 import { AuthHeader } from "@/components/auth/auth-header";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home, exact: true },
   { href: "/discover", label: "Discover", icon: Search },
   { href: "/weight", label: "Weight", icon: Scale },
-  { href: "/methodology", label: "Methodology", icon: LayoutList },
+  { href: "/methodology", label: "Signals", icon: LayoutList },
+  { href: "/protocol", label: "Protocol", icon: GitBranch },
   { href: "/radar", label: "Radar", icon: Radar },
 ];
 

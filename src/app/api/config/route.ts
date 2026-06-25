@@ -74,10 +74,17 @@ export async function GET() {
     impactWeight: {
       enabled: true,
       signals: 7,
-      flow: "Discover → Verify weight → Settle Arc",
+      flow: "UVI → PoW → PSS on Arc",
       methodology: "/methodology",
       discovery: "/discover",
+      protocol: "/protocol",
       evaluateEndpoint: "/api/weight/evaluate",
+    },
+    protocol: {
+      name: "RESOLVE Open Impact Settlement Protocol",
+      version: "0.1.0",
+      openSource: "https://github.com/velz-cmd/Things-to-do",
+      spec: "/api/protocol",
     },
     qwenEnabled: Boolean(process.env.DASHSCOPE_API_KEY),
     geminiEnabled: ai.gemini,

@@ -11,8 +11,8 @@ const bodySchema = z.object({
 });
 
 /**
- * Mimir-inspired weight dispute — stake USDC to challenge a contributor's impact share.
- * Pauses settlement until re-evaluation or timeout (demo: records challenge + returns id).
+ * Weight Dispute Layer (WDL) — permissionless challenge on a contributor's impact share.
+ * Settlement pauses for contested payees until re-weighting resolves.
  */
 export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(await req.json());
@@ -28,20 +28,21 @@ export async function POST(req: Request) {
   return NextResponse.json({
     challengeId,
     status: "open",
+    layer: "wdl",
     payeeKey: parsed.data.payeeKey,
     claimedSharePercent: parsed.data.claimedSharePercent,
     stakeUsd: parsed.data.challengerStakeUsd,
     message:
-      "Challenge recorded — settlement paused for this payee pending weight re-evaluation (24h window in production).",
-    flow: "stake → AI re-weight → council vote or auto-resolve → settle remainder",
+      "Challenge recorded — settlement paused for this payee pending Proof-of-Weight re-evaluation.",
+    flow: "stake → re-weight → resolve → settle remainder",
   });
 }
 
 export async function GET() {
   return NextResponse.json({
-    name: "RESOLVE Weight Dispute Market",
-    inspiredBy: "Mimir claim challenges",
-    description: "Stake USDC to challenge top-10% impact weights before Arc settlement",
+    name: "Weight Dispute Layer",
+    primitive: "wdl",
+    description: "Permissionless stake to challenge impact shares before Arc settlement",
     endpoint: "POST /api/weight/challenge",
   });
 }

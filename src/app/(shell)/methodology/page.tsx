@@ -3,15 +3,8 @@ import { METHODOLOGY_SIGNALS } from "@/lib/weight/signals";
 import { Panel } from "@/components/resolve/ui/panel";
 
 export const metadata = {
-  title: "Methodology — RESOLVE Impact Weighting",
-  description:
-    "Seven signals. One impact score. How RESOLVE weights contributions before proportional settlement on Arc.",
-};
-
-const SEVERITY_STYLES = {
-  high: "text-red-300",
-  medium: "text-amber-300",
-  low: "text-emerald-300",
+  title: "Signals — RESOLVE Proof-of-Weight",
+  description: "Seven open signals for scoring heterogeneous contributions before settlement.",
 };
 
 export default function MethodologyPage() {
@@ -26,11 +19,8 @@ export default function MethodologyPage() {
           RESOLVE does not pay per CSV row. It weights verified impact — then splits a fund pool
           proportionally. Every settlement links to a hash of the AI reasoning (weight proof).
         </p>
-        <Link
-          href="/missions?panel=distribute"
-          className="inline-block text-sm text-resolve-accent hover:underline"
-        >
-          Try Verify Weight →
+        <Link href="/weight" className="inline-block text-sm text-resolve-accent hover:underline">
+          Open Proof-of-Weight →
         </Link>
       </header>
 
@@ -79,7 +69,22 @@ export default function MethodologyPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-white">vs. commodity payment rails</h2>
+        <h2 className="text-lg font-semibold text-white">Open Contribution Graph</h2>
+        <p className="text-sm text-resolve-muted">
+          One valuation engine for any event type — not a single-community sidecar.
+        </p>
+        <Panel className="grid gap-2 p-4 text-xs text-resolve-muted sm:grid-cols-2">
+          <p>· GitHub merges &amp; reviews</p>
+          <p>· Navidrome / Subsonic scrobbles</p>
+          <p>· Owncast / stream presence</p>
+          <p>· Immich EXIF attribution</p>
+          <p>· Mastodon citations &amp; boosts</p>
+          <p>· Bounties &amp; deliverables</p>
+        </Panel>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-white">Protocol vs flat payrails</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
@@ -107,8 +112,10 @@ export default function MethodologyPage() {
       </section>
 
       <p className="text-xs text-resolve-muted">
-        Inspired by transparent scoring products —{" "}
-        <span className={SEVERITY_STYLES.high}>show the methodology</span>, not &quot;powered by AI.&quot;
+        Full spec:{" "}
+        <Link href="/protocol" className="text-resolve-accent hover:underline">
+          Open Impact Settlement Protocol
+        </Link>
       </p>
     </div>
   );

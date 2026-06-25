@@ -96,7 +96,8 @@ model User {
   authProvider    String   @default("wallet")
   walletAddress   String?
   scanWalletAddress String?
-  gmailConnected  Boolean  @default(false)
+  gmailConnected      Boolean  @default(false)
+  gmailRefreshToken   String?
   taskMemoryJson  String?
   embeddedWallet  Boolean  @default(false)
   availableUsd    Float    @default(0)

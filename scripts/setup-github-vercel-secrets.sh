@@ -40,4 +40,4 @@ if [[ -f ".vercel-deploy-hook" ]]; then
   gh secret set VERCEL_DEPLOY_HOOK --body "$(cat .vercel-deploy-hook)"
 fi
 
-echo "Done. Re-run the Deploy to Vercel Production workflow on main."
+echo "Done. CI uses deploy hook only — VERCEL_TOKEN is optional for local CLI deploys."

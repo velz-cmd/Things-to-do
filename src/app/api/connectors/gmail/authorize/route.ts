@@ -39,6 +39,16 @@ export async function GET(req: Request) {
   });
 
   const sendAccess = new URL(req.url).searchParams.get("send") === "true";
+  const returnTo = new URL(req.url).searchParams.get("returnTo");
+  if (returnTo?.startsWith("/")) {
+    cookieStore.set("gmail_oauth_return", returnTo, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+  }
   const url = buildGmailAuthorizeUrl(state, sendAccess);
   return NextResponse.redirect(url);
 }

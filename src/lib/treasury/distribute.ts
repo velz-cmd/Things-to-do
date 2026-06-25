@@ -3,6 +3,7 @@ import { verifyProof } from "@/lib/deputy/proof-engine";
 import { hashProofPayload } from "@/lib/deputy/state-machine";
 import { sendBatchMemoPayouts, primaryTxFromPayouts } from "@/lib/arc/memo";
 import { explorerTxUrl, isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { getArcReadiness } from "@/lib/treasury/arc-readiness";
 import { resolvePayee } from "@/lib/registry/resolvers";
 import type {
   DistributeRequest,
@@ -198,28 +199,36 @@ export async function processDistribution(
     payeeName: a.name,
   }));
 
+  let offChainReason: string | undefined;
+
   if (isLiveArcEnabled() && payoutList.length > 0 && totalAmountUsd > 0) {
-    try {
-      const memoPayouts = await sendBatchMemoPayouts({
-        batchId: batch.id,
-        payouts: payoutList,
-      });
-      txHash = primaryTxFromPayouts(memoPayouts);
-      explorerUrl = txHash ? explorerTxUrl(txHash) : null;
-      onChain = memoPayouts.length > 0;
-      payoutTxs = memoPayouts.map((p) => ({
-        wallet: p.recipient,
-        txHash: p.txHash,
-        memoId: p.memoId,
-        amountUsd: p.amountUsd,
-      }));
-    } catch (e) {
-      console.error("[distribute] Arc memo payout failed:", e);
-      await prisma.distributionBatch.update({
-        where: { id: batch.id },
-        data: { status: "failed" },
-      });
-      throw e;
+    const readiness = await getArcReadiness(totalAmountUsd);
+    if (!readiness.canDistributeOnChain) {
+      offChainReason = readiness.message;
+      console.warn("[distribute] Off-chain settlement:", readiness.message);
+    } else {
+      try {
+        const memoPayouts = await sendBatchMemoPayouts({
+          batchId: batch.id,
+          payouts: payoutList,
+        });
+        txHash = primaryTxFromPayouts(memoPayouts);
+        explorerUrl = txHash ? explorerTxUrl(txHash) : null;
+        onChain = memoPayouts.length > 0;
+        payoutTxs = memoPayouts.map((p) => ({
+          wallet: p.recipient,
+          txHash: p.txHash,
+          memoId: p.memoId,
+          amountUsd: p.amountUsd,
+        }));
+      } catch (e) {
+        console.error("[distribute] Arc memo payout failed:", e);
+        await prisma.distributionBatch.update({
+          where: { id: batch.id },
+          data: { status: "failed" },
+        });
+        throw e;
+      }
     }
   }
 
@@ -234,6 +243,7 @@ export async function processDistribution(
         unresolved,
         onChain,
         payoutTxs,
+        offChainReason: onChain ? undefined : offChainReason,
       }),
     },
   });

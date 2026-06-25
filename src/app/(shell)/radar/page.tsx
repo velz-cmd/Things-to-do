@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Wallet, Package } from "lucide-react";
+import { Mail, Wallet, Package, ExternalLink } from "lucide-react";
 import type { DiscoveryItem } from "@/lib/discover/discovery-service";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -10,6 +10,14 @@ import { PageHeader } from "@/components/resolve/ui/page-header";
 import { GlassPanel } from "@/components/resolve/ui/glass-panel";
 import { StatusChip } from "@/components/resolve/ui/status-chip";
 import Link from "next/link";
+
+type RadarConfig = {
+  integrations?: {
+    gmail?: { oauthConfigured?: boolean };
+    walletLabels?: { configured?: boolean };
+    hackathonMerchants?: string[];
+  };
+};
 
 export default function RadarPage() {
   const router = useRouter();
@@ -20,15 +28,22 @@ export default function RadarPage() {
   const [messages, setMessages] = useState<string[]>([]);
   const [walletAddress, setWalletAddress] = useState("");
   const [walletItems, setWalletItems] = useState<DiscoveryItem[]>([]);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailConfigured, setGmailConfigured] = useState(false);
+  const [walletLabelsConfigured, setWalletLabelsConfigured] = useState(false);
 
   useEffect(() => {
     void (async () => {
-      const [s, r] = await Promise.all([
-        fetch("/api/discover/subscriptions", { method: "POST" }).then((r) => r.json()),
-        fetch("/api/discover/refunds", { method: "POST" }).then((r) => r.json()),
+      const [s, r, cfg] = await Promise.all([
+        fetch("/api/discover/subscriptions", { method: "POST" }).then((res) => res.json()),
+        fetch("/api/discover/refunds", { method: "POST" }).then((res) => res.json()),
+        fetch("/api/config").then((res) => res.json()) as Promise<RadarConfig>,
       ]);
       setSubs(s.items ?? []);
       setRefunds(r.items ?? []);
+      setGmailConnected(Boolean(s.gmailConnected || r.gmailConnected));
+      setGmailConfigured(Boolean(s.gmailConfigured || r.gmailConfigured));
+      setWalletLabelsConfigured(Boolean(cfg.integrations?.walletLabels?.configured));
       setMessages([s.message, r.message].filter(Boolean) as string[]);
     })();
   }, []);
@@ -39,6 +54,15 @@ export default function RadarPage() {
       return;
     }
     router.push(`/missions?task=${encodeURIComponent(text)}&from=radar`);
+  }
+
+  function connectGmail() {
+    if (!ready) {
+      openSignIn();
+      return;
+    }
+    window.location.href =
+      "/api/connectors/gmail/authorize?returnTo=" + encodeURIComponent("/radar");
   }
 
   async function scanWallet() {
@@ -61,16 +85,42 @@ export default function RadarPage() {
 
       <GlassPanel className="flex items-start gap-3 p-4">
         <Mail className="mt-0.5 h-5 w-5 shrink-0 text-sky-400" />
-        <div>
-          <p className="text-sm font-medium text-white">Connect Gmail to discover</p>
+        <div className="flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-white">Gmail discovery</p>
+            {gmailConnected ? (
+              <StatusChip label="Connected" variant="verified" />
+            ) : gmailConfigured ? (
+              <StatusChip label="Not connected" variant="running" />
+            ) : (
+              <StatusChip label="Server not configured" variant="demo" />
+            )}
+          </div>
           <p className="mt-1 text-xs text-resolve-muted">
-            Subscriptions and refund opportunities require Gmail or manual input.
+            {gmailConnected
+              ? "Scanning your inbox for subscriptions and refund receipts."
+              : gmailConfigured
+                ? "Connect Gmail to replace demo data with live inbox discovery."
+                : "Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET on Vercel, then connect Gmail."}
           </p>
-          <Link href="/missions" className="mt-2 inline-block text-xs text-sky-400 hover:underline">
-            Connect in Mission →
-          </Link>
+          {!gmailConnected && gmailConfigured && (
+            <button
+              type="button"
+              onClick={connectGmail}
+              className="mt-3 inline-flex items-center gap-1 rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-400"
+            >
+              Connect Gmail <ExternalLink className="h-3 w-3" />
+            </button>
+          )}
         </div>
       </GlassPanel>
+
+      {!walletLabelsConfigured && (
+        <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-resolve-muted">
+          WalletLabels not configured — Arc balance scan works via Alchemy; add{" "}
+          <code className="text-sky-300">WALLET_LABELS_API_KEY</code> for entity labels.
+        </p>
+      )}
 
       {messages.map((msg, i) => (
         <p key={i} className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-sm text-amber-100">
@@ -86,7 +136,7 @@ export default function RadarPage() {
           <Wallet className="h-5 w-5 text-sky-400" />
           <h2 className="font-medium">Wallet scan</h2>
         </div>
-        <p className="mt-1 text-xs text-resolve-muted">Add wallet address to scan assets and approvals.</p>
+        <p className="mt-1 text-xs text-resolve-muted">Scan Arc USDC balance and wallet labels.</p>
         <div className="mt-3 flex gap-2">
           <input
             value={walletAddress}
@@ -134,7 +184,7 @@ function DiscoverySection({
               <div>
                 <p className="text-sm font-medium text-white">
                   {item.label}{" "}
-                  {item.isDemo && <StatusChip label="Demo data" variant="demo" />}
+                  {item.isDemo && <StatusChip label="Demo" variant="demo" />}
                 </p>
                 <p className="text-xs text-resolve-muted">${item.amountUsd.toFixed(2)}/{item.period}</p>
               </div>

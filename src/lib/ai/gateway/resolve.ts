@@ -166,6 +166,7 @@ export function listConfiguredProviders(): {
     fast: candidatesForTier("fast").map((c: ModelCandidate) => c.id),
     research: candidatesForTier("research").map((c: ModelCandidate) => c.id),
     quality: candidatesForTier("quality").map((c: ModelCandidate) => c.id),
+    code: candidatesForTier("code").map((c: ModelCandidate) => c.id),
   };
   return {
     gemini:

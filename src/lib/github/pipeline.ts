@@ -14,6 +14,8 @@ import {
   runImpactWorker,
   runReputationWorker,
 } from "@/lib/github/workers";
+import { runRepoEcosystemWorker } from "@/lib/github/workers/ecosystem-worker";
+import { fetchPackageDependentsForRepo } from "@/lib/integrations/libraries-io";
 import type {
   ContributorAllocation,
   GitHubAllocationResult,
@@ -82,6 +84,12 @@ export async function runGithubPipeline(input: {
   runIdentityWorker(bus, ingest, eligiblePrs);
   runRepositoryWorker(bus, ingest);
 
+  const [ownerName, repoName] = [input.owner, input.repo];
+  const pkgDeps = await fetchPackageDependentsForRepo(ownerName, repoName);
+  const librariesDependents = pkgDeps?.dependents;
+
+  await runRepoEcosystemWorker(bus, ownerName, repoName, ingest.stars);
+
   for (const pr of eligiblePrs.slice(0, 20)) {
     runPrWorker(bus, pr);
     runCollaborationWorker(bus, pr);
@@ -99,6 +107,7 @@ export async function runGithubPipeline(input: {
       stars: ingest.stars,
       forks: ingest.forks,
       fullName: ingest.fullName,
+      librariesDependents,
     });
   });
   await Promise.all(codeAndImpact);

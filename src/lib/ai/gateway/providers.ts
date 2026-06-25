@@ -9,7 +9,7 @@ import {
   isGroqConfigured,
   isOpenRouterConfigured,
 } from "./config";
-import { AI_MODELS } from "./models";
+import { AI_MODELS, type AiTier } from "./models";
 
 export type ModelCandidate = {
   id: string;
@@ -157,7 +157,20 @@ export function qualityCandidates(): ModelCandidate[] {
   return out;
 }
 
-export function candidatesForTier(tier: "fast" | "research" | "quality"): ModelCandidate[] {
+/** Code analysis — OpenRouter only (DeepSeek/Qwen). One task = one model. */
+export function codeCandidates(): ModelCandidate[] {
+  if (!isOpenRouterConfigured()) return [];
+  return [
+    {
+      id: `openrouter:${AI_MODELS.openrouter.code}`,
+      provider: "openrouter",
+      model: getOpenRouter().chat(AI_MODELS.openrouter.code),
+    },
+  ];
+}
+
+export function candidatesForTier(tier: AiTier): ModelCandidate[] {
+  if (tier === "code") return codeCandidates();
   if (tier === "fast") return fastCandidates();
   if (tier === "research") return researchCandidates();
   return qualityCandidates();

@@ -57,7 +57,7 @@ export function LiveMissionPreview() {
           <Metric label="Cost" value="$0.018" />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <StatusChip label="Arc escrow: Locked" variant="verified" />
+          <StatusChip label="Demo escrow (simulated)" variant="demo" />
           <StatusChip label="Next: Verify cancellation proof" variant="running" />
         </div>
         <ul className="mt-4 space-y-1.5 border-t border-white/[0.06] pt-4">

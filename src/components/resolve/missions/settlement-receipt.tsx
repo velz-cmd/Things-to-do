@@ -4,6 +4,7 @@ import { ExternalLink, Download } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
 import { Money, MonoHash } from "@/components/resolve/ui/money";
 import { StatusChip } from "@/components/resolve/ui/status-chip";
+import { explorerUrlForTx, isOnChainTxHash } from "@/lib/payment/tx-utils";
 
 export function SettlementReceipt({
   title = "Settlement complete",
@@ -24,6 +25,9 @@ export function SettlementReceipt({
   complianceCsv?: string;
   onDownload?: () => void;
 }) {
+  const onChain = isOnChainTxHash(txHash);
+  const arcExplorer = explorerUrl ?? explorerUrlForTx(txHash);
+
   return (
     <Panel className="overflow-hidden p-0">
       <div className="border-b border-resolve-border-strong bg-emerald-500/5 px-5 py-4">
@@ -53,16 +57,21 @@ export function SettlementReceipt({
             )}
           </div>
         )}
-        {txHash && (
+        {txHash && onChain && (
           <div>
-            <p className="text-[11px] uppercase text-resolve-muted">Transaction</p>
+            <p className="text-[11px] uppercase text-resolve-muted">Arc transaction</p>
             <MonoHash value={txHash} className="mt-1 block" />
           </div>
         )}
+        {txHash && !onChain && (
+          <p className="text-[11px] text-resolve-muted">
+            Settlement recorded in ledger. On-chain memo tx hashes appear after live Arc payout.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2 pt-1">
-          {explorerUrl && (
+          {arcExplorer && onChain && (
             <a
-              href={explorerUrl}
+              href={arcExplorer}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md border border-resolve-border-strong bg-resolve-hover px-3 py-2 text-xs font-medium text-white hover:border-resolve-accent/40"

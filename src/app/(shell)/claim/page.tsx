@@ -9,6 +9,7 @@ import { Panel } from "@/components/resolve/ui/panel";
 import { Money } from "@/components/resolve/ui/money";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { useAppKit } from "@reown/appkit/react";
 
 type RewardSummary = {
@@ -33,6 +34,8 @@ type PendingReward = {
 export default function ClaimPage() {
   const { user, signInWithGitHub, githubEnabled } = useAuth();
   const { openSignIn } = useSignInModal();
+  const capabilities = useAuthCapabilities();
+  const githubOAuthReady = capabilities.loaded && capabilities.github;
   const { open: openWallet } = useAppKit();
   const { address, isConnected } = useAccount();
   const [loading, setLoading] = useState(true);
@@ -99,7 +102,18 @@ export default function ClaimPage() {
         </p>
       </div>
 
-      {!user && (
+      {!githubOAuthReady && (
+        <Panel className="border-amber-500/30 bg-amber-500/5 p-4 text-xs text-amber-200">
+          <p className="font-medium text-amber-100">GitHub sign-in not configured yet</p>
+          <p className="mt-1">
+            Enable GitHub in Supabase → Authentication → Providers, then redeploy. Until then,
+            founders can still settle from <Link href="/weight" className="underline">/weight</Link>;
+            contributors cannot claim from this page yet.
+          </p>
+        </Panel>
+      )}
+
+      {!user && githubOAuthReady && (
         <Panel className="p-5">
           <p className="text-sm text-white">Step 1 — prove your GitHub identity</p>
           <p className="mt-1 text-xs text-resolve-muted">

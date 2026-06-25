@@ -10,6 +10,7 @@ export type AuthCapabilities = {
   emailMagicLink: boolean;
   emailOtp: boolean;
   google: boolean;
+  github: boolean;
   wallet: boolean;
   guest: boolean;
   publicConfig: { url: string; anonKey: string } | null;
@@ -22,6 +23,7 @@ const DEFAULT: AuthCapabilities = {
   emailMagicLink: false,
   emailOtp: false,
   google: false,
+  github: false,
   wallet: true,
   guest: true,
   publicConfig: null,
@@ -62,6 +64,7 @@ export function useAuthCapabilities(): AuthCapabilities {
         emailMagicLink: Boolean(data.emailMagicLink),
         emailOtp: Boolean(data.emailOtp),
         google: Boolean(data.google) && !googleBroken,
+        github: Boolean(data.github),
         wallet: true,
         guest: true,
         publicConfig: data.publicConfig ?? null,

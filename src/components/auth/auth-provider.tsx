@@ -73,9 +73,11 @@ interface AuthContextValue {
   supabaseConfigured: boolean;
   emailEnabled: boolean;
   googleEnabled: boolean;
+  githubEnabled: boolean;
   balance: WalletBalance | null;
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithGitHub: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<EmailSendResult>;
   sendLoginCode: (email: string) => Promise<EmailSendResult>;
   signOut: () => Promise<void>;
@@ -102,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     Boolean(capabilities.publicConfig);
   const emailEnabled = capabilities.email;
   const googleEnabled = capabilities.google;
+  const githubEnabled = capabilities.github;
 
   useEffect(() => {
     if (supabase) return;
@@ -166,6 +169,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const provider =
             nextSession.user.app_metadata?.provider === "google"
               ? "google"
+              : nextSession.user.app_metadata?.provider === "github"
+                ? "github"
               : nextSession.user.app_metadata?.provider === "email"
                 ? "email"
                 : "email";
@@ -181,6 +186,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           credentials: "include",
         })
           .then(() => refreshBalance())
+          .then(() =>
+            fetch("/api/identity/sync-github", {
+              method: "POST",
+              credentials: "include",
+            }).catch(() => {
+              /* non-fatal */
+            }),
+          )
           .catch(() => {
             /* non-fatal */
           });
@@ -225,6 +238,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
   }, [supabase, googleEnabled]);
+
+  const signInWithGitHub = useCallback(async () => {
+    if (!supabase || !githubEnabled) {
+      throw new Error("GitHub sign-in is not available");
+    }
+    const { error } = await withTimeout(
+      supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          scopes: "read:user",
+        },
+      }),
+      10_000,
+    );
+    if (error) throw error;
+  }, [supabase, githubEnabled]);
 
   const signInWithEmail = useCallback(
     async (email: string): Promise<EmailSendResult> => {
@@ -360,9 +390,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       supabaseConfigured,
       emailEnabled,
       googleEnabled,
+      githubEnabled,
       balance,
       balanceLoading,
       signInWithGoogle,
+      signInWithGitHub,
       signInWithEmail,
       sendLoginCode,
       signOut,
@@ -377,15 +409,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       supabaseConfigured,
       emailEnabled,
       googleEnabled,
+      githubEnabled,
       balance,
       balanceLoading,
       signInWithGoogle,
+      signInWithGitHub,
       signInWithEmail,
       sendLoginCode,
       signOut,
       refreshBalance,
       provisionWallet,
-    ]
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

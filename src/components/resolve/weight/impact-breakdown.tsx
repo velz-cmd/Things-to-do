@@ -12,12 +12,14 @@ export function ImpactBreakdown({
   weightProofHash,
   onSettle,
   settling,
+  settleLabel = "Settle on Arc",
 }: {
   fundPoolUsd: number;
   contributors: ContributorWeight[];
   weightProofHash: string;
   onSettle: () => void;
   settling?: boolean;
+  settleLabel?: string;
 }) {
   const totalWeight = contributors.reduce((s, c) => s + c.totalWeight, 0);
   const [challenging, setChallenging] = useState<string | null>(null);
@@ -131,7 +133,7 @@ export function ImpactBreakdown({
           disabled={settling || !contributors.length}
           className="inline-flex items-center gap-2 rounded-md bg-resolve-accent px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
         >
-          {settling ? "Settling on Arc…" : "Settle on Arc"}
+          {settling ? "Preparing settlement…" : settleLabel}
         </button>
         <p className="self-center text-[11px] text-resolve-muted">
           Open Contribution Graph → Proof-of-Weight → Proportional Settlement Split

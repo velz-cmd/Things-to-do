@@ -96,6 +96,8 @@ model User {
   authProvider    String   @default("wallet")
   walletAddress   String?
   scanWalletAddress String?
+  githubUsername  String?
+  githubId        String?
   gmailConnected      Boolean  @default(false)
   gmailRefreshToken   String?
   taskMemoryJson  String?
@@ -211,18 +213,56 @@ model ContributorRegistry {
   platform         String?
   platformId       String?
   creatorName      String?
-  walletAddress    String
+  walletAddress   String?
   githubUsername   String?
+  githubId         String?
   musicbrainzId    String?
   exifArtist       String?
   activitypubActor String?
   verified         Boolean  @default(false)
+  status           String   @default("unlinked")
+  proofScore       Float    @default(0)
+  claimableUsd     Float    @default(0)
+  totalEarnedUsd   Float    @default(0)
+  lastSeenAt       DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  pendingRewards   PendingReward[]
 
   @@index([platform, platformId])
   @@index([githubUsername])
+  @@index([githubId])
+  @@index([status])
   @@index([exifArtist])
+}
+
+/// Rewards waiting for contributor to connect wallet and claim
+model PendingReward {
+  id             String   @id @default(cuid())
+  missionId      String
+  repo           String?
+  githubUsername String
+  githubId       String?
+  contributorId  String?
+  contributor    ContributorRegistry? @relation(fields: [contributorId], references: [id], onDelete: SetNull)
+  amountUsd      Float
+  weight         Float
+  proofHash      String
+  confidence     Float
+  status         String   @default("claimable")
+  founderUserId  String?
+  settlementId   String?
+  walletAddress  String?
+  claimedAt      DateTime?
+  settledAt      DateTime?
+  notifiedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([missionId, githubUsername])
+  @@index([githubUsername])
+  @@index([status])
+  @@index([proofHash])
 }
 
 /// Batch distribution to multiple contributors (founder / community payouts).

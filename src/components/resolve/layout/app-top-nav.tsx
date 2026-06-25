@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Banknote, Home, GitBranch, LayoutList, Radar, Search, Scale } from "lucide-react";
+import { Banknote, Gift, Home, GitBranch, LayoutList, Radar, Search, Scale } from "lucide-react";
 import { AuthHeader } from "@/components/auth/auth-header";
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/radar", label: "Radar", icon: Radar },
   { href: "/weight", label: "Weight", icon: Scale },
   { href: "/settle", label: "Settle", icon: Banknote },
+  { href: "/claim", label: "Claim", icon: Gift },
   { href: "/discover", label: "Discover", icon: Search },
   { href: "/methodology", label: "Signals", icon: LayoutList },
 ];

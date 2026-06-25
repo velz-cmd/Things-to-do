@@ -24,6 +24,9 @@ export function validateSettlementPackage(
     };
   }
   if (!input.contributors?.length) {
+    if ((input.pendingClaimUsd ?? 0) > 0) {
+      return { ok: true };
+    }
     return { ok: false, code: "NO_CONTRIBUTORS", message: "contributors array empty" };
   }
 
@@ -57,6 +60,10 @@ export function validateSettlementPackage(
       code: "SUM_MISMATCH",
       message: `Contributor sum $${sum.toFixed(2)} ≠ treasury $${treasury.toFixed(2)}`,
     };
+  }
+
+  if (input.pendingClaimUsd != null && input.pendingClaimUsd < 0) {
+    return { ok: false, code: "INVALID_PENDING", message: "pendingClaimUsd cannot be negative" };
   }
 
   if (existingProofHashes.includes(input.proofHash)) {

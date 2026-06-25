@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Home, LayoutList, Radar } from "lucide-react";
+import { Home, GitBranch, LayoutList, Radar, Search, Scale } from "lucide-react";
 import { AuthHeader } from "@/components/auth/auth-header";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home, exact: true },
-  { href: "/missions", label: "Mission", icon: LayoutList },
   { href: "/radar", label: "Radar", icon: Radar },
+  { href: "/weight", label: "Weight", icon: Scale },
+  { href: "/discover", label: "Discover", icon: Search },
+  { href: "/methodology", label: "Signals", icon: LayoutList },
+  { href: "/protocol", label: "Protocol", icon: GitBranch },
 ];
 
 export function AppTopNav() {
@@ -21,7 +24,7 @@ export function AppTopNav() {
         <div className="flex items-center gap-6">
           <Link href="/" className="shrink-0">
             <p className="text-sm font-semibold tracking-tight text-white">RESOLVE</p>
-            <p className="text-[9px] text-resolve-muted-dim">Outcome network</p>
+            <p className="text-[10px] text-resolve-muted-dim">Capital flow · GitHub first</p>
           </Link>
 
           <nav className="flex items-center gap-1">

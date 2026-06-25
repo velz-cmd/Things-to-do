@@ -15,7 +15,7 @@ type InfraPanel = "treasury" | "distribute" | "registry" | null;
 
 const INFRA_SECTIONS = [
   { id: "treasury" as const, label: "Treasury", icon: Landmark },
-  { id: "distribute" as const, label: "Distribute", icon: ArrowRightLeft },
+  { id: "distribute" as const, label: "Weight & settle", icon: ArrowRightLeft },
   { id: "registry" as const, label: "Registry", icon: Users },
 ];
 

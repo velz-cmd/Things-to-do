@@ -13,12 +13,18 @@ function MarketingShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
           <Link href="/">
             <p className="text-sm font-semibold">RESOLVE</p>
-            <p className="text-[10px] text-resolve-muted-dim">Outcome network on Arc</p>
+            <p className="text-[10px] text-resolve-muted-dim">Weight impact, settle on Arc</p>
           </Link>
           <div className="flex items-center gap-4">
             <nav className="hidden items-center gap-3 sm:flex">
               <Link href="/" className="text-xs font-medium text-white">
                 Home
+              </Link>
+              <Link href="/discover" className="text-xs font-medium text-resolve-muted hover:text-white">
+                Discover
+              </Link>
+              <Link href="/methodology" className="text-xs font-medium text-resolve-muted hover:text-white">
+                Methodology
               </Link>
               <Link href="/missions" className="text-xs font-medium text-resolve-muted hover:text-white">
                 Mission

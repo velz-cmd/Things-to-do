@@ -12,6 +12,7 @@ import { useResolveAccess } from "@/hooks/use-resolve-access";
 import type { ContributorWeight } from "@/lib/weight/types";
 import type { GitHubAllocationResult } from "@/lib/github/types";
 import { DEFAULT_FOUNDER_INTENT } from "@/lib/github/types";
+import { explorerUrlForTx, isOnChainTxHash } from "@/lib/payment/tx-utils";
 import type { SettlementResult } from "@/lib/payment/types";
 import type { PaymentPreview } from "@/lib/payment/preview";
 import { PaymentPreviewPanel } from "@/components/resolve/payment/payment-preview";
@@ -158,8 +159,8 @@ export function GitHubFundingPanel({
   }
 
   if (result) {
-    const txHash = result.proof?.txHashes?.[0] ?? result.explorerUrls?.[0]?.split("/").pop();
-    const explorerUrl = result.explorerUrls?.[0];
+    const txHash = result.proof?.txHashes?.find(isOnChainTxHash) ?? result.proof?.txHashes?.[0];
+    const explorerUrl = result.explorerUrls?.[0] ?? explorerUrlForTx(txHash);
     return (
       <div className={embedded ? "p-3" : "p-6"}>
         <SettlementReceipt

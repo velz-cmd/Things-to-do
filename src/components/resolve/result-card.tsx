@@ -10,6 +10,10 @@ export function ResultCard({ task }: { task: Task }) {
       ? task.targetValueUsd
       : task.recoveredUsd;
   const executionCost = task.executionCostUsd;
+  const agentSpend = (task.microPayments ?? []).filter((m) =>
+    m.purpose.includes("x402")
+  );
+  const gatewaySpend = agentSpend.reduce((s, m) => s + m.amountUsd, 0);
 
   return (
     <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 text-center">
@@ -24,12 +28,32 @@ export function ResultCard({ task }: { task: Task }) {
             value={`$${netSaving.toFixed(2)}`}
           />
         )}
+        {gatewaySpend > 0 && (
+          <Row
+            label="Agent spend (x402)"
+            value={`$${gatewaySpend.toFixed(3)} USDC`}
+          />
+        )}
         <Row label="Execution cost" value={`$${executionCost.toFixed(3)}`} />
         <Row
           label="Arc settlement"
           value={task.settlementTxHash ? "Released" : "Recorded off-chain"}
         />
       </div>
+
+      {agentSpend.length > 0 && (
+        <ul className="mx-auto mt-4 max-w-sm space-y-1 text-left text-xs text-deputy-muted">
+          {agentSpend.map((m) => (
+            <li key={m.id} className="flex justify-between gap-2">
+              <span>{m.purpose}</span>
+              <span className="font-mono text-sky-400">
+                ${m.amountUsd.toFixed(3)}
+                {m.txHash ? " on-chain" : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {task.settlementTxHash && (
         <div className="mt-4 flex justify-center">

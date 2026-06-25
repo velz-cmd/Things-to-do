@@ -34,6 +34,7 @@ export function ExecutionCostLedger({ taskId }: { taskId: string }) {
   const total = rows.reduce((s, r) => s + r.amountUsdc, 0);
   const batched = rows.every((r) => r.meteringMode === "gateway_batched");
   const hasGateway = rows.some((r) => r.meteringMode.includes("gateway"));
+  const liveGateway = rows.filter((r) => r.meteringMode === "gateway_live");
 
   return (
     <GlassPanel className="p-5">
@@ -50,7 +51,9 @@ export function ExecutionCostLedger({ taskId }: { taskId: string }) {
       <p className="mt-1 text-[11px] text-resolve-muted">
         {batched
           ? "Agent micropayments batched for Circle Gateway settlement."
-          : "Nanopayment-style metering — batches to Gateway when mission settles."}
+          : liveGateway.length > 0
+            ? "Live x402 nanopayments via Circle Gateway on Arc testnet."
+            : "Nanopayment-style metering — batches to Gateway when mission settles."}
       </p>
       <ul className="mt-3 space-y-1.5">
         {rows.map((r) => (
@@ -60,8 +63,16 @@ export function ExecutionCostLedger({ taskId }: { taskId: string }) {
           >
             <span className="text-resolve-muted">
               {r.agent}: {r.action}
+              {r.meteringMode === "gateway_live" && (
+                <span className="ml-1 text-emerald-400">· live</span>
+              )}
             </span>
-            <span className="font-mono text-sky-400">${r.amountUsdc.toFixed(3)}</span>
+            <span className="font-mono text-sky-400">
+              ${r.amountUsdc.toFixed(3)}
+              {r.txHash && (
+                <span className="ml-1 text-[10px] text-resolve-muted">tx</span>
+              )}
+            </span>
           </li>
         ))}
       </ul>

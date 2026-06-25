@@ -11,6 +11,7 @@ export interface ToolResult<T = unknown> {
 }
 
 export { gmailSearchReceipts, gmailFindProof } from "./gmail";
+export { paidPremiumResearch, paidFetchResource } from "./paid-resource";
 export { browserSubmitClaim } from "./browser";
 
 import { sendClaimEmail } from "./resend";

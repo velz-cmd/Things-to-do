@@ -380,10 +380,10 @@ export function ProductionStack() {
                 <ListBlock
                   title="Arc testnet · USDC on Arc"
                   items={[
-                    "DeputyEscrow smart contract on Arc",
+                    "DeputyEscrow + ERC-8183 Circle settlement",
+                    "Arc Memo contract for payout refs (batch ID, mission ID)",
                     "Proof-gated release — no payout without verification",
                     "ArcScan transaction verification",
-                    "Agent execution micropayments tracked per mission",
                   ]}
                 />
               </StackGroup>
@@ -448,13 +448,12 @@ export function ProductionStack() {
               <TierCard
                 icon={Shield}
                 subtitle="Identity & labels"
-                title="ENS · Wallet labels"
+                title="Alchemy · WalletLabels"
                 accent="violet"
                 items={[
-                  "Wallet verification",
-                  "Protocol identification",
-                  "Treasury transparency",
-                  "Counterparty recognition",
+                  "Live Arc USDC balance scan (Alchemy)",
+                  "Wallet name, category, risk (WalletLabels)",
+                  "Treasury transparency and counterparty recognition",
                 ]}
               />
             </div>

@@ -43,6 +43,13 @@ export interface DistributeResult {
   rejectedCount: number;
   txHash: string | null;
   explorerUrl: string | null;
+  onChain?: boolean;
+  payoutTxs?: {
+    wallet: string;
+    txHash: string;
+    memoId: string;
+    amountUsd: number;
+  }[];
   payments: ResolvedPayment[];
   complianceCsv: string;
 }

@@ -41,7 +41,9 @@ export function DistributePanel({ embedded }: { embedded?: boolean }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Distribution failed");
       setResult(data);
-      toast.success("Batch settled");
+      toast.success(
+        data.onChain ? "Batch settled on Arc (memo tx)" : "Batch verified — off-chain record (fund Arc wallet for on-chain payouts)",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {

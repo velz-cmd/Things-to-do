@@ -34,6 +34,8 @@ export async function GET() {
     GEMINI_API_KEY: present("GEMINI_API_KEY") || present("GOOGLE_GENERATIVE_AI_API_KEY"),
     GROQ_API_KEY: present("GROQ_API_KEY"),
     OPENROUTER_API_KEY: present("OPENROUTER_API_KEY"),
+    ALCHEMY_API_KEY: present("ALCHEMY_API_KEY"),
+    WALLET_LABELS_API_KEY: present("WALLET_LABELS_API_KEY"),
     CLOUDFLARE_GATEWAY: present("CLOUDFLARE_ACCOUNT_ID"),
   };
 

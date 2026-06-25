@@ -10,6 +10,7 @@ import {
   browserSubmitClaim,
   resendSendClaim,
 } from "@/lib/deputy/tools";
+import { paidPremiumResearch } from "@/lib/deputy/tools/paid-resource";
 import { generateDeputyPlan } from "@/lib/ai/planner";
 import { generateTextWithFallback } from "@/lib/ai/gateway";
 
@@ -191,7 +192,10 @@ export async function runTaskExecutor(taskId: string) {
     let toolCost = step.costUsd;
 
     if (step.status === "evidence_gathering") {
-      const receipt = await gmailSearchReceipts(task.merchantId ?? "airline");
+      const receipt = await gmailSearchReceipts(
+        task.merchantId ?? "airline",
+        task.userId
+      );
       toolCost += receipt.costUsd;
       if (receipt.data) {
         await logEvent(
@@ -200,6 +204,25 @@ export async function runTaskExecutor(taskId: string) {
           "tool",
           `Gmail: located booking ${receipt.data.bookingRef}`,
           receipt.data
+        );
+      }
+
+      const paid = await paidPremiumResearch(taskId);
+      if (paid.data && paid.ok) {
+        await logEvent(
+          taskId,
+          "AgentPay",
+          "x402",
+          `Paid source unlocked — $${paid.data.amountUsd.toFixed(3)} USDC`,
+          paid.data
+        );
+      } else if (paid.costUsd > 0) {
+        await logEvent(
+          taskId,
+          "AgentPay",
+          "x402",
+          paid.error ?? "Premium source metered off-chain",
+          paid.data
         );
       }
     }

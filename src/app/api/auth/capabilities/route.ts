@@ -19,6 +19,7 @@ export async function GET() {
   const supabase = Boolean(url && anonKey);
 
   let google = false;
+  let github = false;
   if (supabase) {
     try {
       const res = await fetch(`${url}/auth/v1/settings`, {
@@ -27,12 +28,17 @@ export async function GET() {
       });
       if (res.ok) {
         const settings = (await res.json()) as {
-          external?: { google?: { enabled?: boolean } };
+          external?: {
+            google?: { enabled?: boolean };
+            github?: { enabled?: boolean };
+          };
         };
         google = Boolean(settings.external?.google?.enabled);
+        github = Boolean(settings.external?.github?.enabled);
       }
     } catch {
       google = false;
+      github = false;
     }
   }
 
@@ -48,6 +54,7 @@ export async function GET() {
     emailMagicLink,
     emailOtp,
     google: supabase && google,
+    github: supabase && github,
     wallet,
     guest: true,
     publicConfig: supabase ? { url, anonKey } : null,

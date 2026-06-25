@@ -11,6 +11,7 @@ export type ResolveWallet = {
 export type ResolveAuthMethod =
   | "email"
   | "google"
+  | "github"
   | "wallet"
   | "both"
   | "none";
@@ -21,6 +22,7 @@ export type AccountMode =
   | "wallet"
   | "email"
   | "google"
+  | "github"
   | "both";
 
 export type ResolveAccountState = {

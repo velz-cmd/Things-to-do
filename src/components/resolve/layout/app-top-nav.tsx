@@ -8,11 +8,11 @@ import { AuthHeader } from "@/components/auth/auth-header";
 
 const NAV = [
   { href: "/", label: "Home", icon: Home, exact: true },
-  { href: "/discover", label: "Discover", icon: Search },
+  { href: "/radar", label: "Radar", icon: Radar },
   { href: "/weight", label: "Weight", icon: Scale },
+  { href: "/discover", label: "Discover", icon: Search },
   { href: "/methodology", label: "Signals", icon: LayoutList },
   { href: "/protocol", label: "Protocol", icon: GitBranch },
-  { href: "/radar", label: "Radar", icon: Radar },
 ];
 
 export function AppTopNav() {
@@ -24,7 +24,7 @@ export function AppTopNav() {
         <div className="flex items-center gap-6">
           <Link href="/" className="shrink-0">
             <p className="text-sm font-semibold tracking-tight text-white">RESOLVE</p>
-            <p className="text-[10px] text-resolve-muted-dim">Weight impact, settle on Arc</p>
+            <p className="text-[10px] text-resolve-muted-dim">Capital flow · GitHub first</p>
           </Link>
 
           <nav className="flex items-center gap-1">

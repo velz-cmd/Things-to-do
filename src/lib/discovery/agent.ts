@@ -11,16 +11,15 @@ export type AgentLogEntry = {
 };
 
 const SCAN_TEMPLATES: Omit<AgentLogEntry, "ts">[] = [
-  { level: "SCAN", domain: "github", message: "live API · navidrome/navidrome contributors · ranking unpaid value" },
-  { level: "FLAG", domain: "github", message: "live builder · high commits · $0 on-chain payouts detected" },
-  { level: "SCAN", domain: "navidrome", message: "scrobble aggregate · artist mbid-night-signals · 14.2k plays/30d" },
-  { level: "FLAG", domain: "navidrome", message: "top artist · no payee registry · ~$890 unpaid est." },
-  { level: "SCAN", domain: "mastodon", message: "engagement share · @writer@fosstodon.org · 40% of instance" },
-  { level: "FLAG", domain: "mastodon", message: "creator drives growth · zero campaign payouts" },
-  { level: "SCAN", domain: "immich", message: "EXIF attribution · Marcus Lee · 218 shared assets" },
-  { level: "SCAN", domain: "github", message: "PR depth · designer-alex · 94% acceptance · 0 bounties paid" },
-  { level: "OK", domain: "agent", message: "heartbeat · scanning 5 community sources" },
-  { level: "ERR", domain: "registry", message: "payee lookup · mbid-indie-wave · not registered" },
+  { level: "SCAN", domain: "github", message: "GraphQL ingest · merged PRs + review threads" },
+  { level: "FLAG", domain: "github", message: "repo health · 12k★ · 1 maintainer · critical funding gap" },
+  { level: "SCAN", domain: "github", message: "Sybil Shield · trust score 12 · account created yesterday" },
+  { level: "FLAG", domain: "github", message: "high-impact PR · latency -37% · included in v2.0 release" },
+  { level: "SCAN", domain: "github", message: "Weight Council · code 92 · project 87 · economic 78" },
+  { level: "FLAG", domain: "github", message: "founder intent · infrastructure 50% · docs 20% · applied" },
+  { level: "SCAN", domain: "github", message: "dependency proxy · package used by 500 downstream repos" },
+  { level: "OK", domain: "agent", message: "heartbeat · GitHub Phase 1 radar active" },
+  { level: "ERR", domain: "sybil", message: "trust below threshold · PR rejected from allocation" },
 ];
 
 let logBuffer: AgentLogEntry[] = [];

@@ -1,11 +1,12 @@
-import { DistributePanel } from "@/components/resolve/missions/distribute-panel";
+import { WeightPageClient } from "@/components/resolve/github/weight-page-client";
 
 export const metadata = {
   title: "Weight impact — RESOLVE",
-  description: "Verify contribution weights, challenge splits, settle proportionally on Arc.",
+  description:
+    "GitHub Phase 1: Sybil Shield, Weight Council, founder intent, and evidence-based Arc settlement.",
 };
 
-/** Judge-facing weight flow — not buried in mission control. */
+/** Judge-facing GitHub weight + settlement flow. */
 export default function WeightPage() {
-  return <DistributePanel />;
+  return <WeightPageClient />;
 }

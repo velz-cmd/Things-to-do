@@ -46,12 +46,12 @@ export default function DiscoverPage() {
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <header>
         <p className="text-[11px] font-medium uppercase tracking-wider text-resolve-muted">
-          Unpaid Value Index · live GitHub scan
+          GitHub opportunity index
         </p>
-        <h1 className="mt-1 text-2xl font-semibold text-white">Find who should be paid</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-white">Find repos that deserve capital</h1>
         <p className="mt-2 max-w-2xl text-sm text-resolve-muted">
-          Everyone else ships payment apps for one community. RESOLVE is an open protocol —
-          discover unpaid value, weight any contribution graph, settle proportional splits on Arc.
+          Phase 1 scans repository health, maintainer stress, and funding gaps.
+          Connect a repo on Radar or Weight to run the full attribution engine.
         </p>
         {!loading && liveCount > 0 && (
           <p className="mt-2 text-xs text-emerald-400">
@@ -131,10 +131,10 @@ export default function DiscoverPage() {
                 </ul>
                 <div className="mt-3">
                   <Link
-                    href="/weight"
+                    href={`/weight?owner=${encodeURIComponent(b.name.split("/")[0] ?? "")}&repo=${encodeURIComponent(b.name.split("/")[1] ?? b.name)}`}
                     className="inline-flex items-center gap-1 rounded-md bg-resolve-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500"
                   >
-                    Weight &amp; settle this pool
+                    Fund &amp; weight this repo
                     <ArrowRight className="h-3 w-3" />
                   </Link>
                 </div>

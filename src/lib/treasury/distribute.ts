@@ -1,8 +1,8 @@
-import { createHash } from "crypto";
 import { prisma } from "@/lib/db";
 import { verifyProof } from "@/lib/deputy/proof-engine";
 import { hashProofPayload } from "@/lib/deputy/state-machine";
-import { explorerTxUrl } from "@/lib/settlement/arc-config";
+import { sendBatchMemoPayouts, primaryTxFromPayouts } from "@/lib/arc/memo";
+import { explorerTxUrl, isLiveArcEnabled } from "@/lib/settlement/arc-config";
 import { resolvePayee } from "@/lib/registry/resolvers";
 import type {
   DistributeRequest,
@@ -59,11 +59,6 @@ function sampleIndices(total: number, rate: number): Set<number> {
     indices.add(Math.floor((i * total) / count));
   }
   return indices;
-}
-
-function mockTxHash(batchId: string): string {
-  const hex = createHash("sha256").update(`resolve-batch-${batchId}`).digest("hex");
-  return `0x${hex}`;
 }
 
 function buildComplianceCsv(payments: ResolvedPayment[]): string {
@@ -183,7 +178,7 @@ export async function processDistribution(
     data: {
       userId: userId ?? null,
       platform: request.platform,
-      status: "settled",
+      status: "settling",
       totalAmountUsd,
       payeeCount: aggregated.size,
       eventCount: request.events.length,
@@ -192,17 +187,53 @@ export async function processDistribution(
     },
   });
 
-  const txHash = mockTxHash(batch.id);
-  const explorerUrl = explorerTxUrl(txHash);
+  let txHash: string | null = null;
+  let explorerUrl: string | null = null;
+  let onChain = false;
+  let payoutTxs: DistributeResult["payoutTxs"];
+
+  const payoutList = Array.from(aggregated.values()).map((a) => ({
+    wallet: a.wallet,
+    amountUsd: a.total,
+    payeeName: a.name,
+  }));
+
+  if (isLiveArcEnabled() && payoutList.length > 0 && totalAmountUsd > 0) {
+    try {
+      const memoPayouts = await sendBatchMemoPayouts({
+        batchId: batch.id,
+        payouts: payoutList,
+      });
+      txHash = primaryTxFromPayouts(memoPayouts);
+      explorerUrl = txHash ? explorerTxUrl(txHash) : null;
+      onChain = memoPayouts.length > 0;
+      payoutTxs = memoPayouts.map((p) => ({
+        wallet: p.recipient,
+        txHash: p.txHash,
+        memoId: p.memoId,
+        amountUsd: p.amountUsd,
+      }));
+    } catch (e) {
+      console.error("[distribute] Arc memo payout failed:", e);
+      await prisma.distributionBatch.update({
+        where: { id: batch.id },
+        data: { status: "failed" },
+      });
+      throw e;
+    }
+  }
 
   await prisma.distributionBatch.update({
     where: { id: batch.id },
     data: {
+      status: onChain ? "settled" : "settled_offchain",
       txHash,
       explorerUrl,
       complianceJson: JSON.stringify({
-        payees: Array.from(aggregated.values()),
+        payees: payoutList,
         unresolved,
+        onChain,
+        payoutTxs,
       }),
     },
   });
@@ -231,7 +262,7 @@ export async function processDistribution(
 
   return {
     batchId: batch.id,
-    status: "settled",
+    status: onChain ? "settled" : "settled_offchain",
     totalAmountUsd,
     payeeCount: aggregated.size,
     eventCount: request.events.length,
@@ -239,6 +270,8 @@ export async function processDistribution(
     rejectedCount: rejectedEvents.length,
     txHash,
     explorerUrl,
+    onChain,
+    payoutTxs,
     payments: resolved,
     complianceCsv: buildComplianceCsv(resolved),
   };

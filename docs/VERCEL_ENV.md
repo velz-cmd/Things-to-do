@@ -51,25 +51,20 @@ https://resolve-task.vercel.app/demo-portals/streamly
 
 `missingRecommended` should be empty when everything is set.
 
-## GitHub Actions deploy secrets
+## GitHub Actions + Vercel deploy
 
-The cloud agent cannot write GitHub repository secrets (API 403). To enable the optional CLI deploy path, run locally after `gh auth login` and `npx vercel login`:
+**One deploy per push.** Vercel’s GitHub integration deploys automatically when `main` is updated.
 
-```bash
-./scripts/setup-github-vercel-secrets.sh
-```
+The workflow `.github/workflows/vercel-deploy.yml` only **verifies** that production is healthy after deploy. It does **not** call the deploy hook on every push (that caused duplicate deploys and hit Vercel’s free-tier limit of 100 deploys/day).
 
-This sets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` from your local Vercel CLI session.
+Manual redeploy (if Git deploy is stuck): GitHub → Actions → **Verify Vercel Production** → Run workflow → enable **trigger_deploy_hook**.
 
-**Without those secrets**, pushes to `main` still deploy via:
-1. Vercel GitHub integration (already connected to `velz-cmd/Things-to-do`)
-2. GitHub Actions deploy hook (`VERCEL_DEPLOY_HOOK_URL` in workflow)
+Do **not** set `VERCEL_TOKEN` in GitHub secrets for this repo — the old CLI `vercel deploy --prebuilt` path duplicated deploys and failed with `api-deployments-free-per-day`.
 
-| Secret | Value source |
-|--------|----------------|
-| `VERCEL_ORG_ID` | `team_apDtKK364C3BW1LjG3M93rhI` |
-| `VERCEL_PROJECT_ID` | `prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd` |
-| `VERCEL_TOKEN` | `~/.local/share/com.vercel.cli/auth.json` or [vercel.com/account/tokens](https://vercel.com/account/tokens) |
+| Item | Value |
+|------|-------|
+| Production URL | `https://resolve-task.vercel.app` |
+| Vercel project | `things-to-do` / `prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd` |
 
 ## Build fix (June 2025)
 

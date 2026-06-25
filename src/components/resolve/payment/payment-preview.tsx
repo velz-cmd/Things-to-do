@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Panel } from "@/components/resolve/ui/panel";
 import { Money } from "@/components/resolve/ui/money";
 import type { PaymentPreview } from "@/lib/payment/preview";
@@ -71,9 +72,9 @@ export function PaymentPreviewPanel({
         <Panel className="border-amber-500/20 p-3 text-xs text-amber-200">
           {preview.pendingCount} contributor{preview.pendingCount > 1 ? "s" : ""} without wallets
           will receive <Money amount={preview.pendingClaimUsd} size="sm" className="inline" /> via the{" "}
-          <a href="/claim" className="underline">
+          <Link href="/payments?tab=claim" className="underline">
             claim portal
-          </a>{" "}
+          </Link>{" "}
           after you execute.
         </Panel>
       )}

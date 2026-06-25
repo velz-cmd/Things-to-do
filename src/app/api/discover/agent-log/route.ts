@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { AGENT_STATUS, getAgentLog } from "@/lib/discovery/agent";
 
-/** Live discovery agent activity — Rug Jeez-style transparency. */
+/** Live discovery agent activity feed. */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const limit = Math.min(80, Number(searchParams.get("limit") ?? 40));

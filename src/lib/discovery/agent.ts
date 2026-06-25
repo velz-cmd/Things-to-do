@@ -1,4 +1,4 @@
-/** Autonomous discovery agent — scans for unpaid value (Rug Jeez-style agent log). */
+/** Autonomous discovery agent — indexes unpaid value across open graphs. */
 
 export type AgentLogLevel = "SCAN" | "FLAG" | "OK" | "ERR";
 

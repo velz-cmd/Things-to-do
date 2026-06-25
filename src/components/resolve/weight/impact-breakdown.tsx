@@ -134,7 +134,7 @@ export function ImpactBreakdown({
           {settling ? "Settling on Arc…" : "Settle on Arc"}
         </button>
         <p className="self-center text-[11px] text-resolve-muted">
-          Mimir settles truth · Rug Jeez prices risk · RESOLVE weights impact
+          Open Contribution Graph → Proof-of-Weight → Proportional Settlement Split
         </p>
       </div>
     </div>

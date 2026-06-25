@@ -50,8 +50,8 @@ export default function DiscoverPage() {
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-white">Find who should be paid</h1>
         <p className="mt-2 max-w-2xl text-sm text-resolve-muted">
-          Everyone else builds registries and sidecars. RESOLVE scans real repos (Navidrome, Immich,
-          Mastodon…) for contributors with high impact and zero payouts — then weights and settles.
+          Everyone else ships payment apps for one community. RESOLVE is an open protocol —
+          discover unpaid value, weight any contribution graph, settle proportional splits on Arc.
         </p>
         {!loading && liveCount > 0 && (
           <p className="mt-2 text-xs text-emerald-400">

@@ -63,16 +63,14 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  if (!body.walletAddress?.startsWith("0x")) {
-    return NextResponse.json({ error: "Valid walletAddress required" }, { status: 400 });
-  }
+  const wallet = body.walletAddress?.startsWith("0x") ? body.walletAddress : null;
 
   const row = await prisma.contributorRegistry.create({
     data: {
       platform: body.platform ?? "generic",
       platformId: body.platformId ?? body.githubUsername ?? `custom-${Date.now()}`,
       creatorName: body.creatorName ?? null,
-      walletAddress: body.walletAddress,
+      walletAddress: wallet,
       githubUsername: body.githubUsername ?? null,
       musicbrainzId: body.musicbrainzId ?? null,
       exifArtist: body.exifArtist ?? null,

@@ -10,6 +10,7 @@ export function useResolveAccess() {
   const signedIn =
     account.authMethod === "email" ||
     account.authMethod === "google" ||
+    account.authMethod === "github" ||
     account.authMethod === "both";
   const walletConnected = Boolean(account.walletAddress);
   /** Email/Google users can assign/lock/deploy after sign-in (embedded wallet auto-created). */

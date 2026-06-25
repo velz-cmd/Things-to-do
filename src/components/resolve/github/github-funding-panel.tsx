@@ -11,8 +11,10 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import type { ContributorWeight } from "@/lib/weight/types";
 import type { GitHubAllocationResult } from "@/lib/github/types";
-import type { SettlementResult } from "@/lib/payment/types";
 import { DEFAULT_FOUNDER_INTENT } from "@/lib/github/types";
+import type { SettlementResult } from "@/lib/payment/types";
+import type { PaymentPreview } from "@/lib/payment/preview";
+import { PaymentPreviewPanel } from "@/components/resolve/payment/payment-preview";
 
 function toContributorWeights(allocation: GitHubAllocationResult): ContributorWeight[] {
   return allocation.contributors.map((c) => ({
@@ -57,6 +59,7 @@ export function GitHubFundingPanel({
   const [intent, setIntent] = useState(DEFAULT_FOUNDER_INTENT);
   const [loading, setLoading] = useState(false);
   const [allocation, setAllocation] = useState<GitHubAllocationResult | null>(null);
+  const [preview, setPreview] = useState<PaymentPreview | null>(null);
   const [result, setResult] = useState<SettlementResult | null>(null);
 
   async function analyzeAndAllocate() {
@@ -89,6 +92,26 @@ export function GitHubFundingPanel({
     }
   }
 
+  async function loadPreview() {
+    if (!allocation) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/payment/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ allocation }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Preview failed");
+      setPreview(data.preview);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Preview failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function settleArc() {
     if (!allocation) return;
     setLoading(true);
@@ -114,19 +137,18 @@ export function GitHubFundingPanel({
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.missingWallets?.length) {
-          throw new Error(
-            `Register wallets for: ${data.missingWallets.join(", ")} (Contributor Registry)`,
-          );
-        }
         throw new Error(data.error ?? "Settlement failed");
       }
       setResult(data);
       setAllocation(null);
+      setPreview(null);
+      const pending = data.pendingRewards?.length ?? 0;
       toast.success(
         data.status === "SETTLED" ?
-          "Mission settled on Arc with memos + nano agent payments"
-        : "Settlement recorded — retry failed wallets via /api/payment/retry",
+          `Settled on Arc${pending ? ` · ${pending} rewards sent to claim portal` : ""}`
+        : pending ?
+          `Escrow locked · ${pending} contributors can claim via /claim`
+        : "Settlement recorded",
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Settlement failed");
@@ -162,6 +184,11 @@ export function GitHubFundingPanel({
               Failed wallets: {result.failedWallets.join(", ")} — retry via payment API
             </p>
           )}
+          {result.pendingRewards && result.pendingRewards.length > 0 && (
+            <p className="mt-1 text-violet-300">
+              {result.pendingRewards.length} rewards in claim portal — contributors visit /claim
+            </p>
+          )}
         </Panel>
         <button
           type="button"
@@ -170,6 +197,19 @@ export function GitHubFundingPanel({
         >
           New funding pool
         </button>
+      </div>
+    );
+  }
+
+  if (preview && allocation) {
+    return (
+      <div className={embedded ? "p-3" : "mx-auto max-w-4xl px-6 py-6 space-y-4"}>
+        <PaymentPreviewPanel
+          preview={preview}
+          onApprove={settleArc}
+          onBack={() => setPreview(null)}
+          approving={loading}
+        />
       </div>
     );
   }
@@ -215,8 +255,9 @@ export function GitHubFundingPanel({
           fundPoolUsd={allocation.fundPoolUsd}
           contributors={toContributorWeights(allocation)}
           weightProofHash={allocation.weightProofHash}
-          onSettle={settleArc}
+          onSettle={loadPreview}
           settling={loading}
+          settleLabel="Review payment preview"
         />
         <button
           type="button"

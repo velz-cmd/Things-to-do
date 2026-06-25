@@ -3,7 +3,7 @@
 const REMEMBERED_EMAIL_KEY = "resolve.auth.rememberedEmail";
 const REMEMBERED_PROVIDER_KEY = "resolve.auth.rememberedProvider";
 
-export type RememberedProvider = "email" | "google" | "wallet";
+export type RememberedProvider = "email" | "google" | "github" | "wallet";
 
 export function getRememberedEmail(): string | null {
   if (typeof window === "undefined") return null;

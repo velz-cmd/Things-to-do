@@ -28,6 +28,7 @@ function resolveAuthMethod(
   if (hasExternalWallet && !hasSupabase) return "wallet";
   if (!hasSupabase) return "none";
   if (provider === "google") return "google";
+  if (provider === "github") return "github";
   return "email";
 }
 
@@ -42,6 +43,7 @@ function resolveMode(
   if (hasExternalWallet && !hasSupabase) return "wallet";
   if (!hasSupabase) return "none";
   if (provider === "google") return "google";
+  if (provider === "github") return "github";
   return "email";
 }
 

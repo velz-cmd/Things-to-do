@@ -37,6 +37,8 @@ export interface MissionSettlementInput {
   createdAt?: string;
   /** Evidence OS worker ids that ran — for nano agent payouts */
   agentsRun?: string[];
+  /** Reserved for claim portal — not paid in this batch */
+  pendingClaimUsd?: number;
 }
 
 export interface PaymentIntent {
@@ -95,6 +97,8 @@ export interface SettlementResult {
   proof?: SettlementProof;
   failedWallets: string[];
   explorerUrls: string[];
+  pendingRewards?: { login: string; amountUsd: number }[];
+  preview?: import("@/lib/payment/preview").PaymentPreview;
 }
 
 /** Agent nano rates — Circle x402 / memo micro-payouts per pipeline worker */

@@ -86,6 +86,22 @@ export async function GET() {
       githubBlueprint: "/api/github/blueprint",
       githubOsDocs: "/docs/GITHUB-OS.md",
     },
+    paymentLayer: {
+      enabled: true,
+      philosophy: "Stripe moves money — never decides who deserves payment",
+      settlePage: "/settle",
+      blueprint: "/api/payment/blueprint",
+      docs: "/docs/PAYMENT-LAYER.md",
+      endpoints: {
+        createSettlement: "/api/payment/create-settlement",
+        lockEscrow: "/api/payment/lock-escrow",
+        executeBatch: "/api/payment/execute-batch",
+        fromAllocation: "/api/payment/from-allocation",
+        fromGithub: "/api/payment/from-github",
+        history: "/api/payment/history",
+        retry: "/api/payment/retry",
+      },
+    },
     protocol: {
       name: "RESOLVE Open Impact Settlement Protocol",
       version: "0.1.0",

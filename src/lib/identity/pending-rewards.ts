@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/db";
+import {
+  getAuthorizationSummary,
+  getAuthorizationsForPayee,
+  getClaimableAuthorizations,
+} from "@/lib/authorization/ledger";
 import type { GitHubAllocationResult } from "@/lib/github/types";
 import { ensureContributorFromGithub } from "@/lib/identity/contributors";
 
@@ -70,7 +75,32 @@ export async function getPendingRewardsForGithub(login: string) {
   });
 }
 
+/** Unified claim queue — Authorization Ledger first, legacy PendingReward fallback. */
+export async function getClaimableItemsForGithub(login: string) {
+  const normalized = login.toLowerCase();
+  const [authorizations, legacyRewards] = await Promise.all([
+    getClaimableAuthorizations("github_username", normalized),
+    getPendingRewardsForGithub(normalized),
+  ]);
+
+  const ledgerMissionIds = new Set(authorizations.map((a) => a.missionId));
+  const legacyOnly = legacyRewards.filter(
+    (r) => r.status === "claimable" && !ledgerMissionIds.has(r.missionId),
+  );
+
+  return { authorizations, legacyRewards: legacyOnly };
+}
+
+export async function getContributorAuthorizations(login: string) {
+  return getAuthorizationsForPayee("github_username", login);
+}
+
 export async function getContributorRewardSummary(login: string) {
+  const ledger = await getAuthorizationSummary({
+    payeeKeyType: "github_username",
+    payeeKey: login,
+  }).catch(() => null);
+
   const rewards = await prisma.pendingReward.findMany({
     where: { githubUsername: login.toLowerCase() },
   });
@@ -82,24 +112,35 @@ export async function getContributorRewardSummary(login: string) {
     },
   });
 
-  const claimable = rewards
-    .filter((r) => r.status === "claimable")
-    .reduce((s, r) => s + r.amountUsd, 0);
-  const authorized = rewards
-    .filter((r) => r.status === "authorized" || r.status === "pending_funding")
-    .reduce((s, r) => s + r.amountUsd, 0);
+  const claimableFromLedger = ledger?.claimableUsd ?? 0;
+  const authorizedFromLedger =
+    (ledger?.authorizedUsd ?? 0) + (ledger?.pendingFundingUsd ?? 0);
+
+  const claimable = Math.max(
+    claimableFromLedger,
+    rewards.filter((r) => r.status === "claimable").reduce((s, r) => s + r.amountUsd, 0),
+  );
+  const authorized = Math.max(
+    authorizedFromLedger,
+    rewards
+      .filter((r) => r.status === "authorized" || r.status === "pending_funding")
+      .reduce((s, r) => s + r.amountUsd, 0),
+  );
   const pending = rewards
     .filter((r) => r.status === "claimed")
     .reduce((s, r) => s + r.amountUsd, 0);
-  const settledUsd = settled.reduce((s, r) => s + r.amountUsd, 0);
+  const settledUsd = Math.max(
+    ledger?.settledUsd ?? 0,
+    settled.reduce((s, r) => s + r.amountUsd, 0),
+  );
 
   return {
     claimableUsd: Math.round(claimable * 100) / 100,
     authorizedUsd: Math.round(authorized * 100) / 100,
     pendingUsd: Math.round(pending * 100) / 100,
     settledUsd: Math.round(settledUsd * 100) / 100,
-    verifiedUsd: Math.round((claimable + pending) * 100) / 100,
-    rewardCount: rewards.length,
+    verifiedUsd: Math.round((claimable + authorized + pending) * 100) / 100,
+    rewardCount: Math.max(ledger?.count ?? 0, rewards.length),
   };
 }
 

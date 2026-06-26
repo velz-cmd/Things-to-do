@@ -60,6 +60,15 @@ type PendingReward = {
   status: string;
 };
 
+type AuthorizationRow = {
+  id: string;
+  connectorId: string;
+  missionId: string;
+  amountUsd: number;
+  status: string;
+  contextLabel: string | null;
+};
+
 export default function PaymentsPage() {
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") === "claim" ? "claim" : "history";
@@ -74,6 +83,7 @@ export default function PaymentsPage() {
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [summary, setSummary] = useState<RewardSummary | null>(null);
   const [rewards, setRewards] = useState<PendingReward[]>([]);
+  const [authorizations, setAuthorizations] = useState<AuthorizationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
 
@@ -92,6 +102,7 @@ export default function PaymentsPage() {
       setSettlements((history.settlements ?? []).map(mapSettlement));
       setSummary(rewardsData.summary ?? null);
       setRewards(rewardsData.rewards ?? []);
+      setAuthorizations(rewardsData.authorizations ?? []);
     } catch {
       toast.error("Could not load payments");
     } finally {
@@ -202,10 +213,10 @@ export default function PaymentsPage() {
           </Panel>
         </div>
       : <Panel className="p-5">
-          <p className="text-lg font-semibold text-white">Claim rewards</p>
+          <p className="text-lg font-semibold text-white">Claim authorizations</p>
           {!user ?
             <div className="mt-4 space-y-3">
-              <p className="text-sm text-resolve-muted">Sign in with GitHub to see your rewards.</p>
+              <p className="text-sm text-resolve-muted">Sign in with GitHub to see your authorizations.</p>
               <button
                 type="button"
                 onClick={() => (githubOAuthReady && githubEnabled ? signInWithGitHub() : openSignIn())}
@@ -221,9 +232,23 @@ export default function PaymentsPage() {
               </p>
               {loading ?
                 <p className="mt-3 text-sm text-resolve-muted">Loading…</p>
-              : rewards.length === 0 ?
-                <p className="mt-3 text-sm text-resolve-muted">No pending rewards for your account.</p>
+              : authorizations.length === 0 && rewards.length === 0 ?
+                <p className="mt-3 text-sm text-resolve-muted">No authorizations for your account.</p>
               : <ul className="mt-3 space-y-2 text-sm">
+                  {authorizations.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex justify-between rounded border border-resolve-border px-3 py-2"
+                    >
+                      <span className="text-resolve-muted">
+                        {a.contextLabel ?? a.missionId}
+                        <span className="ml-2 text-[10px] uppercase text-resolve-muted-dim">
+                          {a.status.replace("_", " ")}
+                        </span>
+                      </span>
+                      <Money amount={a.amountUsd} size="sm" />
+                    </li>
+                  ))}
                   {rewards.map((r) => (
                     <li
                       key={r.id}

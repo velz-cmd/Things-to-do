@@ -28,9 +28,25 @@ Attribution consumer + evidence (Weight / Sybil)
         ▼
 Authorization ledger
         ▼
-Settlement Core (src/lib/payment/)
+Treasury Engine (src/lib/treasury/engine.ts)
+        │ fund once · obligations · global readiness
         ▼
-Rail (Arc — swappable)
+Settlement Core + Circle Arc (src/lib/payment/, src/lib/settlement/global.ts)
+        │ batched memo USDC · low cross-border cost
+        ▼
+Claim (Circle Wallet / AppKit)
+        ▼
+Optional FX — USDC → EURC / cirBTC (AppKit Swaps on Arc)
+```
+
+**Doctrine:** The internet made creation global. Money is still fragmented by borders, currencies, and platforms. RESOLVE authorizes value wherever it is created, aggregates it across ecosystems, and settles it globally through batched, low-cost payments on Circle Arc.
+
+---
+
+## Previous architecture (superseded rail-only view)
+
+```
+Authorization ledger → Settlement Core → Rail (Arc)
 ```
 
 ---

@@ -142,7 +142,11 @@ export async function GET() {
 
   const connectorById = new Map(connectors.map((c) => [c.id, c]));
   const githubLive = connectorById.get("github")?.health === "healthy";
-  const musicLive = (connectorById.get("navidrome")?.authorizationCount ?? 0) > 0;
+  const musicConnector = connectorById.get("navidrome");
+  const musicLive =
+    musicConnector?.health === "healthy" ||
+    musicConnector?.health === "syncing" ||
+    (musicConnector?.authorizationCount ?? 0) > 0;
 
   const sources = SOURCE_CATALOG.map((s) => {
     const live = connectorById.get(s.id);

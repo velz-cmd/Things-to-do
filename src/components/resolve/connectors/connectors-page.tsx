@@ -150,8 +150,8 @@ export function ConnectorsPage() {
                 {c.id === "navidrome" && (
                   <>
                     <p className="max-w-xs text-right text-xs text-resolve-muted">
-                      Auto-sync via cron or{" "}
-                      <code className="text-[10px] text-white/80">scripts/navidrome-bridge.ts</code>
+                      Run <code className="text-[10px] text-white/80">scripts/navidrome-bridge.ts</code> on
+                      your Navidrome server
                     </p>
                     {c.docsPath && (
                       <a

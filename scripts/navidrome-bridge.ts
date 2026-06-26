@@ -1,5 +1,7 @@
 /**
- * Navidrome bridge — run on the Navidrome host to push new scrobbles to RESOLVE.
+ * Navidrome bridge — run on the Navidrome host (not Vercel) to push scrobbles to RESOLVE.
+ *
+ * One-time: npm install better-sqlite3
  *
  * Usage:
  *   NAVIDROME_DB_PATH=/path/to/navidrome.db \
@@ -41,8 +43,20 @@ function saveCursor(cursor: Cursor) {
 }
 
 async function main() {
-  const Database = (await import("better-sqlite3")).default;
-  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  type SqliteDb = {
+    prepare: (sql: string) => { all: (...args: unknown[]) => unknown[] };
+    close: () => void;
+  };
+  let Database: new (path: string, opts: { readonly: boolean; fileMustExist: boolean }) => SqliteDb;
+  try {
+    Database = (await import("better-sqlite3")).default as typeof Database;
+  } catch {
+    console.error(
+      "better-sqlite3 not installed. On the Navidrome host run: npm install better-sqlite3",
+    );
+    process.exit(1);
+  }
+  const db = new Database(dbPath!, { readonly: true, fileMustExist: true });
   const cursor = loadCursor();
   const limit = Number(process.env.NAVIDROME_BRIDGE_BATCH ?? "200");
 

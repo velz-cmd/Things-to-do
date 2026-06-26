@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   ingestNavidromeScrobbles,
-  syncNavidromeFromSqlite,
   getNavidromeSyncStatus,
+  recordNavidromeBridgeCursor,
 } from "@/lib/connectors/navidrome-sync";
 
 function authorize(req: Request): boolean {
@@ -24,13 +24,15 @@ const batchSchema = z.object({
       userId: z.string().min(1),
       mediaFileId: z.string().min(1),
       submissionTime: z.string().min(1),
+      trackTitle: z.string().optional(),
+      recordingMbid: z.string().optional(),
       artistName: z.string().optional(),
       durationSec: z.number().min(0).optional(),
     }),
   ),
 });
 
-/** Navidrome automatic sync — SQLite tail locally or push batch from bridge script. */
+/** Navidrome sync — POST scrobble batches from scripts/navidrome-bridge.ts on the Navidrome host. */
 export async function POST(req: Request) {
   if (!authorize(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -48,6 +50,14 @@ export async function POST(req: Request) {
       perPlayUsd: parsed.data.perPlayUsd,
     });
 
+    const last = parsed.data.scrobbles[parsed.data.scrobbles.length - 1];
+    if (last) {
+      await recordNavidromeBridgeCursor(parsed.data.instanceId ?? "default", {
+        submissionTime: last.submissionTime,
+        id: last.id,
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       mode: "batch",
@@ -57,8 +67,10 @@ export async function POST(req: Request) {
     });
   }
 
-  const result = await syncNavidromeFromSqlite();
-  return NextResponse.json(result);
+  return NextResponse.json({
+    error: "Send JSON scrobble batch from scripts/navidrome-bridge.ts",
+    status: await getNavidromeSyncStatus(),
+  }, { status: 400 });
 }
 
 export async function GET(req: Request) {
@@ -67,10 +79,5 @@ export async function GET(req: Request) {
   }
 
   const status = await getNavidromeSyncStatus();
-  if (req.headers.get("x-sync-trigger") === "1") {
-    const result = await syncNavidromeFromSqlite();
-    return NextResponse.json({ status, sync: result });
-  }
-
   return NextResponse.json({ status });
 }

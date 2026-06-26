@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Panel } from "@/components/resolve/ui/panel";
+import { domainLabel } from "@/lib/workspace/domains";
 
 type ConnectorPulse = {
   id: string;
@@ -64,7 +65,7 @@ export function WorkspaceActivityPanel({
         setActivity(
           rows.map((r) => ({
             id: r.id,
-            message: `${r.connectorId}: ${r.contextLabel ?? "authorization"} → ${r.status.replace("_", " ")}`,
+            message: `${domainLabel(r.connectorId)}: ${r.contextLabel ?? "value recognized"} → ${r.status.replace("_", " ")}`,
             at: r.updatedAt,
           })),
         );
@@ -77,7 +78,7 @@ export function WorkspaceActivityPanel({
       <div className="sticky top-16 space-y-4">
         <div>
           <p className="px-2 text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
-            Connectors
+            Connected sources
           </p>
           <ul className="mt-2 space-y-2">
             {connectors.map((c) => (

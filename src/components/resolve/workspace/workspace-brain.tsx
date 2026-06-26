@@ -19,6 +19,7 @@ import {
 } from "@/components/resolve/workspace/workspace-sidebar";
 import { WorkspaceActivityPanel } from "@/components/resolve/workspace/workspace-activity-panel";
 import { WorkspaceOsDashboard } from "@/components/resolve/workspace/workspace-os-dashboard";
+import { WorkspaceAdvisor } from "@/components/resolve/workspace/workspace-advisor";
 import { PaymentSummary } from "@/components/resolve/payment/payment-summary";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -399,6 +400,7 @@ export function WorkspaceBrain() {
 
   return shell(
     <div className="mx-auto max-w-4xl space-y-8">
+      <WorkspaceAdvisor />
       <WorkspaceOsDashboard />
 
       <details

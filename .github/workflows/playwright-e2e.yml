@@ -22,7 +22,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Generate Prisma client
         run: npx prisma generate
@@ -31,3 +31,4 @@ jobs:
         run: npm run test:e2e
         env:
           PLAYWRIGHT_ENABLED: "true"
+          CI: "true"

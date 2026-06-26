@@ -7,7 +7,10 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: "list",
-  timeout: 60_000,
+  timeout: 45_000,
+  expect: {
+    timeout: 10_000,
+  },
   use: {
     baseURL: process.env.APP_URL ?? "http://localhost:3000",
     trace: "on-first-retry",

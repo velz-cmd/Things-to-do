@@ -6,60 +6,31 @@ import { ArrowRight, Activity, Banknote, Wallet, User } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
 
 const WORKFLOWS = [
-  {
-    question: "Where is value?",
-    href: "/activity",
-    cta: "Open activity",
-    icon: Activity,
-    tone: "sky" as const,
-  },
-  {
-    question: "Fund contributors",
-    href: "/workspace/fund",
-    cta: "Fund a project",
-    icon: Banknote,
-    tone: "violet" as const,
-  },
-  {
-    question: "Claim earnings",
-    href: "/payments",
-    cta: "View payments",
-    icon: Wallet,
-    tone: "emerald" as const,
-  },
-  {
-    question: "Connect identity",
-    href: "/profile",
-    cta: "Open profile",
-    icon: User,
-    tone: "amber" as const,
-  },
+  { question: "Where is value?", href: "/activity", cta: "Open activity", icon: Activity },
+  { question: "Fund contributors", href: "/workspace/fund", cta: "Fund a project", icon: Banknote },
+  { question: "Claim earnings", href: "/payments", cta: "View payments", icon: Wallet },
+  { question: "Connect identity", href: "/profile", cta: "Open profile", icon: User },
 ] as const;
-
-const toneBorder = {
-  sky: "hover:border-sky-500/30 group-hover:text-sky-300",
-  violet: "hover:border-violet-500/30 group-hover:text-violet-300",
-  emerald: "hover:border-emerald-500/30 group-hover:text-emerald-300",
-  amber: "hover:border-amber-500/30 group-hover:text-amber-300",
-};
 
 export function WorkflowStrip({ className }: { className?: string }) {
   return (
-    <div className={clsx("grid gap-3 sm:grid-cols-2 lg:grid-cols-4", className)}>
+    <div className={clsx("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", className)}>
       {WORKFLOWS.map((w) => (
-        <Link key={w.href} href={w.href} className="group">
-          <Panel
-            variant="glass"
-            className={clsx("h-full p-4 transition", toneBorder[w.tone])}
-            padding={false}
-          >
-            <div className="p-4">
+        <Link key={w.href} href={w.href} className="group block">
+          <Panel variant="glass" hover className="h-full p-0" padding={false}>
+            <div className="p-5">
               <div className="flex items-center justify-between">
-                <w.icon className="h-4 w-4 text-resolve-muted group-hover:text-resolve-accent" />
-                <ArrowRight className="h-3.5 w-3.5 text-resolve-muted opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.05] ring-1 ring-white/[0.08] transition group-hover:bg-cyan-400/10 group-hover:ring-cyan-400/20">
+                  <w.icon className="h-4 w-4 text-resolve-muted transition group-hover:text-cyan-300" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-resolve-muted opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100 group-hover:text-cyan-300" />
               </div>
-              <p className="mt-3 text-xs text-resolve-muted group-hover:text-white">{w.question}</p>
-              <p className="mt-1 text-[11px] font-semibold text-resolve-accent">{w.cta}</p>
+              <p className="mt-4 text-xs text-resolve-muted transition group-hover:text-white/90">
+                {w.question}
+              </p>
+              <p className="mt-1 text-[11px] font-semibold text-cyan-300/80 group-hover:text-cyan-200">
+                {w.cta}
+              </p>
             </div>
           </Panel>
         </Link>

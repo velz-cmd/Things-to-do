@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
+import { CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
@@ -13,6 +14,7 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { explorerUrlForTx, isOnChainTxHash } from "@/lib/payment/tx-utils";
 import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
+import { ProductPage } from "@/components/resolve/layout/product-page";
 import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
 
 type Overview = {
@@ -152,15 +154,19 @@ export function PaymentsOS() {
   const ledger = overview?.ledger;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
-      <div>
-        <h1 className="text-xl font-semibold text-white">Payments</h1>
-        <p className="mt-1 text-sm text-resolve-muted">
-          Treasury, authorizations, fulfillment, and claims — one financial operating system.
-        </p>
-      </div>
-
-      {/* Treasury */}
+    <ProductPage
+      icon={CreditCard}
+      title="Payments"
+      description="Treasury, authorizations, fulfillment, and claims — Stripe-grade money movement for open ecosystems."
+      workflows={[
+        { label: "Treasury" },
+        { label: "Authorizations" },
+        { label: "Claims" },
+        { label: "Settlement" },
+      ]}
+      width="narrow"
+    >
+      <div className="space-y-8">
       <section>
         <SectionLabel>Treasury</SectionLabel>
         <Panel className="mt-3 p-5">
@@ -188,10 +194,10 @@ export function PaymentsOS() {
             </div>
           </div>
           <Link
-            href="/workspace"
+            href="/workspace/fund"
             className="mt-4 inline-block text-sm text-resolve-accent hover:underline"
           >
-            Authorize value in Workspace →
+            Fund a project →
           </Link>
         </Panel>
       </section>
@@ -354,7 +360,8 @@ export function PaymentsOS() {
           }
         </Panel>
       </section>
-    </div>
+      </div>
+    </ProductPage>
   );
 }
 

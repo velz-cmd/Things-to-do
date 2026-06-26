@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ProtocolChat } from "@/components/resolve/workspace/protocol-chat";
 import { WorkspaceValuePanel } from "@/components/resolve/workspace/workspace-value-panel";
 import { ManualAllocationPanel } from "@/components/resolve/workspace/manual-allocation-panel";
+import { Panel } from "@/components/resolve/ui/panel";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards";
 import type { FounderPresetId } from "@/lib/workspace/founder-presets";
@@ -19,7 +20,6 @@ type Snapshot = {
   policies: PolicyProposal[];
 };
 
-/** AI command center — chat + value intelligence + manual policies. */
 export function WorkspaceProtocol() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,13 +55,13 @@ export function WorkspaceProtocol() {
         </div>
       </div>
 
-      <section className="rounded-xl border border-resolve-border/60 bg-resolve-raised/20 p-5">
+      <Panel variant="glass" className="p-6">
         <ManualAllocationPanel
           policies={policies}
           preset={preset}
           onPresetChange={setPreset}
         />
-      </section>
+      </Panel>
     </div>
   );
 }

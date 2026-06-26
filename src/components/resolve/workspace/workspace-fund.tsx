@@ -6,6 +6,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { GitBranch, Sparkles } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
+import { Input } from "@/components/resolve/ui/input";
+import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
 import { AnalysisProgress } from "@/components/resolve/workspace/analysis-progress";
 import { ContributorBreakdown } from "@/components/resolve/workspace/contributor-breakdown";
@@ -388,39 +390,40 @@ export function WorkspaceFund() {
 
   return shell(
     <div className="space-y-6">
-      <Panel className="p-5">
-        <label className="text-sm font-medium text-white" htmlFor="repo-input">
+      <Panel variant="glass" className="p-6">
+        <label className="text-sm font-semibold text-white" htmlFor="repo-input">
           Project source
         </label>
-        <input
+        <Input
           id="repo-input"
+          inputSize="lg"
           value={repoInput}
           onChange={(e) => setRepoInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void runAnalysis()}
           placeholder="owner/repository or github.com/owner/repo"
-          className="mt-2 w-full rounded-lg border border-resolve-border bg-resolve-bg px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent focus:outline-none"
+          className="mt-3"
         />
 
-        <div className="mt-4">
-          <label className="text-xs text-resolve-muted">Treasury amount (USDC)</label>
-          <input
+        <div className="mt-5">
+          <label className="text-xs font-medium text-resolve-muted">Treasury amount (USDC)</label>
+          <Input
             type="number"
             min={100}
             step={500}
             value={fundPoolUsd}
             onChange={(e) => setFundPoolUsd(Number(e.target.value))}
-            className="mt-1 w-full max-w-xs rounded border border-resolve-border bg-resolve-bg px-2 py-1.5 text-sm text-white"
+            className="mt-2 max-w-xs"
           />
         </div>
 
-        <button
-          type="button"
+        <Button
+          className="mt-5"
+          size="lg"
           onClick={() => void runAnalysis()}
           disabled={loading || phase === "analyzing"}
-          className="mt-4 rounded-md bg-resolve-accent px-8 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
         >
           {phase === "analyzing" ? "Analyzing…" : "Analyze & authorize"}
-        </button>
+        </Button>
       </Panel>
 
       <FounderPriorities value={preset} onChange={setPreset} />

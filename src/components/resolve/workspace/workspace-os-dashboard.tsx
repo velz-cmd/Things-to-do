@@ -87,8 +87,9 @@ export function WorkspaceOsDashboard({ compact = false }: { compact?: boolean })
 
   if (loading) {
     return (
-      <Panel className="p-8 text-center text-sm text-resolve-muted">
-        Loading your open ecosystem…
+      <Panel variant="glass" className="p-12 text-center">
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-resolve-border border-t-resolve-accent" />
+        <p className="mt-4 text-sm text-resolve-muted">Loading live ecosystem data…</p>
       </Panel>
     );
   }
@@ -112,11 +113,11 @@ export function WorkspaceOsDashboard({ compact = false }: { compact?: boolean })
           </header>
 
           {data.aiInsight && (
-            <Panel className="border-resolve-accent/20 bg-gradient-to-r from-resolve-accent/10 to-transparent p-4">
-              <p className="text-[10px] uppercase tracking-wide text-resolve-accent">
+            <Panel variant="accent" className="p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-accent">
                 Continuously watching open ecosystems
               </p>
-              <p className="mt-1 text-sm text-white/90">{data.aiInsight}</p>
+              <p className="mt-2 text-sm leading-relaxed text-white/90">{data.aiInsight}</p>
             </Panel>
           )}
         </>
@@ -129,7 +130,7 @@ export function WorkspaceOsDashboard({ compact = false }: { compact?: boolean })
           {data.sources.map((s) => (
             <div
               key={s.id}
-              className="flex items-center justify-between rounded-lg border border-resolve-border/60 bg-resolve-raised/40 px-3 py-2.5"
+              className="flex items-center justify-between rounded-resolve-lg border border-resolve-border/60 resolve-glass-subtle px-4 py-3 transition hover:border-resolve-accent/20"
             >
               <span className="text-sm text-white">{s.label}</span>
               <span
@@ -157,7 +158,7 @@ export function WorkspaceOsDashboard({ compact = false }: { compact?: boolean })
             No activity yet. Value from code, music, research, and more will stream here
             automatically.
           </p>
-        : <ul className="mt-3 divide-y divide-resolve-border/50 rounded-lg border border-resolve-border/60">
+        : <ul className="mt-3 divide-y divide-resolve-border/40 overflow-hidden rounded-resolve-lg border border-resolve-border/60 resolve-glass">
             {data.liveActivity.slice(0, 12).map((a) => (
               <li key={a.id}>
                 <button
@@ -310,9 +311,9 @@ function MetricCard({
   accent?: boolean;
 }) {
   return (
-    <Panel className="p-4">
-      <p className="text-[10px] uppercase text-resolve-muted">{label}</p>
-      <p className={clsx("mt-1 text-lg font-semibold", accent ? "text-emerald-300" : "text-white")}>
+    <Panel variant="glass" className="p-4">
+      <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-resolve-muted">{label}</p>
+      <p className={clsx("mt-2 text-xl font-semibold tabular-nums", accent ? "text-emerald-300" : "text-white")}>
         <Money amount={amount} size="sm" />
       </p>
     </Panel>

@@ -3,26 +3,32 @@
 @tailwind utilities;
 
 :root {
-  --background: #05080c;
+  --background: #030508;
   --foreground: #f0f4f8;
-  --resolve-bg: #05080c;
-  --resolve-raised: #0c1219;
-  --resolve-hover: #111a24;
-  --resolve-border: rgba(255, 255, 255, 0.06);
-  --resolve-border-strong: rgba(255, 255, 255, 0.1);
-  --resolve-accent: #3b82f6;
-  --resolve-accent-muted: rgba(59, 130, 246, 0.12);
+  --resolve-bg: #030508;
+  --resolve-raised: #0a0f16;
+  --resolve-hover: #121a26;
+  --resolve-border: rgba(255, 255, 255, 0.07);
+  --resolve-border-strong: rgba(255, 255, 255, 0.12);
+  --resolve-accent: #4f8fff;
+  --resolve-accent-muted: rgba(79, 143, 255, 0.14);
+  --resolve-violet: #8b5cf6;
   --resolve-success: #34d399;
   --resolve-warning: #fbbf24;
   --resolve-danger: #f87171;
   --resolve-muted: #94a3b8;
   --resolve-muted-dim: #64748b;
+  --resolve-glass: rgba(12, 18, 28, 0.72);
+  --resolve-radius: 14px;
+  --resolve-radius-lg: 18px;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -33,10 +39,56 @@ body {
   .resolve-grid-bg {
     background-color: var(--resolve-bg);
     background-image:
-      radial-gradient(ellipse 100% 80% at 50% -30%, rgba(59, 130, 246, 0.06), transparent 50%),
-      linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-    background-size: 100% 100%, 48px 48px, 48px 48px;
+      radial-gradient(ellipse 120% 80% at 50% -25%, rgba(79, 143, 255, 0.09), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(139, 92, 246, 0.05), transparent 50%),
+      linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 56px 56px, 56px 56px;
+  }
+
+  .resolve-hero-glow {
+    background-image:
+      radial-gradient(ellipse 70% 50% at 50% 0%, rgba(79, 143, 255, 0.15), transparent 70%),
+      radial-gradient(ellipse 40% 30% at 80% 20%, rgba(139, 92, 246, 0.08), transparent 60%);
+  }
+
+  .resolve-glass {
+    background: var(--resolve-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--resolve-border-strong);
+  }
+
+  .resolve-glass-subtle {
+    background: rgba(10, 15, 22, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--resolve-border);
+  }
+
+  .resolve-card-glow {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 4px 24px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .resolve-card-glow-accent {
+    box-shadow:
+      0 0 0 1px rgba(79, 143, 255, 0.2),
+      0 8px 32px rgba(79, 143, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .resolve-text-gradient {
+    background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .resolve-accent-gradient {
+    background: linear-gradient(135deg, #4f8fff 0%, #8b5cf6 100%);
   }
 
   .tabular-nums {
@@ -47,7 +99,7 @@ body {
 @keyframes resolve-enter {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -55,8 +107,31 @@ body {
   }
 }
 
+@keyframes resolve-pulse-glow {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes resolve-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
 @layer utilities {
   .animate-resolve-enter {
-    animation: resolve-enter 0.2s ease-out forwards;
+    animation: resolve-enter 0.35s ease-out forwards;
+  }
+
+  .animate-resolve-pulse-glow {
+    animation: resolve-pulse-glow 2.5s ease-in-out infinite;
   }
 }

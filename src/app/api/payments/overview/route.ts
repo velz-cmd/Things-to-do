@@ -4,13 +4,27 @@ import { getArcReadiness } from "@/lib/treasury/arc-readiness";
 import { getTreasuryStats } from "@/lib/treasury/distribute";
 import { prisma } from "@/lib/db";
 
+const EMPTY_LEDGER = {
+  authorizedUsd: 0,
+  pendingFundingUsd: 0,
+  claimableUsd: 0,
+  settledUsd: 0,
+  count: 0,
+};
+
 /** Financial operating system snapshot — real treasury + ledger + settlements */
 export async function GET() {
   const [arc, stats, ledger, recentAuthorizations, settlements] = await Promise.all([
     getArcReadiness(),
-    getTreasuryStats(),
-    getGlobalAuthorizationSummary(),
-    getAuthorizationHistory(20),
+    getTreasuryStats().catch(() => ({
+      totalDistributedUsd: 0,
+      batchCount: 0,
+      contributorCount: 0,
+      recentBatches: [],
+      missionSettledUsd: 0,
+    })),
+    getGlobalAuthorizationSummary().catch(() => EMPTY_LEDGER),
+    getAuthorizationHistory(20).catch(() => []),
     prisma.missionSettlement
       .findMany({
         orderBy: { createdAt: "desc" },

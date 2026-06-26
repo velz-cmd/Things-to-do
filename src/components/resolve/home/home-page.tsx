@@ -20,9 +20,12 @@ export function HomePage() {
   }
 
   return (
-    <div className="resolve-grid-bg flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 pb-16 pt-12">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
-      <div className="relative mx-auto w-full max-w-xl text-center">
+    <div className="relative flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center overflow-hidden px-4 pb-16 pt-12 resolve-grid-bg">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]"
+      />
+      <div className="relative z-10 mx-auto w-full max-w-xl text-center">
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-white md:text-5xl">
           Money is easy.
           <span className="block text-blue-300">Knowing where it should go is hard.</span>

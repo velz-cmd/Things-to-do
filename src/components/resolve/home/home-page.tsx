@@ -28,8 +28,8 @@ export function HomePage() {
           <span className="block text-blue-300">Knowing where it should go is hard.</span>
         </h1>
         <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-resolve-muted">
-          Paste any GitHub repository. We&apos;ll discover who created the most value, prove it with
-          evidence, and distribute capital automatically.
+          Paste any source — repository, music instance, or connector. RESOLVE finds who created
+          value, records authorizations, and prepares fulfillment.
         </p>
 
         <div className="mx-auto mt-8 max-w-lg rounded-xl border border-resolve-border bg-resolve-bg/80 p-2 shadow-xl backdrop-blur">
@@ -45,7 +45,7 @@ export function HomePage() {
             onClick={handleAnalyze}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-resolve-accent py-3 text-sm font-semibold text-white hover:bg-blue-500"
           >
-            Analyze repository
+            Analyze
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>

@@ -227,6 +227,25 @@ export async function getAuthorizationHistory(limit = 30) {
   });
 }
 
+export async function getGlobalAuthorizationSummary() {
+  const rows = await prisma.paymentAuthorization.findMany({
+    select: { status: true, amountUsd: true },
+  }).catch(() => []);
+
+  const sum = (statuses: AuthorizationStatus[]) =>
+    rows
+      .filter((r) => statuses.includes(r.status as AuthorizationStatus))
+      .reduce((s, r) => s + r.amountUsd, 0);
+
+  return {
+    authorizedUsd: round(sum(["authorized"])),
+    pendingFundingUsd: round(sum(["pending_funding"])),
+    claimableUsd: round(sum(["claimable", "claimed"])),
+    settledUsd: round(sum(["settled"])),
+    count: rows.length,
+  };
+}
+
 function round(n: number) {
   return Math.round(n * 100) / 100;
 }

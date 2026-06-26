@@ -4,7 +4,7 @@ import PaymentsPageClient from "./payments-page-client";
 
 export const metadata: Metadata = {
   title: "Payments — RESOLVE",
-  description: "Treasury, settlements, and contributor claims.",
+  description: "Treasury, authorizations, fulfillment, and claims.",
 };
 
 export default function PaymentsPage() {

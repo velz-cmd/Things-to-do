@@ -6,5 +6,5 @@ export default async function MissionIdRedirect({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  redirect(`/missions?mission=${id}`);
+  redirect(`/workspace?mission=${id}`);
 }

@@ -1,0 +1,15 @@
+---
+description: Product Blueprint v1 — network model, user journeys, target surfaces
+alwaysApply: true
+---
+
+product-blueprint:
+
+- RESOLVE is a settlement network, not a founder-operated analysis tool.
+- Default path: users keep using GitHub/Navidrome/PeerTube/etc.; connectors observe; creators discover RESOLVE when they earn.
+- First action is Connect an ecosystem — not paste a repository.
+- Target nav: Home, Activity, Earnings, Connections, Account (user words).
+- Creator-centric model: person → everything they create → everything owed — not repo → analyze → pay.
+- Copy: Value exists → Money owes → Settlement fulfills. Not "founder funds → people get paid."
+- Pause screen expansion until aligned with docs/PRODUCT-BLUEPRINT.md.
+- Backend (ledger, connectors, settlement) stays; product UI must converge to blueprint.

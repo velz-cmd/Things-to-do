@@ -98,14 +98,14 @@ export function ProtocolChat({
 
   return (
     <Panel variant="glow" className="flex h-full min-h-[480px] flex-col overflow-hidden p-0" padding={false}>
-      <div className="border-b border-resolve-border/60 px-5 py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg resolve-accent-gradient">
+      <div className="border-b border-white/[0.06] px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow">
             <MessageCircle className="h-4 w-4 text-white" />
           </div>
           <div>
             <span className="text-sm font-semibold text-white">Chat</span>
-            <span className="ml-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+            <span className="ml-2 rounded-full bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
               Protocol
             </span>
           </div>
@@ -140,8 +140,8 @@ export function ProtocolChat({
             className={clsx(
               "rounded-resolve-lg px-4 py-3 text-sm leading-relaxed",
               m.role === "user"
-                ? "ml-8 border border-resolve-border/40 bg-resolve-hover/80 text-white"
-                : "mr-4 border border-resolve-accent/20 bg-resolve-accent/5 text-white/95",
+                ? "ml-8 border border-white/[0.08] bg-white/[0.06] text-white backdrop-blur-sm"
+                : "mr-4 border border-cyan-400/15 bg-gradient-to-br from-cyan-500/[0.08] to-indigo-500/[0.05] text-white/95",
             )}
           >
             {m.role === "protocol" && (

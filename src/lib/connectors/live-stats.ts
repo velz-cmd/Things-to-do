@@ -77,7 +77,7 @@ export async function getConnectorLiveStatuses(): Promise<ConnectorLiveStatus[]>
       authorizationVolumeUsd: Math.round((stats?._sum.amountUsd ?? 0) * 100) / 100,
       authorizationCount: stats?._count.id ?? 0,
       lastEventAt,
-      docsPath: c.id === "github" ? "/api/github/allocate" : c.id === "navidrome" ? "/api/connectors/navidrome/scrobble" : null,
+      docsPath: c.id === "github" ? "/api/github/allocate" : c.id === "navidrome" ? "/api/connectors/navidrome/sync" : null,
     };
   });
 }

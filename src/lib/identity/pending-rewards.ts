@@ -6,6 +6,7 @@ import {
 } from "@/lib/authorization/ledger";
 import type { GitHubAllocationResult } from "@/lib/github/types";
 import { ensureContributorFromGithub } from "@/lib/identity/contributors";
+import { notifyEarnAvailable } from "@/lib/earn/notify";
 
 export type PendingRewardStatus = "claimable" | "claimed" | "settled" | "cancelled";
 
@@ -60,6 +61,31 @@ export async function createPendingRewardsFromAllocation(input: {
     });
 
     created.push(reward);
+
+    const ledgerForMission = await getClaimableAuthorizations(
+      "github_username",
+      reward.githubUsername,
+    ).then((rows) => rows.some((a) => a.missionId === reward.missionId));
+
+    if (
+      !ledgerForMission &&
+      !reward.notifiedAt &&
+      reward.status === "claimable" &&
+      reward.amountUsd > 0
+    ) {
+      try {
+        await notifyEarnAvailable({
+          payeeKeyType: "github_username",
+          payeeKey: reward.githubUsername,
+          authorizationIds: [],
+          amountUsd: reward.amountUsd,
+          missionId: reward.missionId,
+          contextLabel: reward.repo ?? undefined,
+        });
+      } catch (e) {
+        console.error("[pending-rewards] earn notification failed:", e);
+      }
+    }
   }
 
   return created;

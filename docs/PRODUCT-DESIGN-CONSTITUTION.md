@@ -2,14 +2,26 @@
 
 This document is above UI, components, pages, and implementation.
 
-## Four workflows (not backend systems)
+**North star:** [PRODUCT-BLUEPRINT.md](./PRODUCT-BLUEPRINT.md) v1.0 — connect-first network, creator discovery, Activity · Earnings · Connections · Account. The four workflows below were an interim engineering cleanup; new UI work must converge to the blueprint.
+
+## Interim surfaces (being replaced)
 
 | Surface | Question it answers |
-|---------|---------------------|
+|---------|-------------------|
 | **Workspace** | Where is value being created? |
 | **Payments** | What has been authorized, funded, or settled? |
 | **Connectors** | Where is value coming from? |
 | **Profile** | Who am I? |
+
+## Target surfaces (Blueprint v1)
+
+| Surface | Question it answers |
+|---------|---------------------|
+| **Home** | Where should RESOLVE attach? |
+| **Activity** | What's happening? |
+| **Earnings** | What am I owed / received? |
+| **Connections** | What ecosystems are linked? |
+| **Account** | Who am I? |
 
 Never create separate pages for Treasury, Settlement, Signals, Weight, Radar, Analytics, AI, Registry, or Graph. Those are backend systems hidden behind workflows.
 

@@ -12,10 +12,13 @@ export async function runRepoEcosystemWorker(
   repo: string,
   stars: number,
 ): Promise<void> {
-  const [lib, pkg, research] = await Promise.all([
+  const [lib, pkg, research, upstream] = await Promise.all([
     fetchGithubProject(owner, repo),
     fetchPackageDependentsForRepo(owner, repo),
     fetchRepoResearchSignal(owner, repo),
+    import("@/lib/connectors/upstream").then((m) =>
+      m.collectUpstreamUsageSignals(owner, repo),
+    ),
   ]);
 
   const facts: string[] = [];
@@ -44,6 +47,26 @@ export async function runRepoEcosystemWorker(
     if (research.topWorks[0]) {
       facts.push(`Top cited: "${research.topWorks[0].title.slice(0, 80)}" (${research.topWorks[0].cited_by_count})`);
     }
+  }
+
+  if (upstream.npm) {
+    facts.push(
+      `npm/${upstream.npm.packageName} usage: ${upstream.npm.downloadsLastMonth.toLocaleString()} downloads/month`,
+    );
+    metadata.npmDownloadsMonth = upstream.npm.downloadsLastMonth;
+    metadata.npmPackage = upstream.npm.packageName;
+  }
+
+  if (upstream.docker) {
+    facts.push(
+      `Docker ${upstream.docker.image}: ${upstream.docker.pullCount.toLocaleString()} pulls`,
+    );
+    metadata.dockerPulls = upstream.docker.pullCount;
+    metadata.dockerImage = upstream.docker.image;
+  }
+
+  if (upstream.usageScore > 0) {
+    metadata.upstreamUsageScore = upstream.usageScore;
   }
 
   if (!facts.length) return;

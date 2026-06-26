@@ -75,20 +75,20 @@ export function WorkspaceActivityPanel({
 
   return (
     <aside className="hidden w-64 shrink-0 xl:block">
-      <div className="sticky top-16 space-y-4">
+      <div className="sticky top-[4.5rem] space-y-4">
         <div>
-          <p className="px-2 text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
+          <p className="px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
             Connected sources
           </p>
           <ul className="mt-2 space-y-2">
             {connectors.map((c) => (
-              <Panel key={c.id} className="p-3">
+              <Panel key={c.id} variant="glass" className="p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium text-white">{c.label}</p>
                   <span
                     className={clsx(
-                      "h-1.5 w-1.5 rounded-full",
-                      c.health === "healthy" ? "bg-emerald-400" : "bg-amber-400",
+                      "h-2 w-2 rounded-full",
+                      c.health === "healthy" ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-amber-400",
                     )}
                   />
                 </div>
@@ -102,16 +102,19 @@ export function WorkspaceActivityPanel({
         </div>
 
         <div>
-          <p className="px-2 text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
+          <p className="px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
             Activity
           </p>
-          <ul className="mt-2 max-h-64 space-y-2 overflow-y-auto">
+          <ul className="mt-2 max-h-72 space-y-2 overflow-y-auto">
             {activity.length === 0 ?
-              <li className="px-2 text-xs text-resolve-muted-dim">No recent activity</li>
+              <li className="px-1 text-xs text-resolve-muted-dim">No recent activity</li>
             : activity.map((a) => (
-                <li key={a.id} className="rounded-md border border-resolve-border/60 px-3 py-2">
-                  <p className="text-xs text-white/90">{a.message}</p>
-                  <p className="mt-0.5 text-[10px] text-resolve-muted-dim">{relative(a.at)}</p>
+                <li
+                  key={a.id}
+                  className="rounded-lg border border-resolve-border/60 bg-resolve-raised/40 px-3 py-2.5"
+                >
+                  <p className="text-xs leading-relaxed text-white/90">{a.message}</p>
+                  <p className="mt-1 text-[10px] text-resolve-muted-dim">{relative(a.at)}</p>
                 </li>
               ))
             }

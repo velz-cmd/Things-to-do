@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import clsx from "clsx";
-import { Plus } from "lucide-react";
+import { Plus, Radio } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
 
 export type RecentWorkspace = {
@@ -42,17 +42,20 @@ export function WorkspaceSidebar({
   const recent = loadRecentWorkspaces();
 
   return (
-    <aside className="hidden w-52 shrink-0 lg:block">
-      <div className="sticky top-16 space-y-4">
+    <aside className="hidden w-56 shrink-0 xl:block">
+      <div className="sticky top-[4.5rem] space-y-4">
         <div>
-          <p className="px-2 text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
+          <p className="px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
             Value streams
           </p>
-          <Panel className="mt-2 p-3">
-            <p className="text-sm font-medium text-white">
-              {activeId ? "Deep dive" : "All ecosystems"}
-            </p>
-            <p className="mt-0.5 text-xs text-resolve-muted">
+          <Panel variant="glass" className="mt-2 p-4">
+            <div className="flex items-center gap-2">
+              <Radio className="h-3.5 w-3.5 text-emerald-400" />
+              <p className="text-sm font-semibold text-white">
+                {activeId ? "Deep dive" : "All ecosystems"}
+              </p>
+            </div>
+            <p className="mt-1 truncate text-xs text-resolve-muted">
               {activeId ?? "Unified view across open sources"}
             </p>
           </Panel>
@@ -60,14 +63,14 @@ export function WorkspaceSidebar({
 
         {recent.length > 0 && (
           <div>
-            <div className="flex items-center justify-between px-2">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
                 Recent
               </p>
               <Link
-                href="/workspace"
-                className="text-resolve-muted hover:text-white"
-                title="Back to workspace"
+                href="/workspace/fund"
+                className="rounded-md p-1 text-resolve-muted transition hover:bg-resolve-hover hover:text-white"
+                title="New project"
               >
                 <Plus className="h-3.5 w-3.5" />
               </Link>
@@ -79,9 +82,9 @@ export function WorkspaceSidebar({
                     type="button"
                     onClick={() => onSelect(w)}
                     className={clsx(
-                      "w-full rounded-md px-2 py-2 text-left text-sm transition",
+                      "w-full rounded-lg px-3 py-2 text-left text-sm transition",
                       activeId === w.id
-                        ? "bg-resolve-hover text-white"
+                        ? "border border-resolve-accent/30 bg-resolve-accent/10 text-white"
                         : "text-resolve-muted hover:bg-resolve-hover/60 hover:text-white",
                     )}
                   >
@@ -93,12 +96,14 @@ export function WorkspaceSidebar({
           </div>
         )}
 
-        <Link
-          href="/payments"
-          className="block px-2 text-xs text-resolve-muted hover:text-white"
-        >
-          Payments & settlement →
-        </Link>
+        <div className="space-y-1 px-1">
+          <Link href="/activity" className="block text-xs text-resolve-muted hover:text-white">
+            Live activity →
+          </Link>
+          <Link href="/payments" className="block text-xs text-resolve-muted hover:text-white">
+            Payments & settlement →
+          </Link>
+        </div>
       </div>
     </aside>
   );

@@ -38,7 +38,7 @@ export function ProductPage({
     : "from-resolve-accent/10";
 
   return (
-    <div className={clsx("mx-auto px-4 py-8 lg:px-6 animate-resolve-enter", maxWidth)}>
+    <div className={clsx("mx-auto px-4 py-8 lg:px-6", maxWidth)}>
       <header className="relative mb-10 overflow-hidden rounded-resolve-lg border border-resolve-border/60 resolve-glass resolve-card-glow">
         <div
           aria-hidden

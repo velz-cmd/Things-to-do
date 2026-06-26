@@ -6,6 +6,18 @@ import {
   type EvidenceAction,
 } from "@/lib/workspace/advisors/evidence-actions";
 import {
+  buildValueConcentrations,
+  type ValueConcentration,
+} from "@/lib/workspace/advisors/concentrations";
+import {
+  buildPolicyProposals,
+  type PolicyProposal,
+} from "@/lib/workspace/advisors/policy-proposals";
+import {
+  opportunitiesToCards,
+  type OpportunityCard,
+} from "@/lib/workspace/advisors/opportunity-cards";
+import {
   routeAdvisorSpecialist,
   SPECIALIST_LABELS,
   type AdvisorSpecialist,
@@ -16,28 +28,13 @@ export type AdvisorResponse = {
   specialistLabel: string;
   answer: string;
   actions: EvidenceAction[];
+  concentrations: ValueConcentration[];
+  policies: PolicyProposal[];
+  opportunities: OpportunityCard[];
   evidenceUsed: string[];
   grounded: boolean;
+  requiresApproval: boolean;
 };
-
-function specialistFocus(specialist: AdvisorSpecialist): string {
-  switch (specialist) {
-    case "treasury":
-      return "Focus on treasury balance, obligations, runway, and capital flow at scale.";
-    case "settlement":
-      return "Focus on claimable balances, batch settlement, Arc, and fulfillment.";
-    case "discovery":
-      return "Focus on unfunded opportunities, value leaks, and who deserves funding.";
-    case "attribution":
-      return "Focus on who created value across code, music, research — use participant framing.";
-    case "connector":
-      return "Focus on sensor health — GitHub, Navidrome, ListenBrainz, OpenAlex.";
-    case "community":
-      return "Focus on fair allocation policies, percentages, mods, builders — propose splits backed by evidence only.";
-    default:
-      return "Answer holistically across the open value pipeline.";
-  }
-}
 
 function buildEvidenceJson(evidence: WorkspaceEvidence): string {
   return JSON.stringify(
@@ -47,7 +44,6 @@ function buildEvidenceJson(evidence: WorkspaceEvidence): string {
         obligationsUsd: evidence.treasury.obligationsUsd,
         availableUsd: evidence.treasury.availableUsd,
         canSettleGlobally: evidence.treasury.canSettleGlobally,
-        message: evidence.treasury.message,
       },
       ledger: evidence.ledger
         ? {
@@ -72,38 +68,69 @@ function buildEvidenceJson(evidence: WorkspaceEvidence): string {
         fundingGapUsd: o.health.fundingGapUsd,
         headline: o.headline,
       })),
-      integrationHealth: Object.fromEntries(
-        Object.entries(evidence.integrations.live ?? {}).map(([k, v]) => [
-          k,
-          typeof v === "object" && v && "ok" in v ? (v as { ok: boolean }).ok : v,
-        ]),
-      ),
     },
     null,
     2,
   );
 }
 
-/** Evidence-only advisor — never invent numbers. Falls back to rule-based summary if AI unavailable. */
+function buildProtocolFallback(
+  evidence: WorkspaceEvidence,
+  actions: EvidenceAction[],
+  concentrations: ValueConcentration[],
+): string {
+  const lines = [
+    "I analyzed your connected ecosystems using live protocol data.",
+    "",
+  ];
+
+  if (concentrations.length) {
+    lines.push("Value concentrations:");
+    concentrations.forEach((c, i) => {
+      lines.push(`${i + 1}. ${c.title} — ${c.detail}`);
+    });
+    lines.push("");
+  }
+
+  lines.push(evidenceSummary(evidence));
+  lines.push("");
+  lines.push("Nothing executes until you approve. You can modify any allocation or use manual controls.");
+
+  if (actions.length) {
+    lines.push("");
+    lines.push("Suggested actions:");
+    actions.forEach((a) => lines.push(`• ${a.label}`));
+  }
+
+  return lines.join("\n");
+}
+
+/** Protocol analyst — open chat for any community, evidence-only. */
 export async function askValueAdvisor(input: {
   question: string;
   evidence: WorkspaceEvidence;
 }): Promise<AdvisorResponse> {
   const specialist = routeAdvisorSpecialist(input.question);
   const actions = buildEvidenceActions(input.evidence);
+  const concentrations = buildValueConcentrations(input.evidence);
+  const policies = buildPolicyProposals(input.evidence);
+  const opportunities = opportunitiesToCards(input.evidence.opportunities);
   const evidenceUsed = [evidenceSummary(input.evidence)];
 
-  const system = `You are the ${SPECIALIST_LABELS[specialist]} for RESOLVE — infrastructure that discovers, authorizes, routes, and settles value across open ecosystems.
+  const system = `You are RESOLVE Protocol — an intelligent analyst for open ecosystems. Not a company support bot. Not treasury software.
 
-RULES (strict):
-- Use ONLY numbers and facts from the EVIDENCE JSON below.
-- If data is missing, say what is missing — never guess.
-- Propose concrete next steps referencing the recommended actions when relevant.
-- Frame people as "value participants" (maintainers, artists, researchers, moderators).
-- ${specialistFocus(specialist)}
-- Keep answers under 200 words. Be direct like Cursor or Linear AI.`;
+You serve maintainers, musicians, researchers, designers, moderators, founders, DAOs, and foundations equally.
 
-  const prompt = `USER QUESTION:\n${input.question}\n\nEVIDENCE JSON:\n${buildEvidenceJson(input.evidence)}\n\nRECOMMENDED ACTIONS:\n${actions.map((a) => `- ${a.label}: ${a.detail}`).join("\n")}`;
+STRICT RULES:
+- Use ONLY facts from EVIDENCE JSON. Never invent participant counts, dollar amounts, or percentages.
+- If data is missing, say what to connect — never guess.
+- Reason about value concentrations (numbered list) when distributing or analyzing.
+- Propose policy splits as suggestions — state clearly: "Nothing executes until you approve."
+- Never use dropdown wizards or forced category checkboxes in your tone.
+- Speak like a protocol analyst: direct, evidence-backed, respectful of user agency.
+- Under 250 words unless listing concentrations.`;
+
+  const prompt = `USER:\n${input.question}\n\nEVIDENCE:\n${buildEvidenceJson(input.evidence)}\n\nCONCENTRATIONS:\n${concentrations.map((c, i) => `${i + 1}. ${c.title}: ${c.detail}`).join("\n")}`;
 
   try {
     const { text } = await generateTextWithFallback({
@@ -114,35 +141,56 @@ RULES (strict):
 
     return {
       specialist,
-      specialistLabel: SPECIALIST_LABELS[specialist],
+      specialistLabel: "Protocol",
       answer: text.trim(),
       actions,
+      concentrations,
+      policies,
+      opportunities,
       evidenceUsed,
       grounded: true,
+      requiresApproval: true,
     };
   } catch {
-    const fallback = [
-      evidenceSummary(input.evidence),
-      "",
-      "Recommended next steps:",
-      ...actions.map((a) => `• ${a.label} — ${a.detail}`),
-    ].join("\n");
-
     return {
       specialist,
-      specialistLabel: SPECIALIST_LABELS[specialist],
-      answer: fallback,
+      specialistLabel: "Protocol",
+      answer: buildProtocolFallback(input.evidence, actions, concentrations),
       actions,
+      concentrations,
+      policies,
+      opportunities,
       evidenceUsed,
       grounded: true,
+      requiresApproval: true,
     };
   }
 }
 
-/** Quick "What should I do next?" without a custom question. */
-export async function getNextSteps(evidence: WorkspaceEvidence): Promise<AdvisorResponse> {
-  return askValueAdvisor({
-    question: "What should I do next? Give me 3–5 concrete, evidence-backed actions.",
-    evidence,
-  });
+export function getProtocolWelcome() {
+  return {
+    specialistLabel: "Protocol",
+    greeting: "What would you like to do?",
+    subtitle:
+      "Ask anything about open ecosystems, creators, communities, or capital flow. Every answer uses real connectors, attribution, and settlement data.",
+    requiresApproval: true,
+    naturalLanguageActions: [
+      "Find underpaid maintainers",
+      "Distribute 100k USDC",
+      "Pay musicians this month",
+      "Show value leaks",
+      "Fund top contributors",
+      "Analyze our ecosystem",
+      "Where are my unpaid listens?",
+      "Who cited my work?",
+    ],
+    discoverPrompts: [
+      "Discover value",
+      "Fund a community",
+      "Pay creators",
+      "Analyze an ecosystem",
+      "Move capital",
+      "Find opportunities",
+    ],
+  };
 }

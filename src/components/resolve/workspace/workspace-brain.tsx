@@ -18,8 +18,8 @@ import {
   type RecentWorkspace,
 } from "@/components/resolve/workspace/workspace-sidebar";
 import { WorkspaceActivityPanel } from "@/components/resolve/workspace/workspace-activity-panel";
-import { WorkspaceOsDashboard } from "@/components/resolve/workspace/workspace-os-dashboard";
-import { WorkspaceAdvisor } from "@/components/resolve/workspace/workspace-advisor";
+import { WorkspaceProtocol } from "@/components/resolve/workspace/workspace-protocol";
+import { ManualAllocationPanel } from "@/components/resolve/workspace/manual-allocation-panel";
 import { PaymentSummary } from "@/components/resolve/payment/payment-summary";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -399,14 +399,19 @@ export function WorkspaceBrain() {
   }
 
   return shell(
-    <div className="mx-auto max-w-4xl space-y-8">
-      <WorkspaceAdvisor />
-      <WorkspaceOsDashboard />
-
-      <details
-        id="discover"
-        className="group rounded-xl border border-resolve-border/60 bg-resolve-raised/20 open:border-resolve-border"
-      >
+    <div className="mx-auto max-w-6xl space-y-6">
+      <WorkspaceProtocol
+        manualSlot={(policies) => (
+          <>
+            <ManualAllocationPanel
+              policies={policies}
+              preset={preset}
+              onPresetChange={setPreset}
+            />
+            <details
+              id="discover"
+              className="group rounded-xl border border-resolve-border/60 bg-resolve-raised/20 open:border-resolve-border"
+            >
         <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-white marker:content-none [&::-webkit-details-marker]:hidden">
           <span className="text-resolve-muted group-open:text-white">Discover & fund a project</span>
           <span className="mt-0.5 block text-xs font-normal text-resolve-muted">
@@ -451,12 +456,15 @@ export function WorkspaceBrain() {
 
           <FounderPriorities value={preset} onChange={setPreset} />
           <WorkspaceOpportunities onSelect={selectOpportunity} />
-        </div>
-      </details>
+            </div>
+          </details>
 
-      {phase === "analyzing" && (
-        <AnalysisProgress active apiComplete={apiComplete} />
-      )}
+          {phase === "analyzing" && (
+            <AnalysisProgress active apiComplete={apiComplete} />
+          )}
+          </>
+        )}
+      />
     </div>,
   );
 }

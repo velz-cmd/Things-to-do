@@ -2,7 +2,7 @@
 
 This document is above UI, components, pages, and implementation.
 
-**North star:** [PRODUCT-BLUEPRINT.md](./PRODUCT-BLUEPRINT.md) v1.0 — connect-first network, creator discovery, Activity · Earnings · Connections · Account. The four workflows below were an interim engineering cleanup; new UI work must converge to the blueprint.
+**North star:** [PRODUCT-VISION.md](./PRODUCT-VISION.md) + [PRODUCT-BLUEPRINT.md](./PRODUCT-BLUEPRINT.md) — connect-first network, value graphs, payment policies, Activity · Earnings · Connections · Account.
 
 ## Interim surfaces (being replaced)
 

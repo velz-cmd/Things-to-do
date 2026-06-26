@@ -27,6 +27,10 @@ export type SettlementInputEvent = {
   contextLabel?: string;
   evidenceRefs: string[];
   rawMetadata?: unknown;
+  /** Optional — which community policy authorized this amount */
+  policyId?: string;
+  /** Optional — links upstream auth to triggering consumption event */
+  causedByEventId?: string;
 };
 
 export type AuthorizationSummary = {

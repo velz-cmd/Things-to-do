@@ -191,7 +191,27 @@ Member → Discussion → Moderator → Maintainer → Documentation author
 
 We never invent attribution. We consume attribution communities already maintain.
 
-### Upstream creators (your library example)
+### Two patterns, one system
+
+The essay and the upstream case are **not different products**. They are different **edges** in the same value graph, both emitting `SettlementInputEvent` into the same Authorization Ledger.
+
+| Pattern | Trigger | Example | `eventType` (examples) |
+|---------|---------|---------|------------------------|
+| **A — Consumption** | Someone used the work | Listen → artist; merge → contributor | `scrobble.play`, `contribution.merge`, `feed.cite` |
+| **B — Upstream enablement** | Someone earned using your building block | SaaS revenue → lib author; app → plugin dev | `dependency.used`, `package.install`, `plugin.executed` |
+
+Pattern A: *pay because the work was consumed.*  
+Pattern B: *pay because your work enabled downstream value* — still requires a **consumption or revenue signal** plus attribution to the upstream node. RESOLVE records the fact; **policy + funder** decide whether and how much flows upstream.
+
+Same pipeline for both:
+
+```
+Connector observes → SettlementInputEvent → Authorization → (policy) → Settlement
+```
+
+Add new ecosystems by adding connectors and event types — never by redesigning the ledger.
+
+### Upstream creators (library / docs / mods example)
 
 Someone writes `left-pad`. Ten thousand products depend on it. Downstream companies earn; the library author earns nothing.
 

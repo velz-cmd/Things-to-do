@@ -18,6 +18,7 @@ import {
   type RecentWorkspace,
 } from "@/components/resolve/workspace/workspace-sidebar";
 import { WorkspaceActivityPanel } from "@/components/resolve/workspace/workspace-activity-panel";
+import { WorkspaceOsDashboard } from "@/components/resolve/workspace/workspace-os-dashboard";
 import { PaymentSummary } from "@/components/resolve/payment/payment-summary";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -401,21 +402,25 @@ export function WorkspaceBrain() {
       <div>
         <h1 className="text-xl font-semibold text-white">Workspace</h1>
         <p className="mt-1 text-sm text-resolve-muted">
-          Where value is created. Paste a source — repository, instance, or connector — and
-          RESOLVE analyzes attribution, records authorizations, and prepares fulfillment.
+          Show me where value is being created and where money should flow.
         </p>
       </div>
 
+      <WorkspaceOsDashboard />
+
       <Panel className="p-5">
         <label className="text-sm font-medium text-white" htmlFor="repo-input">
-          Source
+          Add a source
         </label>
+        <p className="mt-0.5 text-xs text-resolve-muted">
+          Paste any repository or project — connectors stay invisible behind universal events.
+        </p>
         <input
           id="repo-input"
           value={repoInput}
           onChange={(e) => setRepoInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && void runAnalysis()}
-          placeholder="github.com/owner/repo · navidrome instance · future connectors"
+          placeholder="owner/repository or github.com/owner/repo"
           className="mt-2 w-full rounded-lg border border-resolve-border bg-resolve-bg px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent focus:outline-none"
         />
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { navidromeScrobbleToSettlementInput } from "@/lib/connectors/navidrome";
+import { navidromeScrobbleToSettlementEvents } from "@/lib/connectors/navidrome";
 import { ingestSettlementBatch } from "@/lib/authorization/ledger";
 
 export const NAVIDROME_SYNC_CURSOR_KEY = "navidrome.sync.cursor";
@@ -16,6 +16,8 @@ export type NavidromeScrobbleRow = {
   mediaFileId: string;
   submissionTime: string;
   artistName?: string;
+  trackTitle?: string;
+  recordingMbid?: string;
   durationSec?: number;
 };
 
@@ -49,16 +51,18 @@ export async function ingestNavidromeScrobbles(
   const events = [];
 
   for (const row of rows) {
-    const event = navidromeScrobbleToSettlementInput({
+    const rowEvents = await navidromeScrobbleToSettlementEvents({
       mediaFileId: row.mediaFileId,
       userId: row.userId,
       submissionTime: row.submissionTime,
       artistName: row.artistName || undefined,
+      trackTitle: row.trackTitle,
+      recordingMbid: row.recordingMbid,
       durationSec: row.durationSec,
       instanceId,
       perPlayUsd: options?.perPlayUsd,
     });
-    if (event) events.push(event);
+    events.push(...rowEvents);
   }
 
   if (!events.length) {

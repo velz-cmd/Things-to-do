@@ -12,6 +12,7 @@ import { ContributorBreakdown } from "@/components/resolve/workspace/contributor
 import { FounderPriorities } from "@/components/resolve/workspace/founder-priorities";
 import { WorkspaceOpportunities } from "@/components/resolve/workspace/workspace-opportunities";
 import { WorkspaceRoles } from "@/components/resolve/workspace/workspace-roles";
+import { IntegrationsPanel } from "@/components/resolve/workspace/integrations-panel";
 import { PaymentSummary } from "@/components/resolve/payment/payment-summary";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -44,6 +45,8 @@ export function WorkspaceBrain() {
   const [allocation, setAllocation] = useState<GitHubAllocationResult | null>(null);
   const [preview, setPreview] = useState<PaymentPreview | null>(null);
   const [result, setResult] = useState<SettlementResult | null>(null);
+  const [missionId, setMissionId] = useState<string | null>(null);
+  const [authorizedUsd, setAuthorizedUsd] = useState(0);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
@@ -71,7 +74,7 @@ export function WorkspaceBrain() {
     if (underpaid) {
       message += ` @${underpaid} appears underpaid relative to their impact.`;
     }
-    message += " Review the evidence below, then approve funding when you're ready.";
+    message += " Authorizations are recorded — settlement is pending funding until you fulfill.";
     return message;
   }, [allocation]);
 
@@ -114,9 +117,12 @@ export function WorkspaceBrain() {
       if (!res.ok) throw new Error(data.error ?? "Analysis failed");
 
       await new Promise((r) => setTimeout(r, 3200));
-      setAllocation(data);
+      const { missionId: mid, authorization, pipeline, ...allocationData } = data;
+      setAllocation(allocationData as GitHubAllocationResult);
+      setMissionId(mid ?? null);
+      setAuthorizedUsd(authorization?.totalUsd ?? allocationData.fundPoolUsd ?? 0);
       setPhase("results");
-      toast.success("Analysis complete");
+      toast.success(authorization?.message ?? "Analysis complete");
     } catch (e) {
       setPhase("input");
       toast.error(e instanceof Error ? e.message : "Analysis failed");
@@ -143,7 +149,7 @@ export function WorkspaceBrain() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ allocation }),
+        body: JSON.stringify({ allocation, missionId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Preview failed");
@@ -163,7 +169,7 @@ export function WorkspaceBrain() {
       const res = await fetch("/api/payment/from-allocation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allocation, execute: true }),
+        body: JSON.stringify({ allocation, execute: true, missionId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Settlement failed");
@@ -184,6 +190,8 @@ export function WorkspaceBrain() {
     setAllocation(null);
     setPreview(null);
     setResult(null);
+    setMissionId(null);
+    setAuthorizedUsd(0);
     setRepoInput("");
     setOwner("");
     setRepo("");
@@ -257,6 +265,24 @@ export function WorkspaceBrain() {
           </div>
         </Panel>
 
+        <Panel className="border-emerald-500/20 bg-emerald-500/5 p-4">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+            Authorized — settlement pending funding
+          </p>
+          <p className="mt-1 text-sm text-white">
+            <Money amount={authorizedUsd} size="sm" className="inline" /> owed across{" "}
+            {allocation.contributors.length} contributors
+          </p>
+          <p className="mt-1 text-xs text-resolve-muted">
+            Economic facts are recorded. Fulfill settlement when treasury is ready.
+            {missionId && (
+              <span className="block font-mono text-[10px] text-resolve-muted-dim mt-1">
+                {missionId}
+              </span>
+            )}
+          </p>
+        </Panel>
+
         <Panel className="p-5">
           <div className="flex flex-wrap items-center gap-2">
             <GitBranch className="h-4 w-4 text-resolve-accent" />
@@ -292,7 +318,7 @@ export function WorkspaceBrain() {
             disabled={loading}
             className="rounded-md bg-resolve-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
           >
-            {loading ? "Preparing…" : "Fund project"}
+            {loading ? "Preparing…" : "Fulfill settlement"}
           </button>
           <button
             type="button"
@@ -379,6 +405,8 @@ export function WorkspaceBrain() {
       <FounderPriorities value={preset} onChange={setPreset} />
 
       <WorkspaceOpportunities onSelect={selectOpportunity} />
+
+      <IntegrationsPanel />
 
       {phase === "analyzing" && (
         <>

@@ -1,0 +1,12 @@
+---
+description: Immutable RESOLVE doctrine from Distribution Bootstrap Parts 1-4
+alwaysApply: true
+---
+
+Read `docs/FOUNDING-PRINCIPLES.md` before any feature work. Read `docs/ENGINEERING-SPEC.md` for implementation.
+
+**Law:** Distribution is the company. Attach permissionlessly. Authorize at event time; settle later. Metadata is settlement input. Settlement Core is invisible plumbing.
+
+**Do not:** GitHub-only branding, founder-grant copy, destination-app-only features, 10-tab nav, invent attribution graphs.
+
+**July 6:** Authorization ledger + GitHub connector + Navidrome demo + V2 UX.

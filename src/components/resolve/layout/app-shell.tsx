@@ -9,7 +9,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <CommandProvider>
       <MissionModalProvider>
-        <div className="min-h-screen bg-resolve-bg text-white">
+        <div className="resolve-grid-bg min-h-screen text-white">
           <AppTopNav />
           <main className="overflow-auto">{children}</main>
         </div>

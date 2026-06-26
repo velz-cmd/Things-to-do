@@ -1,17 +1,18 @@
-import { LayoutDashboard, CreditCard, User } from "lucide-react";
+import { LayoutDashboard, Activity, CreditCard, User } from "lucide-react";
 
-/** Workspace is the OS for open ecosystems — connectors stay invisible */
+/** Workflow-first surfaces — not admin tabs */
 export const PRODUCT_NAV = [
   { href: "/workspace", label: "Workspace", icon: LayoutDashboard, exact: false as const },
+  { href: "/activity", label: "Activity", icon: Activity, exact: false as const },
   { href: "/payments", label: "Payments", icon: CreditCard, exact: false as const },
   { href: "/profile", label: "Profile", icon: User, exact: false as const },
 ] as const;
 
 /** Legacy routes → product surfaces */
 export const LEGACY_REDIRECTS: Record<string, string> = {
-  "/radar": "/workspace",
+  "/radar": "/activity",
   "/weight": "/workspace",
-  "/discover": "/workspace",
+  "/discover": "/workspace/fund",
   "/methodology": "/workspace",
   "/signals": "/workspace",
   "/settle": "/payments",
@@ -23,5 +24,5 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/start": "/workspace",
   "/treasury": "/payments",
   "/distribute": "/payments",
-  "/connectors": "/workspace",
+  "/connectors": "/activity",
 };

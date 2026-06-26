@@ -44,7 +44,7 @@ function healthClass(h: ConnectorLive["health"]) {
   return "text-resolve-muted bg-white/5";
 }
 
-export function ConnectorsPage() {
+export function ConnectorsPage({ embedded = false }: { embedded?: boolean }) {
   const [connectors, setConnectors] = useState<ConnectorLive[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,27 +69,51 @@ export function ConnectorsPage() {
   const liveCount = connectors.filter((c) => c.catalogStatus === "live").length;
   const eventsToday = connectors.reduce((s, c) => s + c.eventsToday, 0);
 
-  return (
-    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Connectors</h1>
-          <p className="mt-1 text-sm text-resolve-muted">
-            Where value enters RESOLVE — live status from real events.
-          </p>
+  const content = (
+    <>
+      {!embedded && (
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-white">Connectors</h1>
+            <p className="mt-1 text-sm text-resolve-muted">
+              Where value enters RESOLVE — live status from real events.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void load();
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-resolve-border px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
+          >
+            <RefreshCw className={clsx("h-3.5 w-3.5", loading && "animate-spin")} />
+            Refresh
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setLoading(true);
-            void load();
-          }}
-          className="inline-flex items-center gap-1.5 rounded-md border border-resolve-border px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
-        >
-          <RefreshCw className={clsx("h-3.5 w-3.5", loading && "animate-spin")} />
-          Refresh
-        </button>
-      </div>
+      )}
+
+      {embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-white">Connector management</h2>
+            <p className="mt-1 text-xs text-resolve-muted">
+              Install, monitor, and troubleshoot value sources.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void load();
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-resolve-border px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
+          >
+            <RefreshCw className={clsx("h-3.5 w-3.5", loading && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Live connectors" value={String(liveCount)} />
@@ -141,10 +165,10 @@ export function ConnectorsPage() {
               <div className="flex shrink-0 flex-col gap-2 sm:items-end">
                 {c.id === "github" && (
                   <Link
-                    href="/workspace"
+                    href="/workspace/fund"
                     className="rounded-md bg-resolve-accent px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-500"
                   >
-                    Analyze in Workspace
+                    Fund a project
                   </Link>
                 )}
                 {c.id === "navidrome" && (
@@ -180,12 +204,18 @@ export function ConnectorsPage() {
           Connectors emit normalized events into the Authorization Ledger. Install more sources as
           they ship — the Settlement Core stays the same.
         </p>
-        <Link href="/workspace" className="mt-2 inline-block text-sm text-resolve-accent hover:underline">
-          Open Workspace →
+        <Link href="/workspace/fund" className="mt-2 inline-block text-sm text-resolve-accent hover:underline">
+          Fund a project →
         </Link>
       </Panel>
-    </div>
+    </>
   );
+
+  if (embedded) {
+    return <div className="space-y-6">{content}</div>;
+  }
+
+  return <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">{content}</div>;
 }
 
 function StatCard({

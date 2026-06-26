@@ -68,7 +68,7 @@ function sourceStatusLabel(s: Overview["sources"][0]["status"]) {
   return "Disconnected";
 }
 
-export function WorkspaceOsDashboard() {
+export function WorkspaceOsDashboard({ compact = false }: { compact?: boolean }) {
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
@@ -98,25 +98,28 @@ export function WorkspaceOsDashboard() {
   const maxFlow = Math.max(...data.valueFlow.map((v) => v.amountUsd), 1);
 
   return (
-    <div className="space-y-8">
-      {/* Hero — OS, not connector dashboard */}
-      <header className="space-y-1">
-        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-resolve-accent">
-          Open ecosystems
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
-          {data.tagline}
-        </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-resolve-muted">{data.subtitle}</p>
-      </header>
+    <div className={compact ? "space-y-6" : "space-y-8"}>
+      {!compact && (
+        <>
+          <header className="space-y-1">
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-resolve-accent">
+              Open ecosystems
+            </p>
+            <h2 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
+              {data.tagline}
+            </h2>
+            <p className="max-w-2xl text-sm leading-relaxed text-resolve-muted">{data.subtitle}</p>
+          </header>
 
-      {data.aiInsight && (
-        <Panel className="border-resolve-accent/20 bg-gradient-to-r from-resolve-accent/10 to-transparent p-4">
-          <p className="text-[10px] uppercase tracking-wide text-resolve-accent">
-            Continuously watching open ecosystems
-          </p>
-          <p className="mt-1 text-sm text-white/90">{data.aiInsight}</p>
-        </Panel>
+          {data.aiInsight && (
+            <Panel className="border-resolve-accent/20 bg-gradient-to-r from-resolve-accent/10 to-transparent p-4">
+              <p className="text-[10px] uppercase tracking-wide text-resolve-accent">
+                Continuously watching open ecosystems
+              </p>
+              <p className="mt-1 text-sm text-white/90">{data.aiInsight}</p>
+            </Panel>
+          )}
+        </>
       )}
 
       {/* 1. Connected sources — sensors, not products */}
@@ -217,7 +220,7 @@ export function WorkspaceOsDashboard() {
       )}
 
       {/* 3. What am I owed? */}
-      {data.valueOwed && data.valueOwed.totalVerifiedUsd > 0 && (
+      {!compact && data.valueOwed && data.valueOwed.totalVerifiedUsd > 0 && (
         <section>
           <SectionTitle>What you&apos;re owed</SectionTitle>
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -230,7 +233,7 @@ export function WorkspaceOsDashboard() {
       )}
 
       {/* 4. Value flow */}
-      {data.valueFlow.some((v) => v.amountUsd > 0) && (
+      {!compact && data.valueFlow.some((v) => v.amountUsd > 0) && (
         <section>
           <SectionTitle>Where value is flowing</SectionTitle>
           <Panel className="mt-3 p-4">
@@ -260,7 +263,7 @@ export function WorkspaceOsDashboard() {
       )}
 
       {/* 5. Recommended actions */}
-      {data.recommendedActions.length > 0 && (
+      {!compact && data.recommendedActions.length > 0 && (
         <section>
           <SectionTitle>Recommended actions</SectionTitle>
           <ul className="mt-3 space-y-2">

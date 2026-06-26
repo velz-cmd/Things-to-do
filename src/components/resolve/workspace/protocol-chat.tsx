@@ -5,15 +5,10 @@ import { MessageCircle, Send, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
 import { Panel } from "@/components/resolve/ui/panel";
+import { Input } from "@/components/resolve/ui/input";
+import { Button } from "@/components/resolve/ui/button";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 import type { ValueConcentration } from "@/lib/workspace/advisors/concentrations";
-
-type Action = {
-  id: string;
-  label: string;
-  detail: string;
-  href: string;
-};
 
 type ChatMessage = {
   role: "user" | "protocol";
@@ -102,31 +97,35 @@ export function ProtocolChat({
   }, [messages, loading]);
 
   return (
-    <Panel className="flex h-full min-h-[420px] flex-col overflow-hidden border-resolve-border/80 bg-resolve-raised/30">
-      <div className="border-b border-resolve-border/60 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-resolve-accent" />
-          <span className="text-sm font-semibold text-white">Chat</span>
-          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
-            Protocol
-          </span>
+    <Panel variant="glow" className="flex h-full min-h-[480px] flex-col overflow-hidden p-0" padding={false}>
+      <div className="border-b border-resolve-border/60 px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg resolve-accent-gradient">
+            <MessageCircle className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <span className="text-sm font-semibold text-white">Chat</span>
+            <span className="ml-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+              Protocol
+            </span>
+          </div>
         </div>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {!started && welcome && (
           <div className="space-y-3">
-            <div className="rounded-xl border border-resolve-accent/20 bg-resolve-accent/5 p-4">
+            <Panel variant="accent" className="p-4">
               <p className="text-base font-medium text-white">{welcome.greeting}</p>
-              <p className="mt-1 text-xs leading-relaxed text-resolve-muted">{welcome.subtitle}</p>
-            </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-resolve-muted">{welcome.subtitle}</p>
+            </Panel>
             <div className="flex flex-wrap gap-1.5">
               {welcome.discoverPrompts.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => void ask(p)}
-                  className="rounded-full border border-resolve-border/50 px-2.5 py-1 text-[10px] text-resolve-muted hover:border-resolve-accent/50 hover:text-white"
+                  className="rounded-full border border-resolve-border/60 bg-resolve-raised/50 px-3 py-1 text-[10px] text-resolve-muted transition hover:border-resolve-accent/40 hover:text-white"
                 >
                   {p}
                 </button>
@@ -139,14 +138,14 @@ export function ProtocolChat({
           <div
             key={i}
             className={clsx(
-              "rounded-xl px-3 py-2.5 text-sm leading-relaxed",
+              "rounded-resolve-lg px-4 py-3 text-sm leading-relaxed",
               m.role === "user"
-                ? "ml-6 bg-resolve-hover text-white"
-                : "mr-2 border border-resolve-border/40 bg-resolve-bg/80 text-white/90",
+                ? "ml-8 border border-resolve-border/40 bg-resolve-hover/80 text-white"
+                : "mr-4 border border-resolve-accent/20 bg-resolve-accent/5 text-white/95",
             )}
           >
             {m.role === "protocol" && (
-              <p className="mb-1 flex items-center gap-1 text-[10px] font-medium text-resolve-accent">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-resolve-accent">
                 <Sparkles className="h-3 w-3" />
                 Resolve
               </p>
@@ -156,31 +155,31 @@ export function ProtocolChat({
               <ul className="mt-2 space-y-1 border-t border-resolve-border/30 pt-2 text-xs text-resolve-muted">
                 {m.concentrations.map((c) => (
                   <li key={c.id}>
-                    <span className="text-white/80">{c.title}</span> — {c.detail}
+                    <span className="text-white/90">{c.title}</span> — {c.detail}
                   </li>
                 ))}
               </ul>
             )}
             {m.policies && m.policies.length > 0 && (
               <p className="mt-2 text-[10px] text-amber-200/90">
-                Policy options available below — nothing executes until you approve.
+                Policy options below — nothing executes until you approve.
               </p>
             )}
           </div>
         ))}
 
         {loading && (
-          <div className="flex items-center gap-2 text-xs text-resolve-muted">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <div className="flex items-center gap-2 px-1 text-xs text-resolve-muted">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-resolve-accent" />
             Analyzing live evidence…
           </div>
         )}
         <div ref={endRef} />
       </div>
 
-      <div className="border-t border-resolve-border/60 p-3">
-        <p className="mb-2 text-[10px] uppercase tracking-wide text-resolve-muted-dim">
-          Natural language actions
+      <div className="border-t border-resolve-border/60 bg-resolve-bg/40 p-4">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
+          Quick actions
         </p>
         <div className="mb-3 flex flex-wrap gap-1.5">
           {(welcome?.naturalLanguageActions ?? []).map((s) => (
@@ -189,7 +188,7 @@ export function ProtocolChat({
               type="button"
               onClick={() => void ask(s)}
               disabled={loading}
-              className="rounded-full border border-resolve-accent/30 bg-resolve-accent/5 px-2.5 py-1 text-[10px] text-sky-200 hover:bg-resolve-accent/15 disabled:opacity-50"
+              className="rounded-full border border-resolve-accent/25 bg-resolve-accent/10 px-3 py-1 text-[10px] text-sky-200 transition hover:bg-resolve-accent/20 disabled:opacity-50"
             >
               {s}
             </button>
@@ -202,25 +201,20 @@ export function ProtocolChat({
           }}
           className="flex gap-2"
         >
-          <input
+          <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything about value, funding, or creators…"
-            className="min-w-0 flex-1 rounded-lg border border-resolve-border bg-resolve-bg px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent focus:outline-none"
+            placeholder="Ask about value, funding, or creators…"
+            className="flex-1"
           />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="rounded-lg bg-resolve-accent px-3 py-2.5 text-white hover:bg-blue-500 disabled:opacity-50"
-            aria-label="Send"
-          >
+          <Button type="submit" disabled={loading || !input.trim()} size="md" aria-label="Send">
             <Send className="h-4 w-4" />
-          </button>
+          </Button>
         </form>
         <p className="mt-2 text-[10px] text-resolve-muted-dim">
-          Real APIs · real attribution · real settlement.{" "}
+          Evidence-backed · approval required ·{" "}
           <Link href="/payments" className="text-resolve-accent hover:underline">
-            Manual controls →
+            Treasury controls
           </Link>
         </p>
       </div>

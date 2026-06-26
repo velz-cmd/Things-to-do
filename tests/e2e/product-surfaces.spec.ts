@@ -2,34 +2,27 @@ import { test, expect } from "@playwright/test";
 
 test.describe("RESOLVE product surfaces", () => {
   test("four workflows are reachable", async ({ page }) => {
-    test.setTimeout(90_000);
-    await page.goto("/workspace");
-    await expect(page.getByRole("heading", { name: "Workspace" })).toBeVisible({
-      timeout: 20_000,
-    });
+    test.setTimeout(120_000);
+
+    await page.goto("/workspace", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Workspace" })).toBeVisible();
     await expect(page.getByText("Chat", { exact: true })).toBeVisible();
 
-    await page.goto("/activity");
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({
-      timeout: 20_000,
-    });
+    await page.goto("/activity", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Activity" })).toBeVisible();
 
-    await page.goto("/payments");
-    await expect(page.getByRole("heading", { name: "Payments" })).toBeVisible();
+    await page.goto("/payments", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Payments" })).toBeVisible();
 
     await page.goto("/connectors", { waitUntil: "commit" });
-    await expect(page).toHaveURL(/\/activity/, { timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible({
-      timeout: 20_000,
-    });
+    await expect(page).toHaveURL(/\/activity/);
+    await expect(page.getByRole("heading", { level: 1, name: "Activity" })).toBeVisible();
 
-    await page.goto("/workspace/fund");
-    await expect(page.getByRole("heading", { name: "Fund contributors" })).toBeVisible({
-      timeout: 20_000,
-    });
+    await page.goto("/workspace/fund", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Fund contributors" })).toBeVisible();
 
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Profile" })).toBeVisible();
   });
 
   test("connectors live API returns data", async ({ request }) => {

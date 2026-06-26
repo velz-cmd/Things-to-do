@@ -27,6 +27,11 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Build application
+        run: npm run build
+        env:
+          PLAYWRIGHT_ENABLED: "true"
+
       - name: Run Playwright tests
         run: npm run test:e2e
         env:

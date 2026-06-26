@@ -2,17 +2,70 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Wallet, GitBranch, LogOut, Plug, Bell, User, Music, Globe } from "lucide-react";
+import {
+  Wallet,
+  GitBranch,
+  LogOut,
+  Plug,
+  Bell,
+  User,
+  Music,
+  Globe,
+  ChevronRight,
+} from "lucide-react";
 import { useDisconnect } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
 import { toast } from "sonner";
 import { Panel } from "@/components/resolve/ui/panel";
 import { Money } from "@/components/resolve/ui/money";
+import { Button } from "@/components/resolve/ui/button";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
+
+function IdentityCard({
+  icon: Icon,
+  title,
+  description,
+  children,
+  href,
+  hrefLabel,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  children?: React.ReactNode;
+  href?: string;
+  hrefLabel?: string;
+}) {
+  return (
+    <Panel variant="glass" className="p-0 transition hover:border-resolve-accent/20" padding={false}>
+      <div className="p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-resolve-lg border border-resolve-border bg-resolve-raised/80">
+            <Icon className="h-4 w-4 text-resolve-accent" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">{title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-resolve-muted">{description}</p>
+            {children && <div className="mt-4">{children}</div>}
+            {href && hrefLabel && (
+              <Link
+                href={href}
+                className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-resolve-accent hover:underline"
+              >
+                {hrefLabel}
+                <ChevronRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -43,45 +96,37 @@ export default function ProfilePage() {
         { label: "Payout prefs" },
       ]}
       width="narrow"
+      accent="violet"
     >
       <div className="space-y-4">
-        <Panel className="p-5">
-          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Account</p>
+        <Panel variant="accent" className="p-5">
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted">
+            Account
+          </p>
           {user ?
-            <p className="mt-1 text-sm text-white">{user.email ?? "Signed in"}</p>
-          : <button
-              type="button"
-              onClick={() => openSignIn()}
-              className="mt-2 text-sm text-resolve-accent hover:underline"
-            >
-              Sign in
-            </button>
+            <p className="mt-2 text-base font-medium text-white">{user.email ?? "Signed in"}</p>
+          : <Button variant="ghost" className="mt-2 px-0" onClick={() => openSignIn()}>
+              Sign in to RESOLVE
+            </Button>
           }
         </Panel>
 
-        <Panel className="p-5">
-          <div className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-resolve-muted" />
-            <p className="text-sm font-medium text-white">GitHub</p>
-          </div>
-          <p className="mt-1 text-xs text-resolve-muted">
-            Required to claim authorizations as a contributor. Links your code identity to RESOLVE.
-          </p>
-          <button
-            type="button"
-            onClick={() => void linkGitHub()}
-            className="mt-3 rounded-md border border-resolve-border px-4 py-2 text-sm text-white hover:bg-resolve-hover"
-          >
+        <IdentityCard
+          icon={GitBranch}
+          title="GitHub"
+          description="Required to claim authorizations as a contributor. Links your code identity to RESOLVE."
+        >
+          <Button variant="secondary" size="sm" onClick={() => void linkGitHub()}>
             {user ? "Manage GitHub" : "Connect GitHub"}
-          </button>
-        </Panel>
+          </Button>
+        </IdentityCard>
 
-        <Panel className="p-5">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-4 w-4 text-resolve-muted" />
-            <p className="text-sm font-medium text-white">Wallet</p>
-          </div>
-          <p className="mt-1 text-sm text-white">
+        <IdentityCard
+          icon={Wallet}
+          title="Wallet"
+          description="Receive settlements and claim authorized earnings on Arc."
+        >
+          <p className="text-sm font-semibold text-white">
             {balanceLoading ?
               "Loading…"
             : <>
@@ -94,88 +139,54 @@ export default function ProfilePage() {
               {account.externalWalletAddress.slice(0, 8)}…{account.externalWalletAddress.slice(-6)}
             </p>
           )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => open({ view: "Connect" })}
-              className="rounded-md bg-resolve-accent px-4 py-2 text-sm font-semibold text-white"
-            >
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => open({ view: "Connect" })}>
               {account.externalWalletAddress ? "Switch wallet" : "Connect wallet"}
-            </button>
+            </Button>
             {account.externalWalletAddress && (
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="secondary"
                 onClick={() => {
                   disconnect();
                   toast.success("Wallet disconnected");
                 }}
-                className="rounded-md border border-resolve-border px-4 py-2 text-sm text-resolve-muted"
               >
                 Disconnect
-              </button>
+              </Button>
             )}
           </div>
-        </Panel>
+        </IdentityCard>
 
-        <Panel className="p-5">
-          <div className="flex items-center gap-2">
-            <Music className="h-4 w-4 text-resolve-muted" />
-            <p className="text-sm font-medium text-white">Music & creative identity</p>
-          </div>
-          <p className="mt-1 text-xs text-resolve-muted">
-            MusicBrainz credits, ListenBrainz scrobbles, and Navidrome sync — attribution for
-            creative work.
-          </p>
-          <Link
-            href="/activity"
-            className="mt-3 inline-block text-sm text-resolve-accent hover:underline"
-          >
-            View music connectors →
-          </Link>
-        </Panel>
+        <IdentityCard
+          icon={Music}
+          title="Music & creative identity"
+          description="MusicBrainz credits, ListenBrainz scrobbles, and Navidrome sync — attribution for creative work."
+          href="/activity"
+          hrefLabel="View music connectors"
+        />
 
-        <Panel className="p-5">
-          <div className="flex items-center gap-2">
-            <Plug className="h-4 w-4 text-resolve-muted" />
-            <p className="text-sm font-medium text-white">Connectors</p>
-          </div>
-          <p className="mt-1 text-xs text-resolve-muted">
-            Gmail {account.gmailInboxConnected ? "connected" : "not connected"} · Arc{" "}
-            {account.arcConnected ? "ready" : "off-chain mode"}
-          </p>
-          <Link
-            href="/activity"
-            className="mt-3 inline-block text-sm text-resolve-accent hover:underline"
-          >
-            Manage connectors →
-          </Link>
-        </Panel>
+        <IdentityCard
+          icon={Plug}
+          title="Connectors"
+          description={`Gmail ${account.gmailInboxConnected ? "connected" : "not connected"} · Arc ${account.arcConnected ? "ready" : "off-chain mode"}`}
+          href="/activity"
+          hrefLabel="Manage connectors"
+        />
 
-        <Panel className="p-5">
-          <div className="flex items-center gap-2">
-            <Globe className="h-4 w-4 text-resolve-muted" />
-            <p className="text-sm font-medium text-white">Payout preferences</p>
-          </div>
-          <p className="mt-1 text-xs text-resolve-muted">
-            Configure currency and claim destination on the Payments surface.
-          </p>
-          <Link
-            href="/payments"
-            className="mt-3 inline-block text-sm text-resolve-accent hover:underline"
-          >
-            Open payments →
-          </Link>
-        </Panel>
+        <IdentityCard
+          icon={Globe}
+          title="Payout preferences"
+          description="Configure currency and claim destination on the Payments surface."
+          href="/payments"
+          hrefLabel="Open payments"
+        />
 
-        <Panel className="p-5">
-          <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-resolve-muted" />
-            <p className="text-sm font-medium text-white">Notifications</p>
-          </div>
-          <p className="mt-1 text-xs text-resolve-muted">
-            Settlement and claim alerts when new authorizations arrive.
-          </p>
-        </Panel>
+        <IdentityCard
+          icon={Bell}
+          title="Notifications"
+          description="Settlement and claim alerts when new authorizations arrive."
+        />
 
         {user && (
           <button
@@ -184,7 +195,7 @@ export default function ProfilePage() {
               await signOut();
               router.push("/");
             }}
-            className="inline-flex items-center gap-1.5 text-sm text-resolve-muted hover:text-white"
+            className="inline-flex items-center gap-1.5 px-1 text-sm text-resolve-muted transition hover:text-white"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign out

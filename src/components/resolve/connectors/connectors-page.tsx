@@ -127,7 +127,7 @@ export function ConnectorsPage({ embedded = false }: { embedded?: boolean }) {
 
       <div className="space-y-3">
         {connectors.map((c) => (
-          <Panel key={c.id} className="p-0 overflow-hidden">
+          <Panel key={c.id} variant="glass" className="overflow-hidden p-0">
             <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -228,7 +228,7 @@ function StatCard({
   live?: boolean;
 }) {
   return (
-    <Panel className="p-4">
+    <Panel variant="glass" className="p-4">
       <p className="text-[10px] uppercase tracking-wider text-resolve-muted">{label}</p>
       <p className="mt-1 flex items-center gap-2 text-xl font-semibold text-white">
         {live && (

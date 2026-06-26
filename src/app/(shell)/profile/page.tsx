@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Wallet, GitBranch, LogOut } from "lucide-react";
+import { Wallet, GitBranch, LogOut, Plug, Bell } from "lucide-react";
 import { useDisconnect } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
 import { toast } from "sonner";
@@ -31,10 +31,10 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 px-4 py-8">
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
       <div>
         <h1 className="text-xl font-semibold text-white">Profile</h1>
-        <p className="mt-1 text-sm text-resolve-muted">Account, wallet, and connected identity.</p>
+        <p className="mt-1 text-sm text-resolve-muted">Who am I — identity, wallet, and preferences.</p>
       </div>
 
       <Panel className="p-5">
@@ -57,14 +57,14 @@ export default function ProfilePage() {
           <p className="text-sm font-medium text-white">GitHub</p>
         </div>
         <p className="mt-1 text-xs text-resolve-muted">
-          Required to claim contributor rewards.
+          Required to claim authorizations as a contributor.
         </p>
         <button
           type="button"
           onClick={() => void linkGitHub()}
           className="mt-3 rounded-md border border-resolve-border px-4 py-2 text-sm text-white hover:bg-resolve-hover"
         >
-          {user ? "Manage GitHub connection" : "Connect GitHub"}
+          {user ? "Manage GitHub" : "Connect GitHub"}
         </button>
       </Panel>
 
@@ -75,9 +75,9 @@ export default function ProfilePage() {
         </div>
         <p className="mt-1 text-sm text-white">
           {balanceLoading ?
-            "Loading balance…"
+            "Loading…"
           : <>
-              Balance <Money amount={balance?.availableUsd ?? 0} size="sm" className="inline" />
+              <Money amount={balance?.availableUsd ?? 0} size="sm" className="inline" /> available
             </>
           }
         </p>
@@ -109,27 +109,46 @@ export default function ProfilePage() {
         </div>
       </Panel>
 
-      <div className="flex flex-wrap gap-3 text-sm">
-        <Link href="/workspace" className="text-resolve-accent hover:underline">
-          Workspace
+      <Panel className="p-5">
+        <div className="flex items-center gap-2">
+          <Plug className="h-4 w-4 text-resolve-muted" />
+          <p className="text-sm font-medium text-white">Connectors</p>
+        </div>
+        <p className="mt-1 text-xs text-resolve-muted">
+          Gmail {account.gmailInboxConnected ? "connected" : "not connected"} · Arc{" "}
+          {account.arcConnected ? "ready" : "off-chain mode"}
+        </p>
+        <Link
+          href="/connectors"
+          className="mt-3 inline-block text-sm text-resolve-accent hover:underline"
+        >
+          Manage connectors →
         </Link>
-        <Link href="/payments" className="text-resolve-accent hover:underline">
-          Payments
-        </Link>
-        {user && (
-          <button
-            type="button"
-            onClick={async () => {
-              await signOut();
-              router.push("/");
-            }}
-            className="inline-flex items-center gap-1 text-resolve-muted hover:text-white"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Sign out
-          </button>
-        )}
-      </div>
+      </Panel>
+
+      <Panel className="p-5">
+        <div className="flex items-center gap-2">
+          <Bell className="h-4 w-4 text-resolve-muted" />
+          <p className="text-sm font-medium text-white">Notifications</p>
+        </div>
+        <p className="mt-1 text-xs text-resolve-muted">
+          Settlement and claim alerts — configured when notification service ships.
+        </p>
+      </Panel>
+
+      {user && (
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut();
+            router.push("/");
+          }}
+          className="inline-flex items-center gap-1.5 text-sm text-resolve-muted hover:text-white"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Sign out
+        </button>
+      )}
     </div>
   );
 }

@@ -42,66 +42,62 @@ export function WorkspaceSidebar({
   const recent = loadRecentWorkspaces();
 
   return (
-    <aside className="hidden w-56 shrink-0 lg:block">
+    <aside className="hidden w-52 shrink-0 lg:block">
       <div className="sticky top-16 space-y-4">
         <div>
           <p className="px-2 text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
-            Current
+            Value streams
           </p>
           <Panel className="mt-2 p-3">
             <p className="text-sm font-medium text-white">
-              {activeId ? "Active analysis" : "No workspace"}
+              {activeId ? "Deep dive" : "All ecosystems"}
             </p>
             <p className="mt-0.5 text-xs text-resolve-muted">
-              {activeId ?? "Paste a source to begin"}
+              {activeId ?? "Unified view across open sources"}
             </p>
           </Panel>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between px-2">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
-              Recent
-            </p>
-            <Link
-              href="/workspace"
-              className="text-resolve-muted hover:text-white"
-              title="New workspace"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-          <ul className="mt-2 space-y-1">
-            {recent.length === 0 ?
-              <li className="px-2 text-xs text-resolve-muted-dim">No recent workspaces</li>
-            : recent.map((w) => (
+        {recent.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-2">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-resolve-muted">
+                Recent
+              </p>
+              <Link
+                href="/workspace"
+                className="text-resolve-muted hover:text-white"
+                title="Back to workspace"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+            <ul className="mt-2 space-y-1">
+              {recent.map((w) => (
                 <li key={w.id}>
                   <button
                     type="button"
                     onClick={() => onSelect(w)}
                     className={clsx(
                       "w-full rounded-md px-2 py-2 text-left text-sm transition",
-                      activeId === w.id ?
-                        "bg-resolve-hover text-white"
-                      : "text-resolve-muted hover:bg-resolve-hover/60 hover:text-white",
+                      activeId === w.id
+                        ? "bg-resolve-hover text-white"
+                        : "text-resolve-muted hover:bg-resolve-hover/60 hover:text-white",
                     )}
                   >
                     <p className="truncate font-medium">{w.label}</p>
-                    <p className="text-[10px] text-resolve-muted-dim">
-                      {new Date(w.updatedAt).toLocaleDateString()}
-                    </p>
                   </button>
                 </li>
-              ))
-            }
-          </ul>
-        </div>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <Link
-          href="/connectors"
-          className="block px-2 text-xs text-resolve-accent hover:underline"
+          href="/payments"
+          className="block px-2 text-xs text-resolve-muted hover:text-white"
         >
-          Manage connectors →
+          Payments & settlement →
         </Link>
       </div>
     </aside>

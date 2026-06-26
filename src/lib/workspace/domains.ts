@@ -54,13 +54,14 @@ export type ConnectedSource = {
 };
 
 export const SOURCE_CATALOG: Omit<ConnectedSource, "connected" | "health">[] = [
-  { id: "github", label: "GitHub", domain: "code" },
-  { id: "navidrome", label: "Music library", domain: "music" },
-  { id: "peertube", label: "PeerTube", domain: "video" },
-  { id: "owncast", label: "Owncast", domain: "video" },
+  { id: "github", label: "Code", domain: "code" },
+  { id: "navidrome", label: "Music", domain: "music" },
+  { id: "peertube", label: "Video", domain: "video" },
+  { id: "owncast", label: "Publishing", domain: "video" },
   { id: "openalex", label: "Research", domain: "research" },
-  { id: "rsshub", label: "RSS", domain: "feeds" },
-  { id: "photos", label: "Photos", domain: "photos" },
+  { id: "rsshub", label: "Documentation", domain: "feeds" },
+  { id: "photos", label: "Design", domain: "photos" },
+  { id: "mastodon", label: "Identity", domain: "feeds" },
 ];
 
 export function reasonForAuthorizations(input: {

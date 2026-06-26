@@ -40,7 +40,7 @@ type ClaimPreview = {
   error?: string;
 };
 
-export function ClaimEntry() {
+export function ClaimEntry({ embedded = false }: { embedded?: boolean }) {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const { user, signInWithGitHub, githubEnabled } = useAuth();
@@ -122,52 +122,44 @@ export function ClaimEntry() {
     }
   };
 
+  const wrap = (content: React.ReactNode) =>
+    embedded ? content : <div className="mx-auto max-w-lg px-4 py-10">{content}</div>;
+
   if (!token) {
-    return (
-      <div className="mx-auto max-w-lg space-y-4 px-4 py-12">
-        <Panel>
-          <h1 className="text-lg font-semibold text-white">Claim earnings</h1>
-          <p className="mt-2 text-sm text-resolve-muted">
-            Open the link from your earn notification, or go to{" "}
-            <Link href="/payments?tab=claim" className="text-emerald-300 hover:underline">
-              Payments → Claim
-            </Link>{" "}
-            if you are already signed in.
-          </p>
-        </Panel>
-      </div>
+    return wrap(
+      <Panel variant="glass">
+        {!embedded && <h1 className="text-lg font-semibold text-white">Claim earnings</h1>}
+        <p className={clsx("text-sm text-resolve-muted", !embedded && "mt-2")}>
+          Open the link from your earn notification, or go to{" "}
+          <Link href="/payments" className="text-emerald-300 hover:underline">
+            Payments
+          </Link>{" "}
+          if you are already signed in.
+        </p>
+      </Panel>,
     );
   }
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-lg px-4 py-12 text-sm text-resolve-muted">
-        Loading your earnings…
-      </div>
-    );
+    return wrap(<p className="text-sm text-resolve-muted">Loading your earnings…</p>);
   }
 
   if (!preview?.ok) {
-    return (
-      <div className="mx-auto max-w-lg px-4 py-12">
-        <Panel>
-          <h1 className="text-lg font-semibold text-white">Claim link invalid</h1>
-          <p className="mt-2 text-sm text-amber-200">
-            {(preview as { error?: string })?.error ?? "This link expired or was already used."}
-          </p>
-          <Link
-            href="/payments?tab=claim"
-            className="mt-4 inline-block text-sm text-emerald-300 hover:underline"
-          >
-            Go to Payments
-          </Link>
-        </Panel>
-      </div>
+    return wrap(
+      <Panel variant="glass">
+        <h1 className="text-lg font-semibold text-white">Claim link invalid</h1>
+        <p className="mt-2 text-sm text-amber-200">
+          {(preview as { error?: string })?.error ?? "This link expired or was already used."}
+        </p>
+        <Link href="/payments" className="mt-4 inline-block text-sm text-emerald-300 hover:underline">
+          Go to Payments
+        </Link>
+      </Panel>,
     );
   }
 
-  return (
-    <div className="mx-auto max-w-lg space-y-5 px-4 py-10">
+  return wrap(
+    <div className="space-y-5">
       <div>
         <p className="text-xs uppercase tracking-wide text-emerald-400/90">You earned</p>
         <h1 className="mt-1 text-3xl font-semibold text-white">
@@ -179,7 +171,7 @@ export function ClaimEntry() {
         </p>
       </div>
 
-      <Panel className="space-y-4">
+      <Panel variant="glow" className="space-y-4">
         {preview.status === "settled" ? (
           <p className="text-sm text-emerald-300">These earnings were already claimed.</p>
         ) : preview.status === "pending" ? (
@@ -277,7 +269,7 @@ export function ClaimEntry() {
           <FxSwapPanel hint={fxHint} />
         </div>
       )}
-    </div>
+    </div>,
   );
 }
 

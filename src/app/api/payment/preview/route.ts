@@ -6,6 +6,7 @@ import type { GitHubAllocationResult } from "@/lib/github/types";
 
 const bodySchema = z.object({
   allocation: z.unknown(),
+  missionId: z.string().optional(),
   confidence: z.number().min(0).max(1).optional(),
   agentsRun: z.array(z.string()).optional(),
 });
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
   const plan = await buildAllocationSettlementPlan(allocation, {
     confidence,
     agentsRun: parsed.data.agentsRun,
+    missionId: parsed.data.missionId,
   });
 
   return NextResponse.json({

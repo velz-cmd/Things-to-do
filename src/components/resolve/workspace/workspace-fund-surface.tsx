@@ -28,7 +28,7 @@ export function WorkspaceFundSurface() {
         { label: "Settle", href: "/payments" },
       ]}
       actions={
-        <nav className="flex rounded-resolve-lg border border-resolve-border/60 bg-resolve-raised/50 p-1">
+        <nav className="flex rounded-2xl resolve-glass-subtle p-1 ring-1 ring-white/[0.06]">
           {MODES.map((m) => {
             const active = m.exact ? pathname === m.href : pathname.startsWith(m.href);
             return (
@@ -36,8 +36,10 @@ export function WorkspaceFundSurface() {
                 key={m.href}
                 href={m.href}
                 className={clsx(
-                  "rounded-lg px-3.5 py-1.5 text-xs font-semibold transition",
-                  active ? "bg-white/10 text-white shadow-sm" : "text-resolve-muted hover:text-white",
+                  "rounded-xl px-4 py-2 text-xs font-semibold transition-all duration-300",
+                  active ?
+                    "resolve-accent-gradient text-white shadow-resolve-glow"
+                  : "text-resolve-muted hover:bg-white/[0.06] hover:text-white",
                 )}
               >
                 {m.label}

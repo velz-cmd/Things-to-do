@@ -1,22 +1,33 @@
 import clsx from "clsx";
 import { forwardRef } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "glow";
 type ButtonSize = "sm" | "md" | "lg";
 
 const variants: Record<ButtonVariant, string> = {
-  primary:
-    "resolve-accent-gradient text-white shadow-resolve-accent hover:brightness-110 border border-white/10",
-  secondary:
-    "border border-resolve-border-strong bg-resolve-raised/80 text-white hover:bg-resolve-hover hover:border-white/15",
-  ghost: "text-resolve-muted hover:text-white hover:bg-resolve-hover/60",
-  danger: "border border-rose-500/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20",
+  primary: clsx(
+    "resolve-accent-gradient resolve-btn-shine text-white",
+    "border border-white/15 shadow-resolve-accent",
+    "hover:shadow-resolve-glow hover:scale-[1.02] active:scale-[0.98]",
+  ),
+  glow: clsx(
+    "resolve-accent-gradient resolve-btn-shine text-white",
+    "border border-cyan-300/30 shadow-resolve-glow",
+    "hover:shadow-[0_0_50px_rgba(56,189,248,0.35)] hover:scale-[1.03] active:scale-[0.98]",
+  ),
+  secondary: clsx(
+    "resolve-glass resolve-btn-shine text-white",
+    "hover:border-white/20 hover:bg-white/[0.08] hover:scale-[1.01] active:scale-[0.99]",
+  ),
+  ghost: "text-resolve-muted hover:text-white hover:bg-white/[0.06]",
+  danger:
+    "border border-rose-500/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 hover:scale-[1.01]",
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-xs rounded-lg",
-  md: "px-4 py-2.5 text-sm rounded-resolve",
-  lg: "px-6 py-3 text-sm rounded-resolve",
+  sm: "px-3.5 py-2 text-xs rounded-xl",
+  md: "px-5 py-2.5 text-sm rounded-resolve",
+  lg: "px-7 py-3.5 text-sm rounded-resolve-lg",
 };
 
 export const Button = forwardRef<
@@ -30,7 +41,9 @@ export const Button = forwardRef<
     <button
       ref={ref}
       className={clsx(
-        "inline-flex items-center justify-center gap-2 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 font-semibold tracking-tight",
+        "transition-all duration-300 ease-out",
+        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100",
         variants[variant],
         sizes[size],
         className,

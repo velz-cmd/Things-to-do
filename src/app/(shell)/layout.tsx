@@ -3,11 +3,13 @@
 import { CommandProvider } from "@/components/resolve/command/command-context";
 import { MarketingTopNav } from "@/components/resolve/layout/app-top-nav";
 import { AppShell } from "@/components/resolve/layout/app-shell";
+import { ResolveBackground } from "@/components/resolve/layout/resolve-background";
 import { usePathname } from "next/navigation";
 
 function MarketingShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen resolve-grid-bg text-white">
+    <div className="relative min-h-screen text-white">
+      <ResolveBackground variant="hero" />
       <MarketingTopNav />
       {children}
     </div>

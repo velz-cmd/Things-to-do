@@ -3,24 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --background: #030508;
-  --foreground: #f0f4f8;
-  --resolve-bg: #030508;
-  --resolve-raised: #0a0f16;
-  --resolve-hover: #121a26;
-  --resolve-border: rgba(255, 255, 255, 0.07);
-  --resolve-border-strong: rgba(255, 255, 255, 0.12);
-  --resolve-accent: #4f8fff;
-  --resolve-accent-muted: rgba(79, 143, 255, 0.14);
-  --resolve-violet: #8b5cf6;
+  --background: #04060d;
+  --foreground: #f4f7fb;
+  --resolve-bg: #04060d;
+  --resolve-raised: #0c1019;
+  --resolve-hover: #141b28;
+  --resolve-border: rgba(255, 255, 255, 0.06);
+  --resolve-border-strong: rgba(255, 255, 255, 0.11);
+  --resolve-accent: #38bdf8;
+  --resolve-accent-2: #818cf8;
+  --resolve-accent-muted: rgba(56, 189, 248, 0.12);
+  --resolve-violet: #a78bfa;
+  --resolve-cyan: #22d3ee;
   --resolve-success: #34d399;
   --resolve-warning: #fbbf24;
   --resolve-danger: #f87171;
-  --resolve-muted: #94a3b8;
-  --resolve-muted-dim: #64748b;
-  --resolve-glass: rgba(12, 18, 28, 0.72);
-  --resolve-radius: 14px;
-  --resolve-radius-lg: 18px;
+  --resolve-muted: #8b9cb3;
+  --resolve-muted-dim: #5c6b82;
+  --resolve-glass: rgba(12, 16, 26, 0.65);
+  --resolve-radius: 16px;
+  --resolve-radius-lg: 22px;
 }
 
 body {
@@ -36,59 +38,121 @@ body {
 }
 
 @layer utilities {
-  .resolve-grid-bg {
+  /* Legacy alias — no grid */
+  .resolve-grid-bg,
+  .resolve-canvas {
     background-color: var(--resolve-bg);
-    background-image:
-      radial-gradient(ellipse 120% 80% at 50% -25%, rgba(79, 143, 255, 0.09), transparent 55%),
-      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(139, 92, 246, 0.05), transparent 50%),
-      linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 56px 56px, 56px 56px;
-  }
-
-  .resolve-hero-glow {
-    background-image:
-      radial-gradient(ellipse 70% 50% at 50% 0%, rgba(79, 143, 255, 0.15), transparent 70%),
-      radial-gradient(ellipse 40% 30% at 80% 20%, rgba(139, 92, 246, 0.08), transparent 60%);
   }
 
   .resolve-glass {
-    background: var(--resolve-glass);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--resolve-border-strong);
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.02) 40%,
+      rgba(12, 16, 26, 0.7) 100%
+    );
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .resolve-glass-subtle {
-    background: rgba(10, 15, 22, 0.55);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--resolve-border);
+    background: rgba(8, 12, 20, 0.55);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .resolve-card-glow {
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.04),
-      0 4px 24px rgba(0, 0, 0, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 8px 32px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
   .resolve-card-glow-accent {
     box-shadow:
-      0 0 0 1px rgba(79, 143, 255, 0.2),
-      0 8px 32px rgba(79, 143, 255, 0.08),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      0 0 0 1px rgba(56, 189, 248, 0.15),
+      0 12px 40px rgba(56, 189, 248, 0.08),
+      0 0 60px rgba(129, 140, 248, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .resolve-card-hover {
+    transition:
+      transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.35s ease;
+  }
+
+  .resolve-card-hover:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.2);
+    box-shadow:
+      0 0 0 1px rgba(56, 189, 248, 0.12),
+      0 16px 48px rgba(0, 0, 0, 0.5),
+      0 0 40px rgba(56, 189, 248, 0.06);
   }
 
   .resolve-text-gradient {
-    background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #c7d2fe 45%, #67e8f9 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .resolve-accent-gradient {
-    background: linear-gradient(135deg, #4f8fff 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #38bdf8 0%, #6366f1 50%, #a78bfa 100%);
+  }
+
+  .resolve-border-gradient {
+    position: relative;
+  }
+
+  .resolve-border-gradient::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(56, 189, 248, 0.45),
+      rgba(129, 140, 248, 0.2),
+      rgba(255, 255, 255, 0.08)
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .resolve-btn-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .resolve-btn-shine::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.25) 50%,
+      transparent 60%
+    );
+    transform: translateX(-120%);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .resolve-btn-shine:hover::after {
+    transform: translateX(120%);
   }
 
   .tabular-nums {
@@ -96,10 +160,40 @@ body {
   }
 }
 
+@keyframes aurora-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(3%, 2%) scale(1.05);
+  }
+}
+
+@keyframes aurora-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-4%, 3%) scale(1.08);
+  }
+}
+
+@keyframes aurora-c {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(2%, -3%);
+  }
+}
+
 @keyframes resolve-enter {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -110,28 +204,60 @@ body {
 @keyframes resolve-pulse-glow {
   0%,
   100% {
-    opacity: 0.6;
+    opacity: 0.5;
+    transform: scale(1);
   }
   50% {
     opacity: 1;
+    transform: scale(1.05);
   }
 }
 
-@keyframes resolve-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
+@keyframes resolve-float {
+  0%,
   100% {
-    background-position: 200% 0;
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes resolve-orb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
 @layer utilities {
+  .animate-aurora-a {
+    animation: aurora-a 18s ease-in-out infinite;
+  }
+
+  .animate-aurora-b {
+    animation: aurora-b 22s ease-in-out infinite;
+  }
+
+  .animate-aurora-c {
+    animation: aurora-c 26s ease-in-out infinite;
+  }
+
   .animate-resolve-enter {
-    animation: resolve-enter 0.35s ease-out forwards;
+    animation: resolve-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
 
   .animate-resolve-pulse-glow {
-    animation: resolve-pulse-glow 2.5s ease-in-out infinite;
+    animation: resolve-pulse-glow 3s ease-in-out infinite;
+  }
+
+  .animate-resolve-float {
+    animation: resolve-float 5s ease-in-out infinite;
+  }
+
+  .animate-resolve-orb-spin {
+    animation: resolve-orb-spin 20s linear infinite;
   }
 }

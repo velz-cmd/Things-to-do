@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
+import { markMissionPendingFunding } from "@/lib/authorization/ledger";
 import {
   buildAllocationSettlementPlan,
   type AllocationSettlementPlan,
@@ -34,6 +35,10 @@ async function executePlan(
   allocation: GitHubAllocationResult,
   founderUserId?: string,
 ) {
+  await markMissionPendingFunding(plan.missionId).catch(() => {
+    /* ledger may not be migrated yet */
+  });
+
   if (!plan.package) {
     return runPendingOnlyMission({
       missionId: plan.missionId,

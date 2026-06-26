@@ -5,6 +5,7 @@ import { buildSettlementPlan } from "@/lib/payment/planner";
 import { poolHeadline } from "@/lib/payment/pools";
 import { reserveCapitalPools } from "@/lib/payment/pools";
 import { createPendingRewardsFromAllocation } from "@/lib/identity/pending-rewards";
+import { fulfillMissionAuthorizations } from "@/lib/authorization/ledger";
 import type { GitHubAllocationResult } from "@/lib/github/types";
 import {
   createSettlementRecord,
@@ -119,6 +120,27 @@ export async function runPaymentSettlement(
   });
 
   let pendingRewards: { login: string; amountUsd: number }[] = [];
+  if (options?.allocation) {
+    const settledPayeeKeys = pkg.contributors
+      .filter((c) => c.login)
+      .map((c) => ({
+        payeeKeyType: "github_username",
+        payeeKey: c.login!,
+        walletAddress: c.wallet,
+      }));
+    const claimablePayeeKeys = (options.pendingLogins ?? []).map((login) => ({
+      payeeKeyType: "github_username",
+      payeeKey: login,
+    }));
+
+    await fulfillMissionAuthorizations({
+      missionId: pkg.missionId,
+      settlementId: settlement.id,
+      settledPayeeKeys,
+      claimablePayeeKeys,
+    });
+  }
+
   if (options?.allocation && options.pendingLogins?.length) {
     const rewards = await createPendingRewardsFromAllocation({
       allocation: options.allocation,
@@ -226,6 +248,16 @@ export async function runPendingOnlyMission(input: {
     founderUserId: input.founderUserId,
     pendingLogins: input.pendingLogins,
     settlementId: settlement.id,
+  });
+
+  await fulfillMissionAuthorizations({
+    missionId: input.missionId,
+    settlementId: settlement.id,
+    settledPayeeKeys: [],
+    claimablePayeeKeys: input.allocation.contributors.map((c) => ({
+      payeeKeyType: "github_username",
+      payeeKey: c.login,
+    })),
   });
 
   await emitPaymentEvent(settlement.id, "ClaimRequired", {

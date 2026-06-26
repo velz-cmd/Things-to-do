@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
+import { markMissionPendingFunding } from "@/lib/authorization/ledger";
 import { buildAllocationSettlementPlan } from "@/lib/payment/from-allocation";
 import type { GitHubAllocationResult } from "@/lib/github/types";
 
@@ -42,6 +43,12 @@ export async function POST(req: Request) {
     agentsRun: parsed.data.agentsRun,
     missionId: parsed.data.missionId,
   });
+
+  if (plan.missionId) {
+    await markMissionPendingFunding(plan.missionId).catch(() => {
+      /* ledger may not be migrated yet */
+    });
+  }
 
   return NextResponse.json({
     preview: plan.preview,

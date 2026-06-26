@@ -1,13 +1,4 @@
-/** Normalized event from any Distribution Connector → Settlement Core input. */
-export type SettlementInputEvent = {
-  connectorId: string;
-  eventType: string;
-  occurredAt: string;
-  payeeKeys: { type: string; value: string; shareBps?: number }[];
-  evidenceRefs: string[];
-  amountUsd: number;
-  rawMetadata?: unknown;
-};
+export type { SettlementInputEvent } from "@/lib/authorization/types";
 
 export type ConnectorMeta = {
   id: string;
@@ -21,19 +12,19 @@ export const CONNECTOR_CATALOG: ConnectorMeta[] = [
     id: "github",
     label: "GitHub",
     status: "live",
-    description: "Pull requests, reviews, and repository attribution",
+    description: "Contribution attribution from repository analysis",
   },
   {
     id: "navidrome",
     label: "Navidrome",
-    status: "demo",
-    description: "Subsonic scrobble plays → per-listen authorization",
+    status: "live",
+    description: "Subsonic scrobble plays → per-listen Authorization",
   },
   {
     id: "peertube",
     label: "PeerTube",
     status: "upcoming",
-    description: "Plugin distribution via instance marketplace",
+    description: "Distribution Connector via instance plugin marketplace",
   },
   {
     id: "owncast",
@@ -57,6 +48,6 @@ export const CONNECTOR_CATALOG: ConnectorMeta[] = [
     id: "mastodon",
     label: "Mastodon",
     status: "upcoming",
-    description: "ActivityPub attributedTo settlement",
+    description: "ActivityPub attributedTo Authorization",
   },
 ];

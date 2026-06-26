@@ -28,12 +28,12 @@ export function HomePage() {
       <div className="relative z-10 mx-auto w-full max-w-xl text-center">
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-white md:text-5xl">
           The operating system for open ecosystems.
-          <span className="block text-blue-300">Where value is discovered. Where money flows.</span>
+          <span className="block text-blue-300">Discover value. Route capital. Settle globally.</span>
         </h1>
         <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-resolve-muted">
-          Everything you create across the open internet — code, music, research, video — flows through
-          one workspace. RESOLVE continuously discovers value, authorizes who is owed, funds from one
-          treasury, and settles globally. Contributors claim in one step.
+          RESOLVE discovers, authorizes, routes, and settles value across open ecosystems — from
+          GitHub maintainers to musicians, researchers, and moderators. One treasury, batched Arc
+          settlement, evidence-backed decisions.
         </p>
 
         <div className="mx-auto mt-8 max-w-lg rounded-xl border border-resolve-border bg-resolve-bg/80 p-2 shadow-xl backdrop-blur">

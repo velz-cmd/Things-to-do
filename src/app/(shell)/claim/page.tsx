@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { ClaimEntry } from "@/components/resolve/claim/claim-entry";
+import { ProductPage } from "@/components/resolve/layout/product-page";
+import { Wallet } from "lucide-react";
 
 export default function ClaimPage() {
   return (
@@ -10,7 +12,15 @@ export default function ClaimPage() {
         </div>
       }
     >
-      <ClaimEntry />
+      <ProductPage
+        icon={Wallet}
+        title="Claim earnings"
+        description="Collect authorized value from your notification link or signed-in account."
+        width="narrow"
+        accent="emerald"
+      >
+        <ClaimEntry embedded />
+      </ProductPage>
     </Suspense>
   );
 }

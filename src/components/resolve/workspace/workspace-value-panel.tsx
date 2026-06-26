@@ -4,6 +4,8 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Activity, Zap, Search, Wallet, CheckCircle } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
+import { MetricCard } from "@/components/resolve/ui/metric-card";
+import { SectionHeader } from "@/components/resolve/ui/section-header";
 import { Money } from "@/components/resolve/ui/money";
 import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards";
 
@@ -25,88 +27,104 @@ export function WorkspaceValuePanel({
 }) {
   if (loading) {
     return (
-      <Panel className="p-8 text-center text-sm text-resolve-muted">
-        Loading live value graph…
+      <Panel variant="glass" className="p-10 text-center">
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-resolve-border border-t-resolve-accent" />
+        <p className="mt-4 text-sm text-resolve-muted">Loading live value graph…</p>
       </Panel>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <section>
-        <div className="mb-2 flex items-center gap-2">
-          <Activity className="h-4 w-4 text-emerald-400" />
-          <h2 className="text-sm font-semibold text-white">Live value flow</h2>
-        </div>
-        {valueFlow ? (
-          <div className="grid gap-2 sm:grid-cols-3">
-            <FlowCard
+        <SectionHeader
+          title="Live value flow"
+          description="Recognized, claimable, and settled across open ecosystems"
+          icon={Activity}
+        />
+        {valueFlow ?
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <MetricCard
               label="Recognized"
-              amount={valueFlow.recognizedUsd}
+              value={<Money amount={valueFlow.recognizedUsd} size="sm" />}
               hint="Across open ecosystems"
+              tone="accent"
             />
-            <FlowCard
+            <MetricCard
               label="Claimable"
-              amount={valueFlow.claimableUsd}
+              value={<Money amount={valueFlow.claimableUsd} size="sm" />}
               hint={`${valueFlow.participantCount} participant${valueFlow.participantCount === 1 ? "" : "s"}`}
-              accent
+              tone="success"
+              live
             />
-            <FlowCard label="Settled" amount={valueFlow.settledUsd} hint="Arc batches" />
+            <MetricCard
+              label="Settled"
+              value={<Money amount={valueFlow.settledUsd} size="sm" />}
+              hint="Arc batches"
+              tone="violet"
+            />
           </div>
-        ) : (
-          <p className="text-sm text-resolve-muted">
-            Value will appear as connectors discover activity across open ecosystems.
-          </p>
-        )}
+        : <Panel variant="flat" className="mt-4 p-5">
+            <p className="text-sm text-resolve-muted">
+              Value will appear as connectors discover activity across open ecosystems.
+            </p>
+            <Link href="/activity" className="mt-2 inline-block text-xs text-resolve-accent hover:underline">
+              View activity →
+            </Link>
+          </Panel>
+        }
       </section>
 
       {opportunities.length > 0 && (
         <section>
-          <div className="mb-2 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-400" />
-            <h2 className="text-sm font-semibold text-white">Opportunities</h2>
-          </div>
-          <ul className="space-y-2">
+          <SectionHeader
+            title="Opportunities"
+            description="Evidence-backed projects worth funding"
+            icon={Zap}
+          />
+          <ul className="mt-4 space-y-3">
             {opportunities.map((o) => (
               <li key={o.id}>
-                <Panel className="p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="font-medium text-white">{o.title}</p>
-                    <span
-                      className={clsx(
-                        "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                        o.badgeTone === "high" && "bg-emerald-500/15 text-emerald-300",
-                        o.badgeTone === "claimable" && "bg-sky-500/15 text-sky-300",
-                        o.badgeTone === "medium" && "bg-amber-500/15 text-amber-300",
-                      )}
-                    >
-                      {o.badge}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-resolve-muted">{o.subtitle}</p>
-                  <div className="mt-2 flex gap-4 text-xs text-resolve-muted">
-                    <span>
-                      {o.statA.label}: <span className="text-white">{o.statA.value}</span>
-                    </span>
-                    <span>
-                      {o.statB.label}: <span className="text-white">{o.statB.value}</span>
-                    </span>
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <Link
-                      href={o.primaryAction.href}
-                      className="inline-flex items-center gap-1 rounded-md border border-resolve-border px-3 py-1.5 text-xs text-white hover:border-resolve-accent/40"
-                    >
-                      <Wallet className="h-3 w-3" />
-                      {o.primaryAction.label}
-                    </Link>
-                    <Link
-                      href={o.secondaryAction.href}
-                      className="inline-flex items-center gap-1 rounded-md border border-resolve-border/60 px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
-                    >
-                      <Search className="h-3 w-3" />
-                      {o.secondaryAction.label}
-                    </Link>
+                <Panel variant="glass" className="p-4 transition hover:border-resolve-accent/20" padding={false}>
+                  <div className="p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-medium text-white">{o.title}</p>
+                      <span
+                        className={clsx(
+                          "rounded-full px-2.5 py-0.5 text-[10px] font-semibold",
+                          o.badgeTone === "high" && "bg-emerald-500/15 text-emerald-300",
+                          o.badgeTone === "claimable" && "bg-sky-500/15 text-sky-300",
+                          o.badgeTone === "medium" && "bg-amber-500/15 text-amber-300",
+                        )}
+                      >
+                        {o.badge}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-resolve-muted">{o.subtitle}</p>
+                    <div className="mt-3 flex gap-4 text-xs text-resolve-muted">
+                      <span>
+                        {o.statA.label}: <span className="text-white">{o.statA.value}</span>
+                      </span>
+                      <span>
+                        {o.statB.label}: <span className="text-white">{o.statB.value}</span>
+                      </span>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <Link
+                        href={o.primaryAction.href}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-resolve-border-strong bg-resolve-raised/80 px-3 py-1.5 text-xs font-medium text-white transition hover:border-resolve-accent/40"
+                      >
+                        <Wallet className="h-3 w-3" />
+                        {o.primaryAction.label}
+                      </Link>
+                      <Link
+                        href={o.secondaryAction.href}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-resolve-border/60 px-3 py-1.5 text-xs text-resolve-muted transition hover:text-white"
+                      >
+                        <Search className="h-3 w-3" />
+                        {o.secondaryAction.label}
+                      </Link>
+                    </div>
                   </div>
                 </Panel>
               </li>
@@ -115,28 +133,6 @@ export function WorkspaceValuePanel({
         </section>
       )}
     </div>
-  );
-}
-
-function FlowCard({
-  label,
-  amount,
-  hint,
-  accent,
-}: {
-  label: string;
-  amount: number;
-  hint: string;
-  accent?: boolean;
-}) {
-  return (
-    <Panel className="p-3">
-      <p className="text-[10px] uppercase text-resolve-muted">{label}</p>
-      <p className={clsx("mt-1 text-lg font-semibold", accent ? "text-emerald-300" : "text-white")}>
-        <Money amount={amount} size="sm" />
-      </p>
-      <p className="mt-0.5 text-[10px] text-resolve-muted-dim">{hint}</p>
-    </Panel>
   );
 }
 
@@ -153,23 +149,21 @@ export function PolicyProposalCards({
 
   return (
     <section>
-      <h2 className="text-[10px] font-medium uppercase tracking-[0.15em] text-resolve-muted">
-        Allocation policies — suggest only
-      </h2>
-      <p className="mt-1 text-xs text-resolve-muted">
-        Approve, modify percentages, or build custom. Nothing executes until you confirm.
-      </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <SectionHeader
+        title="Allocation policies"
+        description="Suggest only — approve, modify, or build custom. Nothing executes until you confirm."
+      />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {policies.map((p) => (
           <button
             key={p.id}
             type="button"
             onClick={() => onSelect(p.id)}
             className={clsx(
-              "rounded-xl border p-4 text-left transition",
+              "rounded-resolve-lg border p-4 text-left transition",
               selectedId === p.id
-                ? "border-resolve-accent/50 bg-resolve-accent/10"
-                : "border-resolve-border/60 bg-resolve-raised/20 hover:border-resolve-border",
+                ? "border-resolve-accent/50 bg-resolve-accent/10 resolve-card-glow-accent"
+                : "border-resolve-border/60 bg-resolve-raised/30 hover:border-resolve-border-strong",
             )}
           >
             <p className="text-sm font-medium text-white">
@@ -186,10 +180,10 @@ export function PolicyProposalCards({
       </div>
       <Link
         href="/payments"
-        className="mt-3 inline-flex items-center gap-1 text-xs text-resolve-accent hover:underline"
+        className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-resolve-accent hover:underline"
       >
         <CheckCircle className="h-3 w-3" />
-        Open manual treasury controls
+        Open treasury controls
       </Link>
     </section>
   );

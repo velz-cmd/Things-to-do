@@ -1,9 +1,10 @@
-import { Home, LayoutDashboard, CreditCard, User } from "lucide-react";
+import { LayoutDashboard, CreditCard, Plug, User } from "lucide-react";
 
+/** Four product workflows — not backend systems */
 export const PRODUCT_NAV = [
-  { href: "/", label: "Home", icon: Home, exact: true as const },
   { href: "/workspace", label: "Workspace", icon: LayoutDashboard, exact: false as const },
   { href: "/payments", label: "Payments", icon: CreditCard, exact: false as const },
+  { href: "/connectors", label: "Connectors", icon: Plug, exact: false as const },
   { href: "/profile", label: "Profile", icon: User, exact: false as const },
 ] as const;
 
@@ -23,4 +24,5 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/start": "/workspace",
   "/treasury": "/payments",
   "/distribute": "/payments",
+  "/connectors": "/connectors",
 };

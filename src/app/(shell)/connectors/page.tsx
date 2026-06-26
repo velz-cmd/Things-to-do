@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Connectors are infrastructure — surfaced inside Workspace only */
+/** Connectors are infrastructure — managed from Activity */
 export default function ConnectorsRedirect() {
-  redirect("/workspace");
+  redirect("/activity");
 }

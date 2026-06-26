@@ -22,43 +22,40 @@ export function ManualAllocationPanel({
   const [customOpen, setCustomOpen] = useState(false);
 
   return (
-    <details className="group rounded-xl border border-resolve-border/60 bg-resolve-raised/10 open:border-resolve-border">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 marker:content-none [&::-webkit-details-marker]:hidden">
-        <SlidersHorizontal className="h-4 w-4 text-resolve-muted group-open:text-white" />
+    <div className="space-y-6">
+      <div className="flex items-start gap-2">
+        <SlidersHorizontal className="mt-0.5 h-4 w-4 text-resolve-accent" />
         <div>
-          <p className="text-sm font-medium text-resolve-muted group-open:text-white">
-            Manual control
-          </p>
-          <p className="text-xs text-resolve-muted-dim">
-            Custom percentages · policies · treasury · batch distribution
+          <p className="text-sm font-medium text-white">Manual control</p>
+          <p className="text-xs text-resolve-muted">
+            Policies, custom weights, and treasury routing — always available alongside chat.
           </p>
         </div>
-      </summary>
-      <div className="space-y-6 border-t border-resolve-border/60 px-5 pb-5 pt-4">
-        <PolicyProposalCards
-          policies={policies}
-          selectedId={selectedPolicy}
-          onSelect={(id) => {
-            setSelectedPolicy(id);
-            if (id !== "custom" && policies.some((p) => p.id === id)) {
-              onPresetChange(id as FounderPresetId);
-            }
-            if (id === "custom") setCustomOpen(true);
-          }}
-        />
-
-        {(customOpen || selectedPolicy === "custom") && (
-          <Panel className="p-4">
-            <p className="text-sm font-medium text-white">Custom allocation weights</p>
-            <p className="mt-1 text-xs text-resolve-muted">
-              Adjust intent weights for GitHub analysis and contributor scoring.
-            </p>
-            <div className="mt-4">
-              <FounderPriorities value={preset} onChange={onPresetChange} />
-            </div>
-          </Panel>
-        )}
       </div>
-    </details>
+
+      <PolicyProposalCards
+        policies={policies}
+        selectedId={selectedPolicy}
+        onSelect={(id) => {
+          setSelectedPolicy(id);
+          if (id !== "custom" && policies.some((p) => p.id === id)) {
+            onPresetChange(id as FounderPresetId);
+          }
+          if (id === "custom") setCustomOpen(true);
+        }}
+      />
+
+      {(customOpen || selectedPolicy === "custom") && (
+        <Panel className="p-4">
+          <p className="text-sm font-medium text-white">Custom allocation weights</p>
+          <p className="mt-1 text-xs text-resolve-muted">
+            Adjust intent weights for GitHub analysis and contributor scoring.
+          </p>
+          <div className="mt-4">
+            <FounderPriorities value={preset} onChange={onPresetChange} />
+          </div>
+        </Panel>
+      )}
+    </div>
   );
 }

@@ -18,8 +18,6 @@ import {
   type RecentWorkspace,
 } from "@/components/resolve/workspace/workspace-sidebar";
 import { WorkspaceActivityPanel } from "@/components/resolve/workspace/workspace-activity-panel";
-import { WorkspaceProtocol } from "@/components/resolve/workspace/workspace-protocol";
-import { ManualAllocationPanel } from "@/components/resolve/workspace/manual-allocation-panel";
 import { PaymentSummary } from "@/components/resolve/payment/payment-summary";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -36,7 +34,8 @@ import { explorerUrlForTx, isOnChainTxHash } from "@/lib/payment/tx-utils";
 
 type Phase = "input" | "analyzing" | "results" | "preview" | "complete";
 
-export function WorkspaceBrain() {
+/** Fund workflow — discover, analyze, authorize, fulfill. */
+export function WorkspaceFund() {
   const router = useRouter();
   const params = useSearchParams();
   const { ready } = useResolveAccess();
@@ -104,7 +103,7 @@ export function WorkspaceBrain() {
     setResult(null);
     setLiveMessages(["Scanning repository…"]);
 
-    router.replace(`/workspace?owner=${parsed.owner}&repo=${parsed.repo}`, { scroll: false });
+    router.replace(`/workspace/fund?owner=${parsed.owner}&repo=${parsed.repo}`, { scroll: false });
 
     try {
       await fetch("/api/treasury", { method: "POST" });
@@ -222,14 +221,14 @@ export function WorkspaceBrain() {
     setOwner("");
     setRepo("");
     setLiveMessages([]);
-    router.replace("/workspace", { scroll: false });
+    router.replace("/workspace/fund", { scroll: false });
   }
 
   function selectOpportunity(selectedOwner: string, selectedRepo: string) {
     setOwner(selectedOwner);
     setRepo(selectedRepo);
     setRepoInput(`${selectedOwner}/${selectedRepo}`);
-    router.replace(`/workspace?owner=${selectedOwner}&repo=${selectedRepo}`, { scroll: false });
+    router.replace(`/workspace/fund?owner=${selectedOwner}&repo=${selectedRepo}`, { scroll: false });
     autoRan.current = true;
     void runAnalysis();
   }
@@ -237,21 +236,17 @@ export function WorkspaceBrain() {
   function handleSidebarSelect(w: RecentWorkspace) {
     if (w.owner && w.repo) {
       setRepoInput(`${w.owner}/${w.repo}`);
-      router.replace(`/workspace?owner=${w.owner}&repo=${w.repo}`, { scroll: false });
+      router.replace(`/workspace/fund?owner=${w.owner}&repo=${w.repo}`, { scroll: false });
       autoRan.current = true;
       void runAnalysis();
     }
   }
 
-  const shell = (content: React.ReactNode, showActivity = false) => (
+  const shell = (content: React.ReactNode) => (
     <WorkspaceShell
       sidebar={<WorkspaceSidebar activeId={workspaceId} onSelect={handleSidebarSelect} />}
       main={content}
-      activity={
-        showActivity ? (
-          <WorkspaceActivityPanel phase={phase} liveMessages={liveMessages} />
-        ) : null
-      }
+      activity={<WorkspaceActivityPanel phase={phase} liveMessages={liveMessages} />}
     />
   );
 
@@ -274,13 +269,19 @@ export function WorkspaceBrain() {
             onClick={reset}
             className="rounded-md bg-resolve-accent px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
           >
-            Back to workspace
+            Fund another project
           </button>
           <Link
             href="/payments"
             className="rounded-md border border-resolve-border px-4 py-2 text-sm text-resolve-muted hover:text-white"
           >
             View payments
+          </Link>
+          <Link
+            href="/activity"
+            className="rounded-md border border-resolve-border px-4 py-2 text-sm text-resolve-muted hover:text-white"
+          >
+            View activity
           </Link>
         </div>
       </div>,
@@ -370,10 +371,7 @@ export function WorkspaceBrain() {
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <Stat label="Health grade" value={health.grade} />
-              <Stat
-                label="Funding gap"
-                value={`$${health.fundingGapUsd.toLocaleString()}`}
-              />
+              <Stat label="Funding gap" value={`$${health.fundingGapUsd.toLocaleString()}`} />
             </div>
             <ul className="mt-3 space-y-1">
               {health.signals.map((s) => (
@@ -382,16 +380,6 @@ export function WorkspaceBrain() {
                 </li>
               ))}
             </ul>
-            {allocation.contributors[0] && (
-              <div className="mt-3 border-t border-resolve-border pt-3">
-                <p className="text-white/80">Sample evidence (@{allocation.contributors[0].login})</p>
-                <ul className="mt-1 space-y-0.5">
-                  {(allocation.contributors[0].topEvidence ?? []).slice(0, 4).map((e) => (
-                    <li key={e}>{e}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </Panel>
         )}
       </div>,
@@ -399,72 +387,46 @@ export function WorkspaceBrain() {
   }
 
   return shell(
-    <div className="mx-auto max-w-6xl space-y-6">
-      <WorkspaceProtocol
-        manualSlot={(policies) => (
-          <>
-            <ManualAllocationPanel
-              policies={policies}
-              preset={preset}
-              onPresetChange={setPreset}
-            />
-            <details
-              id="discover"
-              className="group rounded-xl border border-resolve-border/60 bg-resolve-raised/20 open:border-resolve-border"
-            >
-        <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-white marker:content-none [&::-webkit-details-marker]:hidden">
-          <span className="text-resolve-muted group-open:text-white">Discover & fund a project</span>
-          <span className="mt-0.5 block text-xs font-normal text-resolve-muted">
-            Optional — analyze a repository and authorize settlement from treasury
-          </span>
-        </summary>
-        <div className="space-y-4 border-t border-resolve-border/60 px-5 pb-5 pt-4">
-          <Panel className="p-5">
-            <label className="text-sm font-medium text-white" htmlFor="repo-input">
-              Project source
-            </label>
-            <input
-              id="repo-input"
-              value={repoInput}
-              onChange={(e) => setRepoInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void runAnalysis()}
-              placeholder="owner/repository or github.com/owner/repo"
-              className="mt-2 w-full rounded-lg border border-resolve-border bg-resolve-bg px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent focus:outline-none"
-            />
+    <div className="space-y-6">
+      <Panel className="p-5">
+        <label className="text-sm font-medium text-white" htmlFor="repo-input">
+          Project source
+        </label>
+        <input
+          id="repo-input"
+          value={repoInput}
+          onChange={(e) => setRepoInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && void runAnalysis()}
+          placeholder="owner/repository or github.com/owner/repo"
+          className="mt-2 w-full rounded-lg border border-resolve-border bg-resolve-bg px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent focus:outline-none"
+        />
 
-            <div className="mt-4">
-              <label className="text-xs text-resolve-muted">Treasury amount (USDC)</label>
-              <input
-                type="number"
-                min={100}
-                step={500}
-                value={fundPoolUsd}
-                onChange={(e) => setFundPoolUsd(Number(e.target.value))}
-                className="mt-1 w-full max-w-xs rounded border border-resolve-border bg-resolve-bg px-2 py-1.5 text-sm text-white"
-              />
-            </div>
+        <div className="mt-4">
+          <label className="text-xs text-resolve-muted">Treasury amount (USDC)</label>
+          <input
+            type="number"
+            min={100}
+            step={500}
+            value={fundPoolUsd}
+            onChange={(e) => setFundPoolUsd(Number(e.target.value))}
+            className="mt-1 w-full max-w-xs rounded border border-resolve-border bg-resolve-bg px-2 py-1.5 text-sm text-white"
+          />
+        </div>
 
-            <button
-              type="button"
-              onClick={() => void runAnalysis()}
-              disabled={loading || phase === "analyzing"}
-              className="mt-4 rounded-md bg-resolve-accent px-8 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-            >
-              {phase === "analyzing" ? "Analyzing…" : "Analyze"}
-            </button>
-          </Panel>
+        <button
+          type="button"
+          onClick={() => void runAnalysis()}
+          disabled={loading || phase === "analyzing"}
+          className="mt-4 rounded-md bg-resolve-accent px-8 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+        >
+          {phase === "analyzing" ? "Analyzing…" : "Analyze & authorize"}
+        </button>
+      </Panel>
 
-          <FounderPriorities value={preset} onChange={setPreset} />
-          <WorkspaceOpportunities onSelect={selectOpportunity} />
-            </div>
-          </details>
+      <FounderPriorities value={preset} onChange={setPreset} />
+      <WorkspaceOpportunities onSelect={selectOpportunity} />
 
-          {phase === "analyzing" && (
-            <AnalysisProgress active apiComplete={apiComplete} />
-          )}
-          </>
-        )}
-      />
+      {phase === "analyzing" && <AnalysisProgress active apiComplete={apiComplete} />}
     </div>,
   );
 }

@@ -7,7 +7,7 @@ export function redirectToWorkspace(searchParams: SearchParams) {
   const owner = typeof searchParams.owner === "string" ? searchParams.owner : undefined;
   const repo = typeof searchParams.repo === "string" ? searchParams.repo : undefined;
   const q = owner && repo ? `?owner=${owner}&repo=${repo}` : "";
-  redirect(`/workspace${q}`);
+  redirect(`/workspace/fund${q}`);
 }
 
 type LegacyPageProps = {

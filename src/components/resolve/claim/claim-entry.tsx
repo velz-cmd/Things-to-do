@@ -13,6 +13,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { explorerUrlForTx, isOnChainTxHash } from "@/lib/payment/tx-utils";
+import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
+import type { FxSwapHint } from "@/lib/settlement/fx";
 
 type ClaimPreview = {
   ok: boolean;
@@ -52,6 +54,7 @@ export function ClaimEntry() {
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
   const [claimedTx, setClaimedTx] = useState<string | null>(null);
+  const [fxHint, setFxHint] = useState<FxSwapHint | null>(null);
 
   const load = useCallback(async () => {
     if (!token) {
@@ -109,6 +112,7 @@ export function ClaimEntry() {
       }
       const tx = data.claimed?.find((c: { txHash?: string }) => c.txHash)?.txHash;
       if (tx) setClaimedTx(tx);
+      if (data.fxHint) setFxHint(data.fxHint);
       toast.success(`Claimed $${data.totalUsd?.toFixed(2) ?? preview.amountUsd.toFixed(2)}`);
       void load();
     } catch {
@@ -267,6 +271,12 @@ export function ClaimEntry() {
       <p className="text-center text-xs text-resolve-muted">
         Link expires {new Date(preview.expiresAt).toLocaleString()}
       </p>
+
+      {fxHint && (
+        <div className="mt-4">
+          <FxSwapPanel hint={fxHint} />
+        </div>
+      )}
     </div>
   );
 }

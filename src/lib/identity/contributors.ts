@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { normalizePayoutCurrency, type PayoutCurrency } from "@/lib/settlement/fx";
 
 export type ContributorStatus = "unlinked" | "claimable" | "verified" | "settled";
 
@@ -132,5 +133,19 @@ export async function syncUserGithubIdentity(
 export async function getContributorByGithub(login: string) {
   return prisma.contributorRegistry.findFirst({
     where: { githubUsername: login.toLowerCase() },
+  });
+}
+
+export async function getContributorPayoutPreference(login: string): Promise<PayoutCurrency> {
+  const row = await getContributorByGithub(login);
+  return normalizePayoutCurrency(row?.payoutCurrency);
+}
+
+export async function setContributorPayoutPreference(login: string, currency: string) {
+  const payoutCurrency = normalizePayoutCurrency(currency);
+  const contributor = await ensureContributorFromGithub({ login });
+  return prisma.contributorRegistry.update({
+    where: { id: contributor.id },
+    data: { payoutCurrency },
   });
 }

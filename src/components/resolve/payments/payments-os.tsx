@@ -12,12 +12,17 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { explorerUrlForTx, isOnChainTxHash } from "@/lib/payment/tx-utils";
+import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
+import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
 
 type Overview = {
   treasury: {
     balanceUsd: number;
+    obligationsUsd?: number;
+    availableUsd?: number;
     liveArc: boolean;
     canDistributeOnChain: boolean;
+    canSettleGlobally?: boolean;
     message: string;
     totalDistributedUsd: number;
     batchCount: number;
@@ -75,6 +80,11 @@ export function PaymentsOS() {
   const [claimSummary, setClaimSummary] = useState<RewardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
+  const [fxHint, setFxHint] = useState<FxSwapHint | null>(null);
+  const [payoutCurrency, setPayoutCurrency] = useState<PayoutCurrency>("USDC");
+  const [currencyOptions, setCurrencyOptions] = useState<
+    { id: PayoutCurrency; label: string }[]
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,6 +110,19 @@ export function PaymentsOS() {
     return () => clearInterval(t);
   }, [load, user]);
 
+  useEffect(() => {
+    if (!user) return;
+    void fetch("/api/profile/payout-preference", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.currency) setPayoutCurrency(data.currency);
+        if (data.options) setCurrencyOptions(data.options);
+      })
+      .catch(() => {
+        /* optional */
+      });
+  }, [user]);
+
   async function handleClaim() {
     if (!isConnected || !address) {
       openWallet({ view: "Connect" });
@@ -115,6 +138,7 @@ export function PaymentsOS() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Claim failed");
+      if (data.fxHint) setFxHint(data.fxHint);
       toast.success("Authorizations claimed");
       void load();
     } catch (e) {
@@ -148,6 +172,12 @@ export function PaymentsOS() {
               <p className="mt-1 text-xs text-resolve-muted">
                 {treasury?.message ?? "Loading treasury…"}
               </p>
+              {(treasury?.obligationsUsd ?? 0) > 0 && (
+                <p className="mt-2 text-xs text-amber-200/90">
+                  Obligations: ${(treasury?.obligationsUsd ?? 0).toFixed(2)} · Available:{" "}
+                  ${(treasury?.availableUsd ?? 0).toFixed(2)}
+                </p>
+              )}
             </div>
             <div className="text-right text-sm text-resolve-muted">
               <p>
@@ -227,6 +257,35 @@ export function PaymentsOS() {
                 Claimable:{" "}
                 <Money amount={claimSummary?.claimableUsd ?? 0} size="sm" className="inline" />
               </p>
+              {currencyOptions.length > 0 && (
+                <div className="mt-3">
+                  <label className="text-xs text-resolve-muted">Receive as (after claim)</label>
+                  <select
+                    value={payoutCurrency}
+                    onChange={(e) => {
+                      const next = e.target.value as PayoutCurrency;
+                      setPayoutCurrency(next);
+                      void fetch("/api/profile/payout-preference", {
+                        method: "POST",
+                        credentials: "include",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ currency: next }),
+                      });
+                    }}
+                    className="mt-1 block w-full max-w-xs rounded-md border border-resolve-border bg-resolve-bg px-3 py-2 text-sm text-white"
+                  >
+                    {currencyOptions.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[10px] text-resolve-muted-dim">
+                    Settlement is USDC on Arc — swap to EURC or cirBTC in your wallet when ready.
+                  </p>
+                </div>
+              )}
+              {fxHint && <div className="mt-4"><FxSwapPanel hint={fxHint} /></div>}
               <div className="mt-4 flex flex-wrap gap-2">
                 {!isConnected ?
                   <button

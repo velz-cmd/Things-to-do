@@ -10,6 +10,7 @@ import {
   runPaymentSettlement,
   runPendingOnlyMission,
 } from "@/lib/payment/orchestrator";
+import { assertTreasuryCanFund, TreasuryUnderfundedError } from "@/lib/treasury/engine";
 import type { GitHubAllocationResult } from "@/lib/github/types";
 
 export const runtime = "nodejs";
@@ -89,13 +90,31 @@ export async function POST(req: Request) {
   });
 
   if (parsed.data.dryRun || !parsed.data.execute) {
+    const treasury = await assertTreasuryCanFund(plan.treasuryAmount).catch((e) =>
+      e instanceof TreasuryUnderfundedError ?
+        { ok: false, mode: "blocked" as const, error: e.message }
+      : null,
+    );
     return NextResponse.json({
       ok: true,
       dryRun: true,
       plan,
       preview: plan.preview,
       confidence,
+      treasury,
     });
+  }
+
+  try {
+    await assertTreasuryCanFund(plan.treasuryAmount);
+  } catch (e) {
+    if (e instanceof TreasuryUnderfundedError) {
+      return NextResponse.json(
+        { error: e.message, code: e.code, requiredUsd: e.requiredUsd, availableUsd: e.availableUsd },
+        { status: 402 },
+      );
+    }
+    throw e;
   }
 
   const result = await executePlan(plan, allocation, ready.user.id);

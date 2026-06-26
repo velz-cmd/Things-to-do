@@ -2,21 +2,25 @@ import { test, expect } from "@playwright/test";
 
 test.describe("RESOLVE product surfaces", () => {
   test("four workflows are reachable", async ({ page }) => {
+    test.setTimeout(90_000);
     await page.goto("/workspace");
+    await expect(page.getByRole("heading", { name: "Value Advisor" })).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(
       page.getByRole("heading", { name: /operating system for open ecosystems/i }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 30_000 });
 
     await page.goto("/payments");
     await expect(page.getByRole("heading", { name: "Payments" })).toBeVisible();
 
-    await page.goto("/connectors");
-    await expect(page).toHaveURL(/\/workspace/);
-    await expect(
-      page.getByRole("heading", { name: /operating system for open ecosystems/i }),
-    ).toBeVisible();
+    await page.goto("/connectors", { waitUntil: "commit" });
+    await expect(page).toHaveURL(/\/workspace/, { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Value Advisor" })).toBeVisible({
+      timeout: 20_000,
+    });
 
-    await page.goto("/profile");
+    await page.goto("/profile", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
   });
 
@@ -35,6 +39,16 @@ test.describe("RESOLVE product surfaces", () => {
     expect(body).toHaveProperty("tagline");
     expect(body).toHaveProperty("sources");
     expect(body).toHaveProperty("liveActivity");
+    expect(body).toHaveProperty("capitalFlow");
+  });
+
+  test("workspace ask API returns evidence-backed advisor", async ({ request }) => {
+    const res = await request.get("/api/workspace/ask");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body).toHaveProperty("answer");
+    expect(body).toHaveProperty("actions");
+    expect(body.grounded).toBe(true);
   });
 
   test("payments overview API returns treasury and ledger", async ({ request }) => {

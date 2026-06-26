@@ -1,29 +1,28 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { recordAuthorizationsFromAllocation } from "@/lib/authorization/ledger";
+import { ingestSettlementBatch } from "@/lib/authorization/ledger";
+import { githubAllocationToSettlementInputs } from "@/lib/connectors/github";
 import type { GitHubAllocationResult } from "@/lib/github/types";
 
 const bodySchema = z.object({
   allocation: z.custom<GitHubAllocationResult>(),
-  confidence: z.number().min(0).max(1).optional(),
 });
 
-/** Recognize owed amounts at analyze time — before settlement fulfillment. */
+/** GitHub allocation → Authorization Ledger (connector-agnostic ingest). */
 export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid allocation" }, { status: 400 });
   }
 
-  const result = await recordAuthorizationsFromAllocation(parsed.data.allocation, {
-    confidence: parsed.data.confidence,
-  });
+  const events = githubAllocationToSettlementInputs(parsed.data.allocation);
+  const result = await ingestSettlementBatch(events);
 
   return NextResponse.json({
     missionId: result.missionId,
-    authorizationCount: result.authorizations.length,
-    totalAuthorizedUsd: result.authorizations.reduce((s, a) => s + a.amountUsd, 0),
+    authorizationCount: result.count,
+    totalAuthorizedUsd: result.totalUsd,
     status: "authorized",
-    message: "Contributors authorized. Settlement pending funding.",
+    message: "Settlement pending funding.",
   });
 }

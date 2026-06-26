@@ -9,11 +9,13 @@ import {
 
 /** Honest production status — what is real vs not configured */
 export async function GET() {
-  const [integrations, arc, settlementCount, pendingRewardCount] = await Promise.all([
+  const [integrations, arc, settlementCount, pendingRewardCount, authorizationCount] =
+    await Promise.all([
     runIntegrationHealthCheck(),
     getArcReadiness(),
     prisma.missionSettlement.count().catch(() => -1),
     prisma.pendingReward.count().catch(() => -1),
+    prisma.paymentAuthorization.count().catch(() => -1),
   ]);
 
   let githubOAuth = false;
@@ -32,6 +34,7 @@ export async function GET() {
   }
   if (settlementCount === -1) issues.push("Payment tables unreachable — check DATABASE_URL");
   if (pendingRewardCount === -1) issues.push("PendingReward table missing");
+  if (authorizationCount === -1) issues.push("PaymentAuthorization table missing — run SUPABASE-AUTHORIZATION-LEDGER.sql");
 
   return NextResponse.json({
     ok: issues.length === 0,
@@ -44,6 +47,8 @@ export async function GET() {
       paymentTables: settlementCount >= 0,
       settlementsRecorded: settlementCount,
       pendingRewards: pendingRewardCount >= 0 ? pendingRewardCount : 0,
+      authorizations: authorizationCount >= 0 ? authorizationCount : 0,
+      authorizationLedger: authorizationCount >= 0,
     },
     needsSetup: {
       githubOAuth: !githubOAuth,

@@ -236,6 +236,38 @@ model ContributorRegistry {
   @@index([exifArtist])
 }
 
+/// Connector-agnostic Authorization Ledger (Distribution Bootstrap Part 2)
+model PaymentAuthorization {
+  id              String   @id @default(cuid())
+  connectorId     String
+  eventType       String
+  missionId       String
+  idempotencyKey  String
+  payeeKeyType    String
+  payeeKey        String
+  amountUsd       Float
+  weight          Float    @default(0)
+  proofHash       String
+  confidence      Float    @default(0.85)
+  status          String   @default("authorized")
+  contextLabel    String?
+  evidenceJson    String?
+  founderUserId   String?
+  settlementId    String?
+  walletAddress   String?
+  fulfilledAt     DateTime?
+  settledAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([idempotencyKey])
+  @@index([missionId])
+  @@index([connectorId])
+  @@index([payeeKeyType, payeeKey])
+  @@index([status])
+  @@index([proofHash])
+}
+
 /// Rewards waiting for contributor to connect wallet and claim
 model PendingReward {
   id             String   @id @default(cuid())

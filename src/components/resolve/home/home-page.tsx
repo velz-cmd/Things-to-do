@@ -27,12 +27,13 @@ export function HomePage() {
       />
       <div className="relative z-10 mx-auto w-full max-w-xl text-center">
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-white md:text-5xl">
-          Money is easy.
-          <span className="block text-blue-300">Knowing where it should go is hard.</span>
+          Open source is global.
+          <span className="block text-blue-300">Payments should be too.</span>
         </h1>
         <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-resolve-muted">
-          Paste any source — repository, music instance, or connector. RESOLVE finds who created
-          value, records authorizations, and prepares fulfillment.
+          Recognize value once — from GitHub, Navidrome, or any connector. RESOLVE authorizes who is
+          owed, funds from one treasury, and settles globally in batched USDC on Circle Arc. Contributors
+          claim in one step; optional FX to EURC or cirBTC.
         </p>
 
         <div className="mx-auto mt-8 max-w-lg rounded-xl border border-resolve-border bg-resolve-bg/80 p-2 shadow-xl backdrop-blur">

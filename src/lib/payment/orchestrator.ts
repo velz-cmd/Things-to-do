@@ -6,6 +6,7 @@ import { poolHeadline } from "@/lib/payment/pools";
 import { reserveCapitalPools } from "@/lib/payment/pools";
 import { createPendingRewardsFromAllocation } from "@/lib/identity/pending-rewards";
 import { fulfillMissionAuthorizations } from "@/lib/authorization/ledger";
+import { assertTreasuryCanFund, TreasuryUnderfundedError } from "@/lib/treasury/engine";
 import type { GitHubAllocationResult } from "@/lib/github/types";
 import {
   createSettlementRecord,
@@ -39,6 +40,17 @@ export async function runPaymentSettlement(
     return { error: validation.message, code: validation.code };
   }
 
+  const fundingTotal =
+    pkg.contributors.reduce((s, c) => s + Number(c.amount), 0) + (pkg.pendingClaimUsd ?? 0);
+  try {
+    await assertTreasuryCanFund(fundingTotal);
+  } catch (e) {
+    if (e instanceof TreasuryUnderfundedError) {
+      return { error: e.message, code: e.code };
+    }
+    throw e;
+  }
+
   const auditHash = settlementAuditHash(pkg);
   const batchNumber = await getNextBatchNumber();
 
@@ -54,6 +66,18 @@ export async function runPaymentSettlement(
     treasury: pkg.treasuryAmount,
     proofHash: pkg.proofHash,
   });
+
+  const treasurySnap = await assertTreasuryCanFund(fundingTotal).catch(() => null);
+  if (treasurySnap) {
+    await emitPaymentEvent(settlement.id, "TreasuryChecked", {
+      missionId: pkg.missionId,
+      requiredUsd: fundingTotal,
+      mode: treasurySnap.mode,
+      balanceUsd: treasurySnap.snapshot.balanceUsd,
+      availableUsd: treasurySnap.snapshot.availableUsd,
+      fundingWallet: treasurySnap.snapshot.fundingWallet,
+    });
+  }
 
   const plan = buildSettlementPlan({ settlementId: settlement.id, package: pkg });
   const poolsJson = JSON.stringify(plan.pools);

@@ -10,6 +10,8 @@ import { markAuthorizationSettled } from "@/lib/authorization/ledger";
 import { sendUsdcWithMemo } from "@/lib/arc/memo";
 import { buildContributorMemo } from "@/lib/payment/memo";
 import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { buildFxSwapHint } from "@/lib/settlement/fx";
+import { getContributorPayoutPreference } from "@/lib/identity/contributors";
 import { prisma } from "@/lib/db";
 
 const bodySchema = z.object({
@@ -240,11 +242,16 @@ export async function POST(req: Request) {
     .filter((c) => c.status === "settled")
     .reduce((s, c) => s + c.amountUsd, 0);
 
+  const payoutCurrency = await getContributorPayoutPreference(githubUsername);
+  const fxHint = buildFxSwapHint(totalUsd, payoutCurrency);
+
   return NextResponse.json({
     ok: true,
     githubUsername,
     walletAddress: parsed.data.walletAddress,
     claimed,
     totalUsd: Math.round(totalUsd * 100) / 100,
+    payoutCurrency,
+    fxHint,
   });
 }

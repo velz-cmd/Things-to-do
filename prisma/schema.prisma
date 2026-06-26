@@ -224,6 +224,7 @@ model ContributorRegistry {
   proofScore       Float    @default(0)
   claimableUsd     Float    @default(0)
   totalEarnedUsd   Float    @default(0)
+  payoutCurrency   String   @default("USDC")
   lastSeenAt       DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

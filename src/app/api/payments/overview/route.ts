@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getGlobalAuthorizationSummary, getAuthorizationHistory } from "@/lib/authorization/ledger";
-import { getArcReadiness } from "@/lib/treasury/arc-readiness";
+import { getTreasurySnapshot } from "@/lib/treasury/engine";
 import { getTreasuryStats } from "@/lib/treasury/distribute";
 import { prisma } from "@/lib/db";
 
@@ -14,8 +14,8 @@ const EMPTY_LEDGER = {
 
 /** Financial operating system snapshot — real treasury + ledger + settlements */
 export async function GET() {
-  const [arc, stats, ledger, recentAuthorizations, settlements] = await Promise.all([
-    getArcReadiness(),
+  const [treasury, stats, ledger, recentAuthorizations, settlements] = await Promise.all([
+    getTreasurySnapshot(),
     getTreasuryStats().catch(() => ({
       totalDistributedUsd: 0,
       batchCount: 0,
@@ -44,10 +44,17 @@ export async function GET() {
 
   return NextResponse.json({
     treasury: {
-      balanceUsd: arc.balanceUsd ?? 0,
-      liveArc: arc.liveArc,
-      canDistributeOnChain: arc.canDistributeOnChain,
-      message: arc.message,
+      balanceUsd: treasury.balanceUsd,
+      obligationsUsd: treasury.obligationsUsd,
+      availableUsd: treasury.availableUsd,
+      authorizedUsd: treasury.authorizedUsd,
+      pendingFundingUsd: treasury.pendingFundingUsd,
+      claimableUsd: treasury.claimableUsd,
+      liveArc: treasury.liveArc,
+      canDistributeOnChain: treasury.canSettleGlobally,
+      canSettleGlobally: treasury.canSettleGlobally,
+      fundingWallet: treasury.fundingWallet,
+      message: treasury.message,
       totalDistributedUsd: stats.totalDistributedUsd ?? 0,
       batchCount: stats.batchCount ?? 0,
     },

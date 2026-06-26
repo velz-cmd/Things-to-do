@@ -3,6 +3,9 @@ import { pingLibrariesIo } from "@/lib/integrations/libraries-io";
 import { pingOpenAlex } from "@/lib/integrations/openalex";
 import { pingNpmRegistry } from "@/lib/integrations/npm-registry";
 import { pingDockerHub } from "@/lib/integrations/docker-hub";
+import { pingNavidrome, isNavidromeConfigured } from "@/lib/integrations/navidrome";
+import { pingListenBrainz, isListenBrainzConfigured } from "@/lib/integrations/listenbrainz";
+import { pingLastFm, isLastFmConfigured } from "@/lib/integrations/lastfm";
 import { INTEGRATIONS } from "@/lib/integrations/config";
 import { hasGithubToken } from "@/lib/github/client";
 import { listConfiguredProviders } from "@/lib/ai/gateway/resolve";
@@ -11,14 +14,18 @@ import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
 export async function runIntegrationHealthCheck() {
   const ai = listConfiguredProviders();
 
-  const [github, libraries, openAlex, blockscout, npm, docker] = await Promise.all([
-    pingGithub(),
-    pingLibrariesIo(),
-    pingOpenAlex(),
-    pingBlockscout(),
-    pingNpmRegistry(),
-    pingDockerHub(),
-  ]);
+  const [github, libraries, openAlex, blockscout, npm, docker, navidrome, listenbrainz, lastfm] =
+    await Promise.all([
+      pingGithub(),
+      pingLibrariesIo(),
+      pingOpenAlex(),
+      pingBlockscout(),
+      pingNpmRegistry(),
+      pingDockerHub(),
+      pingNavidrome(),
+      pingListenBrainz(),
+      pingLastFm(),
+    ]);
 
   const openRouter = ai.openrouter
     ? await pingOpenRouter()
@@ -37,6 +44,9 @@ export async function runIntegrationHealthCheck() {
       dockerHub: INTEGRATIONS.dockerHub(),
       alchemy: isAlchemyConfigured(),
       etherscan: INTEGRATIONS.etherscan(),
+      navidrome: isNavidromeConfigured(),
+      listenBrainz: isListenBrainzConfigured(),
+      lastFm: isLastFmConfigured(),
     },
     live: {
       github,
@@ -46,6 +56,9 @@ export async function runIntegrationHealthCheck() {
       blockscout,
       npmRegistry: npm,
       dockerHub: docker,
+      navidrome,
+      listenBrainz: listenbrainz,
+      lastFm: lastfm,
       alchemy: isAlchemyConfigured()
         ? { ok: true, message: "Alchemy Arc RPC configured" }
         : { ok: false, message: "ALCHEMY_API_KEY not set" },

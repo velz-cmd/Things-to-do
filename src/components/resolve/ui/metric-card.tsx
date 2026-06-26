@@ -4,12 +4,37 @@ import { Panel } from "@/components/resolve/ui/panel";
 
 type Tone = "default" | "accent" | "success" | "warning" | "violet";
 
-const toneStyles: Record<Tone, { border: string; value: string; icon: string }> = {
-  default: { border: "", value: "text-white", icon: "text-resolve-muted" },
-  accent: { border: "border-resolve-accent/25", value: "text-sky-200", icon: "text-resolve-accent" },
-  success: { border: "border-emerald-500/25", value: "text-emerald-300", icon: "text-emerald-400" },
-  warning: { border: "border-amber-500/25", value: "text-amber-200", icon: "text-amber-400" },
-  violet: { border: "border-violet-500/25", value: "text-violet-200", icon: "text-violet-400" },
+const toneStyles: Record<Tone, { border: string; value: string; icon: string; glow: string }> = {
+  default: {
+    border: "",
+    value: "text-white",
+    icon: "text-resolve-muted",
+    glow: "",
+  },
+  accent: {
+    border: "ring-1 ring-cyan-400/15",
+    value: "text-cyan-100",
+    icon: "text-cyan-400",
+    glow: "shadow-[0_0_30px_rgba(56,189,248,0.08)]",
+  },
+  success: {
+    border: "ring-1 ring-emerald-400/15",
+    value: "text-emerald-200",
+    icon: "text-emerald-400",
+    glow: "shadow-[0_0_30px_rgba(52,211,153,0.08)]",
+  },
+  warning: {
+    border: "ring-1 ring-amber-400/15",
+    value: "text-amber-200",
+    icon: "text-amber-400",
+    glow: "",
+  },
+  violet: {
+    border: "ring-1 ring-violet-400/15",
+    value: "text-violet-200",
+    icon: "text-violet-400",
+    glow: "shadow-[0_0_30px_rgba(167,139,250,0.08)]",
+  },
 };
 
 export function MetricCard({
@@ -33,17 +58,23 @@ export function MetricCard({
   return (
     <Panel
       variant="glass"
-      className={clsx("p-4", t.border, className)}
+      hover
+      className={clsx("p-0", t.border, t.glow, className)}
       padding={false}
     >
-      <div className="p-4">
+      <div className="p-5">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-resolve-muted-dim">
             {label}
           </p>
-          {Icon && <Icon className={clsx("h-3.5 w-3.5", t.icon)} strokeWidth={1.5} />}
+          {Icon && <Icon className={clsx("h-4 w-4", t.icon)} strokeWidth={1.5} />}
         </div>
-        <p className={clsx("mt-2 flex items-center gap-2 text-2xl font-semibold tabular-nums", t.value)}>
+        <p
+          className={clsx(
+            "mt-3 flex items-center gap-2 text-2xl font-semibold tabular-nums tracking-tight",
+            t.value,
+          )}
+        >
           {live && (
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40" />
@@ -52,7 +83,7 @@ export function MetricCard({
           )}
           {value}
         </p>
-        {hint && <p className="mt-1 text-[11px] text-resolve-muted-dim">{hint}</p>}
+        {hint && <p className="mt-1.5 text-[11px] text-resolve-muted-dim">{hint}</p>}
       </div>
     </Panel>
   );

@@ -13,7 +13,7 @@ function MarketingShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-resolve-bg text-white">
-      <header className="border-b border-resolve-border">
+      <header className="relative z-20 border-b border-resolve-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
           <Link href="/">
             <p className="text-sm font-semibold">RESOLVE</p>

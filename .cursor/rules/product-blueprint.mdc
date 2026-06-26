@@ -5,6 +5,7 @@ alwaysApply: true
 
 product-blueprint:
 
+- Read docs/PRODUCT-VISION.md and docs/PRODUCT-BLUEPRINT.md before product or UI work.
 - RESOLVE is a settlement network, not a founder-operated analysis tool.
 - Default path: users keep using GitHub/Navidrome/PeerTube/etc.; connectors observe; creators discover RESOLVE when they earn.
 - First action is Connect an ecosystem — not paste a repository.

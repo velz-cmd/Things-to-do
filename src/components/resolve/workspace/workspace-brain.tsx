@@ -242,14 +242,14 @@ export function WorkspaceBrain() {
     }
   }
 
-  const shell = (content: React.ReactNode) => (
+  const shell = (content: React.ReactNode, showActivity = false) => (
     <WorkspaceShell
-      sidebar={
-        <WorkspaceSidebar activeId={workspaceId} onSelect={handleSidebarSelect} />
-      }
+      sidebar={<WorkspaceSidebar activeId={workspaceId} onSelect={handleSidebarSelect} />}
       main={content}
       activity={
-        <WorkspaceActivityPanel phase={phase} liveMessages={liveMessages} />
+        showActivity ? (
+          <WorkspaceActivityPanel phase={phase} liveMessages={liveMessages} />
+        ) : null
       }
     />
   );
@@ -273,7 +273,7 @@ export function WorkspaceBrain() {
             onClick={reset}
             className="rounded-md bg-resolve-accent px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
           >
-            New workspace
+            Back to workspace
           </button>
           <Link
             href="/payments"
@@ -398,56 +398,59 @@ export function WorkspaceBrain() {
   }
 
   return shell(
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-white">Workspace</h1>
-        <p className="mt-1 text-sm text-resolve-muted">
-          Show me where value is being created and where money should flow.
-        </p>
-      </div>
-
+    <div className="mx-auto max-w-4xl space-y-8">
       <WorkspaceOsDashboard />
 
-      <Panel className="p-5">
-        <label className="text-sm font-medium text-white" htmlFor="repo-input">
-          Add a source
-        </label>
-        <p className="mt-0.5 text-xs text-resolve-muted">
-          Paste any repository or project — connectors stay invisible behind universal events.
-        </p>
-        <input
-          id="repo-input"
-          value={repoInput}
-          onChange={(e) => setRepoInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void runAnalysis()}
-          placeholder="owner/repository or github.com/owner/repo"
-          className="mt-2 w-full rounded-lg border border-resolve-border bg-resolve-bg px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent focus:outline-none"
-        />
+      <details
+        id="discover"
+        className="group rounded-xl border border-resolve-border/60 bg-resolve-raised/20 open:border-resolve-border"
+      >
+        <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-white marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="text-resolve-muted group-open:text-white">Discover & fund a project</span>
+          <span className="mt-0.5 block text-xs font-normal text-resolve-muted">
+            Optional — analyze a repository and authorize settlement from treasury
+          </span>
+        </summary>
+        <div className="space-y-4 border-t border-resolve-border/60 px-5 pb-5 pt-4">
+          <Panel className="p-5">
+            <label className="text-sm font-medium text-white" htmlFor="repo-input">
+              Project source
+            </label>
+            <input
+              id="repo-input"
+              value={repoInput}
+              onChange={(e) => setRepoInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void runAnalysis()}
+              placeholder="owner/repository or github.com/owner/repo"
+              className="mt-2 w-full rounded-lg border border-resolve-border bg-resolve-bg px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent focus:outline-none"
+            />
 
-        <div className="mt-4">
-          <label className="text-xs text-resolve-muted">Treasury amount (USDC)</label>
-          <input
-            type="number"
-            min={100}
-            step={500}
-            value={fundPoolUsd}
-            onChange={(e) => setFundPoolUsd(Number(e.target.value))}
-            className="mt-1 w-full max-w-xs rounded border border-resolve-border bg-resolve-bg px-2 py-1.5 text-sm text-white"
-          />
+            <div className="mt-4">
+              <label className="text-xs text-resolve-muted">Treasury amount (USDC)</label>
+              <input
+                type="number"
+                min={100}
+                step={500}
+                value={fundPoolUsd}
+                onChange={(e) => setFundPoolUsd(Number(e.target.value))}
+                className="mt-1 w-full max-w-xs rounded border border-resolve-border bg-resolve-bg px-2 py-1.5 text-sm text-white"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void runAnalysis()}
+              disabled={loading || phase === "analyzing"}
+              className="mt-4 rounded-md bg-resolve-accent px-8 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+            >
+              {phase === "analyzing" ? "Analyzing…" : "Analyze"}
+            </button>
+          </Panel>
+
+          <FounderPriorities value={preset} onChange={setPreset} />
+          <WorkspaceOpportunities onSelect={selectOpportunity} />
         </div>
-
-        <button
-          type="button"
-          onClick={() => void runAnalysis()}
-          disabled={loading || phase === "analyzing"}
-          className="mt-4 w-full rounded-md bg-resolve-accent py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50 sm:w-auto sm:px-8"
-        >
-          {phase === "analyzing" ? "Analyzing…" : "Analyze"}
-        </button>
-      </Panel>
-
-      <FounderPriorities value={preset} onChange={setPreset} />
-      <WorkspaceOpportunities onSelect={selectOpportunity} />
+      </details>
 
       {phase === "analyzing" && (
         <AnalysisProgress active apiComplete={apiComplete} />

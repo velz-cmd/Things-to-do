@@ -1,5 +1,6 @@
-import { ConnectorsPage } from "@/components/resolve/connectors/connectors-page";
+import { redirect } from "next/navigation";
 
-export default function ConnectorsRoute() {
-  return <ConnectorsPage />;
+/** Connectors are infrastructure — surfaced inside Workspace only */
+export default function ConnectorsRedirect() {
+  redirect("/workspace");
 }

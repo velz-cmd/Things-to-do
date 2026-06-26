@@ -27,13 +27,13 @@ export function HomePage() {
       />
       <div className="relative z-10 mx-auto w-full max-w-xl text-center">
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-white md:text-5xl">
-          Open source is global.
-          <span className="block text-blue-300">Payments should be too.</span>
+          The operating system for open ecosystems.
+          <span className="block text-blue-300">Where value is discovered. Where money flows.</span>
         </h1>
-        <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-resolve-muted">
-          Recognize value once — from GitHub, Navidrome, or any connector. RESOLVE authorizes who is
-          owed, funds from one treasury, and settles globally in batched USDC on Circle Arc. Contributors
-          claim in one step; optional FX to EURC or cirBTC.
+        <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-resolve-muted">
+          Everything you create across the open internet — code, music, research, video — flows through
+          one workspace. RESOLVE continuously discovers value, authorizes who is owed, funds from one
+          treasury, and settles globally. Contributors claim in one step.
         </p>
 
         <div className="mx-auto mt-8 max-w-lg rounded-xl border border-resolve-border bg-resolve-bg/80 p-2 shadow-xl backdrop-blur">
@@ -41,30 +41,30 @@ export function HomePage() {
             value={repoInput}
             onChange={(e) => setRepoInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-            placeholder="github.com/owner/repository"
+            placeholder="owner/repository — or open workspace below"
             className="w-full rounded-lg border-0 bg-transparent px-4 py-3 text-sm text-white placeholder:text-resolve-muted-dim focus:outline-none focus:ring-0"
           />
-          <button
-            type="button"
-            onClick={handleAnalyze}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-resolve-accent py-3 text-sm font-semibold text-white hover:bg-blue-500"
-          >
-            Analyze
-            <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleAnalyze}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-resolve-accent py-3 text-sm font-semibold text-white hover:bg-blue-500"
+            >
+              Analyze project
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/workspace")}
+              className="flex flex-1 items-center justify-center rounded-lg border border-resolve-border py-3 text-sm font-medium text-white hover:bg-resolve-hover/40"
+            >
+              Open workspace
+            </button>
+          </div>
         </div>
 
         <p className="mt-6 text-xs text-resolve-muted-dim">
-          Try{" "}
-          <button
-            type="button"
-            onClick={() => {
-              setRepoInput("navidrome/navidrome");
-            }}
-            className="text-resolve-accent hover:underline"
-          >
-            navidrome/navidrome
-          </button>
+          Connect once. Value from code, music, research, and more streams automatically.
         </p>
       </div>
     </div>

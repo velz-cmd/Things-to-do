@@ -257,6 +257,7 @@ model PaymentAuthorization {
   walletAddress   String?
   fulfilledAt     DateTime?
   settledAt       DateTime?
+  notifiedAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

@@ -4,6 +4,7 @@ import type {
   AuthorizationSummary,
   SettlementInputEvent,
 } from "@/lib/authorization/types";
+import { notifyClaimableAuthorizationsForMission } from "@/lib/earn/notify";
 
 export type { AuthorizationStatus, SettlementInputEvent } from "@/lib/authorization/types";
 
@@ -121,6 +122,12 @@ export async function fulfillMissionAuthorizations(input: {
         fulfilledAt: now,
       },
     });
+  }
+
+  try {
+    await notifyClaimableAuthorizationsForMission(input.missionId);
+  } catch (e) {
+    console.error("[ledger] earn notification failed:", e);
   }
 
   return prisma.paymentAuthorization.findMany({

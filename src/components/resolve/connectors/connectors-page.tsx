@@ -147,16 +147,24 @@ export function ConnectorsPage() {
                     Analyze in Workspace
                   </Link>
                 )}
-                {c.id === "navidrome" && c.docsPath && (
-                  <a
-                    href={c.docsPath}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md border border-resolve-border px-4 py-2 text-sm text-white hover:bg-resolve-hover"
-                  >
-                    API endpoint
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+                {c.id === "navidrome" && (
+                  <>
+                    <p className="max-w-xs text-right text-xs text-resolve-muted">
+                      Auto-sync via cron or{" "}
+                      <code className="text-[10px] text-white/80">scripts/navidrome-bridge.ts</code>
+                    </p>
+                    {c.docsPath && (
+                      <a
+                        href={c.docsPath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md border border-resolve-border px-4 py-2 text-sm text-white hover:bg-resolve-hover"
+                      >
+                        Sync API
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </>
                 )}
                 {c.catalogStatus === "upcoming" && (
                   <span className="text-xs text-resolve-muted-dim">Not available yet</span>

@@ -1,6 +1,7 @@
 import type { GitHubAllocationResult } from "@/lib/github/types";
 import type { MissionSettlementInput } from "@/lib/payment/types";
 import { ensureContributorFromGithub } from "@/lib/identity/contributors";
+import { githubMissionId } from "@/lib/connectors/github";
 import { buildPaymentPreview, type PaymentPreview } from "@/lib/payment/preview";
 
 export interface AllocationSettlementPlan {
@@ -21,8 +22,7 @@ export async function buildAllocationSettlementPlan(
   options?: { confidence?: number; agentsRun?: string[]; missionId?: string },
 ): Promise<AllocationSettlementPlan> {
   const missionId =
-    options?.missionId ??
-    `gh-${allocation.owner}-${allocation.repo}-${Date.now()}`;
+    options?.missionId ?? githubMissionId(allocation);
   const confidence = options?.confidence ?? 0.85;
 
   const ready: MissionSettlementInput["contributors"] = [];

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runGithubPipeline } from "@/lib/github/allocate";
-import { recordAuthorizationsFromAllocation } from "@/lib/authorization/ledger";
+import { ingestSettlementBatch } from "@/lib/authorization/ledger";
+import { githubAllocationToSettlementInputs } from "@/lib/connectors/github";
 
 const intentSchema = z.object({
   infrastructure: z.number().min(0).max(100).optional(),
@@ -32,14 +33,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: result.error }, { status: 404 });
   }
 
-  const auth = await recordAuthorizationsFromAllocation(result.allocation);
+  const events = githubAllocationToSettlementInputs(result.allocation);
+  const auth = await ingestSettlementBatch(events);
 
   return NextResponse.json({
     ...result.allocation,
     missionId: auth.missionId,
     authorization: {
-      count: auth.authorizations.length,
-      totalUsd: auth.authorizations.reduce((s, a) => s + a.amountUsd, 0),
+      count: auth.count,
+      totalUsd: auth.totalUsd,
       status: "authorized",
       message: "Settlement pending funding.",
     },
@@ -55,7 +57,7 @@ export async function GET() {
   return NextResponse.json({
     name: "RESOLVE GitHub Allocation Engine",
     phase: "github-v1",
-    flow: "Adapter → Evidence Bus → Workers → Reasoning → Confidence → Allocate → Arc",
+    flow: "Distribution Connector → Evidence Bus → Workers → Reasoning → Confidence → Allocate → Settlement Core",
     blueprint: "/api/github/blueprint",
     endpoint: "POST /api/github/allocate",
     requiredEnv: ["GITHUB_TOKEN"],

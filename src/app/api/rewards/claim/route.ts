@@ -3,9 +3,10 @@ import { z } from "zod";
 import { requireSessionUser, ensureProfileForUser } from "@/lib/auth/session";
 import { linkWalletToGithub, extractGithubIdentity } from "@/lib/identity/contributors";
 import {
-  getPendingRewardsForGithub,
+  getClaimableItemsForGithub,
   markRewardSettled,
 } from "@/lib/identity/pending-rewards";
+import { markAuthorizationSettled } from "@/lib/authorization/ledger";
 import { sendUsdcWithMemo } from "@/lib/arc/memo";
 import { buildContributorMemo } from "@/lib/payment/memo";
 import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
@@ -14,9 +15,18 @@ import { prisma } from "@/lib/db";
 const bodySchema = z.object({
   walletAddress: z.string(),
   rewardIds: z.array(z.string()).optional(),
+  authorizationIds: z.array(z.string()).optional(),
 });
 
-/** Contributor claims pending rewards — GitHub identity + wallet → Arc settlement */
+type ClaimedItem = {
+  id: string;
+  source: "authorization" | "legacy_reward";
+  amountUsd: number;
+  txHash?: string;
+  status: string;
+};
+
+/** Contributor claims claimable Authorizations — GitHub identity + wallet → Fulfillment */
 export async function POST(req: Request) {
   const session = await requireSessionUser();
   if ("error" in session) {
@@ -45,24 +55,109 @@ export async function POST(req: Request) {
     userId: session.user.id,
   });
 
-  const rewards = await getPendingRewardsForGithub(githubUsername);
-  const toClaim =
-    parsed.data.rewardIds?.length ?
-      rewards.filter((r) => parsed.data.rewardIds!.includes(r.id) && r.status === "claimable")
-    : rewards.filter((r) => r.status === "claimable");
+  const { authorizations, legacyRewards } = await getClaimableItemsForGithub(githubUsername);
 
-  if (!toClaim.length) {
-    return NextResponse.json({ error: "No claimable rewards", claimed: [] });
+  const authToClaim =
+    parsed.data.authorizationIds?.length ?
+      authorizations.filter(
+        (a) => parsed.data.authorizationIds!.includes(a.id) && a.status === "claimable",
+      )
+    : authorizations;
+
+  const rewardsToClaim =
+    parsed.data.rewardIds?.length ?
+      legacyRewards.filter(
+        (r) => parsed.data.rewardIds!.includes(r.id) && r.status === "claimable",
+      )
+    : legacyRewards;
+
+  if (!authToClaim.length && !rewardsToClaim.length) {
+    return NextResponse.json({ error: "No claimable authorizations", claimed: [] });
   }
 
-  const claimed: {
-    rewardId: string;
-    amountUsd: number;
-    txHash?: string;
-    status: string;
-  }[] = [];
+  const claimed: ClaimedItem[] = [];
 
-  for (const reward of toClaim) {
+  for (const auth of authToClaim) {
+    const intent = {
+      id: `claim:${auth.id}`,
+      wallet: parsed.data.walletAddress,
+      login: githubUsername,
+      weight: auth.weight,
+      amountUsd: auth.amountUsd,
+      rank: 0,
+      status: "processing" as const,
+    };
+
+    const memoText = buildContributorMemo({
+      missionId: auth.missionId,
+      repo: auth.contextLabel ?? undefined,
+      intent,
+      proofHash: auth.proofHash,
+      batchNumber: 0,
+    });
+
+    let txHash: string | undefined;
+    let status = "settled";
+
+    if (isLiveArcEnabled()) {
+      try {
+        const result = await sendUsdcWithMemo({
+          recipient: parsed.data.walletAddress as `0x${string}`,
+          amountUsd: auth.amountUsd,
+          memo: memoText,
+          memoRef: `claim:${auth.id}:${githubUsername}`,
+        });
+        txHash = result.txHash;
+      } catch (e) {
+        console.error("[claim] authorization payout failed:", e);
+        claimed.push({
+          id: auth.id,
+          source: "authorization",
+          amountUsd: auth.amountUsd,
+          status: "failed",
+        });
+        continue;
+      }
+    } else {
+      txHash = `offchain-claim-${auth.id.slice(0, 8)}`;
+    }
+
+    await markAuthorizationSettled(auth.id, {
+      settlementId: auth.settlementId ?? undefined,
+      walletAddress: parsed.data.walletAddress,
+    });
+
+    if (auth.settlementId) {
+      await prisma.paymentEvent
+        .create({
+          data: {
+            settlementId: auth.settlementId,
+            type: "AuthorizationClaimed",
+            payloadJson: JSON.stringify({
+              authorizationId: auth.id,
+              connectorId: auth.connectorId,
+              githubUsername,
+              amountUsd: auth.amountUsd,
+              txHash,
+              memo: memoText,
+            }),
+          },
+        })
+        .catch(() => {
+          /* non-fatal */
+        });
+    }
+
+    claimed.push({
+      id: auth.id,
+      source: "authorization",
+      amountUsd: auth.amountUsd,
+      txHash,
+      status,
+    });
+  }
+
+  for (const reward of rewardsToClaim) {
     const intent = {
       id: `claim:${reward.id}`,
       wallet: parsed.data.walletAddress,
@@ -94,9 +189,13 @@ export async function POST(req: Request) {
         });
         txHash = result.txHash;
       } catch (e) {
-        console.error("[claim] payout failed:", e);
-        status = "failed";
-        claimed.push({ rewardId: reward.id, amountUsd: reward.amountUsd, status: "failed" });
+        console.error("[claim] legacy reward payout failed:", e);
+        claimed.push({
+          id: reward.id,
+          source: "legacy_reward",
+          amountUsd: reward.amountUsd,
+          status: "failed",
+        });
         continue;
       }
     } else {
@@ -109,25 +208,28 @@ export async function POST(req: Request) {
     });
 
     if (reward.settlementId) {
-      await prisma.paymentEvent.create({
-        data: {
-          settlementId: reward.settlementId,
-          type: "RewardClaimed",
-          payloadJson: JSON.stringify({
-            rewardId: reward.id,
-            githubUsername,
-            amountUsd: reward.amountUsd,
-            txHash,
-            memo: memoText,
-          }),
-        },
-      }).catch(() => {
-        /* non-fatal */
-      });
+      await prisma.paymentEvent
+        .create({
+          data: {
+            settlementId: reward.settlementId,
+            type: "RewardClaimed",
+            payloadJson: JSON.stringify({
+              rewardId: reward.id,
+              githubUsername,
+              amountUsd: reward.amountUsd,
+              txHash,
+              memo: memoText,
+            }),
+          },
+        })
+        .catch(() => {
+          /* non-fatal */
+        });
     }
 
     claimed.push({
-      rewardId: reward.id,
+      id: reward.id,
+      source: "legacy_reward",
       amountUsd: reward.amountUsd,
       txHash,
       status,

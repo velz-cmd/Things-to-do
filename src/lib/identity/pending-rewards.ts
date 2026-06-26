@@ -85,6 +85,9 @@ export async function getContributorRewardSummary(login: string) {
   const claimable = rewards
     .filter((r) => r.status === "claimable")
     .reduce((s, r) => s + r.amountUsd, 0);
+  const authorized = rewards
+    .filter((r) => r.status === "authorized" || r.status === "pending_funding")
+    .reduce((s, r) => s + r.amountUsd, 0);
   const pending = rewards
     .filter((r) => r.status === "claimed")
     .reduce((s, r) => s + r.amountUsd, 0);
@@ -92,6 +95,7 @@ export async function getContributorRewardSummary(login: string) {
 
   return {
     claimableUsd: Math.round(claimable * 100) / 100,
+    authorizedUsd: Math.round(authorized * 100) / 100,
     pendingUsd: Math.round(pending * 100) / 100,
     settledUsd: Math.round(settledUsd * 100) / 100,
     verifiedUsd: Math.round((claimable + pending) * 100) / 100,

@@ -24,6 +24,8 @@ const batchSchema = z.object({
       userId: z.string().min(1),
       mediaFileId: z.string().min(1),
       submissionTime: z.string().min(1),
+      trackTitle: z.string().optional(),
+      recordingMbid: z.string().optional(),
       artistName: z.string().optional(),
       durationSec: z.number().min(0).optional(),
     }),

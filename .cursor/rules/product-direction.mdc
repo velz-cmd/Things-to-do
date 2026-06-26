@@ -1,0 +1,15 @@
+---
+description: Final product direction — frozen. No more product philosophy docs.
+alwaysApply: true
+---
+
+product-direction:
+
+- Canonical doc: docs/PRODUCT-DIRECTION.md (frozen). Do not create new philosophy/vision/blueprint docs unless architecture fundamentally changes.
+- One platform, infinite communities — one UI that adapts; never fork per ecosystem.
+- Two patterns, one engine: Pattern A (consumption) + Pattern B (upstream) → same SettlementInputEvent pipeline.
+- Acquisition: notification → claim → onboarding. Not paste-repo-first.
+- Reduce founder control; passive authorization; operators fund, don't gatekeep value.
+- Real APIs only. Testnet OK; fake data forbidden.
+- Current milestone: (1) GitHub production-ready (2) Navidrome automatic E2E (3) connector extensibility.
+- Doctrine: FOUNDING-PRINCIPLES.md. Engineering: ENGINEERING-SPEC.md.

@@ -1,9 +1,6 @@
 # RESOLVE Product Blueprint v1.0
 
-**Status:** Product north star — supersedes screen-level UX decisions until v1 ships.  
-**Does not replace:** [FOUNDING-PRINCIPLES.md](./FOUNDING-PRINCIPLES.md) (why) · [ENGINEERING-SPEC.md](./ENGINEERING-SPEC.md) (how)  
-**Full vision:** [PRODUCT-VISION.md](./PRODUCT-VISION.md) — value graphs, policies, mission (frozen).  
-**Supersedes for product:** interim four-tab layout (Workspace / Payments / Connectors / Profile) — that was an engineering cleanup, not the final model.
+> **Superseded by [PRODUCT-DIRECTION.md](./PRODUCT-DIRECTION.md) (frozen).** Kept for journey/surface detail. Do not extend.
 
 ---
 

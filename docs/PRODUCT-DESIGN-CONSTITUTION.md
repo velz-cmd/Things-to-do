@@ -1,8 +1,6 @@
 # RESOLVE Product Design Constitution
 
-This document is above UI, components, pages, and implementation.
-
-**North star:** [PRODUCT-VISION.md](./PRODUCT-VISION.md) + [PRODUCT-BLUEPRINT.md](./PRODUCT-BLUEPRINT.md) — connect-first network, value graphs, payment policies, Activity · Earnings · Connections · Account.
+> **Superseded by [PRODUCT-DIRECTION.md](./PRODUCT-DIRECTION.md) (frozen).** UX rules below remain valid where not in conflict.
 
 ## Interim surfaces (being replaced)
 

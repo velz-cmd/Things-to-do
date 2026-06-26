@@ -17,9 +17,11 @@ const STEPS = [
 
 export function AnalysisProgress({
   active,
+  apiComplete,
   onComplete,
 }: {
   active: boolean;
+  apiComplete?: boolean;
   onComplete?: () => void;
 }) {
   const [stepIndex, setStepIndex] = useState(0);
@@ -37,16 +39,20 @@ export function AnalysisProgress({
       timers.push(
         setTimeout(() => {
           setStepIndex(i);
-          if (i === STEPS.length - 1) {
-            setDone(true);
-            onComplete?.();
-          }
-        }, i * 520),
+        }, i * 480),
       );
     });
 
     return () => timers.forEach(clearTimeout);
-  }, [active, onComplete]);
+  }, [active]);
+
+  useEffect(() => {
+    if (apiComplete && active) {
+      setStepIndex(STEPS.length - 1);
+      setDone(true);
+      onComplete?.();
+    }
+  }, [apiComplete, active, onComplete]);
 
   if (!active) return null;
 

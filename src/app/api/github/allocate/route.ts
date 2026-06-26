@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runGithubPipeline } from "@/lib/github/allocate";
+import { recordAuthorizationsFromAllocation } from "@/lib/authorization/ledger";
 
 const intentSchema = z.object({
   infrastructure: z.number().min(0).max(100).optional(),
@@ -31,8 +32,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: result.error }, { status: 404 });
   }
 
+  const auth = await recordAuthorizationsFromAllocation(result.allocation);
+
   return NextResponse.json({
     ...result.allocation,
+    missionId: auth.missionId,
+    authorization: {
+      count: auth.authorizations.length,
+      totalUsd: auth.authorizations.reduce((s, a) => s + a.amountUsd, 0),
+      status: "authorized",
+      message: "Settlement pending funding.",
+    },
     pipeline: {
       evidenceCount: result.busEvidenceCount,
       proof: result.proof,

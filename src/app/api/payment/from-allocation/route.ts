@@ -16,6 +16,7 @@ export const maxDuration = 120;
 
 const bodySchema = z.object({
   allocation: z.unknown(),
+  missionId: z.string().optional(),
   agentsRun: z.array(z.string()).optional(),
   confidence: z.number().min(0).max(1).optional(),
   dryRun: z.boolean().optional(),
@@ -79,6 +80,7 @@ export async function POST(req: Request) {
   const plan = await buildAllocationSettlementPlan(allocation, {
     confidence,
     agentsRun: parsed.data.agentsRun,
+    missionId: parsed.data.missionId,
   });
 
   if (parsed.data.dryRun || !parsed.data.execute) {

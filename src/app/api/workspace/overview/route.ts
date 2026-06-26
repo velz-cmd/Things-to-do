@@ -12,6 +12,12 @@ import {
   type ValueDomain,
 } from "@/lib/workspace/domains";
 import { eventTypeLabel, explainRecognition } from "@/lib/workspace/events";
+import { buildEvidenceActions } from "@/lib/workspace/advisors/evidence-actions";
+import { getCapitalFlowSnapshot } from "@/lib/capital-flow/engine";
+import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { runIntegrationHealthCheck } from "@/lib/integrations/health";
+import { RESOLVE_MISSION } from "@/lib/resolve/pillars";
+import type { WorkspaceEvidence } from "@/lib/workspace/context";
 
 function startOfToday() {
   const d = new Date();
@@ -24,89 +30,15 @@ type RecommendedAction = {
   label: string;
   href: string;
   priority: "high" | "medium" | "low";
+  detail?: string;
+  evidence?: string;
 };
-
-function buildRecommendedActions(input: {
-  ledger: Awaited<ReturnType<typeof getGlobalAuthorizationSummary>> | null;
-  treasury: Awaited<ReturnType<typeof getTreasurySnapshot>> | null;
-  githubLive: boolean;
-  musicLive: boolean;
-  timelineCount: number;
-}): RecommendedAction[] {
-  const actions: RecommendedAction[] = [];
-
-  if ((input.ledger?.claimableUsd ?? 0) > 0) {
-    actions.push({
-      id: "claim",
-      label: "Claim your earnings",
-      href: "/claim",
-      priority: "high",
-    });
-  }
-
-  if (
-    input.treasury &&
-    input.treasury.obligationsUsd > input.treasury.balanceUsd &&
-    input.treasury.balanceUsd > 0
-  ) {
-    actions.push({
-      id: "fund",
-      label: "Fund settlement treasury",
-      href: "/payments",
-      priority: "high",
-    });
-  } else if (input.treasury && input.treasury.balanceUsd < 0.01 && (input.ledger?.count ?? 0) > 0) {
-    actions.push({
-      id: "fund",
-      label: "Fund treasury for global settlement",
-      href: "/payments",
-      priority: "high",
-    });
-  }
-
-  if (!input.githubLive) {
-    actions.push({
-      id: "connect-code",
-      label: "Connect code ecosystems",
-      href: "/profile",
-      priority: "medium",
-    });
-  }
-
-  if (!input.musicLive) {
-    actions.push({
-      id: "connect-music",
-      label: "Enable music attribution",
-      href: "/profile",
-      priority: "medium",
-    });
-  }
-
-  if (input.timelineCount === 0) {
-    actions.push({
-      id: "discover",
-      label: "Discover value in a project",
-      href: "/workspace#discover",
-      priority: "low",
-    });
-  }
-
-  if ((input.ledger?.pendingFundingUsd ?? 0) > 0) {
-    actions.push({
-      id: "settle",
-      label: "Review pending settlement",
-      href: "/payments",
-      priority: "medium",
-    });
-  }
-
-  return actions.slice(0, 5);
-}
 
 /** Universal Workspace OS — open ecosystems, one timeline, real APIs only */
 export async function GET() {
   const sinceToday = startOfToday();
-  const [ledger, treasury, connectors, todayRows, recentRows] = await Promise.all([
+  const [ledger, treasury, connectors, todayRows, recentRows, opportunities, integrations] =
+    await Promise.all([
     getGlobalAuthorizationSummary().catch(() => null),
     getTreasurySnapshot().catch(() => null),
     getConnectorLiveStatuses().catch(() => []),
@@ -138,7 +70,37 @@ export async function GET() {
         },
       })
       .catch(() => []),
+    process.env.CI === "true"
+      ? Promise.resolve([])
+      : scanAllOpportunities().catch(() => []),
+    runIntegrationHealthCheck().catch(() => null),
   ]);
+
+  const capitalFlow = await getCapitalFlowSnapshot(ledger?.count ?? 0);
+
+  const treasurySnapshot =
+    treasury ??
+    ({
+      balanceUsd: 0,
+      obligationsUsd: 0,
+      availableUsd: 0,
+      authorizedUsd: 0,
+      pendingFundingUsd: 0,
+      claimableUsd: 0,
+      fundingWallet: null,
+      liveArc: false,
+      canSettleGlobally: false,
+      blockers: ["Treasury unavailable"],
+      message: "Treasury snapshot unavailable",
+      arc: {
+        liveArc: false,
+        blockers: ["Treasury unavailable"],
+        clientWallet: null,
+        balanceUsd: 0,
+        canDistributeOnChain: false,
+        message: "Unavailable",
+      },
+    } satisfies Awaited<ReturnType<typeof getTreasurySnapshot>>);
 
   const connectorById = new Map(connectors.map((c) => [c.id, c]));
   const githubLive = connectorById.get("github")?.health === "healthy";
@@ -238,19 +200,42 @@ export async function GET() {
     };
   });
 
-  const recommendedActions = buildRecommendedActions({
+  const evidenceActions = buildEvidenceActions({
+    gatheredAt: new Date().toISOString(),
+    treasury: treasurySnapshot,
     ledger,
-    treasury,
-    githubLive: Boolean(githubLive),
-    musicLive,
-    timelineCount: timeline.length,
+    capitalFlow,
+    connectors,
+    integrations: (integrations ?? {
+      checkedAt: new Date().toISOString(),
+      configured: {},
+      live: {},
+      models: {},
+    }) as WorkspaceEvidence["integrations"],
+    opportunities: opportunities.slice(0, 8),
   });
+
+  const recommendedActions: RecommendedAction[] = evidenceActions.map((a) => ({
+    id: a.id,
+    label: a.label,
+    href: a.href,
+    priority: a.priority,
+    detail: a.detail,
+    evidence: a.evidence,
+  }));
 
   return NextResponse.json({
     ok: true,
     tagline: "The operating system for open ecosystems.",
+    mission: RESOLVE_MISSION,
     subtitle:
       "Everything you create across the open internet — code, music, research, video — flows here as value.",
+    capitalFlow: {
+      participantCount: capitalFlow.participantCount,
+      estimatedBatchFeeUsd: capitalFlow.estimatedBatchFeeUsd,
+      canRouteGlobally: capitalFlow.canRouteGlobally,
+      message: capitalFlow.scaleMessage,
+    },
     sources,
     timeline,
     ledger,

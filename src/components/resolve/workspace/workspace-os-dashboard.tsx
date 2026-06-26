@@ -46,6 +46,8 @@ type Overview = {
     label: string;
     href: string;
     priority: string;
+    detail?: string;
+    evidence?: string;
   }[];
   aiInsight: string | null;
 };
@@ -268,8 +270,15 @@ export function WorkspaceOsDashboard() {
                   href={a.href}
                   className="flex items-center justify-between rounded-lg border border-resolve-border/60 px-4 py-3 text-sm text-white hover:border-resolve-accent/40 hover:bg-resolve-hover/20"
                 >
-                  {a.label}
-                  <ChevronRight className="h-4 w-4 text-resolve-muted" />
+                  <span>
+                    <span className="block">{a.label}</span>
+                    {"detail" in a && a.detail && (
+                      <span className="mt-0.5 block text-xs font-normal text-resolve-muted">
+                        {a.detail}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-resolve-muted" />
                 </Link>
               </li>
             ))}

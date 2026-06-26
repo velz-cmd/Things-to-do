@@ -15,6 +15,9 @@ export const INTEGRATIONS = {
   librariesIo: () => isConfigured("LIBRARIES_IO_API_KEY"),
   openAlex: () => isConfigured("OPENALEX_API_KEY"),
   blockscout: () => isConfigured("BLOCKSCOUT_API_KEY"),
+  npmRegistry: () => isConfigured("NPM_REGISTRY_TOKEN"),
+  dockerHub: () =>
+    isConfigured("DOCKER_HUB_USERNAME") && isConfigured("DOCKER_HUB_TOKEN"),
   alchemy: () => isConfigured("ALCHEMY_API_KEY"),
   etherscan: () => isConfigured("ETHERSCAN_API_KEY"),
 } as const;

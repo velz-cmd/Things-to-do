@@ -1,6 +1,8 @@
 import { pingBlockscout } from "@/lib/integrations/blockscout";
 import { pingLibrariesIo } from "@/lib/integrations/libraries-io";
 import { pingOpenAlex } from "@/lib/integrations/openalex";
+import { pingNpmRegistry } from "@/lib/integrations/npm-registry";
+import { pingDockerHub } from "@/lib/integrations/docker-hub";
 import { INTEGRATIONS } from "@/lib/integrations/config";
 import { hasGithubToken } from "@/lib/github/client";
 import { listConfiguredProviders } from "@/lib/ai/gateway/resolve";
@@ -9,11 +11,13 @@ import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
 export async function runIntegrationHealthCheck() {
   const ai = listConfiguredProviders();
 
-  const [github, libraries, openAlex, blockscout] = await Promise.all([
+  const [github, libraries, openAlex, blockscout, npm, docker] = await Promise.all([
     pingGithub(),
     pingLibrariesIo(),
     pingOpenAlex(),
     pingBlockscout(),
+    pingNpmRegistry(),
+    pingDockerHub(),
   ]);
 
   const openRouter = ai.openrouter
@@ -29,6 +33,8 @@ export async function runIntegrationHealthCheck() {
       librariesIo: INTEGRATIONS.librariesIo(),
       openAlex: INTEGRATIONS.openAlex(),
       blockscout: INTEGRATIONS.blockscout(),
+      npmRegistry: INTEGRATIONS.npmRegistry(),
+      dockerHub: INTEGRATIONS.dockerHub(),
       alchemy: isAlchemyConfigured(),
       etherscan: INTEGRATIONS.etherscan(),
     },
@@ -38,6 +44,8 @@ export async function runIntegrationHealthCheck() {
       librariesIo: libraries,
       openAlex,
       blockscout,
+      npmRegistry: npm,
+      dockerHub: docker,
       alchemy: isAlchemyConfigured()
         ? { ok: true, message: "Alchemy Arc RPC configured" }
         : { ok: false, message: "ALCHEMY_API_KEY not set" },

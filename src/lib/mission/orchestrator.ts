@@ -14,6 +14,14 @@ import { buildIntelligenceBrief } from "./intelligence-brief";
 import { buildMissionReport } from "./mission-report";
 import { getCapabilityDef } from "./capabilities/registry";
 import { followUpQuickActions } from "./community/quick-actions";
+import {
+  buildCapitalBlueprint,
+  contextualMissionActions,
+  designCapitalSetupPills,
+  detectCapitalLoopPhase,
+  detectMissionJob,
+  detectOperatingMode,
+} from "./capital-os";
 import type { CapabilityId, OrchestratorContext, OrchestratorResult } from "./capabilities/types";
 
 function capabilityToIntent(capability: CapabilityId) {
@@ -95,6 +103,7 @@ async function maybeEnhanceWithReasoning(
 export async function runMissionOrchestrator(input: {
   question: string;
   messages?: AdvisorMessage[];
+  operatingMode?: import("@/lib/mission/capital-os").OperatingMode;
   ecosystem?: {
     name: string;
     keywords?: string[];
@@ -130,6 +139,10 @@ export async function runMissionOrchestrator(input: {
   const capitalUsd = parseCapitalUsd(input.question);
 
   const communityName = collected.communityScope ?? input.ecosystem?.name;
+  const operatingMode =
+    input.operatingMode ?? detectOperatingMode(input.question, collected.community.kind);
+  const job = detectMissionJob(input.question, capability, phase, capitalUsd);
+  const loopPhase = detectCapitalLoopPhase(job, phase, input.question);
 
   const ctx: OrchestratorContext = {
     question: input.question,
@@ -152,12 +165,39 @@ export async function runMissionOrchestrator(input: {
     ecosystemName: communityName,
     researchReferences: collected.researchReferences,
     stepsRun: collected.stepsRun,
+    job,
+    operatingMode,
+    loopPhase,
   };
+
+  const capitalBlueprint =
+    job === "design_capital" || /\b(blueprint|policy|distribution plan)\b/i.test(input.question) ?
+      buildCapitalBlueprint({ ...ctx, capitalUsd: capitalUsd ?? 100_000 })
+    : capitalUsd ? buildCapitalBlueprint({ ...ctx, capitalUsd }) : undefined;
+
+  if (capitalBlueprint) {
+    ctx.capitalBlueprint = capitalBlueprint;
+  }
 
   const groundedAnswer = buildGroundedAnswer(ctx);
   const brief = buildIntelligenceBrief(ctx);
   const answer = await maybeEnhanceWithReasoning(ctx, brief.summary || groundedAnswer, input.messages);
   const capabilityActions = def.actions(ctx);
+  const contextualActions = contextualMissionActions({
+    job,
+    mode: operatingMode,
+    capability,
+    communityKind: collected.community.kind,
+    communityName,
+    capitalUsd,
+    hasBlueprint: Boolean(capitalBlueprint),
+    hasOpportunities: collected.opportunities.length > 0,
+    loopPhase,
+  });
+  const setupPills =
+    job === "understand" && collected.opportunities.length > 0 ?
+      designCapitalSetupPills(communityName)
+    : [];
   const quickActions = followUpQuickActions({
     capability,
     communityKind: collected.community.kind,
@@ -166,12 +206,12 @@ export async function runMissionOrchestrator(input: {
     hasOpportunities: collected.opportunities.length > 0,
     claimableUsd: collected.evidence.ledger?.claimableUsd,
   });
-  const actions = [...capabilityActions, ...quickActions.map((q) => ({
+  const actions = [...capabilityActions, ...contextualActions, ...setupPills, ...quickActions.map((q) => ({
     id: q.id,
     label: q.label,
     prompt: q.prompt,
     kind: "explore" as const,
-  }))].filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i).slice(0, 6);
+  }))].filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i).slice(0, 8);
   const durationMs = Math.round(performance.now() - started);
   const report = buildMissionReport({
     ctx,

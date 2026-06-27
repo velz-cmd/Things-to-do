@@ -2,52 +2,9 @@
 
 import type { MissionReport } from "@/lib/mission/mission-report";
 import type { CommunityKind } from "@/lib/mission/community/types";
+import { confidencePercent } from "@/lib/mission/normalize-confidence";
 
-type SnapshotMetric = { label: string; value: string };
-
-function metricsForWorld(
-  topic: string,
-  kind: CommunityKind,
-  report?: MissionReport,
-): SnapshotMetric[] {
-  const fundingGap = report?.funding?.neededUsd;
-  const confidence = report ? `${Math.round(report.confidence * 100)}%` : "—";
-  const critical = report?.criticalCount ?? 0;
-  const signals = report?.signalsFound ?? 0;
-  const sources = report?.sourcesScanned?.slice(0, 4).join(" · ") || "—";
-
-  if (kind === "music") {
-    return [
-      { label: "Community", value: topic },
-      { label: "Attribution gaps", value: signals > 0 ? String(signals) : "Scanning" },
-      { label: "Funding gap", value: fundingGap ? `$${(fundingGap / 1_000_000).toFixed(1)}M` : "—" },
-      { label: "Confidence", value: confidence },
-      { label: "Evidence", value: sources },
-    ];
-  }
-
-  if (kind === "research") {
-    return [
-      { label: "Community", value: topic },
-      { label: "Grant gaps", value: signals > 0 ? String(signals) : "—" },
-      { label: "Funding gap", value: fundingGap ? `$${Math.round(fundingGap / 1000)}k` : "—" },
-      { label: "Critical risks", value: String(critical) },
-      { label: "Evidence", value: sources },
-    ];
-  }
-
-  return [
-    { label: "Community health", value: confidence === "—" ? "Analyzing" : confidence },
-    {
-      label: "Funding gap",
-      value: fundingGap ? `$${(fundingGap / 1_000_000).toFixed(1)}M` : report?.funding?.neededUsd === 0 ? "Low" : "—",
-    },
-    { label: "Critical risks", value: String(critical) },
-    { label: "Signals", value: String(signals) },
-    { label: "Evidence", value: sources },
-  ];
-}
-
+/** Compact topic strip — only after analysis returns. */
 export function MissionWorldSnapshot({
   topic,
   kind,
@@ -57,19 +14,35 @@ export function MissionWorldSnapshot({
   kind: CommunityKind;
   report?: MissionReport;
 }) {
-  const metrics = metricsForWorld(topic, kind, report);
+  if (!report) {
+    return (
+      <div className="border-b border-white/[0.06] px-4 py-2.5 lg:px-6">
+        <h2 className="text-sm font-medium text-white">{topic}</h2>
+      </div>
+    );
+  }
+
+  const pct = confidencePercent(report.confidence);
+  const gap =
+    report.funding?.neededUsd ?
+      `$${Math.round(report.funding.neededUsd / 1000)}k`
+    : "—";
 
   return (
-    <div className="border-b border-white/[0.06] bg-[#070b12]/80 px-4 py-4 lg:px-6">
-      <h2 className="text-lg font-semibold text-white">{topic}</h2>
-      <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {metrics.map((m) => (
-          <div key={m.label}>
-            <dt className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">{m.label}</dt>
-            <dd className="mt-0.5 text-sm font-medium tabular-nums text-white">{m.value}</dd>
-          </div>
-        ))}
-      </dl>
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-white/[0.06] px-4 py-2.5 text-xs lg:px-6">
+      <h2 className="text-sm font-semibold text-white">{topic}</h2>
+      <span className="text-resolve-muted">
+        Signals <span className="tabular-nums text-white">{report.signalsFound}</span>
+      </span>
+      <span className="text-resolve-muted">
+        Risks <span className="tabular-nums text-white">{report.criticalCount}</span>
+      </span>
+      <span className="text-resolve-muted">
+        Gap <span className="tabular-nums text-white">{gap}</span>
+      </span>
+      <span className="text-resolve-muted">
+        Confidence <span className="tabular-nums text-white">{pct}%</span>
+      </span>
     </div>
   );
 }

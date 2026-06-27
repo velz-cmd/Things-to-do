@@ -11,7 +11,10 @@ test.describe("RESOLVE product surfaces", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Where does value already exist?" })).toBeVisible();
 
     await page.goto("/mission", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "New mission" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Mission" })).toBeVisible();
+    await expect(
+      page.getByPlaceholder("Describe your funding objective…"),
+    ).toBeVisible();
 
     await page.goto("/capital", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Where should money move?" })).toBeVisible();

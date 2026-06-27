@@ -26,14 +26,19 @@ type WelcomeData = {
 
 export function ProtocolChat({
   onPoliciesChange,
+  initialConcentrations,
 }: {
   onPoliciesChange?: (policies: PolicyProposal[]) => void;
+  initialConcentrations?: ValueConcentration[];
 }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [welcome, setWelcome] = useState<WelcomeData | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [started, setStarted] = useState(false);
+  const [concentrations, setConcentrations] = useState<ValueConcentration[]>(
+    initialConcentrations ?? [],
+  );
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,11 +46,12 @@ export function ProtocolChat({
       .then((r) => r.json())
       .then((d) => {
         setWelcome({
-          greeting: d.greeting ?? "What would you like to do?",
+          greeting: d.greeting ?? "Open ecosystems are active.",
           subtitle: d.subtitle ?? "",
           naturalLanguageActions: d.naturalLanguageActions ?? [],
           discoverPrompts: d.discoverPrompts ?? [],
         });
+        if (d.concentrations) setConcentrations(d.concentrations);
         if (d.policies) onPoliciesChange?.(d.policies);
       });
   }, [onPoliciesChange]);
@@ -104,7 +110,7 @@ export function ProtocolChat({
             <MessageCircle className="h-4 w-4 text-white" />
           </div>
           <div>
-            <span className="text-sm font-semibold text-white">Chat</span>
+            <span className="text-sm font-semibold text-white">Command</span>
             <span className="ml-2 rounded-full bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
               Protocol
             </span>
@@ -119,6 +125,19 @@ export function ProtocolChat({
               <p className="text-base font-medium text-white">{welcome.greeting}</p>
               <p className="mt-1.5 text-xs leading-relaxed text-resolve-muted">{welcome.subtitle}</p>
             </Panel>
+            {concentrations.length > 0 && (
+              <ul className="space-y-2">
+                {concentrations.slice(0, 4).map((c) => (
+                  <li
+                    key={c.id}
+                    className="rounded-lg border border-resolve-border/60 bg-resolve-raised/30 px-3 py-2 text-xs"
+                  >
+                    <span className="font-medium text-white">{c.title}</span>
+                    <span className="mt-0.5 block text-resolve-muted">{c.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {welcome.discoverPrompts.map((p) => (
                 <button
@@ -140,8 +159,8 @@ export function ProtocolChat({
             className={clsx(
               "rounded-resolve-lg px-4 py-3 text-sm leading-relaxed",
               m.role === "user"
-                ? "ml-8 border border-white/[0.08] bg-white/[0.06] text-white backdrop-blur-sm"
-                : "mr-4 border border-cyan-400/15 bg-gradient-to-br from-cyan-500/[0.08] to-indigo-500/[0.05] text-white/95",
+                ? "ml-8 border border-resolve-border bg-resolve-accent/10 text-white"
+                : "mr-4 border border-resolve-accent/20 bg-gradient-to-br from-resolve-accent/10 to-transparent text-white/95",
             )}
           >
             {m.role === "protocol" && (
@@ -204,7 +223,7 @@ export function ProtocolChat({
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about value, funding, or creators…"
+            placeholder="Where is value leaking? Who should we fund?"
             className="flex-1"
           />
           <Button type="submit" disabled={loading || !input.trim()} size="md" aria-label="Send">

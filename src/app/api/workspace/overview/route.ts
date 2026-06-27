@@ -16,6 +16,7 @@ import { buildEvidenceActions } from "@/lib/workspace/advisors/evidence-actions"
 import { getCapitalFlowSnapshot } from "@/lib/capital-flow/engine";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
+import { buildDomainIntelligence } from "@/lib/workspace/domain-intelligence";
 import { RESOLVE_MISSION } from "@/lib/resolve/pillars";
 import type { WorkspaceEvidence } from "@/lib/workspace/context";
 
@@ -136,6 +137,11 @@ export async function GET() {
     { count: number; amountUsd: number; connectorId: string; contextLabel?: string }
   >();
 
+  const todayByDomain = new Map<
+    ValueDomain,
+    { count: number; amountUsd: number; payees: Set<string> }
+  >();
+
   for (const row of todayRows) {
     const domain = domainForConnector(row.connectorId);
     const existing = domainGroups.get(domain);
@@ -150,7 +156,48 @@ export async function GET() {
         contextLabel: row.contextLabel ?? undefined,
       });
     }
+
+    const todayDomain = todayByDomain.get(domain);
+    if (todayDomain) {
+      todayDomain.count += 1;
+      todayDomain.amountUsd += row.amountUsd;
+    } else {
+      todayByDomain.set(domain, { count: 1, amountUsd: row.amountUsd, payees: new Set() });
+    }
   }
+
+  const authByDomain = new Map<
+    ValueDomain,
+    { count: number; amountUsd: number; awaitingUsd: number }
+  >();
+
+  for (const row of recentRows) {
+    const domain = domainForConnector(row.connectorId);
+    const existing = authByDomain.get(domain);
+    const awaiting =
+      row.status === "claimable" || row.status === "pending_funding" ? row.amountUsd : 0;
+    if (existing) {
+      existing.count += 1;
+      existing.amountUsd += row.amountUsd;
+      existing.awaitingUsd += awaiting;
+    } else {
+      authByDomain.set(domain, {
+        count: 1,
+        amountUsd: row.amountUsd,
+        awaitingUsd: awaiting,
+      });
+    }
+  }
+
+  const domainIntelligence = buildDomainIntelligence({
+    connectors,
+    ledger,
+    todayByDomain,
+    authByDomain,
+  });
+
+  const connectedEcosystems = sources.filter((s) => s.status === "connected" || s.status === "syncing").length;
+  const liveDomains = domainIntelligence.filter((d) => d.status === "live").length;
 
   const timeline = [...domainGroups.entries()]
     .map(([domain, g]) => ({
@@ -226,10 +273,16 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    tagline: "The operating system for open ecosystems.",
+    tagline: "Global value network",
     mission: RESOLVE_MISSION,
     subtitle:
-      "Everything you create across the open internet — code, music, research, video — flows here as value.",
+      "Open ecosystems never sleep. Value is discovered continuously — capital allocation follows.",
+    network: {
+      ecosystemsConnected: connectedEcosystems,
+      liveDomains,
+      isLive: connectedEcosystems > 0 || (ledger?.count ?? 0) > 0,
+    },
+    domainIntelligence,
     capitalFlow: {
       participantCount: capitalFlow.participantCount,
       estimatedBatchFeeUsd: capitalFlow.estimatedBatchFeeUsd,

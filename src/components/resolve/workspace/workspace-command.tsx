@@ -5,15 +5,14 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { LayoutGrid } from "lucide-react";
 import { ProductPage } from "@/components/resolve/layout/product-page";
-import { WorkflowStrip } from "@/components/resolve/layout/workflow-strip";
 import { WorkspaceProtocol } from "@/components/resolve/workspace/workspace-protocol";
 
 const MODES = [
   { href: "/workspace", label: "Command", exact: true },
-  { href: "/workspace/fund", label: "Fund", exact: false },
+  { href: "/workspace/fund", label: "Allocate", exact: false },
 ] as const;
 
-/** AI-native mission control — chat, intelligence, manual policies. */
+/** Open Capital Workspace — observe, reason, allocate, settle. */
 export function WorkspaceCommand() {
   const pathname = usePathname();
 
@@ -21,11 +20,12 @@ export function WorkspaceCommand() {
     <ProductPage
       icon={LayoutGrid}
       title="Workspace"
-      description="Ask where value is. Propose policies. Approve everything. This is your protocol command center — not a dashboard."
+      description="Capital flow infrastructure for open ecosystems. Value is discovered where people already work — you reason, approve, and settle."
       workflows={[
-        { label: "AI reasoning", active: pathname === "/workspace" },
-        { label: "Manual control" },
-        { label: "Value concentrations" },
+        { label: "Value network", active: pathname === "/workspace" },
+        { label: "Command", active: pathname === "/workspace" },
+        { label: "Capital", href: "/payments" },
+        { label: "Activity", href: "/activity" },
       ]}
       actions={
         <nav className="flex rounded-2xl resolve-glass-subtle p-1 ring-1 ring-resolve-border">
@@ -37,9 +37,9 @@ export function WorkspaceCommand() {
                 href={m.href}
                 className={clsx(
                   "rounded-xl px-4 py-2 text-xs font-semibold transition-all duration-300",
-                  active ?
-                    "resolve-accent-gradient text-white shadow-resolve-glow"
-                  : "text-resolve-muted hover:bg-white/[0.06] hover:text-white",
+                  active
+                    ? "resolve-accent-gradient text-white shadow-resolve-glow"
+                    : "text-resolve-muted hover:bg-resolve-accent/10 hover:text-white",
                 )}
               >
                 {m.label}
@@ -51,10 +51,7 @@ export function WorkspaceCommand() {
       width="wide"
       accent="blue"
     >
-      <div className="space-y-8">
-        <WorkspaceProtocol />
-        <WorkflowStrip />
-      </div>
+      <WorkspaceProtocol />
     </ProductPage>
   );
 }

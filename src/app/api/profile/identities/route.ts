@@ -4,10 +4,11 @@ import { ensureProfileForUser } from "@/lib/auth/session";
 import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getConnectorStatuses } from "@/lib/connectors/connector-service";
-import { isListenBrainzConfigured } from "@/lib/integrations/listenbrainz";
-import { isNavidromeConfigured } from "@/lib/integrations/navidrome";
-import { env } from "@/lib/integrations/config";
-import { prisma } from "@/lib/db";
+import { listEcosystems, ensureSeedEcosystems } from "@/lib/mission/server/ecosystems";
+import {
+  userListenBrainzConfigured,
+  userNavidromeConfigured,
+} from "@/lib/profile/user-connections";
 import type { IdentityPlatformId } from "@/lib/profile/community-identities";
 
 export type ProfileIdentityState = {
@@ -31,16 +32,18 @@ export async function GET() {
   let githubUsername: string | null = null;
   let walletAddress: string | null = null;
   let gmailConnected = false;
+  let profileRow: Awaited<ReturnType<typeof ensureProfileForUser>> | null = null;
 
   if (authUser) {
     userId = authUser.id;
     email = authUser.email ?? null;
     emailVerified = Boolean(authUser.email_confirmed_at ?? authUser.email);
-    const profile = await ensureProfileForUser(authUser);
+    profileRow = await ensureProfileForUser(authUser);
     const gh = extractGithubIdentity(authUser);
-    githubUsername = gh.login ?? profile.githubUsername ?? null;
-    walletAddress = profile.scanWalletAddress ?? profile.walletAddress ?? null;
-    gmailConnected = profile.gmailConnected;
+    githubUsername = gh.login ?? profileRow.githubUsername ?? null;
+    walletAddress = profileRow.scanWalletAddress ?? profileRow.walletAddress ?? null;
+    gmailConnected = profileRow.gmailConnected;
+    await ensureSeedEcosystems(authUser.id);
   }
 
   const [liveConnectors, connectorStatuses] = await Promise.all([
@@ -53,23 +56,21 @@ export async function GET() {
   const gmailStatus = connectorStatuses.find((c) => c.id === "gmail");
   const arcStatus = connectorStatuses.find((c) => c.id === "arc");
 
-  const listenbrainzUser = env("LISTENBRAINZ_USERNAME");
-  const navidromeUrl = env("NAVIDROME_URL");
+  const listenbrainzConnected =
+    profileRow ? userListenBrainzConfigured(profileRow) : false;
+  const navidromeConnected = profileRow ? userNavidromeConfigured(profileRow) : false;
 
   const ecosystems =
     userId ?
-      await prisma.resolveEcosystem.findMany({
-        where: { userId },
-        orderBy: { updatedAt: "desc" },
-        take: 12,
-        select: {
-          id: true,
-          name: true,
-          kind: true,
-          connectorsJson: true,
-          reposJson: true,
-        },
-      })
+      await listEcosystems(userId).then((rows) =>
+        rows.map((e) => ({
+          id: e.id,
+          name: e.name,
+          kind: e.kind,
+          connectors: e.connectors,
+          repoCount: e.repos.length,
+        })),
+      )
     : [];
 
   const identities: ProfileIdentityState[] = [
@@ -93,25 +94,28 @@ export async function GET() {
     },
     {
       id: "navidrome",
-      connected: isNavidromeConfigured() || (navidromeLive?.installed ?? false),
+      connected: navidromeConnected || (navidromeLive?.installed ?? false),
       displayValue:
-        navidromeUrl ?
-          new URL(navidromeUrl).hostname
+        profileRow?.navidromeUrl ?
+          new URL(profileRow.navidromeUrl).hostname
         : navidromeLive?.installed ?
           "Instance syncing"
         : undefined,
       hint:
-        isNavidromeConfigured() || navidromeLive?.installed ?
+        navidromeConnected || navidromeLive?.installed ?
           undefined
-        : "Point RESOLVE at your Navidrome instance",
+        : "Connect your Navidrome instance",
       health: navidromeLive?.health,
       eventsToday: navidromeLive?.eventsToday,
     },
     {
       id: "listenbrainz",
-      connected: isListenBrainzConfigured(),
-      displayValue: listenbrainzUser ? `@${listenbrainzUser}` : undefined,
-      hint: isListenBrainzConfigured() ? undefined : "Set LISTENBRAINZ_USERNAME on deploy",
+      connected: listenbrainzConnected,
+      displayValue:
+        profileRow?.listenbrainzUsername ?
+          `@${profileRow.listenbrainzUsername}`
+        : undefined,
+      hint: listenbrainzConnected ? undefined : "Connect with your ListenBrainz username and token",
       health: navidromeLive?.health,
     },
     {
@@ -119,17 +123,7 @@ export async function GET() {
       connected: gmailConnected || gmailStatus?.state === "connected",
       displayValue: gmailConnected ? "Inbox connected" : undefined,
       hint: gmailConnected ? undefined : "Optional — for receipt-based claims",
-      authorizeUrl: "/api/connectors/gmail/authorize",
-    },
-    {
-      id: "mastodon",
-      connected: false,
-      hint: "Coming soon — ActivityPub attribution",
-    },
-    {
-      id: "peertube",
-      connected: false,
-      hint: "Coming soon — video creator payouts",
+      authorizeUrl: "/api/connectors/gmail/authorize?returnTo=/profile",
     },
   ];
 
@@ -139,13 +133,7 @@ export async function GET() {
     email,
     emailVerified,
     identities,
-    ecosystems: ecosystems.map((e) => ({
-      id: e.id,
-      name: e.name,
-      kind: e.kind,
-      connectors: JSON.parse(e.connectorsJson || "[]") as string[],
-      repoCount: (JSON.parse(e.reposJson || "[]") as unknown[]).length,
-    })),
+    ecosystems,
     updatedAt: new Date().toISOString(),
   });
 }

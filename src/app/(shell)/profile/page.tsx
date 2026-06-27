@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { User } from "lucide-react";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { ProfileSettings } from "@/components/resolve/profile/profile-settings";
@@ -18,7 +19,9 @@ export default function ProfilePage() {
       width="narrow"
       accent="blue"
     >
-      <ProfileSettings />
+      <Suspense fallback={<p className="text-sm text-resolve-muted">Loading profile…</p>}>
+        <ProfileSettings />
+      </Suspense>
     </ProductPage>
   );
 }

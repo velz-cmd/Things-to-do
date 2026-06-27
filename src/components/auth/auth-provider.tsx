@@ -19,6 +19,7 @@ import {
   markGoogleAuthBroken,
 } from "@/hooks/use-auth-capabilities";
 import { syncLocalMemoryToServer } from "@/lib/auth/memory-sync";
+import { syncLocalEcosystemsToServer } from "@/lib/auth/ecosystem-sync";
 import {
   setRememberedEmail,
   setRememberedProvider,
@@ -78,6 +79,7 @@ interface AuthContextValue {
   balanceLoading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
+  linkGitHub: () => Promise<void>;
   signInWithEmail: (email: string) => Promise<EmailSendResult>;
   sendLoginCode: (email: string) => Promise<EmailSendResult>;
   signOut: () => Promise<void>;
@@ -181,6 +183,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           /* non-fatal */
         });
 
+        void syncLocalEcosystemsToServer().catch(() => {
+          /* non-fatal */
+        });
+
         void fetch("/api/wallet/provision", {
           method: "POST",
           credentials: "include",
@@ -247,7 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       supabase.auth.signInWithOAuth({
         provider: "github",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?next=/profile`,
           scopes: "read:user",
         },
       }),
@@ -255,6 +261,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     if (error) throw error;
   }, [supabase, githubEnabled]);
+
+  const linkGitHub = useCallback(async () => {
+    if (!supabase || !githubEnabled) {
+      throw new Error("GitHub linking is not available");
+    }
+    const { error } = await withTimeout(
+      supabase.auth.linkIdentity({
+        provider: "github",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=/profile%3Fgithub_linked%3D1`,
+          scopes: "read:user",
+        },
+      }),
+      10_000,
+    );
+    if (error) {
+      if (error.message.includes("already linked") || error.message.includes("Manual linking")) {
+        await signInWithGitHub();
+        return;
+      }
+      throw error;
+    }
+  }, [supabase, githubEnabled, signInWithGitHub]);
 
   const signInWithEmail = useCallback(
     async (email: string): Promise<EmailSendResult> => {
@@ -395,6 +424,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceLoading,
       signInWithGoogle,
       signInWithGitHub,
+      linkGitHub,
       signInWithEmail,
       sendLoginCode,
       signOut,
@@ -414,6 +444,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceLoading,
       signInWithGoogle,
       signInWithGitHub,
+      linkGitHub,
       signInWithEmail,
       sendLoginCode,
       signOut,

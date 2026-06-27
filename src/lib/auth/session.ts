@@ -5,7 +5,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { User as DbUser } from "@prisma/client";
 import { ensureUserProfile } from "@/lib/wallet/service";
 import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
-import { syncUserGithubIdentity } from "@/lib/identity/contributors";
+import { syncUserGithubIdentity, extractGithubIdentity } from "@/lib/identity/contributors";
 
 export { getSessionUserId } from "@/lib/wallet/service";
 
@@ -50,7 +50,7 @@ export async function ensureProfileForUser(
 
   profile = await ensureAppWalletForUser(profile);
 
-  if (provider === "github") {
+  if (provider === "github" || extractGithubIdentity(user).login) {
     await syncUserGithubIdentity(user.id, user);
   }
 

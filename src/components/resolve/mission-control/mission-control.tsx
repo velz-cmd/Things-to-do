@@ -8,8 +8,9 @@ import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
-import { buildContextualActions, chipsFromFinding, detectMissionPhase } from "@/lib/mission/phases";
-import { detectMissionIntent, parseCapitalUsd, thinkingStepsFor } from "@/lib/mission/intents";
+import { chipsFromFinding, detectMissionPhase } from "@/lib/mission/phases";
+import type { CapabilityAction } from "@/lib/mission/capabilities/types";
+import { parseCapitalUsd, thinkingStepsFor, detectMissionIntent } from "@/lib/mission/intents";
 import {
   createMissionSession,
   loadMissionSessions,
@@ -136,12 +137,11 @@ export function MissionControl() {
       if (!trimmed) return;
 
       const activeSession = sessionOverride ?? session;
-      const intent = detectMissionIntent(trimmed);
-      setActiveThinkingSteps(thinkingStepsFor(intent));
       setInput("");
       setLoading(true);
       setThinkingComplete(false);
       enterMission(trimmed);
+      setActiveThinkingSteps(thinkingStepsFor(detectMissionIntent(trimmed)));
 
       const userTurn: MissionTurn = {
         id: `u-${Date.now()}`,
@@ -176,6 +176,10 @@ export function MissionControl() {
 
         setThinkingComplete(true);
 
+        if (data.stepsRun?.length) {
+          setActiveThinkingSteps(data.stepsRun);
+        }
+
         const phase: MissionPhase = data.phase ?? detectMissionPhase(trimmed, history);
         setLastPhase(phase);
 
@@ -183,22 +187,19 @@ export function MissionControl() {
         const estCapital = parseCapitalUsd(trimmed);
         const opportunities: OpportunityCard[] = data.opportunities ?? [];
         const policies: PolicyProposal[] = data.policies ?? [];
-        const isPlan = phase === "plan";
+        const isPlan =
+          phase === "plan" || data.capability === "allocate_capital" || Boolean(estCapital);
         const answer = data.answer ?? data.headline ?? "No analysis available.";
 
-        const nextSteps = buildContextualActions({
-          phase,
-          findings,
-          turnCount: nextTurns.filter((t) => t.role === "user").length,
-          lastUserText: trimmed,
-        });
+        const nextSteps: CapabilityAction[] = data.actions ?? [];
 
         const resolveTurn: MissionTurn = {
           id: `r-${Date.now()}`,
           role: "resolve",
           text: answer,
-          findings: phase === "discover" || findings.length > 0 ? findings : undefined,
+          findings: findings.length > 0 ? findings : undefined,
           phase,
+          capability: data.capability,
           allocations:
             isPlan && estCapital ?
               buildAllocationFromOpportunities(opportunities, estCapital)

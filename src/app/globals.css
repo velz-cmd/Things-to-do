@@ -273,6 +273,47 @@ body {
   }
 }
 
+@keyframes resolve-flow-node {
+  0%,
+  15%,
+  100% {
+    background: rgba(10, 30, 62, 0.9);
+    border-color: rgba(100, 180, 255, 0.2);
+    color: rgba(139, 163, 199, 0.8);
+    box-shadow: none;
+  }
+  5%,
+  12% {
+    background: rgba(0, 122, 255, 0.25);
+    border-color: rgba(0, 122, 255, 0.7);
+    color: white;
+    box-shadow: 0 0 16px rgba(0, 122, 255, 0.5);
+  }
+}
+
+@keyframes resolve-flow-label {
+  0%,
+  15%,
+  100% {
+    color: rgba(139, 163, 199, 0.6);
+  }
+  5%,
+  12% {
+    color: rgba(255, 255, 255, 0.95);
+  }
+}
+
+@keyframes resolve-flow-line {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  5%,
+  12% {
+    opacity: 1;
+  }
+}
+
 @layer utilities {
   .animate-resolve-enter {
     animation: resolve-enter 0.5s ease-out forwards;
@@ -300,5 +341,17 @@ body {
 
   .animate-resolve-pulse-line {
     animation: resolve-pulse-line 2.5s ease-in-out infinite;
+  }
+
+  .animate-resolve-flow-node {
+    animation: resolve-flow-node 7s ease-in-out infinite;
+  }
+
+  .animate-resolve-flow-label {
+    animation: resolve-flow-label 7s ease-in-out infinite;
+  }
+
+  .animate-resolve-flow-line {
+    animation: resolve-flow-line 7s ease-in-out infinite;
   }
 }

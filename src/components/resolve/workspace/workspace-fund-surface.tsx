@@ -3,32 +3,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Banknote } from "lucide-react";
-import { ProductPage } from "@/components/resolve/layout/product-page";
 import { WorkspaceFund } from "@/components/resolve/workspace/workspace-fund";
 
 const MODES = [
   { href: "/workspace", label: "Command", exact: true },
-  { href: "/workspace/fund", label: "Fund", exact: false },
+  { href: "/workspace/fund", label: "Allocate", exact: false },
 ] as const;
 
-/** Discover projects, analyze attribution, authorize settlement. */
+/** Evidence-backed allocation — discover, attribute, authorize. */
 export function WorkspaceFundSurface() {
   const pathname = usePathname();
 
   return (
-    <ProductPage
-      icon={Banknote}
-      title="Fund contributors"
-      description="Discover open-source work, run evidence-backed attribution, and authorize settlement from treasury. Every step requires your approval."
-      workflows={[
-        { label: "Discover" },
-        { label: "Attribute" },
-        { label: "Authorize" },
-        { label: "Settle", href: "/payments" },
-      ]}
-      actions={
-        <nav className="flex rounded-2xl resolve-glass-subtle p-1 ring-1 ring-resolve-border">
+    <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
+            Allocate
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold text-white">Fund contributors</h1>
+          <p className="mt-2 max-w-xl text-sm text-resolve-muted">
+            What ecosystem do you want to improve? Analyze attribution, authorize settlement — every
+            step requires your approval.
+          </p>
+        </div>
+        <nav className="flex rounded-lg border border-resolve-border p-1">
           {MODES.map((m) => {
             const active = m.exact ? pathname === m.href : pathname.startsWith(m.href);
             return (
@@ -36,10 +35,10 @@ export function WorkspaceFundSurface() {
                 key={m.href}
                 href={m.href}
                 className={clsx(
-                  "rounded-xl px-4 py-2 text-xs font-semibold transition-all duration-300",
-                  active ?
-                    "resolve-accent-gradient text-white shadow-resolve-glow"
-                  : "text-resolve-muted hover:bg-white/[0.06] hover:text-white",
+                  "rounded-md px-3 py-1.5 text-xs font-medium transition",
+                  active
+                    ? "bg-resolve-accent/15 text-white"
+                    : "text-resolve-muted hover:text-white",
                 )}
               >
                 {m.label}
@@ -47,11 +46,8 @@ export function WorkspaceFundSurface() {
             );
           })}
         </nav>
-      }
-      width="wide"
-      accent="blue"
-    >
+      </header>
       <WorkspaceFund />
-    </ProductPage>
+    </div>
   );
 }

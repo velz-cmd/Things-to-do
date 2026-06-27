@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle, Send, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Panel } from "@/components/resolve/ui/panel";
 import { Input } from "@/components/resolve/ui/input";
 import { Button } from "@/components/resolve/ui/button";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
@@ -28,10 +27,12 @@ export function ProtocolChat({
   onPoliciesChange,
   initialConcentrations,
   variant = "default",
+  fullHeight = false,
 }: {
   onPoliciesChange?: (policies: PolicyProposal[]) => void;
   initialConcentrations?: ValueConcentration[];
   variant?: "default" | "engine";
+  fullHeight?: boolean;
 }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -104,56 +105,78 @@ export function ProtocolChat({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  const isEngine = variant === "engine";
+
   return (
-    <Panel variant="glow" className="flex h-full min-h-[480px] flex-col overflow-hidden p-0" padding={false}>
-      <div className="border-b border-white/[0.06] px-5 py-4">
+    <div
+      className={clsx(
+        "flex flex-col overflow-hidden rounded-2xl border border-resolve-border bg-resolve-bg-deep/40",
+        fullHeight ? "h-full min-h-0" : "min-h-[480px]",
+      )}
+    >
+      <div className="shrink-0 border-b border-resolve-border px-5 py-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow">
-            <MessageCircle className="h-4 w-4 text-white" />
-          </div>
+          {!isEngine && (
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow">
+              <MessageCircle className="h-4 w-4 text-white" />
+            </div>
+          )}
           <div>
             <span className="text-sm font-semibold text-white">
-              {variant === "engine" ? "Economic reasoning" : "Command"}
+              {isEngine ? "Command" : "Chat"}
             </span>
-            <span className="ml-2 rounded-full bg-resolve-accent/15 px-2.5 py-0.5 text-[10px] font-semibold text-blue-200 ring-1 ring-resolve-accent/25">
-              {variant === "engine" ? "Engine" : "Protocol"}
-            </span>
+            {!isEngine && (
+              <span className="ml-2 rounded-full bg-resolve-accent/15 px-2.5 py-0.5 text-[10px] font-semibold text-blue-200 ring-1 ring-resolve-accent/25">
+                Protocol
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {!started && welcome && (
-          <div className="space-y-3">
-            <Panel variant="accent" className="p-4">
-              <p className="text-base font-medium text-white">{welcome.greeting}</p>
-              <p className="mt-1.5 text-xs leading-relaxed text-resolve-muted">{welcome.subtitle}</p>
-            </Panel>
-            {variant !== "engine" && concentrations.length > 0 && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-lg font-medium text-white">{welcome.greeting}</p>
+              <p className="mt-2 text-sm leading-relaxed text-resolve-muted">{welcome.subtitle}</p>
+            </div>
+            {!isEngine && concentrations.length > 0 && (
               <ul className="space-y-2">
-                {concentrations.slice(0, 4).map((c) => (
-                  <li
-                    key={c.id}
-                    className="rounded-lg border border-resolve-border/60 bg-resolve-raised/30 px-3 py-2 text-xs"
-                  >
-                    <span className="font-medium text-white">{c.title}</span>
-                    <span className="mt-0.5 block text-resolve-muted">{c.detail}</span>
+                {concentrations.slice(0, 3).map((c) => (
+                  <li key={c.id} className="text-xs text-resolve-muted">
+                    <span className="text-white/90">{c.title}</span> — {c.detail}
                   </li>
                 ))}
               </ul>
             )}
-            <div className="flex flex-wrap gap-1.5">
-              {welcome.discoverPrompts.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => void ask(p)}
-                  className="rounded-full border border-resolve-border/60 bg-resolve-raised/50 px-3 py-1 text-[10px] text-resolve-muted transition hover:border-resolve-accent/40 hover:text-white"
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
+            {isEngine ? (
+              <div className="flex flex-wrap gap-2">
+                {welcome.naturalLanguageActions.slice(0, 5).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => void ask(p)}
+                    className="rounded-lg border border-resolve-border px-3 py-1.5 text-xs text-resolve-muted transition hover:border-resolve-accent/40 hover:text-white"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {welcome.discoverPrompts.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => void ask(p)}
+                    className="rounded-full border border-resolve-border/60 px-3 py-1 text-[10px] text-resolve-muted transition hover:text-white"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -200,23 +223,27 @@ export function ProtocolChat({
         <div ref={endRef} />
       </div>
 
-      <div className="border-t border-resolve-border/60 bg-resolve-bg/40 p-4">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
-          Quick actions
-        </p>
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {(welcome?.naturalLanguageActions ?? []).map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => void ask(s)}
-              disabled={loading}
-              className="rounded-full border border-resolve-accent/25 bg-resolve-accent/10 px-3 py-1 text-[10px] text-sky-200 transition hover:bg-resolve-accent/20 disabled:opacity-50"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+      <div className="shrink-0 border-t border-resolve-border p-4">
+        {!isEngine && (
+          <>
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
+              Quick actions
+            </p>
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {(welcome?.naturalLanguageActions ?? []).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => void ask(s)}
+                  disabled={loading}
+                  className="rounded-full border border-resolve-accent/25 bg-resolve-accent/10 px-3 py-1 text-[10px] text-sky-200 transition hover:bg-resolve-accent/20 disabled:opacity-50"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -227,20 +254,27 @@ export function ProtocolChat({
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Where is value leaking? Who should we fund?"
+            placeholder={
+              isEngine
+                ? "We have $100k — where should it go?"
+                : "Where is value leaking? Who should we fund?"
+            }
             className="flex-1"
+            inputSize={isEngine ? "lg" : "md"}
           />
           <Button type="submit" disabled={loading || !input.trim()} size="md" aria-label="Send">
             <Send className="h-4 w-4" />
           </Button>
         </form>
-        <p className="mt-2 text-[10px] text-resolve-muted-dim">
-          Evidence-backed · approval required ·{" "}
-          <Link href="/payments" className="text-resolve-accent hover:underline">
-            Treasury controls
-          </Link>
-        </p>
+        {!isEngine && (
+          <p className="mt-2 text-[10px] text-resolve-muted-dim">
+            Evidence-backed · approval required ·{" "}
+            <Link href="/payments" className="text-resolve-accent hover:underline">
+              Treasury
+            </Link>
+          </p>
+        )}
       </div>
-    </Panel>
+    </div>
   );
 }

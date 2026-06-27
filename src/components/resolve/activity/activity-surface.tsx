@@ -1,57 +1,27 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { Activity } from "lucide-react";
-import { ProductPage } from "@/components/resolve/layout/product-page";
-import { Panel } from "@/components/resolve/ui/panel";
+import Link from "next/link";
+import { ValueFeed } from "@/components/resolve/workspace/workspace-context-feed";
 
-const WorkspaceOsDashboard = dynamic(
-  () =>
-    import("@/components/resolve/workspace/workspace-os-dashboard").then((m) => m.WorkspaceOsDashboard),
-  {
-    loading: () => <ActivityFeedSkeleton />,
-    ssr: false,
-  },
-);
-
-const ConnectorsPage = dynamic(
-  () => import("@/components/resolve/connectors/connectors-page").then((m) => m.ConnectorsPage),
-  {
-    loading: () => <ActivityFeedSkeleton label="Loading connectors…" />,
-    ssr: false,
-  },
-);
-
-function ActivityFeedSkeleton({ label = "Loading live feed…" }: { label?: string }) {
-  return (
-    <Panel variant="glass" className="p-10 text-center">
-      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-resolve-border border-t-resolve-accent" />
-      <p className="mt-4 text-sm text-resolve-muted">{label}</p>
-    </Panel>
-  );
-}
-
-/** GitHub-style activity feed + connector pulse — value in motion. */
+/** Global value graph — timeline only. No duplicate workspace dashboards. */
 export function ActivitySurface() {
   return (
-    <ProductPage
-      icon={Activity}
-      title="Activity"
-      description="Live value recognition across open ecosystems. See where value enters, who earned it, and what needs attention."
-      workflows={[
-        { label: "Live feed", active: true },
-        { label: "Connected sources" },
-        { label: "Today's timeline" },
-      ]}
-      width="wide"
-      accent="blue"
-    >
-      <div className="space-y-10">
-        <WorkspaceOsDashboard />
-        <section className="border-t border-resolve-border/60 pt-10">
-          <ConnectorsPage embedded />
-        </section>
-      </div>
-    </ProductPage>
+    <div className="mx-auto max-w-3xl px-4 py-8 lg:px-8">
+      <header className="mb-8">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
+          Network feed
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Value in motion</h1>
+        <p className="mt-2 text-sm text-resolve-muted">
+          Real events from connected ecosystems — recognition, funding, settlement.
+        </p>
+      </header>
+      <ValueFeed />
+      <p className="mt-8 text-center text-xs text-resolve-muted-dim">
+        <Link href="/profile" className="text-resolve-accent hover:underline">
+          Manage sensors & identity →
+        </Link>
+      </p>
+    </div>
   );
 }

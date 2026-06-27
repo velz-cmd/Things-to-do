@@ -1,23 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import clsx from "clsx";
-import { CreditCard, Landmark, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
-import { Panel } from "@/components/resolve/ui/panel";
 import { Money } from "@/components/resolve/ui/money";
-import { MetricCard } from "@/components/resolve/ui/metric-card";
-import { SectionHeader } from "@/components/resolve/ui/section-header";
 import { Button } from "@/components/resolve/ui/button";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
-import { explorerUrlForTx, isOnChainTxHash } from "@/lib/payment/tx-utils";
 import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
-import { ProductPage } from "@/components/resolve/layout/product-page";
 import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
 
 type Overview = {
@@ -65,13 +57,6 @@ type RewardSummary = {
   authorizedUsd?: number;
   settledUsd: number;
 };
-
-function statusTone(status: string) {
-  if (status === "settled" || status === "SETTLED") return "text-emerald-300";
-  if (status === "claimable" || status === "pending_funding") return "text-amber-300";
-  if (status === "authorized") return "text-sky-300";
-  return "text-resolve-muted";
-}
 
 export function PaymentsOS() {
   const { user, signInWithGitHub, githubEnabled } = useAuth();
@@ -157,250 +142,128 @@ export function PaymentsOS() {
   const ledger = overview?.ledger;
 
   return (
-    <ProductPage
-      icon={CreditCard}
-      title="Payments"
-      description="Treasury, authorizations, fulfillment, and claims — Stripe-grade money movement for open ecosystems."
-      workflows={[
-        { label: "Treasury", active: true },
-        { label: "Authorizations" },
-        { label: "Claims" },
-        { label: "Settlement" },
-      ]}
-      width="narrow"
-      accent="orange"
-    >
-      <div className="space-y-10">
-        <section>
-          <SectionHeader title="Treasury" description="Global settlement pool" icon={Landmark} />
-          <Panel variant="orange" className="mt-4 overflow-hidden p-0" padding={false} hover={false}>
-            <div
-              className="relative p-6 md:p-8"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(255,122,69,0.35) 0%, rgba(255,122,69,0.15) 40%, rgba(10,30,62,0.6) 100%)",
-              }}
+    <div className="mx-auto max-w-2xl px-4 py-8 lg:px-8">
+      <header className="mb-10">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
+          Capital
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold text-white">Treasury & settlement</h1>
+        <p className="mt-2 text-sm text-resolve-muted">
+          How much capital you manage — claims, queue, history.
+        </p>
+      </header>
+
+      <section className="border-b border-resolve-border pb-8">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-resolve-muted-dim">
+          Treasury
+        </p>
+        <p className="mt-2 text-4xl font-semibold tabular-nums text-white">
+          <Money amount={treasury?.balanceUsd ?? 0} size="lg" />
+        </p>
+        <p className="mt-2 text-sm text-resolve-muted">{treasury?.message ?? "Loading…"}</p>
+        {(treasury?.obligationsUsd ?? 0) > 0 && (
+          <p className="mt-1 text-xs text-amber-200/90">
+            Obligations ${(treasury?.obligationsUsd ?? 0).toFixed(2)} · Available $
+            {(treasury?.availableUsd ?? 0).toFixed(2)}
+          </p>
+        )}
+        <div className="mt-4 flex flex-wrap gap-6 text-sm text-resolve-muted">
+          <span>
+            Authorized: <Money amount={ledger?.authorizedUsd ?? 0} size="sm" className="inline" />
+          </span>
+          <span>
+            Claimable: <Money amount={ledger?.claimableUsd ?? 0} size="sm" className="inline" />
+          </span>
+          <span>
+            Settled: <Money amount={ledger?.settledUsd ?? 0} size="sm" className="inline" />
+          </span>
+        </div>
+      </section>
+
+      <section className="border-b border-resolve-border py-8">
+        <p className="text-sm font-semibold text-white">Claims</p>
+        {!user ?
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-resolve-muted">Sign in to collect authorized earnings.</p>
+            <Button
+              onClick={() =>
+                githubOAuthReady && githubEnabled ? signInWithGitHub() : openSignIn()
+              }
             >
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-100/80">
-                    My balance
-                  </p>
-                  <p className="mt-2 text-4xl font-semibold tabular-nums text-white md:text-5xl">
-                    <Money amount={treasury?.balanceUsd ?? 0} size="lg" />
-                  </p>
-                  <p className="mt-2 text-sm text-orange-100/70">
-                    {treasury?.message ?? "Loading treasury…"}
-                  </p>
-                  {(treasury?.obligationsUsd ?? 0) > 0 && (
-                    <p className="mt-2 text-xs text-orange-100/90">
-                      Obligations: ${(treasury?.obligationsUsd ?? 0).toFixed(2)} · Available: $
-                      {(treasury?.availableUsd ?? 0).toFixed(2)}
-                    </p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-emerald-200 ring-1 ring-emerald-400/20">
-                    +{(treasury?.batchCount ?? 0) > 0 ? " active" : " ready"}
-                  </span>
-                  <p className="mt-3 text-sm text-orange-100/70">
-                    Distributed:{" "}
-                    <Money amount={treasury?.totalDistributedUsd ?? 0} size="sm" className="inline" />
-                  </p>
-                  <p className="text-xs text-orange-100/60">
-                    {treasury?.batchCount ?? 0} settlement batches
-                  </p>
-                </div>
-              </div>
-              <Link
-                href="/workspace/fund"
-                className="mt-6 inline-flex items-center gap-1 text-sm font-semibold text-white transition hover:text-orange-100"
-              >
-                Fund a project →
-              </Link>
-            </div>
-          </Panel>
-        </section>
-
-        <section>
-          <SectionHeader title="Authorization queue" icon={Receipt} />
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <MetricCard
-              label="Authorized"
-              value={<Money amount={ledger?.authorizedUsd ?? 0} size="sm" />}
-              tone="accent"
-              live
-            />
-            <MetricCard
-              label="Pending funding"
-              value={<Money amount={ledger?.pendingFundingUsd ?? 0} size="sm" />}
-              tone="warning"
-            />
-            <MetricCard
-              label="Claimable"
-              value={<Money amount={ledger?.claimableUsd ?? 0} size="sm" />}
-              tone="success"
-            />
-            <MetricCard
-              label="Settled"
-              value={<Money amount={ledger?.settledUsd ?? 0} size="sm" />}
-              tone="blue"
-            />
+              Sign in
+            </Button>
           </div>
-          <Panel variant="glass" className="mt-4 p-5">
-            <p className="text-sm font-semibold text-white">Recent authorizations</p>
-            {loading ?
-              <p className="mt-3 text-sm text-resolve-muted">Loading…</p>
-            : !overview?.recentAuthorizations.length ?
-              <p className="mt-3 text-sm text-resolve-muted">
-                No authorizations yet. Fund a project or connect a source.
-              </p>
-            : <ul className="mt-4 divide-y divide-resolve-border/60">
-                {overview.recentAuthorizations.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
-                  >
-                    <div>
-                      <p className="font-medium text-white">{a.contextLabel ?? a.missionId}</p>
-                      <p className="text-xs text-resolve-muted">
-                        {a.connectorId} · @{a.payeeKey}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <Money amount={a.amountUsd} size="sm" />
-                      <p className={clsx("text-[10px] font-medium uppercase", statusTone(a.status))}>
-                        {a.status.replace("_", " ")}
-                      </p>
-                    </div>
-                  </li>
+        : <>
+            <p className="mt-3 text-lg font-medium text-white">
+              <Money amount={claimSummary?.claimableUsd ?? 0} size="sm" className="inline" />{" "}
+              claimable
+            </p>
+            {currencyOptions.length > 0 && (
+              <select
+                value={payoutCurrency}
+                onChange={(e) => {
+                  const next = e.target.value as PayoutCurrency;
+                  setPayoutCurrency(next);
+                  void fetch("/api/profile/payout-preference", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ currency: next }),
+                  });
+                }}
+                className="mt-3 block w-full max-w-xs rounded-lg border border-resolve-border bg-resolve-bg px-3 py-2 text-sm text-white"
+              >
+                {currencyOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
                 ))}
-              </ul>
-            }
-          </Panel>
-        </section>
-
-        <section>
-          <SectionHeader title="Claims" description="Collect your authorized earnings" icon={Wallet} />
-          <Panel variant="glass" className="mt-4 p-6">
-            {!user ?
-              <div className="space-y-4">
-                <p className="text-sm text-resolve-muted">
-                  Sign in with GitHub to claim your authorizations.
-                </p>
-                <Button
-                  onClick={() =>
-                    githubOAuthReady && githubEnabled ? signInWithGitHub() : openSignIn()
-                  }
-                >
-                  Sign in with GitHub
-                </Button>
+              </select>
+            )}
+            {fxHint && (
+              <div className="mt-4">
+                <FxSwapPanel hint={fxHint} />
               </div>
-            : <>
-                <p className="text-lg font-semibold text-white">
-                  Claimable:{" "}
-                  <Money amount={claimSummary?.claimableUsd ?? 0} size="sm" className="inline" />
-                </p>
-                {currencyOptions.length > 0 && (
-                  <div className="mt-4">
-                    <label className="text-xs font-medium text-resolve-muted">
-                      Receive as (after claim)
-                    </label>
-                    <select
-                      value={payoutCurrency}
-                      onChange={(e) => {
-                        const next = e.target.value as PayoutCurrency;
-                        setPayoutCurrency(next);
-                        void fetch("/api/profile/payout-preference", {
-                          method: "POST",
-                          credentials: "include",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ currency: next }),
-                        });
-                      }}
-                      className="mt-2 block w-full max-w-xs rounded-resolve border border-resolve-border-strong bg-resolve-bg px-3 py-2.5 text-sm text-white"
-                    >
-                      {currencyOptions.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-2 text-[11px] text-resolve-muted-dim">
-                      Settlement is USDC on Arc — swap to EURC or cirBTC in your wallet when ready.
-                    </p>
-                  </div>
-                )}
-                {fxHint && (
-                  <div className="mt-4">
-                    <FxSwapPanel hint={fxHint} />
-                  </div>
-                )}
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {!isConnected ?
-                    <Button onClick={() => openWallet({ view: "Connect" })}>
-                      Connect wallet to claim
-                    </Button>
-                  : <Button
-                      onClick={() => void handleClaim()}
-                      disabled={claiming || (claimSummary?.claimableUsd ?? 0) <= 0}
-                    >
-                      {claiming ? "Claiming…" : "Claim all"}
-                    </Button>
-                  }
-                </div>
-              </>
-            }
-          </Panel>
-        </section>
+            )}
+            <div className="mt-4">
+              {!isConnected ?
+                <Button onClick={() => openWallet({ view: "Connect" })}>Connect wallet</Button>
+              : <Button
+                  onClick={() => void handleClaim()}
+                  disabled={claiming || (claimSummary?.claimableUsd ?? 0) <= 0}
+                >
+                  {claiming ? "Claiming…" : "Claim all"}
+                </Button>
+              }
+            </div>
+          </>
+        }
+      </section>
 
-        <section>
-          <SectionHeader title="Settlement history" />
-          <Panel variant="glass" className="mt-4 p-5">
-            {loading ?
-              <p className="text-sm text-resolve-muted">Loading…</p>
-            : !overview?.settlements.length ?
-              <p className="text-sm text-resolve-muted">
-                No settlements yet. Fulfill authorizations when treasury is ready.
-              </p>
-            : <ul className="divide-y divide-resolve-border/60">
-                {overview.settlements.map((s) => {
-                  const tx = s.escrowTxHash;
-                  const onChain = tx && isOnChainTxHash(tx);
-                  const explorer = onChain ? explorerUrlForTx(tx) : null;
-                  return (
-                    <li
-                      key={s.id}
-                      className="flex flex-wrap items-center justify-between gap-2 py-3.5 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium text-white">{s.repo ?? s.missionId}</p>
-                        <p className="text-xs text-resolve-muted">
-                          {new Date(s.createdAt).toLocaleString()} ·{" "}
-                          <span className={statusTone(s.status)}>{s.status}</span>
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Money amount={s.treasuryAmount} size="sm" />
-                        {explorer && (
-                          <a
-                            href={explorer}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-0.5 block text-[11px] font-medium text-resolve-accent hover:underline"
-                          >
-                            View transaction
-                          </a>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            }
-          </Panel>
-        </section>
-      </div>
-    </ProductPage>
+      <section className="py-8">
+        <p className="text-sm font-semibold text-white">History</p>
+        {loading ?
+          <p className="mt-3 text-sm text-resolve-muted">Loading…</p>
+        : !overview?.settlements.length && !overview?.recentAuthorizations.length ?
+          <p className="mt-3 text-sm text-resolve-muted">No settlements yet.</p>
+        : <ul className="mt-4 divide-y divide-resolve-border/60">
+            {overview?.recentAuthorizations.slice(0, 8).map((a) => (
+              <li key={a.id} className="flex justify-between gap-2 py-3 text-sm">
+                <span className="text-resolve-muted">{a.contextLabel ?? a.missionId}</span>
+                <span>
+                  <Money amount={a.amountUsd} size="sm" className="inline" />
+                </span>
+              </li>
+            ))}
+            {overview?.settlements.map((s) => (
+              <li key={s.id} className="flex justify-between gap-2 py-3 text-sm">
+                <span className="text-resolve-muted">{s.repo ?? s.missionId}</span>
+                <Money amount={s.treasuryAmount} size="sm" />
+              </li>
+            ))}
+          </ul>
+        }
+      </section>
+    </div>
   );
 }

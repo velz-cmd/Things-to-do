@@ -1,110 +1,74 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Plus, Radio } from "lucide-react";
-import { Panel } from "@/components/resolve/ui/panel";
+import {
+  LayoutGrid,
+  Landmark,
+  Activity,
+  SlidersHorizontal,
+  Radio,
+} from "lucide-react";
 
-export type RecentWorkspace = {
-  id: string;
-  label: string;
-  type: "github" | "navidrome" | "other";
-  owner?: string;
-  repo?: string;
-  updatedAt: string;
-};
+const ITEMS = [
+  { href: "/workspace", label: "Command", icon: LayoutGrid, exact: true },
+  { href: "/payments", label: "Capital", icon: Landmark, exact: false },
+  { href: "/activity", label: "Network feed", icon: Activity, exact: false },
+  { href: "/workspace/fund", label: "Allocate", icon: SlidersHorizontal, exact: false },
+] as const;
 
-const STORAGE_KEY = "resolve-recent-workspaces";
-
-export function loadRecentWorkspaces(): RecentWorkspace[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as RecentWorkspace[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveRecentWorkspace(entry: Omit<RecentWorkspace, "updatedAt">) {
-  const list = loadRecentWorkspaces().filter((w) => w.id !== entry.id);
-  list.unshift({ ...entry, updatedAt: new Date().toISOString() });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, 8)));
-}
-
-export function WorkspaceSidebar({
-  activeId,
-  onSelect,
-}: {
-  activeId?: string | null;
-  onSelect: (w: RecentWorkspace) => void;
-}) {
-  const recent = loadRecentWorkspaces();
+export function WorkspaceSidebar({ onManual }: { onManual?: () => void }) {
+  const pathname = usePathname();
 
   return (
-    <aside className="hidden w-56 shrink-0 xl:block">
-      <div className="sticky top-[4.5rem] space-y-4">
-        <div>
-          <p className="px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
-            Value streams
-          </p>
-          <Panel variant="glass" className="mt-2 p-4">
-            <div className="flex items-center gap-2">
-              <Radio className="h-3.5 w-3.5 text-emerald-400" />
-              <p className="text-sm font-semibold text-white">
-                {activeId ? "Deep dive" : "All ecosystems"}
-              </p>
-            </div>
-            <p className="mt-1 truncate text-xs text-resolve-muted">
-              {activeId ?? "Unified view across open sources"}
-            </p>
-          </Panel>
-        </div>
-
-        {recent.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between px-1">
-              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted-dim">
-                Recent
-              </p>
+    <nav className="flex h-full w-52 shrink-0 flex-col border-r border-resolve-border bg-resolve-bg-deep/20 py-4">
+      <p className="px-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-resolve-muted-dim">
+        Workspace
+      </p>
+      <ul className="mt-3 flex-1 space-y-0.5 px-2">
+        {ITEMS.map((item) => {
+          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+          const Icon = item.icon;
+          return (
+            <li key={item.href}>
               <Link
-                href="/workspace/fund"
-                className="rounded-md p-1 text-resolve-muted transition hover:bg-resolve-hover hover:text-white"
-                title="New project"
+                href={item.href}
+                className={clsx(
+                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition",
+                  active
+                    ? "bg-resolve-accent/15 text-white"
+                    : "text-resolve-muted hover:bg-resolve-hover/30 hover:text-white",
+                )}
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                {item.label}
               </Link>
-            </div>
-            <ul className="mt-2 space-y-1">
-              {recent.map((w) => (
-                <li key={w.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(w)}
-                    className={clsx(
-                      "w-full rounded-lg px-3 py-2 text-left text-sm transition",
-                      activeId === w.id
-                        ? "border border-resolve-accent/30 bg-resolve-accent/10 text-white"
-                        : "text-resolve-muted hover:bg-resolve-hover/60 hover:text-white",
-                    )}
-                  >
-                    <p className="truncate font-medium">{w.label}</p>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+            </li>
+          );
+        })}
+        {onManual && (
+          <li>
+            <button
+              type="button"
+              onClick={onManual}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-resolve-muted transition hover:bg-resolve-hover/30 hover:text-white"
+            >
+              <SlidersHorizontal className="h-4 w-4" strokeWidth={1.5} />
+              Policies
+            </button>
+          </li>
         )}
-
-        <div className="space-y-1 px-1">
-          <Link href="/activity" className="block text-xs text-resolve-muted hover:text-white">
-            Live activity →
-          </Link>
-          <Link href="/payments" className="block text-xs text-resolve-muted hover:text-white">
-            Payments & settlement →
-          </Link>
-        </div>
+      </ul>
+      <div className="border-t border-resolve-border px-4 pt-4">
+        <p className="flex items-center gap-1.5 text-[10px] text-resolve-muted-dim">
+          <Radio className="h-3 w-3" />
+          Sensors run in background
+        </p>
+        <Link href="/profile" className="mt-2 block text-[11px] text-resolve-accent hover:underline">
+          Identity & sources →
+        </Link>
       </div>
-    </aside>
+    </nav>
   );
 }

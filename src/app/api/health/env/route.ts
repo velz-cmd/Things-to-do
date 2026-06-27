@@ -6,16 +6,26 @@ import {
   getSupabaseServiceRoleKey,
   isSupabaseAdminConfigured,
 } from "@/lib/supabase/admin";
+import { listConfiguredProviders } from "@/lib/ai/gateway";
+import { listSearchProviders, isSearchConfigured } from "@/lib/search";
+import { googleOAuthConfigured } from "@/lib/google/oauth";
+import { isOpenCollectiveConfigured } from "@/lib/integrations/opencollective";
+import { isDiscordConfigured } from "@/lib/integrations/discord";
+import { isMastodonConfigured } from "@/lib/integrations/mastodon";
 
 /** Safe env presence check — never returns secret values. */
 export async function GET() {
   const present = (key: string) => Boolean(process.env[key]?.trim());
   const circleWalletSetId = await getCircleWalletSetId();
+  const ai = listConfiguredProviders();
+  const search = listSearchProviders();
 
   const env = {
     APP_URL: present("APP_URL") || present("NEXT_PUBLIC_APP_URL"),
+    NEXT_PUBLIC_APP_URL: present("NEXT_PUBLIC_APP_URL"),
     PLAYWRIGHT_ENABLED: process.env.PLAYWRIGHT_ENABLED === "true",
     DATABASE_URL: present("DATABASE_URL"),
+    NEXT_PUBLIC_REOWN_PROJECT_ID: present("NEXT_PUBLIC_REOWN_PROJECT_ID"),
     SUPABASE_URL: Boolean(getSupabaseServerUrl()),
     NEXT_PUBLIC_SUPABASE_URL: present("NEXT_PUBLIC_SUPABASE_URL"),
     NEXT_PUBLIC_SUPABASE_ANON_KEY: present("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
@@ -36,10 +46,18 @@ export async function GET() {
     OPENROUTER_API_KEY: present("OPENROUTER_API_KEY"),
     GOOGLE_CLIENT_ID: present("GOOGLE_CLIENT_ID"),
     GOOGLE_CLIENT_SECRET: present("GOOGLE_CLIENT_SECRET"),
-    ARC_AGENT_GATEWAY_PRIVATE_KEY: present("ARC_AGENT_GATEWAY_PRIVATE_KEY"),
-    ALCHEMY_API_KEY: present("ALCHEMY_API_KEY"),
-    WALLET_LABELS_API_KEY: present("WALLET_LABELS_API_KEY"),
+    GOOGLE_REFRESH_TOKEN: present("GOOGLE_REFRESH_TOKEN"),
+    GMAIL_OAUTH: googleOAuthConfigured(),
+    GMAIL_LIVE: googleOAuthConfigured() && present("GOOGLE_REFRESH_TOKEN"),
+    TAVILY_API_KEY: present("TAVILY_API_KEY"),
+    SERPER_API_KEY: present("SERPER_API_KEY"),
+    WEBSEARCH_API_KEY: present("WEBSEARCH_API_KEY"),
+    SEARCH_CONFIGURED: isSearchConfigured(),
     GITHUB_TOKEN: present("GITHUB_TOKEN"),
+    OPENCOLLECTIVE_TOKEN: present("OPENCOLLECTIVE_TOKEN"),
+    DISCORD_BOT_TOKEN: present("DISCORD_BOT_TOKEN"),
+    MASTODON_ACCESS_TOKEN: present("MASTODON_ACCESS_TOKEN"),
+    MASTODON_INSTANCE_URL: present("MASTODON_INSTANCE_URL"),
     LIBRARIES_IO_API_KEY: present("LIBRARIES_IO_API_KEY"),
     NPM_REGISTRY_TOKEN: present("NPM_REGISTRY_TOKEN"),
     DOCKER_HUB_USERNAME: present("DOCKER_HUB_USERNAME"),
@@ -57,21 +75,45 @@ export async function GET() {
     NAVIDROME_PASSWORD: present("NAVIDROME_PASSWORD"),
     NAVIDROME_SYNC_SECRET: present("NAVIDROME_SYNC_SECRET"),
     CLAIM_TOKEN_SECRET: present("CLAIM_TOKEN_SECRET"),
+    ARC_AGENT_GATEWAY_PRIVATE_KEY: present("ARC_AGENT_GATEWAY_PRIVATE_KEY"),
+    ALCHEMY_API_KEY: present("ALCHEMY_API_KEY"),
+    WALLET_LABELS_API_KEY: present("WALLET_LABELS_API_KEY"),
   };
+
+  const aiReady = ai.gemini || ai.groq || ai.openrouter;
+  const communitySensorsReady =
+    isOpenCollectiveConfigured() || isDiscordConfigured() || isMastodonConfigured();
 
   const missing: string[] = [];
   if (!env.PLAYWRIGHT_ENABLED) missing.push("PLAYWRIGHT_ENABLED=true");
   if (!env.APP_URL) missing.push("APP_URL=https://resolve-task.vercel.app");
-  if (!env.CIRCLE_API_KEY) missing.push("CIRCLE_API_KEY");
-  if (!env.CIRCLE_ENTITY_SECRET) missing.push("CIRCLE_ENTITY_SECRET");
-  if (!env.ARC_CLIENT_WALLET_ADDRESS) missing.push("ARC_CLIENT_WALLET_ADDRESS");
-  if (!env.ARC_PROVIDER_WALLET_ADDRESS)
-    missing.push("ARC_PROVIDER_WALLET_ADDRESS");
+  if (!env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!aiReady) missing.push("GROQ_API_KEY or GEMINI_API_KEY or OPENROUTER_API_KEY");
+  if (!env.SEARCH_CONFIGURED) missing.push("TAVILY_API_KEY or SERPER_API_KEY");
+  if (!env.GITHUB_TOKEN) missing.push("GITHUB_TOKEN (community observation)");
+  if (!env.NEXT_PUBLIC_REOWN_PROJECT_ID) missing.push("NEXT_PUBLIC_REOWN_PROJECT_ID");
 
   return NextResponse.json({
     ok: true,
-    deploy: "env-diagnostic-v1",
+    deploy: "env-diagnostic-v2",
     env,
+    capabilities: {
+      ai: aiReady,
+      search: env.SEARCH_CONFIGURED,
+      database: env.DATABASE_URL,
+      walletConnect: env.NEXT_PUBLIC_REOWN_PROJECT_ID,
+      gmail: env.GMAIL_LIVE,
+      communitySensors: communitySensorsReady,
+      githubObservation: env.GITHUB_TOKEN,
+    },
+    ai: {
+      gemini: ai.gemini,
+      groq: ai.groq,
+      openrouter: ai.openrouter,
+      cloudflareGateway: ai.cloudflareGateway,
+      tiers: ai.tiers,
+    },
+    search,
     arc: {
       liveEnabled: isLiveArcEnabled(),
       blockers: getLiveBlockers(),

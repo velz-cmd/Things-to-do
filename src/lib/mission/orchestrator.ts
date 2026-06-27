@@ -1,4 +1,4 @@
-import { generateTextWithFallback } from "@/lib/ai/gateway";
+import { generateTextWithFallback, listConfiguredProviders } from "@/lib/ai/gateway";
 import { buildIntelligenceFindings } from "@/lib/workspace/advisors/intelligence-findings";
 import { detectMissionIntent, parseCapitalUsd } from "@/lib/mission/intents";
 import { detectMissionPhase } from "@/lib/mission/phases";
@@ -66,8 +66,22 @@ async function maybeEnhanceWithReasoning(
   groundedAnswer: string,
   messages?: AdvisorMessage[],
 ): Promise<string> {
+  const ai = listConfiguredProviders();
+  const hasAi = ai.gemini || ai.groq || ai.openrouter;
+  const hasLiveEvidence =
+    ctx.traces.some((t) => t.status === "ok") ||
+    ctx.opportunities.length > 0 ||
+    (ctx.researchReferences?.length ?? 0) > 0;
+
   const needsLlm =
-    ctx.capability === "explain_evidence" && ctx.phase === "explain";
+    hasAi &&
+    hasLiveEvidence &&
+    (ctx.capability === "explain_evidence" ||
+      ctx.capability === "general_inquiry" ||
+      ctx.capability === "discover_value_leaks" ||
+      ctx.capability === "allocate_capital" ||
+      ctx.capability === "research_ecosystem" ||
+      ctx.capability === "compare_ecosystems");
 
   if (!needsLlm) return groundedAnswer;
 
@@ -78,11 +92,27 @@ async function maybeEnhanceWithReasoning(
 
   const facts = [
     `CAPABILITY: ${ctx.capabilityLabel}`,
+    `COMMUNITY: ${ctx.communityName ?? ctx.community.name ?? ctx.community.kindLabel}`,
     `GROUNDED FACTS (do not contradict):\n${groundedAnswer}`,
+    ctx.opportunities.length ?
+      `OBSERVED SIGNALS:\n${ctx.opportunities
+        .slice(0, 4)
+        .map(
+          (o) =>
+            `- ${o.fullName}: ${o.stars.toLocaleString()} stars, ${o.health.maintainerCount} maintainer(s), $${Math.round(o.health.fundingGapUsd).toLocaleString()} gap`,
+        )
+        .join("\n")}`
+    : "",
     ctx.findings.length ?
       `FINDINGS:\n${ctx.findings.map((f) => `- ${f.title}: ${f.insight}`).join("\n")}`
     : "",
     `API TRACE:\n${ctx.traces.map((t) => `- ${t.source}: ${t.summary}`).join("\n")}`,
+    ctx.researchReferences?.length ?
+      `REFERENCES:\n${ctx.researchReferences
+        .slice(0, 3)
+        .map((r) => `- ${r.title} (${r.provider})`)
+        .join("\n")}`
+    : "",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -90,7 +120,7 @@ async function maybeEnhanceWithReasoning(
   try {
     const { text } = await generateTextWithFallback({
       tier: "fast",
-      system: `You are RESOLVE — the operating system for open communities. Explain ONLY using GROUNDED FACTS. Max 60 words. Structured analyst tone. Never mention GitHub or connectors unless facts require it. Focus on communities and capital.`,
+      system: `You are RESOLVE — the operating system for open communities. Write 2–3 crisp sentences using ONLY GROUNDED FACTS. Never invent numbers, repos, or funding amounts. Analyst tone — Bloomberg clarity, not marketing. Max 60 words. Focus on the community and capital, not connectors.`,
       prompt: [history, facts, `USER:\n${ctx.question}`].filter(Boolean).join("\n\n"),
     });
     return text.trim() || groundedAnswer;
@@ -181,7 +211,15 @@ export async function runMissionOrchestrator(input: {
 
   const groundedAnswer = buildGroundedAnswer(ctx);
   const brief = buildIntelligenceBrief(ctx);
-  const answer = await maybeEnhanceWithReasoning(ctx, brief.summary || groundedAnswer, input.messages);
+  const polished = await maybeEnhanceWithReasoning(
+    ctx,
+    brief.summary || groundedAnswer,
+    input.messages,
+  );
+  if (polished && polished !== brief.summary) {
+    brief.summary = polished;
+  }
+  const answer = polished;
   const capabilityActions = def.actions(ctx);
   const contextualActions = contextualMissionActions({
     job,

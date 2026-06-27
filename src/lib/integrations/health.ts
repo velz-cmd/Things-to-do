@@ -16,28 +16,58 @@ import { INTEGRATIONS } from "@/lib/integrations/config";
 import { hasGithubToken } from "@/lib/github/client";
 import { listConfiguredProviders } from "@/lib/ai/gateway/resolve";
 import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
+import { isSearchConfigured, listSearchProviders } from "@/lib/search";
+import { isGeminiConfigured, isGroqConfigured } from "@/lib/ai/gateway/config";
+import { googleOAuthConfigured } from "@/lib/google/oauth";
+import { refreshGmailAccessToken } from "@/lib/google/gmail-token";
 
 export async function runIntegrationHealthCheck() {
   const ai = listConfiguredProviders();
+  const search = listSearchProviders();
 
-  const [github, libraries, openAlex, blockscout, npm, docker, navidrome, listenbrainz, lastfm, openCollective, crossref, arxiv, overpass, discord, mastodon] =
-    await Promise.all([
-      pingGithub(),
-      pingLibrariesIo(),
-      pingOpenAlex(),
-      pingBlockscout(),
-      pingNpmRegistry(),
-      pingDockerHub(),
-      pingNavidrome(),
-      pingListenBrainz(),
-      pingLastFm(),
-      pingOpenCollective(),
-      pingCrossref(),
-      pingArxiv(),
-      pingOverpass(),
-      pingDiscord(),
-      pingMastodon(),
-    ]);
+  const [
+    github,
+    libraries,
+    openAlex,
+    blockscout,
+    npm,
+    docker,
+    navidrome,
+    listenbrainz,
+    lastfm,
+    openCollective,
+    crossref,
+    arxiv,
+    overpass,
+    discord,
+    mastodon,
+    groq,
+    gemini,
+    gmail,
+    tavily,
+    serper,
+  ] = await Promise.all([
+    pingGithub(),
+    pingLibrariesIo(),
+    pingOpenAlex(),
+    pingBlockscout(),
+    pingNpmRegistry(),
+    pingDockerHub(),
+    pingNavidrome(),
+    pingListenBrainz(),
+    pingLastFm(),
+    pingOpenCollective(),
+    pingCrossref(),
+    pingArxiv(),
+    pingOverpass(),
+    pingDiscord(),
+    pingMastodon(),
+    pingGroq(),
+    pingGemini(),
+    pingGmail(),
+    pingTavily(),
+    pingSerper(),
+  ]);
 
   const openRouter = ai.openrouter
     ? await pingOpenRouter()
@@ -49,6 +79,13 @@ export async function runIntegrationHealthCheck() {
       github: INTEGRATIONS.github(),
       openRouter: INTEGRATIONS.openRouter(),
       groq: INTEGRATIONS.groq(),
+      gemini: isGeminiConfigured(),
+      search: isSearchConfigured(),
+      tavily: search.tavily,
+      serper: search.serper,
+      websearch: search.websearch,
+      gmail: googleOAuthConfigured(),
+      gmailRefreshToken: Boolean(process.env.GOOGLE_REFRESH_TOKEN?.trim()),
       librariesIo: INTEGRATIONS.librariesIo(),
       openAlex: INTEGRATIONS.openAlex(),
       blockscout: INTEGRATIONS.blockscout(),
@@ -69,6 +106,11 @@ export async function runIntegrationHealthCheck() {
     live: {
       github,
       openRouter,
+      groq,
+      gemini,
+      gmail,
+      tavily,
+      serper,
       librariesIo: libraries,
       openAlex,
       blockscout,
@@ -88,6 +130,7 @@ export async function runIntegrationHealthCheck() {
         : { ok: false, message: "ALCHEMY_API_KEY not set" },
     },
     models: ai.tiers,
+    search,
   };
 }
 
@@ -125,5 +168,98 @@ async function pingOpenRouter(): Promise<{ ok: boolean; message: string }> {
     return { ok: true, message: "OpenRouter connected" };
   } catch {
     return { ok: false, message: "OpenRouter unreachable" };
+  }
+}
+
+async function pingGroq(): Promise<{ ok: boolean; message: string }> {
+  if (!isGroqConfigured()) {
+    return { ok: false, message: "GROQ_API_KEY not set" };
+  }
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+    });
+    if (!res.ok) return { ok: false, message: `Groq HTTP ${res.status}` };
+    return { ok: true, message: "Groq connected" };
+  } catch {
+    return { ok: false, message: "Groq unreachable" };
+  }
+}
+
+async function pingGemini(): Promise<{ ok: boolean; message: string }> {
+  if (!isGeminiConfigured()) {
+    return { ok: false, message: "GEMINI_API_KEY not set" };
+  }
+  const key =
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
+    );
+    if (!res.ok) return { ok: false, message: `Gemini HTTP ${res.status}` };
+    return { ok: true, message: "Gemini connected" };
+  } catch {
+    return { ok: false, message: "Gemini unreachable" };
+  }
+}
+
+async function pingGmail(): Promise<{ ok: boolean; message: string }> {
+  if (!googleOAuthConfigured()) {
+    return { ok: false, message: "GOOGLE_CLIENT_ID/SECRET not set" };
+  }
+  const refresh = process.env.GOOGLE_REFRESH_TOKEN?.trim();
+  if (!refresh) {
+    return { ok: false, message: "GOOGLE_REFRESH_TOKEN not set — authorize at /api/connectors/gmail/authorize" };
+  }
+  try {
+    await refreshGmailAccessToken(refresh);
+    return { ok: true, message: "Gmail OAuth refresh token valid" };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Gmail token refresh failed";
+    return { ok: false, message: msg };
+  }
+}
+
+async function pingTavily(): Promise<{ ok: boolean; message: string }> {
+  if (!process.env.TAVILY_API_KEY?.trim()) {
+    return { ok: false, message: "TAVILY_API_KEY not set" };
+  }
+  try {
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: process.env.TAVILY_API_KEY,
+        query: "open source funding",
+        max_results: 1,
+      }),
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return { ok: false, message: `Tavily HTTP ${res.status}` };
+    return { ok: true, message: "Tavily search connected" };
+  } catch {
+    return { ok: false, message: "Tavily unreachable" };
+  }
+}
+
+async function pingSerper(): Promise<{ ok: boolean; message: string }> {
+  if (!process.env.SERPER_API_KEY?.trim()) {
+    return { ok: false, message: "SERPER_API_KEY not set" };
+  }
+  try {
+    const res = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": process.env.SERPER_API_KEY!,
+      },
+      body: JSON.stringify({ q: "open source", num: 1 }),
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return { ok: false, message: `Serper HTTP ${res.status}` };
+    return { ok: true, message: "Serper search connected" };
+  } catch {
+    return { ok: false, message: "Serper unreachable" };
   }
 }

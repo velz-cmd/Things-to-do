@@ -48,9 +48,11 @@ export async function GET() {
     integrations: {
       gmail: {
         oauthConfigured: googleOAuthConfigured(),
+        refreshTokenConfigured: Boolean(process.env.GOOGLE_REFRESH_TOKEN?.trim()),
         authorizePath: "/api/connectors/gmail/authorize",
+        healthPath: "/api/integrations/health",
         setup:
-          "Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET on Vercel; redirect URI: {APP_URL}/api/connectors/gmail/callback",
+          "Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET + GOOGLE_REFRESH_TOKEN on Vercel; redirect URI: {APP_URL}/api/connectors/gmail/callback",
       },
       walletLabels: {
         configured: isWalletLabelsConfigured(),

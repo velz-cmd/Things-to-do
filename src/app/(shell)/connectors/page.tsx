@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Connectors are infrastructure — managed from Activity */
+/** Connectors are infrastructure — managed from Discover */
 export default function ConnectorsRedirect() {
-  redirect("/activity");
+  redirect("/discover");
 }

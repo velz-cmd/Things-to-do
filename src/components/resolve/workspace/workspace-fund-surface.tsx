@@ -6,11 +6,11 @@ import clsx from "clsx";
 import { WorkspaceFund } from "@/components/resolve/workspace/workspace-fund";
 
 const MODES = [
-  { href: "/workspace", label: "Command", exact: true },
-  { href: "/workspace/fund", label: "Allocate", exact: false },
+  { href: "/control", label: "Understand", exact: false },
+  { href: "/decide", label: "Decide", exact: false },
 ] as const;
 
-/** Evidence-backed allocation — discover, attribute, authorize. */
+/** Decide — what needs funding? Evidence-backed allocation. */
 export function WorkspaceFundSurface() {
   const pathname = usePathname();
 
@@ -19,11 +19,11 @@ export function WorkspaceFundSurface() {
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-            Allocate
+            Decide
           </p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">Fund contributors</h1>
+          <h1 className="mt-2 text-2xl font-semibold text-white">What needs funding?</h1>
           <p className="mt-2 max-w-xl text-sm text-resolve-muted">
-            What ecosystem do you want to improve? Analyze attribution, authorize settlement — every
+            Help me distribute this correctly — analyze attribution, authorize settlement. Every
             step requires your approval.
           </p>
         </div>

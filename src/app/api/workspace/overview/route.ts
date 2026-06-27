@@ -17,6 +17,7 @@ import { getCapitalFlowSnapshot } from "@/lib/capital-flow/engine";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
 import { buildDomainIntelligence } from "@/lib/workspace/domain-intelligence";
+import { buildNetworkIntelligence } from "@/lib/workspace/intelligence";
 import { RESOLVE_MISSION } from "@/lib/resolve/pillars";
 import type { WorkspaceEvidence } from "@/lib/workspace/context";
 
@@ -276,6 +277,17 @@ export async function GET() {
     evidence: a.evidence,
   }));
 
+  const eventsToday = todayRows.length;
+  const intelligence = buildNetworkIntelligence({
+    ledger,
+    treasuryBalanceUsd: treasurySnapshot.balanceUsd,
+    obligationsUsd: treasurySnapshot.obligationsUsd,
+    domainIntelligence,
+    opportunities,
+    sensorsOnline: connectedEcosystems,
+    eventsToday,
+  });
+
   return NextResponse.json({
     ok: true,
     tagline: "Global value network",
@@ -318,6 +330,7 @@ export async function GET() {
       : null,
     liveActivity,
     recommendedActions,
+    intelligence,
     aiInsight:
       timeline.length > 0
         ? `Today RESOLVE recognized value across ${timeline.length} open ecosystem${timeline.length === 1 ? "" : "s"}. ${timeline[0]?.label ?? "Activity"} leads with ${timeline[0]?.authorizationCount ?? 0} new authorizations — ${timeline[0]?.reason ?? "value flowing through the universal pipeline"}.`

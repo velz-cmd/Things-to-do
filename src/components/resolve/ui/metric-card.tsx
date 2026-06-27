@@ -1,8 +1,8 @@
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
-import { Panel } from "@/components/resolve/ui/panel";
+import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 
-type Tone = "default" | "accent" | "success" | "warning" | "violet";
+type Tone = "default" | "accent" | "success" | "warning" | "blue" | "orange";
 
 const toneStyles: Record<Tone, { border: string; value: string; icon: string; glow: string }> = {
   default: {
@@ -12,10 +12,10 @@ const toneStyles: Record<Tone, { border: string; value: string; icon: string; gl
     glow: "",
   },
   accent: {
-    border: "ring-1 ring-cyan-400/15",
-    value: "text-cyan-100",
-    icon: "text-cyan-400",
-    glow: "shadow-[0_0_30px_rgba(56,189,248,0.08)]",
+    border: "ring-1 ring-resolve-accent/20",
+    value: "text-blue-100",
+    icon: "text-resolve-accent-bright",
+    glow: "shadow-[0_0_30px_rgba(0,122,255,0.1)]",
   },
   success: {
     border: "ring-1 ring-emerald-400/15",
@@ -29,11 +29,17 @@ const toneStyles: Record<Tone, { border: string; value: string; icon: string; gl
     icon: "text-amber-400",
     glow: "",
   },
-  violet: {
-    border: "ring-1 ring-violet-400/15",
-    value: "text-violet-200",
-    icon: "text-violet-400",
-    glow: "shadow-[0_0_30px_rgba(167,139,250,0.08)]",
+  blue: {
+    border: "ring-1 ring-resolve-accent/25",
+    value: "text-blue-50",
+    icon: "text-resolve-accent",
+    glow: "shadow-[0_0_30px_rgba(0,122,255,0.12)]",
+  },
+  orange: {
+    border: "ring-1 ring-orange-400/20",
+    value: "text-orange-100",
+    icon: "text-resolve-orange",
+    glow: "shadow-[0_0_30px_rgba(255,122,69,0.1)]",
   },
 };
 
@@ -56,12 +62,7 @@ export function MetricCard({
 }) {
   const t = toneStyles[tone];
   return (
-    <Panel
-      variant="glass"
-      hover
-      className={clsx("p-0", t.border, t.glow, className)}
-      padding={false}
-    >
+    <BlueGlowCard hover className={clsx("p-0", t.border, t.glow, className)} padding={false}>
       <div className="p-5">
         <div className="flex items-start justify-between gap-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-resolve-muted-dim">
@@ -85,6 +86,6 @@ export function MetricCard({
         </p>
         {hint && <p className="mt-1.5 text-[11px] text-resolve-muted-dim">{hint}</p>}
       </div>
-    </Panel>
+    </BlueGlowCard>
   );
 }

@@ -12,8 +12,8 @@ const variants: Record<ButtonVariant, string> = {
   ),
   glow: clsx(
     "resolve-accent-gradient resolve-btn-shine text-white",
-    "border border-cyan-300/30 shadow-resolve-glow",
-    "hover:shadow-[0_0_50px_rgba(56,189,248,0.35)] hover:scale-[1.03] active:scale-[0.98]",
+    "border border-resolve-accent/30 shadow-resolve-glow",
+    "hover:shadow-[0_0_50px_rgba(0,122,255,0.4)] hover:scale-[1.03] active:scale-[0.98]",
   ),
   secondary: clsx(
     "resolve-glass resolve-btn-shine text-white",

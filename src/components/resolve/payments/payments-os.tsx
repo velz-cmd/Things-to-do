@@ -168,41 +168,57 @@ export function PaymentsOS() {
         { label: "Settlement" },
       ]}
       width="narrow"
-      accent="emerald"
+      accent="orange"
     >
       <div className="space-y-10">
         <section>
           <SectionHeader title="Treasury" description="Global settlement pool" icon={Landmark} />
-          <Panel variant="glow" className="mt-4 p-6">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-4xl font-semibold tabular-nums text-white">
-                  <Money amount={treasury?.balanceUsd ?? 0} size="lg" />
-                </p>
-                <p className="mt-2 text-sm text-resolve-muted">
-                  {treasury?.message ?? "Loading treasury…"}
-                </p>
-                {(treasury?.obligationsUsd ?? 0) > 0 && (
-                  <p className="mt-2 text-xs text-amber-200/90">
-                    Obligations: ${(treasury?.obligationsUsd ?? 0).toFixed(2)} · Available: $
-                    {(treasury?.availableUsd ?? 0).toFixed(2)}
-                  </p>
-                )}
-              </div>
-              <div className="text-right text-sm text-resolve-muted">
-                <p>
-                  Distributed:{" "}
-                  <Money amount={treasury?.totalDistributedUsd ?? 0} size="sm" className="inline" />
-                </p>
-                <p>{treasury?.batchCount ?? 0} settlement batches</p>
-              </div>
-            </div>
-            <Link
-              href="/workspace/fund"
-              className="mt-5 inline-block text-sm font-medium text-resolve-accent hover:underline"
+          <Panel variant="orange" className="mt-4 overflow-hidden p-0" padding={false} hover={false}>
+            <div
+              className="relative p-6 md:p-8"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(255,122,69,0.35) 0%, rgba(255,122,69,0.15) 40%, rgba(10,30,62,0.6) 100%)",
+              }}
             >
-              Fund a project →
-            </Link>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-orange-100/80">
+                    My balance
+                  </p>
+                  <p className="mt-2 text-4xl font-semibold tabular-nums text-white md:text-5xl">
+                    <Money amount={treasury?.balanceUsd ?? 0} size="lg" />
+                  </p>
+                  <p className="mt-2 text-sm text-orange-100/70">
+                    {treasury?.message ?? "Loading treasury…"}
+                  </p>
+                  {(treasury?.obligationsUsd ?? 0) > 0 && (
+                    <p className="mt-2 text-xs text-orange-100/90">
+                      Obligations: ${(treasury?.obligationsUsd ?? 0).toFixed(2)} · Available: $
+                      {(treasury?.availableUsd ?? 0).toFixed(2)}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-emerald-200 ring-1 ring-emerald-400/20">
+                    +{(treasury?.batchCount ?? 0) > 0 ? " active" : " ready"}
+                  </span>
+                  <p className="mt-3 text-sm text-orange-100/70">
+                    Distributed:{" "}
+                    <Money amount={treasury?.totalDistributedUsd ?? 0} size="sm" className="inline" />
+                  </p>
+                  <p className="text-xs text-orange-100/60">
+                    {treasury?.batchCount ?? 0} settlement batches
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/workspace/fund"
+                className="mt-6 inline-flex items-center gap-1 text-sm font-semibold text-white transition hover:text-orange-100"
+              >
+                Fund a project →
+              </Link>
+            </div>
           </Panel>
         </section>
 
@@ -228,7 +244,7 @@ export function PaymentsOS() {
             <MetricCard
               label="Settled"
               value={<Money amount={ledger?.settledUsd ?? 0} size="sm" />}
-              tone="violet"
+              tone="blue"
             />
           </div>
           <Panel variant="glass" className="mt-4 p-5">

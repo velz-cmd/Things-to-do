@@ -5,6 +5,7 @@ export type ResolveWorkspaceMemory = {
   pendingTask?: string | null;
   activeTaskId?: string | null;
   activeMissionId?: string | null;
+  activeEcosystemId?: string | null;
   classification?: TaskClassification | null;
   showVault?: boolean;
   showMissions?: boolean;

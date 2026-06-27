@@ -1,0 +1,129 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/db";
+import { requireReadyUser } from "@/lib/auth/session";
+import {
+  DISCONNECT_FIELDS,
+  validateListenBrainzCredentials,
+  validateNavidromeCredentials,
+  type ConnectPlatform,
+} from "@/lib/profile/user-connections";
+
+const listenbrainzSchema = z.object({
+  username: z.string().min(1).max(120),
+  token: z.string().max(512).optional(),
+});
+
+const navidromeSchema = z.object({
+  url: z.string().url().max(512),
+  username: z.string().min(1).max(120),
+  password: z.string().min(1).max(256),
+});
+
+const PLATFORMS = new Set<ConnectPlatform>(["gmail", "listenbrainz", "navidrome"]);
+
+export async function POST(
+  req: Request,
+  ctx: { params: Promise<{ platform: string }> },
+) {
+  const { platform: raw } = await ctx.params;
+  const platform = raw as ConnectPlatform;
+  if (!PLATFORMS.has(platform)) {
+    return NextResponse.json({ error: "Unknown platform" }, { status: 404 });
+  }
+
+  const ready = await requireReadyUser();
+  if ("error" in ready) {
+    return NextResponse.json({ error: ready.error }, { status: ready.status });
+  }
+
+  if (platform === "gmail") {
+    const returnTo = new URL(req.url).searchParams.get("returnTo") ?? "/profile";
+    const safeReturn = returnTo.startsWith("/") ? returnTo : "/profile";
+    return NextResponse.redirect(
+      new URL(
+        `/api/connectors/gmail/authorize?returnTo=${encodeURIComponent(safeReturn)}`,
+        req.url,
+      ),
+    );
+  }
+
+  const body = await req.json().catch(() => ({}));
+
+  if (platform === "listenbrainz") {
+    const parsed = listenbrainzSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid ListenBrainz credentials" }, { status: 400 });
+    }
+
+    const check = await validateListenBrainzCredentials(
+      parsed.data.username,
+      parsed.data.token,
+    );
+    if (!check.ok) {
+      return NextResponse.json({ error: check.message }, { status: 400 });
+    }
+
+    await prisma.user.update({
+      where: { id: ready.user.id },
+      data: {
+        listenbrainzUsername: parsed.data.username.trim().toLowerCase(),
+        listenbrainzToken: parsed.data.token?.trim() || null,
+      },
+    });
+
+    return NextResponse.json({ ok: true, message: check.message });
+  }
+
+  if (platform === "navidrome") {
+    const parsed = navidromeSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid Navidrome credentials" }, { status: 400 });
+    }
+
+    const check = await validateNavidromeCredentials(
+      parsed.data.url,
+      parsed.data.username,
+      parsed.data.password,
+    );
+    if (!check.ok) {
+      return NextResponse.json({ error: check.message }, { status: 400 });
+    }
+
+    await prisma.user.update({
+      where: { id: ready.user.id },
+      data: {
+        navidromeUrl: parsed.data.url.trim().replace(/\/$/, ""),
+        navidromeUsername: parsed.data.username.trim(),
+        navidromePassword: parsed.data.password,
+      },
+    });
+
+    return NextResponse.json({ ok: true, message: check.message });
+  }
+
+  return NextResponse.json({ error: "Unsupported platform" }, { status: 400 });
+}
+
+export async function DELETE(
+  _req: Request,
+  ctx: { params: Promise<{ platform: string }> },
+) {
+  const { platform: raw } = await ctx.params;
+  const platform = raw as ConnectPlatform;
+  if (!PLATFORMS.has(platform)) {
+    return NextResponse.json({ error: "Unknown platform" }, { status: 404 });
+  }
+
+  const ready = await requireReadyUser();
+  if ("error" in ready) {
+    return NextResponse.json({ error: ready.error }, { status: ready.status });
+  }
+
+  await prisma.user.update({
+    where: { id: ready.user.id },
+    data: DISCONNECT_FIELDS[platform],
+  });
+
+  return NextResponse.json({ ok: true });
+}

@@ -8,14 +8,19 @@ export async function GET(req: Request) {
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const error = searchParams.get("error");
+  const cookieStore = await cookies();
 
   if (error) {
+    const returnTo = cookieStore.get("gmail_oauth_return")?.value;
+    cookieStore.delete("gmail_oauth_return");
+    const dest =
+      returnTo && returnTo.startsWith("/") ? returnTo : "/start";
+    const suffix = dest.includes("?") ? "&" : "?";
     return NextResponse.redirect(
-      `${origin}/start?gmail_error=${encodeURIComponent(error)}`
+      `${origin}${dest}${suffix}gmail_error=${encodeURIComponent(error)}`,
     );
   }
 
-  const cookieStore = await cookies();
   const expectedState = cookieStore.get("gmail_oauth_state")?.value;
   const userId = cookieStore.get("gmail_oauth_user")?.value;
 
@@ -23,7 +28,12 @@ export async function GET(req: Request) {
   cookieStore.delete("gmail_oauth_user");
 
   if (!code || !state || !expectedState || state !== expectedState || !userId) {
-    return NextResponse.redirect(`${origin}/start?gmail_error=invalid_state`);
+    const returnTo = cookieStore.get("gmail_oauth_return")?.value;
+    cookieStore.delete("gmail_oauth_return");
+    const dest =
+      returnTo && returnTo.startsWith("/") ? returnTo : "/start";
+    const suffix = dest.includes("?") ? "&" : "?";
+    return NextResponse.redirect(`${origin}${dest}${suffix}gmail_error=invalid_state`);
   }
 
   try {
@@ -42,8 +52,13 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${origin}${dest}${suffix}gmail_connected=1`);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Gmail connection failed";
+    const returnTo = cookieStore.get("gmail_oauth_return")?.value;
+    cookieStore.delete("gmail_oauth_return");
+    const dest =
+      returnTo && returnTo.startsWith("/") ? returnTo : "/start";
+    const suffix = dest.includes("?") ? "&" : "?";
     return NextResponse.redirect(
-      `${origin}/start?gmail_error=${encodeURIComponent(message)}`
+      `${origin}${dest}${suffix}gmail_error=${encodeURIComponent(message)}`,
     );
   }
 }

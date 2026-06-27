@@ -2,16 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Wallet,
   GitBranch,
   LogOut,
   Mail,
   Music,
-  Radio,
   CheckCircle2,
-  ExternalLink,
   Loader2,
 } from "lucide-react";
 import { useDisconnect } from "wagmi";
@@ -43,8 +41,6 @@ const PLATFORM_ICONS: Record<
   listenbrainz: Music,
   navidrome: Music,
   gmail: Mail,
-  mastodon: Radio,
-  peertube: Radio,
 };
 
 function IdentityField({
@@ -117,9 +113,119 @@ function TextAction({
   );
 }
 
+function ConnectListenBrainzForm({ onConnected }: { onConnected: () => void }) {
+  const [username, setUsername] = useState("");
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await fetch("/api/profile/connect/listenbrainz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username, token: token || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Connection failed");
+      toast.success("ListenBrainz connected");
+      onConnected();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not connect ListenBrainz");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={(e) => void submit(e)} className="mt-2 space-y-2">
+      <input
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder="ListenBrainz username"
+        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
+        required
+      />
+      <input
+        value={token}
+        onChange={(e) => setToken(e.target.value)}
+        placeholder="User token (from listenbrainz.org)"
+        type="password"
+        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
+      />
+      <Button type="submit" size="sm" variant="secondary" disabled={busy}>
+        {busy ? "Connecting…" : "Connect ListenBrainz"}
+      </Button>
+    </form>
+  );
+}
+
+function ConnectNavidromeForm({ onConnected }: { onConnected: () => void }) {
+  const [url, setUrl] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await fetch("/api/profile/connect/navidrome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ url, username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Connection failed");
+      toast.success("Navidrome connected");
+      onConnected();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not connect Navidrome");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={(e) => void submit(e)} className="mt-2 space-y-2">
+      <input
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://music.example.com"
+        type="url"
+        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
+        required
+      />
+      <input
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder="Navidrome username"
+        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
+        required
+      />
+      <input
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        type="password"
+        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
+        required
+      />
+      <Button type="submit" size="sm" variant="secondary" disabled={busy}>
+        {busy ? "Connecting…" : "Connect Navidrome"}
+      </Button>
+    </form>
+  );
+}
+
 export function ProfileSettings() {
   const router = useRouter();
-  const { user, signOut, signInWithGitHub, githubEnabled, balance, balanceLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const { user, signOut, signInWithGitHub, linkGitHub, githubEnabled, balance, balanceLoading } =
+    useAuth();
   const { openSignIn } = useSignInModal();
   const account = useResolveAccount();
   const capabilities = useAuthCapabilities();
@@ -135,6 +241,7 @@ export function ProfileSettings() {
   const [ecosystems, setEcosystems] = useState<
     Array<{ id: string; name: string; kind: string; connectors: string[]; repoCount: number }>
   >([]);
+  const [connectingPlatform, setConnectingPlatform] = useState<IdentityPlatformId | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -158,37 +265,72 @@ export function ProfileSettings() {
     void load();
   }, [load, user?.id, account.externalWalletAddress]);
 
-  async function linkGitHub() {
+  useEffect(() => {
+    if (searchParams.get("gmail_connected") === "1") {
+      toast.success("Gmail connected");
+      router.replace("/profile");
+      void load();
+    }
+    if (searchParams.get("github_linked") === "1") {
+      toast.success("GitHub linked to your account");
+      router.replace("/profile");
+      void load();
+    }
+    const gmailError = searchParams.get("gmail_error");
+    if (gmailError) {
+      toast.error(`Gmail: ${gmailError}`);
+      router.replace("/profile");
+    }
+  }, [searchParams, router, load]);
+
+  async function disconnectPlatform(platform: IdentityPlatformId) {
+    const res = await fetch(`/api/profile/connect/${platform}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast.error((data as { error?: string }).error ?? "Could not disconnect");
+      return;
+    }
+    toast.success("Disconnected");
+    void load();
+  }
+
+  async function linkGitHubAccount() {
+    if (!user) {
+      openSignIn();
+      return;
+    }
     if (githubEnabled && capabilities.github) {
-      await signInWithGitHub();
+      try {
+        await linkGitHub();
+      } catch {
+        await signInWithGitHub();
+      }
       void load();
     } else {
       openSignIn();
     }
   }
 
-  async function connectGmail() {
-    window.location.href = "/api/connectors/gmail/authorize";
+  function connectGmail() {
+    window.location.href =
+      "/api/connectors/gmail/authorize?returnTo=" + encodeURIComponent("/profile");
   }
 
   const byCommunity = useMemo(() => platformsByCommunity(), []);
 
-  const communityOrder: CommunityKind[] = [
-    "open_source",
-    "music",
-    "settlement",
-    "fediverse",
-    "video",
-  ];
+  const communityOrder: CommunityKind[] = ["open_source", "music", "settlement"];
 
   function renderPlatformActions(platformId: IdentityPlatformId, connected: boolean) {
     if (platformId === "github") {
       return connected ?
           <>
-            <TextAction label="Change" onClick={() => void linkGitHub()} />
+            <TextAction label="Change" onClick={() => void linkGitHubAccount()} />
             <TextAction
               label="Remove"
-              onClick={() => toast.message("Disconnect GitHub from Supabase account settings.")}
+              onClick={() => toast.message("Unlink GitHub from your Supabase account settings.")}
             />
           </>
         : null;
@@ -210,24 +352,30 @@ export function ProfileSettings() {
     }
     if (platformId === "gmail") {
       return connected ?
-          <TextAction label="Change" onClick={() => void connectGmail()} />
+          <>
+            <TextAction label="Change" onClick={() => void connectGmail()} />
+            <TextAction label="Remove" onClick={() => void disconnectPlatform("gmail")} />
+          </>
         : null;
+    }
+    if (platformId === "listenbrainz" && connected) {
+      return (
+        <TextAction label="Remove" onClick={() => void disconnectPlatform("listenbrainz")} />
+      );
+    }
+    if (platformId === "navidrome" && connected) {
+      return <TextAction label="Remove" onClick={() => void disconnectPlatform("navidrome")} />;
     }
     return null;
   }
 
   function renderConnectButton(platformId: IdentityPlatformId, state?: ProfileIdentityState) {
     if (state?.connected) return null;
-    if (IDENTITY_PLATFORMS.find((p) => p.id === platformId)?.status === "upcoming") {
-      return (
-        <span className="text-xs text-resolve-muted-dim">Coming soon</span>
-      );
-    }
 
     switch (platformId) {
       case "github":
         return (
-          <Button size="sm" variant="secondary" onClick={() => void linkGitHub()}>
+          <Button size="sm" variant="secondary" onClick={() => void linkGitHubAccount()}>
             Connect GitHub
           </Button>
         );
@@ -244,23 +392,35 @@ export function ProfileSettings() {
           </Button>
         );
       case "navidrome":
-        return (
-          <Link
-            href="https://github.com/velz-cmd/Things-to-do/blob/main/docs/NAVIDROME.md"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-resolve-accent hover:underline"
-          >
-            Setup guide
-            <ExternalLink className="h-3 w-3" />
-          </Link>
-        );
+        return connectingPlatform === "navidrome" ?
+            <ConnectNavidromeForm
+              onConnected={() => {
+                setConnectingPlatform(null);
+                void load();
+              }}
+            />
+          : <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setConnectingPlatform("navidrome")}
+            >
+              Connect Navidrome
+            </Button>;
       case "listenbrainz":
-        return (
-          <span className="text-xs text-resolve-muted">
-            Configure ListenBrainz on your deployment
-          </span>
-        );
+        return connectingPlatform === "listenbrainz" ?
+            <ConnectListenBrainzForm
+              onConnected={() => {
+                setConnectingPlatform(null);
+                void load();
+              }}
+            />
+          : <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setConnectingPlatform("listenbrainz")}
+            >
+              Connect ListenBrainz
+            </Button>;
       default:
         return null;
     }
@@ -268,7 +428,6 @@ export function ProfileSettings() {
 
   return (
     <div className="space-y-8">
-      {/* Email — Galxe-style */}
       <section className="space-y-3">
         <SectionHeader
           title="Email address"
@@ -311,7 +470,6 @@ export function ProfileSettings() {
         }
       </section>
 
-      {/* Community identities */}
       <section className="space-y-6">
         <div>
           <h2 className="text-base font-semibold text-white">Link your community identities</h2>
@@ -341,7 +499,10 @@ export function ProfileSettings() {
                   : state?.displayValue;
 
                 return (
-                  <div key={def.id} className="space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div
+                    key={def.id}
+                    className="space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
+                  >
                     <SectionHeader
                       title={def.platform}
                       subtitle={def.usedFor}
@@ -398,12 +559,11 @@ export function ProfileSettings() {
         })}
       </section>
 
-      {/* User's communities / workspaces */}
       {ecosystems.length > 0 && (
         <section className="space-y-3">
           <SectionHeader
             title="Your communities"
-            subtitle="Workspaces you fund or observe — each uses the identities above"
+            subtitle="Workspaces you fund or observe — saved to your account"
           />
           <ul className="space-y-2">
             {ecosystems.map((eco) => (

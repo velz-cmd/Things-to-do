@@ -1,10 +1,5 @@
 /** Which open-community each identity platform belongs to. */
-export type CommunityKind =
-  | "open_source"
-  | "music"
-  | "settlement"
-  | "fediverse"
-  | "video";
+export type CommunityKind = "open_source" | "music" | "settlement";
 
 export type IdentityPlatformId =
   | "email"
@@ -12,9 +7,7 @@ export type IdentityPlatformId =
   | "wallet"
   | "listenbrainz"
   | "navidrome"
-  | "gmail"
-  | "mastodon"
-  | "peertube";
+  | "gmail";
 
 export type IdentityPlatformDef = {
   id: IdentityPlatformId;
@@ -31,8 +24,6 @@ export const COMMUNITY_LABELS: Record<CommunityKind, string> = {
   open_source: "Open source & code",
   music: "Music & creative work",
   settlement: "Settlement & payouts",
-  fediverse: "Fediverse & social",
-  video: "Video & streaming",
 };
 
 export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
@@ -80,24 +71,6 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     description: "Optional — connect inbox for receipt-based claim evidence (refunds, subscriptions).",
     status: "live",
     usedFor: "Claim evidence · not required for GitHub",
-  },
-  {
-    id: "mastodon",
-    community: "fediverse",
-    communityLabel: COMMUNITY_LABELS.fediverse,
-    platform: "Mastodon",
-    description: "ActivityPub identity for fediverse communities — attribution from public posts.",
-    status: "upcoming",
-    usedFor: "Social attribution",
-  },
-  {
-    id: "peertube",
-    community: "video",
-    communityLabel: COMMUNITY_LABELS.video,
-    platform: "PeerTube",
-    description: "Video instance plugin — viewer presence and creator payouts.",
-    status: "upcoming",
-    usedFor: "Video attribution",
   },
 ];
 

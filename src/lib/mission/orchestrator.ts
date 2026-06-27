@@ -13,6 +13,7 @@ import { buildGroundedAnswer } from "./capabilities/answer-builder";
 import { buildIntelligenceBrief } from "./intelligence-brief";
 import { buildMissionReport } from "./mission-report";
 import { getCapabilityDef } from "./capabilities/registry";
+import { followUpQuickActions } from "./community/quick-actions";
 import type { CapabilityId, OrchestratorContext, OrchestratorResult } from "./capabilities/types";
 
 function capabilityToIntent(capability: CapabilityId) {
@@ -149,13 +150,28 @@ export async function runMissionOrchestrator(input: {
     : extractCompareTargets(input.question),
     communityName,
     ecosystemName: communityName,
+    researchReferences: collected.researchReferences,
     stepsRun: collected.stepsRun,
   };
 
   const groundedAnswer = buildGroundedAnswer(ctx);
   const brief = buildIntelligenceBrief(ctx);
   const answer = await maybeEnhanceWithReasoning(ctx, brief.summary || groundedAnswer, input.messages);
-  const actions = def.actions(ctx);
+  const capabilityActions = def.actions(ctx);
+  const quickActions = followUpQuickActions({
+    capability,
+    communityKind: collected.community.kind,
+    communityName,
+    capitalUsd,
+    hasOpportunities: collected.opportunities.length > 0,
+    claimableUsd: collected.evidence.ledger?.claimableUsd,
+  });
+  const actions = [...capabilityActions, ...quickActions.map((q) => ({
+    id: q.id,
+    label: q.label,
+    prompt: q.prompt,
+    kind: "explore" as const,
+  }))].filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i).slice(0, 6);
   const durationMs = Math.round(performance.now() - started);
   const report = buildMissionReport({
     ctx,
@@ -182,6 +198,8 @@ export async function runMissionOrchestrator(input: {
     policies: collected.policies,
     opportunities: collected.opportunityCards,
     concentrations: collected.concentrations,
+    researchReferences: collected.researchReferences,
+    quickActions,
     grounded: true,
     requiresApproval: capability === "execute_settlement" || capability === "allocate_capital",
     durationMs,

@@ -75,6 +75,11 @@ export {
   KNOWN_COMMUNITIES,
   communityKindLabel,
 } from "./detector";
+export {
+  MISSION_STARTER_GROUPS,
+  followUpQuickActions,
+  quickActionsForCommunity,
+} from "./quick-actions";
 export type {
   CommunityKind,
   CapabilityLayer,

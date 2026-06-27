@@ -50,6 +50,7 @@ type AdvisorPayload = {
   opportunities?: OpportunityCard[];
   policies?: PolicyProposal[];
   actions?: CapabilityAction[];
+  researchReferences?: import("@/lib/mission/capabilities/types").ResearchReference[];
   answer?: string;
   headline?: string;
   brief?: IntelligenceBrief;
@@ -172,6 +173,7 @@ function applyAdvisorPayload(trimmed: string, data: AdvisorPayload): MissionTurn
       isPlan && estCapital ? buildAllocationFromOpportunities(opportunities, estCapital) : undefined,
     policy: isPlan ? pickInlinePolicy(policies, trimmed) : undefined,
     nextSteps: data.actions ?? data.report?.actions ?? [],
+    researchReferences: data.researchReferences ?? data.report?.researchReferences,
   };
 }
 

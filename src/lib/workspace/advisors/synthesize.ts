@@ -28,6 +28,8 @@ export type AdvisorResponse = {
   opportunities: OpportunityCard[];
   evidenceUsed: string[];
   stepsRun: string[];
+  researchReferences: import("@/lib/mission/capabilities/types").ResearchReference[];
+  quickActions: import("@/lib/mission/capabilities/types").MissionQuickAction[];
   grounded: boolean;
   requiresApproval: boolean;
 };
@@ -73,6 +75,8 @@ export async function askValueAdvisor(input: {
     opportunities: result.opportunities,
     evidenceUsed: result.traces.map((t) => `${t.source}: ${t.summary}`),
     stepsRun: result.stepsRun,
+    researchReferences: result.researchReferences,
+    quickActions: result.quickActions,
     grounded: result.grounded,
     requiresApproval: result.requiresApproval,
   };

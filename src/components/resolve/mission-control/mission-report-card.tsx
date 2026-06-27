@@ -6,6 +6,7 @@ import type { MissionReport } from "@/lib/mission/mission-report";
 import { missionReportToJson } from "@/lib/mission/mission-report";
 import type { CapabilityAction } from "@/lib/mission/capabilities/types";
 import { MissionCapabilityActions } from "@/components/resolve/mission-control/mission-capability-actions";
+import { MissionResearchRefs } from "@/components/resolve/mission-control/mission-research-refs";
 
 function formatDuration(ms: number) {
   if (ms < 1000) return `${ms}ms`;
@@ -118,6 +119,10 @@ export function MissionReportCard({
               ))}
             </ul>
           </div>
+        )}
+
+        {report.researchReferences && report.researchReferences.length > 0 && (
+          <MissionResearchRefs references={report.researchReferences} />
         )}
 
         {report.priority && (

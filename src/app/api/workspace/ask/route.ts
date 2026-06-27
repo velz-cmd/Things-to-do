@@ -15,6 +15,12 @@ const messageSchema = z.object({
 const bodySchema = z.object({
   question: z.string().min(1).max(4000).optional(),
   messages: z.array(messageSchema).max(40).optional(),
+  ecosystem: z
+    .object({
+      name: z.string().min(1).max(120),
+      keywords: z.array(z.string()).max(12).optional(),
+    })
+    .optional(),
 });
 
 /** Open protocol chat — evidence-backed, never executes without approval. */
@@ -33,6 +39,7 @@ export async function POST(req: Request) {
     question: parsed.data.question,
     evidence,
     messages: parsed.data.messages,
+    ecosystem: parsed.data.ecosystem,
   });
 
   return NextResponse.json({

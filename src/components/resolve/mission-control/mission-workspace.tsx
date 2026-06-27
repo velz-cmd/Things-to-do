@@ -9,13 +9,15 @@ import {
   MissionSuggestedAllocation,
 } from "@/components/resolve/mission-control/mission-recommendation";
 import { MissionQuickReplies } from "@/components/resolve/mission-control/mission-execution-bar";
-import { MissionOsPanel } from "@/components/resolve/mission-control/mission-os-panel";
+import { MissionSidebar } from "@/components/resolve/mission-control/mission-sidebar";
 import { MissionNextSteps } from "@/components/resolve/mission-control/mission-next-steps";
 import { MISSION_EXAMPLES } from "@/lib/mission/intents";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
 import type { ContextualAction } from "@/lib/mission/contextual-actions";
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
+import type { Ecosystem } from "@/lib/mission/ecosystems";
+import type { KnowledgeEntry } from "@/lib/mission/knowledge";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 
 export type MissionTurn = {
@@ -42,10 +44,11 @@ export function MissionWorkspace({
   onSubmit,
   onChip,
   onNewMission,
-  onNewAgent,
   onSelectSession,
+  onSelectEcosystem,
+  onSelectKnowledge,
   activeSessionId,
-  activeScope,
+  activeEcosystem,
   onClear,
   thinkingSteps,
   libraryTick,
@@ -60,10 +63,11 @@ export function MissionWorkspace({
   onSubmit: (text: string) => void;
   onChip: (text: string) => void;
   onNewMission: () => void;
-  onNewAgent: () => void;
   onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
+  onSelectEcosystem: (ecosystem: Ecosystem | null) => void;
+  onSelectKnowledge: (entry: KnowledgeEntry) => void;
   activeSessionId?: string | null;
-  activeScope?: string | null;
+  activeEcosystem?: Ecosystem | null;
   onClear?: () => void;
   thinkingSteps?: readonly string[];
   libraryTick?: number;
@@ -81,15 +85,18 @@ export function MissionWorkspace({
     onSubmit(input.trim());
   }
 
+  const inputPlaceholder =
+    activeEcosystem ? `Ask about ${activeEcosystem.name}…` : "Ask a follow-up…";
+
   return (
     <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px]">
-      <MissionOsPanel
-        onQuery={onChip}
+      <MissionSidebar
         onNewMission={onNewMission}
-        onNewAgent={onNewAgent}
         onSelectSession={onSelectSession}
+        onSelectEcosystem={onSelectEcosystem}
+        onSelectKnowledge={onSelectKnowledge}
         activeSessionId={activeSessionId}
-        activeScope={activeScope}
+        activeEcosystemId={activeEcosystem?.id ?? null}
         libraryVersion={libraryTick}
       />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -114,7 +121,11 @@ export function MissionWorkspace({
                     <input
                       value={input}
                       onChange={(e) => onInputChange(e.target.value)}
-                      placeholder="Find value leaks in React"
+                      placeholder={
+                        activeEcosystem ?
+                          `Where is value leaking in ${activeEcosystem.name}?`
+                        : "Find value leaks in React"
+                      }
                       className="w-full rounded-full border border-resolve-border bg-resolve-bg-deep/60 px-5 py-3.5 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
                       autoFocus
                     />
@@ -206,7 +217,7 @@ export function MissionWorkspace({
                 <input
                   value={input}
                   onChange={(e) => onInputChange(e.target.value)}
-                  placeholder="Ask a follow-up…"
+                  placeholder={inputPlaceholder}
                   disabled={loading}
                   className="w-full rounded-full border border-resolve-border bg-resolve-bg-deep/60 px-5 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none disabled:opacity-50"
                 />

@@ -75,6 +75,8 @@ Observe  →  Understand  →  Recommend  →  Execute
 
 Intelligence is the product. Execution is optional.
 
+**Mission rule:** Intelligence conversation first. Ranked discovery cards with per-card chips (Why?, Show evidence). No Approve / Execute until the user commits to a plan.
+
 ---
 
 ## Who Mission serves (same engine)

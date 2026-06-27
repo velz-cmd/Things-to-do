@@ -6,14 +6,15 @@ import { MissionWorkspace, type MissionTurn } from "@/components/resolve/mission
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
 import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
+import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
+import type { MissionPhase } from "@/lib/mission/phases";
 import {
-  buildQuickReplies,
-  detectMissionIntent,
-  parseCapitalUsd,
-  shouldShowExecution,
-  shouldShowOpportunities,
-  thinkingStepsFor,
-} from "@/lib/mission/intents";
+  chipsFromFinding,
+  detectMissionPhase,
+  executeActions,
+  planningActions,
+} from "@/lib/mission/phases";
+import { detectMissionIntent, parseCapitalUsd, thinkingStepsFor } from "@/lib/mission/intents";
 
 function buildAllocationFromOpportunities(
   opportunities: OpportunityCard[],
@@ -55,15 +56,18 @@ function pickInlinePolicy(policies: PolicyProposal[], text: string): PolicyPropo
   return policies.find((p) => p.id === "balanced") ?? policies[0];
 }
 
-type TreasurySnapshot = {
-  balanceUsd?: number;
-  availableUsd?: number;
-  obligationsUsd?: number;
-};
+function enrichFindingChips(
+  findings: MissionFinding[],
+  intent: ReturnType<typeof detectMissionIntent>,
+): MissionFinding[] {
+  return findings.map((f) => ({
+    ...f,
+    chips: chipsFromFinding(f, intent),
+  }));
+}
 
 /**
- * Mission — intelligence workspace for the open internet.
- * Observe → Understand → Recommend → Execute (only when approved).
+ * Mission — intelligence conversation first. Execution is a consequence, not the default.
  */
 export function MissionControl() {
   const { scope, enterMission } = useMissionScope();
@@ -74,15 +78,8 @@ export function MissionControl() {
   const [activeThinkingSteps, setActiveThinkingSteps] = useState<readonly string[]>(
     thinkingStepsFor("general"),
   );
-  const [treasury, setTreasury] = useState<TreasurySnapshot | null>(null);
+  const [lastPhase, setLastPhase] = useState<MissionPhase>("discover");
   const started = turns.length > 0;
-
-  useEffect(() => {
-    void fetch("/api/workspace/overview")
-      .then((r) => r.json())
-      .then((d) => setTreasury(d.treasury ?? null))
-      .catch(() => setTreasury(null));
-  }, []);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -119,36 +116,27 @@ export function MissionControl() {
 
         setThinkingComplete(true);
 
+        const phase: MissionPhase = data.phase ?? detectMissionPhase(trimmed, history);
+        setLastPhase(phase);
+
+        const findings = enrichFindingChips(data.findings ?? [], intent);
         const estCapital = parseCapitalUsd(trimmed);
         const opportunities: OpportunityCard[] = data.opportunities ?? [];
         const policies: PolicyProposal[] = data.policies ?? [];
-        const availableUsd =
-          treasury?.availableUsd ?? treasury?.balanceUsd ?? data.treasuryBalanceUsd ?? 0;
-        const neededUsd = estCapital ?? treasury?.obligationsUsd ?? 0;
-        const showOpps = shouldShowOpportunities(intent) && opportunities.length > 0;
-        const isFunding = intent === "funding";
-        const oppsTitle =
-          intent === "risk" ? "Critical dependencies at risk"
-          : intent === "discovery" ? "Value concentrations"
-          : "Funding leaks found";
+        const isPlan = phase === "plan";
+        const answer = data.answer ?? data.headline ?? "No analysis available.";
 
         const resolveTurn: MissionTurn = {
           id: `r-${Date.now()}`,
           role: "resolve",
-          text: data.answer ?? "No analysis available.",
-          opportunities: showOpps ? opportunities : undefined,
-          opportunitiesTitle: showOpps ? oppsTitle : undefined,
+          text: answer,
+          findings: phase === "discover" || findings.length > 0 ? findings : undefined,
+          phase,
           allocations:
-            isFunding && estCapital ?
+            isPlan && estCapital ?
               buildAllocationFromOpportunities(opportunities, estCapital)
             : undefined,
-          policy: isFunding ? pickInlinePolicy(policies, trimmed) : undefined,
-          treasury:
-            isFunding && neededUsd > availableUsd ?
-              { availableUsd, neededUsd }
-            : undefined,
-          quickReplies: buildQuickReplies(intent),
-          showExecution: shouldShowExecution(intent, trimmed),
+          policy: isPlan ? pickInlinePolicy(policies, trimmed) : undefined,
         };
 
         setTurns((t) => [...t, resolveTurn]);
@@ -160,14 +148,14 @@ export function MissionControl() {
             id: `r-${Date.now()}`,
             role: "resolve",
             text: e instanceof Error ? e.message : "Could not complete analysis.",
-            quickReplies: ["Try again"],
+            phase: "discover",
           },
         ]);
       } finally {
         setLoading(false);
       }
     },
-    [enterMission, turns, treasury],
+    [enterMission, turns],
   );
 
   useEffect(() => {
@@ -176,11 +164,14 @@ export function MissionControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap from URL scope once
   }, [scope?.label]);
 
-  function handleReject() {
+  function handleClear() {
     setTurns([]);
     setInput("");
     setThinkingComplete(false);
+    setLastPhase("discover");
   }
+
+  const topFinding = [...turns].reverse().find((t) => t.role === "resolve")?.findings?.[0];
 
   return (
     <MissionWorkspace
@@ -189,14 +180,16 @@ export function MissionControl() {
       loading={loading}
       thinkingComplete={thinkingComplete}
       thinkingSteps={activeThinkingSteps}
+      phase={lastPhase}
       input={input}
       onInputChange={setInput}
       onSubmit={(t) => void sendMessage(t)}
-      onQuickReply={(t) => void sendMessage(t)}
-      onApprove={() => void sendMessage("Approve this recommendation and prepare execution.")}
-      onSimulate={() => void sendMessage("Simulate this without executing.")}
-      onReject={handleReject}
-      onEditPolicy={() => void sendMessage("Let me customize this recommendation.")}
+      onChip={(t) => void sendMessage(t)}
+      onPlanningAction={(p) => void sendMessage(p)}
+      onExecuteAction={(p) => void sendMessage(p)}
+      onClear={handleClear}
+      planningActions={planningActions(topFinding)}
+      executeActions={executeActions()}
     />
   );
 }

@@ -6,8 +6,8 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Workspace" })).toBeVisible();
-    await expect(page.getByText("Here's what is already happening")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Find value leaks" }).first()).toBeVisible();
+    await expect(page.getByText("Economic operating system")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reason" })).toBeVisible();
 
     await page.goto("/activity", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Activity" })).toBeVisible();
@@ -32,6 +32,15 @@ test.describe("RESOLVE product surfaces", () => {
     const body = await res.json();
     expect(body.connectors?.length).toBeGreaterThan(0);
     expect(body).toHaveProperty("updatedAt");
+  });
+
+  test("workspace OS API returns six questions", async ({ request }) => {
+    const res = await request.get("/api/workspace/os");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body).toHaveProperty("headline");
+    expect(body).toHaveProperty("sixQuestions");
+    expect(Array.isArray(body.sixQuestions)).toBe(true);
   });
 
   test("workspace overview API returns OS payload", async ({ request }) => {

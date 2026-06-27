@@ -85,11 +85,14 @@ export function MissionSidebar({
     } else {
       setServerMode(false);
       setSessions(loadMissionSessions());
-      setWorkspaces(loadEcosystems());
-      return;
     }
 
-    if (eco) setWorkspaces(eco.map(serverEcosystemToClient));
+    if (eco) {
+      setServerMode(true);
+      setWorkspaces(eco.map(serverEcosystemToClient));
+    } else if (missions === null) {
+      setWorkspaces(loadEcosystems());
+    }
   }, []);
 
   useEffect(() => {

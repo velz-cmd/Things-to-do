@@ -10,6 +10,7 @@ const WORKSPACE_FIELDS: (keyof ResolveWorkspaceMemory)[] = [
   "pendingTask",
   "activeTaskId",
   "activeMissionId",
+  "activeEcosystemId",
   "classification",
   "showVault",
   "showMissions",

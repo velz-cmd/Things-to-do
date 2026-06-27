@@ -88,10 +88,16 @@ export function getActiveEcosystemId(): string | null {
   return localStorage.getItem(ACTIVE_KEY);
 }
 
+import { saveUserMemory } from "@/lib/resolve/workspace-memory";
+
 export function setActiveEcosystemId(id: string | null) {
   if (typeof window === "undefined") return;
   if (id) localStorage.setItem(ACTIVE_KEY, id);
   else localStorage.removeItem(ACTIVE_KEY);
+
+  void saveUserMemory({ activeEcosystemId: id }).catch(() => {
+    /* non-fatal */
+  });
 }
 
 export function getActiveEcosystem(): Ecosystem | undefined {

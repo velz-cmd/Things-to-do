@@ -450,6 +450,7 @@ model ResolveMissionTurn {
   capability   String?
   findingsJson String?  @db.Text
   actionsJson  String?  @db.Text
+  reportJson   String?  @db.Text
   sortOrder    Int
   createdAt    DateTime @default(now())
 

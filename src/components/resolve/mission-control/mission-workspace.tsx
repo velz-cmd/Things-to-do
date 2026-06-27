@@ -4,8 +4,7 @@ import { useEffect, useRef, type FormEvent } from "react";
 import { Loader2, Send } from "lucide-react";
 import { MissionThinking } from "@/components/resolve/mission-control/mission-thinking";
 import { MissionSidebar } from "@/components/resolve/mission-control/mission-sidebar";
-import { IntelligenceBriefCard } from "@/components/resolve/mission-control/intelligence-brief-card";
-import { MissionCapabilityActions } from "@/components/resolve/mission-control/mission-capability-actions";
+import { MissionReportCard } from "@/components/resolve/mission-control/mission-report-card";
 import { MissionContextPanel } from "@/components/resolve/mission-control/mission-context-panel";
 import { MissionLiveDelta } from "@/components/resolve/mission-control/mission-live-delta";
 import { MissionBrief } from "@/components/resolve/mission-control/mission-brief";
@@ -16,6 +15,8 @@ import type { AllocationLine } from "@/components/resolve/mission-control/missio
 import type { Ecosystem } from "@/lib/mission/ecosystems";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
+import type { MissionReport } from "@/lib/mission/mission-report";
+import { reportFromBrief } from "@/lib/mission/mission-report";
 import type { ServerTimelineEvent } from "@/lib/mission/client-api";
 import { statusLabel } from "@/lib/mission/state-machine";
 import type { MissionStatus } from "@/lib/mission/state-machine";
@@ -27,6 +28,7 @@ export type MissionTurn = {
   role: "user" | "resolve";
   text: string;
   brief?: IntelligenceBrief;
+  report?: MissionReport;
   findings?: MissionFinding[];
   phase?: MissionPhase;
   capability?: CapabilityId;
@@ -144,7 +146,7 @@ export function MissionWorkspace({
                   Workspace · {activeWorkspace.name}
                 </p>
               : <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-muted-dim">
-                  Economic operating system
+                  Operating system for funding open communities
                 </p>}
               <h1 className="mt-0.5 text-base font-semibold text-white">
                 {objective ?? "New mission"}
@@ -178,19 +180,23 @@ export function MissionWorkspace({
                   Intent · {turn.text}
                 </p>
               : <div key={turn.id} className="space-y-3">
-                  {turn.brief ?
-                    <IntelligenceBriefCard brief={turn.brief} objective={objective ?? undefined} />
+                  {turn.report ?
+                    <MissionReportCard
+                      report={turn.report}
+                      onAction={turn === lastResolve ? onAction : undefined}
+                      actionsDisabled={loading}
+                    />
+                  : turn.brief ?
+                    <MissionReportCard
+                      report={reportFromBrief(
+                        turn.brief,
+                        objective ?? turn.text,
+                        turn.nextSteps ?? [],
+                      )}
+                      onAction={turn === lastResolve ? onAction : undefined}
+                      actionsDisabled={loading}
+                    />
                   : <p className="text-sm text-resolve-muted">{turn.text}</p>}
-                  {turn === lastResolve &&
-                    turn.nextSteps &&
-                    turn.nextSteps.length > 0 &&
-                    !loading && (
-                      <MissionCapabilityActions
-                        actions={turn.nextSteps}
-                        onAction={onAction}
-                        disabled={loading}
-                      />
-                    )}
                 </div>,
             )}
 

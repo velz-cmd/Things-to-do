@@ -15,6 +15,7 @@ import type { MissionPhase } from "@/lib/mission/phases";
 import { chipsFromFinding, detectMissionPhase } from "@/lib/mission/phases";
 import type { CapabilityAction } from "@/lib/mission/capabilities/types";
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
+import type { MissionReport } from "@/lib/mission/mission-report";
 import { parseCapitalUsd, thinkingStepsFor, detectMissionIntent } from "@/lib/mission/intents";
 import {
   createMissionSession,
@@ -52,6 +53,7 @@ type AdvisorPayload = {
   answer?: string;
   headline?: string;
   brief?: IntelligenceBrief;
+  report?: MissionReport;
   stepsRun?: string[];
   status?: string;
   mission?: import("@/lib/mission/client-api").ServerMission;
@@ -143,6 +145,7 @@ function turnsFromSession(session: MissionSession): MissionTurn[] {
     phase: t.phase,
     findings: t.findings,
     capability: t.capability as MissionTurn["capability"],
+    report: (t as { report?: MissionReport }).report,
     nextSteps: t.actions,
   }));
 }
@@ -159,15 +162,16 @@ function applyAdvisorPayload(trimmed: string, data: AdvisorPayload): MissionTurn
   return {
     id: `r-${Date.now()}`,
     role: "resolve",
-    text: data.answer ?? data.headline ?? "Analysis complete.",
+    text: data.report?.summary ?? data.answer ?? data.headline ?? "Mission complete.",
     brief: data.brief,
+    report: data.report,
     findings: findings.length > 0 ? findings : undefined,
     phase,
     capability: data.capability as MissionTurn["capability"],
     allocations:
       isPlan && estCapital ? buildAllocationFromOpportunities(opportunities, estCapital) : undefined,
     policy: isPlan ? pickInlinePolicy(policies, trimmed) : undefined,
-    nextSteps: data.actions ?? [],
+    nextSteps: data.actions ?? data.report?.actions ?? [],
   };
 }
 

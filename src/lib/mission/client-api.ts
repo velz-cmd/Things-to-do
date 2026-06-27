@@ -14,7 +14,7 @@ export type ServerMission = {
   capitalUsd: number | null;
   createdAt: string;
   updatedAt: string;
-  turns: Array<{
+    turns: Array<{
     id: string;
     role: "user" | "resolve";
     text: string;
@@ -22,6 +22,7 @@ export type ServerMission = {
     capability?: string;
     findings?: MissionFinding[];
     actions?: import("@/lib/mission/capabilities/types").CapabilityAction[];
+    report?: import("@/lib/mission/mission-report").MissionReport;
   }>;
 };
 
@@ -149,6 +150,7 @@ export async function sendMissionMessage(
     answer: string;
     headline: string;
     brief: import("@/lib/mission/intelligence-brief").IntelligenceBrief;
+    report: import("@/lib/mission/mission-report").MissionReport;
     findings: MissionFinding[];
     phase: MissionPhase;
     capability: string;
@@ -270,6 +272,7 @@ export function serverMissionToSession(m: ServerMission) {
       findings: t.findings,
       capability: t.capability,
       actions: t.actions,
+      report: t.report,
     })),
   };
 }

@@ -8,6 +8,7 @@ import type { MissionPhase } from "@/lib/mission/phases";
 import { runMissionOrchestrator } from "@/lib/mission/orchestrator";
 import type { CapabilityAction, CapabilityId } from "@/lib/mission/capabilities/types";
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
+import type { MissionReport } from "@/lib/mission/mission-report";
 
 export type AdvisorResponse = {
   capability: CapabilityId;
@@ -17,6 +18,7 @@ export type AdvisorResponse = {
   answer: string;
   headline: string;
   brief: IntelligenceBrief;
+  report: MissionReport;
   findings: MissionFinding[];
   phase: MissionPhase;
   actions: CapabilityAction[];
@@ -61,6 +63,7 @@ export async function askValueAdvisor(input: {
     answer: result.answer,
     headline: result.headline,
     brief: result.brief,
+    report: result.report,
     findings: result.findings,
     phase: result.phase,
     actions: result.actions,

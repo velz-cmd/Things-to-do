@@ -6,6 +6,7 @@ import type { ValueConcentration } from "@/lib/workspace/advisors/concentrations
 import type { WorkspaceEvidence } from "@/lib/workspace/context";
 import type { FundingOpportunity } from "@/lib/github/types";
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
+import type { MissionReport } from "@/lib/mission/mission-report";
 
 export type CapabilityId =
   | "discover_value_leaks"
@@ -75,6 +76,7 @@ export type OrchestratorResult = {
   answer: string;
   headline: string;
   brief: IntelligenceBrief;
+  report: MissionReport;
   findings: MissionFinding[];
   actions: CapabilityAction[];
   stepsRun: string[];
@@ -84,4 +86,5 @@ export type OrchestratorResult = {
   concentrations: ValueConcentration[];
   grounded: boolean;
   requiresApproval: boolean;
+  durationMs: number;
 };

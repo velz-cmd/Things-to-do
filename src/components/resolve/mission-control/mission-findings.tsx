@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import clsx from "clsx";
+import { ChevronDown } from "lucide-react";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import { rankLabel } from "@/lib/workspace/advisors/intelligence-findings";
+import { chipsFromFinding } from "@/lib/mission/contextual-actions";
 
 const SEVERITY_STYLES = {
   critical: {
@@ -22,6 +25,103 @@ const SEVERITY_STYLES = {
   },
 } as const;
 
+function FindingCard({
+  finding,
+  onChip,
+  disabled,
+}: {
+  finding: MissionFinding;
+  onChip: (text: string) => void;
+  disabled?: boolean;
+}) {
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const style = SEVERITY_STYLES[finding.severity];
+  const chips = chipsFromFinding(finding);
+  const hasEvidence =
+  Boolean(finding.bullets?.length) || Boolean(finding.metric) || Boolean(finding.impact);
+
+  return (
+    <section className={clsx("rounded-xl border bg-resolve-bg-deep/30 p-4", style.border)}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-resolve-muted-dim">
+            {rankLabel(finding.rank)}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span
+              className={clsx(
+                "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
+                style.badge,
+              )}
+            >
+              <span className={clsx("h-1.5 w-1.5 rounded-full", style.dot)} />
+              {finding.severityLabel}
+            </span>
+            <span className="text-sm font-medium text-white">{finding.title}</span>
+          </div>
+        </div>
+        <span className="shrink-0 text-[10px] text-resolve-muted">{finding.confidence}%</span>
+      </div>
+
+      <p className="mt-3 text-sm leading-relaxed text-white/95">{finding.insight}</p>
+
+      {hasEvidence && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setEvidenceOpen((o) => !o)}
+            className="flex items-center gap-1.5 text-[11px] text-resolve-muted transition hover:text-white"
+          >
+            <ChevronDown
+              className={clsx("h-3.5 w-3.5 transition", evidenceOpen && "rotate-180")}
+            />
+            {evidenceOpen ? "Hide evidence" : "Show evidence"}
+          </button>
+          {evidenceOpen && (
+            <div className="mt-2 space-y-2 border-l border-white/[0.08] pl-3">
+              {finding.impact && (
+                <p className="text-xs text-resolve-muted">{finding.impact}</p>
+              )}
+              {finding.bullets && finding.bullets.length > 0 && (
+                <ul className="space-y-1">
+                  {finding.bullets.map((b) => (
+                    <li
+                      key={b}
+                      className="text-xs text-resolve-muted before:mr-2 before:content-['•']"
+                    >
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {finding.metric && (
+                <p className="text-xs text-resolve-muted">
+                  <span className="text-white/90">{finding.metric.label}</span> ·{" "}
+                  {finding.metric.value}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {chips.map((chip) => (
+          <button
+            key={chip}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChip(chip)}
+            className="rounded-full border border-resolve-border/70 px-2.5 py-1 text-[11px] text-resolve-muted transition hover:border-resolve-accent/40 hover:text-white disabled:opacity-40"
+          >
+            {chip}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function MissionFindings({
   findings,
   onChip,
@@ -35,80 +135,9 @@ export function MissionFindings({
 
   return (
     <div className="space-y-3">
-      {findings.map((f) => {
-        const style = SEVERITY_STYLES[f.severity];
-        return (
-          <section
-            key={f.id}
-            className={clsx(
-              "rounded-xl border bg-resolve-bg-deep/30 p-4",
-              style.border,
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-resolve-muted-dim">
-                  {rankLabel(f.rank)}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span
-                    className={clsx(
-                      "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
-                      style.badge,
-                    )}
-                  >
-                    <span className={clsx("h-1.5 w-1.5 rounded-full", style.dot)} />
-                    {f.severityLabel}
-                  </span>
-                  <span className="text-sm font-medium text-white">{f.title}</span>
-                </div>
-              </div>
-              <span className="shrink-0 text-[10px] text-resolve-muted">
-                {f.confidence}% confidence
-              </span>
-            </div>
-
-            <p className="mt-3 text-sm leading-relaxed text-white/95">{f.insight}</p>
-
-            {f.impact && (
-              <p className="mt-2 text-xs text-resolve-muted">
-                <span className="text-resolve-muted-dim">Impact · </span>
-                {f.impact}
-              </p>
-            )}
-
-            {f.bullets && f.bullets.length > 0 && (
-              <ul className="mt-3 space-y-1">
-                {f.bullets.map((b) => (
-                  <li key={b} className="text-xs text-resolve-muted before:mr-2 before:content-['•']">
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {f.metric && (
-              <p className="mt-3 text-xs text-resolve-muted">
-                <span className="text-white/90">{f.metric.label}</span> · {f.metric.value}
-              </p>
-            )}
-
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {f.chips.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onChip(chip)}
-                  className="rounded-full border border-resolve-border/70 px-2.5 py-1 text-[11px] text-resolve-muted transition hover:border-resolve-accent/40 hover:text-white disabled:opacity-40"
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      {findings.map((f) => (
+        <FindingCard key={f.id} finding={f} onChip={onChip} disabled={disabled} />
+      ))}
     </div>
   );
 }

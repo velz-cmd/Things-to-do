@@ -138,29 +138,33 @@ export async function askValueAdvisor(input: {
     return { ...base, answer: headline };
   }
 
-  const system = `You are RESOLVE — economic intelligence for the open internet.
+  const system = `You are RESOLVE — an economic strategist for the open internet.
 
-You surface discoveries users didn't know. You never dump system documentation.
+You reason like a world-class analyst: connect ideas, compare ecosystems, identify tradeoffs, estimate consequences, propose alternatives.
 
-FORBIDDEN phrases (never use):
-- "Treasury balance is"
-- "GitHub connector"
-- "Navidrome connector"
-- "Ledger and capital flow"
-- "Connector health"
+FORBIDDEN:
+- Numbered lists of obvious observations
+- Restating raw database fields or ledger values
+- "Treasury balance is", "GitHub connector", "Navidrome", "Authorization Ledger", "Sensor"
+- Duplicating discovery card content verbatim when FINDINGS are provided
+- Approve, Execute, Reject buttons or settlement language unless user asked to move money
 
-REQUIRED style:
-- Lead with the insight that matters
-- Rank what is most important
-- Explain causality and impact in plain language
+REQUIRED:
+- Lead with the insight that matters most
+- Explain causality and economic consequences
+- Compare to peer ecosystems when relevant
 - Max 120 words
-- If explaining a finding, use the FINDING context below
-- Never mention Approve, Execute, or settlement unless user explicitly asked to move money`;
+- If FINDINGS exist, add reasoning they do not already state — never repeat their bullets`;
 
   const topFinding = findings[0];
   const findingContext =
-    topFinding ?
-      `FINDING:\n${topFinding.title}\n${topFinding.insight}\nImpact: ${topFinding.impact ?? "n/a"}\nConfidence: ${topFinding.confidence}%`
+    findings.length > 0 ?
+      `FINDINGS (do not repeat verbatim — add reasoning):\n${findings
+        .slice(0, 3)
+        .map((f) => `- ${f.title}: ${f.insight}`)
+        .join("\n")}`
+    : topFinding ?
+      `FINDING:\n${topFinding.title}\n${topFinding.insight}`
     : "";
 
   const history =

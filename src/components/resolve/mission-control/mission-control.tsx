@@ -8,21 +8,14 @@ import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
-import {
-  chipsFromFinding,
-  detectMissionPhase,
-  executeActions,
-  planningActions,
-} from "@/lib/mission/phases";
+import { buildContextualActions, chipsFromFinding, detectMissionPhase } from "@/lib/mission/phases";
 import { detectMissionIntent, parseCapitalUsd, thinkingStepsFor } from "@/lib/mission/intents";
 import {
   createMissionSession,
   upsertMissionSession,
   type MissionSession,
 } from "@/lib/mission/toolbox/mission-library";
-
-const AGENT_STARTER =
-  "Deploy economic agents across my connected ecosystems — scan dependencies, treasury, and funding gaps.";
+import { AGENT_STARTER } from "@/components/resolve/mission-control/mission-os-panel";
 
 function buildAllocationFromOpportunities(
   opportunities: OpportunityCard[],
@@ -55,39 +48,56 @@ function buildAllocationFromOpportunities(
 
 function pickInlinePolicy(policies: PolicyProposal[], text: string): PolicyProposal | undefined {
   if (!policies.length) return undefined;
-  if (/\b(conserv|stable|safe)\b/i.test(text)) {
+  if (/\b(conserv|stable|safe|infrastructure|protect)\b/i.test(text)) {
     return policies.find((p) => p.id === "infrastructure") ?? policies[0];
   }
-  if (/\b(aggress|growth|meme)\b/i.test(text)) {
+  if (/\b(aggress|growth|meme|accelerat)\b/i.test(text)) {
     return policies.find((p) => p.id === "growth") ?? policies[0];
   }
   return policies.find((p) => p.id === "balanced") ?? policies[0];
 }
 
-function enrichFindingChips(
-  findings: MissionFinding[],
-  intent: ReturnType<typeof detectMissionIntent>,
-): MissionFinding[] {
+function enrichFindings(findings: MissionFinding[]): MissionFinding[] {
   return findings.map((f) => ({
     ...f,
-    chips: chipsFromFinding(f, intent),
+    chips: chipsFromFinding(f),
   }));
 }
 
 function persistSession(
   session: MissionSession,
   turns: MissionTurn[],
-  title?: string,
-  findingCount?: number,
+  opts: { title?: string; findingCount?: number; phase?: MissionPhase; scope?: string },
 ) {
   const firstUser = turns.find((t) => t.role === "user");
+  const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
   upsertMissionSession({
     ...session,
-    title: title ?? session.title,
+    title: opts.title ?? session.title,
     query: firstUser?.text ?? session.query,
-    findingCount,
-    turns: turns.map((t) => ({ id: t.id, role: t.role, text: t.text })),
+    scope: opts.scope ?? session.scope ?? firstUser?.text,
+    phase: opts.phase ?? lastResolve?.phase ?? session.phase,
+    findingCount: opts.findingCount,
+    lastFindings: lastResolve?.findings,
+    turns: turns.map((t) => ({
+      id: t.id,
+      role: t.role,
+      text: t.text,
+      phase: t.phase,
+      findings: t.findings,
+    })),
   });
+}
+
+function turnsFromSession(session: MissionSession): MissionTurn[] {
+  if (!session.turns?.length) return [];
+  return session.turns.map((t) => ({
+    id: t.id,
+    role: t.role,
+    text: t.text,
+    phase: t.phase,
+    findings: t.findings,
+  }));
 }
 
 export function MissionControl() {
@@ -103,6 +113,8 @@ export function MissionControl() {
   const [lastPhase, setLastPhase] = useState<MissionPhase>("discover");
   const [libraryTick, setLibraryTick] = useState(0);
   const started = turns.length > 0;
+
+  const activeScope = turns.find((t) => t.role === "user")?.text ?? session.scope ?? null;
 
   const sendMessage = useCallback(
     async (text: string, sessionOverride?: MissionSession) => {
@@ -144,12 +156,19 @@ export function MissionControl() {
         const phase: MissionPhase = data.phase ?? detectMissionPhase(trimmed, history);
         setLastPhase(phase);
 
-        const findings = enrichFindingChips(data.findings ?? [], intent);
+        const findings = enrichFindings(data.findings ?? []);
         const estCapital = parseCapitalUsd(trimmed);
         const opportunities: OpportunityCard[] = data.opportunities ?? [];
         const policies: PolicyProposal[] = data.policies ?? [];
         const isPlan = phase === "plan";
         const answer = data.answer ?? data.headline ?? "No analysis available.";
+
+        const nextSteps = buildContextualActions({
+          phase,
+          findings,
+          turnCount: nextTurns.filter((t) => t.role === "user").length,
+          lastUserText: trimmed,
+        });
 
         const resolveTurn: MissionTurn = {
           id: `r-${Date.now()}`,
@@ -162,13 +181,19 @@ export function MissionControl() {
               buildAllocationFromOpportunities(opportunities, estCapital)
             : undefined,
           policy: isPlan ? pickInlinePolicy(policies, trimmed) : undefined,
+          nextSteps,
         };
 
         const finalTurns = [...nextTurns, resolveTurn];
         setTurns(finalTurns);
 
         const title = trimmed.slice(0, 48) + (trimmed.length > 48 ? "…" : "");
-        persistSession(activeSession, finalTurns, title, findings.length);
+        persistSession(activeSession, finalTurns, {
+          title,
+          findingCount: findings.length,
+          phase,
+          scope: nextTurns.find((t) => t.role === "user")?.text,
+        });
         setLibraryTick((n) => n + 1);
       } catch (e) {
         setThinkingComplete(true);
@@ -180,7 +205,7 @@ export function MissionControl() {
         };
         const finalTurns = [...nextTurns, errTurn];
         setTurns(finalTurns);
-        persistSession(activeSession, finalTurns);
+        persistSession(activeSession, finalTurns, {});
         setLibraryTick((n) => n + 1);
       } finally {
         setLoading(false);
@@ -219,8 +244,10 @@ export function MissionControl() {
     setScope(null);
     setSession(s);
     if (s.turns && s.turns.length > 0) {
-      setTurns(s.turns as MissionTurn[]);
-      setLastPhase("discover");
+      const restored = turnsFromSession(s);
+      setTurns(restored);
+      const lastResolve = [...restored].reverse().find((t) => t.role === "resolve");
+      setLastPhase(lastResolve?.phase ?? s.phase ?? "discover");
     } else if (s.query) {
       setTurns([]);
       void sendMessage(s.query, s);
@@ -230,8 +257,6 @@ export function MissionControl() {
   function handleClear() {
     handleNewMission();
   }
-
-  const topFinding = [...turns].reverse().find((t) => t.role === "resolve")?.findings?.[0];
 
   return (
     <MissionWorkspace
@@ -249,11 +274,8 @@ export function MissionControl() {
       onNewAgent={handleNewAgent}
       onSelectSession={handleSelectSession}
       activeSessionId={session.id}
-      onPlanningAction={(p) => void sendMessage(p)}
-      onExecuteAction={(p) => void sendMessage(p)}
+      activeScope={activeScope}
       onClear={handleClear}
-      planningActions={planningActions(topFinding)}
-      executeActions={executeActions()}
       libraryTick={libraryTick}
     />
   );

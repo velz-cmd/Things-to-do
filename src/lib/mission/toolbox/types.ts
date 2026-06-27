@@ -1,15 +1,4 @@
-/** Capital infrastructure primitives — each item is a capability, not a page. */
-
-export type ToolboxSectionId =
-  | "library"
-  | "projects"
-  | "observatories"
-  | "policies"
-  | "agents"
-  | "automations"
-  | "vaults"
-  | "knowledge"
-  | "developers";
+/** Living systems snapshot — capabilities, not navigation pages. */
 
 export type CommunityDna = {
   health: number;
@@ -40,6 +29,10 @@ export type EconomicProject = {
   };
   dna: CommunityDna;
   repoFullName?: string;
+  /** Living workspace signals */
+  activity?: string;
+  capitalUsd?: number;
+  missionCount?: number;
 };
 
 export type ObservatoryPulse = {
@@ -57,13 +50,26 @@ export type Observatory = {
   watching: number;
 };
 
+/** Flattened alert stream — only surfaces when something changed. */
+export type ObservatoryAlert = {
+  id: string;
+  observatoryName: string;
+  text: string;
+  severity: "critical" | "watch" | "positive";
+  at: string;
+  query: string;
+};
+
 export type EconomicAgent = {
   id: string;
   name: string;
-  scope: string;
-  status: "active" | "idle" | "alert";
-  metric: string;
-  detail: string;
+  purpose: string;
+  currentTask: string;
+  lastCompletedTask?: string;
+  confidence: number;
+  nextObservation: string;
+  status: "working" | "watching" | "idle" | "alert";
+  query: string;
 };
 
 export type AutomationRule = {
@@ -71,6 +77,7 @@ export type AutomationRule = {
   trigger: string;
   action: string;
   enabled: boolean;
+  lastFired?: string;
 };
 
 export type CapitalVault = {
@@ -89,6 +96,7 @@ export type PolicyPhilosophy = {
   emoji: string;
   description: string;
   active: boolean;
+  influences: string;
 };
 
 export type KnowledgeArtifact = {
@@ -105,6 +113,7 @@ export type MissionLibraryEntry = {
   query: string;
   savedAt: string;
   findingCount?: number;
+  phase?: string;
 };
 
 export type DeveloperSurface = {
@@ -119,6 +128,7 @@ export type ToolboxSnapshot = {
   library: MissionLibraryEntry[];
   projects: EconomicProject[];
   observatories: Observatory[];
+  alerts: ObservatoryAlert[];
   policies: PolicyPhilosophy[];
   agents: EconomicAgent[];
   automations: AutomationRule[];
@@ -126,3 +136,15 @@ export type ToolboxSnapshot = {
   knowledge: KnowledgeArtifact[];
   developers: DeveloperSurface[];
 };
+
+/** @deprecated folder navigation removed — kept for type compatibility */
+export type ToolboxSectionId =
+  | "library"
+  | "projects"
+  | "observatories"
+  | "policies"
+  | "agents"
+  | "automations"
+  | "vaults"
+  | "knowledge"
+  | "developers";

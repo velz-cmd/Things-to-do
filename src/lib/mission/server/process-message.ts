@@ -5,6 +5,7 @@ import { appendMissionTurn } from "@/lib/mission/server/missions";
 import { getEcosystem } from "@/lib/mission/server/ecosystems";
 import type { MissionRecord } from "@/lib/mission/server/missions";
 import type { AdvisorResponse } from "@/lib/workspace/advisors/synthesize";
+import type { MissionReport } from "@/lib/mission/mission-report";
 
 export async function processMissionMessage(input: {
   userId: string;
@@ -29,6 +30,12 @@ export async function processMissionMessage(input: {
   });
 
   const capitalUsd = parseCapitalUsd(input.question) ?? undefined;
+  const report: MissionReport = {
+    ...result.report,
+    missionId: input.missionId,
+    objective: input.question,
+    persisted: true,
+  };
 
   const mission = await appendMissionTurn({
     userId: input.userId,
@@ -36,21 +43,25 @@ export async function processMissionMessage(input: {
     userText: input.question,
     ecosystemId: input.ecosystemId,
     resolve: {
-      text: result.answer,
+      text: result.report.summary || result.answer,
       phase: result.phase,
       capability: result.capability,
       findings: result.findings,
       actions: result.actions,
+      report,
       capitalUsd,
       metadata: {
         traces: result.evidenceUsed,
         stepsRun: result.stepsRun,
+        reportId: report.reportId,
+        durationMs: result.report.durationMs,
       },
     },
   });
 
   return {
     ...result,
+    report,
     mission,
     status: mission.status,
   };

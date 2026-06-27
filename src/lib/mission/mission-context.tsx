@@ -107,9 +107,11 @@ export function MissionScopeProvider({ children }: { children: ReactNode }) {
           };
 
       setScope(next);
-      router.push(`/mission?scope=${encodeURIComponent(next.label)}`);
+      if (!pathname.startsWith("/mission")) {
+        router.push(`/mission?scope=${encodeURIComponent(next.label)}`);
+      }
     },
-    [router, setScope],
+    [pathname, router, setScope],
   );
 
   const value = useMemo(

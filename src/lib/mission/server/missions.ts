@@ -5,6 +5,7 @@ import type { CapabilityId } from "@/lib/mission/capabilities/types";
 import type { MissionPhase } from "@/lib/mission/phases";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { CapabilityAction } from "@/lib/mission/capabilities/types";
+import type { MissionReport } from "@/lib/mission/mission-report";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { upsertKnowledgeFromMission } from "@/lib/mission/server/knowledge";
 
@@ -29,6 +30,7 @@ export type MissionRecord = {
     capability?: string;
     findings?: MissionFinding[];
     actions?: CapabilityAction[];
+    report?: MissionReport;
   }>;
 };
 
@@ -66,6 +68,7 @@ function toMissionRecord(
       capability: t.capability ?? undefined,
       findings: parseJson<MissionFinding[] | undefined>(t.findingsJson, undefined),
       actions: parseJson<CapabilityAction[] | undefined>(t.actionsJson, undefined),
+      report: parseJson<MissionReport | undefined>(t.reportJson, undefined),
     })),
   };
 }
@@ -129,6 +132,7 @@ export async function appendMissionTurn(input: {
     capability: CapabilityId;
     findings: MissionFinding[];
     actions: CapabilityAction[];
+    report?: MissionReport;
     capitalUsd?: number;
     metadata?: Record<string, unknown>;
   };
@@ -162,6 +166,7 @@ export async function appendMissionTurn(input: {
       capability: input.resolve.capability,
       findingsJson: JSON.stringify(input.resolve.findings),
       actionsJson: JSON.stringify(input.resolve.actions),
+      reportJson: input.resolve.report ? JSON.stringify(input.resolve.report) : null,
       sortOrder: sortBase + 1,
     },
   });

@@ -11,6 +11,7 @@ import {
 import { runCollectors } from "./capabilities/collectors";
 import { buildGroundedAnswer } from "./capabilities/answer-builder";
 import { buildIntelligenceBrief } from "./intelligence-brief";
+import { buildMissionReport } from "./mission-report";
 import { getCapabilityDef } from "./capabilities/registry";
 import type { CapabilityId, OrchestratorContext, OrchestratorResult } from "./capabilities/types";
 
@@ -100,6 +101,7 @@ export async function runMissionOrchestrator(input: {
     connectors?: string[];
   };
 }): Promise<OrchestratorResult> {
+  const started = performance.now();
   const capability = classifyCapability(input.question, input.messages ?? []);
   const phase = detectMissionPhase(input.question, input.messages ?? []);
   const def = getCapabilityDef(capability);
@@ -143,14 +145,24 @@ export async function runMissionOrchestrator(input: {
   const brief = buildIntelligenceBrief(ctx);
   const answer = await maybeEnhanceWithReasoning(ctx, brief.summary || groundedAnswer, input.messages);
   const actions = def.actions(ctx);
+  const durationMs = Math.round(performance.now() - started);
+  const report = buildMissionReport({
+    ctx,
+    brief,
+    actions,
+    objective: input.question,
+    durationMs,
+    persisted: false,
+  });
 
   return {
     capability,
     capabilityLabel: CAPABILITY_LABELS[capability],
     phase,
-    answer,
+    answer: brief.summary || answer,
     headline: brief.headline,
     brief,
+    report,
     findings,
     actions,
     stepsRun: collected.stepsRun,
@@ -160,5 +172,6 @@ export async function runMissionOrchestrator(input: {
     concentrations: collected.concentrations,
     grounded: true,
     requiresApproval: capability === "execute_settlement" || capability === "allocate_capital",
+    durationMs,
   };
 }

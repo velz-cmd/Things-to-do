@@ -14,11 +14,11 @@ import { ContributorBreakdown } from "@/components/resolve/workspace/contributor
 import { FounderPriorities } from "@/components/resolve/workspace/founder-priorities";
 import { WorkspaceOpportunities } from "@/components/resolve/workspace/workspace-opportunities";
 import { WorkspaceShell } from "@/components/resolve/workspace/workspace-shell";
+import { WorkspaceFundSidebar } from "@/components/resolve/workspace/workspace-fund-sidebar";
 import {
-  WorkspaceSidebar,
   saveRecentWorkspace,
   type RecentWorkspace,
-} from "@/components/resolve/workspace/workspace-sidebar";
+} from "@/lib/workspace/workspace-recent";
 import { WorkspaceActivityPanel } from "@/components/resolve/workspace/workspace-activity-panel";
 import { PaymentSummary } from "@/components/resolve/payment/payment-summary";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
@@ -246,7 +246,7 @@ export function WorkspaceFund() {
 
   const shell = (content: React.ReactNode) => (
     <WorkspaceShell
-      sidebar={<WorkspaceSidebar activeId={workspaceId} onSelect={handleSidebarSelect} />}
+      sidebar={<WorkspaceFundSidebar activeId={workspaceId} onSelect={handleSidebarSelect} />}
       main={content}
       activity={<WorkspaceActivityPanel phase={phase} liveMessages={liveMessages} />}
     />

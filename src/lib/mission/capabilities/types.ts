@@ -5,6 +5,7 @@ import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards
 import type { ValueConcentration } from "@/lib/workspace/advisors/concentrations";
 import type { WorkspaceEvidence } from "@/lib/workspace/context";
 import type { FundingOpportunity } from "@/lib/github/types";
+import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
 
 export type CapabilityId =
   | "discover_value_leaks"
@@ -73,6 +74,7 @@ export type OrchestratorResult = {
   phase: MissionPhase;
   answer: string;
   headline: string;
+  brief: IntelligenceBrief;
   findings: MissionFinding[];
   actions: CapabilityAction[];
   stepsRun: string[];

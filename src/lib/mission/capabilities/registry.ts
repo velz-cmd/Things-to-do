@@ -99,14 +99,14 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           kind: "simulate",
         },
       ];
-      if (ctx.evidence.treasury.canSettleGlobally) {
+      if (ctx.phase === "execute" && ctx.evidence.treasury.canSettleGlobally) {
         actions.push({
-          id: "execute",
-          label: "Prepare settlement",
-          prompt: "Prepare the allocation for settlement review — do not execute yet.",
+          id: "review-settlement",
+          label: "Review settlement package",
+          prompt: "Walk me through exactly what capital would move and who receives it.",
           kind: "execute",
         });
-      } else {
+      } else if (!ctx.evidence.treasury.canSettleGlobally) {
         actions.push({
           id: "treasury",
           label: "Review treasury gap",
@@ -342,18 +342,17 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
       const actions: CapabilityAction[] = [
         {
           id: "walkthrough",
-          label: "Walk me through what moves",
+          label: "Walk through what moves",
           prompt: "Walk me through exactly what capital would move and who receives it.",
           kind: "execute",
         },
       ];
-      if (ctx.evidence.treasury.canSettleGlobally) {
+      if (ctx.evidence.treasury.canSettleGlobally && ctx.phase === "execute") {
         actions.push({
-          id: "review",
-          label: "Review on Capital",
-          prompt: "Open the prepared settlement for review.",
-          kind: "navigate",
-          href: "/capital",
+          id: "review-package",
+          label: "Review settlement package",
+          prompt: "Prepare the allocation for settlement review.",
+          kind: "execute",
         });
       }
       actions.push({

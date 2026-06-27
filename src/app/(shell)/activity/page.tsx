@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Legacy /activity → Verify / Network */
+/** Activity — merged into Mission live feed */
 export default function ActivityRedirect() {
-  redirect("/network");
+  redirect("/control");
 }

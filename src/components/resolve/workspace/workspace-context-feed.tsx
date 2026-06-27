@@ -62,7 +62,7 @@ export function WorkspaceContextFeed({
     >
       <div className="shrink-0 border-b border-resolve-border px-4 py-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-resolve-muted-dim">
-          Live context
+          Live feed
         </p>
         <p className="mt-1 text-sm font-medium text-white">
           {missionLabel ? `Scope: ${missionLabel}` : headline}
@@ -71,10 +71,7 @@ export function WorkspaceContextFeed({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {events.length === 0 ? (
           <p className="p-4 text-xs leading-relaxed text-resolve-muted">
-            Value events appear here as sensors observe activity.{" "}
-            <Link href="/network" className="text-resolve-accent hover:underline">
-              Open feed →
-            </Link>
+            Value events appear here as sensors observe activity.
           </p>
         ) : (
           <ul>

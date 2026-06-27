@@ -1,28 +1,25 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("RESOLVE product surfaces", () => {
-  test("mission-based workflows are reachable", async ({ page }) => {
+  test("three-tab product is reachable", async ({ page }) => {
     test.setTimeout(120_000);
 
     await page.goto("/control", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "What matters right now?" })).toBeVisible();
-
-    await page.goto("/network", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "What changed?" })).toBeVisible();
+    await expect(page.getByText("Mission", { exact: true }).first()).toBeVisible();
 
     await page.goto("/payments", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "What is waiting to move?" })).toBeVisible();
-
-    await page.goto("/connectors", { waitUntil: "commit" });
-    await expect(page).toHaveURL(/\/discover/);
-
-    await page.goto("/decide", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "What needs funding?" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Treasury & claims" })).toBeVisible();
 
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Who am I in this network?" })).toBeVisible();
 
-    await page.goto("/workspace", { waitUntil: "commit" });
+    await page.goto("/decide", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Fund a repository" })).toBeVisible();
+
+    await page.goto("/connectors", { waitUntil: "commit" });
+    await expect(page).toHaveURL(/\/profile/);
+
+    await page.goto("/network", { waitUntil: "commit" });
     await expect(page).toHaveURL(/\/control/);
   });
 

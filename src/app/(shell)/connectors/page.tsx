@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Connectors are infrastructure — managed from Discover */
+/** Connectors — identity & sensors live under Me */
 export default function ConnectorsRedirect() {
-  redirect("/discover");
+  redirect("/profile");
 }

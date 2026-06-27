@@ -9,14 +9,12 @@ import {
   MissionSuggestedAllocation,
 } from "@/components/resolve/mission-control/mission-recommendation";
 import { MissionQuickReplies } from "@/components/resolve/mission-control/mission-execution-bar";
-import {
-  MissionExecuteBar,
-  MissionPlanningBar,
-} from "@/components/resolve/mission-control/mission-planning-bar";
-import { MissionToolbox } from "@/components/resolve/mission-control/toolbox/mission-toolbox";
+import { MissionOsPanel } from "@/components/resolve/mission-control/mission-os-panel";
+import { MissionNextSteps } from "@/components/resolve/mission-control/mission-next-steps";
 import { MISSION_EXAMPLES } from "@/lib/mission/intents";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
+import type { ContextualAction } from "@/lib/mission/contextual-actions";
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 
@@ -28,6 +26,7 @@ export type MissionTurn = {
   phase?: MissionPhase;
   allocations?: AllocationLine[];
   policy?: PolicyProposal;
+  nextSteps?: ContextualAction[];
 };
 
 const IDLE_EXAMPLES = MISSION_EXAMPLES;
@@ -46,11 +45,8 @@ export function MissionWorkspace({
   onNewAgent,
   onSelectSession,
   activeSessionId,
-  onPlanningAction,
-  onExecuteAction,
+  activeScope,
   onClear,
-  planningActions,
-  executeActions,
   thinkingSteps,
   libraryTick,
 }: {
@@ -67,17 +63,13 @@ export function MissionWorkspace({
   onNewAgent: () => void;
   onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
   activeSessionId?: string | null;
-  onPlanningAction: (prompt: string) => void;
-  onExecuteAction: (prompt: string) => void;
+  activeScope?: string | null;
   onClear?: () => void;
-  planningActions: { label: string; prompt: string }[];
-  executeActions: { label: string; prompt: string }[];
   thinkingSteps?: readonly string[];
   libraryTick?: number;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
-  const showPlanning = phase === "plan" && !loading;
-  const showExecute = phase === "execute" && !loading;
+  const lastResolveIdx = turns.map((t, i) => (t.role === "resolve" ? i : -1)).filter((i) => i >= 0).pop();
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -91,155 +83,166 @@ export function MissionWorkspace({
 
   return (
     <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px]">
-      <MissionToolbox
+      <MissionOsPanel
         onQuery={onChip}
         onNewMission={onNewMission}
         onNewAgent={onNewAgent}
         onSelectSession={onSelectSession}
         activeSessionId={activeSessionId}
+        activeScope={activeScope}
         libraryVersion={libraryTick}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-4 py-8 lg:px-6">
-          {!started && (
-            <div className="relative flex min-h-[50vh] flex-col items-center justify-center text-center">
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="h-48 w-48 rounded-full bg-resolve-accent/5 blur-3xl" />
-              </div>
-              <p className="relative text-[10px] font-semibold uppercase tracking-[0.22em] text-resolve-accent">
-                Mission
-              </p>
-              <h1 className="relative mt-4 text-2xl font-medium tracking-tight text-white sm:text-3xl">
-                What would you like RESOLVE to do?
-              </h1>
-              <p className="relative mt-3 max-w-md text-sm leading-relaxed text-resolve-muted">
-                Economic intelligence for any open community — ask, discover, decide.
-              </p>
-              <form onSubmit={handleFormSubmit} className="mt-8 w-full max-w-xl">
-                <div className="relative">
-                  <input
-                    value={input}
-                    onChange={(e) => onInputChange(e.target.value)}
-                    placeholder="Find value leaks in React"
-                    className="w-full rounded-full border border-resolve-border bg-resolve-bg-deep/60 px-5 py-3.5 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    disabled={!input.trim()}
-                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-resolve-muted transition hover:text-white disabled:opacity-30"
-                    aria-label="Send"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-2xl px-4 py-8 lg:px-6">
+            {!started && (
+              <div className="relative flex min-h-[50vh] flex-col items-center justify-center text-center">
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="h-48 w-48 rounded-full bg-resolve-accent/5 blur-3xl" />
                 </div>
-              </form>
-              <div className="mt-6 w-full max-w-xl">
-                <p className="mb-3 text-[11px] text-resolve-muted-dim">Examples</p>
-                <MissionQuickReplies
-                  options={[...IDLE_EXAMPLES]}
-                  onSelect={onChip}
-                  className="justify-center"
+                <p className="relative text-[10px] font-semibold uppercase tracking-[0.22em] text-resolve-accent">
+                  Mission
+                </p>
+                <h1 className="relative mt-4 text-2xl font-medium tracking-tight text-white sm:text-3xl">
+                  What would you like RESOLVE to do?
+                </h1>
+                <p className="relative mt-3 max-w-md text-sm leading-relaxed text-resolve-muted">
+                  Economic intelligence for any open community — ask, discover, decide.
+                </p>
+                <form onSubmit={handleFormSubmit} className="mt-8 w-full max-w-xl">
+                  <div className="relative">
+                    <input
+                      value={input}
+                      onChange={(e) => onInputChange(e.target.value)}
+                      placeholder="Find value leaks in React"
+                      className="w-full rounded-full border border-resolve-border bg-resolve-bg-deep/60 px-5 py-3.5 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={!input.trim()}
+                      className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-resolve-muted transition hover:text-white disabled:opacity-30"
+                      aria-label="Send"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </div>
+                </form>
+                <div className="mt-6 w-full max-w-xl">
+                  <p className="mb-3 text-[11px] text-resolve-muted-dim">Examples</p>
+                  <MissionQuickReplies
+                    options={[...IDLE_EXAMPLES]}
+                    onSelect={onChip}
+                    className="justify-center"
+                  />
+                </div>
+              </div>
+            )}
+
+            {started && (
+              <div className="space-y-6">
+                {turns.map((turn, idx) => (
+                  <article key={turn.id}>
+                    {turn.role === "user" ?
+                      <div className="flex justify-end">
+                        <p className="max-w-[85%] rounded-2xl border border-resolve-border/60 bg-white/[0.06] px-4 py-2.5 text-sm text-white">
+                          {turn.text}
+                        </p>
+                      </div>
+                    : <div className="space-y-4">
+                        <p className="text-[15px] font-medium leading-relaxed text-white/95">
+                          {turn.text}
+                        </p>
+
+                        {turn.findings && turn.findings.length > 0 && (
+                          <MissionFindings
+                            findings={turn.findings}
+                            onChip={onChip}
+                            disabled={loading}
+                          />
+                        )}
+
+                        {turn.policy && <MissionInlinePolicy policy={turn.policy} />}
+
+                        {turn.allocations && turn.allocations.length > 0 && (
+                          <MissionSuggestedAllocation lines={turn.allocations} />
+                        )}
+
+                        {idx === lastResolveIdx &&
+                          turn.nextSteps &&
+                          turn.nextSteps.length > 0 &&
+                          !loading && (
+                            <MissionNextSteps
+                              actions={turn.nextSteps}
+                              onSelect={onChip}
+                              disabled={loading}
+                            />
+                          )}
+                      </div>
+                    }
+                  </article>
+                ))}
+
+                {loading && (
+                  <div className="space-y-4">
+                    <MissionThinking
+                      active={loading}
+                      complete={thinkingComplete}
+                      steps={thinkingSteps}
+                    />
+                  </div>
+                )}
+
+                <div ref={endRef} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {started && (
+          <div className="shrink-0 border-t border-resolve-border/40 px-4 py-4 lg:px-6">
+            <form onSubmit={handleFormSubmit} className="mx-auto flex max-w-2xl gap-2">
+              <div className="relative min-w-0 flex-1">
+                <input
+                  value={input}
+                  onChange={(e) => onInputChange(e.target.value)}
+                  placeholder="Ask a follow-up…"
+                  disabled={loading}
+                  className="w-full rounded-full border border-resolve-border bg-resolve-bg-deep/60 px-5 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none disabled:opacity-50"
                 />
+                <button
+                  type="button"
+                  className="absolute right-11 top-1/2 -translate-y-1/2 text-resolve-muted-dim"
+                  aria-hidden
+                  tabIndex={-1}
+                >
+                  <Mic className="h-4 w-4 opacity-40" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim()}
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-resolve-muted transition hover:text-white disabled:opacity-30"
+                  aria-label="Send"
+                >
+                  {loading ?
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Send className="h-4 w-4" />}
+                </button>
               </div>
-            </div>
-          )}
-
-          {started && (
-            <div className="space-y-6">
-              {turns.map((turn) => (
-                <article key={turn.id}>
-                  {turn.role === "user" ?
-                    <div className="flex justify-end">
-                      <p className="max-w-[85%] rounded-2xl border border-resolve-border/60 bg-white/[0.06] px-4 py-2.5 text-sm text-white">
-                        {turn.text}
-                      </p>
-                    </div>
-                  : <div className="space-y-4">
-                      <p className="text-[15px] font-medium leading-relaxed text-white/95">
-                        {turn.text}
-                      </p>
-
-                      {turn.findings && turn.findings.length > 0 && (
-                        <MissionFindings
-                          findings={turn.findings}
-                          onChip={onChip}
-                          disabled={loading}
-                        />
-                      )}
-
-                      {turn.policy && <MissionInlinePolicy policy={turn.policy} />}
-
-                      {turn.allocations && turn.allocations.length > 0 && (
-                        <MissionSuggestedAllocation lines={turn.allocations} />
-                      )}
-                    </div>
-                  }
-                </article>
-              ))}
-
-              {loading && (
-                <div className="space-y-4">
-                  <MissionThinking
-                    active={loading}
-                    complete={thinkingComplete}
-                    steps={thinkingSteps}
-                  />
-                </div>
-              )}
-
-              <div ref={endRef} />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {started && (
-        <div className="shrink-0 border-t border-resolve-border/40 px-4 py-4 lg:px-6">
-          <form onSubmit={handleFormSubmit} className="mx-auto flex max-w-2xl gap-2">
-            <div className="relative min-w-0 flex-1">
-              <input
-                value={input}
-                onChange={(e) => onInputChange(e.target.value)}
-                placeholder="Ask a follow-up…"
-                disabled={loading}
-                className="w-full rounded-full border border-resolve-border bg-resolve-bg-deep/60 px-5 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none disabled:opacity-50"
-              />
-              <button
-                type="button"
-                className="absolute right-11 top-1/2 -translate-y-1/2 text-resolve-muted-dim"
-                aria-hidden
-                tabIndex={-1}
-              >
-                <Mic className="h-4 w-4 opacity-40" />
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-resolve-muted transition hover:text-white disabled:opacity-30"
-                aria-label="Send"
-              >
-                {loading ?
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                : <Send className="h-4 w-4" />}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <MissionPlanningBar
-        visible={showPlanning}
-        actions={planningActions}
-        onAction={onPlanningAction}
-      />
-      <MissionExecuteBar
-        visible={showExecute}
-        actions={executeActions}
-        onAction={onExecuteAction}
-        onCancel={onClear}
-      />
+            </form>
+            {onClear && phase === "execute" && (
+              <div className="mx-auto mt-2 max-w-2xl text-center">
+                <button
+                  type="button"
+                  onClick={onClear}
+                  className="text-[11px] text-resolve-muted-dim transition hover:text-white"
+                >
+                  Start a new mission
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

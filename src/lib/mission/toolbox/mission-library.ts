@@ -1,12 +1,24 @@
+import type { MissionPhase } from "@/lib/mission/phases";
+import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
+
 export type MissionSession = {
   id: string;
   title: string;
   kind: "mission" | "agent";
   query: string;
+  scope?: string;
+  phase?: MissionPhase;
   savedAt: string;
   updatedAt: string;
   findingCount?: number;
-  turns?: Array<{ id: string; role: "user" | "resolve"; text: string }>;
+  lastFindings?: MissionFinding[];
+  turns?: Array<{
+    id: string;
+    role: "user" | "resolve";
+    text: string;
+    phase?: MissionPhase;
+    findings?: MissionFinding[];
+  }>;
 };
 
 const STORAGE_KEY = "resolve-mission-sessions";
@@ -28,13 +40,20 @@ function migrateLegacyLibrary(): MissionSession[] {
   try {
     const legacy = localStorage.getItem("resolve-mission-library");
     if (!legacy) return [];
-    const entries = JSON.parse(legacy) as { id: string; title: string; query: string; savedAt: string; findingCount?: number }[];
+    const entries = JSON.parse(legacy) as {
+      id: string;
+      title: string;
+      query: string;
+      savedAt: string;
+      findingCount?: number;
+    }[];
     if (!Array.isArray(entries)) return [];
     const sessions: MissionSession[] = entries.map((e) => ({
       id: e.id,
       title: e.title,
       kind: "mission" as const,
       query: e.query,
+      scope: e.query,
       savedAt: e.savedAt,
       updatedAt: e.savedAt,
       findingCount: e.findingCount,
@@ -87,7 +106,12 @@ export function loadMissionLibrary() {
   return loadMissionSessions();
 }
 
-export function saveMissionLibraryEntry(entry: { title: string; query: string; findingCount?: number }) {
+export function saveMissionLibraryEntry(entry: {
+  title: string;
+  query: string;
+  findingCount?: number;
+  phase?: MissionPhase;
+}) {
   const sessions = loadMissionSessions();
   const existing = sessions.find((s) => s.query === entry.query);
   if (existing) {
@@ -95,6 +119,7 @@ export function saveMissionLibraryEntry(entry: { title: string; query: string; f
       ...existing,
       title: entry.title,
       findingCount: entry.findingCount,
+      phase: entry.phase,
       updatedAt: new Date().toISOString(),
     });
     return existing.id;
@@ -104,9 +129,11 @@ export function saveMissionLibraryEntry(entry: { title: string; query: string; f
     title: entry.title,
     kind: "mission",
     query: entry.query,
+    scope: entry.query,
     savedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     findingCount: entry.findingCount,
+    phase: entry.phase,
   };
   upsertMissionSession(session);
   return session.id;
@@ -126,4 +153,17 @@ export function formatSessionTime(iso: string): string {
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
   return new Date(iso).toLocaleDateString();
+}
+
+export function sessionPhaseLabel(phase?: MissionPhase): string {
+  switch (phase) {
+    case "plan":
+      return "Planning";
+    case "execute":
+      return "Executing";
+    case "explain":
+      return "Reasoning";
+    default:
+      return "Discovering";
+  }
 }

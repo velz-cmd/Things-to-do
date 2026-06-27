@@ -110,10 +110,10 @@ export function buildIntelligenceFindings(
 
   if (github && github.health !== "healthy") {
     const reasons: string[] = [];
-    if (github.health === "offline") reasons.push("Sensor disconnected");
+    if (github.health === "offline") reasons.push("Observation disconnected");
     if (github.health === "waiting") reasons.push("No activity observed in 24h");
     if (github.health === "syncing") reasons.push("Sync in progress");
-    reasons.push("Repository may be inactive", "Permissions may have expired");
+    reasons.push("Repository may be inactive", "Access may need renewal");
 
     findings.push({
       id: "observation-gap",
@@ -121,9 +121,9 @@ export function buildIntelligenceFindings(
       severity: "critical",
       severityLabel: "Critical",
       title: "Observation gap",
-      insight: "RESOLVE hasn't observed GitHub activity in the last 24 hours.",
-      impact: "You may be missing contributor recognition and funding signals.",
-      bullets: reasons.slice(0, 3),
+      insight: "RESOLVE hasn't observed contributor activity in the last 24 hours.",
+      impact: "You may be missing recognition and funding signals in connected ecosystems.",
+      bullets: reasons.slice(0, 3).map((r) => r.replace(/GitHub|Sensor/gi, "Ecosystem")),
       confidence: github.health === "offline" ? 93 : 87,
       chips: chipsForFinding("observation-gap"),
     });
@@ -134,9 +134,9 @@ export function buildIntelligenceFindings(
       severity: "opportunity",
       severityLabel: "Opportunity",
       title: "Observation gap",
-      insight: "GitHub sensor is online but no contribution events were captured today.",
-      impact: "Value may exist in repositories RESOLVE is not yet observing.",
-      bullets: ["Connect additional repositories", "Verify webhook permissions"],
+      insight: "Ecosystem observation is online but no contribution events were captured today.",
+      impact: "Value may exist in communities RESOLVE is not yet watching closely.",
+      bullets: ["Expand observed repositories", "Verify permissions are current"],
       confidence: 85,
       chips: chipsForFinding("observation-gap"),
     });

@@ -1,5 +1,5 @@
-import type { MissionIntent } from "@/lib/mission/intents";
-import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
+export type { ContextualAction } from "@/lib/mission/contextual-actions";
+export { buildContextualActions, chipsFromFinding } from "@/lib/mission/contextual-actions";
 
 export type MissionPhase = "discover" | "explain" | "plan" | "execute";
 
@@ -32,48 +32,3 @@ export function shouldShowExecuteBar(phase: MissionPhase): boolean {
   return phase === "execute";
 }
 
-/** Planning actions — only after user commits to fixing something. */
-export function planningActions(finding?: MissionFinding): { label: string; prompt: string }[] {
-  const target = finding?.title ?? "this issue";
-  return [
-    { label: "Create funding plan", prompt: `Create a funding plan for ${target}.` },
-    { label: "Review contributors", prompt: `Show contributors behind ${target}.` },
-    { label: "Simulate allocation", prompt: `Simulate allocation for ${target} without executing.` },
-    { label: "Save draft", prompt: `Save this as a draft plan for ${target}.` },
-  ];
-}
-
-export function executeActions(): { label: string; prompt: string }[] {
-  return [
-    { label: "Review transaction", prompt: "Review the prepared transaction before settlement." },
-    { label: "Authorize settlement", prompt: "Authorize settlement on Arc." },
-    { label: "Execute on Arc", prompt: "Execute the approved allocation on Arc." },
-  ];
-}
-
-/** Card-level chips are generated from finding id + intent — not global templates. */
-export function chipsFromFinding(finding: MissionFinding, intent: MissionIntent): string[] {
-  if (intent === "discovery" && finding.id === "funding-gap") {
-    return ["Why?", "Show evidence", "Compare impact", "Create funding plan"];
-  }
-  if (finding.id === "maintainer-risk") {
-    return ["Why?", "Who maintains this?", "Show evidence", `Let's fix ${finding.title.split("/")[1] ?? finding.title}`];
-  }
-  return finding.chips;
-}
-
-/** Suggest plan entry only when user has explored enough — from conversation depth. */
-export function suggestPlanEntry(
-  turnCount: number,
-  findings: MissionFinding[],
-  lastUserText: string,
-): string | null {
-  if (/\b(fix|plan|allocat|fund)\b/i.test(lastUserText)) return null;
-  if (turnCount < 2 || !findings.length) return null;
-  const top = findings[0];
-  if (!top) return null;
-  if (top.id === "funding-gap" || top.id === "maintainer-risk") {
-    return `Create funding plan for ${top.title}`;
-  }
-  return null;
-}

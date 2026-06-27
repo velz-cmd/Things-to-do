@@ -1,68 +1,50 @@
-import {
-  Eye,
-  Brain,
-  Scale,
-  Zap,
-  CheckCircle2,
-  User,
-} from "lucide-react";
+import { Sparkles, Wallet, User } from "lucide-react";
 
-/** Five verbs — the entire product model. Not pages. Missions. */
-export const MISSION_NAV = [
-  {
-    href: "/discover",
-    label: "Observe",
-    question: "Where does value already exist?",
-    icon: Eye,
-    exact: false as const,
-  },
+/**
+ * Minimal product nav — three tabs, diamond value each.
+ * Observe · Decide · Verify live inside Mission (chat + feed), not separate pages.
+ */
+export const PRODUCT_NAV = [
   {
     href: "/control",
-    label: "Understand",
-    question: "What matters right now?",
-    icon: Brain,
-    exact: false as const,
-  },
-  {
-    href: "/decide",
-    label: "Decide",
-    question: "What needs funding?",
-    icon: Scale,
+    label: "Mission",
+    tagline: "State intent — RESOLVE reasons, you approve, USDC settles",
+    icon: Sparkles,
     exact: false as const,
   },
   {
     href: "/payments",
-    label: "Execute",
-    question: "What is waiting to move?",
-    icon: Zap,
-    exact: false as const,
-  },
-  {
-    href: "/network",
-    label: "Verify",
-    question: "What changed?",
-    icon: CheckCircle2,
+    label: "Capital",
+    tagline: "Treasury, claims, settlement — when money is ready to move",
+    icon: Wallet,
     exact: false as const,
   },
   {
     href: "/profile",
     label: "Me",
-    question: "Who am I in this network?",
+    tagline: "Identity, wallets, sensors",
     icon: User,
     exact: false as const,
   },
 ] as const;
 
-/** @deprecated Use MISSION_NAV */
-export const PRODUCT_NAV = MISSION_NAV;
+/** @deprecated */
+export const MISSION_NAV = PRODUCT_NAV;
 
-/** Legacy routes → mission-based surfaces */
+/** Secondary routes — no top-nav tab; reached from Mission chat/actions */
+export const SECONDARY_ROUTES = {
+  fund: "/decide",
+  policies: "/control?panel=policies",
+} as const;
+
+/** Legacy routes → three-tab product */
 export const LEGACY_REDIRECTS: Record<string, string> = {
   "/workspace": "/control",
-  "/activity": "/network",
-  "/radar": "/discover",
+  "/activity": "/control",
+  "/network": "/control",
+  "/discover": "/control",
+  "/radar": "/control",
   "/weight": "/control",
-  "/discover": "/discover",
   "/methodology": "/control",
   "/signals": "/control",
   "/settle": "/payments",
@@ -74,6 +56,6 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/start": "/control",
   "/treasury": "/payments",
   "/distribute": "/payments",
-  "/connectors": "/discover",
+  "/connectors": "/profile",
   "/workspace/fund": "/decide",
 };

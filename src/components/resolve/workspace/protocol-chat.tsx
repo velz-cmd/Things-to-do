@@ -125,7 +125,7 @@ export function ProtocolChat({
           )}
           <div>
             <span className="text-sm font-semibold text-white">
-              {missionLabel ? `Reasoning · ${missionLabel}` : isEngine ? "Economic reasoning" : "Chat"}
+              {missionLabel ? missionLabel : isEngine ? "Mission" : "Chat"}
             </span>
             {!isEngine && (
               <span className="ml-2 rounded-full bg-resolve-accent/15 px-2.5 py-0.5 text-[10px] font-semibold text-blue-200 ring-1 ring-resolve-accent/25">
@@ -260,7 +260,7 @@ export function ProtocolChat({
               missionLabel
                 ? `Ask anything about ${missionLabel}…`
                 : isEngine
-                  ? "We have $100k — where should it go?"
+                  ? "I need $10k distributed to vercel/next.js contributors — analyze, authorize, settle in USDC"
                   : "Where is value leaking? Who should we fund?"
             }
             className="flex-1"
@@ -270,6 +270,21 @@ export function ProtocolChat({
             <Send className="h-4 w-4" />
           </Button>
         </form>
+        {isEngine && (
+          <p className="mt-2 text-[10px] text-resolve-muted-dim">
+            <Link href="/decide" className="text-resolve-accent hover:underline">
+              Fund a repository
+            </Link>
+            {" · "}
+            <Link href="/control?panel=policies" className="text-resolve-accent hover:underline">
+              Policies
+            </Link>
+            {" · "}
+            <Link href="/payments" className="text-resolve-accent hover:underline">
+              Capital
+            </Link>
+          </p>
+        )}
         {!isEngine && (
           <p className="mt-2 text-[10px] text-resolve-muted-dim">
             Evidence-backed · approval required ·{" "}

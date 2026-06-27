@@ -175,15 +175,14 @@ export function getProtocolWelcome(evidence?: {
   const hasLive = evidence && (evidence.ledgerCount > 0 || evidence.concentrations.length > 1);
 
   return {
-    specialistLabel: "Protocol",
-    greeting: hasLive
-      ? "Open ecosystems are active. Here's what the network sees."
-      : "Sensors are standing by across open ecosystems.",
+    specialistLabel: "Economic reasoning",
+    greeting: hasLive ? "What would you like to do?" : "Sensors are standing by across open ecosystems.",
     subtitle: hasLive
-      ? evidence!.concentrations[0]
-        ? `${evidence!.concentrations[0].title} — ${evidence!.concentrations[0].detail}`
-        : "Ask where value is leaking, who is underfunded, or how to allocate capital."
-      : "Value is discovered where people already work — code, music, research, communities. Connect sensors; capital follows.",
+      ? evidence!.concentrations
+          .slice(0, 3)
+          .map((c) => `${c.title} — ${c.detail}`)
+          .join(" · ") || "Ask where value leaks, who is unpaid, or how capital should move."
+      : "Value is discovered where people already work. Connect sensors; the same engine settles every ecosystem.",
     requiresApproval: true,
     naturalLanguageActions: [
       "Find value leaks",

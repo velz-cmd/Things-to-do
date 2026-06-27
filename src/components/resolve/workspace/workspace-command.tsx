@@ -3,31 +3,33 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { LayoutGrid } from "lucide-react";
-import { ProductPage } from "@/components/resolve/layout/product-page";
-import { WorkspaceProtocol } from "@/components/resolve/workspace/workspace-protocol";
+import { WorkspaceOS } from "@/components/resolve/workspace/workspace-os";
 
 const MODES = [
-  { href: "/workspace", label: "Command", exact: true },
+  { href: "/workspace", label: "Observe", exact: true },
   { href: "/workspace/fund", label: "Allocate", exact: false },
 ] as const;
 
-/** Open Capital Workspace — observe, reason, allocate, settle. */
+/**
+ * Economic Operating System for open ecosystems.
+ * One engine · many sensors · two interfaces (reason + manual).
+ */
 export function WorkspaceCommand() {
   const pathname = usePathname();
 
   return (
-    <ProductPage
-      icon={LayoutGrid}
-      title="Workspace"
-      description="Capital flow infrastructure for open ecosystems. Value is discovered where people already work — you reason, approve, and settle."
-      workflows={[
-        { label: "Value network", active: pathname === "/workspace" },
-        { label: "Command", active: pathname === "/workspace" },
-        { label: "Capital", href: "/payments" },
-        { label: "Activity", href: "/activity" },
-      ]}
-      actions={
+    <div className="relative mx-auto max-w-6xl px-4 py-8 lg:px-8">
+      <header className="mb-10 flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
+            Universal settlement engine
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Workspace</h1>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-resolve-muted">
+            Where value already flows across open economies — observe, reason, authorize, settle.
+            Connectors are sensors. Capital is the product.
+          </p>
+        </div>
         <nav className="flex rounded-2xl resolve-glass-subtle p-1 ring-1 ring-resolve-border">
           {MODES.map((m) => {
             const active = m.exact ? pathname === m.href : pathname.startsWith(m.href);
@@ -47,11 +49,9 @@ export function WorkspaceCommand() {
             );
           })}
         </nav>
-      }
-      width="wide"
-      accent="blue"
-    >
-      <WorkspaceProtocol />
-    </ProductPage>
+      </header>
+
+      <WorkspaceOS />
+    </div>
   );
 }

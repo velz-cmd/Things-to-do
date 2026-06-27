@@ -129,7 +129,12 @@ export async function GET() {
       status = "needs_attention";
     }
 
-    return { ...s, connected, status };
+    return {
+      ...s,
+      connected,
+      status,
+      eventsToday: live?.eventsToday ?? 0,
+    };
   });
 
   const domainGroups = new Map<

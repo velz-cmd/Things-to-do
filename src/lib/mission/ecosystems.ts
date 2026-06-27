@@ -1,17 +1,14 @@
-export type EcosystemKind =
-  | "project"
-  | "protocol"
-  | "dao"
-  | "foundation"
-  | "community"
-  | "organization";
+import type { CommunityKind } from "@/lib/mission/community";
+import { saveUserMemory } from "@/lib/resolve/workspace-memory";
+
+/** @deprecated alias — communities are worlds, not repos */
+export type EcosystemKind = CommunityKind | "project" | "foundation" | "organization" | "community";
 
 export type Ecosystem = {
   id: string;
   name: string;
   kind: EcosystemKind;
   createdAt: string;
-  /** Keywords used to scope reasoning when this ecosystem is active */
   keywords: string[];
   repos?: Array<{
     owner: string;
@@ -25,21 +22,22 @@ export type Ecosystem = {
   missionCount?: number;
 };
 
+/** @deprecated use Ecosystem — renaming to Community in UI */
+export type Community = Ecosystem;
+
 const STORAGE_KEY = "resolve-ecosystems";
 const ACTIVE_KEY = "resolve-active-ecosystem";
 
+/** Community worlds — not repositories. */
 const SEED: Omit<Ecosystem, "createdAt">[] = [
-  { id: "react", name: "React", kind: "project", keywords: ["react", "next.js", "nextjs"] },
+  { id: "ai-infra", name: "AI Infrastructure", kind: "oss", keywords: ["ai", "llm", "langchain", "ml"] },
+  { id: "react", name: "React", kind: "oss", keywords: ["react", "next.js", "nextjs"] },
+  { id: "linux", name: "Linux", kind: "oss", keywords: ["linux", "kernel", "gnome", "fedora"] },
   { id: "ethereum", name: "Ethereum", kind: "protocol", keywords: ["ethereum", "eth", "evm"] },
   { id: "solana", name: "Solana", kind: "protocol", keywords: ["solana", "sol"] },
-  { id: "base", name: "Base", kind: "protocol", keywords: ["base", "coinbase l2"] },
-  { id: "langchain", name: "LangChain", kind: "project", keywords: ["langchain", "langgraph"] },
-  {
-    id: "linux-foundation",
-    name: "Linux Foundation",
-    kind: "foundation",
-    keywords: ["linux foundation", "lf", "open source"],
-  },
+  { id: "independent-music", name: "Independent Music", kind: "music", keywords: ["music", "artist", "listenbrainz"] },
+  { id: "open-education", name: "Open Education", kind: "education", keywords: ["education", "course", "teaching"] },
+  { id: "digital-commons", name: "Digital Commons", kind: "general", keywords: ["commons", "creative commons"] },
 ];
 
 function seedEcosystems(): Ecosystem[] {
@@ -68,7 +66,7 @@ export function saveEcosystems(ecosystems: Ecosystem[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(ecosystems));
 }
 
-export function addEcosystem(name: string, kind: EcosystemKind = "organization"): Ecosystem {
+export function addEcosystem(name: string, kind: EcosystemKind = "general"): Ecosystem {
   const ecosystems = loadEcosystems();
   const id = `eco-${Date.now()}`;
   const entry: Ecosystem = {
@@ -88,7 +86,6 @@ export function getActiveEcosystemId(): string | null {
   return localStorage.getItem(ACTIVE_KEY);
 }
 
-import { saveUserMemory } from "@/lib/resolve/workspace-memory";
 
 export function setActiveEcosystemId(id: string | null) {
   if (typeof window === "undefined") return;
@@ -107,5 +104,12 @@ export function getActiveEcosystem(): Ecosystem | undefined {
 }
 
 export function ecosystemContextPrompt(ecosystem: Ecosystem): string {
-  return `The user is working inside the ${ecosystem.name} ecosystem. Interpret ambiguous questions (${ecosystem.keywords.join(", ")}) in that context unless they specify otherwise.`;
+  return `The user is working inside the ${ecosystem.name} community (${ecosystem.kind}). Interpret ambiguous questions (${ecosystem.keywords.join(", ")}) in that community context unless they specify otherwise.`;
 }
+
+export const loadCommunities = loadEcosystems;
+export const addCommunity = addEcosystem;
+export const getActiveCommunityId = getActiveEcosystemId;
+export const setActiveCommunityId = setActiveEcosystemId;
+export const getActiveCommunity = getActiveEcosystem;
+export const communityContextPrompt = ecosystemContextPrompt;

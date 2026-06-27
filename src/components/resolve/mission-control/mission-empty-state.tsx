@@ -5,11 +5,11 @@ import { Loader2, Send } from "lucide-react";
 
 const EXAMPLES = [
   "I want to fund React.",
+  "How healthy is React?",
   "Find communities losing contributors.",
   "Who deserves funding?",
   "Show hidden infrastructure.",
   "Build a grant program.",
-  "Help Pakistani OSS.",
 ];
 
 export function MissionEmptyState({

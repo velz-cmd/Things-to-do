@@ -185,7 +185,7 @@ function missionVisitKey(id: string) {
 }
 
 export function MissionControl() {
-  const { scope, setScope, enterMission } = useMissionScope();
+  const { scope, setScope } = useMissionScope();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<MissionTurn[]>([]);
   const [objective, setObjective] = useState<string | null>(null);
@@ -374,7 +374,6 @@ export function MissionControl() {
       setInput("");
       setLoading(true);
       setThinkingComplete(false);
-      enterMission(trimmed);
       setActiveThinkingSteps(thinkingStepsFor(detectMissionIntent(trimmed)));
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
@@ -410,8 +409,23 @@ export function MissionControl() {
             messages: history,
             ecosystemId: workspaceId,
           });
-          if (!serverData) throw new Error("Sign in to persist missions");
-          data = serverData;
+          if (serverData) {
+            data = serverData;
+          } else {
+            const res = await fetch("/api/workspace/ask", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                question: query,
+                messages: history,
+                ecosystem: workspacePayload,
+                operatingMode,
+              }),
+            });
+            const json = (await res.json()) as AdvisorPayload & { error?: string };
+            if (!res.ok) throw new Error(json.error ?? "Analysis failed");
+            data = json;
+          }
         } else {
           const res = await fetch("/api/workspace/ask", {
             method: "POST",
@@ -493,7 +507,6 @@ export function MissionControl() {
       }
     },
     [
-      enterMission,
       turns,
       session,
       activeWorkspace,

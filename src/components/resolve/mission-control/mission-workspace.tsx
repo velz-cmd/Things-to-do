@@ -99,7 +99,7 @@ export function MissionWorkspace({
   loopPhase: CapitalLoopPhase;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
-  const started = Boolean(objective || turns.length > 0);
+  const started = Boolean(objective || turns.length > 0 || loading);
   const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
   const lastAllocations = lastResolve?.allocations;
   const followUpActions = lastResolve?.nextSteps ?? lastResolve?.report?.actions ?? [];
@@ -128,6 +128,8 @@ export function MissionWorkspace({
     );
   }
 
+  const displayTopic = topic ?? (objective ? { name: objective.slice(0, 48), kind: "general" as const } : null);
+
   return (
     <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px]">
       <MissionHistorySidebar
@@ -138,8 +140,13 @@ export function MissionWorkspace({
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {topic && (
-          <MissionWorldSnapshot topic={topic.name} kind={topic.kind} report={lastReport} />
+        {displayTopic && displayTopic.kind !== "general" && (
+          <MissionWorldSnapshot topic={displayTopic.name} kind={displayTopic.kind} report={lastReport} />
+        )}
+        {displayTopic && displayTopic.kind === "general" && !loading && (
+          <div className="border-b border-white/[0.06] px-4 py-3 lg:px-6">
+            <h2 className="text-base font-semibold text-white">{displayTopic.name}</h2>
+          </div>
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
@@ -243,10 +250,10 @@ export function MissionWorkspace({
         </div>
       </div>
 
-      {topic && (
+      {displayTopic && (
         <MissionContextPanel
-          topicName={topic.name}
-          topicKind={topic.kind}
+          topicName={displayTopic.name}
+          topicKind={displayTopic.kind === "general" ? "oss" : displayTopic.kind}
           phase={phase}
           showCapital={showCapital}
           showPolicies={showPolicies}

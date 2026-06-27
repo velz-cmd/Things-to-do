@@ -1,4 +1,4 @@
-import { extractCommunityTargets, detectCommunityKind } from "@/lib/mission/community/detector";
+import { extractCommunityTargets, detectCommunityKind, KNOWN_COMMUNITIES } from "@/lib/mission/community/detector";
 import type { CommunityKind } from "@/lib/mission/community/types";
 import type { MissionReport } from "@/lib/mission/mission-report";
 
@@ -37,6 +37,17 @@ export function resolveMissionTopic(input: {
   if (targets.length > 0) {
     const name = targets[0]!;
     return { name, kind: detectCommunityKind({ question: haystack, communityName: name }) };
+  }
+
+  // "fund react", "help linux" — match known community tokens in the query
+  const tokens = haystack.toLowerCase().split(/\s+/);
+  for (const world of KNOWN_COMMUNITIES) {
+    if (world.aliases.some((a) => tokens.includes(a.toLowerCase()))) {
+      return { name: world.name, kind: world.kind };
+    }
+    if (tokens.includes(world.name.toLowerCase())) {
+      return { name: world.name, kind: world.kind };
+    }
   }
 
   // Capitalize first meaningful phrase if no known community matched

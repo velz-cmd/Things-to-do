@@ -13,6 +13,7 @@ export async function processMissionMessage(input: {
   question: string;
   messages?: AdvisorMessage[];
   ecosystemId?: string;
+  operatingMode?: import("@/lib/mission/capital-os").OperatingMode;
 }): Promise<AdvisorResponse & { mission: MissionRecord; status: string }> {
   const ecosystem =
     input.ecosystemId ? await getEcosystem(input.userId, input.ecosystemId) : null;
@@ -20,6 +21,7 @@ export async function processMissionMessage(input: {
   const result = await askValueAdvisor({
     question: input.question,
     messages: input.messages,
+    operatingMode: input.operatingMode,
     ecosystem: ecosystem
       ? {
           name: ecosystem.name,

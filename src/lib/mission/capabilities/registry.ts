@@ -100,6 +100,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           label: "Review settlement package",
           prompt: "Walk me through exactly what capital would move and who receives it.",
           kind: "execute",
+          actionType: "prepare_settlement",
         });
       } else if (!ctx.evidence.treasury.canSettleGlobally) {
         actions.push({
@@ -107,6 +108,8 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           label: "Review treasury gap",
           prompt: "What treasury gap blocks executing this allocation?",
           kind: "explore",
+          actionType: "fund_treasury",
+          href: "/payments",
         });
       }
       return actions.slice(0, 3);
@@ -145,6 +148,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           label: "Save this comparison",
           prompt: `Save this ${targets} comparison to mission memory.`,
           kind: "remember",
+          actionType: "save_knowledge",
         },
       ];
     },
@@ -209,7 +213,8 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           id: "claim",
           label: `Claim $${Math.round(claimable).toLocaleString()}`,
           prompt: "Walk me through claiming my recognized value.",
-          kind: "execute",
+          kind: "navigate",
+          actionType: "open_claim",
           href: "/claim",
         });
         actions.push({
@@ -224,6 +229,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           label: "Link community identities",
           prompt: "Which community identities should I link so RESOLVE can recognize my contributions?",
           kind: "navigate",
+          actionType: "navigate",
           href: "/profile",
         });
       }
@@ -258,6 +264,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           label: "Save to knowledge",
           prompt: `Save this ${scope} research to knowledge.`,
           kind: "remember",
+          actionType: "save_knowledge",
         },
         {
           id: "monitor",
@@ -340,6 +347,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           label: "Walk through what moves",
           prompt: "Walk me through exactly what capital would move and who receives it.",
           kind: "execute",
+          actionType: "prepare_settlement",
         },
       ];
       if (ctx.evidence.treasury.canSettleGlobally && ctx.phase === "execute") {
@@ -348,6 +356,14 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           label: "Review settlement package",
           prompt: "Prepare the allocation for settlement review.",
           kind: "execute",
+          actionType: "prepare_settlement",
+        });
+        actions.push({
+          id: "authorize-settlement",
+          label: "Authorize settlement",
+          prompt: "Authorize settlement now.",
+          kind: "execute",
+          actionType: "execute_settlement",
         });
       }
       actions.push({

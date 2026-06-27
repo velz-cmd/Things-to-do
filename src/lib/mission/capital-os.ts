@@ -311,7 +311,7 @@ export function contextualMissionActions(input: {
       { id: "dist-plan", label: "Create distribution plan", prompt: `Create a distribution plan for ${scope} — recipients, amounts, schedule.`, kind: "plan" },
       { id: "dao-prop", label: "Draft DAO proposal", prompt: `Draft a DAO treasury proposal for funding ${scope}.`, kind: "plan" },
       { id: "budget", label: "Generate budget", prompt: `Generate a detailed budget breakdown for ${scope} funding.`, kind: "plan" },
-      { id: "settle", label: "Prepare settlement", prompt: "Walk me through exactly what capital would move and who receives it.", kind: "execute" },
+      { id: "settle", label: "Prepare settlement", prompt: "Walk me through exactly what capital would move and who receives it.", kind: "execute", actionType: "prepare_settlement" },
     );
   }
 
@@ -331,7 +331,7 @@ export function contextualMissionActions(input: {
 
   // Universal follow-ups
   actions.push(
-    { id: "save", label: "Save to knowledge", prompt: "Save this mission analysis to knowledge base.", kind: "remember" },
+    { id: "save", label: "Save to knowledge", prompt: "Save this mission analysis to knowledge base.", kind: "remember", actionType: "save_knowledge" },
     { id: "who-fund", label: "Who deserves funding?", prompt: `Who deserves funding in ${scope} based on observed impact?`, kind: "explore" },
   );
 

@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
+import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 
 export type WorkflowChip = {
   label: string;
@@ -10,10 +11,9 @@ export type WorkflowChip = {
 };
 
 const accentGlow = {
-  blue: "from-cyan-500/20 via-transparent to-indigo-500/10",
-  violet: "from-violet-500/20 via-transparent to-indigo-500/10",
-  emerald: "from-emerald-500/15 via-transparent to-cyan-500/10",
-  amber: "from-amber-500/15 via-transparent to-orange-500/10",
+  blue: "from-resolve-accent-bright/20 via-transparent to-blue-500/10",
+  orange: "from-resolve-orange/20 via-transparent to-orange-500/10",
+  emerald: "from-emerald-500/15 via-transparent to-resolve-accent/10",
 };
 
 export function ProductPage({
@@ -33,7 +33,7 @@ export function ProductPage({
   actions?: React.ReactNode;
   children: React.ReactNode;
   width?: "narrow" | "wide" | "full";
-  accent?: "blue" | "violet" | "emerald" | "amber";
+  accent?: "blue" | "orange" | "emerald";
 }) {
   const maxWidth =
     width === "narrow" ? "max-w-3xl" : width === "full" ? "max-w-[1400px]" : "max-w-6xl";
@@ -41,20 +41,19 @@ export function ProductPage({
   return (
     <div className={clsx("relative mx-auto px-4 py-10 lg:px-8", maxWidth)}>
       <header className="relative mb-12 animate-resolve-enter">
-        {/* Ambient glow behind header */}
         <div
           aria-hidden
           className={clsx(
-            "pointer-events-none absolute -inset-x-8 -top-8 h-48 rounded-full opacity-60 blur-3xl",
+            "pointer-events-none absolute -inset-x-8 -top-8 h-48 rounded-full opacity-50 blur-3xl",
             "bg-gradient-to-b",
             accentGlow[accent],
           )}
         />
 
-        <div className="relative overflow-hidden rounded-resolve-xl resolve-border-gradient resolve-glass resolve-card-glow-accent">
+        <BlueGlowCard className="overflow-hidden p-0" padding={false} grid={false}>
           <div
             className={clsx(
-              "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-80",
+              "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-60",
               accentGlow[accent],
             )}
           />
@@ -83,8 +82,8 @@ export function ProductPage({
                         className={clsx(
                           "rounded-full px-3.5 py-1.5 text-[11px] font-medium transition-all duration-300",
                           w.active ?
-                            "bg-white/10 text-white ring-1 ring-white/20"
-                          : "bg-white/[0.04] text-resolve-muted ring-1 ring-white/[0.06] hover:bg-white/[0.08] hover:text-white",
+                            "bg-resolve-accent/15 text-white ring-1 ring-resolve-accent/30"
+                          : "bg-white/[0.04] text-resolve-muted ring-1 ring-resolve-border hover:bg-resolve-accent/10 hover:text-white",
                         )}
                       >
                         {w.label}
@@ -94,8 +93,8 @@ export function ProductPage({
                         className={clsx(
                           "rounded-full px-3.5 py-1.5 text-[11px] font-medium ring-1",
                           w.active ?
-                            "bg-white/10 text-white ring-white/20"
-                          : "bg-white/[0.03] text-resolve-muted-dim ring-white/[0.05]",
+                            "bg-resolve-accent/15 text-white ring-resolve-accent/30"
+                          : "bg-white/[0.03] text-resolve-muted-dim ring-resolve-border",
                         )}
                       >
                         {w.label}
@@ -106,7 +105,7 @@ export function ProductPage({
             </div>
             {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
           </div>
-        </div>
+        </BlueGlowCard>
       </header>
 
       <div className="animate-resolve-enter">{children}</div>

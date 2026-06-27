@@ -28,7 +28,7 @@ export function WorkspaceFundSurface() {
         { label: "Settle", href: "/payments" },
       ]}
       actions={
-        <nav className="flex rounded-2xl resolve-glass-subtle p-1 ring-1 ring-white/[0.06]">
+        <nav className="flex rounded-2xl resolve-glass-subtle p-1 ring-1 ring-resolve-border">
           {MODES.map((m) => {
             const active = m.exact ? pathname === m.href : pathname.startsWith(m.href);
             return (
@@ -49,7 +49,7 @@ export function WorkspaceFundSurface() {
         </nav>
       }
       width="wide"
-      accent="violet"
+      accent="blue"
     >
       <WorkspaceFund />
     </ProductPage>

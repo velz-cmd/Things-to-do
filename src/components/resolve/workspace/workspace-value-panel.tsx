@@ -61,7 +61,7 @@ export function WorkspaceValuePanel({
               label="Settled"
               value={<Money amount={valueFlow.settledUsd} size="sm" />}
               hint="Arc batches"
-              tone="violet"
+              tone="blue"
             />
           </div>
         : <Panel variant="flat" className="mt-4 p-5">

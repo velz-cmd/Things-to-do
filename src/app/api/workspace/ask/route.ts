@@ -7,8 +7,14 @@ import { buildPolicyProposals } from "@/lib/workspace/advisors/policy-proposals"
 import { opportunitiesToCards } from "@/lib/workspace/advisors/opportunity-cards";
 import { buildEvidenceActions } from "@/lib/workspace/advisors/evidence-actions";
 
+const messageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string().min(1).max(8000),
+});
+
 const bodySchema = z.object({
   question: z.string().min(1).max(4000).optional(),
+  messages: z.array(messageSchema).max(40).optional(),
 });
 
 /** Open protocol chat — evidence-backed, never executes without approval. */
@@ -23,7 +29,11 @@ export async function POST(req: Request) {
   }
 
   const evidence = await gatherWorkspaceEvidence();
-  const result = await askValueAdvisor({ question: parsed.data.question, evidence });
+  const result = await askValueAdvisor({
+    question: parsed.data.question,
+    evidence,
+    messages: parsed.data.messages,
+  });
 
   return NextResponse.json({
     ok: true,

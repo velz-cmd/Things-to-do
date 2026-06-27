@@ -105,10 +105,16 @@ function buildProtocolFallback(
   return lines.join("\n");
 }
 
+export type AdvisorMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 /** Protocol analyst — open chat for any community, evidence-only. */
 export async function askValueAdvisor(input: {
   question: string;
   evidence: WorkspaceEvidence;
+  messages?: AdvisorMessage[];
 }): Promise<AdvisorResponse> {
   const specialist = routeAdvisorSpecialist(input.question);
   const actions = buildEvidenceActions(input.evidence);
@@ -130,7 +136,19 @@ STRICT RULES:
 - Speak like a protocol analyst: direct, evidence-backed, respectful of user agency.
 - Under 250 words unless listing concentrations.`;
 
-  const prompt = `USER:\n${input.question}\n\nEVIDENCE:\n${buildEvidenceJson(input.evidence)}\n\nCONCENTRATIONS:\n${concentrations.map((c, i) => `${i + 1}. ${c.title}: ${c.detail}`).join("\n")}`;
+  const history =
+    input.messages?.length ?
+      input.messages
+        .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}:\n${m.content}`)
+        .join("\n\n")
+    : "";
+
+  const prompt = [
+    history ? `CONVERSATION:\n${history}\n` : "",
+    `USER:\n${input.question}`,
+    `\nEVIDENCE:\n${buildEvidenceJson(input.evidence)}`,
+    `\nCONCENTRATIONS:\n${concentrations.map((c, i) => `${i + 1}. ${c.title}: ${c.detail}`).join("\n")}`,
+  ].join("\n");
 
   try {
     const { text } = await generateTextWithFallback({
@@ -176,7 +194,7 @@ export function getProtocolWelcome(evidence?: {
 
   return {
     specialistLabel: "Economic reasoning",
-    greeting: hasLive ? "What would you like to do?" : "Sensors are standing by across open ecosystems.",
+    greeting: hasLive ? "What would you like RESOLVE to do?" : "What would you like RESOLVE to do?",
     subtitle: hasLive
       ? evidence!.concentrations
           .slice(0, 3)

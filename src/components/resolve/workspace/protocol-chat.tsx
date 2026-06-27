@@ -272,15 +272,15 @@ export function ProtocolChat({
         </form>
         {isEngine && (
           <p className="mt-2 text-[10px] text-resolve-muted-dim">
-            <Link href="/decide" className="text-resolve-accent hover:underline">
+            <Link href="/mission/fund" className="text-resolve-accent hover:underline">
               Fund a repository
             </Link>
             {" · "}
-            <Link href="/control?panel=policies" className="text-resolve-accent hover:underline">
+            <Link href="/mission?panel=policies" className="text-resolve-accent hover:underline">
               Policies
             </Link>
             {" · "}
-            <Link href="/payments" className="text-resolve-accent hover:underline">
+            <Link href="/capital" className="text-resolve-accent hover:underline">
               Capital
             </Link>
           </p>

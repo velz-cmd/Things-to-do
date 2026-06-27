@@ -107,7 +107,7 @@ export function MissionScopeProvider({ children }: { children: ReactNode }) {
           };
 
       setScope(next);
-      router.push(`/control?scope=${encodeURIComponent(next.label)}`);
+      router.push(`/mission?scope=${encodeURIComponent(next.label)}`);
     },
     [router, setScope],
   );

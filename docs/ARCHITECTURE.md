@@ -27,7 +27,7 @@ Ask *"What does RESOLVE know?"* — not *"What pages exist?"*
 | **6** | **Workspace** | How do humans see the engine? | Design polish |
 | **7** | **Design System** | How does it feel? | — |
 
-**Current rule:** No navigation, layout, route, or cosmetic redesign until Layer 1 types and Layer 3 `Observation` contract are frozen and adopted by at least one connector path.
+**Current rule:** See [INFORMATION-ARCHITECTURE.md](./INFORMATION-ARCHITECTURE.md) for frozen tabs (6 areas). No new primary tabs until entity pages or graph ship.
 
 ---
 

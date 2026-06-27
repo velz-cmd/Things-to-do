@@ -1,6 +1,11 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { NetworkSurface } from "@/components/resolve/network/network-surface";
 
-/** Verify / network feed — lives in Mission right panel, not a tab */
-export default function NetworkRedirect() {
-  redirect("/control");
+export const metadata: Metadata = {
+  title: "Network — RESOLVE",
+  description: "What is happening globally?",
+};
+
+export default function NetworkPage() {
+  return <NetworkSurface />;
 }

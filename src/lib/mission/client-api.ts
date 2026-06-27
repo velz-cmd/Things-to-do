@@ -148,6 +148,7 @@ export async function sendMissionMessage(
     ok: boolean;
     answer: string;
     headline: string;
+    brief: import("@/lib/mission/intelligence-brief").IntelligenceBrief;
     findings: MissionFinding[];
     phase: MissionPhase;
     capability: string;
@@ -223,6 +224,15 @@ export async function executeMission(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export async function fetchToolbox() {
+  const data = await missionFetch<
+    import("@/lib/mission/toolbox/types").ToolboxSnapshot & { ok: boolean }
+  >("/api/mission/toolbox");
+  if (!data) return null;
+  const { ok: _ok, ...snapshot } = data;
+  return snapshot;
 }
 
 export async function migrateLocalSessions(

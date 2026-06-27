@@ -10,6 +10,7 @@ import {
 } from "./capabilities/intent-classifier";
 import { runCollectors } from "./capabilities/collectors";
 import { buildGroundedAnswer } from "./capabilities/answer-builder";
+import { buildIntelligenceBrief } from "./intelligence-brief";
 import { getCapabilityDef } from "./capabilities/registry";
 import type { CapabilityId, OrchestratorContext, OrchestratorResult } from "./capabilities/types";
 
@@ -56,10 +57,7 @@ async function maybeEnhanceWithReasoning(
   messages?: AdvisorMessage[],
 ): Promise<string> {
   const needsLlm =
-    ctx.capability === "explain_evidence" ||
-    ctx.capability === "research_ecosystem" ||
-    ctx.phase === "explain" ||
-    (ctx.capability === "general_inquiry" && ctx.findings.length === 0);
+    ctx.capability === "explain_evidence" && ctx.phase === "explain";
 
   if (!needsLlm) return groundedAnswer;
 
@@ -82,7 +80,7 @@ async function maybeEnhanceWithReasoning(
   try {
     const { text } = await generateTextWithFallback({
       tier: "fast",
-      system: `You are RESOLVE — economic OS for open ecosystems. Explain ONLY using GROUNDED FACTS and API TRACE. Never invent numbers. Max 100 words. No Approve/Execute unless user asked to move money.`,
+      system: `You are RESOLVE — economic OS for open ecosystems. Explain ONLY using GROUNDED FACTS. Max 60 words. Structured analyst tone. No generic intros.`,
       prompt: [history, facts, `USER:\n${ctx.question}`].filter(Boolean).join("\n\n"),
     });
     return text.trim() || groundedAnswer;
@@ -142,7 +140,8 @@ export async function runMissionOrchestrator(input: {
   };
 
   const groundedAnswer = buildGroundedAnswer(ctx);
-  const answer = await maybeEnhanceWithReasoning(ctx, groundedAnswer, input.messages);
+  const brief = buildIntelligenceBrief(ctx);
+  const answer = await maybeEnhanceWithReasoning(ctx, brief.summary || groundedAnswer, input.messages);
   const actions = def.actions(ctx);
 
   return {
@@ -150,7 +149,8 @@ export async function runMissionOrchestrator(input: {
     capabilityLabel: CAPABILITY_LABELS[capability],
     phase,
     answer,
-    headline: answer.split(".")[0] ?? answer,
+    headline: brief.headline,
+    brief,
     findings,
     actions,
     stepsRun: collected.stepsRun,

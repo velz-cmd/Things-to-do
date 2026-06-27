@@ -7,7 +7,11 @@
 
 ## What RESOLVE is
 
-RESOLVE is an **operating system** for observing value, reasoning about capital, and executing programmable payments across open ecosystems.
+RESOLVE is the **intelligence and execution layer for the open internet**. It observes value across open communities, understands relationships, recommends where capital should flow, and executes when humans approve.
+
+**One sentence:** RESOLVE tells you where money should go across the open internet — and moves it there once you approve.
+
+See [POSITIONING.md](./POSITIONING.md) for the canonical definition.
 
 **Pages are temporary. Architecture is permanent.**
 

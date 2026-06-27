@@ -6,20 +6,16 @@ import { MissionWorkspace, type MissionTurn } from "@/components/resolve/mission
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
 import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
-
-function parseCapitalUsd(text: string): number | undefined {
-  const m = text.match(/\$?\s*([\d,]+(?:\.\d+)?)\s*(k|K|m|M)?/);
-  if (!m) return undefined;
-  let n = Number(m[1].replace(/,/g, ""));
-  if (Number.isNaN(n)) return undefined;
-  if (m[2]?.toLowerCase() === "k") n *= 1000;
-  if (m[2]?.toLowerCase() === "m") n *= 1_000_000;
-  return n;
-}
-
-function fundingIntent(text: string): boolean {
-  return /\b(distribut|fund|allocat|\$\d|treasury|capital|invest)\b/i.test(text);
-}
+import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
+import type { MissionPhase } from "@/lib/mission/phases";
+import {
+  chipsFromFinding,
+  detectMissionPhase,
+  executeActions,
+  planningActions,
+} from "@/lib/mission/phases";
+import { detectMissionIntent, parseCapitalUsd, thinkingStepsFor } from "@/lib/mission/intents";
+import { saveMissionLibraryEntry } from "@/lib/mission/toolbox/mission-library";
 
 function buildAllocationFromOpportunities(
   opportunities: OpportunityCard[],
@@ -61,24 +57,18 @@ function pickInlinePolicy(policies: PolicyProposal[], text: string): PolicyPropo
   return policies.find((p) => p.id === "balanced") ?? policies[0];
 }
 
-function buildQuickReplies(text: string, hasFunding: boolean): string[] {
-  if (hasFunding) {
-    return ["Why this split?", "Show evidence", "Customize allocations", "View portfolio"];
-  }
-  if (/\b(leak|underfund|unpaid)\b/i.test(text)) {
-    return ["Show top gaps", "Who deserves funding?", "Allocate treasury"];
-  }
-  return ["Tell me more", "Show evidence", "What should I do next?"];
+function enrichFindingChips(
+  findings: MissionFinding[],
+  intent: ReturnType<typeof detectMissionIntent>,
+): MissionFinding[] {
+  return findings.map((f) => ({
+    ...f,
+    chips: chipsFromFinding(f, intent),
+  }));
 }
 
-type TreasurySnapshot = {
-  balanceUsd?: number;
-  availableUsd?: number;
-  obligationsUsd?: number;
-};
-
 /**
- * Mission — AI workspace. Empty until intent, then conversation + progressive disclosure.
+ * Mission — intelligence conversation first. Execution is a consequence, not the default.
  */
 export function MissionControl() {
   const { scope, enterMission } = useMissionScope();
@@ -86,21 +76,20 @@ export function MissionControl() {
   const [turns, setTurns] = useState<MissionTurn[]>([]);
   const [loading, setLoading] = useState(false);
   const [thinkingComplete, setThinkingComplete] = useState(false);
-  const [treasury, setTreasury] = useState<TreasurySnapshot | null>(null);
+  const [activeThinkingSteps, setActiveThinkingSteps] = useState<readonly string[]>(
+    thinkingStepsFor("general"),
+  );
+  const [lastPhase, setLastPhase] = useState<MissionPhase>("discover");
+  const [libraryTick, setLibraryTick] = useState(0);
   const started = turns.length > 0;
-
-  useEffect(() => {
-    void fetch("/api/workspace/overview")
-      .then((r) => r.json())
-      .then((d) => setTreasury(d.treasury ?? null))
-      .catch(() => setTreasury(null));
-  }, []);
 
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
 
+      const intent = detectMissionIntent(trimmed);
+      setActiveThinkingSteps(thinkingStepsFor(intent));
       setInput("");
       setLoading(true);
       setThinkingComplete(false);
@@ -129,33 +118,39 @@ export function MissionControl() {
 
         setThinkingComplete(true);
 
-        const isFunding = fundingIntent(trimmed);
+        const phase: MissionPhase = data.phase ?? detectMissionPhase(trimmed, history);
+        setLastPhase(phase);
+
+        const findings = enrichFindingChips(data.findings ?? [], intent);
         const estCapital = parseCapitalUsd(trimmed);
         const opportunities: OpportunityCard[] = data.opportunities ?? [];
         const policies: PolicyProposal[] = data.policies ?? [];
-        const availableUsd =
-          treasury?.availableUsd ?? treasury?.balanceUsd ?? data.treasuryBalanceUsd ?? 0;
-        const neededUsd = estCapital ?? treasury?.obligationsUsd ?? 0;
+        const isPlan = phase === "plan";
+        const answer = data.answer ?? data.headline ?? "No analysis available.";
 
         const resolveTurn: MissionTurn = {
           id: `r-${Date.now()}`,
           role: "resolve",
-          text: data.answer ?? "No analysis available.",
-          opportunities: isFunding ? opportunities : undefined,
+          text: answer,
+          findings: phase === "discover" || findings.length > 0 ? findings : undefined,
+          phase,
           allocations:
-            isFunding && estCapital ?
+            isPlan && estCapital ?
               buildAllocationFromOpportunities(opportunities, estCapital)
             : undefined,
-          policy: isFunding ? pickInlinePolicy(policies, trimmed) : undefined,
-          treasury:
-            isFunding && neededUsd > availableUsd ?
-              { availableUsd, neededUsd }
-            : undefined,
-          quickReplies: buildQuickReplies(trimmed, isFunding),
-          showExecution: isFunding || opportunities.length > 0,
+          policy: isPlan ? pickInlinePolicy(policies, trimmed) : undefined,
         };
 
         setTurns((t) => [...t, resolveTurn]);
+
+        if (phase === "discover") {
+          saveMissionLibraryEntry({
+            title: trimmed.slice(0, 48) + (trimmed.length > 48 ? "…" : ""),
+            query: trimmed,
+            findingCount: findings.length,
+          });
+          setLibraryTick((n) => n + 1);
+        }
       } catch (e) {
         setThinkingComplete(true);
         setTurns((t) => [
@@ -164,14 +159,14 @@ export function MissionControl() {
             id: `r-${Date.now()}`,
             role: "resolve",
             text: e instanceof Error ? e.message : "Could not complete analysis.",
-            quickReplies: ["Try again"],
+            phase: "discover",
           },
         ]);
       } finally {
         setLoading(false);
       }
     },
-    [enterMission, turns, treasury],
+    [enterMission, turns],
   );
 
   useEffect(() => {
@@ -180,11 +175,14 @@ export function MissionControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap from URL scope once
   }, [scope?.label]);
 
-  function handleReject() {
+  function handleClear() {
     setTurns([]);
     setInput("");
     setThinkingComplete(false);
+    setLastPhase("discover");
   }
+
+  const topFinding = [...turns].reverse().find((t) => t.role === "resolve")?.findings?.[0];
 
   return (
     <MissionWorkspace
@@ -192,14 +190,18 @@ export function MissionControl() {
       turns={turns}
       loading={loading}
       thinkingComplete={thinkingComplete}
+      thinkingSteps={activeThinkingSteps}
+      phase={lastPhase}
       input={input}
       onInputChange={setInput}
       onSubmit={(t) => void sendMessage(t)}
-      onQuickReply={(t) => void sendMessage(t)}
-      onApprove={() => void sendMessage("Approve this allocation and prepare execution.")}
-      onSimulate={() => void sendMessage("Simulate this allocation without executing.")}
-      onReject={handleReject}
-      onEditPolicy={() => void sendMessage("Let me customize the allocation policy.")}
+      onChip={(t) => void sendMessage(t)}
+      onPlanningAction={(p) => void sendMessage(p)}
+      onExecuteAction={(p) => void sendMessage(p)}
+      onClear={handleClear}
+      planningActions={planningActions(topFinding)}
+      executeActions={executeActions()}
+      libraryTick={libraryTick}
     />
   );
 }

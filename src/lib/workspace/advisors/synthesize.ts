@@ -1,6 +1,5 @@
 import { generateTextWithFallback } from "@/lib/ai/gateway";
 import type { WorkspaceEvidence } from "@/lib/workspace/context";
-import { evidenceSummary } from "@/lib/workspace/context";
 import {
   buildEvidenceActions,
   type EvidenceAction,
@@ -18,8 +17,14 @@ import {
   type OpportunityCard,
 } from "@/lib/workspace/advisors/opportunity-cards";
 import {
+  buildIntelligenceFindings,
+  buildIntelligenceHeadline,
+  type MissionFinding,
+} from "@/lib/workspace/advisors/intelligence-findings";
+import { detectMissionPhase, type MissionPhase } from "@/lib/mission/phases";
+import { detectMissionIntent } from "@/lib/mission/intents";
+import {
   routeAdvisorSpecialist,
-  SPECIALIST_LABELS,
   type AdvisorSpecialist,
 } from "@/lib/workspace/advisors/router";
 
@@ -27,6 +32,9 @@ export type AdvisorResponse = {
   specialist: AdvisorSpecialist;
   specialistLabel: string;
   answer: string;
+  headline: string;
+  findings: MissionFinding[];
+  phase: MissionPhase;
   actions: EvidenceAction[];
   concentrations: ValueConcentration[];
   policies: PolicyProposal[];
@@ -74,67 +82,86 @@ function buildEvidenceJson(evidence: WorkspaceEvidence): string {
   );
 }
 
-function buildProtocolFallback(
-  evidence: WorkspaceEvidence,
-  actions: EvidenceAction[],
-  concentrations: ValueConcentration[],
-): string {
-  const lines = [
-    "I analyzed your connected ecosystems using live protocol data.",
-    "",
-  ];
-
-  if (concentrations.length) {
-    lines.push("Value concentrations:");
-    concentrations.forEach((c, i) => {
-      lines.push(`${i + 1}. ${c.title} — ${c.detail}`);
-    });
-    lines.push("");
-  }
-
-  lines.push(evidenceSummary(evidence));
-  lines.push("");
-  lines.push("Nothing executes until you approve. You can modify any allocation or use manual controls.");
-
-  if (actions.length) {
-    lines.push("");
-    lines.push("Suggested actions:");
-    actions.forEach((a) => lines.push(`• ${a.label}`));
-  }
-
-  return lines.join("\n");
-}
 
 export type AdvisorMessage = {
   role: "user" | "assistant";
   content: string;
 };
 
-/** Protocol analyst — open chat for any community, evidence-only. */
+function buildExplainFallback(finding: MissionFinding | undefined, question: string): string {
+  if (!finding) {
+    return "Pick a discovery card and ask Why? — I'll explain the evidence behind it.";
+  }
+  const parts = [finding.insight];
+  if (finding.impact) parts.push(finding.impact);
+  if (finding.bullets?.length) {
+    parts.push("", "Evidence:", ...finding.bullets.map((b) => `• ${b}`));
+  }
+  parts.push("", `Confidence: ${finding.confidence}%`);
+  if (/why/i.test(question)) return parts.join("\n");
+  return parts.join("\n");
+}
+
+/** Protocol analyst — intelligence first, essays never. */
 export async function askValueAdvisor(input: {
   question: string;
   evidence: WorkspaceEvidence;
   messages?: AdvisorMessage[];
 }): Promise<AdvisorResponse> {
   const specialist = routeAdvisorSpecialist(input.question);
+  const intent = detectMissionIntent(input.question);
+  const phase = detectMissionPhase(input.question, input.messages ?? []);
   const actions = buildEvidenceActions(input.evidence);
   const concentrations = buildValueConcentrations(input.evidence);
   const policies = buildPolicyProposals(input.evidence);
   const opportunities = opportunitiesToCards(input.evidence.opportunities);
-  const evidenceUsed = [evidenceSummary(input.evidence)];
+  const findings = buildIntelligenceFindings(input.evidence, input.question, intent);
+  const headline = buildIntelligenceHeadline(findings);
+  const evidenceUsed = findings.map((f) => f.insight);
 
-  const system = `You are RESOLVE Protocol — an intelligent analyst for open ecosystems. Not a company support bot. Not treasury software.
+  const base = {
+    specialist,
+    specialistLabel: "Intelligence",
+    headline,
+    findings,
+    phase,
+    actions,
+    concentrations,
+    policies,
+    opportunities,
+    evidenceUsed,
+    grounded: true,
+    requiresApproval: true,
+  };
 
-You serve maintainers, musicians, researchers, designers, moderators, founders, DAOs, and foundations equally.
+  if (phase === "discover" && findings.length > 0) {
+    return { ...base, answer: headline };
+  }
 
-STRICT RULES:
-- Use ONLY facts from EVIDENCE JSON. Never invent participant counts, dollar amounts, or percentages.
-- If data is missing, say what to connect — never guess.
-- Reason about value concentrations (numbered list) when distributing or analyzing.
-- Propose policy splits as suggestions — state clearly: "Nothing executes until you approve."
-- Never use dropdown wizards or forced category checkboxes in your tone.
-- Speak like a protocol analyst: direct, evidence-backed, respectful of user agency.
-- Under 250 words unless listing concentrations.`;
+  const system = `You are RESOLVE — economic intelligence for the open internet.
+
+You surface discoveries users didn't know. You never dump system documentation.
+
+FORBIDDEN phrases (never use):
+- "Treasury balance is"
+- "GitHub connector"
+- "Navidrome connector"
+- "Ledger and capital flow"
+- "Connector health"
+
+REQUIRED style:
+- Lead with the insight that matters
+- Rank what is most important
+- Explain causality and impact in plain language
+- Max 120 words
+- If explaining a finding, use the FINDING context below
+- Never mention Approve, Execute, or settlement unless user explicitly asked to move money`;
+
+  const topFinding = findings[0];
+  const findingContext =
+    topFinding ?
+      `FINDING:\n${topFinding.title}\n${topFinding.insight}\nImpact: ${topFinding.impact ?? "n/a"}\nConfidence: ${topFinding.confidence}%`
+    : "";
 
   const history =
     input.messages?.length ?
@@ -145,43 +172,25 @@ STRICT RULES:
 
   const prompt = [
     history ? `CONVERSATION:\n${history}\n` : "",
+    findingContext,
     `USER:\n${input.question}`,
     `\nEVIDENCE:\n${buildEvidenceJson(input.evidence)}`,
-    `\nCONCENTRATIONS:\n${concentrations.map((c, i) => `${i + 1}. ${c.title}: ${c.detail}`).join("\n")}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   try {
     const { text } = await generateTextWithFallback({
-      tier: "quality",
+      tier: phase === "explain" ? "quality" : "fast",
       system,
       prompt,
     });
 
-    return {
-      specialist,
-      specialistLabel: "Protocol",
-      answer: text.trim(),
-      actions,
-      concentrations,
-      policies,
-      opportunities,
-      evidenceUsed,
-      grounded: true,
-      requiresApproval: true,
-    };
+    return { ...base, answer: text.trim() };
   } catch {
-    return {
-      specialist,
-      specialistLabel: "Protocol",
-      answer: buildProtocolFallback(input.evidence, actions, concentrations),
-      actions,
-      concentrations,
-      policies,
-      opportunities,
-      evidenceUsed,
-      grounded: true,
-      requiresApproval: true,
-    };
+    const fallback =
+      phase === "explain" ? buildExplainFallback(topFinding, input.question) : headline;
+    return { ...base, answer: fallback || buildIntelligenceHeadline(findings) };
   }
 }
 
@@ -193,32 +202,29 @@ export function getProtocolWelcome(evidence?: {
   const hasLive = evidence && (evidence.ledgerCount > 0 || evidence.concentrations.length > 1);
 
   return {
-    specialistLabel: "Economic reasoning",
-    greeting: hasLive ? "What would you like RESOLVE to do?" : "What would you like RESOLVE to do?",
+    specialistLabel: "Economic intelligence",
+    greeting: "What would you like RESOLVE to do?",
     subtitle: hasLive
-      ? evidence!.concentrations
-          .slice(0, 3)
-          .map((c) => `${c.title} — ${c.detail}`)
-          .join(" · ") || "Ask where value leaks, who is unpaid, or how capital should move."
-      : "Value is discovered where people already work. Connect sensors; the same engine settles every ecosystem.",
+      ? "Ask about any open community — value, risk, funding, claims, or dependencies."
+      : "The open internet is one economy. RESOLVE understands how value flows across it.",
     requiresApproval: true,
     naturalLanguageActions: [
+      "I have $100k — who deserves it?",
+      "Where is our ecosystem breaking?",
+      "Am I getting paid fairly?",
+      "Who depends on me?",
       "Find value leaks",
-      "Show underfunded maintainers",
-      "Where should $100k go?",
-      "Who powers our ecosystem?",
-      "Show communities at risk",
-      "Find funding opportunities",
-      "Who is underpaid?",
-      "Recommend allocation",
+      "Where should grants go?",
+      "Who reused my work?",
+      "Which libraries are at risk?",
     ],
     discoverPrompts: [
-      "Find value leaks",
-      "Underfunded libraries",
-      "Allocate treasury",
-      "Show opportunities",
-      "Who deserves recognition?",
+      "Who deserves funding?",
       "Ecosystem risk scan",
+      "Unclaimed earnings",
+      "Critical dependencies",
+      "Allocate treasury",
+      "Show value concentrations",
     ],
   };
 }

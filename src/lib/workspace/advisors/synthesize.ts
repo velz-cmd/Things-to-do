@@ -1,6 +1,5 @@
 import { generateTextWithFallback } from "@/lib/ai/gateway";
 import type { WorkspaceEvidence } from "@/lib/workspace/context";
-import { evidenceSummary } from "@/lib/workspace/context";
 import {
   buildEvidenceActions,
   type EvidenceAction,
@@ -18,8 +17,14 @@ import {
   type OpportunityCard,
 } from "@/lib/workspace/advisors/opportunity-cards";
 import {
+  buildIntelligenceFindings,
+  buildIntelligenceHeadline,
+  type MissionFinding,
+} from "@/lib/workspace/advisors/intelligence-findings";
+import { detectMissionPhase, type MissionPhase } from "@/lib/mission/phases";
+import { detectMissionIntent } from "@/lib/mission/intents";
+import {
   routeAdvisorSpecialist,
-  SPECIALIST_LABELS,
   type AdvisorSpecialist,
 } from "@/lib/workspace/advisors/router";
 
@@ -27,6 +32,9 @@ export type AdvisorResponse = {
   specialist: AdvisorSpecialist;
   specialistLabel: string;
   answer: string;
+  headline: string;
+  findings: MissionFinding[];
+  phase: MissionPhase;
   actions: EvidenceAction[];
   concentrations: ValueConcentration[];
   policies: PolicyProposal[];
@@ -74,72 +82,86 @@ function buildEvidenceJson(evidence: WorkspaceEvidence): string {
   );
 }
 
-function buildProtocolFallback(
-  evidence: WorkspaceEvidence,
-  actions: EvidenceAction[],
-  concentrations: ValueConcentration[],
-): string {
-  const lines = [
-    "I analyzed your connected ecosystems using live protocol data.",
-    "",
-  ];
-
-  if (concentrations.length) {
-    lines.push("Value concentrations:");
-    concentrations.forEach((c, i) => {
-      lines.push(`${i + 1}. ${c.title} — ${c.detail}`);
-    });
-    lines.push("");
-  }
-
-  lines.push(evidenceSummary(evidence));
-  lines.push("");
-  lines.push("Nothing executes until you approve. You can modify any allocation or use manual controls.");
-
-  if (actions.length) {
-    lines.push("");
-    lines.push("Suggested actions:");
-    actions.forEach((a) => lines.push(`• ${a.label}`));
-  }
-
-  return lines.join("\n");
-}
 
 export type AdvisorMessage = {
   role: "user" | "assistant";
   content: string;
 };
 
-/** Protocol analyst — open chat for any community, evidence-only. */
+function buildExplainFallback(finding: MissionFinding | undefined, question: string): string {
+  if (!finding) {
+    return "Pick a discovery card and ask Why? — I'll explain the evidence behind it.";
+  }
+  const parts = [finding.insight];
+  if (finding.impact) parts.push(finding.impact);
+  if (finding.bullets?.length) {
+    parts.push("", "Evidence:", ...finding.bullets.map((b) => `• ${b}`));
+  }
+  parts.push("", `Confidence: ${finding.confidence}%`);
+  if (/why/i.test(question)) return parts.join("\n");
+  return parts.join("\n");
+}
+
+/** Protocol analyst — intelligence first, essays never. */
 export async function askValueAdvisor(input: {
   question: string;
   evidence: WorkspaceEvidence;
   messages?: AdvisorMessage[];
 }): Promise<AdvisorResponse> {
   const specialist = routeAdvisorSpecialist(input.question);
+  const intent = detectMissionIntent(input.question);
+  const phase = detectMissionPhase(input.question, input.messages ?? []);
   const actions = buildEvidenceActions(input.evidence);
   const concentrations = buildValueConcentrations(input.evidence);
   const policies = buildPolicyProposals(input.evidence);
   const opportunities = opportunitiesToCards(input.evidence.opportunities);
-  const evidenceUsed = [evidenceSummary(input.evidence)];
+  const findings = buildIntelligenceFindings(input.evidence, input.question, intent);
+  const headline = buildIntelligenceHeadline(findings);
+  const evidenceUsed = findings.map((f) => f.insight);
 
-  const system = `You are RESOLVE — economic intelligence for the open internet. Not a payments app. Not a GitHub tool. Not treasury software.
+  const base = {
+    specialist,
+    specialistLabel: "Intelligence",
+    headline,
+    findings,
+    phase,
+    actions,
+    concentrations,
+    policies,
+    opportunities,
+    evidenceUsed,
+    grounded: true,
+    requiresApproval: true,
+  };
 
-You make capital allocation effortless: founders, DAOs, maintainers, artists, researchers, foundations, and protocols all ask the same engine different questions.
+  if (phase === "discover" && findings.length > 0) {
+    return { ...base, answer: headline };
+  }
 
-CAPABILITY ORDER (reflect this in tone):
-1. Observe — what sensors see across open communities
-2. Understand — explain relationships, value, risk, dependencies
-3. Recommend — evidence-backed proposals (allocations, budgets, claims)
-4. Execute — only when user approves; never imply money moved without approval
+  const system = `You are RESOLVE — economic intelligence for the open internet.
 
-STRICT RULES:
-- Use ONLY facts from EVIDENCE JSON. Never invent counts, dollars, or percentages.
-- If data is missing, say what to connect — never guess.
-- Answer the user's actual question first (risk, claims, dependencies, funding, fairness — not always funding).
-- Reason about value concentrations when relevant.
-- Speak like a protocol analyst: direct, evidence-backed, respectful of user agency.
-- Under 250 words unless listing concentrations or allocations.`;
+You surface discoveries users didn't know. You never dump system documentation.
+
+FORBIDDEN phrases (never use):
+- "Treasury balance is"
+- "GitHub connector"
+- "Navidrome connector"
+- "Ledger and capital flow"
+- "Connector health"
+
+REQUIRED style:
+- Lead with the insight that matters
+- Rank what is most important
+- Explain causality and impact in plain language
+- Max 120 words
+- If explaining a finding, use the FINDING context below
+- Never mention Approve, Execute, or settlement unless user explicitly asked to move money`;
+
+  const topFinding = findings[0];
+  const findingContext =
+    topFinding ?
+      `FINDING:\n${topFinding.title}\n${topFinding.insight}\nImpact: ${topFinding.impact ?? "n/a"}\nConfidence: ${topFinding.confidence}%`
+    : "";
 
   const history =
     input.messages?.length ?
@@ -150,43 +172,25 @@ STRICT RULES:
 
   const prompt = [
     history ? `CONVERSATION:\n${history}\n` : "",
+    findingContext,
     `USER:\n${input.question}`,
     `\nEVIDENCE:\n${buildEvidenceJson(input.evidence)}`,
-    `\nCONCENTRATIONS:\n${concentrations.map((c, i) => `${i + 1}. ${c.title}: ${c.detail}`).join("\n")}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   try {
     const { text } = await generateTextWithFallback({
-      tier: "quality",
+      tier: phase === "explain" ? "quality" : "fast",
       system,
       prompt,
     });
 
-    return {
-      specialist,
-      specialistLabel: "Protocol",
-      answer: text.trim(),
-      actions,
-      concentrations,
-      policies,
-      opportunities,
-      evidenceUsed,
-      grounded: true,
-      requiresApproval: true,
-    };
+    return { ...base, answer: text.trim() };
   } catch {
-    return {
-      specialist,
-      specialistLabel: "Protocol",
-      answer: buildProtocolFallback(input.evidence, actions, concentrations),
-      actions,
-      concentrations,
-      policies,
-      opportunities,
-      evidenceUsed,
-      grounded: true,
-      requiresApproval: true,
-    };
+    const fallback =
+      phase === "explain" ? buildExplainFallback(topFinding, input.question) : headline;
+    return { ...base, answer: fallback || buildIntelligenceHeadline(findings) };
   }
 }
 

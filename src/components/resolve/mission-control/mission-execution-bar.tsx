@@ -93,7 +93,7 @@ export function MissionQuickReplies({
           onClick={() => onSelect(opt)}
           className="rounded-full border border-resolve-border/70 px-3 py-1.5 text-xs text-resolve-muted transition hover:border-resolve-accent/40 hover:text-white disabled:opacity-40"
         >
-          ✨ {opt}
+          {opt}
         </button>
       ))}
     </div>

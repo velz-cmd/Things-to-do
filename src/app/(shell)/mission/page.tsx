@@ -4,7 +4,8 @@ import { MissionControl } from "@/components/resolve/mission-control/mission-con
 
 export const metadata: Metadata = {
   title: "Mission — RESOLVE",
-  description: "What should I do? An AI workspace for economic decisions.",
+  description:
+    "Intelligence workspace for the open internet. Ask about value, risk, funding, or claims — approve when ready.",
 };
 
 export default function MissionPage() {

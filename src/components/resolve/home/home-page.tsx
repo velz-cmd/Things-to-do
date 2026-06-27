@@ -39,13 +39,13 @@ export function HomePage() {
       <section className="mx-auto grid max-w-6xl gap-12 px-6 pb-20 pt-16 md:grid-cols-2 md:items-center md:pt-24">
         <div>
           <h1 className="text-4xl font-semibold leading-[1.12] tracking-tight text-white md:text-5xl">
-            RESOLVE automatically finds people creating value across open communities and routes
-            capital back to them.
+            RESOLVE tells you where money should go across the open internet — and moves it
+            there once you approve.
           </h1>
           <p className="mt-6 max-w-lg text-base leading-relaxed text-resolve-muted">
-            Observe where value exists. Understand who created it. Decide where capital goes.
-            Execute settlement. Verify impact — across code, music, research, and every open
-            ecosystem.
+            The largest economy in the world is open — code, music, research, communities — but
+            nobody can see it as one system. RESOLVE observes, understands, recommends, and
+            executes when you&apos;re ready.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button variant="glow" size="lg" onClick={() => router.push("/mission")}>
@@ -112,10 +112,10 @@ export function HomePage() {
       <section className="border-t border-resolve-border py-16">
         <div className="mx-auto max-w-2xl px-6 text-center">
           <p className="text-lg font-medium text-white">
-            The operating system for open economies.
+            Economic intelligence for the open internet.
           </p>
           <p className="mt-2 text-sm text-resolve-muted">
-            Not pages. Missions. Enter with a question — leave with capital routed.
+            Ask a question. Get evidence. Approve when you&apos;re ready.
           </p>
           <Button variant="glow" className="mt-8" size="lg" onClick={() => router.push("/control")}>
             Open Mission

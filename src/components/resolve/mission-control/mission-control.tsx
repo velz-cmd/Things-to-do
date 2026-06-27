@@ -15,6 +15,7 @@ import {
   planningActions,
 } from "@/lib/mission/phases";
 import { detectMissionIntent, parseCapitalUsd, thinkingStepsFor } from "@/lib/mission/intents";
+import { saveMissionLibraryEntry } from "@/lib/mission/toolbox/mission-library";
 
 function buildAllocationFromOpportunities(
   opportunities: OpportunityCard[],
@@ -79,6 +80,7 @@ export function MissionControl() {
     thinkingStepsFor("general"),
   );
   const [lastPhase, setLastPhase] = useState<MissionPhase>("discover");
+  const [libraryTick, setLibraryTick] = useState(0);
   const started = turns.length > 0;
 
   const sendMessage = useCallback(
@@ -140,6 +142,15 @@ export function MissionControl() {
         };
 
         setTurns((t) => [...t, resolveTurn]);
+
+        if (phase === "discover") {
+          saveMissionLibraryEntry({
+            title: trimmed.slice(0, 48) + (trimmed.length > 48 ? "…" : ""),
+            query: trimmed,
+            findingCount: findings.length,
+          });
+          setLibraryTick((n) => n + 1);
+        }
       } catch (e) {
         setThinkingComplete(true);
         setTurns((t) => [
@@ -190,6 +201,7 @@ export function MissionControl() {
       onClear={handleClear}
       planningActions={planningActions(topFinding)}
       executeActions={executeActions()}
+      libraryTick={libraryTick}
     />
   );
 }

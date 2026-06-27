@@ -13,6 +13,7 @@ import {
   MissionExecuteBar,
   MissionPlanningBar,
 } from "@/components/resolve/mission-control/mission-planning-bar";
+import { MissionToolbox } from "@/components/resolve/mission-control/toolbox/mission-toolbox";
 import { MISSION_EXAMPLES } from "@/lib/mission/intents";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
@@ -47,6 +48,7 @@ export function MissionWorkspace({
   planningActions,
   executeActions,
   thinkingSteps,
+  libraryTick,
 }: {
   started: boolean;
   turns: MissionTurn[];
@@ -63,6 +65,7 @@ export function MissionWorkspace({
   planningActions: { label: string; prompt: string }[];
   executeActions: { label: string; prompt: string }[];
   thinkingSteps?: readonly string[];
+  libraryTick?: number;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const showPlanning = phase === "plan" && !loading;
@@ -79,7 +82,9 @@ export function MissionWorkspace({
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px] flex-col">
+    <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px]">
+      <MissionToolbox onQuery={onChip} libraryVersion={libraryTick} />
+      <div className="flex min-w-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-8 lg:px-6">
           {!started && (
@@ -217,6 +222,7 @@ export function MissionWorkspace({
         onAction={onExecuteAction}
         onCancel={onClear}
       />
+      </div>
     </div>
   );
 }

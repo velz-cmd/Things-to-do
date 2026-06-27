@@ -2,171 +2,143 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowRight,
-  Sparkles,
-  GitBranch,
-  Wallet,
-  Shield,
-  Zap,
-} from "lucide-react";
+import { ArrowRight, Check, X } from "lucide-react";
 import { Button } from "@/components/resolve/ui/button";
-import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
-import { HeroConstellation } from "@/components/resolve/home/hero-constellation";
-import { LiveNetworkPreview } from "@/components/resolve/home/live-network-preview";
+import { ValueFlowAnimation } from "@/components/resolve/home/value-flow-animation";
 
-const FEATURES = [
-  {
-    icon: Sparkles,
-    title: "AI-native reasoning",
-    body: "Ask where value is. Get evidence-backed answers. Nothing executes without your approval.",
-  },
-  {
-    icon: GitBranch,
-    title: "Open ecosystem attribution",
-    body: "GitHub, music, research — one protocol layer for recognizing contribution across domains.",
-  },
-  {
-    icon: Wallet,
-    title: "Real settlement",
-    body: "Treasury, Arc batches, claims, and FX — Stripe-grade money movement for open work.",
-  },
-  {
-    icon: Shield,
-    title: "Authorization first",
-    body: "Every dollar is authorized with proof before it moves. Audit trail from evidence to settlement.",
-  },
+const WITHOUT = [
+  "Libraries power million-dollar products — maintainers earn $0",
+  "Documentation teaches thousands — writers earn nothing",
+  "Moderators run communities — no sustainable funding",
+  "Streaming pools royalties — not listener-direct payouts",
+  "AI cites research — authors never paid for reuse",
+  "Founders spend weeks on spreadsheets — no evidence trail",
+] as const;
+
+const WITH = [
+  "Detects contribution where work already happens",
+  "Attributes value across the full graph",
+  "Recommends capital with evidence and confidence",
+  "Batches settlement globally on Arc",
+  "Settles in USDC — sub-cent per participant",
+] as const;
+
+const INDUSTRIES = [
+  { name: "Code", leak: "Dependencies uncredited", fix: "Maintainer recognition from usage" },
+  { name: "Music", leak: "Platform pools hide listeners", fix: "User-centric per-play settlement" },
+  { name: "Research", leak: "Citations without payment", fix: "Attribution → authorization" },
+  { name: "Publishing", leak: "Republishing is free", fix: "Usage-based micropayments" },
+  { name: "Communities", leak: "Mods work unpaid", fix: "Policy-driven capital flows" },
 ] as const;
 
 export function HomePage() {
   const router = useRouter();
 
   return (
-    <div className="relative overflow-hidden">
-      {/* Agex-style hero */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-8 pt-16 md:pt-24">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="inline-flex items-center gap-2 rounded-full border border-resolve-accent/20 bg-resolve-accent/10 px-4 py-1.5 text-[11px] font-medium text-blue-200/90 backdrop-blur-sm">
-            <Zap className="h-3 w-3 text-resolve-accent-bright" />
-            Capital flow protocol for open ecosystems
-          </p>
-
-          <h1 className="mt-8 text-4xl font-semibold leading-[1.06] tracking-tight md:text-[3.5rem]">
-            <span className="resolve-text-gradient">The future of open value</span>
-            <span className="mt-2 block text-white/95">starts with RESOLVE.</span>
+    <div className="relative">
+      {/* §1 Hero — animation + one sentence */}
+      <section className="mx-auto grid max-w-6xl gap-12 px-6 pb-20 pt-16 md:grid-cols-2 md:items-center md:pt-24">
+        <div>
+          <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight text-white md:text-5xl">
+            The internet already knows who created the value.
+            <span className="mt-3 block text-resolve-muted">
+              It just doesn&apos;t know how to pay them.
+            </span>
           </h1>
-
-          <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-resolve-muted">
-            Value already exists in open ecosystems. RESOLVE discovers it, routes capital, and
-            settles — while creators keep doing what they already do.
+          <p className="mt-6 max-w-lg text-base leading-relaxed text-resolve-muted">
+            Value already exists. RESOLVE discovers it, proves it, and moves capital where it
+            belongs — across code, music, research, and every open ecosystem.
           </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button variant="glow" size="lg" onClick={() => router.push("/workspace")}>
+              Open workspace
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button variant="secondary" size="lg" onClick={() => router.push("/activity")}>
+              Watch value flow
+            </Button>
+          </div>
+        </div>
+        <ValueFlowAnimation />
+      </section>
 
-          <div className="mx-auto mt-10 max-w-lg">
-            <BlueGlowCard className="p-2" grid={false}>
-              <div className="flex flex-col gap-3 p-2 sm:flex-row sm:items-center sm:justify-center">
-                <Button variant="glow" size="lg" onClick={() => router.push("/workspace")}>
-                  See what&apos;s happening
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-                <Button variant="secondary" size="lg" onClick={() => router.push("/activity")}>
-                  Connect ecosystems
-                </Button>
-              </div>
-            </BlueGlowCard>
-            <p className="mt-4 text-xs text-resolve-muted-dim">
-              Nobody should wake up thinking &ldquo;I&apos;m going to use RESOLVE.&rdquo; Money moves
-              because software is already being used.
+      {/* §2 Problems vs RESOLVE */}
+      <section className="border-y border-resolve-border bg-resolve-bg-deep/40 py-20">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 md:grid-cols-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-300/80">
+              Without settlement infrastructure
             </p>
+            <ul className="mt-6 space-y-4">
+              {WITHOUT.map((line) => (
+                <li key={line} className="flex gap-3 text-sm text-resolve-muted">
+                  <X className="mt-0.5 h-4 w-4 shrink-0 text-rose-400/80" strokeWidth={2} />
+                  {line}
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-
-        {/* Boltshift constellation */}
-        <HeroConstellation />
-      </section>
-
-      {/* Mission control preview — conversion-rate card style */}
-      <section className="relative z-10 mx-auto max-w-5xl px-6 pb-24 pt-8">
-        <div className="relative">
-          <div
-            aria-hidden
-            className="absolute -inset-6 rounded-[2rem] opacity-60 blur-3xl"
-            style={{
-              background:
-                "radial-gradient(ellipse at 50% 100%, rgba(0,122,255,0.25) 0%, transparent 70%)",
-            }}
-          />
-          <LiveNetworkPreview />
-        </div>
-      </section>
-
-      {/* Features grid */}
-      <section className="relative z-10 border-t border-resolve-border py-24">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
-              Not a dashboard.
-              <span className="mt-1 block text-resolve-muted">An operating system.</span>
-            </h2>
-          </div>
-          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((f) => (
-              <BlueGlowCard key={f.title} className="p-6">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow">
-                  <f.icon className="h-4 w-4 text-white" strokeWidth={1.5} />
-                </div>
-                <h3 className="mt-5 text-sm font-semibold text-white">{f.title}</h3>
-                <p className="mt-2 text-xs leading-relaxed text-resolve-muted">{f.body}</p>
-              </BlueGlowCard>
-            ))}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
+              With RESOLVE
+            </p>
+            <ul className="mt-6 space-y-4">
+              {WITH.map((line) => (
+                <li key={line} className="flex gap-3 text-sm text-white/90">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" strokeWidth={2} />
+                  {line}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="relative z-10 pb-24">
-        <div className="mx-auto max-w-6xl px-6">
-          <BlueGlowCard
-            className="overflow-hidden border border-resolve-accent/20 p-8 md:p-12"
-          >
+      {/* §3 Industries — not connectors */}
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <p className="text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-muted">
+          One engine · every industry
+        </p>
+        <h2 className="mt-3 text-center text-2xl font-semibold text-white">
+          Where value leaks — and how it gets routed back
+        </h2>
+        <div className="mt-12 divide-y divide-resolve-border/60 border-y border-resolve-border/60">
+          {INDUSTRIES.map((row) => (
             <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-40"
-              style={{
-                background:
-                  "radial-gradient(ellipse at 30% 50%, rgba(0,122,255,0.2) 0%, transparent 60%)",
-              }}
-            />
-            <div className="relative flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight text-white">
-                  Every workflow. One protocol.
-                </h2>
-                <p className="mt-3 max-w-lg text-sm leading-relaxed text-resolve-muted">
-                  Workspace for intelligence. Activity for live value. Payments for treasury.
-                  Profile for identity.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Button variant="glow" onClick={() => router.push("/workspace")}>
-                  Open workspace
-                </Button>
-                <Button variant="secondary" onClick={() => router.push("/payments")}>
-                  View payments
-                </Button>
-              </div>
+              key={row.name}
+              className="grid gap-4 py-5 md:grid-cols-[120px_1fr_1fr] md:items-center md:gap-8"
+            >
+              <p className="text-sm font-semibold text-white">{row.name}</p>
+              <p className="text-sm text-rose-200/70">{row.leak}</p>
+              <p className="text-sm text-resolve-accent-bright/90">{row.fix}</p>
             </div>
-          </BlueGlowCard>
+          ))}
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-resolve-border py-8">
+      {/* §4 CTA */}
+      <section className="border-t border-resolve-border py-16">
+        <div className="mx-auto max-w-2xl px-6 text-center">
+          <p className="text-lg font-medium text-white">
+            Capital infrastructure for open ecosystems.
+          </p>
+          <p className="mt-2 text-sm text-resolve-muted">
+            Observe · Reason · Move capital. RESOLVE disappears behind the work.
+          </p>
+          <Button variant="glow" className="mt-8" size="lg" onClick={() => router.push("/workspace")}>
+            Enter workspace
+          </Button>
+        </div>
+      </section>
+
+      <footer className="border-t border-resolve-border py-8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 text-xs text-resolve-muted-dim">
-          <p>RESOLVE — capital flow for open ecosystems</p>
+          <p>RESOLVE</p>
           <div className="flex gap-6">
-            <Link href="/terms" className="transition hover:text-white">
+            <Link href="/terms" className="hover:text-white">
               Terms
             </Link>
-            <Link href="/privacy" className="transition hover:text-white">
+            <Link href="/privacy" className="hover:text-white">
               Privacy
             </Link>
           </div>

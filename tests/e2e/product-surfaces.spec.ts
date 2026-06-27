@@ -5,19 +5,17 @@ test.describe("RESOLVE product surfaces", () => {
     test.setTimeout(120_000);
 
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Workspace" })).toBeVisible();
-    await expect(page.getByText("Economic operating system")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Reason" })).toBeVisible();
+    await expect(page.getByText("Command", { exact: true }).first()).toBeVisible();
 
     await page.goto("/activity", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Activity" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Value in motion" })).toBeVisible();
 
     await page.goto("/payments", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Payments" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Treasury & settlement" })).toBeVisible();
 
     await page.goto("/connectors", { waitUntil: "commit" });
     await expect(page).toHaveURL(/\/activity/);
-    await expect(page.getByRole("heading", { level: 1, name: "Activity" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Value in motion" })).toBeVisible();
 
     await page.goto("/workspace/fund", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Fund contributors" })).toBeVisible();

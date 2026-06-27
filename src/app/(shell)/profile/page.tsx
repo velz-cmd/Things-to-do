@@ -10,7 +10,7 @@ export default function ProfilePage() {
     <ProductPage
       icon={User}
       title="Who am I in this ecosystem?"
-      description="Connect where each community lives — GitHub for code, MusicBrainz for creative work, Arc for settlement. One identity layer for funding open communities."
+      description="Connect where each community lives — code, music, research, settlement. One identity layer for funding open communities."
       workflows={[
         { label: "Open source" },
         { label: "Music" },

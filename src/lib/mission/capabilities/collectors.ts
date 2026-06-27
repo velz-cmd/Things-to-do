@@ -5,13 +5,25 @@ import { buildPolicyProposals } from "@/lib/workspace/advisors/policy-proposals"
 import { buildValueConcentrations } from "@/lib/workspace/advisors/concentrations";
 import { opportunitiesToCards } from "@/lib/workspace/advisors/opportunity-cards";
 import { collectUpstreamUsageSignals } from "@/lib/connectors/upstream";
+import { pingListenBrainz, fetchListenBrainzListens } from "@/lib/integrations/listenbrainz";
+import { pingNavidrome } from "@/lib/integrations/navidrome";
 import type { FundingOpportunity } from "@/lib/github/types";
-import type { CapabilityId, CollectorTrace, DataSource, EcosystemRepoRef } from "./types";
-import { extractCompareTargets, extractEcosystemScope } from "./intent-classifier";
+import {
+  buildCommunityContext,
+  hasSensor,
+  type CommunityContext,
+  type CapabilityLayer,
+} from "@/lib/mission/community";
+import type { CapabilityId, CollectorTrace, CommunityRepoRef, DataSource } from "./types";
 import { getCapabilityDef } from "./registry";
 
-function trace(source: DataSource, status: CollectorTrace["status"], summary: string): CollectorTrace {
-  return { source, status, summary };
+function trace(
+  source: DataSource,
+  status: CollectorTrace["status"],
+  summary: string,
+  layer?: CapabilityLayer,
+): CollectorTrace {
+  return { source, status, summary, layer };
 }
 
 function mergeOpportunities(
@@ -45,21 +57,26 @@ function filterByTargets(opportunities: FundingOpportunity[], targets: string[])
     const name = o.fullName.toLowerCase();
     return targets.some(
       (t) =>
-        name.includes(t) ||
-        o.repo.toLowerCase().includes(t) ||
-        (t.includes("react") && name.includes("next")),
+        name.includes(t.toLowerCase()) ||
+        o.repo.toLowerCase().includes(t.toLowerCase()) ||
+        (t.toLowerCase().includes("react") && name.includes("next")),
     );
   });
 }
 
-/** Mandatory API/data collection before any LLM call. */
+function wantsLayer(community: CommunityContext, layer: CapabilityLayer): boolean {
+  return community.layersRequested.includes(layer);
+}
+
+/** Mandatory evidence collection — sensors resolved from community kind + capability layers. */
 export async function runCollectors(input: {
   capability: CapabilityId;
   question: string;
-  ecosystem?: {
+  community?: {
     name: string;
+    kind?: string;
     keywords?: string[];
-    repos?: EcosystemRepoRef[];
+    repos?: CommunityRepoRef[];
     connectors?: string[];
   };
 }): Promise<{
@@ -69,84 +86,157 @@ export async function runCollectors(input: {
   concentrations: ReturnType<typeof buildValueConcentrations>;
   opportunityCards: ReturnType<typeof opportunitiesToCards>;
   traces: CollectorTrace[];
+  community: CommunityContext;
   compareTargets: string[];
-  ecosystemScope: string | null;
+  communityScope: string | null;
   stepsRun: string[];
 }> {
   const def = getCapabilityDef(input.capability);
+  const community = buildCommunityContext({
+    question: input.question,
+    requiredLayers: def.requiredLayers,
+    community: input.community,
+  });
+
   const traces: CollectorTrace[] = [];
-  const stepsRun: string[] = [];
+  const stepsRun: string[] = [`Detecting ${community.kindLabel} community`];
 
   stepsRun.push("Gathering workspace evidence");
   const evidence = await gatherWorkspaceEvidence();
-  traces.push(
-    trace("treasury", "ok", `Treasury $${evidence.treasury.balanceUsd.toFixed(0)} · obligations $${evidence.treasury.obligationsUsd.toFixed(0)}`),
-  );
 
-  if (evidence.ledger) {
+  if (wantsLayer(community, "capital") || wantsLayer(community, "verify")) {
     traces.push(
-      trace("ledger", "ok", `${evidence.ledger.count} authorizations · $${evidence.ledger.claimableUsd.toFixed(0)} claimable`),
+      trace(
+        "treasury",
+        "ok",
+        `Treasury $${evidence.treasury.balanceUsd.toFixed(0)} · obligations $${evidence.treasury.obligationsUsd.toFixed(0)}`,
+        "capital",
+      ),
     );
-  } else {
-    traces.push(trace("ledger", "empty", "No authorization ledger entries"));
   }
 
-  const healthy = evidence.connectors.filter((c) => c.health === "healthy").length;
-  traces.push(
-    trace(
-      "connectors",
-      healthy > 0 ? "ok" : "empty",
-      `${healthy}/${evidence.connectors.length} sensors healthy`,
-    ),
-  );
+  if (wantsLayer(community, "attribute") || wantsLayer(community, "verify")) {
+    if (evidence.ledger) {
+      traces.push(
+        trace(
+          "ledger",
+          "ok",
+          `${evidence.ledger.count} authorizations · $${evidence.ledger.claimableUsd.toFixed(0)} claimable`,
+          "attribute",
+        ),
+      );
+    } else {
+      traces.push(trace("ledger", "empty", "No authorization ledger entries", "attribute"));
+    }
+  }
+
+  if (wantsLayer(community, "observe")) {
+    const healthy = evidence.connectors.filter((c) => c.health === "healthy").length;
+    traces.push(
+      trace(
+        "connectors",
+        healthy > 0 ? "ok" : "empty",
+        `${healthy}/${evidence.connectors.length} observation sensors live`,
+        "observe",
+      ),
+    );
+  }
 
   let opportunities = [...evidence.opportunities];
 
-  const ecosystemRepos = input.ecosystem?.repos ?? [];
-  if (ecosystemRepos.length > 0) {
-    stepsRun.push(`Scanning ${ecosystemRepos.length} attached repositories`);
-    for (const r of ecosystemRepos.slice(0, 6)) {
+  const communityRepos = input.community?.repos ?? [];
+  const observeCode =
+    hasSensor(community.sensors, "github") &&
+    (community.kind === "oss" || community.kind === "protocol" || community.kind === "general");
+
+  if (observeCode && communityRepos.length > 0) {
+    stepsRun.push(`Observing ${communityRepos.length} attached signals`);
+    for (const r of communityRepos.slice(0, 6)) {
       const scanned = await scanFundingOpportunity(r.owner, r.repo).catch(() => null);
       if (scanned) {
         opportunities = mergeOpportunities(opportunities, [scanned]);
-        traces.push(trace("github", "ok", `Ecosystem repo: ${scanned.fullName}`));
+        traces.push(trace("github", "ok", `Community signal: ${scanned.fullName}`, "observe"));
       }
-      const upstream = await collectUpstreamUsageSignals(r.owner, r.repo).catch(() => null);
-      if (upstream?.openAlex?.citations) {
-        traces.push(
-          trace(
-            "openalex",
-            "ok",
-            `${r.fullName}: ${upstream.openAlex.citations.toLocaleString()} citations`,
-          ),
-        );
-      } else if (upstream?.summary.length) {
-        traces.push(trace("upstream", "ok", `${r.fullName}: ${upstream.summary[0]}`));
+      if (hasSensor(community.sensors, "upstream")) {
+        const upstream = await collectUpstreamUsageSignals(r.owner, r.repo).catch(() => null);
+        if (upstream?.openAlex?.citations) {
+          traces.push(
+            trace(
+              "openalex",
+              "ok",
+              `${r.fullName}: ${upstream.openAlex.citations.toLocaleString()} citations`,
+              "understand",
+            ),
+          );
+        } else if (upstream?.summary.length) {
+          traces.push(trace("upstream", "ok", `${r.fullName}: ${upstream.summary[0]}`, "understand"));
+        }
       }
     }
   }
 
-  if (def.requiredSources.includes("github")) {
-    stepsRun.push("Scanning repository opportunities");
+  if (observeCode && hasSensor(community.sensors, "github")) {
+    stepsRun.push("Observing code community signals");
     const parsed = parseRepoInput(input.question);
     if (parsed) {
       const scanned = await scanFundingOpportunity(parsed.owner, parsed.repo);
       if (scanned) {
         opportunities = mergeOpportunities(opportunities, [scanned]);
-        traces.push(trace("github", "ok", `Live scan: ${scanned.fullName}`));
+        traces.push(trace("github", "ok", `Live observation: ${scanned.fullName}`, "observe"));
       }
-    } else if (!ecosystemRepos.length) {
+    } else if (!communityRepos.length && community.kind !== "music" && community.kind !== "research") {
       traces.push(
         trace(
           "github",
           opportunities.length > 0 ? "ok" : "empty",
-          `${opportunities.length} repositories in radar`,
+          `${opportunities.length} code communities in observation set`,
+          "observe",
         ),
       );
     }
   }
 
-  const ecoConnectors = input.ecosystem?.connectors ?? [];
+  if (community.kind === "music" || hasSensor(community.sensors, "listenbrainz")) {
+    stepsRun.push("Observing music community signals");
+    const lb = await pingListenBrainz().catch(() => ({ ok: false, message: "unavailable" }));
+    if (lb.ok) {
+      const listens = await fetchListenBrainzListens(5).catch(() => []);
+      traces.push(
+        trace(
+          "music",
+          "ok",
+          listens.length ?
+            `ListenBrainz · ${listens.length} recent listens`
+          : lb.message,
+          "observe",
+        ),
+      );
+    } else {
+      traces.push(
+        trace("music", "empty", "Connect ListenBrainz on Profile to observe music communities", "observe"),
+      );
+    }
+    const nd = await pingNavidrome().catch(() => ({ ok: false, message: "unavailable" }));
+    if (nd.ok) {
+      traces.push(trace("music", "ok", nd.message, "observe"));
+    }
+  }
+
+  if (community.kind === "research" || hasSensor(community.sensors, "openalex")) {
+    stepsRun.push("Observing research community signals");
+    traces.push(
+      trace(
+        "openalex",
+        evidence.integrations?.live?.openAlex?.ok ? "ok" : "empty",
+        evidence.integrations?.live?.openAlex?.ok ?
+          "OpenAlex research graph available"
+        : "Research observation expands with OpenAlex integration",
+        "observe",
+      ),
+    );
+  }
+
+  const ecoConnectors = input.community?.connectors ?? [];
   for (const connectorId of ecoConnectors) {
     const live = evidence.connectors.find((c) => c.id === connectorId);
     if (live) {
@@ -155,35 +245,42 @@ export async function runCollectors(input: {
           "connectors",
           live.health === "healthy" ? "ok" : "empty",
           `${live.label}: ${live.eventsToday} events today`,
+          "observe",
         ),
       );
     }
   }
 
-  const compareTargets = extractCompareTargets(input.question);
-  const ecosystemScope =
-    input.ecosystem?.name ??
-    extractEcosystemScope(input.question, input.ecosystem?.keywords) ??
-    null;
+  const compareTargets =
+    community.compareTargets.length ? community.compareTargets : [];
+
+  const communityScope = community.name ?? compareTargets[0] ?? null;
 
   if (input.capability === "compare_ecosystems" && compareTargets.length >= 2) {
     stepsRun.push(`Comparing ${compareTargets.join(" vs ")}`);
     opportunities = filterByTargets(opportunities, compareTargets);
-  } else if (ecosystemScope && input.capability !== "general_inquiry") {
-    stepsRun.push(`Scoping to ${ecosystemScope}`);
-    opportunities = filterByScope(opportunities, ecosystemScope);
+  } else if (communityScope && input.capability !== "general_inquiry") {
+    stepsRun.push(`Scoping to ${communityScope}`);
+    if (observeCode) {
+      opportunities = filterByScope(opportunities, communityScope);
+    }
   }
 
-  const policies = def.requiredSources.includes("policies") ? buildPolicyProposals(evidence) : [];
+  const policies =
+    wantsLayer(community, "understand") || wantsLayer(community, "capital") ?
+      buildPolicyProposals(evidence)
+    : [];
   if (policies.length) {
-    traces.push(trace("policies", "ok", `${policies.length} allocation philosophies loaded`));
+    traces.push(trace("policies", "ok", `${policies.length} allocation philosophies loaded`, "understand"));
   }
 
-  const concentrations = def.requiredSources.includes("concentrations")
+  const concentrations = wantsLayer(community, "understand")
     ? buildValueConcentrations({ ...evidence, opportunities })
     : [];
   if (concentrations.length) {
-    traces.push(trace("concentrations", "ok", `${concentrations.length} value concentrations`));
+    traces.push(
+      trace("concentrations", "ok", `${concentrations.length} value concentrations`, "understand"),
+    );
   }
 
   for (const step of def.steps) {
@@ -197,8 +294,9 @@ export async function runCollectors(input: {
     concentrations,
     opportunityCards: opportunitiesToCards(opportunities),
     traces,
+    community,
     compareTargets,
-    ecosystemScope,
+    communityScope,
     stepsRun,
   };
 }

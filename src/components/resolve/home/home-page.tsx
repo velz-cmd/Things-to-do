@@ -8,18 +8,18 @@ import {
   Sparkles,
   GitBranch,
   Wallet,
-  Activity,
   Shield,
   Zap,
+  ChevronDown,
 } from "lucide-react";
 import { parseRepoInput } from "@/lib/workspace/parse-repo";
 import { toast } from "sonner";
 import { Button } from "@/components/resolve/ui/button";
 import { Input } from "@/components/resolve/ui/input";
-import { Panel } from "@/components/resolve/ui/panel";
+import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { MetricCard } from "@/components/resolve/ui/metric-card";
 import { Money } from "@/components/resolve/ui/money";
-import { HeroOrb } from "@/components/resolve/home/hero-orb";
+import { HeroConstellation } from "@/components/resolve/home/hero-constellation";
 
 const FEATURES = [
   {
@@ -59,19 +59,17 @@ export function HomePage() {
 
   return (
     <div className="relative overflow-hidden">
-      {/* Hero */}
-      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-24 pt-12 md:pt-20">
+      {/* Agex-style hero */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-8 pt-16 md:pt-24">
         <div className="mx-auto max-w-3xl text-center">
-          <HeroOrb />
-
-          <p className="mt-8 inline-flex items-center gap-2 rounded-full bg-white/[0.04] px-4 py-1.5 text-[11px] font-medium text-cyan-200/90 ring-1 ring-cyan-400/20 backdrop-blur-sm">
-            <Zap className="h-3 w-3 text-cyan-400" />
+          <p className="inline-flex items-center gap-2 rounded-full border border-resolve-accent/20 bg-resolve-accent/10 px-4 py-1.5 text-[11px] font-medium text-blue-200/90 backdrop-blur-sm">
+            <Zap className="h-3 w-3 text-resolve-accent-bright" />
             Capital flow protocol for open ecosystems
           </p>
 
-          <h1 className="mt-8 text-4xl font-semibold leading-[1.08] tracking-tight md:text-6xl">
-            <span className="resolve-text-gradient">The operating system</span>
-            <span className="mt-2 block text-white/95">for open value.</span>
+          <h1 className="mt-8 text-4xl font-semibold leading-[1.06] tracking-tight md:text-[3.5rem]">
+            <span className="resolve-text-gradient">The future of open value</span>
+            <span className="mt-2 block text-white/95">starts with RESOLVE.</span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-resolve-muted">
@@ -79,73 +77,74 @@ export function HomePage() {
             maintainers to musicians, researchers, and moderators.
           </p>
 
-          <div className="mx-auto mt-10 max-w-md">
-            <Panel variant="glow" className="p-2" padding={false}>
-              <div className="p-2">
+          {/* Agex-style pill input */}
+          <div className="mx-auto mt-10 max-w-lg">
+            <BlueGlowCard className="p-2" grid={false}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   inputSize="lg"
                   value={repoInput}
                   onChange={(e) => setRepoInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
                   placeholder="owner/repository — fund a project"
-                  className="border-0 bg-transparent focus:ring-0"
+                  className="flex-1 border-0 bg-transparent focus:ring-0"
                 />
-                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                  <Button variant="glow" size="lg" className="flex-1" onClick={handleAnalyze}>
-                    Fund contributors
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="lg"
-                    className="flex-1"
-                    onClick={() => router.push("/workspace")}
-                  >
-                    Open workspace
-                  </Button>
-                </div>
+                <Button variant="glow" size="lg" onClick={handleAnalyze} className="shrink-0">
+                  Fund contributors
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </div>
-            </Panel>
-            <p className="mt-4 text-xs text-resolve-muted-dim">
-              Connect once. Value streams automatically across code, music, and research.
-            </p>
+            </BlueGlowCard>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <Button variant="secondary" size="sm" onClick={() => router.push("/workspace")}>
+                Open workspace
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => router.push("/activity")}>
+                See live activity
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Dashboard preview */}
-        <div className="relative mx-auto mt-20 max-w-4xl">
+        {/* Boltshift constellation */}
+        <HeroConstellation />
+      </section>
+
+      {/* Mission control preview — conversion-rate card style */}
+      <section className="relative z-10 mx-auto max-w-5xl px-6 pb-24 pt-8">
+        <div className="relative">
           <div
             aria-hidden
-            className="absolute -inset-8 rounded-[2rem] bg-gradient-to-b from-cyan-500/20 via-indigo-500/10 to-transparent blur-3xl"
+            className="absolute -inset-6 rounded-[2rem] opacity-60 blur-3xl"
+            style={{
+              background:
+                "radial-gradient(ellipse at 50% 100%, rgba(0,122,255,0.25) 0%, transparent 70%)",
+            }}
           />
-          <Panel variant="glow" className="relative overflow-hidden p-0" padding={false} hover>
-            <div className="border-b border-white/[0.06] px-6 py-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium tracking-wide text-resolve-muted">
-                  Mission control
-                </p>
-                <span className="flex items-center gap-2 text-[10px] font-medium text-emerald-300">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                  </span>
-                  Live
-                </span>
-              </div>
+          <BlueGlowCard className="relative overflow-hidden p-0" padding={false}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-resolve-border px-6 py-4">
+              <p className="text-xs font-medium tracking-wide text-resolve-muted">
+                Data updated 2h ago
+              </p>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-full border border-resolve-border bg-resolve-raised/50 px-3 py-1 text-[10px] font-medium text-resolve-muted"
+              >
+                Monthly
+                <ChevronDown className="h-3 w-3" />
+              </button>
             </div>
             <div className="grid gap-4 p-6 md:grid-cols-3">
               <MetricCard
                 label="Recognized"
                 value={<Money amount={6750} size="sm" />}
                 hint="Across open ecosystems"
-                icon={Activity}
                 tone="accent"
               />
               <MetricCard
                 label="Claimable"
                 value={<Money amount={2540} size="sm" />}
                 hint="12 participants"
-                icon={Wallet}
                 tone="success"
                 live
               />
@@ -153,30 +152,29 @@ export function HomePage() {
                 label="Settled"
                 value={<Money amount={5318} size="sm" />}
                 hint="Arc batches"
-                icon={Shield}
-                tone="violet"
+                tone="blue"
               />
             </div>
-            <div className="border-t border-white/[0.06] bg-black/20 px-6 py-4">
+            <div className="border-t border-resolve-border bg-resolve-bg-deep/40 px-6 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-resolve-muted">
-                  <span className="font-medium text-white">AI analyst ready</span> — ask where
-                  value is leaking
+                  <span className="font-medium text-white">AI analyst ready</span> — ask where value
+                  is leaking
                 </p>
                 <Link
                   href="/workspace"
-                  className="text-xs font-semibold text-cyan-300 transition hover:text-cyan-200"
+                  className="text-xs font-semibold text-resolve-accent-bright transition hover:text-white"
                 >
                   Enter workspace →
                 </Link>
               </div>
             </div>
-          </Panel>
+          </BlueGlowCard>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="relative z-10 border-t border-white/[0.04] py-24">
+      {/* Features grid */}
+      <section className="relative z-10 border-t border-resolve-border py-24">
         <div className="mx-auto max-w-6xl px-6">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
@@ -186,13 +184,13 @@ export function HomePage() {
           </div>
           <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
-              <Panel key={f.title} variant="glass" hover className="p-6">
+              <BlueGlowCard key={f.title} className="p-6">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow">
                   <f.icon className="h-4 w-4 text-white" strokeWidth={1.5} />
                 </div>
                 <h3 className="mt-5 text-sm font-semibold text-white">{f.title}</h3>
                 <p className="mt-2 text-xs leading-relaxed text-resolve-muted">{f.body}</p>
-              </Panel>
+              </BlueGlowCard>
             ))}
           </div>
         </div>
@@ -201,7 +199,17 @@ export function HomePage() {
       {/* CTA */}
       <section className="relative z-10 pb-24">
         <div className="mx-auto max-w-6xl px-6">
-          <Panel variant="accent" className="overflow-hidden p-8 md:p-12">
+          <BlueGlowCard
+            className="overflow-hidden border border-resolve-accent/20 p-8 md:p-12"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-40"
+              style={{
+                background:
+                  "radial-gradient(ellipse at 30% 50%, rgba(0,122,255,0.2) 0%, transparent 60%)",
+              }}
+            />
             <div className="relative flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
               <div>
                 <h2 className="text-2xl font-semibold tracking-tight text-white">
@@ -216,16 +224,16 @@ export function HomePage() {
                 <Button variant="glow" onClick={() => router.push("/workspace")}>
                   Open workspace
                 </Button>
-                <Button variant="secondary" onClick={() => router.push("/activity")}>
-                  View activity
+                <Button variant="secondary" onClick={() => router.push("/payments")}>
+                  View payments
                 </Button>
               </div>
             </div>
-          </Panel>
+          </BlueGlowCard>
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-white/[0.04] py-8">
+      <footer className="relative z-10 border-t border-resolve-border py-8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 text-xs text-resolve-muted-dim">
           <p>RESOLVE — capital flow for open ecosystems</p>
           <div className="flex gap-6">

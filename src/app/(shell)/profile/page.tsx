@@ -16,7 +16,7 @@ import {
 import { useDisconnect } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
 import { toast } from "sonner";
-import { Panel } from "@/components/resolve/ui/panel";
+import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
 import { ProductPage } from "@/components/resolve/layout/product-page";
@@ -41,7 +41,7 @@ function IdentityCard({
   hrefLabel?: string;
 }) {
   return (
-    <Panel variant="glass" className="p-0 transition hover:border-resolve-accent/20" padding={false}>
+    <BlueGlowCard className="p-0 transition" padding={false} hover>
       <div className="p-5">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-resolve-lg border border-resolve-border bg-resolve-raised/80">
@@ -63,7 +63,7 @@ function IdentityCard({
           </div>
         </div>
       </div>
-    </Panel>
+    </BlueGlowCard>
   );
 }
 
@@ -96,10 +96,10 @@ export default function ProfilePage() {
         { label: "Payout prefs" },
       ]}
       width="narrow"
-      accent="violet"
+      accent="blue"
     >
       <div className="space-y-4">
-        <Panel variant="accent" className="p-5">
+        <BlueGlowCard className="border border-resolve-accent/20 p-5">
           <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-resolve-muted">
             Account
           </p>
@@ -109,7 +109,7 @@ export default function ProfilePage() {
               Sign in to RESOLVE
             </Button>
           }
-        </Panel>
+        </BlueGlowCard>
 
         <IdentityCard
           icon={GitBranch}

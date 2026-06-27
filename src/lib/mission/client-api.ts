@@ -143,6 +143,7 @@ export async function sendMissionMessage(
     question: string;
     messages?: Array<{ role: "user" | "assistant"; content: string }>;
     ecosystemId?: string;
+    operatingMode?: import("@/lib/mission/capital-os").OperatingMode;
   },
 ) {
   return missionFetch<{
@@ -223,6 +224,32 @@ export async function executeMission(input: {
     plan?: Record<string, unknown>;
     error?: string;
   }>("/api/mission/execute", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function dispatchMissionAction(input: {
+  missionId: string;
+  action: import("@/lib/mission/capabilities/types").CapabilityAction;
+  context?: {
+    objective?: string;
+    summary?: string;
+    headline?: string;
+    ecosystemId?: string;
+    fundPoolUsd?: number;
+    owner?: string;
+    repo?: string;
+  };
+}) {
+  return missionFetch<{
+    ok: boolean;
+    actionType: string;
+    message: string;
+    navigateTo?: string;
+    receipt?: Record<string, unknown>;
+    error?: string;
+  }>("/api/mission/actions", {
     method: "POST",
     body: JSON.stringify(input),
   });

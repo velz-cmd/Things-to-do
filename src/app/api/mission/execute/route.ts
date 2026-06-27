@@ -5,6 +5,7 @@ import { executeMissionAllocation } from "@/lib/mission/server/execute";
 import { getMission } from "@/lib/mission/server/missions";
 import { getEcosystem } from "@/lib/mission/server/ecosystems";
 import { parseCapitalUsd } from "@/lib/mission/intents";
+import { resolveCommunityRepoSignals } from "@/lib/mission/community/repo-signals";
 
 const bodySchema = z.object({
   missionId: z.string().min(1),
@@ -48,8 +49,18 @@ export async function POST(req: Request) {
   }
 
   if (!owner || !repo) {
+    const scope = mission.scope ?? "";
+    const signals = resolveCommunityRepoSignals({ question: scope });
+    const first = signals[0];
+    if (first) {
+      owner = first.owner;
+      repo = first.repo;
+    }
+  }
+
+  if (!owner || !repo) {
     return NextResponse.json(
-      { error: "No repository target — attach repos to ecosystem or specify owner/repo" },
+      { error: "No repository target — attach repos to ecosystem, name a community (React, Linux…), or specify owner/repo" },
       { status: 400 },
     );
   }

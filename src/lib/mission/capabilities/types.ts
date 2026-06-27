@@ -46,12 +46,24 @@ export type CollectorTrace = {
   summary: string;
 };
 
+export type MissionActionType =
+  | "chat"
+  | "navigate"
+  | "prepare_settlement"
+  | "execute_settlement"
+  | "save_knowledge"
+  | "open_claim"
+  | "fund_treasury"
+  | "github_allocate";
+
 export type CapabilityAction = {
   id: string;
   label: string;
   prompt: string;
   kind: "explore" | "simulate" | "plan" | "execute" | "remember" | "navigate";
   href?: string;
+  /** When set, chat dispatches a real action instead of re-prompting. */
+  actionType?: MissionActionType;
 };
 
 export type ResearchReference = {

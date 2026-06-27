@@ -4,6 +4,7 @@ import type { CapabilityAction } from "@/lib/mission/capabilities/types";
 import type { FundingOpportunity } from "@/lib/github/types";
 import { LAYER_LABELS } from "@/lib/mission/community";
 import type { CapabilityLayer } from "@/lib/mission/community";
+import { normalizeConfidence } from "@/lib/mission/normalize-confidence";
 
 export type BriefSeverity = "critical" | "high" | "medium" | "low" | "info";
 
@@ -221,15 +222,21 @@ export function buildIntelligenceBrief(ctx: OrchestratorContext): IntelligenceBr
       const findingCount = findings.length || opportunities.length;
       base.headline =
         findingCount > 0 ?
-          `I found ${findingCount} signal${findingCount === 1 ? "" : "s"} worth acting on in ${scope}`
+          `${findingCount} signal${findingCount === 1 ? "" : "s"} in ${scope}`
         : top?.title ?? ctx.capabilityLabel;
-      base.summary = top?.insight ?? `Analysis across ${scope} using live evidence.`;
+      base.summary =
+        findings.length > 0 ?
+          findings
+            .slice(0, 2)
+            .map((f) => f.insight)
+            .join(" ")
+        : top?.insight ?? `Live scan across ${scope}.`;
       if (top) {
         base.priority = {
           label: top.title,
           ecosystem: scope,
           severity: severityFromFinding(top),
-          confidence: top.confidence,
+          confidence: normalizeConfidence(top.confidence),
           reason: top.insight,
         };
       }

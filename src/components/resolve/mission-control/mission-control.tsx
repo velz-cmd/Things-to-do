@@ -632,7 +632,6 @@ export function MissionControl() {
       onNewMission={() => void handleNewMission()}
       onSelectSession={(s) => void handleSelectSession(s)}
       activeSessionId={session.id}
-      missionStatus={missionStatus}
       libraryTick={libraryTick}
       policies={policies}
       selectedPolicyId={selectedPolicyId}

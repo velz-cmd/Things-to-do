@@ -27,17 +27,31 @@ function searchIntentForKind(kind: CommunityKind): SearchIntent {
   }
 }
 
+function refScore(url: string): number {
+  try {
+    const h = new URL(url).hostname;
+    if (h.includes("github.com")) return 100;
+    if (h.includes("opencollective.com")) return 95;
+    if (h.includes("openalex.org") || h.includes("crossref.org")) return 90;
+    if (h.includes("npmjs.com") || h.includes("pypi.org")) return 85;
+    if (h.includes("arxiv.org")) return 80;
+  } catch {
+    return 0;
+  }
+  return 10;
+}
+
 function mergeReferences(...lists: ResearchReference[][]): ResearchReference[] {
   const seen = new Set<string>();
   const out: ResearchReference[] = [];
   for (const list of lists) {
     for (const r of list) {
-      if (seen.has(r.url)) continue;
+      if (!r.url || seen.has(r.url)) continue;
       seen.add(r.url);
       out.push(r);
     }
   }
-  return out.slice(0, 15);
+  return out.sort((a, b) => refScore(b.url) - refScore(a.url)).slice(0, 5);
 }
 
 /** Web + API research for community discovery. */

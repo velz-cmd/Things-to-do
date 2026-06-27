@@ -1,20 +1,74 @@
 "use client";
 
-import { ExternalLink, Download, Share2 } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import type { MissionReport } from "@/lib/mission/mission-report";
-import { missionReportToJson } from "@/lib/mission/mission-report";
 import type { CapabilityAction } from "@/lib/mission/capabilities/types";
 import { MissionCapabilityActions } from "@/components/resolve/mission-control/mission-capability-actions";
-import { MissionResearchRefs } from "@/components/resolve/mission-control/mission-research-refs";
-import { MissionFindings } from "@/components/resolve/mission-control/mission-findings";
 import { MissionCapitalBlueprint } from "@/components/resolve/mission-control/mission-capital-blueprint";
-import { MissionReportSections } from "@/components/resolve/mission-control/mission-report-sections";
+import { MissionResponseShell } from "@/components/resolve/mission-control/mission-chat-bubble";
+import { confidencePercent } from "@/lib/mission/normalize-confidence";
 
+function domainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "link";
+  }
+}
+
+function shortTitle(title: string, max = 72): string {
+  const t = title.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
+function dedupeBullets(report: MissionReport): string[] {
+  const seen = new Set<string>();
+  const bullets: string[] = [];
+
+  for (const f of report.findings.slice(0, 4)) {
+    const line = `${f.title}: ${f.insight}`.trim();
+    const key = line.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      bullets.push(line);
+    }
+  }
+
+  if (bullets.length === 0 && report.recommendations.length > 0) {
+    for (const r of report.recommendations.slice(0, 4)) {
+      const line = r.detail ? `${r.label} — ${r.detail}` : r.label;
+      if (!seen.has(line.toLowerCase())) bullets.push(line);
+    }
+  }
+
+  return bullets.slice(0, 4);
+}
+
+function sourceChips(report: MissionReport): Array<{ label: string; href?: string }> {
+  const chips: Array<{ label: string; href?: string }> = [];
+  const seen = new Set<string>();
+
+  for (const link of report.evidenceLinks) {
+    if (seen.has(link.source)) continue;
+    seen.add(link.source);
+    chips.push({ label: link.source, href: link.href });
+    if (chips.length >= 4) break;
+  }
+
+  if (chips.length === 0 && report.sourcesScanned.length > 0) {
+    for (const s of report.sourcesScanned.slice(0, 4)) {
+      chips.push({ label: s });
+    }
+  }
+
+  return chips;
+}
+
+/** Compact chat response — summary first, bullets, sources, actions. No walls of text. */
 export function MissionReportCard({
   report,
-  topicName,
   onAction,
-  onChip,
   actionsDisabled,
 }: {
   report: MissionReport;
@@ -23,194 +77,122 @@ export function MissionReportCard({
   onChip?: (text: string) => void;
   actionsDisabled?: boolean;
 }) {
-  function downloadJson() {
-    const blob = new Blob([missionReportToJson(report)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${report.reportId}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function shareReport() {
-    const payload = missionReportToJson(report);
-    if (navigator.share) {
-      await navigator.share({ title: report.headline, text: payload.slice(0, 500) }).catch(() => undefined);
-    } else {
-      await navigator.clipboard.writeText(payload).catch(() => undefined);
-    }
-  }
-
+  const bullets = dedupeBullets(report);
+  const chips = sourceChips(report);
+  const refs = (report.researchReferences ?? [])
+    .filter((r) => r.url && r.title.length > 8)
+    .slice(0, 3);
+  const pct = confidencePercent(report.confidence);
+  const actions = report.actions.slice(0, 4);
 
   return (
-    <article className="space-y-4">
-      <div>
-        <p className="text-base font-semibold leading-snug text-white">{report.headline}</p>
-        <p className="mt-2 text-sm leading-relaxed text-resolve-muted">{report.summary}</p>
-      </div>
+    <MissionResponseShell>
+      {/* Summary first */}
+      <p className="text-[15px] font-semibold leading-snug text-white">{report.headline}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-white/75">{report.summary}</p>
 
-      {report.sourcesScanned.length > 0 && (
-        <p className="text-[11px] text-resolve-muted-dim">
-          {report.sourcesScanned.join(" · ")}
+      {report.funding?.neededUsd != null && report.funding.neededUsd > 0 && (
+        <p className="mt-2 text-sm tabular-nums text-amber-200/90">
+          Funding gap · ${report.funding.neededUsd.toLocaleString()}
         </p>
       )}
 
-      <div className="border-t border-white/[0.06]" />
+      {/* Bullets — scannable */}
+      {bullets.length > 0 && (
+        <ul className="mt-4 space-y-2 border-t border-white/[0.06] pt-3">
+          {bullets.map((b) => (
+            <li key={b} className="flex gap-2 text-sm text-white/85">
+              <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-sky-400" />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
-      {report.researchReferences && report.researchReferences.length > 0 && (
-          <MissionResearchRefs references={report.researchReferences} />
-        )}
-
-        {report.priority && (
-          <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-            <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">
-              Highest priority
-            </p>
-            <p className="mt-1 text-sm font-medium text-white">{report.priority.label}</p>
-            <p className="mt-1 text-xs text-resolve-muted">{report.priority.reason}</p>
-            {report.funding?.neededUsd !== undefined && report.funding.neededUsd > 0 && (
-              <p className="mt-2 text-sm tabular-nums text-amber-200/90">
-                Funding gap · ${report.funding.neededUsd.toLocaleString()}
-              </p>
-            )}
-            {report.impact && (
-              <p className="mt-1 text-xs text-resolve-muted">
-                {report.impact.label} · {report.impact.value}
-              </p>
-            )}
-          </div>
-        )}
-
-        <MissionReportSections
-          understanding={report.understanding}
-          capitalDesign={report.capitalDesign}
-          executionPlan={report.executionPlan}
-          risks={report.risks}
-          recommendation={report.recommendation}
-        />
-
-        {report.capitalBlueprint && (
-          <MissionCapitalBlueprint blueprint={report.capitalBlueprint} />
-        )}
-
-        {report.findings.length > 0 && onChip && (
-          <MissionFindings findings={report.findings} onChip={onChip} disabled={actionsDisabled} />
-        )}
-
-        {report.simulations && report.simulations.length > 0 && (
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">
-              Recommended allocation
-            </p>
-            <ul className="mt-2 space-y-1">
-              {report.simulations.map((s) => (
-                <li key={s.label} className="flex justify-between text-xs text-resolve-muted">
-                  <span>{s.label}</span>
-                  <span className="tabular-nums text-white">{s.value}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {report.evidenceLinks.length > 0 && (
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">Evidence</p>
-            <ul className="mt-2 space-y-1">
-              {report.evidenceLinks.map((link) => (
-                <li key={link.label}>
-                  {link.href ?
-                    <a
-                      href={link.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-resolve-accent hover:underline"
-                    >
-                      Open {link.label}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  : <span className="text-xs text-resolve-muted">{link.label}</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {report.settlement && (
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-            <p className="text-[10px] uppercase tracking-wide text-emerald-300/80">Settlement</p>
-            <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
-              {report.settlement.amountUsd != null && (
-                <div>
-                  <span className="text-resolve-muted">USDC </span>
-                  <span className="tabular-nums font-medium text-white">
-                    ${report.settlement.amountUsd.toLocaleString()}
-                  </span>
-                </div>
-              )}
-              {report.settlement.recipientCount != null && (
-                <div>
-                  <span className="text-resolve-muted">Recipients </span>
-                  <span className="tabular-nums text-white">{report.settlement.recipientCount}</span>
-                </div>
-              )}
-              {report.settlement.batchId && (
-                <div className="font-mono text-[10px] text-resolve-muted-dim sm:col-span-2">
-                  Batch {report.settlement.batchId}
-                </div>
-              )}
-            </div>
-            {report.settlement.explorerUrl && (
+      {/* Source chips */}
+      {chips.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {chips.map((c) =>
+            c.href ?
               <a
-                href={report.settlement.explorerUrl}
+                key={c.label}
+                href={c.href}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 inline-flex items-center gap-1 text-xs text-emerald-300 hover:underline"
+                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-sky-200/90 hover:border-sky-500/30"
               >
-                View on Arcscan
-                <ExternalLink className="h-3 w-3" />
+                {c.label}
+                <ExternalLink className="h-2.5 w-2.5" />
               </a>
-            )}
-          </div>
-        )}
+            : <span
+                key={c.label}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[11px] text-resolve-muted"
+              >
+                {c.label}
+              </span>,
+          )}
+          <span className="self-center text-[10px] text-resolve-muted-dim">{pct}% confidence</span>
+        </div>
+      )}
 
-        {onAction && report.actions.length > 0 && (
-          <MissionCapabilityActions
-            actions={report.actions}
-            onAction={onAction}
-            disabled={actionsDisabled}
-          />
-        )}
+      {/* External resources — max 3, domain labels */}
+      {refs.length > 0 && (
+        <ul className="mt-3 space-y-1.5 border-t border-white/[0.06] pt-3">
+          {refs.map((ref) => (
+            <li key={ref.url}>
+              <a
+                href={ref.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 text-[12px] text-sky-300/90 hover:text-sky-200 hover:underline"
+              >
+                <ExternalLink className="h-3 w-3 shrink-0" />
+                <span className="truncate">{shortTitle(ref.title)}</span>
+                <span className="shrink-0 text-[10px] text-resolve-muted-dim">
+                  {domainFromUrl(ref.url)}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
 
-        <details className="group">
-          <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-resolve-muted-dim hover:text-resolve-muted">
-            Export report
-          </summary>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={downloadJson}
-              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] px-2.5 py-1 text-[10px] text-resolve-muted hover:text-white"
-            >
-              <Download className="h-3 w-3" />
-              JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => void shareReport()}
-              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] px-2.5 py-1 text-[10px] text-resolve-muted hover:text-white"
-            >
-              <Share2 className="h-3 w-3" />
-              Share
-            </button>
-            {topicName && (
-              <span className="self-center text-[10px] text-resolve-muted-dim">
-                {topicName} · {Math.round(report.confidence * 100)}%
-              </span>
-            )}
-          </div>
-        </details>
-    </article>
+      {report.simulations && report.simulations.length > 0 && (
+        <ul className="mt-3 space-y-1 border-t border-white/[0.06] pt-3">
+          {report.simulations.slice(0, 4).map((s) => (
+            <li key={s.label} className="flex justify-between text-xs text-resolve-muted">
+              <span>{s.label}</span>
+              <span className="tabular-nums text-white">{s.value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {report.capitalBlueprint && (
+        <div className="mt-4 border-t border-white/[0.06] pt-3">
+          <MissionCapitalBlueprint blueprint={report.capitalBlueprint} />
+        </div>
+      )}
+
+      {report.settlement && (
+        <p className="mt-3 text-xs text-emerald-300/90">
+          Settlement · ${report.settlement.amountUsd?.toLocaleString() ?? "—"} USDC
+          {report.settlement.explorerUrl && (
+            <>
+              {" · "}
+              <a href={report.settlement.explorerUrl} target="_blank" rel="noreferrer" className="underline">
+                View receipt
+              </a>
+            </>
+          )}
+        </p>
+      )}
+
+      {onAction && actions.length > 0 && (
+        <div className="mt-4 border-t border-white/[0.06] pt-3">
+          <MissionCapabilityActions actions={actions} onAction={onAction} disabled={actionsDisabled} />
+        </div>
+      )}
+    </MissionResponseShell>
   );
 }

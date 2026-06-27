@@ -2,6 +2,7 @@ import type { CapabilityAction, OrchestratorContext } from "@/lib/mission/capabi
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import { LAYER_LABELS } from "@/lib/mission/community";
+import { normalizeConfidence } from "@/lib/mission/normalize-confidence";
 import type {
   CapitalBlueprint,
   CapitalLoopPhase,
@@ -145,9 +146,9 @@ export function buildMissionReport(input: {
     (f) => f.severity === "critical" || f.id === "funding-gap",
   ).length;
 
-  const confidence =
-    brief.priority?.confidence ??
-    (ctx.findings[0]?.confidence ?? 0.85);
+  const confidence = normalizeConfidence(
+    brief.priority?.confidence ?? ctx.findings[0]?.confidence,
+  );
 
   const status: MissionReportStatus =
     settlement?.txHash ? "complete"
@@ -269,7 +270,7 @@ export function reportFromBrief(
     communitiesAnalyzed: brief.findingCount,
     signalsFound: brief.findingCount,
     criticalCount: 0,
-    confidence: brief.priority?.confidence ?? 0.85,
+    confidence: normalizeConfidence(brief.priority?.confidence ?? brief.findings[0]?.confidence),
     headline: brief.headline,
     summary: brief.summary,
     priority: brief.priority,

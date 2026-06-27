@@ -8,7 +8,11 @@ import { MissionHistorySidebar } from "@/components/resolve/mission-control/miss
 import { MissionReportCard } from "@/components/resolve/mission-control/mission-report-card";
 import { MissionContextPanel } from "@/components/resolve/mission-control/mission-context-panel";
 import { MissionWorldSnapshot } from "@/components/resolve/mission-control/mission-world-snapshot";
-import { MissionQuickActions } from "@/components/resolve/mission-control/mission-quick-actions";
+import {
+  MissionUserBubble,
+  MissionResolveBubble,
+  MissionThinkingBubble,
+} from "@/components/resolve/mission-control/mission-chat-bubble";
 import {
   MissionPlanningBar,
   MissionExecuteBar,
@@ -54,7 +58,6 @@ export function MissionWorkspace({
   onNewMission,
   onSelectSession,
   activeSessionId,
-  missionStatus,
   thinkingSteps,
   libraryTick,
   policies,
@@ -82,7 +85,6 @@ export function MissionWorkspace({
   onNewMission: () => void;
   onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
   activeSessionId?: string | null;
-  missionStatus?: string | null;
   thinkingSteps?: readonly string[];
   libraryTick?: number;
   policies: PolicyProposal[];
@@ -102,7 +104,6 @@ export function MissionWorkspace({
   const started = Boolean(objective || turns.length > 0 || loading);
   const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
   const lastAllocations = lastResolve?.allocations;
-  const followUpActions = lastResolve?.nextSteps ?? lastResolve?.report?.actions ?? [];
   const showPlanning = shouldShowPlanningBar(phase);
   const showExecute = shouldShowExecuteBar(phase);
   const lastReport = lastResolve?.report;
@@ -131,7 +132,7 @@ export function MissionWorkspace({
   const displayTopic = topic ?? (objective ? { name: objective.slice(0, 48), kind: "general" as const } : null);
 
   return (
-    <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px]">
+    <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px] bg-[#0a1020]/40">
       <MissionHistorySidebar
         onNewMission={onNewMission}
         onSelectSession={onSelectSession}
@@ -141,28 +142,23 @@ export function MissionWorkspace({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {displayTopic && displayTopic.kind !== "general" && (
-          <MissionWorldSnapshot topic={displayTopic.name} kind={displayTopic.kind} report={lastReport} />
-        )}
-        {displayTopic && displayTopic.kind === "general" && !loading && (
-          <div className="border-b border-white/[0.06] px-4 py-3 lg:px-6">
-            <h2 className="text-base font-semibold text-white">{displayTopic.name}</h2>
-          </div>
+          <MissionWorldSnapshot
+            topic={displayTopic.name}
+            kind={displayTopic.kind}
+            report={lastReport}
+          />
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
-          <div className="mx-auto max-w-2xl space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8">
+          <div className="mx-auto max-w-2xl space-y-5">
             {turns.map((turn) =>
               turn.role === "user" ?
-                <p key={turn.id} className="text-sm text-white/90">
-                  {turn.text}
-                </p>
-              : <div key={turn.id}>
+                <MissionUserBubble key={turn.id}>{turn.text}</MissionUserBubble>
+              : <MissionResolveBubble key={turn.id}>
                   {turn.report ?
                     <MissionReportCard
                       report={turn.report}
-                      topicName={topic?.name}
                       onAction={turn === lastResolve ? onAction : undefined}
-                      onChip={turn === lastResolve ? (t) => onSubmit(t) : undefined}
                       actionsDisabled={loading}
                     />
                   : turn.brief ?
@@ -172,38 +168,27 @@ export function MissionWorkspace({
                         objective ?? turn.text,
                         turn.nextSteps ?? [],
                       )}
-                      topicName={topic?.name}
                       onAction={turn === lastResolve ? onAction : undefined}
-                      onChip={turn === lastResolve ? (t) => onSubmit(t) : undefined}
                       actionsDisabled={loading}
                     />
                   : <p className="text-sm text-resolve-muted">{turn.text}</p>}
-                </div>,
+                </MissionResolveBubble>,
             )}
 
             {loading && (
-              <MissionThinking active={loading} complete={thinkingComplete} steps={thinkingSteps} />
+              <MissionThinkingBubble>
+                <MissionThinking
+                  active={loading}
+                  complete={thinkingComplete}
+                  steps={thinkingSteps}
+                />
+              </MissionThinkingBubble>
             )}
             <div ref={endRef} />
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-white/[0.06] px-4 py-3 lg:px-6">
-          {followUpActions.length > 0 && !loading && !showPlanning && !showExecute && (
-            <div className="mx-auto mb-3 max-w-2xl">
-              <MissionQuickActions
-                actions={followUpActions.slice(0, 5).map((a) => ({
-                  id: a.id,
-                  label: a.label,
-                  prompt: a.prompt,
-                }))}
-                onSelect={(a) => onSubmit(a.prompt)}
-                disabled={loading}
-                variant="compact"
-              />
-            </div>
-          )}
-
+        <div className="shrink-0 border-t border-white/[0.06] bg-[#070b14]/60 px-4 py-3 backdrop-blur-md lg:px-8">
           <MissionPlanningBar
             visible={showPlanning && !loading}
             actions={[
@@ -232,12 +217,12 @@ export function MissionWorkspace({
                   onChange={(e) => onInputChange(e.target.value)}
                   placeholder="Continue the mission…"
                   disabled={loading}
-                  className="w-full rounded-xl border border-white/[0.1] bg-[#0a0f18]/90 px-4 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-white/20 focus:outline-none disabled:opacity-50"
+                  className="w-full rounded-2xl border border-white/[0.1] bg-[#131c2e]/90 px-4 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-sky-500/40 focus:outline-none disabled:opacity-50"
                 />
                 <button
                   type="submit"
                   disabled={loading || !input.trim()}
-                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
                   aria-label="Send"
                 >
                   {loading ?
@@ -250,7 +235,7 @@ export function MissionWorkspace({
         </div>
       </div>
 
-      {displayTopic && (
+      {displayTopic && lastReport && (
         <MissionContextPanel
           topicName={displayTopic.name}
           topicKind={displayTopic.kind === "general" ? "oss" : displayTopic.kind}

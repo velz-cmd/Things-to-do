@@ -14,6 +14,7 @@ import {
   MissionExecutionBar,
   MissionQuickReplies,
 } from "@/components/resolve/mission-control/mission-execution-bar";
+import { MISSION_EXAMPLES } from "@/lib/mission/intents";
 import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 
@@ -22,6 +23,7 @@ export type MissionTurn = {
   role: "user" | "resolve";
   text: string;
   opportunities?: OpportunityCard[];
+  opportunitiesTitle?: string;
   allocations?: AllocationLine[];
   policy?: PolicyProposal;
   treasury?: { availableUsd: number; neededUsd: number };
@@ -29,14 +31,7 @@ export type MissionTurn = {
   showExecution?: boolean;
 };
 
-const IDLE_EXAMPLES = [
-  "Find value leaks",
-  "Show underfunded communities",
-  "Allocate $100k",
-  "Analyze React ecosystem",
-  "Who deserves funding?",
-  "Show unpaid contributors",
-] as const;
+const IDLE_EXAMPLES = MISSION_EXAMPLES;
 
 export function MissionWorkspace({
   started,
@@ -51,6 +46,7 @@ export function MissionWorkspace({
   onSimulate,
   onReject,
   onEditPolicy,
+  thinkingSteps,
 }: {
   started: boolean;
   turns: MissionTurn[];
@@ -64,6 +60,7 @@ export function MissionWorkspace({
   onSimulate?: () => void;
   onReject?: () => void;
   onEditPolicy?: () => void;
+  thinkingSteps?: readonly string[];
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
@@ -91,12 +88,16 @@ export function MissionWorkspace({
               <h1 className="mt-4 text-2xl font-medium tracking-tight text-white sm:text-3xl">
                 What would you like RESOLVE to do?
               </h1>
+              <p className="mt-3 max-w-md text-sm leading-relaxed text-resolve-muted">
+                Ask about any open community — value, risk, funding, claims, dependencies.
+                RESOLVE observes, understands, recommends, and executes when you approve.
+              </p>
               <form onSubmit={handleFormSubmit} className="mt-8 w-full max-w-xl">
                 <div className="relative">
                   <input
                     value={input}
                     onChange={(e) => onInputChange(e.target.value)}
-                    placeholder="Fund React ecosystem with $100k"
+                    placeholder="I have $100k — who deserves it?"
                     className="w-full rounded-full border border-resolve-border bg-resolve-bg-deep/60 px-5 py-3.5 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
                     autoFocus
                   />
@@ -141,7 +142,10 @@ export function MissionWorkspace({
                       )}
 
                       {turn.opportunities && turn.opportunities.length > 0 && (
-                        <MissionFundingLeaks opportunities={turn.opportunities} />
+                        <MissionFundingLeaks
+                          opportunities={turn.opportunities}
+                          title={turn.opportunitiesTitle}
+                        />
                       )}
 
                       {turn.allocations && turn.allocations.length > 0 && (
@@ -169,7 +173,11 @@ export function MissionWorkspace({
 
               {loading && (
                 <div className="space-y-4">
-                  <MissionThinking active={loading} complete={thinkingComplete} />
+                  <MissionThinking
+                    active={loading}
+                    complete={thinkingComplete}
+                    steps={thinkingSteps}
+                  />
                   {!thinkingComplete && (
                     <div className="flex items-center gap-2 text-sm text-resolve-muted">
                       <Loader2 className="h-4 w-4 animate-spin text-resolve-accent" />

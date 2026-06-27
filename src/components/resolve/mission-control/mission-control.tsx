@@ -6,20 +6,14 @@ import { MissionWorkspace, type MissionTurn } from "@/components/resolve/mission
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
 import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
-
-function parseCapitalUsd(text: string): number | undefined {
-  const m = text.match(/\$?\s*([\d,]+(?:\.\d+)?)\s*(k|K|m|M)?/);
-  if (!m) return undefined;
-  let n = Number(m[1].replace(/,/g, ""));
-  if (Number.isNaN(n)) return undefined;
-  if (m[2]?.toLowerCase() === "k") n *= 1000;
-  if (m[2]?.toLowerCase() === "m") n *= 1_000_000;
-  return n;
-}
-
-function fundingIntent(text: string): boolean {
-  return /\b(distribut|fund|allocat|\$\d|treasury|capital|invest)\b/i.test(text);
-}
+import {
+  buildQuickReplies,
+  detectMissionIntent,
+  parseCapitalUsd,
+  shouldShowExecution,
+  shouldShowOpportunities,
+  thinkingStepsFor,
+} from "@/lib/mission/intents";
 
 function buildAllocationFromOpportunities(
   opportunities: OpportunityCard[],
@@ -61,16 +55,6 @@ function pickInlinePolicy(policies: PolicyProposal[], text: string): PolicyPropo
   return policies.find((p) => p.id === "balanced") ?? policies[0];
 }
 
-function buildQuickReplies(text: string, hasFunding: boolean): string[] {
-  if (hasFunding) {
-    return ["Why this split?", "Show evidence", "Customize allocations", "View portfolio"];
-  }
-  if (/\b(leak|underfund|unpaid)\b/i.test(text)) {
-    return ["Show top gaps", "Who deserves funding?", "Allocate treasury"];
-  }
-  return ["Tell me more", "Show evidence", "What should I do next?"];
-}
-
 type TreasurySnapshot = {
   balanceUsd?: number;
   availableUsd?: number;
@@ -78,7 +62,8 @@ type TreasurySnapshot = {
 };
 
 /**
- * Mission — AI workspace. Empty until intent, then conversation + progressive disclosure.
+ * Mission — intelligence workspace for the open internet.
+ * Observe → Understand → Recommend → Execute (only when approved).
  */
 export function MissionControl() {
   const { scope, enterMission } = useMissionScope();
@@ -86,6 +71,9 @@ export function MissionControl() {
   const [turns, setTurns] = useState<MissionTurn[]>([]);
   const [loading, setLoading] = useState(false);
   const [thinkingComplete, setThinkingComplete] = useState(false);
+  const [activeThinkingSteps, setActiveThinkingSteps] = useState<readonly string[]>(
+    thinkingStepsFor("general"),
+  );
   const [treasury, setTreasury] = useState<TreasurySnapshot | null>(null);
   const started = turns.length > 0;
 
@@ -101,6 +89,8 @@ export function MissionControl() {
       const trimmed = text.trim();
       if (!trimmed) return;
 
+      const intent = detectMissionIntent(trimmed);
+      setActiveThinkingSteps(thinkingStepsFor(intent));
       setInput("");
       setLoading(true);
       setThinkingComplete(false);
@@ -129,19 +119,25 @@ export function MissionControl() {
 
         setThinkingComplete(true);
 
-        const isFunding = fundingIntent(trimmed);
         const estCapital = parseCapitalUsd(trimmed);
         const opportunities: OpportunityCard[] = data.opportunities ?? [];
         const policies: PolicyProposal[] = data.policies ?? [];
         const availableUsd =
           treasury?.availableUsd ?? treasury?.balanceUsd ?? data.treasuryBalanceUsd ?? 0;
         const neededUsd = estCapital ?? treasury?.obligationsUsd ?? 0;
+        const showOpps = shouldShowOpportunities(intent) && opportunities.length > 0;
+        const isFunding = intent === "funding";
+        const oppsTitle =
+          intent === "risk" ? "Critical dependencies at risk"
+          : intent === "discovery" ? "Value concentrations"
+          : "Funding leaks found";
 
         const resolveTurn: MissionTurn = {
           id: `r-${Date.now()}`,
           role: "resolve",
           text: data.answer ?? "No analysis available.",
-          opportunities: isFunding ? opportunities : undefined,
+          opportunities: showOpps ? opportunities : undefined,
+          opportunitiesTitle: showOpps ? oppsTitle : undefined,
           allocations:
             isFunding && estCapital ?
               buildAllocationFromOpportunities(opportunities, estCapital)
@@ -151,8 +147,8 @@ export function MissionControl() {
             isFunding && neededUsd > availableUsd ?
               { availableUsd, neededUsd }
             : undefined,
-          quickReplies: buildQuickReplies(trimmed, isFunding),
-          showExecution: isFunding || opportunities.length > 0,
+          quickReplies: buildQuickReplies(intent),
+          showExecution: shouldShowExecution(intent, trimmed),
         };
 
         setTurns((t) => [...t, resolveTurn]);
@@ -192,14 +188,15 @@ export function MissionControl() {
       turns={turns}
       loading={loading}
       thinkingComplete={thinkingComplete}
+      thinkingSteps={activeThinkingSteps}
       input={input}
       onInputChange={setInput}
       onSubmit={(t) => void sendMessage(t)}
       onQuickReply={(t) => void sendMessage(t)}
-      onApprove={() => void sendMessage("Approve this allocation and prepare execution.")}
-      onSimulate={() => void sendMessage("Simulate this allocation without executing.")}
+      onApprove={() => void sendMessage("Approve this recommendation and prepare execution.")}
+      onSimulate={() => void sendMessage("Simulate this without executing.")}
       onReject={handleReject}
-      onEditPolicy={() => void sendMessage("Let me customize the allocation policy.")}
+      onEditPolicy={() => void sendMessage("Let me customize this recommendation.")}
     />
   );
 }

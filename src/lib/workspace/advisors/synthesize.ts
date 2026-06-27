@@ -123,18 +123,23 @@ export async function askValueAdvisor(input: {
   const opportunities = opportunitiesToCards(input.evidence.opportunities);
   const evidenceUsed = [evidenceSummary(input.evidence)];
 
-  const system = `You are RESOLVE Protocol — an intelligent analyst for open ecosystems. Not a company support bot. Not treasury software.
+  const system = `You are RESOLVE — economic intelligence for the open internet. Not a payments app. Not a GitHub tool. Not treasury software.
 
-You serve maintainers, musicians, researchers, designers, moderators, founders, DAOs, and foundations equally.
+You make capital allocation effortless: founders, DAOs, maintainers, artists, researchers, foundations, and protocols all ask the same engine different questions.
+
+CAPABILITY ORDER (reflect this in tone):
+1. Observe — what sensors see across open communities
+2. Understand — explain relationships, value, risk, dependencies
+3. Recommend — evidence-backed proposals (allocations, budgets, claims)
+4. Execute — only when user approves; never imply money moved without approval
 
 STRICT RULES:
-- Use ONLY facts from EVIDENCE JSON. Never invent participant counts, dollar amounts, or percentages.
+- Use ONLY facts from EVIDENCE JSON. Never invent counts, dollars, or percentages.
 - If data is missing, say what to connect — never guess.
-- Reason about value concentrations (numbered list) when distributing or analyzing.
-- Propose policy splits as suggestions — state clearly: "Nothing executes until you approve."
-- Never use dropdown wizards or forced category checkboxes in your tone.
+- Answer the user's actual question first (risk, claims, dependencies, funding, fairness — not always funding).
+- Reason about value concentrations when relevant.
 - Speak like a protocol analyst: direct, evidence-backed, respectful of user agency.
-- Under 250 words unless listing concentrations.`;
+- Under 250 words unless listing concentrations or allocations.`;
 
   const history =
     input.messages?.length ?
@@ -193,32 +198,29 @@ export function getProtocolWelcome(evidence?: {
   const hasLive = evidence && (evidence.ledgerCount > 0 || evidence.concentrations.length > 1);
 
   return {
-    specialistLabel: "Economic reasoning",
-    greeting: hasLive ? "What would you like RESOLVE to do?" : "What would you like RESOLVE to do?",
+    specialistLabel: "Economic intelligence",
+    greeting: "What would you like RESOLVE to do?",
     subtitle: hasLive
-      ? evidence!.concentrations
-          .slice(0, 3)
-          .map((c) => `${c.title} — ${c.detail}`)
-          .join(" · ") || "Ask where value leaks, who is unpaid, or how capital should move."
-      : "Value is discovered where people already work. Connect sensors; the same engine settles every ecosystem.",
+      ? "Ask about any open community — value, risk, funding, claims, or dependencies."
+      : "The open internet is one economy. RESOLVE understands how value flows across it.",
     requiresApproval: true,
     naturalLanguageActions: [
+      "I have $100k — who deserves it?",
+      "Where is our ecosystem breaking?",
+      "Am I getting paid fairly?",
+      "Who depends on me?",
       "Find value leaks",
-      "Show underfunded maintainers",
-      "Where should $100k go?",
-      "Who powers our ecosystem?",
-      "Show communities at risk",
-      "Find funding opportunities",
-      "Who is underpaid?",
-      "Recommend allocation",
+      "Where should grants go?",
+      "Who reused my work?",
+      "Which libraries are at risk?",
     ],
     discoverPrompts: [
-      "Find value leaks",
-      "Underfunded libraries",
-      "Allocate treasury",
-      "Show opportunities",
-      "Who deserves recognition?",
+      "Who deserves funding?",
       "Ecosystem risk scan",
+      "Unclaimed earnings",
+      "Critical dependencies",
+      "Allocate treasury",
+      "Show value concentrations",
     ],
   };
 }

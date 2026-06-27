@@ -19,13 +19,19 @@ function badgeToneClass(tone: OpportunityCard["badgeTone"]) {
   return "bg-amber-500/15 text-amber-200 ring-amber-500/25";
 }
 
-export function MissionFundingLeaks({ opportunities }: { opportunities: OpportunityCard[] }) {
+export function MissionFundingLeaks({
+  opportunities,
+  title = "Funding leaks found",
+}: {
+  opportunities: OpportunityCard[];
+  title?: string;
+}) {
   if (!opportunities.length) return null;
 
   return (
     <section className="rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/25 p-4">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-resolve-muted">
-        Funding leaks found
+        {title}
       </h3>
       <ul className="mt-3 space-y-2">
         {opportunities.map((o) => (

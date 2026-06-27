@@ -6,6 +6,12 @@ import { pingDockerHub } from "@/lib/integrations/docker-hub";
 import { pingNavidrome, isNavidromeConfigured } from "@/lib/integrations/navidrome";
 import { pingListenBrainz, isListenBrainzConfigured } from "@/lib/integrations/listenbrainz";
 import { pingLastFm, isLastFmConfigured } from "@/lib/integrations/lastfm";
+import { pingOpenCollective, isOpenCollectiveConfigured } from "@/lib/integrations/opencollective";
+import { pingCrossref } from "@/lib/integrations/crossref";
+import { pingArxiv } from "@/lib/integrations/arxiv";
+import { pingOverpass } from "@/lib/integrations/overpass";
+import { pingDiscord, isDiscordConfigured } from "@/lib/integrations/discord";
+import { pingMastodon, isMastodonConfigured } from "@/lib/integrations/mastodon";
 import { INTEGRATIONS } from "@/lib/integrations/config";
 import { hasGithubToken } from "@/lib/github/client";
 import { listConfiguredProviders } from "@/lib/ai/gateway/resolve";
@@ -14,7 +20,7 @@ import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
 export async function runIntegrationHealthCheck() {
   const ai = listConfiguredProviders();
 
-  const [github, libraries, openAlex, blockscout, npm, docker, navidrome, listenbrainz, lastfm] =
+  const [github, libraries, openAlex, blockscout, npm, docker, navidrome, listenbrainz, lastfm, openCollective, crossref, arxiv, overpass, discord, mastodon] =
     await Promise.all([
       pingGithub(),
       pingLibrariesIo(),
@@ -25,6 +31,12 @@ export async function runIntegrationHealthCheck() {
       pingNavidrome(),
       pingListenBrainz(),
       pingLastFm(),
+      pingOpenCollective(),
+      pingCrossref(),
+      pingArxiv(),
+      pingOverpass(),
+      pingDiscord(),
+      pingMastodon(),
     ]);
 
   const openRouter = ai.openrouter
@@ -47,6 +59,12 @@ export async function runIntegrationHealthCheck() {
       navidrome: isNavidromeConfigured(),
       listenBrainz: isListenBrainzConfigured(),
       lastFm: isLastFmConfigured(),
+      openCollective: isOpenCollectiveConfigured(),
+      discord: isDiscordConfigured(),
+      mastodon: isMastodonConfigured(),
+      crossref: true,
+      arxiv: true,
+      overpass: true,
     },
     live: {
       github,
@@ -59,6 +77,12 @@ export async function runIntegrationHealthCheck() {
       navidrome,
       listenBrainz: listenbrainz,
       lastFm: lastfm,
+      openCollective,
+      crossref,
+      arxiv,
+      overpass,
+      discord,
+      mastodon,
       alchemy: isAlchemyConfigured()
         ? { ok: true, message: "Alchemy Arc RPC configured" }
         : { ok: false, message: "ALCHEMY_API_KEY not set" },

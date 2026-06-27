@@ -20,6 +20,13 @@ export const INTEGRATIONS = {
     isConfigured("DOCKER_HUB_USERNAME") && isConfigured("DOCKER_HUB_TOKEN"),
   alchemy: () => isConfigured("ALCHEMY_API_KEY"),
   etherscan: () => isConfigured("ETHERSCAN_API_KEY"),
+  openCollective: () => isConfigured("OPENCOLLECTIVE_TOKEN"),
+  discord: () => isConfigured("DISCORD_BOT_TOKEN"),
+  mastodon: () =>
+    isConfigured("MASTODON_INSTANCE_URL") && isConfigured("MASTODON_ACCESS_TOKEN"),
+  crossref: () => true,
+  arxiv: () => true,
+  overpass: () => true,
 } as const;
 
 export function getBlockscoutChainId(): number {

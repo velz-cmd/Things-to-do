@@ -299,6 +299,8 @@ export async function runCollectors(input: {
       question: input.question,
       communityKind: community.kind,
       communityName: community.name,
+      keywords: input.community?.keywords,
+      sensors: community.sensors,
       maxResults: 5,
     });
     researchReferences = research.references;
@@ -307,10 +309,13 @@ export async function runCollectors(input: {
         trace(
           "connectors",
           "ok",
-          `Web research · ${research.references.length} references via ${research.provider ?? "search"}`,
+          `Research · ${research.references.length} references (${research.provider ?? "sensors"})`,
           "observe",
         ),
       );
+    }
+    for (const line of research.sensorTraces.slice(0, 4)) {
+      if (!stepsRun.includes(line)) stepsRun.push(line);
     }
   }
 

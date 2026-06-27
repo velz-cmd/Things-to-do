@@ -23,6 +23,7 @@ export const MISSION_STARTER_GROUPS: Array<{ group: string; actions: MissionQuic
     group: "Capital & funding",
     actions: [
       { id: "fund-100k", label: "Deploy $100k", prompt: "I have $100,000 — who deserves funding based on observed impact?", group: "Capital & funding" },
+      { id: "oc-linux", label: "Fund via Open Collective", prompt: "Which Open Collective treasuries support Linux and open source?", group: "Capital & funding" },
       { id: "leaks", label: "Find value leaks", prompt: "Find value leaks across communities I'm observing", group: "Capital & funding" },
       { id: "compare", label: "Compare React vs Vue", prompt: "Compare React and Vue — who deserves more capital?", group: "Capital & funding" },
       { id: "risk", label: "Assess downstream risk", prompt: "Which community carries the most downstream dependency risk?", group: "Capital & funding" },
@@ -131,9 +132,9 @@ export function followUpQuickActions(input: {
       { id: "artists", label: "Top underpaid artists", prompt: "Which artists have listens but no patronage?" },
     );
   }
-  if (input.communityKind === "research") {
+  if (input.communityKind === "local" || input.communityKind === "dao") {
     actions.push(
-      { id: "citations", label: "Citation leaders", prompt: "Which research groups have high citations but low grant funding?" },
+      { id: "oc-fund", label: "Open Collective treasuries", prompt: `Which Open Collective accounts fund ${scope}?` },
     );
   }
 

@@ -242,20 +242,20 @@ export function MissionSidebar({
             <div className="flex items-center gap-2">
               <Globe2 className="h-3.5 w-3.5 text-resolve-muted-dim" />
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-                Workspaces
+                Communities
               </p>
             </div>
             <button
               type="button"
               onClick={() => setAddingWorkspace((v) => !v)}
               className="rounded p-1 text-resolve-muted-dim transition hover:bg-white/[0.06] hover:text-white"
-              aria-label="Add workspace"
+              aria-label="Add community"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
           </div>
           <p className="mt-1 px-2 text-[10px] leading-relaxed text-resolve-muted-dim">
-            Persistent economic worlds — enter React, Ethereum, Music…
+            Persistent community worlds — Linux, independent music, Pakistan OSS…
           </p>
 
           {addingWorkspace && (

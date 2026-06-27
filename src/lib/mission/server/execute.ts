@@ -18,7 +18,7 @@ export async function executeMissionAllocation(input: {
   dryRun?: boolean;
   execute?: boolean;
 }) {
-  await updateMissionStatus(input.userId, input.missionId, "executing", "Running GitHub allocation pipeline");
+  await updateMissionStatus(input.userId, input.missionId, "executing", "Running community capital allocation");
 
   const allocation = await allocateGithubPool({
     owner: input.owner,

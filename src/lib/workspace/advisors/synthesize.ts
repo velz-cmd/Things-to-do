@@ -107,6 +107,7 @@ export async function askValueAdvisor(input: {
   question: string;
   evidence: WorkspaceEvidence;
   messages?: AdvisorMessage[];
+  ecosystem?: { name: string; keywords?: string[] };
 }): Promise<AdvisorResponse> {
   const specialist = routeAdvisorSpecialist(input.question);
   const intent = detectMissionIntent(input.question);
@@ -174,7 +175,13 @@ REQUIRED:
         .join("\n\n")
     : "";
 
+  const ecosystemContext =
+    input.ecosystem ?
+      `ECOSYSTEM CONTEXT: The user is working inside "${input.ecosystem.name}". Interpret ambiguous questions in that context (${(input.ecosystem.keywords ?? [input.ecosystem.name.toLowerCase()]).join(", ")}).\n`
+    : "";
+
   const prompt = [
+    ecosystemContext,
     history ? `CONVERSATION:\n${history}\n` : "",
     findingContext,
     `USER:\n${input.question}`,

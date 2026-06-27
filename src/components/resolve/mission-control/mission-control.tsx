@@ -12,10 +12,16 @@ import { buildContextualActions, chipsFromFinding, detectMissionPhase } from "@/
 import { detectMissionIntent, parseCapitalUsd, thinkingStepsFor } from "@/lib/mission/intents";
 import {
   createMissionSession,
+  loadMissionSessions,
   upsertMissionSession,
   type MissionSession,
 } from "@/lib/mission/toolbox/mission-library";
-import { AGENT_STARTER } from "@/components/resolve/mission-control/mission-os-panel";
+import {
+  getActiveEcosystemId,
+  setActiveEcosystemId,
+  type Ecosystem,
+} from "@/lib/mission/ecosystems";
+import { captureFromMission, type KnowledgeEntry } from "@/lib/mission/knowledge";
 
 function buildAllocationFromOpportunities(
   opportunities: OpportunityCard[],
@@ -67,7 +73,13 @@ function enrichFindings(findings: MissionFinding[]): MissionFinding[] {
 function persistSession(
   session: MissionSession,
   turns: MissionTurn[],
-  opts: { title?: string; findingCount?: number; phase?: MissionPhase; scope?: string },
+  opts: {
+    title?: string;
+    findingCount?: number;
+    phase?: MissionPhase;
+    scope?: string;
+    ecosystemId?: string;
+  },
 ) {
   const firstUser = turns.find((t) => t.role === "user");
   const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
@@ -76,6 +88,7 @@ function persistSession(
     title: opts.title ?? session.title,
     query: firstUser?.text ?? session.query,
     scope: opts.scope ?? session.scope ?? firstUser?.text,
+    ecosystemId: opts.ecosystemId ?? session.ecosystemId,
     phase: opts.phase ?? lastResolve?.phase ?? session.phase,
     findingCount: opts.findingCount,
     lastFindings: lastResolve?.findings,
@@ -104,7 +117,10 @@ export function MissionControl() {
   const { scope, setScope, enterMission } = useMissionScope();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<MissionTurn[]>([]);
-  const [session, setSession] = useState<MissionSession>(() => createMissionSession("mission"));
+  const [session, setSession] = useState<MissionSession>(() =>
+    createMissionSession(getActiveEcosystemId() ?? undefined),
+  );
+  const [activeEcosystem, setActiveEcosystem] = useState<Ecosystem | null>(null);
   const [loading, setLoading] = useState(false);
   const [thinkingComplete, setThinkingComplete] = useState(false);
   const [activeThinkingSteps, setActiveThinkingSteps] = useState<readonly string[]>(
@@ -113,8 +129,6 @@ export function MissionControl() {
   const [lastPhase, setLastPhase] = useState<MissionPhase>("discover");
   const [libraryTick, setLibraryTick] = useState(0);
   const started = turns.length > 0;
-
-  const activeScope = turns.find((t) => t.role === "user")?.text ?? session.scope ?? null;
 
   const sendMessage = useCallback(
     async (text: string, sessionOverride?: MissionSession) => {
@@ -142,11 +156,20 @@ export function MissionControl() {
         content: t.text,
       }));
 
+      const ecosystemPayload =
+        activeEcosystem ?
+          { name: activeEcosystem.name, keywords: activeEcosystem.keywords }
+        : undefined;
+
       try {
         const res = await fetch("/api/workspace/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: trimmed, messages: history }),
+          body: JSON.stringify({
+            question: trimmed,
+            messages: history,
+            ecosystem: ecosystemPayload,
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Analysis failed");
@@ -193,7 +216,16 @@ export function MissionControl() {
           findingCount: findings.length,
           phase,
           scope: nextTurns.find((t) => t.role === "user")?.text,
+          ecosystemId: activeEcosystem?.id ?? activeSession.ecosystemId,
         });
+
+        captureFromMission({
+          missionId: activeSession.id,
+          missionTitle: title,
+          ecosystemId: activeEcosystem?.id ?? activeSession.ecosystemId,
+          findings: findings.map((f) => ({ title: f.title, insight: f.insight })),
+        });
+
         setLibraryTick((n) => n + 1);
       } catch (e) {
         setThinkingComplete(true);
@@ -205,13 +237,15 @@ export function MissionControl() {
         };
         const finalTurns = [...nextTurns, errTurn];
         setTurns(finalTurns);
-        persistSession(activeSession, finalTurns, {});
+        persistSession(activeSession, finalTurns, {
+          ecosystemId: activeEcosystem?.id ?? activeSession.ecosystemId,
+        });
         setLibraryTick((n) => n + 1);
       } finally {
         setLoading(false);
       }
     },
-    [enterMission, turns, session],
+    [enterMission, turns, session, activeEcosystem],
   );
 
   useEffect(() => {
@@ -222,22 +256,12 @@ export function MissionControl() {
 
   function handleNewMission() {
     setScope(null);
-    setSession(createMissionSession("mission"));
+    const ecoId = activeEcosystem?.id ?? getActiveEcosystemId() ?? undefined;
+    setSession(createMissionSession(ecoId));
     setTurns([]);
     setInput("");
     setThinkingComplete(false);
     setLastPhase("discover");
-  }
-
-  function handleNewAgent() {
-    setScope(null);
-    const next = createMissionSession("agent");
-    setSession(next);
-    setTurns([]);
-    setInput("");
-    setThinkingComplete(false);
-    setLastPhase("discover");
-    void sendMessage(AGENT_STARTER, next);
   }
 
   function handleSelectSession(s: MissionSession) {
@@ -252,6 +276,25 @@ export function MissionControl() {
       setTurns([]);
       void sendMessage(s.query, s);
     }
+  }
+
+  function handleSelectEcosystem(eco: Ecosystem | null) {
+    setActiveEcosystem(eco);
+    setActiveEcosystemId(eco?.id ?? null);
+    if (eco) {
+      setSession((prev) => ({ ...prev, ecosystemId: eco.id }));
+    }
+  }
+
+  function handleSelectKnowledge(entry: KnowledgeEntry) {
+    if (entry.missionId) {
+      const s = loadMissionSessions().find((m) => m.id === entry.missionId);
+      if (s) {
+        handleSelectSession(s);
+        return;
+      }
+    }
+    void sendMessage(`Continue from: ${entry.title} — ${entry.summary}`);
   }
 
   function handleClear() {
@@ -271,10 +314,11 @@ export function MissionControl() {
       onSubmit={(t) => void sendMessage(t)}
       onChip={(t) => void sendMessage(t)}
       onNewMission={handleNewMission}
-      onNewAgent={handleNewAgent}
       onSelectSession={handleSelectSession}
+      onSelectEcosystem={handleSelectEcosystem}
+      onSelectKnowledge={handleSelectKnowledge}
       activeSessionId={session.id}
-      activeScope={activeScope}
+      activeEcosystem={activeEcosystem}
       onClear={handleClear}
       libraryTick={libraryTick}
     />

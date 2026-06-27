@@ -7,6 +7,7 @@ export type MissionSession = {
   kind: "mission" | "agent";
   query: string;
   scope?: string;
+  ecosystemId?: string;
   phase?: MissionPhase;
   savedAt: string;
   updatedAt: string;
@@ -65,13 +66,14 @@ function migrateLegacyLibrary(): MissionSession[] {
   }
 }
 
-export function createMissionSession(kind: "mission" | "agent"): MissionSession {
+export function createMissionSession(ecosystemId?: string): MissionSession {
   const now = new Date().toISOString();
   return {
     id: `ms-${Date.now()}`,
-    title: kind === "agent" ? "New agent run" : "New mission",
-    kind,
+    title: "New mission",
+    kind: "mission",
     query: "",
+    ecosystemId,
     savedAt: now,
     updatedAt: now,
     turns: [],

@@ -7,24 +7,23 @@
 
 ## First principle
 
-Users don't wake up saying *"I want to use RESOLVE."*
+**What should become effortless because RESOLVE exists?** Capital allocation — across the open internet.
 
-They wake up with **missions**:
+Users don't wake up saying *"I want to use RESOLVE."* They wake up with questions:
 
-- I need to fund contributors
-- I need to distribute treasury
-- I need to understand where money should go
-- I need to claim earnings
-- I need to see what communities need help
-- I need to reward maintainers
-- I need to run a retroactive funding round
-- I need to see who actually creates value
+- I have $100k — who deserves it?
+- Where is our ecosystem breaking?
+- Am I getting paid fairly?
+- Who depends on me?
+- Where should grants go?
 
 **The primitive is VALUE.** Not GitHub. Not Navidrome. Not payments. Not dashboards.
 
 Everything enters as **observations** → **relationships** → **reasoning** → **capital** → **verification**.
 
 Connectors are invisible. Ecosystems are equal. Users think in **outcomes**; the backend thinks in **events**.
+
+**Canonical positioning:** [POSITIONING.md](./POSITIONING.md)
 
 ---
 
@@ -69,7 +68,7 @@ Connectors are invisible. Ecosystems are equal. Users think in **outcomes**; the
 | Section | Content |
 |---------|---------|
 | Hero | Animated value graph — nodes, dependencies, money flowing (not particles) |
-| Headline | *The operating system for capital flowing across open ecosystems.* |
+| Headline | *RESOLVE tells you where money should go across the open internet — and moves it there once you approve.* |
 | CTA | **Open Mission** · Watch Live Network |
 | Problems | Broken flows: stars ≠ pay, spreadsheets, invisible contributors, 30 tools |
 | Solution | Observe → Reason → Authorize → Settle → Claim |

@@ -14,7 +14,7 @@ import { MissionNextSteps } from "@/components/resolve/mission-control/mission-n
 import { MISSION_EXAMPLES } from "@/lib/mission/intents";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
-import type { ContextualAction } from "@/lib/mission/contextual-actions";
+import type { CapabilityAction, CapabilityId } from "@/lib/mission/capabilities/types";
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
 import type { Ecosystem } from "@/lib/mission/ecosystems";
 import type { KnowledgeEntry } from "@/lib/mission/knowledge";
@@ -26,9 +26,10 @@ export type MissionTurn = {
   text: string;
   findings?: MissionFinding[];
   phase?: MissionPhase;
+  capability?: CapabilityId;
   allocations?: AllocationLine[];
   policy?: PolicyProposal;
-  nextSteps?: ContextualAction[];
+  nextSteps?: CapabilityAction[];
 };
 
 const IDLE_EXAMPLES = MISSION_EXAMPLES;

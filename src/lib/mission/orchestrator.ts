@@ -81,7 +81,7 @@ async function maybeEnhanceWithReasoning(
   try {
     const { text } = await generateTextWithFallback({
       tier: "fast",
-      system: `You are RESOLVE — economic OS for open ecosystems. Explain ONLY using GROUNDED FACTS. Max 60 words. Structured analyst tone. No generic intros.`,
+      system: `You are RESOLVE — the operating system for open communities. Explain ONLY using GROUNDED FACTS. Max 60 words. Structured analyst tone. Never mention GitHub or connectors unless facts require it. Focus on communities and capital.`,
       prompt: [history, facts, `USER:\n${ctx.question}`].filter(Boolean).join("\n\n"),
     });
     return text.trim() || groundedAnswer;
@@ -109,7 +109,14 @@ export async function runMissionOrchestrator(input: {
   const collected = await runCollectors({
     capability,
     question: input.question,
-    ecosystem: input.ecosystem,
+    community: input.ecosystem ?
+      {
+        name: input.ecosystem.name,
+        keywords: input.ecosystem.keywords,
+        repos: input.ecosystem.repos,
+        connectors: input.ecosystem.connectors,
+      }
+    : undefined,
   });
 
   const intent = capabilityToIntent(capability);
@@ -121,11 +128,14 @@ export async function runMissionOrchestrator(input: {
   const findings = filterFindingsForCapability(allFindings, capability);
   const capitalUsd = parseCapitalUsd(input.question);
 
+  const communityName = collected.communityScope ?? input.ecosystem?.name;
+
   const ctx: OrchestratorContext = {
     question: input.question,
     capability,
     capabilityLabel: CAPABILITY_LABELS[capability],
     phase,
+    community: collected.community,
     evidence: collected.evidence,
     traces: collected.traces,
     opportunities: collected.opportunities,
@@ -137,7 +147,8 @@ export async function runMissionOrchestrator(input: {
     compareTargets: collected.compareTargets.length ?
       collected.compareTargets
     : extractCompareTargets(input.question),
-    ecosystemName: collected.ecosystemScope ?? input.ecosystem?.name,
+    communityName,
+    ecosystemName: communityName,
     stepsRun: collected.stepsRun,
   };
 
@@ -159,6 +170,7 @@ export async function runMissionOrchestrator(input: {
     capability,
     capabilityLabel: CAPABILITY_LABELS[capability],
     phase,
+    community: collected.community,
     answer: brief.summary || answer,
     headline: brief.headline,
     brief,

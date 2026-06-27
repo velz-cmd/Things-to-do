@@ -25,12 +25,16 @@ export type EcosystemRecord = {
 };
 
 const SEED_ECOSYSTEMS = [
-  { name: "React", kind: "project", keywords: ["react", "next.js", "nextjs"] },
+  { name: "AI Infrastructure", kind: "oss", keywords: ["ai", "llm", "langchain", "ml ops"] },
+  { name: "React", kind: "oss", keywords: ["react", "next.js", "nextjs"] },
+  { name: "Linux", kind: "oss", keywords: ["linux", "kernel", "gnome", "fedora", "arch"] },
   { name: "Ethereum", kind: "protocol", keywords: ["ethereum", "eth", "evm"] },
   { name: "Solana", kind: "protocol", keywords: ["solana", "sol"] },
-  { name: "Base", kind: "protocol", keywords: ["base"] },
-  { name: "LangChain", kind: "project", keywords: ["langchain", "langgraph"] },
-  { name: "Linux Foundation", kind: "foundation", keywords: ["linux", "foundation"] },
+  { name: "Independent Music", kind: "music", keywords: ["music", "artist", "listenbrainz", "royalty"] },
+  { name: "Open Education", kind: "education", keywords: ["education", "course", "teaching"] },
+  { name: "Digital Commons", kind: "general", keywords: ["commons", "creative commons", "open access"] },
+  { name: "Pakistan OSS", kind: "local", keywords: ["pakistan", "oss", "maintainer"] },
+  { name: "Climate Research", kind: "research", keywords: ["climate", "research", "citation"] },
 ];
 
 function parseJson<T>(raw: string, fallback: T): T {

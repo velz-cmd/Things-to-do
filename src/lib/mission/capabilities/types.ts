@@ -7,6 +7,7 @@ import type { WorkspaceEvidence } from "@/lib/workspace/context";
 import type { FundingOpportunity } from "@/lib/github/types";
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
 import type { MissionReport } from "@/lib/mission/mission-report";
+import type { CapabilityLayer, CommunityContext, DataSource } from "@/lib/mission/community";
 
 export type CapabilityId =
   | "discover_value_leaks"
@@ -19,17 +20,9 @@ export type CapabilityId =
   | "execute_settlement"
   | "general_inquiry";
 
-export type DataSource =
-  | "treasury"
-  | "ledger"
-  | "github"
-  | "connectors"
-  | "policies"
-  | "concentrations"
-  | "openalex"
-  | "upstream";
+export type { CapabilityLayer, CommunityContext, DataSource };
 
-export type EcosystemRepoRef = {
+export type CommunityRepoRef = {
   owner: string;
   repo: string;
   fullName: string;
@@ -37,8 +30,12 @@ export type EcosystemRepoRef = {
   fundingGapUsd?: number;
 };
 
+/** @deprecated use CommunityRepoRef */
+export type EcosystemRepoRef = CommunityRepoRef;
+
 export type CollectorTrace = {
   source: DataSource;
+  layer?: CapabilityLayer;
   status: "ok" | "empty" | "skipped";
   summary: string;
 };
@@ -56,6 +53,7 @@ export type OrchestratorContext = {
   capability: CapabilityId;
   capabilityLabel: string;
   phase: MissionPhase;
+  community: CommunityContext;
   evidence: WorkspaceEvidence;
   traces: CollectorTrace[];
   opportunities: FundingOpportunity[];
@@ -65,6 +63,9 @@ export type OrchestratorContext = {
   opportunityCards: OpportunityCard[];
   capitalUsd?: number;
   compareTargets: string[];
+  /** Active community world name */
+  communityName?: string;
+  /** @deprecated use communityName */
   ecosystemName?: string;
   stepsRun: string[];
 };
@@ -73,6 +74,7 @@ export type OrchestratorResult = {
   capability: CapabilityId;
   capabilityLabel: string;
   phase: MissionPhase;
+  community: CommunityContext;
   answer: string;
   headline: string;
   brief: IntelligenceBrief;
@@ -87,4 +89,13 @@ export type OrchestratorResult = {
   grounded: boolean;
   requiresApproval: boolean;
   durationMs: number;
+};
+
+export type CapabilityDef = {
+  id: CapabilityId;
+  label: string;
+  purpose: string;
+  requiredLayers: CapabilityLayer[];
+  steps: string[];
+  actions: (ctx: OrchestratorContext) => CapabilityAction[];
 };

@@ -1,6 +1,7 @@
 import type { CapabilityAction, OrchestratorContext } from "@/lib/mission/capabilities/types";
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
+import { LAYER_LABELS } from "@/lib/mission/community";
 
 export type MissionReportStatus = "complete" | "pending_approval" | "executing" | "failed";
 
@@ -59,23 +60,27 @@ function reportIdFrom(seed: string) {
 
 function evidenceLinksFromContext(ctx: OrchestratorContext): MissionReportEvidenceLink[] {
   const links: MissionReportEvidenceLink[] = [];
-  for (const o of ctx.opportunities.slice(0, 5)) {
+
+  for (const sensor of ctx.community.sensors.slice(0, 4)) {
+    links.push({
+      label: sensor.evidenceLabel,
+      source: LAYER_LABELS[sensor.layer],
+    });
+  }
+
+  for (const o of ctx.opportunities.slice(0, 3)) {
     links.push({
       label: o.fullName,
       href: `https://github.com/${o.fullName}`,
-      source: "GitHub",
+      source: "Observation",
     });
   }
+
   for (const t of ctx.traces) {
     if (t.status !== "ok") continue;
-    const label =
-      t.source === "github" ? "GitHub scan"
-      : t.source === "openalex" ? "OpenAlex"
-      : t.source === "treasury" ? "Treasury"
-      : t.source === "ledger" ? "Authorization ledger"
-      : t.source;
+    const label = t.layer ? `${LAYER_LABELS[t.layer]} evidence` : t.summary.slice(0, 48);
     if (!links.some((l) => l.label === label)) {
-      links.push({ label, source: t.source });
+      links.push({ label, source: t.layer ? LAYER_LABELS[t.layer] : "Evidence" });
     }
   }
   return links.slice(0, 8);

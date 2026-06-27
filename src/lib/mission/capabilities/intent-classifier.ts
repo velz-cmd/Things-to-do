@@ -1,4 +1,5 @@
 import type { CapabilityId } from "@/lib/mission/capabilities/types";
+import { extractCommunityTargets } from "@/lib/mission/community";
 
 const EXECUTE = /\b(execute on arc|authorize settlement|move money|send funds|settle now|review transaction|pay contributors)\b/i;
 const EXPLAIN = /\b(why\b|explain|show evidence|show breakdown|detail|how did|what caused)\b/i;
@@ -8,9 +9,9 @@ const CLAIM = /\b(claim|paid fairly|unclaimed|earnings|owed to me|getting paid)\
 const RISK = /\b(risk|breaking|break|depend|critical|bus factor|maintainer disappear|downstream)\b/i;
 const DISCOVER = /\b(leak|underfund|find value|discover|where is value|underfunded|value leak)\b/i;
 const RESEARCH =
-  /\b(analyze|research|audit|communities building|ecosystem scan|show me communities|governance)\b/i;
+  /\b(analyze|research|audit|communities building|community scan|show me communities|governance|help linux|support independent music)\b/i;
 
-/** Classify which software capability the user is invoking — not which LLM tone to use. */
+/** Classify which economic capability the user is invoking. */
 export function classifyCapability(
   question: string,
   priorMessages: { role: string; content: string }[] = [],
@@ -36,47 +37,26 @@ export function classifyCapability(
 export const CAPABILITY_LABELS: Record<CapabilityId, string> = {
   discover_value_leaks: "Find value leaks",
   allocate_capital: "Allocate capital",
-  compare_ecosystems: "Compare ecosystems",
-  assess_risk: "Assess ecosystem risk",
+  compare_ecosystems: "Compare communities",
+  assess_risk: "Assess community risk",
   claim_value: "Claim recognized value",
-  research_ecosystem: "Research ecosystem",
+  research_ecosystem: "Research community",
   explain_evidence: "Explain evidence",
   execute_settlement: "Execute settlement",
-  general_inquiry: "Economic inquiry",
+  general_inquiry: "Community inquiry",
 };
 
-/** Extract ecosystem names or tech keywords for compare / scope. */
+/** @deprecated use extractCommunityTargets from @/lib/mission/community */
 export function extractCompareTargets(question: string): string[] {
-  const known = [
-    "react",
-    "vue",
-    "angular",
-    "svelte",
-    "next.js",
-    "nextjs",
-    "ethereum",
-    "solana",
-    "base",
-    "bitcoin",
-    "langchain",
-    "supabase",
-    "rust",
-    "python",
-    "linux",
-    "mastodon",
-    "navidrome",
-  ];
-  const lower = question.toLowerCase();
-  const found = known.filter((k) => lower.includes(k.replace(".", "")) || lower.includes(k));
-  return [...new Set(found)].slice(0, 3);
+  return extractCommunityTargets(question);
 }
 
 export function extractEcosystemScope(
   question: string,
-  ecosystemKeywords?: string[],
+  communityKeywords?: string[],
 ): string | null {
-  const fromQuestion = extractCompareTargets(question)[0];
+  const fromQuestion = extractCommunityTargets(question)[0];
   if (fromQuestion) return fromQuestion;
-  if (ecosystemKeywords?.[0]) return ecosystemKeywords[0];
+  if (communityKeywords?.[0]) return communityKeywords[0];
   return null;
 }

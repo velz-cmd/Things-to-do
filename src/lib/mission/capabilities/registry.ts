@@ -1,28 +1,23 @@
-import type { CapabilityId, CapabilityAction, OrchestratorContext, DataSource } from "./types";
-
-export type CapabilityDef = {
-  id: CapabilityId;
-  label: string;
-  purpose: string;
-  requiredSources: DataSource[];
-  steps: string[];
-  actions: (ctx: OrchestratorContext) => CapabilityAction[];
-};
+import type { CapabilityId, CapabilityAction, OrchestratorContext, CapabilityDef } from "./types";
 
 function topFinding(ctx: OrchestratorContext) {
   return ctx.findings[0];
+}
+
+function communityLabel(ctx: OrchestratorContext): string {
+  return ctx.communityName ?? ctx.community.name ?? ctx.community.kindLabel;
 }
 
 export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
   discover_value_leaks: {
     id: "discover_value_leaks",
     label: "Find value leaks",
-    purpose: "Locate unfunded maintenance and value concentration across observed ecosystems",
-    requiredSources: ["github", "treasury", "ledger", "connectors", "concentrations"],
+    purpose: "Locate unfunded value and concentration across observed communities",
+    requiredLayers: ["observe", "understand", "capital", "attribute"],
     steps: [
-      "Scanning observed repositories",
+      "Observing community signals",
       "Measuring funding gaps",
-      "Mapping maintainer concentration",
+      "Mapping value concentration",
       "Checking treasury coverage",
       "Ranking value leaks",
     ],
@@ -33,7 +28,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
         actions.push({
           id: "rank-impact",
           label: "Rank where capital matters most",
-          prompt: "Rank observed projects by where capital would reduce the most maintenance risk.",
+          prompt: `Rank ${communityLabel(ctx)} by where capital would reduce the most unfunded value.`,
           kind: "explore",
         });
       }
@@ -63,8 +58,8 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
       if (ctx.evidence.opportunities.length > 0) {
         actions.push({
           id: "watch",
-          label: "Watch these ecosystems",
-          prompt: "What changed across these ecosystems in the last week?",
+          label: "Watch these communities",
+          prompt: "What changed across these communities in the last week?",
           kind: "explore",
         });
       }
@@ -76,12 +71,12 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
     id: "allocate_capital",
     label: "Allocate capital",
     purpose: "Propose evidence-backed allocation from treasury, gaps, and policy",
-    requiredSources: ["treasury", "github", "ledger", "policies", "concentrations"],
+    requiredLayers: ["capital", "observe", "understand", "attribute", "verify"],
     steps: [
       "Reading treasury state",
-      "Scanning funding gaps",
+      "Observing funding gaps",
       "Loading allocation policies",
-      "Weighting by economic impact",
+      "Weighting by community impact",
       "Building proposal",
     ],
     actions(ctx) {
@@ -95,7 +90,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
         {
           id: "adjust",
           label: "Adjust weights",
-          prompt: "Show how shifting 10% from infrastructure to maintainers changes outcomes.",
+          prompt: "Show how shifting 10% from infrastructure to contributors changes outcomes.",
           kind: "simulate",
         },
       ];
@@ -120,18 +115,18 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
 
   compare_ecosystems: {
     id: "compare_ecosystems",
-    label: "Compare ecosystems",
-    purpose: "Side-by-side economic comparison from live repository data",
-    requiredSources: ["github", "concentrations"],
+    label: "Compare communities",
+    purpose: "Side-by-side economic comparison from live community signals",
+    requiredLayers: ["observe", "understand"],
     steps: [
-      "Identifying ecosystems to compare",
-      "Pulling repository signals",
+      "Identifying communities to compare",
+      "Pulling observation signals",
       "Comparing funding gaps",
-      "Comparing maintainer depth",
+      "Comparing contributor depth",
       "Synthesizing tradeoffs",
     ],
     actions(ctx) {
-      const targets = ctx.compareTargets.join(" and ") || "these ecosystems";
+      const targets = ctx.compareTargets.join(" and ") || "these communities";
       return [
         {
           id: "allocate-compare",
@@ -142,7 +137,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
         {
           id: "risk-compare",
           label: "Which carries more downstream risk?",
-          prompt: `Which ecosystem in this comparison poses greater downstream dependency risk?`,
+          prompt: `Which community in this comparison poses greater downstream dependency risk?`,
           kind: "explore",
         },
         {
@@ -157,13 +152,13 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
 
   assess_risk: {
     id: "assess_risk",
-    label: "Assess ecosystem risk",
-    purpose: "Dependency, bus-factor, and maintainer risk from live scans",
-    requiredSources: ["github", "connectors", "concentrations"],
+    label: "Assess community risk",
+    purpose: "Dependency, bus-factor, and contributor risk from live observation",
+    requiredLayers: ["observe", "understand", "attribute"],
     steps: [
       "Mapping dependencies",
       "Measuring bus factor",
-      "Scanning maintainer activity",
+      "Scanning contributor activity",
       "Estimating blast radius",
       "Ranking risks",
     ],
@@ -175,13 +170,13 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
           label: "Show blast radius",
           prompt: top ?
             `What breaks downstream if ${top.title} stops maintaining?`
-          : "Map the largest downstream blast radius in observed ecosystems.",
+          : "Map the largest downstream blast radius in observed communities.",
           kind: "explore",
         },
         {
           id: "rescue",
           label: "Model a rescue scenario",
-          prompt: "Simulate a focused maintainer rescue for the highest-risk project.",
+          prompt: "Simulate a focused contributor rescue for the highest-risk community.",
           kind: "simulate",
         },
         {
@@ -198,7 +193,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
     id: "claim_value",
     label: "Claim recognized value",
     purpose: "Surface claimable earnings from the authorization ledger",
-    requiredSources: ["ledger", "connectors", "treasury"],
+    requiredLayers: ["attribute", "verify", "capital"],
     steps: [
       "Reading authorization ledger",
       "Matching your contributions",
@@ -219,15 +214,15 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
         });
         actions.push({
           id: "breakdown",
-          label: "Break down by ecosystem",
-          prompt: "Break down my claimable value by ecosystem and contribution type.",
+          label: "Break down by community",
+          prompt: "Break down my claimable value by community and contribution type.",
           kind: "explore",
         });
       } else {
         actions.push({
           id: "connect",
-          label: "Connect ecosystems",
-          prompt: "What ecosystems should I connect so RESOLVE can recognize my contributions?",
+          label: "Link community identities",
+          prompt: "Which community identities should I link so RESOLVE can recognize my contributions?",
           kind: "navigate",
           href: "/profile",
         });
@@ -245,18 +240,18 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
 
   research_ecosystem: {
     id: "research_ecosystem",
-    label: "Research ecosystem",
-    purpose: "Deep research report from repositories, health, and concentrations",
-    requiredSources: ["github", "concentrations", "connectors", "policies"],
+    label: "Research community",
+    purpose: "Deep research report from observation, health, and concentration signals",
+    requiredLayers: ["observe", "understand", "attribute"],
     steps: [
-      "Observing ecosystem signals",
-      "Gathering repository health",
+      "Observing community signals",
+      "Gathering health indicators",
       "Analyzing funding posture",
-      "Reviewing community concentration",
+      "Reviewing value concentration",
       "Composing research view",
     ],
     actions(ctx) {
-      const scope = ctx.ecosystemName ?? ctx.compareTargets[0] ?? "this ecosystem";
+      const scope = communityLabel(ctx);
       return [
         {
           id: "save",
@@ -284,7 +279,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
     id: "explain_evidence",
     label: "Explain evidence",
     purpose: "Explain causality behind a prior finding using live evidence",
-    requiredSources: ["github", "treasury", "ledger", "concentrations"],
+    requiredLayers: ["observe", "understand", "capital", "verify"],
     steps: [
       "Loading prior context",
       "Tracing evidence chain",
@@ -305,8 +300,8 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
         },
         {
           id: "peers",
-          label: "Compare to peer ecosystems",
-          prompt: "How does this compare to similar ecosystems at the same scale?",
+          label: "Compare to peer communities",
+          prompt: "How does this compare to similar communities at the same scale?",
           kind: "explore",
         },
         top ?
@@ -329,8 +324,8 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
   execute_settlement: {
     id: "execute_settlement",
     label: "Execute settlement",
-    purpose: "Prepare and review capital movement through treasury and Arc",
-    requiredSources: ["treasury", "ledger", "policies"],
+    purpose: "Prepare and review capital movement through treasury",
+    requiredLayers: ["capital", "verify", "attribute"],
     steps: [
       "Reading treasury readiness",
       "Reviewing authorizations",
@@ -358,7 +353,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
       actions.push({
         id: "after",
         label: "What happens after settlement?",
-        prompt: "What happens across the ecosystem after this settlement completes?",
+        prompt: "What happens across the community after this settlement completes?",
         kind: "explore",
       });
       return actions.slice(0, 3);
@@ -367,11 +362,11 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
 
   general_inquiry: {
     id: "general_inquiry",
-    label: "Economic inquiry",
-    purpose: "General evidence-backed reasoning across connected ecosystems",
-    requiredSources: ["github", "treasury", "ledger", "connectors", "concentrations"],
+    label: "Community inquiry",
+    purpose: "General evidence-backed reasoning across observed open communities",
+    requiredLayers: ["observe", "understand", "capital", "attribute"],
     steps: [
-      "Observing connected ecosystems",
+      "Detecting community context",
       "Gathering live evidence",
       "Mapping relationships",
       "Reasoning over signals",
@@ -385,7 +380,7 @@ export const CAPABILITY_REGISTRY: Record<CapabilityId, CapabilityDef> = {
         {
           id: "discover",
           label: "Find value leaks",
-          prompt: "Find value leaks across my connected ecosystems.",
+          prompt: "Find value leaks across communities I'm observing.",
           kind: "explore",
         },
         {

@@ -2,6 +2,8 @@ import type { OrchestratorContext } from "@/lib/mission/capabilities/types";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { CapabilityAction } from "@/lib/mission/capabilities/types";
 import type { FundingOpportunity } from "@/lib/github/types";
+import { LAYER_LABELS } from "@/lib/mission/community";
+import type { CapabilityLayer } from "@/lib/mission/community";
 
 export type BriefSeverity = "critical" | "high" | "medium" | "low" | "info";
 
@@ -47,22 +49,29 @@ function severityFromFinding(f: MissionFinding): BriefSeverity {
 }
 
 function evidenceFromTraces(ctx: OrchestratorContext): string[] {
-  const sources = new Set<string>();
+  const layers = new Set<string>();
   for (const t of ctx.traces) {
-    if (t.status === "ok") {
-      const label =
-        t.source === "github" ? "GitHub"
-        : t.source === "openalex" ? "OpenAlex"
-        : t.source === "upstream" ? "Upstream usage"
-        : t.source === "treasury" ? "Treasury"
-        : t.source === "ledger" ? "Authorization ledger"
-        : t.source === "connectors" ? "Activity sensors"
-        : t.source.charAt(0).toUpperCase() + t.source.slice(1);
-      sources.add(label);
+    if (t.status !== "ok") continue;
+    if (t.layer) {
+      layers.add(LAYER_LABELS[t.layer]);
+      continue;
     }
+    const fallback: Record<string, CapabilityLayer> = {
+      github: "observe",
+      openalex: "observe",
+      upstream: "understand",
+      treasury: "capital",
+      ledger: "attribute",
+      connectors: "observe",
+      music: "observe",
+      policies: "understand",
+      concentrations: "understand",
+    };
+    const layer = fallback[t.source];
+    if (layer) layers.add(LAYER_LABELS[layer]);
   }
-  if (ctx.evidence.integrations?.live?.github?.ok) sources.add("GitHub");
-  return [...sources];
+  if (ctx.community.kindLabel) layers.add(ctx.community.kindLabel);
+  return [...layers];
 }
 
 function downstreamEstimate(o: FundingOpportunity): string {
@@ -72,12 +81,12 @@ function downstreamEstimate(o: FundingOpportunity): string {
 
 /** Bloomberg / Palantir-style structured brief — never essay prose. */
 export function buildIntelligenceBrief(ctx: OrchestratorContext): IntelligenceBrief {
-  const { capability, findings, opportunities, capitalUsd, ecosystemName } = ctx;
+  const { capability, findings, opportunities, capitalUsd, communityName, community } = ctx;
   const totalGap = opportunities.reduce((s, o) => s + o.health.fundingGapUsd, 0);
   const top = findings[0];
   const topOpp = opportunities[0];
   const evidence = evidenceFromTraces(ctx);
-  const scope = ecosystemName ?? "connected ecosystems";
+  const scope = ctx.communityName ?? ctx.community.name ?? ctx.community.kindLabel;
 
   const base: IntelligenceBrief = {
     headline: "",

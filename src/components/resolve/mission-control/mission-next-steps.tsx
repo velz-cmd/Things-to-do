@@ -5,10 +5,12 @@ import type { CapabilityAction } from "@/lib/mission/capabilities/types";
 export function MissionNextSteps({
   actions,
   onSelect,
+  onAction,
   disabled,
 }: {
   actions: CapabilityAction[];
   onSelect: (prompt: string) => void;
+  onAction?: (action: CapabilityAction) => void;
   disabled?: boolean;
 }) {
   if (!actions.length) return null;
@@ -23,6 +25,10 @@ export function MissionNextSteps({
             type="button"
             disabled={disabled}
             onClick={() => {
+              if (onAction) {
+                onAction(a);
+                return;
+              }
               if (a.href && a.kind === "navigate") {
                 window.location.href = a.href;
                 return;

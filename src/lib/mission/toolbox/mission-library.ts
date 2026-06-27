@@ -9,6 +9,7 @@ export type MissionSession = {
   scope?: string;
   ecosystemId?: string;
   phase?: MissionPhase;
+  status?: string;
   savedAt: string;
   updatedAt: string;
   findingCount?: number;
@@ -19,6 +20,8 @@ export type MissionSession = {
     text: string;
     phase?: MissionPhase;
     findings?: MissionFinding[];
+    capability?: string;
+    actions?: import("@/lib/mission/capabilities/types").CapabilityAction[];
   }>;
 };
 

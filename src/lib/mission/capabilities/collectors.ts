@@ -16,6 +16,8 @@ import {
 } from "@/lib/mission/community";
 import type { CapabilityId, CollectorTrace, CommunityRepoRef, DataSource } from "./types";
 import { getCapabilityDef } from "./registry";
+import { researchCommunityQuestion } from "@/lib/mission/research";
+import type { ResearchReference } from "./types";
 
 function trace(
   source: DataSource,
@@ -89,6 +91,7 @@ export async function runCollectors(input: {
   community: CommunityContext;
   compareTargets: string[];
   communityScope: string | null;
+  researchReferences: ResearchReference[];
   stepsRun: string[];
 }> {
   const def = getCapabilityDef(input.capability);
@@ -283,6 +286,34 @@ export async function runCollectors(input: {
     );
   }
 
+  let researchReferences: ResearchReference[] = [];
+  const needsResearch =
+    input.capability === "research_ecosystem" ||
+    input.capability === "general_inquiry" ||
+    input.capability === "compare_ecosystems" ||
+    ["research", "local", "science", "education", "general"].includes(community.kind);
+
+  if (needsResearch && wantsLayer(community, "observe")) {
+    stepsRun.push("Researching open web signals");
+    const research = await researchCommunityQuestion({
+      question: input.question,
+      communityKind: community.kind,
+      communityName: community.name,
+      maxResults: 5,
+    });
+    researchReferences = research.references;
+    if (research.references.length > 0) {
+      traces.push(
+        trace(
+          "connectors",
+          "ok",
+          `Web research · ${research.references.length} references via ${research.provider ?? "search"}`,
+          "observe",
+        ),
+      );
+    }
+  }
+
   for (const step of def.steps) {
     if (!stepsRun.includes(step)) stepsRun.push(step);
   }
@@ -297,6 +328,7 @@ export async function runCollectors(input: {
     community,
     compareTargets,
     communityScope,
+    researchReferences,
     stepsRun,
   };
 }

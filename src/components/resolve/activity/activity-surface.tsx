@@ -44,7 +44,7 @@ export function ActivitySurface() {
         { label: "Today's timeline" },
       ]}
       width="wide"
-      accent="emerald"
+      accent="blue"
     >
       <div className="space-y-10">
         <WorkspaceOsDashboard />

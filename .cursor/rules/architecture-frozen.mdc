@@ -1,33 +1,25 @@
 ---
-description: Frozen RESOLVE architecture — build layers in order, no UI before engine
+description: Frozen RESOLVE IA — 6 areas, workflows not pages
 alwaysApply: true
 ---
 
-# RESOLVE Architecture (Frozen)
+# RESOLVE — read before any UI work
 
-Read `docs/ARCHITECTURE.md` before any feature work.
+1. **docs/INFORMATION-ARCHITECTURE.md** — frozen tabs, what's inside each, what NOT to build
+2. **docs/ARCHITECTURE.md** — engine layers (build brain before polish)
+3. **src/lib/domain/** — entity model
 
-## Build order (do not skip)
+## Six areas only
 
-1. **The Brain** — entities, relationships, observations (`src/lib/domain/`)
-2. **Intelligence Engine** — reasoning across all capabilities
-3. **Connectors** — sensors emitting `Observation` only
-4. **Value Graph** — observations → relationships
-5. **Capital Engine** — treasury, policies, settlement
-6. **Workspace** — window into engine (no invented logic)
-7. **Design System** — last
+Home · Discover · Mission · Capital · Network · Profile (+ Settings hidden)
 
-## Stop conditions
+## Never
 
-- **Do not** rename routes, navigation, or layouts until Layer 1 is complete and Layer 4 has a graph store.
-- **Do not** add connector-specific logic outside observation normalization.
-- **Do not** treat `SettlementInputEvent` as the observation primitive — it is an authorization projection.
-- **Ask:** "What entity does this belong to?" not "What page should this be on?"
+- Add tabs because an API exists
+- Build GitHub/Navidrome/Music dashboards
+- Expose connectors as product identity
+- Copy Cursor/Stripe/Bloomberg layouts literally
 
-## Capabilities vs APIs
+## Primitive
 
-Use `src/lib/domain/capabilities.ts` — swap APIs without changing architecture.
-
-## Current focus
-
-`CURRENT_LAYER` in `src/lib/domain/layers.ts` — only advance when the layer's modules are complete.
+**VALUE** → observations → relationships → reasoning → capital → verify

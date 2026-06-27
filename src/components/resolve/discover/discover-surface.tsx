@@ -98,7 +98,7 @@ export function DiscoverSurface() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => enterMission(o.fullName)}
+      onClick={() => enterMission(o.fullName)}
                   className="shrink-0 rounded-lg border border-resolve-accent/30 px-3 py-1.5 text-xs font-medium text-resolve-accent hover:bg-resolve-accent/10"
                 >
                   Enter mission
@@ -110,8 +110,8 @@ export function DiscoverSurface() {
       </section>
 
       <p className="mt-8 text-center text-xs text-resolve-muted-dim">
-        <Link href="/control" className="text-resolve-accent hover:underline">
-          Open mission control →
+        <Link href="/mission" className="text-resolve-accent hover:underline">
+          Open Mission →
         </Link>
       </p>
     </div>

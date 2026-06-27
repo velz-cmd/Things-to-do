@@ -1,16 +1,5 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import PaymentsPageClient from "./payments-page-client";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Payments — RESOLVE",
-  description: "Treasury, authorizations, fulfillment, and claims.",
-};
-
-export default function PaymentsPage() {
-  return (
-    <Suspense fallback={<p className="p-6 text-sm text-resolve-muted">Loading payments…</p>}>
-      <PaymentsPageClient />
-    </Suspense>
-  );
+export default function PaymentsRedirect() {
+  redirect("/capital");
 }

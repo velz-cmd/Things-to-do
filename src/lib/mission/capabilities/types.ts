@@ -48,6 +48,20 @@ export type CapabilityAction = {
   href?: string;
 };
 
+export type ResearchReference = {
+  title: string;
+  url: string;
+  snippet: string;
+  provider: string;
+};
+
+export type MissionQuickAction = {
+  id: string;
+  label: string;
+  prompt: string;
+  group?: string;
+};
+
 export type OrchestratorContext = {
   question: string;
   capability: CapabilityId;
@@ -67,6 +81,8 @@ export type OrchestratorContext = {
   communityName?: string;
   /** @deprecated use communityName */
   ecosystemName?: string;
+  researchReferences?: ResearchReference[];
+  quickActions?: MissionQuickAction[];
   stepsRun: string[];
 };
 
@@ -86,6 +102,8 @@ export type OrchestratorResult = {
   policies: PolicyProposal[];
   opportunities: OpportunityCard[];
   concentrations: ValueConcentration[];
+  researchReferences: ResearchReference[];
+  quickActions: MissionQuickAction[];
   grounded: boolean;
   requiresApproval: boolean;
   durationMs: number;

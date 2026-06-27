@@ -39,6 +39,7 @@ export type MissionReport = {
   recommendations: IntelligenceBrief["recommendations"];
   options: IntelligenceBrief["options"];
   evidenceLinks: MissionReportEvidenceLink[];
+  researchReferences?: Array<{ title: string; url: string; snippet: string; provider: string }>;
   actions: CapabilityAction[];
   findings: MissionFinding[];
   /** Settlement receipt fields when execute completes */
@@ -65,6 +66,14 @@ function evidenceLinksFromContext(ctx: OrchestratorContext): MissionReportEviden
     links.push({
       label: sensor.evidenceLabel,
       source: LAYER_LABELS[sensor.layer],
+    });
+  }
+
+  for (const ref of ctx.researchReferences ?? []) {
+    links.push({
+      label: ref.title.slice(0, 80),
+      href: ref.url,
+      source: "Research",
     });
   }
 
@@ -146,6 +155,7 @@ export function buildMissionReport(input: {
     recommendations: brief.recommendations,
     options: brief.options,
     evidenceLinks: evidenceLinksFromContext(ctx),
+    researchReferences: ctx.researchReferences,
     actions,
     findings: brief.findings,
     settlement,

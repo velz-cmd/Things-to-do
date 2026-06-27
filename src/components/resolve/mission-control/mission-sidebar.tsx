@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import {
-  BookOpen,
+  Activity,
   ChevronLeft,
   Globe2,
   Library,
@@ -11,6 +11,7 @@ import {
   PenLine,
   Plus,
   Trash2,
+  Zap,
 } from "lucide-react";
 import {
   formatSessionTime,
@@ -24,93 +25,72 @@ import {
   setActiveEcosystemId,
   type Ecosystem,
 } from "@/lib/mission/ecosystems";
-import { loadKnowledge, type KnowledgeEntry } from "@/lib/mission/knowledge";
 import {
   createServerEcosystem,
   deleteServerMission,
   fetchEcosystems,
-  fetchKnowledge,
   fetchMissions,
-  fetchTimeline,
-  fetchWorkbench,
+  fetchToolbox,
   serverEcosystemToClient,
-  serverKnowledgeToClient,
   serverMissionToSession,
-  type ServerTimelineEvent,
-  type ServerWorkbench,
 } from "@/lib/mission/client-api";
-import { MissionTimeline } from "@/components/resolve/mission-control/mission-timeline";
-import { MissionWorkbenchPanel } from "@/components/resolve/mission-control/mission-workbench-panel";
+import type { AutomationRule, Observatory } from "@/lib/mission/toolbox/types";
 import { statusLabel } from "@/lib/mission/state-machine";
 import type { MissionStatus } from "@/lib/mission/state-machine";
 
+/** Four permanent objects only: Library, Workspaces, Observatories, Automations. */
 export function MissionSidebar({
   onNewMission,
   onSelectSession,
-  onSelectEcosystem,
-  onSelectKnowledge,
+  onSelectWorkspace,
+  onObservatoryPulse,
+  onAutomationSelect,
   activeSessionId,
-  activeEcosystemId,
+  activeWorkspaceId,
   libraryVersion = 0,
 }: {
   onNewMission: () => void;
   onSelectSession: (session: MissionSession) => void;
-  onSelectEcosystem: (ecosystem: Ecosystem | null) => void;
-  onSelectKnowledge: (entry: KnowledgeEntry) => void;
+  onSelectWorkspace: (workspace: Ecosystem | null) => void;
+  onObservatoryPulse: (query: string) => void;
+  onAutomationSelect: (rule: AutomationRule) => void;
   activeSessionId?: string | null;
-  activeEcosystemId?: string | null;
+  activeWorkspaceId?: string | null;
   libraryVersion?: number;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [sessions, setSessions] = useState<MissionSession[]>([]);
-  const [ecosystems, setEcosystems] = useState<Ecosystem[]>([]);
-  const [knowledge, setKnowledge] = useState<KnowledgeEntry[]>([]);
-  const [timeline, setTimeline] = useState<ServerTimelineEvent[]>([]);
-  const [workbench, setWorkbench] = useState<ServerWorkbench | null>(null);
+  const [workspaces, setWorkspaces] = useState<Ecosystem[]>([]);
+  const [observatories, setObservatories] = useState<Observatory[]>([]);
+  const [automations, setAutomations] = useState<AutomationRule[]>([]);
   const [serverMode, setServerMode] = useState(false);
-  const [loadingData, setLoadingData] = useState(false);
-  const [addingEcosystem, setAddingEcosystem] = useState(false);
-  const [newEcosystemName, setNewEcosystemName] = useState("");
-  const [workbenchOpen, setWorkbenchOpen] = useState(false);
+  const [addingWorkspace, setAddingWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
 
   const loadAll = useCallback(async () => {
-    setLoadingData(true);
-    try {
-      const [missions, eco, know, wb] = await Promise.all([
-        fetchMissions(),
-        fetchEcosystems(),
-        fetchKnowledge(),
-        fetchWorkbench(),
-      ]);
+    const [missions, eco, toolbox] = await Promise.all([
+      fetchMissions(),
+      fetchEcosystems(),
+      fetchToolbox(),
+    ]);
 
-      if (missions !== null) {
-        setServerMode(true);
-        setSessions(missions.map(serverMissionToSession));
-      } else {
-        setServerMode(false);
-        setSessions(loadMissionSessions());
-        setEcosystems(loadEcosystems());
-        setKnowledge(loadKnowledge());
-        setWorkbench(null);
-        setTimeline([]);
-        return;
-      }
-
-      if (eco) setEcosystems(eco.map(serverEcosystemToClient));
-      if (know) setKnowledge(know.map(serverKnowledgeToClient));
-      setWorkbench(wb);
-
-      const ecoId = activeEcosystemId ?? getActiveEcosystemId();
-      if (ecoId) {
-        const events = await fetchTimeline({ ecosystemId: ecoId });
-        setTimeline(events ?? []);
-      } else {
-        setTimeline([]);
-      }
-    } finally {
-      setLoadingData(false);
+    if (toolbox) {
+      setObservatories(toolbox.observatories ?? []);
+      setAutomations(toolbox.automations ?? []);
     }
-  }, [activeEcosystemId]);
+
+    if (missions !== null) {
+      setServerMode(true);
+      setSessions(missions.map(serverMissionToSession));
+    } else {
+      setServerMode(false);
+      setSessions(loadMissionSessions());
+      setWorkspaces(loadEcosystems());
+      return;
+    }
+
+    if (eco) setWorkspaces(eco.map(serverEcosystemToClient));
+  }, []);
 
   useEffect(() => {
     void loadAll();
@@ -118,22 +98,12 @@ export function MissionSidebar({
 
   useEffect(() => {
     const stored = getActiveEcosystemId();
-    if (stored && !activeEcosystemId && ecosystems.length) {
-      const eco = ecosystems.find((e) => e.id === stored);
-      if (eco) onSelectEcosystem(eco);
+    if (stored && !activeWorkspaceId && workspaces.length) {
+      const ws = workspaces.find((e) => e.id === stored);
+      if (ws) onSelectWorkspace(ws);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on mount
-  }, [ecosystems.length]);
-
-  useEffect(() => {
-    if (!serverMode || !activeEcosystemId) {
-      if (!activeEcosystemId) setTimeline([]);
-      return;
-    }
-    void fetchTimeline({ ecosystemId: activeEcosystemId }).then((events) => {
-      setTimeline(events ?? []);
-    });
-  }, [activeEcosystemId, serverMode, libraryVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaces.length]);
 
   if (collapsed) {
     return (
@@ -150,51 +120,46 @@ export function MissionSidebar({
     );
   }
 
-  function handleSelectEcosystem(eco: Ecosystem) {
-    const next = activeEcosystemId === eco.id ? null : eco;
+  function handleSelectWorkspace(ws: Ecosystem) {
+    const next = activeWorkspaceId === ws.id ? null : ws;
     setActiveEcosystemId(next?.id ?? null);
-    onSelectEcosystem(next);
+    onSelectWorkspace(next);
   }
 
-  async function handleAddEcosystem(e: React.FormEvent) {
+  async function handleAddWorkspace(e: React.FormEvent) {
     e.preventDefault();
-    const name = newEcosystemName.trim();
+    const name = newWorkspaceName.trim();
     if (!name) return;
 
     if (serverMode) {
       const created = await createServerEcosystem(name);
       if (created) {
-        setEcosystems((prev) => [serverEcosystemToClient(created), ...prev]);
+        setWorkspaces((prev) => [serverEcosystemToClient(created), ...prev]);
         setActiveEcosystemId(created.id);
-        onSelectEcosystem(serverEcosystemToClient(created));
+        onSelectWorkspace(serverEcosystemToClient(created));
       }
     } else {
       const { addEcosystem } = await import("@/lib/mission/ecosystems");
       const created = addEcosystem(name);
-      setEcosystems(loadEcosystems());
+      setWorkspaces(loadEcosystems());
       setActiveEcosystemId(created.id);
-      onSelectEcosystem(created);
+      onSelectWorkspace(created);
     }
 
-    setNewEcosystemName("");
-    setAddingEcosystem(false);
+    setNewWorkspaceName("");
+    setAddingWorkspace(false);
   }
 
   async function handleDeleteSession(id: string) {
-    if (serverMode) {
-      await deleteServerMission(id);
-    } else {
-      removeMissionSession(id);
-    }
+    if (serverMode) await deleteServerMission(id);
+    else removeMissionSession(id);
     setSessions((prev) => prev.filter((s) => s.id !== id));
   }
-
-  const activeEco = ecosystems.find((e) => e.id === activeEcosystemId);
 
   return (
     <aside className="flex w-[260px] shrink-0 flex-col border-r border-white/[0.06] bg-[#070b14]/95 backdrop-blur-xl">
       <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
-        <p className="text-sm font-semibold text-white">Mission</p>
+        <p className="text-sm font-semibold text-white">Mission OS</p>
         <button
           type="button"
           onClick={() => setCollapsed(true)}
@@ -223,13 +188,10 @@ export function MissionSidebar({
             <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
               Mission library
             </p>
-            {serverMode && (
-              <span className="ml-auto text-[9px] text-emerald-400/70">synced</span>
-            )}
           </div>
           {sessions.length === 0 ?
             <p className="mt-3 px-2 text-xs leading-relaxed text-resolve-muted">
-              Every conversation becomes a reusable mission.
+              Reusable mission history — one objective per workspace.
             </p>
           : <ul className="mt-2 space-y-0.5">
               {sessions.map((s) => (
@@ -247,7 +209,7 @@ export function MissionSidebar({
                     <span className="block truncate text-[13px]">
                       {s.title || s.query || "Untitled mission"}
                     </span>
-                    <span className="mt-0.5 flex items-center gap-1.5 truncate text-[10px] text-resolve-muted-dim">
+                    <span className="mt-0.5 flex gap-1.5 truncate text-[10px] text-resolve-muted-dim">
                       {formatSessionTime(s.updatedAt)}
                       {s.status && (
                         <span className="text-resolve-accent/80">
@@ -277,25 +239,28 @@ export function MissionSidebar({
             <div className="flex items-center gap-2">
               <Globe2 className="h-3.5 w-3.5 text-resolve-muted-dim" />
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-                Ecosystems
+                Workspaces
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setAddingEcosystem((v) => !v)}
+              onClick={() => setAddingWorkspace((v) => !v)}
               className="rounded p-1 text-resolve-muted-dim transition hover:bg-white/[0.06] hover:text-white"
-              aria-label="Add ecosystem"
+              aria-label="Add workspace"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
           </div>
+          <p className="mt-1 px-2 text-[10px] leading-relaxed text-resolve-muted-dim">
+            Persistent economic worlds — enter React, Ethereum, Music…
+          </p>
 
-          {addingEcosystem && (
-            <form onSubmit={(e) => void handleAddEcosystem(e)} className="mt-2 px-2">
+          {addingWorkspace && (
+            <form onSubmit={(e) => void handleAddWorkspace(e)} className="mt-2 px-2">
               <input
-                value={newEcosystemName}
-                onChange={(e) => setNewEcosystemName(e.target.value)}
-                placeholder="My DAO"
+                value={newWorkspaceName}
+                onChange={(e) => setNewWorkspaceName(e.target.value)}
+                placeholder="Pakistan OSS"
                 className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
                 autoFocus
               />
@@ -303,84 +268,94 @@ export function MissionSidebar({
           )}
 
           <ul className="mt-2 space-y-0.5">
-            {ecosystems.map((eco) => (
-              <li key={eco.id}>
+            {workspaces.map((ws) => (
+              <li key={ws.id}>
                 <button
                   type="button"
-                  onClick={() => handleSelectEcosystem(eco)}
+                  onClick={() => handleSelectWorkspace(ws)}
                   className={clsx(
-                    "w-full rounded-lg px-2.5 py-2 text-left text-[13px] transition",
-                    activeEcosystemId === eco.id ?
-                      "bg-white/[0.06] text-white ring-1 ring-resolve-accent/20"
+                    "w-full rounded-lg px-2.5 py-2 text-left transition",
+                    activeWorkspaceId === ws.id ?
+                      "bg-white/[0.06] text-white ring-1 ring-resolve-accent/25"
                     : "text-resolve-muted hover:bg-white/[0.04] hover:text-white",
                   )}
                 >
-                  <span className="block truncate">{eco.name}</span>
-                  {eco.repos && eco.repos.length > 0 && (
+                  <span className="block truncate text-[13px]">{ws.name}</span>
+                  {ws.repos && ws.repos.length > 0 && (
                     <span className="mt-0.5 block truncate text-[10px] text-resolve-muted-dim">
-                      {eco.repos.length} repos · {eco.connectors?.length ?? 0} sensors
+                      {ws.repos.length} repos · {ws.connectors?.length ?? 0} sensors
                     </span>
                   )}
                 </button>
               </li>
             ))}
           </ul>
-
-          {activeEco && serverMode && (
-            <div className="mt-3 px-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-                Timeline · {activeEco.name}
-              </p>
-              <MissionTimeline events={timeline} loading={loadingData} />
-            </div>
-          )}
         </section>
 
         <div className="mx-3 border-t border-white/[0.06]" />
 
         <section className="px-3 py-3">
           <div className="flex items-center gap-2 px-2">
-            <BookOpen className="h-3.5 w-3.5 text-resolve-muted-dim" />
+            <Activity className="h-3.5 w-3.5 text-resolve-muted-dim" />
             <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-              Knowledge
+              Observatories
             </p>
           </div>
-          {knowledge.length === 0 ?
-            <p className="mt-3 px-2 text-xs leading-relaxed text-resolve-muted">
-              RESOLVE remembers research, decisions, and reasoning from your missions.
-            </p>
-          : <ul className="mt-2 space-y-0.5">
-              {knowledge.slice(0, 12).map((k) => (
-                <li key={k.id}>
+          <p className="mt-1 px-2 text-[10px] leading-relaxed text-resolve-muted-dim">
+            Background intelligence — never sleeps.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {observatories.map((obs) => (
+              <li key={obs.id} className="rounded-lg px-2 py-1.5">
+                <p className="text-[12px] font-medium text-white/90">{obs.name}</p>
+                {obs.pulses.slice(0, 2).map((p) => (
                   <button
+                    key={p.id}
                     type="button"
-                    onClick={() => onSelectKnowledge(k)}
-                    className="w-full rounded-lg px-2.5 py-2 text-left transition hover:bg-white/[0.04]"
+                    onClick={() => onObservatoryPulse(`Explain what changed: ${p.text}`)}
+                    className="mt-1 block w-full truncate text-left text-[10px] text-resolve-muted transition hover:text-white"
                   >
-                    <span className="block truncate text-[13px] text-resolve-muted hover:text-white">
-                      {k.title}
-                    </span>
-                    <span className="mt-0.5 block truncate text-[10px] text-resolve-muted-dim">
-                      {k.summary}
-                    </span>
+                    <span
+                      className={
+                        p.severity === "critical" ? "text-rose-300/90" : "text-amber-200/80"
+                      }
+                    >
+                      ●
+                    </span>{" "}
+                    {p.text}
                   </button>
-                </li>
-              ))}
-            </ul>
-          }
+                ))}
+              </li>
+            ))}
+          </ul>
         </section>
 
-        {serverMode && (
-          <>
-            <div className="mx-3 border-t border-white/[0.06]" />
-            <MissionWorkbenchPanel
-              workbench={workbench}
-              loading={loadingData && !workbench}
-              expanded={workbenchOpen}
-              onToggle={() => setWorkbenchOpen((v) => !v)}
-            />
-          </>
-        )}
+        <div className="mx-3 border-t border-white/[0.06]" />
+
+        <section className="px-3 py-3">
+          <div className="flex items-center gap-2 px-2">
+            <Zap className="h-3.5 w-3.5 text-resolve-muted-dim" />
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
+              Automations
+            </p>
+          </div>
+          <ul className="mt-2 space-y-1">
+            {automations.map((rule) => (
+              <li key={rule.id}>
+                <button
+                  type="button"
+                  onClick={() => onAutomationSelect(rule)}
+                  className="w-full rounded-lg px-2.5 py-2 text-left transition hover:bg-white/[0.04]"
+                >
+                  <span className="block text-[11px] text-white/90">{rule.trigger}</span>
+                  <span className="mt-0.5 block truncate text-[10px] text-resolve-muted-dim">
+                    → {rule.action}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       </div>
     </aside>
   );

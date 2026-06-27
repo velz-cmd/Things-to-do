@@ -1,6 +1,6 @@
 # RESOLVE — Product Vision & Experience Blueprint (V1)
 
-**Status:** Final product vision — frozen alongside [FOUNDING-PRINCIPLES.md](./FOUNDING-PRINCIPLES.md) and [ENGINEERING-SPEC.md](./ENGINEERING-SPEC.md).  
+**Status:** Final product vision — frozen alongside [FOUNDING-PRINCIPLES.md](./FOUNDING-PRINCIPLES.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [ENGINEERING-SPEC.md](./ENGINEERING-SPEC.md).  
 **Companion:** [PRODUCT-BLUEPRINT.md](./PRODUCT-BLUEPRINT.md) (journeys, surfaces, gap analysis).  
 **Does not replace:** doctrine (why) or engineering spec (how).
 

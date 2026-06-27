@@ -1,128 +1,200 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import clsx from "clsx";
-import { ProtocolChat } from "@/components/resolve/workspace/protocol-chat";
-import { WorkspaceContextFeed } from "@/components/resolve/workspace/workspace-context-feed";
-import { WorkspaceManualView } from "@/components/resolve/workspace/workspace-manual-view";
-import { ManualAllocationPanel } from "@/components/resolve/workspace/manual-allocation-panel";
-import { MISSION_TOOLS } from "@/components/resolve/layout/nav";
+import { useCallback, useEffect, useState } from "react";
 import { useMissionScope } from "@/lib/mission/mission-context";
+import { parseRepoInput } from "@/lib/workspace/parse-repo";
+import { MissionInput } from "@/components/resolve/mission-control/mission-input";
+import { MissionBrief, type MissionBriefData } from "@/components/resolve/mission-control/mission-brief";
+import {
+  IntelligenceWorkspace,
+  type IntelligenceMessage,
+} from "@/components/resolve/mission-control/intelligence-workspace";
+import { MissionActionPanel } from "@/components/resolve/mission-control/mission-action-panel";
+import { MissionEcosystemChain } from "@/components/resolve/mission-control/mission-ecosystem-chain";
+import type { EvidenceAction } from "@/lib/workspace/advisors/evidence-actions";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
-import type { OsQuestionAnswer } from "@/lib/workspace/economic-os";
 import type { ValueConcentration } from "@/lib/workspace/advisors/concentrations";
 
-type MissionPanel = (typeof MISSION_TOOLS)[number]["id"];
+const SOURCE_LABELS: Record<string, string> = {
+  github: "GitHub",
+  navidrome: "Navidrome",
+  openalex: "OpenAlex",
+  musicbrainz: "MusicBrainz",
+  listenbrainz: "ListenBrainz",
+};
+
+function parseCapitalUsd(text: string): number | undefined {
+  const m = text.match(/\$?\s*([\d,]+)\s*(k|K)?/);
+  if (!m) return undefined;
+  const n = Number(m[1].replace(/,/g, ""));
+  if (Number.isNaN(n)) return undefined;
+  return m[2] ? n * 1000 : n;
+}
+
+function fundingIntent(text: string): boolean {
+  return /\b(distribut|fund|allocat|\$\d|treasury|capital)\b/i.test(text);
+}
+
+type OverviewSnapshot = {
+  treasury?: { balanceUsd: number; obligationsUsd: number; availableUsd: number };
+  network?: { ecosystemsConnected: number };
+  domainIntelligence?: { label: string }[];
+};
 
 /**
- * Mission OS — sidebar tools | AI reasoning | live panel.
- * @see docs/INFORMATION-ARCHITECTURE.md
+ * Mission Control — operating room. Four regions: input, brief, intelligence, actions.
+ * @see user spec — no sidebar nav, no BI cards, no empty global graph.
  */
 export function MissionControl() {
-  const { scope } = useMissionScope();
-  const searchParams = useSearchParams();
-  const panelParam = searchParams.get("panel") as MissionPanel | null;
-  const [panel, setPanel] = useState<MissionPanel>(panelParam === "policies" ? "policies" : "command");
+  const { scope, enterMission } = useMissionScope();
+  const [input, setInput] = useState("");
+  const [objective, setObjective] = useState<string | null>(null);
+  const [brief, setBrief] = useState<MissionBriefData | null>(null);
+  const [messages, setMessages] = useState<IntelligenceMessage[]>([]);
+  const [actions, setActions] = useState<EvidenceAction[]>([]);
   const [policies, setPolicies] = useState<PolicyProposal[]>([]);
-  const [sixQuestions, setSixQuestions] = useState<OsQuestionAnswer[]>([]);
   const [concentrations, setConcentrations] = useState<ValueConcentration[]>([]);
-  const [preset, setPreset] = useState<import("@/lib/workspace/founder-presets").FounderPresetId>("balanced");
+  const [loading, setLoading] = useState(false);
+  const [showPolicies, setShowPolicies] = useState(false);
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
+  const [overview, setOverview] = useState<OverviewSnapshot | null>(null);
 
   useEffect(() => {
-    if (panelParam === "policies") setPanel("policies");
-  }, [panelParam]);
-
-  useEffect(() => {
-    void fetch("/api/workspace/os")
+    void fetch("/api/workspace/overview")
       .then((r) => r.json())
-      .then((d) => {
-        setSixQuestions(d.sixQuestions ?? []);
-        setConcentrations(d.concentrations ?? []);
-        setPolicies(d.policies ?? []);
-      });
+      .then((d) => setOverview(d))
+      .catch(() => setOverview(null));
   }, []);
 
+  const runMission = useCallback(
+    async (text: string) => {
+      setObjective(text);
+      setLoading(true);
+      setShowPolicies(fundingIntent(text));
+      enterMission(text);
+
+      const parsed = parseRepoInput(text);
+      const scopeLabel = parsed ? `${parsed.owner}/${parsed.repo}` : text.slice(0, 80);
+      const estCapital = parseCapitalUsd(text);
+
+      const liveSources: string[] = [];
+      if (overview?.network?.ecosystemsConnected) {
+        liveSources.push(`${overview.network.ecosystemsConnected} sensor(s) online`);
+      }
+
+      setBrief({
+        objective: text,
+        scope: scopeLabel,
+        status: "analyzing",
+        estimatedCapitalUsd: estCapital,
+        affectedCommunities: overview?.domainIntelligence?.length ?? 0,
+        evidenceSources: liveSources,
+        capitalAvailableUsd: overview?.treasury?.availableUsd ?? overview?.treasury?.balanceUsd ?? 0,
+        capitalRequiredUsd: overview?.treasury?.obligationsUsd ?? estCapital ?? 0,
+      });
+
+      setMessages((m) => [...m, { role: "user", text }]);
+
+      try {
+        const res = await fetch("/api/workspace/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Analysis failed");
+
+        const conc: ValueConcentration[] = data.concentrations ?? [];
+        setConcentrations(conc);
+        setActions(data.actions ?? []);
+        setPolicies(data.policies ?? []);
+
+        setMessages((m) => [
+          ...m,
+          {
+            role: "resolve",
+            text: data.answer ?? "No analysis available.",
+            concentrations: conc,
+            evidenceUsed: data.evidenceUsed,
+          },
+        ]);
+
+        const connectorSources = (data.evidenceUsed ?? [])
+          .filter((e: string) => e.includes("."))
+          .map((e: string) => e.split(".")[0])
+          .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+          .map((id: string) => SOURCE_LABELS[id] ?? id);
+
+        setBrief((b) =>
+          b
+            ? {
+                ...b,
+                status: "ready",
+                confidence: data.grounded ? 0.85 : 0.65,
+                evidenceSources: connectorSources.length > 0 ? connectorSources : b.evidenceSources,
+                affectedCommunities: conc.length > 0 ? conc.length : b.affectedCommunities,
+              }
+            : null,
+        );
+      } catch (e) {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "resolve",
+            text: e instanceof Error ? e.message : "Could not complete analysis.",
+          },
+        ]);
+        setBrief((b) => (b ? { ...b, status: "error" } : null));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [enterMission, overview],
+  );
+
+  useEffect(() => {
+    if (!scope?.label || objective) return;
+    setInput(scope.label);
+    void runMission(scope.label);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when URL scope appears
+  }, [scope?.label]);
+
+  function handleReject() {
+    setShowPolicies(false);
+    setSelectedPolicyId(null);
+    setActions([]);
+  }
+
+  const missionActive = Boolean(objective);
+  const scopeLabel = brief?.scope ?? scope?.label ?? "";
+
   return (
-    <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px] overflow-hidden">
-      <aside className="hidden w-44 shrink-0 flex-col border-r border-resolve-border bg-resolve-bg-deep/20 py-4 lg:flex">
-        <p className="px-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-resolve-muted-dim">
-          Mission
-        </p>
-        <ul className="mt-2 space-y-0.5 px-2">
-          {MISSION_TOOLS.map((tool) => (
-            <li key={tool.id}>
-              <button
-                type="button"
-                title={tool.question}
-                onClick={() => setPanel(tool.id)}
-                className={clsx(
-                  "w-full rounded-lg px-3 py-2 text-left text-[13px] font-medium transition",
-                  panel === tool.id
-                    ? "bg-resolve-accent/15 text-white"
-                    : "text-resolve-muted hover:bg-resolve-hover/30 hover:text-white",
-                )}
-              >
-                {tool.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-auto border-t border-resolve-border px-4 pt-4 text-[10px] text-resolve-muted-dim">
-          {scope ? (
-            <p>
-              Scope: <span className="text-white">{scope.label}</span>
-            </p>
-          ) : (
-            <p>No mission scoped</p>
-          )}
-        </div>
-      </aside>
+    <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px] flex-col overflow-hidden">
+      <MissionInput
+        value={input}
+        onChange={setInput}
+        onSubmit={(t) => void runMission(t)}
+        loading={loading}
+        compact={missionActive}
+      />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {panel === "command" && (
-          <div className="flex min-h-0 flex-1 flex-col p-3 md:p-5">
-            <ProtocolChat
-              onPoliciesChange={setPolicies}
-              initialConcentrations={concentrations}
-              variant="engine"
-              fullHeight
-              missionLabel={scope?.label}
-            />
-          </div>
-        )}
+      {missionActive && scopeLabel && (
+        <MissionEcosystemChain scope={scopeLabel} concentrations={concentrations} />
+      )}
 
-        {panel === "policies" && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <WorkspaceManualView answers={sixQuestions} />
-            <div className="mt-8">
-              <ManualAllocationPanel policies={policies} preset={preset} onPresetChange={setPreset} />
-            </div>
-          </div>
-        )}
-
-        {panel !== "command" && panel !== "policies" && (
-          <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-            <p className="text-sm font-medium text-white">
-              {MISSION_TOOLS.find((t) => t.id === panel)?.label}
-            </p>
-            <p className="mt-2 max-w-sm text-sm text-resolve-muted">
-              {MISSION_TOOLS.find((t) => t.id === panel)?.question} — ships with the value graph
-              engine (Layer 4).
-            </p>
-            <button
-              type="button"
-              onClick={() => setPanel("command")}
-              className="mt-6 text-sm text-resolve-accent hover:underline"
-            >
-              ← Back to Command
-            </button>
-          </div>
-        )}
+      <div className="flex min-h-0 flex-1">
+        <MissionBrief brief={brief} />
+        <IntelligenceWorkspace messages={messages} loading={loading} idle={!missionActive} />
+        <MissionActionPanel
+          actions={actions}
+          policies={policies}
+          showPolicies={showPolicies}
+          selectedPolicyId={selectedPolicyId}
+          onSelectPolicy={setSelectedPolicyId}
+          onReject={handleReject}
+          missionActive={missionActive}
+        />
       </div>
-
-      <WorkspaceContextFeed className="hidden w-80 border-l border-resolve-border xl:flex" missionLabel={scope?.label} />
     </div>
   );
 }

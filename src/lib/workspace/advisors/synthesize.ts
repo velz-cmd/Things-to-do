@@ -44,6 +44,7 @@ export async function askValueAdvisor(input: {
   question: string;
   evidence?: WorkspaceEvidence;
   messages?: AdvisorMessage[];
+  operatingMode?: import("@/lib/mission/capital-os").OperatingMode;
   ecosystem?: {
     name: string;
     keywords?: string[];
@@ -54,6 +55,7 @@ export async function askValueAdvisor(input: {
   const result = await runMissionOrchestrator({
     question: input.question,
     messages: input.messages,
+    operatingMode: input.operatingMode,
     ecosystem: input.ecosystem,
   });
 

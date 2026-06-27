@@ -2,6 +2,12 @@ import type { CapabilityAction, OrchestratorContext } from "@/lib/mission/capabi
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import { LAYER_LABELS } from "@/lib/mission/community";
+import type {
+  CapitalBlueprint,
+  CapitalLoopPhase,
+  MissionJob,
+  OperatingMode,
+} from "@/lib/mission/capital-os";
 
 export type MissionReportStatus = "complete" | "pending_approval" | "executing" | "failed";
 
@@ -9,6 +15,12 @@ export type MissionReportEvidenceLink = {
   label: string;
   href?: string;
   source: string;
+};
+
+export type MissionReportSection = {
+  title: string;
+  content: string;
+  items?: string[];
 };
 
 export type MissionReport = {
@@ -51,6 +63,19 @@ export type MissionReport = {
     txHash?: string;
     explorerUrl?: string;
   };
+  /** Capital OS metadata */
+  job?: MissionJob;
+  operatingMode?: OperatingMode;
+  loopPhase?: CapitalLoopPhase;
+  /** Structured report sections */
+  understanding?: MissionReportSection;
+  capitalDesign?: MissionReportSection;
+  executionPlan?: MissionReportSection;
+  risks?: MissionReportSection;
+  recommendation?: MissionReportSection;
+  memory?: MissionReportSection;
+  /** Signature capability */
+  capitalBlueprint?: CapitalBlueprint;
   persisted: boolean;
 };
 
@@ -131,6 +156,54 @@ export function buildMissionReport(input: {
 
   const seed = `${missionId ?? "local"}:${turnId ?? objective}:${Date.now()}`;
 
+  const understanding: MissionReportSection = {
+    title: "Understanding",
+    content: brief.summary,
+    items: ctx.findings.slice(0, 5).map((f) => `${f.title}: ${f.insight}`),
+  };
+
+  const capitalDesign: MissionReportSection | undefined =
+    ctx.capitalBlueprint || brief.simulations?.length ?
+      {
+        title: "Capital design",
+        content:
+          ctx.capitalBlueprint?.rationale ??
+          `Allocation weighted by observed funding gaps across ${ctx.communityName ?? "communities"}.`,
+        items: ctx.capitalBlueprint?.distribution.map(
+          (d) => `${d.category} · ${d.percent}%${d.amountUsd ? ` · $${d.amountUsd.toLocaleString()}` : ""} — ${d.reason}`,
+        ) ?? brief.simulations?.map((s) => `${s.label}: ${s.value}`),
+      }
+    : undefined;
+
+  const executionPlan: MissionReportSection | undefined =
+    ctx.capitalBlueprint ?
+      {
+        title: "Execution plan",
+        content: `${ctx.capitalBlueprint.flows[0]?.mechanism ?? "Monthly grants"} · ${ctx.capitalBlueprint.duration}`,
+        items: [
+          ...ctx.capitalBlueprint.flows.map((f) => `${f.mechanism} · ${f.frequency} · ${f.settlement}`),
+          ...ctx.capitalBlueprint.recipients.map((r) => `Recipient: ${r}`),
+        ],
+      }
+    : ctx.capability === "execute_settlement" ?
+      {
+        title: "Execution plan",
+        content: brief.summary,
+        items: brief.recommendations.map((r) => `${r.label}: ${r.detail}`),
+      }
+    : undefined;
+
+  const risks: MissionReportSection | undefined =
+    ctx.findings.some((f) => f.severity === "critical" || f.id === "maintainer-risk") ?
+      {
+        title: "Risks",
+        content: "Critical signals detected in observed communities.",
+        items: ctx.findings
+          .filter((f) => f.severity === "critical" || f.id === "maintainer-risk" || f.id === "funding-gap")
+          .map((f) => f.insight),
+      }
+    : undefined;
+
   return {
     reportId: reportIdFrom(seed),
     missionId,
@@ -159,6 +232,17 @@ export function buildMissionReport(input: {
     actions,
     findings: brief.findings,
     settlement,
+    job: ctx.job,
+    operatingMode: ctx.operatingMode,
+    loopPhase: ctx.loopPhase,
+    understanding,
+    capitalDesign,
+    executionPlan,
+    risks,
+    recommendation: brief.recommendations.length ?
+      { title: "Recommendation", content: brief.headline, items: brief.recommendations.map((r) => `${r.label}: ${r.detail}`) }
+    : undefined,
+    capitalBlueprint: ctx.capitalBlueprint,
     persisted: persisted ?? false,
   };
 }

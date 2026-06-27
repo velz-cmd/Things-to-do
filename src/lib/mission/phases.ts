@@ -4,9 +4,9 @@ export { buildContextualActions, chipsFromFinding } from "@/lib/mission/contextu
 export type MissionPhase = "discover" | "explain" | "plan" | "execute";
 
 const PLAN =
-  /\b(create.*(plan|funding)|funding plan|let'?s fix|prepare allocat|draft allocat|build allocat|allocate to|fix\s+\w+)\b/i;
+  /\b(create.*(plan|funding)|funding plan|capital blueprint|design (a )?(grant|funding|treasury|policy)|distribution plan|build grant|simulate \$|let'?s fix|prepare allocat|draft allocat|build allocat|allocate to|fix\s+\w+|we have \$)\b/i;
 const EXECUTE =
-  /\b(execute on arc|authorize settlement|move money|send funds|settle now|review transaction)\b/i;
+  /\b(execute on arc|authorize settlement|move money|send funds|settle now|review transaction|prepare settlement|create distribution|draft dao proposal|generate budget)\b/i;
 const EXPLAIN =
   /\b(why\b|explain|show evidence|compare|who caused|who maintains|show breakdown|detail|how did)\b/i;
 

@@ -10,6 +10,16 @@ import { MissionLiveDelta } from "@/components/resolve/mission-control/mission-l
 import { MissionStarterPanel } from "@/components/resolve/mission-control/mission-quick-actions";
 import { MissionResearchRefs } from "@/components/resolve/mission-control/mission-research-refs";
 import { MissionBrief } from "@/components/resolve/mission-control/mission-brief";
+import { MissionCapitalLoop } from "@/components/resolve/mission-control/mission-capital-loop";
+import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
+import { MissionQuickActions } from "@/components/resolve/mission-control/mission-quick-actions";
+import {
+  MissionPlanningBar,
+  MissionExecuteBar,
+} from "@/components/resolve/mission-control/mission-planning-bar";
+import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
+import type { OperatingMode } from "@/lib/mission/capital-os";
+import type { CapitalLoopPhase } from "@/lib/mission/capital-os";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
 import type { CapabilityAction, CapabilityId } from "@/lib/mission/capabilities/types";
@@ -71,6 +81,9 @@ export function MissionWorkspace({
   timelineLoading,
   treasuryBalanceUsd,
   missionBrief,
+  operatingMode,
+  loopPhase,
+  onOperatingModeChange,
 }: {
   objective: string | null;
   turns: MissionTurn[];
@@ -102,11 +115,25 @@ export function MissionWorkspace({
   timelineLoading?: boolean;
   treasuryBalanceUsd?: number;
   missionBrief: MissionBriefData | null;
+  operatingMode: OperatingMode;
+  loopPhase: CapitalLoopPhase;
+  onOperatingModeChange: (mode: OperatingMode) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const active = Boolean(objective || turns.length > 0);
   const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
   const lastAllocations = lastResolve?.allocations;
+  const followUpActions = lastResolve?.nextSteps ?? lastResolve?.report?.actions ?? [];
+  const showPlanning = shouldShowPlanningBar(phase);
+  const showExecute = shouldShowExecuteBar(phase);
+
+  function handleChip(text: string) {
+    onSubmit(text);
+  }
+
+  function handleQuickAction(action: { prompt: string }) {
+    onSubmit(action.prompt);
+  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -161,6 +188,16 @@ export function MissionWorkspace({
               </span>
             )}
           </div>
+          {active && (
+            <div className="mt-3 space-y-2">
+              <MissionCapitalLoop activePhase={loopPhase} />
+              <MissionOperatingMode
+                active={operatingMode}
+                onChange={onOperatingModeChange}
+                disabled={loading}
+              />
+            </div>
+          )}
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
@@ -182,6 +219,7 @@ export function MissionWorkspace({
                       <MissionReportCard
                         report={turn.report}
                         onAction={turn === lastResolve ? onAction : undefined}
+                        onChip={turn === lastResolve ? handleChip : undefined}
                         actionsDisabled={loading}
                       />
                       {turn.researchReferences && turn.researchReferences.length > 0 && (
@@ -196,6 +234,7 @@ export function MissionWorkspace({
                         turn.nextSteps ?? [],
                       )}
                       onAction={turn === lastResolve ? onAction : undefined}
+                      onChip={turn === lastResolve ? handleChip : undefined}
                       actionsDisabled={loading}
                     />
                   : <p className="text-sm text-resolve-muted">{turn.text}</p>}
@@ -214,6 +253,45 @@ export function MissionWorkspace({
         </div>
 
         <div className="shrink-0 border-t border-white/[0.06] px-4 py-3 lg:px-6">
+          {active && followUpActions.length > 0 && !loading && (
+            <div className="mx-auto mb-3 max-w-3xl">
+              <p className="mb-2 text-[10px] uppercase tracking-wide text-resolve-muted-dim">
+                Next actions
+              </p>
+              <MissionQuickActions
+                actions={followUpActions.map((a) => ({
+                  id: a.id,
+                  label: a.label,
+                  prompt: a.prompt,
+                }))}
+                onSelect={(a) => handleQuickAction(a)}
+                disabled={loading}
+                variant="compact"
+              />
+            </div>
+          )}
+
+          <MissionPlanningBar
+            visible={showPlanning && !loading}
+            actions={[
+              { label: "Simulate allocation", prompt: "Simulate this allocation — show recipients and amounts." },
+              { label: "Adjust weights", prompt: "Shift 10% from infrastructure to contributors — show outcome." },
+              { label: "Capital Blueprint", prompt: "Generate a complete Capital Blueprint for this community." },
+            ]}
+            onAction={onSubmit}
+          />
+
+          <MissionExecuteBar
+            visible={showExecute && !loading}
+            actions={[
+              { label: "Review package", prompt: "Walk me through exactly what capital would move." },
+              { label: "Prepare settlement", prompt: "Prepare settlement package for approval." },
+              { label: "Authorize", prompt: "Authorize settlement now." },
+            ]}
+            onAction={onSubmit}
+          />
+
+          {!showPlanning && !showExecute && (
           <form onSubmit={handleFormSubmit} className="mx-auto max-w-3xl">
             <div className="relative">
               <input
@@ -235,12 +313,17 @@ export function MissionWorkspace({
               </button>
             </div>
           </form>
+          )}
+
+          {!showPlanning && !showExecute && (
           <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-resolve-muted-dim">
-            Communities confusing you? Observe → Understand → Capital → Settlement
+            Observe → Understand → Design Capital → Simulate → Approve → Execute → Measure → Learn
           </p>
+          )}
         </div>
       </div>
 
+      <div className="hidden lg:block">
       <MissionContextPanel
         phase={phase}
         showCapital={showCapital}
@@ -254,6 +337,7 @@ export function MissionWorkspace({
         timeline={timeline}
         timelineLoading={timelineLoading}
       />
+      </div>
     </div>
   );
 }

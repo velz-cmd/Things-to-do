@@ -8,6 +8,12 @@ import type { FundingOpportunity } from "@/lib/github/types";
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
 import type { MissionReport } from "@/lib/mission/mission-report";
 import type { CapabilityLayer, CommunityContext, DataSource } from "@/lib/mission/community";
+import type {
+  CapitalBlueprint,
+  CapitalLoopPhase,
+  MissionJob,
+  OperatingMode,
+} from "@/lib/mission/capital-os";
 
 export type CapabilityId =
   | "discover_value_leaks"
@@ -84,6 +90,10 @@ export type OrchestratorContext = {
   researchReferences?: ResearchReference[];
   quickActions?: MissionQuickAction[];
   stepsRun: string[];
+  job?: MissionJob;
+  operatingMode?: OperatingMode;
+  loopPhase?: CapitalLoopPhase;
+  capitalBlueprint?: CapitalBlueprint;
 };
 
 export type OrchestratorResult = {

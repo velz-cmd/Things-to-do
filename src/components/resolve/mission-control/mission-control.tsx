@@ -15,7 +15,14 @@ import {
   planningActions,
 } from "@/lib/mission/phases";
 import { detectMissionIntent, parseCapitalUsd, thinkingStepsFor } from "@/lib/mission/intents";
-import { saveMissionLibraryEntry } from "@/lib/mission/toolbox/mission-library";
+import {
+  createMissionSession,
+  upsertMissionSession,
+  type MissionSession,
+} from "@/lib/mission/toolbox/mission-library";
+
+const AGENT_STARTER =
+  "Deploy economic agents across my connected ecosystems — scan dependencies, treasury, and funding gaps.";
 
 function buildAllocationFromOpportunities(
   opportunities: OpportunityCard[],
@@ -67,13 +74,27 @@ function enrichFindingChips(
   }));
 }
 
-/**
- * Mission — intelligence conversation first. Execution is a consequence, not the default.
- */
+function persistSession(
+  session: MissionSession,
+  turns: MissionTurn[],
+  title?: string,
+  findingCount?: number,
+) {
+  const firstUser = turns.find((t) => t.role === "user");
+  upsertMissionSession({
+    ...session,
+    title: title ?? session.title,
+    query: firstUser?.text ?? session.query,
+    findingCount,
+    turns: turns.map((t) => ({ id: t.id, role: t.role, text: t.text })),
+  });
+}
+
 export function MissionControl() {
-  const { scope, enterMission } = useMissionScope();
+  const { scope, setScope, enterMission } = useMissionScope();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<MissionTurn[]>([]);
+  const [session, setSession] = useState<MissionSession>(() => createMissionSession("mission"));
   const [loading, setLoading] = useState(false);
   const [thinkingComplete, setThinkingComplete] = useState(false);
   const [activeThinkingSteps, setActiveThinkingSteps] = useState<readonly string[]>(
@@ -84,10 +105,11 @@ export function MissionControl() {
   const started = turns.length > 0;
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, sessionOverride?: MissionSession) => {
       const trimmed = text.trim();
       if (!trimmed) return;
 
+      const activeSession = sessionOverride ?? session;
       const intent = detectMissionIntent(trimmed);
       setActiveThinkingSteps(thinkingStepsFor(intent));
       setInput("");
@@ -100,7 +122,8 @@ export function MissionControl() {
         role: "user",
         text: trimmed,
       };
-      setTurns((t) => [...t, userTurn]);
+      const nextTurns = [...turns, userTurn];
+      setTurns(nextTurns);
 
       const history = turns.map((t) => ({
         role: (t.role === "user" ? "user" : "assistant") as "user" | "assistant",
@@ -141,32 +164,29 @@ export function MissionControl() {
           policy: isPlan ? pickInlinePolicy(policies, trimmed) : undefined,
         };
 
-        setTurns((t) => [...t, resolveTurn]);
+        const finalTurns = [...nextTurns, resolveTurn];
+        setTurns(finalTurns);
 
-        if (phase === "discover") {
-          saveMissionLibraryEntry({
-            title: trimmed.slice(0, 48) + (trimmed.length > 48 ? "…" : ""),
-            query: trimmed,
-            findingCount: findings.length,
-          });
-          setLibraryTick((n) => n + 1);
-        }
+        const title = trimmed.slice(0, 48) + (trimmed.length > 48 ? "…" : "");
+        persistSession(activeSession, finalTurns, title, findings.length);
+        setLibraryTick((n) => n + 1);
       } catch (e) {
         setThinkingComplete(true);
-        setTurns((t) => [
-          ...t,
-          {
-            id: `r-${Date.now()}`,
-            role: "resolve",
-            text: e instanceof Error ? e.message : "Could not complete analysis.",
-            phase: "discover",
-          },
-        ]);
+        const errTurn: MissionTurn = {
+          id: `r-${Date.now()}`,
+          role: "resolve",
+          text: e instanceof Error ? e.message : "Could not complete analysis.",
+          phase: "discover",
+        };
+        const finalTurns = [...nextTurns, errTurn];
+        setTurns(finalTurns);
+        persistSession(activeSession, finalTurns);
+        setLibraryTick((n) => n + 1);
       } finally {
         setLoading(false);
       }
     },
-    [enterMission, turns],
+    [enterMission, turns, session],
   );
 
   useEffect(() => {
@@ -175,11 +195,40 @@ export function MissionControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap from URL scope once
   }, [scope?.label]);
 
-  function handleClear() {
+  function handleNewMission() {
+    setScope(null);
+    setSession(createMissionSession("mission"));
     setTurns([]);
     setInput("");
     setThinkingComplete(false);
     setLastPhase("discover");
+  }
+
+  function handleNewAgent() {
+    setScope(null);
+    const next = createMissionSession("agent");
+    setSession(next);
+    setTurns([]);
+    setInput("");
+    setThinkingComplete(false);
+    setLastPhase("discover");
+    void sendMessage(AGENT_STARTER, next);
+  }
+
+  function handleSelectSession(s: MissionSession) {
+    setScope(null);
+    setSession(s);
+    if (s.turns && s.turns.length > 0) {
+      setTurns(s.turns as MissionTurn[]);
+      setLastPhase("discover");
+    } else if (s.query) {
+      setTurns([]);
+      void sendMessage(s.query, s);
+    }
+  }
+
+  function handleClear() {
+    handleNewMission();
   }
 
   const topFinding = [...turns].reverse().find((t) => t.role === "resolve")?.findings?.[0];
@@ -196,6 +245,10 @@ export function MissionControl() {
       onInputChange={setInput}
       onSubmit={(t) => void sendMessage(t)}
       onChip={(t) => void sendMessage(t)}
+      onNewMission={handleNewMission}
+      onNewAgent={handleNewAgent}
+      onSelectSession={handleSelectSession}
+      activeSessionId={session.id}
       onPlanningAction={(p) => void sendMessage(p)}
       onExecuteAction={(p) => void sendMessage(p)}
       onClear={handleClear}

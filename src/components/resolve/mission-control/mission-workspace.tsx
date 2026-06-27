@@ -42,6 +42,10 @@ export function MissionWorkspace({
   onInputChange,
   onSubmit,
   onChip,
+  onNewMission,
+  onNewAgent,
+  onSelectSession,
+  activeSessionId,
   onPlanningAction,
   onExecuteAction,
   onClear,
@@ -59,6 +63,10 @@ export function MissionWorkspace({
   onInputChange: (v: string) => void;
   onSubmit: (text: string) => void;
   onChip: (text: string) => void;
+  onNewMission: () => void;
+  onNewAgent: () => void;
+  onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
+  activeSessionId?: string | null;
   onPlanningAction: (prompt: string) => void;
   onExecuteAction: (prompt: string) => void;
   onClear?: () => void;
@@ -83,20 +91,30 @@ export function MissionWorkspace({
 
   return (
     <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px]">
-      <MissionToolbox onQuery={onChip} libraryVersion={libraryTick} />
+      <MissionToolbox
+        onQuery={onChip}
+        onNewMission={onNewMission}
+        onNewAgent={onNewAgent}
+        onSelectSession={onSelectSession}
+        activeSessionId={activeSessionId}
+        libraryVersion={libraryTick}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-8 lg:px-6">
           {!started && (
-            <div className="flex min-h-[50vh] flex-col items-center justify-center text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-resolve-accent">
+            <div className="relative flex min-h-[50vh] flex-col items-center justify-center text-center">
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="h-48 w-48 rounded-full bg-resolve-accent/5 blur-3xl" />
+              </div>
+              <p className="relative text-[10px] font-semibold uppercase tracking-[0.22em] text-resolve-accent">
                 Mission
               </p>
-              <h1 className="mt-4 text-2xl font-medium tracking-tight text-white sm:text-3xl">
+              <h1 className="relative mt-4 text-2xl font-medium tracking-tight text-white sm:text-3xl">
                 What would you like RESOLVE to do?
               </h1>
-              <p className="mt-3 max-w-md text-sm leading-relaxed text-resolve-muted">
-                Ask about value, risk, funding, or claims across any open community.
+              <p className="relative mt-3 max-w-md text-sm leading-relaxed text-resolve-muted">
+                Economic intelligence for any open community — ask, discover, decide.
               </p>
               <form onSubmit={handleFormSubmit} className="mt-8 w-full max-w-xl">
                 <div className="relative">

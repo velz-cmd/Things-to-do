@@ -28,11 +28,13 @@ export function ProtocolChat({
   initialConcentrations,
   variant = "default",
   fullHeight = false,
+  missionLabel,
 }: {
   onPoliciesChange?: (policies: PolicyProposal[]) => void;
   initialConcentrations?: ValueConcentration[];
   variant?: "default" | "engine";
   fullHeight?: boolean;
+  missionLabel?: string;
 }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -123,7 +125,7 @@ export function ProtocolChat({
           )}
           <div>
             <span className="text-sm font-semibold text-white">
-              {isEngine ? "Command" : "Chat"}
+              {missionLabel ? `Reasoning · ${missionLabel}` : isEngine ? "Economic reasoning" : "Chat"}
             </span>
             {!isEngine && (
               <span className="ml-2 rounded-full bg-resolve-accent/15 px-2.5 py-0.5 text-[10px] font-semibold text-blue-200 ring-1 ring-resolve-accent/25">
@@ -255,9 +257,11 @@ export function ProtocolChat({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              isEngine
-                ? "We have $100k — where should it go?"
-                : "Where is value leaking? Who should we fund?"
+              missionLabel
+                ? `Ask anything about ${missionLabel}…`
+                : isEngine
+                  ? "We have $100k — where should it go?"
+                  : "Where is value leaking? Who should we fund?"
             }
             className="flex-1"
             inputSize={isEngine ? "lg" : "md"}

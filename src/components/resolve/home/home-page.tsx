@@ -36,38 +36,35 @@ export function HomePage() {
 
   return (
     <div className="relative">
-      {/* §1 Hero — animation + one sentence */}
       <section className="mx-auto grid max-w-6xl gap-12 px-6 pb-20 pt-16 md:grid-cols-2 md:items-center md:pt-24">
         <div>
-          <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight text-white md:text-5xl">
-            The internet already knows who created the value.
-            <span className="mt-3 block text-resolve-muted">
-              It just doesn&apos;t know how to pay them.
-            </span>
+          <h1 className="text-4xl font-semibold leading-[1.12] tracking-tight text-white md:text-5xl">
+            RESOLVE automatically finds people creating value across open communities and routes
+            capital back to them.
           </h1>
           <p className="mt-6 max-w-lg text-base leading-relaxed text-resolve-muted">
-            Value already exists. RESOLVE discovers it, proves it, and moves capital where it
-            belongs — across code, music, research, and every open ecosystem.
+            Observe where value exists. Understand who created it. Decide where capital goes.
+            Execute settlement. Verify impact — across code, music, research, and every open
+            ecosystem.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button variant="glow" size="lg" onClick={() => router.push("/workspace")}>
-              Open workspace
+            <Button variant="glow" size="lg" onClick={() => router.push("/control")}>
+              Open mission control
               <ArrowRight className="h-4 w-4" />
             </Button>
-            <Button variant="secondary" size="lg" onClick={() => router.push("/activity")}>
-              Watch value flow
+            <Button variant="secondary" size="lg" onClick={() => router.push("/discover")}>
+              Where does value exist?
             </Button>
           </div>
         </div>
         <ValueFlowAnimation />
       </section>
 
-      {/* §2 Problems vs RESOLVE */}
       <section className="border-y border-resolve-border bg-resolve-bg-deep/40 py-20">
         <div className="mx-auto grid max-w-6xl gap-10 px-6 md:grid-cols-2">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-300/80">
-              Without settlement infrastructure
+              Today&apos;s internet
             </p>
             <ul className="mt-6 space-y-4">
               {WITHOUT.map((line) => (
@@ -94,7 +91,6 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* §3 Industries — not connectors */}
       <section className="mx-auto max-w-6xl px-6 py-20">
         <p className="text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-muted">
           One engine · every industry
@@ -116,17 +112,16 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* §4 CTA */}
       <section className="border-t border-resolve-border py-16">
         <div className="mx-auto max-w-2xl px-6 text-center">
           <p className="text-lg font-medium text-white">
-            Capital infrastructure for open ecosystems.
+            The operating system for open economies.
           </p>
           <p className="mt-2 text-sm text-resolve-muted">
-            Observe · Reason · Move capital. RESOLVE disappears behind the work.
+            Not pages. Missions. Enter with a question — leave with capital routed.
           </p>
-          <Button variant="glow" className="mt-8" size="lg" onClick={() => router.push("/workspace")}>
-            Enter workspace
+          <Button variant="glow" className="mt-8" size="lg" onClick={() => router.push("/control")}>
+            Enter mission control
           </Button>
         </div>
       </section>

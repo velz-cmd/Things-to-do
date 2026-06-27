@@ -1,27 +1,29 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("RESOLVE product surfaces", () => {
-  test("four workflows are reachable", async ({ page }) => {
+  test("mission-based workflows are reachable", async ({ page }) => {
     test.setTimeout(120_000);
 
-    await page.goto("/workspace", { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Command", { exact: true }).first()).toBeVisible();
+    await page.goto("/control", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "What matters right now?" })).toBeVisible();
 
-    await page.goto("/activity", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Value in motion" })).toBeVisible();
+    await page.goto("/network", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "What changed?" })).toBeVisible();
 
     await page.goto("/payments", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Treasury & settlement" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "What is waiting to move?" })).toBeVisible();
 
     await page.goto("/connectors", { waitUntil: "commit" });
-    await expect(page).toHaveURL(/\/activity/);
-    await expect(page.getByRole("heading", { level: 1, name: "Value in motion" })).toBeVisible();
+    await expect(page).toHaveURL(/\/discover/);
 
-    await page.goto("/workspace/fund", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Fund contributors" })).toBeVisible();
+    await page.goto("/decide", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "What needs funding?" })).toBeVisible();
 
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Profile" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Who am I in this network?" })).toBeVisible();
+
+    await page.goto("/workspace", { waitUntil: "commit" });
+    await expect(page).toHaveURL(/\/control/);
   });
 
   test("connectors live API returns data", async ({ request }) => {
@@ -50,6 +52,7 @@ test.describe("RESOLVE product surfaces", () => {
     expect(body).toHaveProperty("liveActivity");
     expect(body).toHaveProperty("domainIntelligence");
     expect(body).toHaveProperty("network");
+    expect(body).toHaveProperty("intelligence");
   });
 
   test("workspace ask API returns protocol welcome and snapshot", async ({ request }) => {

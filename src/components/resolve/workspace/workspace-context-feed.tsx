@@ -24,7 +24,13 @@ function relative(iso: string) {
 }
 
 /** Bloomberg-style vertical feed — no cards, always moving. */
-export function WorkspaceContextFeed({ className }: { className?: string }) {
+export function WorkspaceContextFeed({
+  className,
+  missionLabel,
+}: {
+  className?: string;
+  missionLabel?: string;
+}) {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [headline, setHeadline] = useState("");
 
@@ -58,19 +64,27 @@ export function WorkspaceContextFeed({ className }: { className?: string }) {
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-resolve-muted-dim">
           Live context
         </p>
-        <p className="mt-1 text-sm font-medium text-white">{headline}</p>
+        <p className="mt-1 text-sm font-medium text-white">
+          {missionLabel ? `Scope: ${missionLabel}` : headline}
+        </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {events.length === 0 ? (
           <p className="p-4 text-xs leading-relaxed text-resolve-muted">
             Value events appear here as sensors observe activity.{" "}
-            <Link href="/activity" className="text-resolve-accent hover:underline">
+            <Link href="/network" className="text-resolve-accent hover:underline">
               Open feed →
             </Link>
           </p>
         ) : (
           <ul>
-            {events.map((e) => (
+            {events
+              .filter((e) =>
+                missionLabel
+                  ? e.context.toLowerCase().includes(missionLabel.toLowerCase().split("/")[0] ?? "")
+                  : true,
+              )
+              .map((e) => (
               <li
                 key={e.id}
                 className="border-b border-resolve-border/50 px-4 py-3 text-xs hover:bg-resolve-hover/20"

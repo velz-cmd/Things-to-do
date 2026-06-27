@@ -6,7 +6,8 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Workspace" })).toBeVisible();
-    await expect(page.getByText("Chat", { exact: true })).toBeVisible();
+    await expect(page.getByText("Here's what is already happening")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Find value leaks" }).first()).toBeVisible();
 
     await page.goto("/activity", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Activity" })).toBeVisible();
@@ -40,7 +41,8 @@ test.describe("RESOLVE product surfaces", () => {
     expect(body).toHaveProperty("tagline");
     expect(body).toHaveProperty("sources");
     expect(body).toHaveProperty("liveActivity");
-    expect(body).toHaveProperty("capitalFlow");
+    expect(body).toHaveProperty("domainIntelligence");
+    expect(body).toHaveProperty("network");
   });
 
   test("workspace ask API returns protocol welcome and snapshot", async ({ request }) => {

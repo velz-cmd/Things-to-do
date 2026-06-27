@@ -167,30 +167,41 @@ STRICT RULES:
   }
 }
 
-export function getProtocolWelcome() {
+export function getProtocolWelcome(evidence?: {
+  concentrations: { title: string; detail: string }[];
+  treasuryBalanceUsd: number;
+  ledgerCount: number;
+}) {
+  const hasLive = evidence && (evidence.ledgerCount > 0 || evidence.concentrations.length > 1);
+
   return {
     specialistLabel: "Protocol",
-    greeting: "What would you like to do?",
-    subtitle:
-      "Ask anything about open ecosystems, creators, communities, or capital flow. Every answer uses real connectors, attribution, and settlement data.",
+    greeting: hasLive
+      ? "Open ecosystems are active. Here's what the network sees."
+      : "Sensors are standing by across open ecosystems.",
+    subtitle: hasLive
+      ? evidence!.concentrations[0]
+        ? `${evidence!.concentrations[0].title} — ${evidence!.concentrations[0].detail}`
+        : "Ask where value is leaking, who is underfunded, or how to allocate capital."
+      : "Value is discovered where people already work — code, music, research, communities. Connect sensors; capital follows.",
     requiresApproval: true,
     naturalLanguageActions: [
-      "Find underpaid maintainers",
-      "Distribute 100k USDC",
-      "Pay musicians this month",
-      "Show value leaks",
-      "Fund top contributors",
-      "Analyze our ecosystem",
-      "Where are my unpaid listens?",
-      "Who cited my work?",
+      "Find value leaks",
+      "Show underfunded maintainers",
+      "Where should $100k go?",
+      "Who powers our ecosystem?",
+      "Show communities at risk",
+      "Find funding opportunities",
+      "Who is underpaid?",
+      "Recommend allocation",
     ],
     discoverPrompts: [
-      "Discover value",
-      "Fund a community",
-      "Pay creators",
-      "Analyze an ecosystem",
-      "Move capital",
-      "Find opportunities",
+      "Find value leaks",
+      "Underfunded libraries",
+      "Allocate treasury",
+      "Show opportunities",
+      "Who deserves recognition?",
+      "Ecosystem risk scan",
     ],
   };
 }

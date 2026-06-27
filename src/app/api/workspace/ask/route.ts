@@ -34,11 +34,20 @@ export async function POST(req: Request) {
 
 /** Welcome + live snapshot for hybrid workspace (no scripted AI monologue). */
 export async function GET() {
-  const welcome = getProtocolWelcome();
-
   const evidence = await gatherWorkspaceEvidence().catch(() => null);
+  const concentrations = evidence ? buildValueConcentrations(evidence) : [];
+  const welcome = getProtocolWelcome(
+    evidence
+      ? {
+          concentrations,
+          treasuryBalanceUsd: evidence.treasury.balanceUsd,
+          ledgerCount: evidence.ledger?.count ?? 0,
+        }
+      : undefined,
+  );
+
   if (!evidence) {
-    return NextResponse.json({ ok: true, ...welcome });
+    return NextResponse.json({ ok: true, ...welcome, concentrations: [] });
   }
 
   return NextResponse.json({
@@ -56,7 +65,7 @@ export async function GET() {
         }
       : null,
     treasuryBalanceUsd: evidence.treasury.balanceUsd,
-    concentrations: buildValueConcentrations(evidence),
+    concentrations,
     policies: buildPolicyProposals(evidence),
     opportunities: opportunitiesToCards(evidence.opportunities),
     actions: buildEvidenceActions(evidence),

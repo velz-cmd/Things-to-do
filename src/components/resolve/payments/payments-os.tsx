@@ -145,11 +145,11 @@ export function PaymentsOS() {
     <div className="mx-auto max-w-2xl px-4 py-8 lg:px-8">
       <header className="mb-10">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-          Capital
+          Execute
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">Treasury & settlement</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-white">What is waiting to move?</h1>
         <p className="mt-2 text-sm text-resolve-muted">
-          How much capital you manage — claims, queue, history.
+          Treasury, claims, and settlement history — capital execution, not admin.
         </p>
       </header>
 

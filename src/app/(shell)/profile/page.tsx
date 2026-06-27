@@ -87,8 +87,8 @@ export default function ProfilePage() {
   return (
     <ProductPage
       icon={User}
-      title="Profile"
-      description="Your unified participant identity — GitHub, wallets, music credits, and payout preferences in one place."
+      title="Who am I in this network?"
+      description="Universal identity — wallets, communities, connected ecosystems, and payout preferences. GitHub and MusicBrainz are identities, not the product."
       workflows={[
         { label: "GitHub" },
         { label: "Wallet" },

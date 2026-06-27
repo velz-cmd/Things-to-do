@@ -1,6 +1,5 @@
 "use client";
 
-import clsx from "clsx";
 import { ExternalLink, Download, Share2 } from "lucide-react";
 import type { MissionReport } from "@/lib/mission/mission-report";
 import { missionReportToJson } from "@/lib/mission/mission-report";
@@ -10,35 +9,16 @@ import { MissionResearchRefs } from "@/components/resolve/mission-control/missio
 import { MissionFindings } from "@/components/resolve/mission-control/mission-findings";
 import { MissionCapitalBlueprint } from "@/components/resolve/mission-control/mission-capital-blueprint";
 import { MissionReportSections } from "@/components/resolve/mission-control/mission-report-sections";
-import { OPERATING_MODES } from "@/lib/mission/capital-os";
-
-function formatDuration(ms: number) {
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function formatTimestamp(iso: string) {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZoneName: "short",
-    });
-  } catch {
-    return iso;
-  }
-}
 
 export function MissionReportCard({
   report,
+  topicName,
   onAction,
   onChip,
   actionsDisabled,
 }: {
   report: MissionReport;
+  topicName?: string;
   onAction?: (action: CapabilityAction) => void;
   onChip?: (text: string) => void;
   actionsDisabled?: boolean;
@@ -62,87 +42,23 @@ export function MissionReportCard({
     }
   }
 
-  const modeLabel = report.operatingMode ?
-    OPERATING_MODES.find((m) => m.id === report.operatingMode)?.label
-  : undefined;
-  const jobLabel =
-    report.job === "design_capital" ? "Design capital"
-    : report.job === "execute" ? "Execute"
-    : "Understand";
 
   return (
-    <article className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#070b12]">
-      <header className="border-b border-white/[0.06] px-5 py-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-400/90">
-            Mission report · {jobLabel}
-          </p>
-          {modeLabel && (
-            <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-200">
-              {modeLabel} mode
-            </span>
-          )}
-        </div>
-        <h2 className="mt-2 text-xl font-semibold leading-snug tracking-tight text-white sm:text-2xl">
-          {report.objective}
-        </h2>
-        <p className="mt-2 font-mono text-[11px] text-resolve-muted-dim">
-          Report {report.reportId}
-          {report.missionId ? ` · Mission ${report.missionId.slice(0, 12)}…` : ""}
-          {" · "}
-          {formatTimestamp(report.completedAt)}
-        </p>
-      </header>
-
-      <div className="grid gap-px bg-white/[0.04] sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCell label="Run status" value={report.status.replace("_", " ")} sub="Persisted ledger" />
-        <MetricCell
-          label="Completed in"
-          value={formatDuration(report.durationMs)}
-          sub={report.capabilityLabel}
-        />
-        <MetricCell
-          label="Confidence"
-          value={`${Math.round(report.confidence * 100)}%`}
-          sub={`${report.signalsFound} signal${report.signalsFound === 1 ? "" : "s"}`}
-        />
-        <MetricCell
-          label="Communities"
-          value={String(report.communitiesAnalyzed)}
-          sub={
-            report.criticalCount > 0 ?
-              `${report.criticalCount} critical`
-            : "analyzed"
-          }
-        />
+    <article className="space-y-4">
+      <div>
+        <p className="text-base font-semibold leading-snug text-white">{report.headline}</p>
+        <p className="mt-2 text-sm leading-relaxed text-resolve-muted">{report.summary}</p>
       </div>
 
-      <div className="space-y-5 px-5 py-5">
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">Result</p>
-          <p className="mt-1 text-lg font-semibold text-white">{report.headline}</p>
-          <p className="mt-1 text-sm text-resolve-muted">{report.summary}</p>
-        </div>
+      {report.sourcesScanned.length > 0 && (
+        <p className="text-[11px] text-resolve-muted-dim">
+          {report.sourcesScanned.join(" · ")}
+        </p>
+      )}
 
-        {report.sourcesScanned.length > 0 && (
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">
-              Evidence scanned
-            </p>
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {report.sourcesScanned.map((s) => (
-                <li
-                  key={s}
-                  className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-[11px] text-emerald-200/90"
-                >
-                  ✓ {s}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+      <div className="border-t border-white/[0.06]" />
 
-        {report.researchReferences && report.researchReferences.length > 0 && (
+      {report.researchReferences && report.researchReferences.length > 0 && (
           <MissionResearchRefs references={report.researchReferences} />
         )}
 
@@ -259,28 +175,6 @@ export function MissionReportCard({
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2 border-t border-white/[0.06] pt-4">
-          <button
-            type="button"
-            onClick={downloadJson}
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] px-3 py-1.5 text-[11px] text-resolve-muted hover:text-white"
-          >
-            <Download className="h-3 w-3" />
-            Export JSON
-          </button>
-          <button
-            type="button"
-            onClick={() => void shareReport()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] px-3 py-1.5 text-[11px] text-resolve-muted hover:text-white"
-          >
-            <Share2 className="h-3 w-3" />
-            Share
-          </button>
-          {report.persisted && (
-            <span className="self-center text-[10px] text-resolve-muted-dim">Persisted ledger</span>
-          )}
-        </div>
-
         {onAction && report.actions.length > 0 && (
           <MissionCapabilityActions
             actions={report.actions}
@@ -288,27 +182,35 @@ export function MissionReportCard({
             disabled={actionsDisabled}
           />
         )}
-      </div>
-    </article>
-  );
-}
 
-function MetricCell({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div className="bg-[#0a0f18] px-4 py-3">
-      <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">{label}</p>
-      <p className={clsx("mt-1 text-lg font-semibold capitalize tabular-nums text-white")}>
-        {value}
-      </p>
-      {sub && <p className="mt-0.5 text-[11px] text-resolve-muted-dim">{sub}</p>}
-    </div>
+        <details className="group">
+          <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-resolve-muted-dim hover:text-resolve-muted">
+            Export report
+          </summary>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={downloadJson}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] px-2.5 py-1 text-[10px] text-resolve-muted hover:text-white"
+            >
+              <Download className="h-3 w-3" />
+              JSON
+            </button>
+            <button
+              type="button"
+              onClick={() => void shareReport()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] px-2.5 py-1 text-[10px] text-resolve-muted hover:text-white"
+            >
+              <Share2 className="h-3 w-3" />
+              Share
+            </button>
+            {topicName && (
+              <span className="self-center text-[10px] text-resolve-muted-dim">
+                {topicName} · {Math.round(report.confidence * 100)}%
+              </span>
+            )}
+          </div>
+        </details>
+    </article>
   );
 }

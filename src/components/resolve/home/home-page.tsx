@@ -49,11 +49,8 @@ export function HomePage() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button variant="glow" size="lg" onClick={() => router.push("/control")}>
-              Open mission control
+              Open Mission
               <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button variant="secondary" size="lg" onClick={() => router.push("/discover")}>
-              Where does value exist?
             </Button>
           </div>
         </div>
@@ -121,7 +118,7 @@ export function HomePage() {
             Not pages. Missions. Enter with a question — leave with capital routed.
           </p>
           <Button variant="glow" className="mt-8" size="lg" onClick={() => router.push("/control")}>
-            Enter mission control
+            Open Mission
           </Button>
         </div>
       </section>

@@ -75,6 +75,8 @@ export {
   KNOWN_COMMUNITIES,
   communityKindLabel,
 } from "./detector";
+export { resolveCommunityRepoSignals } from "./repo-signals";
+export type { CommunityRepoRef } from "./repo-signals";
 export {
   MISSION_STARTER_GROUPS,
   followUpQuickActions,

@@ -12,6 +12,9 @@ const bodySchema = z.object({
   question: z.string().min(1).max(4000),
   messages: z.array(messageSchema).max(40).optional(),
   ecosystemId: z.string().optional(),
+  operatingMode: z
+    .enum(["founder", "dao", "maintainer", "creator", "research", "community_manager"])
+    .optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -36,6 +39,7 @@ export async function POST(req: Request, { params }: Params) {
       question: parsed.data.question,
       messages: parsed.data.messages,
       ecosystemId: parsed.data.ecosystemId,
+      operatingMode: parsed.data.operatingMode,
     });
 
     return NextResponse.json({

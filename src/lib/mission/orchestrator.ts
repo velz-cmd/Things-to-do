@@ -249,7 +249,7 @@ export async function runMissionOrchestrator(input: {
     label: q.label,
     prompt: q.prompt,
     kind: "explore" as const,
-  }))].filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i).slice(0, 4);
+  }))].filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i).slice(0, 6);
   const durationMs = Math.round(performance.now() - started);
   const report = buildMissionReport({
     ctx,

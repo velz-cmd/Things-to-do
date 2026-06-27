@@ -27,9 +27,11 @@ type WelcomeData = {
 export function ProtocolChat({
   onPoliciesChange,
   initialConcentrations,
+  variant = "default",
 }: {
   onPoliciesChange?: (policies: PolicyProposal[]) => void;
   initialConcentrations?: ValueConcentration[];
+  variant?: "default" | "engine";
 }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -110,9 +112,11 @@ export function ProtocolChat({
             <MessageCircle className="h-4 w-4 text-white" />
           </div>
           <div>
-            <span className="text-sm font-semibold text-white">Command</span>
-            <span className="ml-2 rounded-full bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
-              Protocol
+            <span className="text-sm font-semibold text-white">
+              {variant === "engine" ? "Economic reasoning" : "Command"}
+            </span>
+            <span className="ml-2 rounded-full bg-resolve-accent/15 px-2.5 py-0.5 text-[10px] font-semibold text-blue-200 ring-1 ring-resolve-accent/25">
+              {variant === "engine" ? "Engine" : "Protocol"}
             </span>
           </div>
         </div>
@@ -125,7 +129,7 @@ export function ProtocolChat({
               <p className="text-base font-medium text-white">{welcome.greeting}</p>
               <p className="mt-1.5 text-xs leading-relaxed text-resolve-muted">{welcome.subtitle}</p>
             </Panel>
-            {concentrations.length > 0 && (
+            {variant !== "engine" && concentrations.length > 0 && (
               <ul className="space-y-2">
                 {concentrations.slice(0, 4).map((c) => (
                   <li

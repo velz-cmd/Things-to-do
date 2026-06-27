@@ -7,6 +7,8 @@ import { MissionSidebar } from "@/components/resolve/mission-control/mission-sid
 import { MissionReportCard } from "@/components/resolve/mission-control/mission-report-card";
 import { MissionContextPanel } from "@/components/resolve/mission-control/mission-context-panel";
 import { MissionLiveDelta } from "@/components/resolve/mission-control/mission-live-delta";
+import { MissionStarterPanel } from "@/components/resolve/mission-control/mission-quick-actions";
+import { MissionResearchRefs } from "@/components/resolve/mission-control/mission-research-refs";
 import { MissionBrief } from "@/components/resolve/mission-control/mission-brief";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
@@ -35,6 +37,7 @@ export type MissionTurn = {
   allocations?: AllocationLine[];
   policy?: PolicyProposal;
   nextSteps?: CapabilityAction[];
+  researchReferences?: import("@/lib/mission/capabilities/types").ResearchReference[];
 };
 
 export function MissionWorkspace({
@@ -143,7 +146,7 @@ export function MissionWorkspace({
             <div>
               {activeWorkspace ?
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-accent">
-                  Workspace · {activeWorkspace.name}
+                  Community · {activeWorkspace.name}
                 </p>
               : <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-muted-dim">
                   Operating system for funding open communities
@@ -163,13 +166,7 @@ export function MissionWorkspace({
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
           <div className="mx-auto max-w-3xl space-y-5">
             {!active && (
-              <div className="rounded-xl border border-dashed border-white/[0.08] p-8 text-center">
-                <p className="text-sm text-resolve-muted">
-                  {activeWorkspace ?
-                    `You are inside ${activeWorkspace.name}. State one economic objective — fund, discover, compare, or assess.`
-                  : "Select a workspace or start a mission. Conversation is one tool inside the workspace — not the product."}
-                </p>
-              </div>
+              <MissionStarterPanel onSelect={onSubmit} disabled={loading} />
             )}
 
             {liveDelta && liveDelta.length > 0 && <MissionLiveDelta events={liveDelta} />}
@@ -181,11 +178,16 @@ export function MissionWorkspace({
                 </p>
               : <div key={turn.id} className="space-y-3">
                   {turn.report ?
-                    <MissionReportCard
-                      report={turn.report}
-                      onAction={turn === lastResolve ? onAction : undefined}
-                      actionsDisabled={loading}
-                    />
+                    <>
+                      <MissionReportCard
+                        report={turn.report}
+                        onAction={turn === lastResolve ? onAction : undefined}
+                        actionsDisabled={loading}
+                      />
+                      {turn.researchReferences && turn.researchReferences.length > 0 && (
+                        <MissionResearchRefs references={turn.researchReferences} />
+                      )}
+                    </>
                   : turn.brief ?
                     <MissionReportCard
                       report={reportFromBrief(
@@ -212,19 +214,19 @@ export function MissionWorkspace({
         </div>
 
         <div className="shrink-0 border-t border-white/[0.06] px-4 py-3 lg:px-6">
-          <form onSubmit={handleFormSubmit} className="mx-auto flex max-w-3xl gap-2">
-            <div className="relative min-w-0 flex-1">
+          <form onSubmit={handleFormSubmit} className="mx-auto max-w-3xl">
+            <div className="relative">
               <input
                 value={input}
                 onChange={(e) => onInputChange(e.target.value)}
                 placeholder={placeholder}
                 disabled={loading}
-                className="w-full rounded-lg border border-white/[0.08] bg-[#0a0f18]/80 px-4 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none disabled:opacity-50"
+                className="w-full rounded-full border border-white/[0.1] bg-[#0a0f18]/90 px-5 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={loading || !input.trim()}
-                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-resolve-muted transition hover:text-white disabled:opacity-30"
+                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
                 aria-label="Run capability"
               >
                 {loading ?
@@ -234,7 +236,7 @@ export function MissionWorkspace({
             </div>
           </form>
           <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-resolve-muted-dim">
-            Observe → Understand → Reason → Decide → Execute → Learn
+            Communities confusing you? Observe → Understand → Capital → Settlement
           </p>
         </div>
       </div>

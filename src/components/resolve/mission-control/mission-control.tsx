@@ -30,6 +30,7 @@ import {
 import { captureFromMission } from "@/lib/mission/knowledge";
 import {
   createServerMission,
+  dispatchMissionAction,
   executeMission,
   fetchMission,
   fetchTimeline,
@@ -44,6 +45,7 @@ import type { AutomationRule } from "@/lib/mission/toolbox/types";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import { detectOperatingMode, detectCapitalLoopPhase, detectMissionJob } from "@/lib/mission/capital-os";
 import { resolveMissionTopic } from "@/lib/mission/mission-topic";
+import { resolveMissionActionType } from "@/lib/mission/actions/resolve-type";
 
 type AdvisorPayload = {
   phase?: MissionPhase;
@@ -408,6 +410,7 @@ export function MissionControl() {
             question: query,
             messages: history,
             ecosystemId: workspaceId,
+            operatingMode,
           });
           if (serverData) {
             data = serverData;
@@ -518,23 +521,94 @@ export function MissionControl() {
   );
 
   const handleAction = useCallback(
-    (action: CapabilityAction) => {
-      if (action.href && action.kind === "navigate") {
-        window.location.href = action.href;
-        return;
-      }
+    async (action: CapabilityAction) => {
+      const actionType = resolveMissionActionType(action);
+
       if (
-        action.kind === "execute" &&
-        serverMode &&
-        !session.id.startsWith("ms-") &&
-        /review|settlement|package|walk/i.test(`${action.id} ${action.label}`)
+        actionType === "navigate" ||
+        actionType === "open_claim" ||
+        actionType === "fund_treasury"
       ) {
-        void runExecute(session.id, /\b(execute|authorize|settle now)\b/i.test(action.prompt));
+        window.location.href =
+          action.href ??
+          (actionType === "open_claim" ? "/claim"
+          : actionType === "fund_treasury" ? "/payments"
+          : "/");
         return;
       }
+
+      if (actionType !== "chat" && serverMode && !session.id.startsWith("ms-")) {
+        setLoading(true);
+        try {
+          const result = await dispatchMissionAction({
+            missionId: session.id,
+            action,
+            context: {
+              objective: objective ?? undefined,
+              summary: lastResolveReport?.summary,
+              headline: lastResolveReport?.headline,
+              ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
+              fundPoolUsd: parseCapitalUsd(objective ?? input) ?? undefined,
+            },
+          });
+
+          if (result?.navigateTo) {
+            window.location.href = result.navigateTo;
+            return;
+          }
+
+          const isSettlement = actionType === "prepare_settlement" || actionType === "execute_settlement";
+          const resolveTurn: MissionTurn = {
+            id: `r-${Date.now()}`,
+            role: "resolve",
+            text: result?.message ?? "Action completed.",
+            phase: isSettlement ? (actionType === "execute_settlement" ? "execute" : "plan") : "discover",
+            capability: isSettlement ? "execute_settlement" : undefined,
+          };
+          setTurns((prev) => [...prev, resolveTurn]);
+          setMissionStatus(
+            actionType === "execute_settlement" ? "completed"
+            : actionType === "prepare_settlement" ? "awaiting_user"
+            : missionStatus,
+          );
+          setLibraryTick((n) => n + 1);
+        } catch (e) {
+          setTurns((prev) => [
+            ...prev,
+            {
+              id: `r-${Date.now()}`,
+              role: "resolve",
+              text: e instanceof Error ? e.message : "Action failed",
+              phase: "discover",
+            },
+          ]);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (actionType === "prepare_settlement" || actionType === "execute_settlement") {
+        if (serverMode && !session.id.startsWith("ms-")) {
+          void runExecute(session.id, actionType === "execute_settlement");
+          return;
+        }
+      }
+
       void sendMessage(action.prompt);
     },
-    [runExecute, sendMessage, serverMode, session.id],
+    [
+      runExecute,
+      sendMessage,
+      serverMode,
+      session.id,
+      session.ecosystemId,
+      objective,
+      input,
+      lastResolveReport,
+      activeWorkspace?.id,
+      missionStatus,
+    ],
   );
 
   const handlePolicySelect = useCallback(
@@ -645,6 +719,7 @@ export function MissionControl() {
       topic={topic}
       operatingMode={operatingMode}
       loopPhase={loopPhase}
+      onOperatingModeChange={setOperatingMode}
     />
   );
 }

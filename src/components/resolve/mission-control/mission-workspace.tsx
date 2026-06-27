@@ -17,6 +17,7 @@ import {
   MissionPlanningBar,
   MissionExecuteBar,
 } from "@/components/resolve/mission-control/mission-planning-bar";
+import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
@@ -72,6 +73,7 @@ export function MissionWorkspace({
   topic,
   operatingMode,
   loopPhase,
+  onOperatingModeChange,
 }: {
   objective: string | null;
   turns: MissionTurn[];
@@ -99,6 +101,7 @@ export function MissionWorkspace({
   topic: MissionTopic | null;
   operatingMode: OperatingMode;
   loopPhase: CapitalLoopPhase;
+  onOperatingModeChange?: (mode: OperatingMode) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const started = Boolean(objective || turns.length > 0 || loading);
@@ -189,24 +192,67 @@ export function MissionWorkspace({
         </div>
 
         <div className="shrink-0 border-t border-white/[0.06] bg-[#070b14]/60 px-4 py-3 backdrop-blur-md lg:px-8">
+          {onOperatingModeChange && (
+            <div className="mx-auto mb-3 max-w-2xl">
+              <MissionOperatingMode
+                active={operatingMode}
+                onChange={onOperatingModeChange}
+                disabled={loading}
+              />
+            </div>
+          )}
+
           <MissionPlanningBar
             visible={showPlanning && !loading}
             actions={[
-              { label: "Simulate", prompt: "Simulate this allocation — show recipients and amounts." },
-              { label: "Adjust weights", prompt: "Shift 10% from infrastructure to contributors." },
-              { label: "Capital Blueprint", prompt: "Generate a Capital Blueprint for this community." },
+              {
+                id: "simulate-plan",
+                label: "Simulate",
+                prompt: "Simulate this allocation — show recipients and amounts.",
+                kind: "simulate",
+              },
+              {
+                id: "adjust-weights",
+                label: "Adjust weights",
+                prompt: "Shift 10% from infrastructure to contributors.",
+                kind: "simulate",
+              },
+              {
+                id: "blueprint-plan",
+                label: "Capital Blueprint",
+                prompt: "Generate a Capital Blueprint for this community.",
+                kind: "plan",
+              },
             ]}
-            onAction={onSubmit}
+            onAction={onAction}
           />
 
           <MissionExecuteBar
             visible={showExecute && !loading}
             actions={[
-              { label: "Review package", prompt: "Walk me through exactly what capital would move." },
-              { label: "Prepare settlement", prompt: "Prepare settlement package for approval." },
-              { label: "Authorize", prompt: "Authorize settlement now." },
+              {
+                id: "review-package-bar",
+                label: "Review package",
+                prompt: "Walk me through exactly what capital would move.",
+                kind: "execute",
+                actionType: "prepare_settlement",
+              },
+              {
+                id: "prepare-settlement-bar",
+                label: "Prepare settlement",
+                prompt: "Prepare settlement package for approval.",
+                kind: "execute",
+                actionType: "prepare_settlement",
+              },
+              {
+                id: "authorize-bar",
+                label: "Authorize",
+                prompt: "Authorize settlement now.",
+                kind: "execute",
+                actionType: "execute_settlement",
+              },
             ]}
-            onAction={onSubmit}
+            onAction={onAction}
           />
 
           {!showPlanning && !showExecute && (
@@ -215,7 +261,7 @@ export function MissionWorkspace({
                 <input
                   value={input}
                   onChange={(e) => onInputChange(e.target.value)}
-                  placeholder="Continue the mission…"
+                  placeholder="Ask anything — communities, funding, risk, claims, settlement…"
                   disabled={loading}
                   className="w-full rounded-2xl border border-white/[0.1] bg-[#131c2e]/90 px-4 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-sky-500/40 focus:outline-none disabled:opacity-50"
                 />

@@ -7,6 +7,10 @@ import { missionReportToJson } from "@/lib/mission/mission-report";
 import type { CapabilityAction } from "@/lib/mission/capabilities/types";
 import { MissionCapabilityActions } from "@/components/resolve/mission-control/mission-capability-actions";
 import { MissionResearchRefs } from "@/components/resolve/mission-control/mission-research-refs";
+import { MissionFindings } from "@/components/resolve/mission-control/mission-findings";
+import { MissionCapitalBlueprint } from "@/components/resolve/mission-control/mission-capital-blueprint";
+import { MissionReportSections } from "@/components/resolve/mission-control/mission-report-sections";
+import { OPERATING_MODES } from "@/lib/mission/capital-os";
 
 function formatDuration(ms: number) {
   if (ms < 1000) return `${ms}ms`;
@@ -31,10 +35,12 @@ function formatTimestamp(iso: string) {
 export function MissionReportCard({
   report,
   onAction,
+  onChip,
   actionsDisabled,
 }: {
   report: MissionReport;
   onAction?: (action: CapabilityAction) => void;
+  onChip?: (text: string) => void;
   actionsDisabled?: boolean;
 }) {
   function downloadJson() {
@@ -48,20 +54,35 @@ export function MissionReportCard({
   }
 
   async function shareReport() {
-    const url = `${window.location.origin}/mission?report=${report.reportId}`;
+    const payload = missionReportToJson(report);
     if (navigator.share) {
-      await navigator.share({ title: report.headline, url }).catch(() => undefined);
+      await navigator.share({ title: report.headline, text: payload.slice(0, 500) }).catch(() => undefined);
     } else {
-      await navigator.clipboard.writeText(url).catch(() => undefined);
+      await navigator.clipboard.writeText(payload).catch(() => undefined);
     }
   }
+
+  const modeLabel = report.operatingMode ?
+    OPERATING_MODES.find((m) => m.id === report.operatingMode)?.label
+  : undefined;
+  const jobLabel =
+    report.job === "design_capital" ? "Design capital"
+    : report.job === "execute" ? "Execute"
+    : "Understand";
 
   return (
     <article className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#070b12]">
       <header className="border-b border-white/[0.06] px-5 py-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-400/90">
-          Mission report · Arc testnet
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-400/90">
+            Mission report · {jobLabel}
+          </p>
+          {modeLabel && (
+            <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-200">
+              {modeLabel} mode
+            </span>
+          )}
+        </div>
         <h2 className="mt-2 text-xl font-semibold leading-snug tracking-tight text-white sm:text-2xl">
           {report.objective}
         </h2>
@@ -143,6 +164,22 @@ export function MissionReportCard({
               </p>
             )}
           </div>
+        )}
+
+        <MissionReportSections
+          understanding={report.understanding}
+          capitalDesign={report.capitalDesign}
+          executionPlan={report.executionPlan}
+          risks={report.risks}
+          recommendation={report.recommendation}
+        />
+
+        {report.capitalBlueprint && (
+          <MissionCapitalBlueprint blueprint={report.capitalBlueprint} />
+        )}
+
+        {report.findings.length > 0 && onChip && (
+          <MissionFindings findings={report.findings} onChip={onChip} disabled={actionsDisabled} />
         )}
 
         {report.simulations && report.simulations.length > 0 && (

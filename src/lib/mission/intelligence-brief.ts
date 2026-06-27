@@ -218,7 +218,11 @@ export function buildIntelligenceBrief(ctx: OrchestratorContext): IntelligenceBr
     }
 
     default: {
-      base.headline = top?.title ?? ctx.capabilityLabel;
+      const findingCount = findings.length || opportunities.length;
+      base.headline =
+        findingCount > 0 ?
+          `I found ${findingCount} signal${findingCount === 1 ? "" : "s"} worth acting on in ${scope}`
+        : top?.title ?? ctx.capabilityLabel;
       base.summary = top?.insight ?? `Analysis across ${scope} using live evidence.`;
       if (top) {
         base.priority = {

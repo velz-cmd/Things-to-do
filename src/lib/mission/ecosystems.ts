@@ -13,6 +13,16 @@ export type Ecosystem = {
   createdAt: string;
   /** Keywords used to scope reasoning when this ecosystem is active */
   keywords: string[];
+  repos?: Array<{
+    owner: string;
+    repo: string;
+    fullName: string;
+    stars?: number;
+    fundingGapUsd?: number;
+    maintainerCount?: number;
+  }>;
+  connectors?: string[];
+  missionCount?: number;
 };
 
 const STORAGE_KEY = "resolve-ecosystems";

@@ -11,6 +11,7 @@ import type { FundingOpportunity } from "@/lib/github/types";
 import {
   buildCommunityContext,
   hasSensor,
+  resolveCommunityRepoSignals,
   type CommunityContext,
   type CapabilityLayer,
 } from "@/lib/mission/community";
@@ -147,7 +148,11 @@ export async function runCollectors(input: {
 
   let opportunities = [...evidence.opportunities];
 
-  const communityRepos = input.community?.repos ?? [];
+  const communityRepos = resolveCommunityRepoSignals({
+    question: input.question,
+    communityName: community.name,
+    attachedRepos: input.community?.repos,
+  });
   const observeCode =
     hasSensor(community.sensors, "github") &&
     (community.kind === "oss" || community.kind === "protocol" || community.kind === "general");
@@ -187,6 +192,15 @@ export async function runCollectors(input: {
         opportunities = mergeOpportunities(opportunities, [scanned]);
         traces.push(trace("github", "ok", `Live observation: ${scanned.fullName}`, "observe"));
       }
+    } else if (community.name && communityRepos.length === 0 && community.kind !== "music" && community.kind !== "research") {
+      traces.push(
+        trace(
+          "github",
+          "empty",
+          `No GitHub signals mapped for ${community.name} yet — attach repos on an ecosystem or name a known world (React, Linux…)`,
+          "observe",
+        ),
+      );
     } else if (!communityRepos.length && community.kind !== "music" && community.kind !== "research") {
       traces.push(
         trace(

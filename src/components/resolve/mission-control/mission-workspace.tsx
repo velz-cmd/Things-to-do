@@ -3,37 +3,28 @@
 import { useEffect, useRef, type FormEvent } from "react";
 import { Loader2, Send } from "lucide-react";
 import { MissionThinking } from "@/components/resolve/mission-control/mission-thinking";
-import { MissionSidebar } from "@/components/resolve/mission-control/mission-sidebar";
+import { MissionEmptyState } from "@/components/resolve/mission-control/mission-empty-state";
+import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
 import { MissionReportCard } from "@/components/resolve/mission-control/mission-report-card";
 import { MissionContextPanel } from "@/components/resolve/mission-control/mission-context-panel";
-import { MissionLiveDelta } from "@/components/resolve/mission-control/mission-live-delta";
-import { MissionStarterPanel } from "@/components/resolve/mission-control/mission-quick-actions";
-import { MissionResearchRefs } from "@/components/resolve/mission-control/mission-research-refs";
-import { MissionBrief } from "@/components/resolve/mission-control/mission-brief";
-import { MissionCapitalLoop } from "@/components/resolve/mission-control/mission-capital-loop";
-import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
+import { MissionWorldSnapshot } from "@/components/resolve/mission-control/mission-world-snapshot";
 import { MissionQuickActions } from "@/components/resolve/mission-control/mission-quick-actions";
 import {
   MissionPlanningBar,
   MissionExecuteBar,
 } from "@/components/resolve/mission-control/mission-planning-bar";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
-import type { OperatingMode } from "@/lib/mission/capital-os";
-import type { CapitalLoopPhase } from "@/lib/mission/capital-os";
+import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
 import type { MissionPhase } from "@/lib/mission/phases";
 import type { CapabilityAction, CapabilityId } from "@/lib/mission/capabilities/types";
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
-import type { Ecosystem } from "@/lib/mission/ecosystems";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 import type { IntelligenceBrief } from "@/lib/mission/intelligence-brief";
 import type { MissionReport } from "@/lib/mission/mission-report";
 import { reportFromBrief } from "@/lib/mission/mission-report";
 import type { ServerTimelineEvent } from "@/lib/mission/client-api";
-import { statusLabel } from "@/lib/mission/state-machine";
-import type { MissionStatus } from "@/lib/mission/state-machine";
-import type { AutomationRule } from "@/lib/mission/toolbox/types";
-import type { MissionBriefData } from "@/components/resolve/mission-control/mission-brief";
+import type { MissionTopic } from "@/lib/mission/mission-topic";
 
 export type MissionTurn = {
   id: string;
@@ -62,15 +53,10 @@ export function MissionWorkspace({
   onAction,
   onNewMission,
   onSelectSession,
-  onSelectWorkspace,
-  onObservatoryPulse,
-  onAutomationSelect,
   activeSessionId,
-  activeWorkspace,
   missionStatus,
   thinkingSteps,
   libraryTick,
-  liveDelta,
   policies,
   selectedPolicyId,
   onSelectPolicy,
@@ -80,10 +66,9 @@ export function MissionWorkspace({
   timeline,
   timelineLoading,
   treasuryBalanceUsd,
-  missionBrief,
+  topic,
   operatingMode,
   loopPhase,
-  onOperatingModeChange,
 }: {
   objective: string | null;
   turns: MissionTurn[];
@@ -96,15 +81,10 @@ export function MissionWorkspace({
   onAction: (action: CapabilityAction) => void;
   onNewMission: () => void;
   onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
-  onSelectWorkspace: (workspace: Ecosystem | null) => void;
-  onObservatoryPulse: (query: string) => void;
-  onAutomationSelect: (rule: AutomationRule) => void;
   activeSessionId?: string | null;
-  activeWorkspace?: Ecosystem | null;
   missionStatus?: string | null;
   thinkingSteps?: readonly string[];
   libraryTick?: number;
-  liveDelta?: ServerTimelineEvent[];
   policies: PolicyProposal[];
   selectedPolicyId: string | null;
   onSelectPolicy: (id: string) => void;
@@ -114,26 +94,18 @@ export function MissionWorkspace({
   timeline: ServerTimelineEvent[];
   timelineLoading?: boolean;
   treasuryBalanceUsd?: number;
-  missionBrief: MissionBriefData | null;
+  topic: MissionTopic | null;
   operatingMode: OperatingMode;
   loopPhase: CapitalLoopPhase;
-  onOperatingModeChange: (mode: OperatingMode) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
-  const active = Boolean(objective || turns.length > 0);
+  const started = Boolean(objective || turns.length > 0);
   const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
   const lastAllocations = lastResolve?.allocations;
   const followUpActions = lastResolve?.nextSteps ?? lastResolve?.report?.actions ?? [];
   const showPlanning = shouldShowPlanningBar(phase);
   const showExecute = shouldShowExecuteBar(phase);
-
-  function handleChip(text: string) {
-    onSubmit(text);
-  }
-
-  function handleQuickAction(action: { prompt: string }) {
-    onSubmit(action.prompt);
-  }
+  const lastReport = lastResolve?.report;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -145,87 +117,47 @@ export function MissionWorkspace({
     onSubmit(input.trim());
   }
 
-  const placeholder =
-    activeWorkspace ?
-      `Direct RESOLVE inside ${activeWorkspace.name}…`
-    : objective ?
-      "Refine objective or run a capability…"
-    : "State a mission objective…";
+  if (!started) {
+    return (
+      <MissionEmptyState
+        input={input}
+        onInputChange={onInputChange}
+        onSubmit={onSubmit}
+        loading={loading}
+      />
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px]">
-      <MissionSidebar
+      <MissionHistorySidebar
         onNewMission={onNewMission}
         onSelectSession={onSelectSession}
-        onSelectWorkspace={onSelectWorkspace}
-        onObservatoryPulse={onObservatoryPulse}
-        onAutomationSelect={onAutomationSelect}
         activeSessionId={activeSessionId}
-        activeWorkspaceId={activeWorkspace?.id ?? null}
         libraryVersion={libraryTick}
       />
 
-      <MissionBrief brief={missionBrief} />
-
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-white/[0.06] px-4 py-3 lg:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              {activeWorkspace ?
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-accent">
-                  Community · {activeWorkspace.name}
-                </p>
-              : <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-muted-dim">
-                  Operating system for funding open communities
-                </p>}
-              <h1 className="mt-0.5 text-base font-semibold text-white">
-                {objective ?? "New mission"}
-              </h1>
-            </div>
-            {missionStatus && (
-              <span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-[10px] text-resolve-muted">
-                {statusLabel(missionStatus as MissionStatus)}
-              </span>
-            )}
-          </div>
-          {active && (
-            <div className="mt-3 space-y-2">
-              <MissionCapitalLoop activePhase={loopPhase} />
-              <MissionOperatingMode
-                active={operatingMode}
-                onChange={onOperatingModeChange}
-                disabled={loading}
-              />
-            </div>
-          )}
-        </header>
+        {topic && (
+          <MissionWorldSnapshot topic={topic.name} kind={topic.kind} report={lastReport} />
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
-          <div className="mx-auto max-w-3xl space-y-5">
-            {!active && (
-              <MissionStarterPanel onSelect={onSubmit} disabled={loading} />
-            )}
-
-            {liveDelta && liveDelta.length > 0 && <MissionLiveDelta events={liveDelta} />}
-
+          <div className="mx-auto max-w-2xl space-y-4">
             {turns.map((turn) =>
               turn.role === "user" ?
-                <p key={turn.id} className="text-[11px] font-medium uppercase tracking-wide text-resolve-muted-dim">
-                  Intent · {turn.text}
+                <p key={turn.id} className="text-sm text-white/90">
+                  {turn.text}
                 </p>
-              : <div key={turn.id} className="space-y-3">
+              : <div key={turn.id}>
                   {turn.report ?
-                    <>
-                      <MissionReportCard
-                        report={turn.report}
-                        onAction={turn === lastResolve ? onAction : undefined}
-                        onChip={turn === lastResolve ? handleChip : undefined}
-                        actionsDisabled={loading}
-                      />
-                      {turn.researchReferences && turn.researchReferences.length > 0 && (
-                        <MissionResearchRefs references={turn.researchReferences} />
-                      )}
-                    </>
+                    <MissionReportCard
+                      report={turn.report}
+                      topicName={topic?.name}
+                      onAction={turn === lastResolve ? onAction : undefined}
+                      onChip={turn === lastResolve ? (t) => onSubmit(t) : undefined}
+                      actionsDisabled={loading}
+                    />
                   : turn.brief ?
                     <MissionReportCard
                       report={reportFromBrief(
@@ -233,8 +165,9 @@ export function MissionWorkspace({
                         objective ?? turn.text,
                         turn.nextSteps ?? [],
                       )}
+                      topicName={topic?.name}
                       onAction={turn === lastResolve ? onAction : undefined}
-                      onChip={turn === lastResolve ? handleChip : undefined}
+                      onChip={turn === lastResolve ? (t) => onSubmit(t) : undefined}
                       actionsDisabled={loading}
                     />
                   : <p className="text-sm text-resolve-muted">{turn.text}</p>}
@@ -242,29 +175,22 @@ export function MissionWorkspace({
             )}
 
             {loading && (
-              <MissionThinking
-                active={loading}
-                complete={thinkingComplete}
-                steps={thinkingSteps}
-              />
+              <MissionThinking active={loading} complete={thinkingComplete} steps={thinkingSteps} />
             )}
             <div ref={endRef} />
           </div>
         </div>
 
         <div className="shrink-0 border-t border-white/[0.06] px-4 py-3 lg:px-6">
-          {active && followUpActions.length > 0 && !loading && (
-            <div className="mx-auto mb-3 max-w-3xl">
-              <p className="mb-2 text-[10px] uppercase tracking-wide text-resolve-muted-dim">
-                Next actions
-              </p>
+          {followUpActions.length > 0 && !loading && !showPlanning && !showExecute && (
+            <div className="mx-auto mb-3 max-w-2xl">
               <MissionQuickActions
-                actions={followUpActions.map((a) => ({
+                actions={followUpActions.slice(0, 5).map((a) => ({
                   id: a.id,
                   label: a.label,
                   prompt: a.prompt,
                 }))}
-                onSelect={(a) => handleQuickAction(a)}
+                onSelect={(a) => onSubmit(a.prompt)}
                 disabled={loading}
                 variant="compact"
               />
@@ -274,9 +200,9 @@ export function MissionWorkspace({
           <MissionPlanningBar
             visible={showPlanning && !loading}
             actions={[
-              { label: "Simulate allocation", prompt: "Simulate this allocation — show recipients and amounts." },
-              { label: "Adjust weights", prompt: "Shift 10% from infrastructure to contributors — show outcome." },
-              { label: "Capital Blueprint", prompt: "Generate a complete Capital Blueprint for this community." },
+              { label: "Simulate", prompt: "Simulate this allocation — show recipients and amounts." },
+              { label: "Adjust weights", prompt: "Shift 10% from infrastructure to contributors." },
+              { label: "Capital Blueprint", prompt: "Generate a Capital Blueprint for this community." },
             ]}
             onAction={onSubmit}
           />
@@ -292,52 +218,50 @@ export function MissionWorkspace({
           />
 
           {!showPlanning && !showExecute && (
-          <form onSubmit={handleFormSubmit} className="mx-auto max-w-3xl">
-            <div className="relative">
-              <input
-                value={input}
-                onChange={(e) => onInputChange(e.target.value)}
-                placeholder={placeholder}
-                disabled={loading}
-                className="w-full rounded-full border border-white/[0.1] bg-[#0a0f18]/90 px-5 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
-                aria-label="Run capability"
-              >
-                {loading ?
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                : <Send className="h-4 w-4" />}
-              </button>
-            </div>
-          </form>
-          )}
-
-          {!showPlanning && !showExecute && (
-          <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-resolve-muted-dim">
-            Observe → Understand → Design Capital → Simulate → Approve → Execute → Measure → Learn
-          </p>
+            <form onSubmit={handleFormSubmit} className="mx-auto max-w-2xl">
+              <div className="relative">
+                <input
+                  value={input}
+                  onChange={(e) => onInputChange(e.target.value)}
+                  placeholder="Continue the mission…"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-white/[0.1] bg-[#0a0f18]/90 px-4 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-white/20 focus:outline-none disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim()}
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
+                  aria-label="Send"
+                >
+                  {loading ?
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Send className="h-4 w-4" />}
+                </button>
+              </div>
+            </form>
           )}
         </div>
       </div>
 
-      <div className="hidden lg:block">
-      <MissionContextPanel
-        phase={phase}
-        showCapital={showCapital}
-        showPolicies={showPolicies}
-        showTimeline={showTimeline}
-        policies={policies}
-        selectedPolicyId={selectedPolicyId}
-        onSelectPolicy={onSelectPolicy}
-        allocations={lastAllocations}
-        treasuryBalanceUsd={treasuryBalanceUsd}
-        timeline={timeline}
-        timelineLoading={timelineLoading}
-      />
-      </div>
+      {topic && (
+        <MissionContextPanel
+          topicName={topic.name}
+          topicKind={topic.kind}
+          phase={phase}
+          showCapital={showCapital}
+          showPolicies={showPolicies}
+          showTimeline={showTimeline}
+          policies={policies}
+          selectedPolicyId={selectedPolicyId}
+          onSelectPolicy={onSelectPolicy}
+          allocations={lastAllocations}
+          treasuryBalanceUsd={treasuryBalanceUsd}
+          timeline={timeline}
+          timelineLoading={timelineLoading}
+          operatingMode={operatingMode}
+          loopPhase={loopPhase}
+        />
+      )}
     </div>
   );
 }

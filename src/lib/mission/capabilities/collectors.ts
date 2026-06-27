@@ -4,8 +4,9 @@ import { parseRepoInput } from "@/lib/workspace/parse-repo";
 import { buildPolicyProposals } from "@/lib/workspace/advisors/policy-proposals";
 import { buildValueConcentrations } from "@/lib/workspace/advisors/concentrations";
 import { opportunitiesToCards } from "@/lib/workspace/advisors/opportunity-cards";
+import { collectUpstreamUsageSignals } from "@/lib/connectors/upstream";
 import type { FundingOpportunity } from "@/lib/github/types";
-import type { CapabilityId, CollectorTrace, DataSource } from "./types";
+import type { CapabilityId, CollectorTrace, DataSource, EcosystemRepoRef } from "./types";
 import { extractCompareTargets, extractEcosystemScope } from "./intent-classifier";
 import { getCapabilityDef } from "./registry";
 
@@ -55,7 +56,12 @@ function filterByTargets(opportunities: FundingOpportunity[], targets: string[])
 export async function runCollectors(input: {
   capability: CapabilityId;
   question: string;
-  ecosystem?: { name: string; keywords?: string[] };
+  ecosystem?: {
+    name: string;
+    keywords?: string[];
+    repos?: EcosystemRepoRef[];
+    connectors?: string[];
+  };
 }): Promise<{
   evidence: Awaited<ReturnType<typeof gatherWorkspaceEvidence>>;
   opportunities: FundingOpportunity[];
@@ -95,6 +101,31 @@ export async function runCollectors(input: {
   );
 
   let opportunities = [...evidence.opportunities];
+
+  const ecosystemRepos = input.ecosystem?.repos ?? [];
+  if (ecosystemRepos.length > 0) {
+    stepsRun.push(`Scanning ${ecosystemRepos.length} attached repositories`);
+    for (const r of ecosystemRepos.slice(0, 6)) {
+      const scanned = await scanFundingOpportunity(r.owner, r.repo).catch(() => null);
+      if (scanned) {
+        opportunities = mergeOpportunities(opportunities, [scanned]);
+        traces.push(trace("github", "ok", `Ecosystem repo: ${scanned.fullName}`));
+      }
+      const upstream = await collectUpstreamUsageSignals(r.owner, r.repo).catch(() => null);
+      if (upstream?.openAlex?.citations) {
+        traces.push(
+          trace(
+            "openalex",
+            "ok",
+            `${r.fullName}: ${upstream.openAlex.citations.toLocaleString()} citations`,
+          ),
+        );
+      } else if (upstream?.summary.length) {
+        traces.push(trace("upstream", "ok", `${r.fullName}: ${upstream.summary[0]}`));
+      }
+    }
+  }
+
   if (def.requiredSources.includes("github")) {
     stepsRun.push("Scanning repository opportunities");
     const parsed = parseRepoInput(input.question);
@@ -104,12 +135,26 @@ export async function runCollectors(input: {
         opportunities = mergeOpportunities(opportunities, [scanned]);
         traces.push(trace("github", "ok", `Live scan: ${scanned.fullName}`));
       }
-    } else {
+    } else if (!ecosystemRepos.length) {
       traces.push(
         trace(
           "github",
           opportunities.length > 0 ? "ok" : "empty",
           `${opportunities.length} repositories in radar`,
+        ),
+      );
+    }
+  }
+
+  const ecoConnectors = input.ecosystem?.connectors ?? [];
+  for (const connectorId of ecoConnectors) {
+    const live = evidence.connectors.find((c) => c.id === connectorId);
+    if (live) {
+      traces.push(
+        trace(
+          "connectors",
+          live.health === "healthy" ? "ok" : "empty",
+          `${live.label}: ${live.eventsToday} events today`,
         ),
       );
     }

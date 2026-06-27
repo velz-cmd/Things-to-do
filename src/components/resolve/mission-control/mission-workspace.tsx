@@ -19,6 +19,8 @@ import type { AllocationLine } from "@/components/resolve/mission-control/missio
 import type { Ecosystem } from "@/lib/mission/ecosystems";
 import type { KnowledgeEntry } from "@/lib/mission/knowledge";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
+import { statusLabel } from "@/lib/mission/state-machine";
+import type { MissionStatus } from "@/lib/mission/state-machine";
 
 export type MissionTurn = {
   id: string;
@@ -44,12 +46,14 @@ export function MissionWorkspace({
   onInputChange,
   onSubmit,
   onChip,
+  onAction,
   onNewMission,
   onSelectSession,
   onSelectEcosystem,
   onSelectKnowledge,
   activeSessionId,
   activeEcosystem,
+  missionStatus,
   onClear,
   thinkingSteps,
   libraryTick,
@@ -63,12 +67,14 @@ export function MissionWorkspace({
   onInputChange: (v: string) => void;
   onSubmit: (text: string) => void;
   onChip: (text: string) => void;
+  onAction?: (action: CapabilityAction) => void;
   onNewMission: () => void;
   onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
   onSelectEcosystem: (ecosystem: Ecosystem | null) => void;
   onSelectKnowledge: (entry: KnowledgeEntry) => void;
   activeSessionId?: string | null;
   activeEcosystem?: Ecosystem | null;
+  missionStatus?: string | null;
   onClear?: () => void;
   thinkingSteps?: readonly string[];
   libraryTick?: number;
@@ -101,6 +107,22 @@ export function MissionWorkspace({
         libraryVersion={libraryTick}
       />
       <div className="flex min-w-0 flex-1 flex-col">
+        {missionStatus && started && (
+          <div className="shrink-0 border-b border-resolve-border/30 px-4 py-2 lg:px-6">
+            <p className="mx-auto max-w-2xl text-[11px] text-resolve-muted-dim">
+              Mission state:{" "}
+              <span className="text-resolve-accent/90">
+                {statusLabel(missionStatus as MissionStatus)}
+              </span>
+              {activeEcosystem?.repos && activeEcosystem.repos.length > 0 && (
+                <span className="text-resolve-muted-dim">
+                  {" "}
+                  · {activeEcosystem.repos.length} attached repos
+                </span>
+              )}
+            </p>
+          </div>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-2xl px-4 py-8 lg:px-6">
             {!started && (
@@ -187,6 +209,7 @@ export function MissionWorkspace({
                             <MissionNextSteps
                               actions={turn.nextSteps}
                               onSelect={onChip}
+                              onAction={onAction}
                               disabled={loading}
                             />
                           )}

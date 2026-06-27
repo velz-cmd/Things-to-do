@@ -38,7 +38,12 @@ export async function askValueAdvisor(input: {
   question: string;
   evidence?: WorkspaceEvidence;
   messages?: AdvisorMessage[];
-  ecosystem?: { name: string; keywords?: string[] };
+  ecosystem?: {
+    name: string;
+    keywords?: string[];
+    repos?: Array<{ owner: string; repo: string; fullName: string }>;
+    connectors?: string[];
+  };
 }): Promise<AdvisorResponse> {
   const result = await runMissionOrchestrator({
     question: input.question,

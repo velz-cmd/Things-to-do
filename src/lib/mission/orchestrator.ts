@@ -95,7 +95,12 @@ async function maybeEnhanceWithReasoning(
 export async function runMissionOrchestrator(input: {
   question: string;
   messages?: AdvisorMessage[];
-  ecosystem?: { name: string; keywords?: string[] };
+  ecosystem?: {
+    name: string;
+    keywords?: string[];
+    repos?: Array<{ owner: string; repo: string; fullName: string }>;
+    connectors?: string[];
+  };
 }): Promise<OrchestratorResult> {
   const capability = classifyCapability(input.question, input.messages ?? []);
   const phase = detectMissionPhase(input.question, input.messages ?? []);

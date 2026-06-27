@@ -151,9 +151,9 @@ export function PaymentsOS() {
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
           Capital
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">Treasury & claims</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-white">Where should money move?</h1>
         <p className="mt-2 text-sm text-resolve-muted">
-          USDC ready to move — authorize, claim, settle. No invoice flow.
+          Treasury · Pending · Claims · History — real USDC, no invoice flow.
         </p>
       </header>
 
@@ -182,6 +182,17 @@ export function PaymentsOS() {
             Settled: <Money amount={ledger?.settledUsd ?? 0} size="sm" className="inline" />
           </span>
         </div>
+      </section>
+
+      <section className="border-b border-resolve-border py-8">
+        <p className="text-sm font-semibold text-white">Pending</p>
+        <p className="mt-3 text-sm text-resolve-muted">
+          Authorized:{" "}
+          <Money amount={ledger?.authorizedUsd ?? 0} size="sm" className="inline" />
+          {" · "}
+          Awaiting funding:{" "}
+          <Money amount={ledger?.pendingFundingUsd ?? 0} size="sm" className="inline" />
+        </p>
       </section>
 
       <section className="border-b border-resolve-border py-8">

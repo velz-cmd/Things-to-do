@@ -1,16 +1,13 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { WorkspaceFundSurface } from "@/components/resolve/workspace/workspace-fund-surface";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Decide — RESOLVE",
-  description: "What needs funding? Evidence-backed allocation and authorization.",
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default function DecidePage() {
-  return (
-    <Suspense fallback={<p className="p-6 text-sm text-resolve-muted">Loading…</p>}>
-      <WorkspaceFundSurface />
-    </Suspense>
-  );
+export default async function DecideRedirect({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const owner = typeof params.owner === "string" ? params.owner : undefined;
+  const repo = typeof params.repo === "string" ? params.repo : undefined;
+  const q = owner && repo ? `?owner=${owner}&repo=${repo}` : "";
+  redirect(`/mission/fund${q}`);
 }

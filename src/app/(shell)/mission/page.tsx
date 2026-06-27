@@ -3,8 +3,8 @@ import { Suspense } from "react";
 import { MissionControl } from "@/components/resolve/mission-control/mission-control";
 
 export const metadata: Metadata = {
-  title: "Mission — RESOLVE",
-  description: "What should I do? Economic reasoning for open ecosystems.",
+  title: "Mission Control — RESOLVE",
+  description: "What should I do? The operating room for economic decisions.",
 };
 
 export default function MissionPage() {

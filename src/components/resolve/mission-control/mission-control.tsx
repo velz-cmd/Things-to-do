@@ -2,199 +2,204 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useMissionScope } from "@/lib/mission/mission-context";
-import { parseRepoInput } from "@/lib/workspace/parse-repo";
-import { MissionInput } from "@/components/resolve/mission-control/mission-input";
-import { MissionBrief, type MissionBriefData } from "@/components/resolve/mission-control/mission-brief";
-import {
-  IntelligenceWorkspace,
-  type IntelligenceMessage,
-} from "@/components/resolve/mission-control/intelligence-workspace";
-import { MissionActionPanel } from "@/components/resolve/mission-control/mission-action-panel";
-import { MissionEcosystemChain } from "@/components/resolve/mission-control/mission-ecosystem-chain";
-import type { EvidenceAction } from "@/lib/workspace/advisors/evidence-actions";
+import { MissionWorkspace, type MissionTurn } from "@/components/resolve/mission-control/mission-workspace";
+import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
+import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
-import type { ValueConcentration } from "@/lib/workspace/advisors/concentrations";
-
-const SOURCE_LABELS: Record<string, string> = {
-  github: "GitHub",
-  navidrome: "Navidrome",
-  openalex: "OpenAlex",
-  musicbrainz: "MusicBrainz",
-  listenbrainz: "ListenBrainz",
-};
 
 function parseCapitalUsd(text: string): number | undefined {
-  const m = text.match(/\$?\s*([\d,]+)\s*(k|K)?/);
+  const m = text.match(/\$?\s*([\d,]+(?:\.\d+)?)\s*(k|K|m|M)?/);
   if (!m) return undefined;
-  const n = Number(m[1].replace(/,/g, ""));
+  let n = Number(m[1].replace(/,/g, ""));
   if (Number.isNaN(n)) return undefined;
-  return m[2] ? n * 1000 : n;
+  if (m[2]?.toLowerCase() === "k") n *= 1000;
+  if (m[2]?.toLowerCase() === "m") n *= 1_000_000;
+  return n;
 }
 
 function fundingIntent(text: string): boolean {
-  return /\b(distribut|fund|allocat|\$\d|treasury|capital)\b/i.test(text);
+  return /\b(distribut|fund|allocat|\$\d|treasury|capital|invest)\b/i.test(text);
 }
 
-type OverviewSnapshot = {
-  treasury?: { balanceUsd: number; obligationsUsd: number; availableUsd: number };
-  network?: { ecosystemsConnected: number };
-  domainIntelligence?: { label: string }[];
+function buildAllocationFromOpportunities(
+  opportunities: OpportunityCard[],
+  totalUsd: number,
+): AllocationLine[] {
+  if (!opportunities.length || totalUsd <= 0) return [];
+
+  const weighted = opportunities.map((o) => {
+    const gap = Number(o.statB.value.replace(/[$,]/g, "")) || 1;
+    const label = o.title.includes(" — ") ? o.title.split(" — ")[0]! : o.title;
+    return { id: o.id, label, gap };
+  });
+
+  const gapTotal = weighted.reduce((s, w) => s + w.gap, 0);
+  const spendable = Math.round(totalUsd * 0.85);
+  const lines = weighted.map((w) => ({
+    id: w.id,
+    label: w.label,
+    amountUsd: Math.round((w.gap / gapTotal) * spendable),
+  }));
+
+  const allocated = lines.reduce((s, l) => s + l.amountUsd, 0);
+  const reserve = totalUsd - allocated;
+  if (reserve > 0) {
+    lines.push({ id: "reserve", label: "Reserve", amountUsd: reserve });
+  }
+
+  return lines;
+}
+
+function pickInlinePolicy(policies: PolicyProposal[], text: string): PolicyProposal | undefined {
+  if (!policies.length) return undefined;
+  if (/\b(conserv|stable|safe)\b/i.test(text)) {
+    return policies.find((p) => p.id === "infrastructure") ?? policies[0];
+  }
+  if (/\b(aggress|growth|meme)\b/i.test(text)) {
+    return policies.find((p) => p.id === "growth") ?? policies[0];
+  }
+  return policies.find((p) => p.id === "balanced") ?? policies[0];
+}
+
+function buildQuickReplies(text: string, hasFunding: boolean): string[] {
+  if (hasFunding) {
+    return ["Why this split?", "Show evidence", "Customize allocations", "View portfolio"];
+  }
+  if (/\b(leak|underfund|unpaid)\b/i.test(text)) {
+    return ["Show top gaps", "Who deserves funding?", "Allocate treasury"];
+  }
+  return ["Tell me more", "Show evidence", "What should I do next?"];
+}
+
+type TreasurySnapshot = {
+  balanceUsd?: number;
+  availableUsd?: number;
+  obligationsUsd?: number;
 };
 
 /**
- * Mission Control — operating room. Four regions: input, brief, intelligence, actions.
- * @see user spec — no sidebar nav, no BI cards, no empty global graph.
+ * Mission — AI workspace. Empty until intent, then conversation + progressive disclosure.
  */
 export function MissionControl() {
   const { scope, enterMission } = useMissionScope();
   const [input, setInput] = useState("");
-  const [objective, setObjective] = useState<string | null>(null);
-  const [brief, setBrief] = useState<MissionBriefData | null>(null);
-  const [messages, setMessages] = useState<IntelligenceMessage[]>([]);
-  const [actions, setActions] = useState<EvidenceAction[]>([]);
-  const [policies, setPolicies] = useState<PolicyProposal[]>([]);
-  const [concentrations, setConcentrations] = useState<ValueConcentration[]>([]);
+  const [turns, setTurns] = useState<MissionTurn[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showPolicies, setShowPolicies] = useState(false);
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
-  const [overview, setOverview] = useState<OverviewSnapshot | null>(null);
+  const [thinkingComplete, setThinkingComplete] = useState(false);
+  const [treasury, setTreasury] = useState<TreasurySnapshot | null>(null);
+  const started = turns.length > 0;
 
   useEffect(() => {
     void fetch("/api/workspace/overview")
       .then((r) => r.json())
-      .then((d) => setOverview(d))
-      .catch(() => setOverview(null));
+      .then((d) => setTreasury(d.treasury ?? null))
+      .catch(() => setTreasury(null));
   }, []);
 
-  const runMission = useCallback(
+  const sendMessage = useCallback(
     async (text: string) => {
-      setObjective(text);
+      const trimmed = text.trim();
+      if (!trimmed) return;
+
+      setInput("");
       setLoading(true);
-      setShowPolicies(fundingIntent(text));
-      enterMission(text);
+      setThinkingComplete(false);
+      enterMission(trimmed);
 
-      const parsed = parseRepoInput(text);
-      const scopeLabel = parsed ? `${parsed.owner}/${parsed.repo}` : text.slice(0, 80);
-      const estCapital = parseCapitalUsd(text);
+      const userTurn: MissionTurn = {
+        id: `u-${Date.now()}`,
+        role: "user",
+        text: trimmed,
+      };
+      setTurns((t) => [...t, userTurn]);
 
-      const liveSources: string[] = [];
-      if (overview?.network?.ecosystemsConnected) {
-        liveSources.push(`${overview.network.ecosystemsConnected} sensor(s) online`);
-      }
-
-      setBrief({
-        objective: text,
-        scope: scopeLabel,
-        status: "analyzing",
-        estimatedCapitalUsd: estCapital,
-        affectedCommunities: overview?.domainIntelligence?.length ?? 0,
-        evidenceSources: liveSources,
-        capitalAvailableUsd: overview?.treasury?.availableUsd ?? overview?.treasury?.balanceUsd ?? 0,
-        capitalRequiredUsd: overview?.treasury?.obligationsUsd ?? estCapital ?? 0,
-      });
-
-      setMessages((m) => [...m, { role: "user", text }]);
+      const history = turns.map((t) => ({
+        role: (t.role === "user" ? "user" : "assistant") as "user" | "assistant",
+        content: t.text,
+      }));
 
       try {
         const res = await fetch("/api/workspace/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: text }),
+          body: JSON.stringify({ question: trimmed, messages: history }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Analysis failed");
 
-        const conc: ValueConcentration[] = data.concentrations ?? [];
-        setConcentrations(conc);
-        setActions(data.actions ?? []);
-        setPolicies(data.policies ?? []);
+        setThinkingComplete(true);
 
-        setMessages((m) => [
-          ...m,
-          {
-            role: "resolve",
-            text: data.answer ?? "No analysis available.",
-            concentrations: conc,
-            evidenceUsed: data.evidenceUsed,
-          },
-        ]);
+        const isFunding = fundingIntent(trimmed);
+        const estCapital = parseCapitalUsd(trimmed);
+        const opportunities: OpportunityCard[] = data.opportunities ?? [];
+        const policies: PolicyProposal[] = data.policies ?? [];
+        const availableUsd =
+          treasury?.availableUsd ?? treasury?.balanceUsd ?? data.treasuryBalanceUsd ?? 0;
+        const neededUsd = estCapital ?? treasury?.obligationsUsd ?? 0;
 
-        const connectorSources = (data.evidenceUsed ?? [])
-          .filter((e: string) => e.includes("."))
-          .map((e: string) => e.split(".")[0])
-          .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
-          .map((id: string) => SOURCE_LABELS[id] ?? id);
+        const resolveTurn: MissionTurn = {
+          id: `r-${Date.now()}`,
+          role: "resolve",
+          text: data.answer ?? "No analysis available.",
+          opportunities: isFunding ? opportunities : undefined,
+          allocations:
+            isFunding && estCapital ?
+              buildAllocationFromOpportunities(opportunities, estCapital)
+            : undefined,
+          policy: isFunding ? pickInlinePolicy(policies, trimmed) : undefined,
+          treasury:
+            isFunding && neededUsd > availableUsd ?
+              { availableUsd, neededUsd }
+            : undefined,
+          quickReplies: buildQuickReplies(trimmed, isFunding),
+          showExecution: isFunding || opportunities.length > 0,
+        };
 
-        setBrief((b) =>
-          b
-            ? {
-                ...b,
-                status: "ready",
-                confidence: data.grounded ? 0.85 : 0.65,
-                evidenceSources: connectorSources.length > 0 ? connectorSources : b.evidenceSources,
-                affectedCommunities: conc.length > 0 ? conc.length : b.affectedCommunities,
-              }
-            : null,
-        );
+        setTurns((t) => [...t, resolveTurn]);
       } catch (e) {
-        setMessages((m) => [
-          ...m,
+        setThinkingComplete(true);
+        setTurns((t) => [
+          ...t,
           {
+            id: `r-${Date.now()}`,
             role: "resolve",
             text: e instanceof Error ? e.message : "Could not complete analysis.",
+            quickReplies: ["Try again"],
           },
         ]);
-        setBrief((b) => (b ? { ...b, status: "error" } : null));
       } finally {
         setLoading(false);
       }
     },
-    [enterMission, overview],
+    [enterMission, turns, treasury],
   );
 
   useEffect(() => {
-    if (!scope?.label || objective) return;
-    setInput(scope.label);
-    void runMission(scope.label);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when URL scope appears
+    if (!scope?.label || started) return;
+    void sendMessage(scope.label);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap from URL scope once
   }, [scope?.label]);
 
   function handleReject() {
-    setShowPolicies(false);
-    setSelectedPolicyId(null);
-    setActions([]);
+    setTurns([]);
+    setInput("");
+    setThinkingComplete(false);
   }
 
-  const missionActive = Boolean(objective);
-  const scopeLabel = brief?.scope ?? scope?.label ?? "";
-
   return (
-    <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px] flex-col overflow-hidden">
-      <MissionInput
-        value={input}
-        onChange={setInput}
-        onSubmit={(t) => void runMission(t)}
-        loading={loading}
-        compact={missionActive}
-      />
-
-      {missionActive && scopeLabel && (
-        <MissionEcosystemChain scope={scopeLabel} concentrations={concentrations} />
-      )}
-
-      <div className="flex min-h-0 flex-1">
-        <MissionBrief brief={brief} />
-        <IntelligenceWorkspace messages={messages} loading={loading} idle={!missionActive} />
-        <MissionActionPanel
-          actions={actions}
-          policies={policies}
-          showPolicies={showPolicies}
-          selectedPolicyId={selectedPolicyId}
-          onSelectPolicy={setSelectedPolicyId}
-          onReject={handleReject}
-          missionActive={missionActive}
-        />
-      </div>
-    </div>
+    <MissionWorkspace
+      started={started}
+      turns={turns}
+      loading={loading}
+      thinkingComplete={thinkingComplete}
+      input={input}
+      onInputChange={setInput}
+      onSubmit={(t) => void sendMessage(t)}
+      onQuickReply={(t) => void sendMessage(t)}
+      onApprove={() => void sendMessage("Approve this allocation and prepare execution.")}
+      onSimulate={() => void sendMessage("Simulate this allocation without executing.")}
+      onReject={handleReject}
+      onEditPolicy={() => void sendMessage("Let me customize the allocation policy.")}
+    />
   );
 }

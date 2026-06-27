@@ -1,11 +1,6 @@
-import type { Metadata } from "next";
-import { NetworkSurface } from "@/components/resolve/network/network-surface";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Verify — RESOLVE",
-  description: "What changed? Live value timeline across open ecosystems.",
-};
-
-export default function NetworkPage() {
-  return <NetworkSurface />;
+/** Verify / network feed — lives in Mission right panel, not a tab */
+export default function NetworkRedirect() {
+  redirect("/control");
 }

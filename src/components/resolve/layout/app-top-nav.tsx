@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { AuthHeader } from "@/components/auth/auth-header";
-import { MISSION_NAV } from "@/components/resolve/layout/nav";
+import { PRODUCT_NAV } from "@/components/resolve/layout/nav";
 
 export function ResolveLogo({ className }: { className?: string }) {
   return (
@@ -28,20 +28,25 @@ export function ProductNav({ compact = false }: { compact?: boolean }) {
         compact && "hidden sm:flex",
       )}
     >
-      {MISSION_NAV.map((item) => {
+      {PRODUCT_NAV.map((item) => {
         const active =
           item.exact
             ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(`${item.href}/`) ||
-              (item.href === "/control" && pathname.startsWith("/workspace"));
+            : pathname === item.href ||
+              pathname.startsWith(`${item.href}/`) ||
+              (item.href === "/control" &&
+                (pathname.startsWith("/workspace") ||
+                  pathname.startsWith("/discover") ||
+                  pathname.startsWith("/network") ||
+                  pathname.startsWith("/decide")));
         const Icon = item.icon;
         return (
           <Link
             key={item.href}
             href={item.href}
-            title={item.question}
+            title={item.tagline}
             className={clsx(
-              "relative flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-all duration-300",
+              "relative flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12px] font-medium transition-all duration-300",
               active
                 ? "bg-resolve-accent/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-1 ring-resolve-accent/25"
                 : "text-resolve-muted hover:bg-resolve-accent/10 hover:text-white",
@@ -63,7 +68,7 @@ export function AppTopNav() {
   return (
     <header className="sticky top-0 z-40 border-b border-resolve-border resolve-glass-subtle">
       <div className="mx-auto flex h-[3.75rem] max-w-[1400px] items-center justify-between gap-4 px-4 lg:px-8">
-        <div className="flex items-center gap-4 lg:gap-6">
+        <div className="flex items-center gap-6">
           <ResolveLogo />
           <ProductNav />
         </div>
@@ -79,21 +84,9 @@ export function MarketingTopNav() {
       <div className="mx-auto flex h-[3.75rem] max-w-6xl items-center justify-between px-6 lg:px-8">
         <ResolveLogo />
         <div className="flex items-center gap-5">
-          <nav className="hidden items-center gap-1 rounded-2xl resolve-glass-subtle p-1 md:flex">
-            {MISSION_NAV.slice(0, 5).map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={item.question}
-                className="rounded-xl px-3.5 py-2 text-xs font-medium text-resolve-muted transition hover:bg-resolve-accent/10 hover:text-white"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
           <Link href="/control">
             <span className="resolve-btn-shine inline-flex rounded-resolve-lg resolve-accent-gradient px-5 py-2.5 text-xs font-semibold text-white shadow-resolve-accent transition hover:shadow-resolve-glow hover:scale-[1.02]">
-              Mission control
+              Open Mission
             </span>
           </Link>
           <AuthHeader />

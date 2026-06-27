@@ -79,16 +79,20 @@ export function PaymentsOS() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [ovRes, rewardsRes] = await Promise.all([
-        fetch("/api/payments/overview"),
-        fetch("/api/rewards", { credentials: "include" }),
-      ]);
+      const ovRes = await fetch("/api/payments/overview");
+      if (!ovRes.ok) throw new Error("overview failed");
       const ov = await ovRes.json();
-      const rewards = await rewardsRes.json();
       setOverview(ov);
-      setClaimSummary(rewards.summary ?? null);
+
+      const rewardsRes = await fetch("/api/rewards", { credentials: "include" });
+      if (rewardsRes.ok) {
+        const rewards = await rewardsRes.json();
+        setClaimSummary(rewards.summary ?? null);
+      } else {
+        setClaimSummary({ claimableUsd: 0, settledUsd: 0 });
+      }
     } catch {
-      toast.error("Could not load payments");
+      toast.error("Could not load treasury");
     } finally {
       setLoading(false);
     }
@@ -145,11 +149,11 @@ export function PaymentsOS() {
     <div className="mx-auto max-w-2xl px-4 py-8 lg:px-8">
       <header className="mb-10">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-          Execute
+          Capital
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">What is waiting to move?</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-white">Treasury & claims</h1>
         <p className="mt-2 text-sm text-resolve-muted">
-          Treasury, claims, and settlement history — capital execution, not admin.
+          USDC ready to move — authorize, claim, settle. No invoice flow.
         </p>
       </header>
 

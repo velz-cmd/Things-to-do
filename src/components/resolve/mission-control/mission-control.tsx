@@ -6,7 +6,6 @@ import {
   MissionWorkspace,
   type MissionTurn,
 } from "@/components/resolve/mission-control/mission-workspace";
-import type { MissionBriefData } from "@/components/resolve/mission-control/mission-brief";
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
 import type { OpportunityCard } from "@/lib/workspace/advisors/opportunity-cards";
 import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
@@ -44,6 +43,7 @@ import {
 import type { AutomationRule } from "@/lib/mission/toolbox/types";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import { detectOperatingMode, detectCapitalLoopPhase, detectMissionJob } from "@/lib/mission/capital-os";
+import { resolveMissionTopic } from "@/lib/mission/mission-topic";
 
 type AdvisorPayload = {
   phase?: MissionPhase;
@@ -252,24 +252,22 @@ export function MissionControl() {
     [showCapital, policies.length],
   );
 
-  const showTimeline = Boolean(objective && (turns.length > 0 || missionStatus));
+  const showTimeline = Boolean(objective && turns.length > 0);
 
-  const missionBrief: MissionBriefData | null = useMemo(() => {
-    if (!objective) return null;
-    const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
-    const brief = lastResolve?.brief;
-    return {
-      objective,
-      scope: activeWorkspace?.name ?? "Global",
-      status: loading ? "analyzing" : "ready",
-      confidence: brief?.priority?.confidence,
-      estimatedCapitalUsd: brief?.funding?.deployUsd ?? parseCapitalUsd(objective) ?? undefined,
-      affectedCommunities: brief?.findingCount ?? 0,
-      evidenceSources: brief?.evidence ?? [],
-      capitalAvailableUsd: treasuryBalanceUsd ?? brief?.funding?.availableUsd ?? 0,
-      capitalRequiredUsd: brief?.funding?.neededUsd ?? 0,
-    };
-  }, [objective, turns, loading, activeWorkspace, treasuryBalanceUsd]);
+  const lastResolveReport = useMemo(() => {
+    const last = [...turns].reverse().find((t) => t.role === "resolve");
+    return last?.report;
+  }, [turns]);
+
+  const topic = useMemo(
+    () =>
+      resolveMissionTopic({
+        objective,
+        workspaceName: activeWorkspace?.name,
+        report: lastResolveReport,
+      }),
+    [objective, activeWorkspace?.name, lastResolveReport],
+  );
 
   async function loadTimelineForMission(missionId: string, workspaceId?: string) {
     setTimelineLoading(true);
@@ -620,16 +618,9 @@ export function MissionControl() {
       onAction={handleAction}
       onNewMission={() => void handleNewMission()}
       onSelectSession={(s) => void handleSelectSession(s)}
-      onSelectWorkspace={handleSelectWorkspace}
-      onObservatoryPulse={(q) => void sendMessage(q)}
-      onAutomationSelect={(rule: AutomationRule) =>
-        void sendMessage(`Automation: when ${rule.trigger}, then ${rule.action}`)
-      }
       activeSessionId={session.id}
-      activeWorkspace={activeWorkspace}
       missionStatus={missionStatus}
       libraryTick={libraryTick}
-      liveDelta={liveDelta}
       policies={policies}
       selectedPolicyId={selectedPolicyId}
       onSelectPolicy={handlePolicySelect}
@@ -639,10 +630,9 @@ export function MissionControl() {
       timeline={timeline}
       timelineLoading={timelineLoading}
       treasuryBalanceUsd={treasuryBalanceUsd}
-      missionBrief={missionBrief}
+      topic={topic}
       operatingMode={operatingMode}
       loopPhase={loopPhase}
-      onOperatingModeChange={setOperatingMode}
     />
   );
 }

@@ -104,7 +104,9 @@ export function buildIntelligenceBrief(ctx: OrchestratorContext): IntelligenceBr
   switch (capability) {
     case "discover_value_leaks": {
       const count = opportunities.filter((o) => o.health.fundingGapUsd > 0).length || findings.length;
-      base.headline = count > 0 ? `Found ${count} value leak${count === 1 ? "" : "s"}` : "No value leaks detected";
+      base.headline = count > 0 ?
+        `I found ${count} area${count === 1 ? "" : "s"} where capital would have the greatest impact`
+      : "No major funding gaps at current scan depth";
       base.summary =
         count > 0 ?
           `${formatUsd(totalGap, true)} unfunded maintenance demand across ${scope}.`
@@ -216,7 +218,11 @@ export function buildIntelligenceBrief(ctx: OrchestratorContext): IntelligenceBr
     }
 
     default: {
-      base.headline = top?.title ?? ctx.capabilityLabel;
+      const findingCount = findings.length || opportunities.length;
+      base.headline =
+        findingCount > 0 ?
+          `I found ${findingCount} signal${findingCount === 1 ? "" : "s"} worth acting on in ${scope}`
+        : top?.title ?? ctx.capabilityLabel;
       base.summary = top?.insight ?? `Analysis across ${scope} using live evidence.`;
       if (top) {
         base.priority = {

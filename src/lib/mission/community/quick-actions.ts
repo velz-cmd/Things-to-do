@@ -8,52 +8,39 @@ export type MissionQuickAction = {
   group?: string;
 };
 
-/** Elsa-style starter actions — community-first, not GitHub-first. */
-export const MISSION_STARTER_GROUPS: Array<{ group: string; actions: MissionQuickAction[] }> = [
+/** Elsa-style starter — three jobs RESOLVE performs. */
+export const MISSION_JOB_STARTERS: Array<{ group: string; actions: MissionQuickAction[] }> = [
   {
-    group: "Discover communities",
+    group: "Understand communities",
     actions: [
-      { id: "ai-infra", label: "Communities powering AI", prompt: "Find communities silently powering AI infrastructure", group: "Discover communities" },
-      { id: "linux", label: "Help Linux", prompt: "Help Linux — kernel, GNOME, Fedora, funding gaps", group: "Discover communities" },
-      { id: "pakistan", label: "Pakistan OSS", prompt: "Help Pakistani open source — maintainers, universities, funding", group: "Discover communities" },
-      { id: "digital-commons", label: "Digital commons", prompt: "Which digital commons communities deserve more capital?", group: "Discover communities" },
+      { id: "react-health", label: "How healthy is React?", prompt: "How healthy is React? Contributors, maintainers, dependencies, treasury, governance, funding.", group: "Understand communities" },
+      { id: "linux", label: "Help Linux", prompt: "Help Linux — kernel, GNOME, Fedora, funding gaps, maintainer risk", group: "Understand communities" },
+      { id: "pakistan", label: "Pakistan OSS", prompt: "Help Pakistani open source — maintainers, universities, funding", group: "Understand communities" },
+      { id: "compare", label: "Compare React vs Vue", prompt: "Compare React and Vue — contributors, funding, downstream risk", group: "Understand communities" },
     ],
   },
   {
-    group: "Capital & funding",
+    group: "Design capital",
     actions: [
-      { id: "fund-100k", label: "Deploy $100k", prompt: "I have $100,000 — who deserves funding based on observed impact?", group: "Capital & funding" },
-      { id: "oc-linux", label: "Fund via Open Collective", prompt: "Which Open Collective treasuries support Linux and open source?", group: "Capital & funding" },
-      { id: "leaks", label: "Find value leaks", prompt: "Find value leaks across communities I'm observing", group: "Capital & funding" },
-      { id: "compare", label: "Compare React vs Vue", prompt: "Compare React and Vue — who deserves more capital?", group: "Capital & funding" },
-      { id: "risk", label: "Assess downstream risk", prompt: "Which community carries the most downstream dependency risk?", group: "Capital & funding" },
+      { id: "fund-1m", label: "We have $1M", prompt: "We have $1,000,000 — design a funding policy for our ecosystem", group: "Design capital" },
+      { id: "fund-100k", label: "Deploy $100k", prompt: "I have $100,000 — design how capital should move across this community", group: "Design capital" },
+      { id: "blueprint", label: "Capital Blueprint", prompt: "Generate a Capital Blueprint — who to fund, how much, how often, verification, settlement", group: "Design capital" },
+      { id: "grant-prog", label: "Build grant program", prompt: "Build a grant program — eligibility, amounts, milestone verification", group: "Design capital" },
     ],
   },
   {
-    group: "Music & creative",
+    group: "Execute & settle",
     actions: [
-      { id: "musicians-unpaid", label: "Unpaid musicians", prompt: "Which musicians are creating value but aren't getting paid?", group: "Music & creative" },
-      { id: "independent-music", label: "Support indie music", prompt: "Support independent music — artists, listens, patronage gaps", group: "Music & creative" },
-      { id: "royalties", label: "Listen royalties", prompt: "Map listen royalties and creative attribution gaps in music communities", group: "Music & creative" },
-    ],
-  },
-  {
-    group: "Research & education",
-    actions: [
-      { id: "research-fund", label: "Fund research", prompt: "Which research communities deserve funding based on citation impact?", group: "Research & education" },
-      { id: "climate", label: "Climate research", prompt: "Climate research communities — grants, citations, funding gaps", group: "Research & education" },
-      { id: "open-ed", label: "Open education", prompt: "Open education communities — who creates teaching value without fair pay?", group: "Research & education" },
-    ],
-  },
-  {
-    group: "Claims & settlement",
-    actions: [
-      { id: "claim", label: "Claim earnings", prompt: "What value can I claim from my contributions?", group: "Claims & settlement" },
-      { id: "settle", label: "Review settlement", prompt: "Walk me through what capital would move and who receives it", group: "Claims & settlement" },
-      { id: "treasury", label: "Treasury status", prompt: "What is treasury readiness for global settlement?", group: "Claims & settlement" },
+      { id: "dist-plan", label: "Create distribution plan", prompt: "Create a distribution plan — recipients, amounts, monthly streaming", group: "Execute & settle" },
+      { id: "dao-prop", label: "Draft DAO proposal", prompt: "Draft a DAO treasury proposal for ecosystem funding", group: "Execute & settle" },
+      { id: "settle", label: "Prepare settlement", prompt: "Walk me through exactly what capital would move and who receives it", group: "Execute & settle" },
+      { id: "claim", label: "Claim earnings", prompt: "What value can I claim from my contributions?", group: "Execute & settle" },
     ],
   },
 ];
+
+/** @deprecated use MISSION_JOB_STARTERS — kept for backward compat */
+export const MISSION_STARTER_GROUPS = MISSION_JOB_STARTERS;
 
 export function allStarterActions(): MissionQuickAction[] {
   return MISSION_STARTER_GROUPS.flatMap((g) => g.actions);

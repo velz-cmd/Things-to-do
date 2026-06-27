@@ -19,7 +19,21 @@ const bodySchema = z.object({
     .object({
       name: z.string().min(1).max(120),
       keywords: z.array(z.string()).max(12).optional(),
+      repos: z
+        .array(
+          z.object({
+            owner: z.string(),
+            repo: z.string(),
+            fullName: z.string(),
+          }),
+        )
+        .max(20)
+        .optional(),
+      connectors: z.array(z.string()).max(12).optional(),
     })
+    .optional(),
+  operatingMode: z
+    .enum(["founder", "dao", "maintainer", "creator", "research", "community_manager"])
     .optional(),
 });
 
@@ -40,6 +54,7 @@ export async function POST(req: Request) {
     evidence,
     messages: parsed.data.messages,
     ecosystem: parsed.data.ecosystem,
+    operatingMode: parsed.data.operatingMode,
   });
 
   return NextResponse.json({

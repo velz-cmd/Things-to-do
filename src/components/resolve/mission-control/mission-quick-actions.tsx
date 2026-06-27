@@ -52,9 +52,9 @@ export function MissionStarterPanel({
   return (
     <div className="space-y-5 rounded-xl border border-white/[0.08] bg-[#070b12]/80 p-5">
       <div>
-        <p className="text-sm font-medium text-white">Communities confusing you? Let&apos;s fund them.</p>
+        <p className="text-sm font-medium text-white">The capital operating system for open communities.</p>
         <p className="mt-1 text-xs text-resolve-muted">
-          Pick an action — RESOLVE routes observation, capital, and settlement automatically.
+          Understand → Design Capital → Execute. Pick a job — RESOLVE builds the policy, not you.
         </p>
       </div>
       {MISSION_STARTER_GROUPS.map((group) => (

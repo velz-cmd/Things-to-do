@@ -42,6 +42,8 @@ import {
   type ServerTimelineEvent,
 } from "@/lib/mission/client-api";
 import type { AutomationRule } from "@/lib/mission/toolbox/types";
+import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
+import { detectOperatingMode, detectCapitalLoopPhase, detectMissionJob } from "@/lib/mission/capital-os";
 
 type AdvisorPayload = {
   phase?: MissionPhase;
@@ -133,6 +135,7 @@ function persistLocalSession(
       findings: t.findings,
       capability: t.capability,
       actions: t.nextSteps,
+      report: t.report,
     })),
   });
 }
@@ -207,6 +210,8 @@ export function MissionControl() {
   const [serverMode, setServerMode] = useState(false);
   const [missionStatus, setMissionStatus] = useState<string | null>("created");
   const [lastIntent, setLastIntent] = useState<string | null>(null);
+  const [operatingMode, setOperatingMode] = useState<OperatingMode>("founder");
+  const [loopPhase, setLoopPhase] = useState<CapitalLoopPhase>("observe");
 
   useEffect(() => {
     async function bootstrap() {
@@ -386,7 +391,16 @@ export function MissionControl() {
       const workspaceId = activeWorkspace?.id ?? activeSession.ecosystemId;
       const workspacePayload =
         activeWorkspace ?
-          { name: activeWorkspace.name, keywords: activeWorkspace.keywords }
+          {
+            name: activeWorkspace.name,
+            keywords: activeWorkspace.keywords,
+            repos: activeWorkspace.repos?.map((r) => ({
+              owner: r.owner,
+              repo: r.repo,
+              fullName: r.fullName,
+            })),
+            connectors: activeWorkspace.connectors,
+          }
         : undefined;
 
       try {
@@ -408,6 +422,7 @@ export function MissionControl() {
               question: query,
               messages: history,
               ecosystem: workspacePayload,
+              operatingMode,
             }),
           });
           const json = (await res.json()) as AdvisorPayload & { error?: string };
@@ -432,6 +447,14 @@ export function MissionControl() {
         const phase = resolveTurn.phase ?? "discover";
         setLastPhase(phase);
         setLastCapability(data.capability ?? null);
+
+        if (data.report?.operatingMode) setOperatingMode(data.report.operatingMode);
+        else setOperatingMode(detectOperatingMode(trimmed, activeWorkspace?.kind as import("@/lib/mission/community/types").CommunityKind | undefined));
+        if (data.report?.loopPhase) setLoopPhase(data.report.loopPhase);
+        else {
+          const job = detectMissionJob(trimmed, (data.capability ?? "general_inquiry") as import("@/lib/mission/capabilities/types").CapabilityId, phase, parseCapitalUsd(trimmed));
+          setLoopPhase(detectCapitalLoopPhase(job, phase, trimmed));
+        }
 
         if (serverMode && data.mission) {
           const updated = serverMissionToSession(data.mission);
@@ -479,6 +502,7 @@ export function MissionControl() {
       serverMode,
       objective,
       selectedPolicyId,
+      operatingMode,
     ],
   );
 
@@ -539,6 +563,8 @@ export function MissionControl() {
     setThinkingComplete(false);
     setLastPhase("discover");
     setLastCapability(null);
+    setOperatingMode("founder");
+    setLoopPhase("observe");
     setMissionStatus("created");
   }
 
@@ -614,6 +640,9 @@ export function MissionControl() {
       timelineLoading={timelineLoading}
       treasuryBalanceUsd={treasuryBalanceUsd}
       missionBrief={missionBrief}
+      operatingMode={operatingMode}
+      loopPhase={loopPhase}
+      onOperatingModeChange={setOperatingMode}
     />
   );
 }

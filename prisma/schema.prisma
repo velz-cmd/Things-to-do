@@ -107,6 +107,10 @@ model User {
   updatedAt       DateTime @updatedAt
   tasks           Task[]
   transactions    WalletTransaction[]
+  resolveMissions ResolveMission[]
+  resolveEcosystems ResolveEcosystem[]
+  resolveKnowledge  ResolveKnowledgeEntry[]
+  resolveTimeline   ResolveTimelineEvent[]
 }
 
 model WalletTransaction {
@@ -408,4 +412,106 @@ model PaymentEvent {
 
   @@index([settlementId])
   @@index([type])
+}
+
+/// Mission OS — persistent economic intelligence sessions
+model ResolveMission {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  scope        String?
+  status       String   @default("created")
+  capability   String?
+  phase        String?
+  ecosystemId  String?
+  ecosystem    ResolveEcosystem? @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
+  findingCount Int      @default(0)
+  capitalUsd   Float?
+  metadataJson String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  turns        ResolveMissionTurn[]
+  timeline     ResolveTimelineEvent[]
+  knowledge    ResolveKnowledgeEntry[]
+
+  @@index([userId, updatedAt])
+  @@index([ecosystemId])
+  @@index([status])
+}
+
+model ResolveMissionTurn {
+  id           String   @id @default(cuid())
+  missionId    String
+  mission      ResolveMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  role         String
+  text         String   @db.Text
+  phase        String?
+  capability   String?
+  findingsJson String?  @db.Text
+  actionsJson  String?  @db.Text
+  sortOrder    Int
+  createdAt    DateTime @default(now())
+
+  @@index([missionId, sortOrder])
+}
+
+model ResolveEcosystem {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  kind           String   @default("organization")
+  keywordsJson   String   @default("[]")
+  reposJson      String   @default("[]")
+  connectorsJson String   @default("[]")
+  metadataJson   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  missions       ResolveMission[]
+  timeline       ResolveTimelineEvent[]
+  knowledge      ResolveKnowledgeEntry[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model ResolveKnowledgeEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  kind        String   @default("mission")
+  summary     String   @db.Text
+  contentJson String?  @db.Text
+  source      String?
+  ecosystemId String?
+  ecosystem   ResolveEcosystem? @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
+  missionId   String?
+  mission     ResolveMission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([ecosystemId])
+}
+
+model ResolveTimelineEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ecosystemId  String?
+  ecosystem    ResolveEcosystem? @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
+  missionId    String?
+  mission      ResolveMission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  eventType    String
+  title        String
+  detail       String?  @db.Text
+  severity     String   @default("info")
+  metadataJson String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([ecosystemId, createdAt])
+  @@index([missionId])
 }

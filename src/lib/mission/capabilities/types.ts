@@ -23,7 +23,17 @@ export type DataSource =
   | "github"
   | "connectors"
   | "policies"
-  | "concentrations";
+  | "concentrations"
+  | "openalex"
+  | "upstream";
+
+export type EcosystemRepoRef = {
+  owner: string;
+  repo: string;
+  fullName: string;
+  stars?: number;
+  fundingGapUsd?: number;
+};
 
 export type CollectorTrace = {
   source: DataSource;

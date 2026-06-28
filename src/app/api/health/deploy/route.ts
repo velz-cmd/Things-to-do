@@ -21,6 +21,7 @@ export async function GET() {
       phase2: true,
       phase3: true,
       phase4: true,
+      phase5: true,
     },
     warnings: [
       ...(cronSecretHasWhitespace()

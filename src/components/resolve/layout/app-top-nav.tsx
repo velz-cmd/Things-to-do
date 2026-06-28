@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
+import { Command } from "lucide-react";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { PRODUCT_NAV } from "@/components/resolve/layout/nav";
 
@@ -81,7 +82,19 @@ export function AppTopNav() {
           <ResolveLogo />
           <ProductNav />
         </div>
-        <AuthHeader />
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("resolve:open-command-palette"))}
+            className="hidden items-center gap-2 rounded-lg border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-resolve-muted transition hover:border-resolve-accent/30 hover:text-white sm:flex"
+            aria-label="Open command palette"
+          >
+            <Command className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Command</span>
+            <kbd className="rounded border border-white/10 px-1 text-[10px]">⌘K</kbd>
+          </button>
+          <AuthHeader />
+        </div>
       </div>
     </header>
   );

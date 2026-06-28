@@ -22,6 +22,11 @@ export default function ProfilePage() {
       accent="blue"
     >
       <Suspense fallback={<p className="text-sm text-resolve-muted">Loading profile…</p>}>
+        <p className="mb-6 text-right">
+          <a href="/settings" className="text-xs text-resolve-accent hover:underline">
+            Settings — connectors & keys →
+          </a>
+        </p>
         <div className="space-y-10">
           <ProfileEarningsSummary />
           <ProfileInstalledCommunities />

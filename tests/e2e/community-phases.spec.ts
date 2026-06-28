@@ -176,7 +176,7 @@ test.describe("Community phases — surfaces", () => {
   test("discover shows live radar sections", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("main").getByText("Live activity")).toBeVisible();
-    await expect(page.getByRole("main").getByText("Value graph preview")).toBeVisible();
+    await expect(page.getByRole("main").getByText("Global value graph")).toBeVisible();
   });
 
   test("network redirects to discover", async ({ page }) => {

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
+import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 
 export async function getSessionUserId(): Promise<string | null> {
   const supabase = await createClient();
@@ -32,6 +33,8 @@ export async function ensureUserProfile(params: {
 }
 
 export async function getWalletBalance(userId: string) {
+  await syncIdentityBalance(userId).catch(() => null);
+
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     return {

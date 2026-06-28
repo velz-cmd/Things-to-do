@@ -85,7 +85,7 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/decide": "/mission/fund",
   "/workspace/fund": "/mission/fund",
   "/missions": "/mission/fund",
-  "/connectors": "/profile",
+  "/connectors": "/settings",
   "/radar": "/discover",
   "/weight": "/mission",
   "/methodology": "/mission",

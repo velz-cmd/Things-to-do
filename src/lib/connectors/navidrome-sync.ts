@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { navidromeScrobbleToSettlementEvents } from "@/lib/connectors/navidrome";
 import { ingestSettlementBatch } from "@/lib/authorization/ledger";
+import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 
 export const NAVIDROME_SYNC_CURSOR_KEY = "navidrome.sync.cursor";
 
@@ -119,6 +120,18 @@ export async function ingestNavidromeScrobbles(
   }
 
   const batch = await ingestSettlementBatch(events, { founderUserId: ctx.founderUserId });
+
+  if (batch.count > 0 && ctx.founderUserId && ctx.missionId) {
+    await recordTimelineEvent({
+      userId: ctx.founderUserId,
+      missionId: ctx.missionId,
+      eventType: "scrobble_batch",
+      title: `${batch.count} plays authorized`,
+      detail: `$${batch.totalUsd.toFixed(4)} owed · mission ${ctx.missionId}`,
+      severity: "info",
+    }).catch(() => undefined);
+  }
+
   return {
     ingested: batch.count,
     skipped: rows.length - batch.count,

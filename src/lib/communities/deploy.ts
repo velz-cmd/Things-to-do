@@ -5,6 +5,7 @@ import { getProgram } from "@/lib/communities/programs";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { runPaymentSettlement } from "@/lib/payment/orchestrator";
+import { applyPlatformFeeSplit, RESOLVE_PLATFORM_WALLET } from "@/lib/payment/platform-fee";
 import { resolvePayee } from "@/lib/registry/resolvers";
 
 export type DeployProgramResult = {
@@ -104,10 +105,26 @@ export async function deployProgramOnArc(
     }
   }
 
-  const settledTotal = contributors.reduce((s, c) => s + Number(c.amount), 0);
+  const grossTotal = contributors.reduce((s, c) => s + Number(c.amount), 0);
+  const { netUsd: settledTotal, feeUsd: platformFeeUsd } = applyPlatformFeeSplit(grossTotal);
+
+  if (platformFeeUsd > 0 && RESOLVE_PLATFORM_WALLET) {
+    for (const c of contributors) {
+      const share = grossTotal > 0 ? Number(c.amount) / grossTotal : 0;
+      c.amount = (Number(c.amount) - platformFeeUsd * share).toFixed(6);
+    }
+    contributors.unshift({
+      wallet: RESOLVE_PLATFORM_WALLET,
+      login: "resolve-platform",
+      weight: 0,
+      amount: platformFeeUsd.toFixed(6),
+      rank: 0,
+    });
+  }
+
   const treasuryAmount = Math.min(
-    program.budgetUsd > 0 ? program.budgetUsd : settledTotal + pendingClaimUsd,
-    settledTotal + pendingClaimUsd,
+    program.budgetUsd > 0 ? program.budgetUsd : grossTotal + pendingClaimUsd,
+    grossTotal + pendingClaimUsd,
   );
 
   if (treasuryAmount <= 0) {
@@ -163,7 +180,7 @@ export async function deployProgramOnArc(
       ecosystemId: install?.ecosystemId ?? undefined,
       eventType: "program_deployed",
       title: `Deployed ${program.name} on Arc`,
-      detail: `$${settledTotal.toFixed(2)} settled · ${contributors.length} payees · batch #${result.proof?.batchNumber ?? "—"}`,
+      detail: `$${settledTotal.toFixed(2)} settled · ${contributors.length - (platformFeeUsd > 0 ? 1 : 0)} payees · $${platformFeeUsd.toFixed(2)} platform fee · batch #${result.proof?.batchNumber ?? "—"}`,
       severity: "info",
       metadata: {
         programId,

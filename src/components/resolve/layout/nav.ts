@@ -2,15 +2,11 @@ import {
   Compass,
   Sparkles,
   Wallet,
-  Radio,
   User,
 } from "lucide-react";
 
 /**
- * FROZEN — six primary areas. See docs/INFORMATION-ARCHITECTURE.md
- *
- * Home (/) is marketing — not in this nav.
- * Settings (/settings) is secondary — not in this nav.
+ * FROZEN — five primary areas. Network folded into Communities/Discover.
  */
 export const PRODUCT_NAV = [
   {
@@ -32,13 +28,6 @@ export const PRODUCT_NAV = [
     label: "Capital",
     question: "Where should money move?",
     icon: Wallet,
-    exact: false as const,
-  },
-  {
-    href: "/network",
-    label: "Network",
-    question: "What is happening globally?",
-    icon: Radio,
     exact: false as const,
   },
   {
@@ -79,7 +68,8 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/workspace": "/mission",
   "/control": "/mission",
   "/start": "/mission",
-  "/activity": "/network",
+  "/activity": "/discover",
+  "/network": "/discover",
   "/payments": "/capital",
   "/treasury": "/capital",
   "/settle": "/capital",

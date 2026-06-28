@@ -19,6 +19,7 @@ import { AuthErrorEffect } from "@/components/auth/auth-error-effect";
 import { GmailAfterAuthEffect } from "@/components/auth/gmail-after-auth-effect";
 import { WalletLinkEffect } from "@/components/wallet/wallet-link-effect";
 import { AddFundsProvider } from "@/components/wallet/add-funds-context";
+import { SendFundsProvider } from "@/components/wallet/send-funds-context";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ export function Providers({
         <AuthProvider>
           <SignInProvider>
             <AddFundsProvider>
+              <SendFundsProvider>
               <WalletLinkEffect />
               <GmailAfterAuthEffect />
               <Suspense fallback={null}>
@@ -68,6 +70,7 @@ export function Providers({
                   },
                 }}
               />
+              </SendFundsProvider>
             </AddFundsProvider>
           </SignInProvider>
         </AuthProvider>

@@ -16,7 +16,9 @@ export async function POST() {
     ...result,
     message:
       result.synced ?
-        `$${result.creditedUsd.toFixed(2)} added from your Arc wallet`
+        result.adjustedUsd >= 0
+          ? `$${result.adjustedUsd.toFixed(2)} synced from your Arc wallet`
+          : `Balance corrected to $${result.availableUsd.toFixed(2)} (on-chain)`
       : "Balance is up to date",
   });
 }

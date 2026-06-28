@@ -8,13 +8,14 @@ export const BANKING_UI = {
   guestBody:
     "Sign in once. Add dollars when you need to fund a program. Collect earnings when contributors pay you. Works whether or not you use crypto.",
   balanceLabel: "Available balance",
-  balanceHint: "Ready to fund programs you run — includes Arc faucet & transfers",
+  balanceHint: "Real USDC in your Arc wallet — synced automatically",
   addMoney: "Add money",
+  sendMoney: "Send",
   collectEarnings: "Collect earnings",
   connections: "Account settings",
   signIn: "Sign in — it’s free",
   reserved: "Set aside for programs",
-  totalIn: "Total added",
+  totalIn: "In your Arc wallet",
   readyToClaim: "Ready to collect",
   activity: "Activity",
   programs: "Programs",
@@ -47,6 +48,7 @@ export function friendlyStatementLabel(label: string): string {
   return label
     .replace(/^Arc USDC deposit$/i, "Money added")
     .replace(/^Arc wallet sync$/i, "Money added from Arc wallet")
+    .replace(/^Balance correction$/i, "Balance corrected to on-chain")
     .replace(/^Program reserve ·/i, "Held for program ·")
     .replace(/^USDC deposit \(Arc\)$/i, "Money added");
 }

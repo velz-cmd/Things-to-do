@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
+import { useSendFunds } from "@/components/wallet/send-funds-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { clearGuestExploring } from "@/lib/auth/guest";
 
@@ -27,6 +28,7 @@ export function AuthHeader() {
   const account = useResolveAccount();
   const { openSignIn } = useSignInModal();
   const { openAddFunds } = useAddFunds();
+  const { openSendFunds } = useSendFunds();
   const { disconnect } = useDisconnect();
   const { open } = useAppKit();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -195,6 +197,17 @@ export function AuthHeader() {
                   }}
                 >
                   Add funds
+                </MenuItem>
+              )}
+
+              {hasEmailSession && (balance?.availableUsd ?? 0) > 0 && (
+                <MenuItem
+                  onClick={() => {
+                    openSendFunds();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Send USDC
                 </MenuItem>
               )}
 

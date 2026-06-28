@@ -4,7 +4,7 @@ import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
 import { getBankingArcRail, buildFallbackArcRail } from "@/lib/banking/arc-rail";
-import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
+import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
 import type { User } from "@prisma/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -33,14 +33,6 @@ async function getReservedForPrograms(userId: string): Promise<number> {
 
   const agg = await prisma.paymentAuthorization.aggregate({
     where: { missionId: { in: missionIds }, status: "claimable" },
-    _sum: { amountUsd: true },
-  });
-  return round(agg._sum.amountUsd ?? 0);
-}
-
-async function getTotalDeposited(userId: string): Promise<number> {
-  const agg = await prisma.walletTransaction.aggregate({
-    where: { userId, type: "deposit", status: "completed" },
     _sum: { amountUsd: true },
   });
   return round(agg._sum.amountUsd ?? 0);
@@ -105,6 +97,7 @@ async function buildStatement(userId: string, availableUsd: number): Promise<Sta
     label:
       t.type === "deposit" ?
         t.label === "sync:onchain" ? "Arc wallet sync"
+        : t.label === "sync:reconcile" ? "Balance correction"
         : t.method === "crypto" ? "Arc USDC deposit"
         : t.method === "card" ? "Card deposit"
         : "Deposit"
@@ -210,9 +203,12 @@ export async function getBankingAccountSnapshot(input: {
 
   const { authUser, profile } = input;
 
-  await syncIdentityBalance(profile.id).catch(() => null);
+  const realBalance = await getRealSpendableUsd(profile.id).catch(() => null);
   const freshProfile =
     (await prisma.user.findUnique({ where: { id: profile.id } })) ?? profile;
+  const availableUsd = realBalance?.availableUsd ?? freshProfile.availableUsd;
+  const onChainUsd = realBalance?.onChainUsd ?? null;
+  const reservedUsdFromChain = realBalance?.reservedUsd;
 
   const arc = await getBankingArcRail(freshProfile).catch(() => buildFallbackArcRail());
 
@@ -220,11 +216,12 @@ export async function getBankingAccountSnapshot(input: {
   const github = gh.login ?? freshProfile.githubUsername ?? null;
   const walletAddress = freshProfile.walletAddress ?? freshProfile.scanWalletAddress ?? null;
 
-  const [reservedUsd, totalDepositedUsd, programs, statement, earnings] = await Promise.all([
-    getReservedForPrograms(freshProfile.id).catch(() => 0),
-    getTotalDeposited(freshProfile.id).catch(() => 0),
+  const [reservedUsd, programs, statement, earnings] = await Promise.all([
+    reservedUsdFromChain !== undefined
+      ? Promise.resolve(reservedUsdFromChain)
+      : getReservedForPrograms(freshProfile.id).catch(() => 0),
     buildProgramWallets(freshProfile.id).catch(() => []),
-    buildStatement(freshProfile.id, freshProfile.availableUsd).catch(() => []),
+    buildStatement(freshProfile.id, availableUsd).catch(() => []),
     getProfileEarningsSummary({ profile: freshProfile, authUser }).catch(() => ({
       claimableUsd: 0,
       authorizedUsd: 0,
@@ -248,13 +245,13 @@ export async function getBankingAccountSnapshot(input: {
     walletLabel: walletLabel(walletAddress),
     policy: BANKING_POLICY,
     balances: {
-      availableUsd: round(freshProfile.availableUsd),
+      availableUsd: round(availableUsd),
       reservedUsd,
       earnedClaimableUsd: round(earnings.claimableUsd),
       earnedAuthorizedUsd: round(earnings.authorizedUsd),
       earnedSettledUsd: round(earnings.settledUsd),
-      totalDepositedUsd,
-      onChainUsdcUsd: arc.identityWallet?.onChainUsdcUsd ?? null,
+      totalDepositedUsd: round(onChainUsd ?? availableUsd + reservedUsd),
+      onChainUsdcUsd: onChainUsd ?? arc.identityWallet?.onChainUsdcUsd ?? null,
     },
     programs,
     statement,

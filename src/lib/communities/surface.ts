@@ -77,7 +77,7 @@ export async function buildCommunitySurface(
   const community = getCommunityBySlug(slug);
   if (!community) return null;
 
-  const [treasury, connectors, navidrome] = await Promise.all([
+  const [treasury, connectors, navidrome, ownerProfile] = await Promise.all([
     getTreasurySnapshot().catch(() => ({
       balanceUsd: 0,
       obligationsUsd: 0,
@@ -86,6 +86,9 @@ export async function buildCommunitySurface(
     })),
     getConnectorLiveStatuses().catch(() => []),
     getNavidromeSyncStatus().catch(() => null),
+    userId ?
+      prisma.user.findUnique({ where: { id: userId }, select: { availableUsd: true } })
+    : Promise.resolve(null),
   ]);
 
   const install = userId ? await getInstall(userId, slug) : null;
@@ -203,8 +206,9 @@ export async function buildCommunitySurface(
   const deployReasons: string[] = [];
   if (!install) deployReasons.push("Install RESOLVE on this community");
   if (authorizedForDeploy.length === 0) deployReasons.push("Sync scrobbles via Navidrome bridge");
-  if (treasury.availableUsd < authorizedUsd && authorizedUsd > 0) {
-    deployReasons.push("Fund treasury to cover obligations");
+  const ownerDepositUsd = ownerProfile?.availableUsd ?? 0;
+  if (userId && ownerDepositUsd < authorizedUsd && authorizedUsd > 0) {
+    deployReasons.push("Deposit USDC to your account to cover program obligations");
   }
 
   return {

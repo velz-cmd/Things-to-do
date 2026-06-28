@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
 import { notifyAllUnnotifiedClaimable } from "@/lib/earn/notify";
-
-function authorized(req: Request): boolean {
-  const secret =
-    process.env.CRON_SECRET?.trim() || process.env.BOOTSTRAP_SENSOR_SECRET?.trim();
-  if (!secret) return process.env.NODE_ENV !== "production";
-  const auth = req.headers.get("authorization");
-  return auth === `Bearer ${secret}`;
-}
+import { authorizeCronRequest } from "@/lib/env/cron-secret";
 
 /** Passive channel — email payees when claimable authorizations pass notify policy. */
 export async function POST(req: Request) {
-  if (!authorized(req)) {
+  if (!authorizeCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Check, X } from "lucide-react";
 import { Button } from "@/components/resolve/ui/button";
 import { ValueFlowAnimation } from "@/components/resolve/home/value-flow-animation";
+import { HomePrimaryCta } from "@/components/resolve/home/home-primary-cta";
 
 const WITHOUT = [
   "Libraries power million-dollar products — maintainers earn $0",
@@ -32,8 +32,6 @@ const INDUSTRIES = [
 ] as const;
 
 export function HomePage() {
-  const router = useRouter();
-
   return (
     <div className="relative">
       <section className="mx-auto grid max-w-6xl gap-12 px-6 pb-20 pt-16 md:grid-cols-2 md:items-center md:pt-24">
@@ -48,10 +46,7 @@ export function HomePage() {
             executes when you&apos;re ready.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button variant="glow" size="lg" onClick={() => router.push("/mission")}>
-              Open Mission
-              <ArrowRight className="h-4 w-4" />
-            </Button>
+            <HomePrimaryCta />
           </div>
         </div>
         <ValueFlowAnimation />
@@ -117,9 +112,7 @@ export function HomePage() {
           <p className="mt-2 text-sm text-resolve-muted">
             Ask a question. Get evidence. Approve when you&apos;re ready.
           </p>
-          <Button variant="glow" className="mt-8" size="lg" onClick={() => router.push("/control")}>
-            Open Mission
-          </Button>
+          <HomePrimaryCta />
         </div>
       </section>
 

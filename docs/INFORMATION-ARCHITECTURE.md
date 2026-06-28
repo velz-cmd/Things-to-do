@@ -27,20 +27,43 @@ Connectors are invisible. Ecosystems are equal. Users think in **outcomes**; the
 
 ---
 
-## How many tabs? **Six. No more. No less.**
+## How many tabs? **Five primary areas. No Network tab.**
 
 | # | Tab | Route | One question it answers |
 |---|-----|-------|-------------------------|
-| 1 | **Home** | `/` | What is RESOLVE? |
-| 2 | **Discover** | `/discover` | Where does value already exist? |
-| 3 | **Mission** | `/mission` | What should I do? |
+| 1 | **Discover** | `/discover` | Where does value already exist? |
+| 2 | **Mission** | `/mission` | What should I do? |
+| 3 | **Communities** | `/communities` | How is this community operating? |
 | 4 | **Capital** | `/capital` | Where should money move? |
-| 5 | **Network** | `/network` | What is happening globally? |
-| 6 | **Profile** | `/profile` | Who am I in this ecosystem? |
+| 5 | **Profile** | `/profile` | Who am I in this ecosystem? |
 
-**Settings** (`/settings`) is **not** a primary tab. Boring infra: theme, security, API keys, billing, webhooks, experimental flags.
+**Home** (`/`) is marketing — not a product tab.
 
-**Entity pages** (`/e/[entityId]`) are **not** tabs. Deep dives: React, a paper, an artist, a university — same layout, different data.
+**Network** (`/network`) redirects to **Discover** — global timeline and graph live there, not a separate tab.
+
+**Settings** (`/settings`) is **not** a primary tab. Deep admin: connectors, operator keys, webhooks, integration health.
+
+**Entity pages** (`/e/[entityId]`) are **not** tabs. Deep dives: repository, paper, artist, community — Bloomberg-style single-entity view.
+
+**Claim** (`/claim`) is a deep creator-collect flow, linked from Profile and Capital.
+
+### Tab map — what owns what (nothing duplicated)
+
+| Tab | Owns | Never shows |
+|-----|------|-------------|
+| **Discover** | Find value, gaps, live feed, global value graph | Wallet, deploy, programs |
+| **Mission** | Decide, simulate, recommend, approve plan | Long-term ops, treasury |
+| **Communities** | Operate programs, Observatory panel, deploy, Measure/Learn | Global search, AI essays |
+| **Capital** | Treasury, pending, claims, history, explorer-verified receipts | Chat, community doctrine |
+| **Profile** | Identity, earnings entry, installs | Allocation policy design |
+
+| Deep route | Purpose |
+|------------|---------|
+| `/e/[id]` | One entity Bloomberg view |
+| `/claim` | Creator collect |
+| `/settings` | Admin connectors and keys |
+
+**Observatory** stays a panel inside **Communities** — not a tab.
 
 ---
 
@@ -259,7 +282,7 @@ Tabs = structure. Command bar = speed.
 | **Understand** | What matters? | Mission |
 | **Decide** | Where should capital go? | Mission + Capital |
 | **Execute** | Move money | Capital |
-| **Verify** | What changed? | Network |
+| **Verify** | What changed? | Discover (live feed) + Capital (explorer) |
 
 ---
 
@@ -303,11 +326,13 @@ The **Global Value Graph** is the product — not decoration. Not a GitHub fundi
 | Area | Status |
 |------|--------|
 | Layer 1 domain model | Frozen (`src/lib/domain/`) |
-| 6-tab routes | Wired (`src/components/resolve/layout/nav.ts`) |
+| 5-tab routes | Wired (`src/components/resolve/layout/nav.ts`) |
 | Mission 3-column shell | Partial (`/mission`) |
-| Entity pages | Not started |
-| Global value graph | Not started |
-| Command bar ⌘K | Not started |
-| Observation ingest | Partial (legacy `SettlementInputEvent`) |
+| Entity pages | Live (`/e/[id]`) |
+| Global value graph | Live — full on Discover, compact on Mission sidebar |
+| Command bar ⌘K | Live — global (`src/components/resolve/command/`) |
+| Settings deep page | Live (`/settings`) |
+| Capital settlement truth | Live — explorer verify, no optimistic paid |
+| Observation ingest | Partial (sensors + ledger) |
 
-**Rule:** No new primary tabs until entity pages or graph ship.
+**Rule:** No new primary tabs. Observatory stays inside Communities.

@@ -87,7 +87,21 @@ const checks: Check[] = [
     method: "GET",
     path: "/api/health/deploy",
     expectStatus: 200,
-    expect: (b) => Boolean((b as { ok?: boolean; phases?: { phase4?: boolean } }).ok && (b as { phases?: { phase4?: boolean } }).phases?.phase4),
+    expect: (b) => Boolean((b as { ok?: boolean; phases?: { phase5?: boolean } }).ok && (b as { phases?: { phase5?: boolean } }).phases?.phase5),
+  },
+  {
+    name: "platform config",
+    method: "GET",
+    path: "/api/config",
+    expectStatus: 200,
+    expect: (b) => (b as { arcMemos?: unknown }).arcMemos !== undefined,
+  },
+  {
+    name: "connector status",
+    method: "GET",
+    path: "/api/connectors/status",
+    expectStatus: 200,
+    expect: (b) => Array.isArray((b as { connectors?: unknown[] }).connectors),
   },
   {
     name: "profile earnings",

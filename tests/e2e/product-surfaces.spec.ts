@@ -24,7 +24,7 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/capital", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Where should money move?" })).toBeVisible();
-    await expect(page.getByText("RESOLVE Banking")).toBeVisible();
+    await expect(page.getByText("RESOLVE Banking · Arc USDC")).toBeVisible();
 
     await page.goto("/network", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/discover/);
@@ -80,8 +80,11 @@ test.describe("RESOLVE product surfaces", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.policy.interestBearing).toBe(false);
+    expect(body.policy.rail).toBe("arc");
     expect(body).toHaveProperty("balances");
-    expect(body).toHaveProperty("settlementRail");
+    expect(body).toHaveProperty("arc");
+    expect(body.arc).toHaveProperty("capabilities");
+    expect(body.arc.capabilities.batchMemoPayouts).toBe(true);
     expect(body).toHaveProperty("identities");
     expect(body.network).toHaveProperty("pendingFundingUsd");
   });

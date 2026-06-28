@@ -37,3 +37,4 @@ jobs:
         env:
           PLAYWRIGHT_ENABLED: "true"
           CI: "true"
+          NODE_OPTIONS: "--max-old-space-size=4096"

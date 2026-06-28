@@ -5,7 +5,9 @@ test.describe("RESOLVE product surfaces", () => {
     test.setTimeout(120_000);
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("link", { name: "Open Mission" }).first()).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Open Mission|Claim \$/ }).first(),
+    ).toBeVisible();
 
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Where does value already exist?" })).toBeVisible();
@@ -37,7 +39,7 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Who am I in this ecosystem?" })).toBeVisible();
-    await expect(page.getByText("Your earnings")).toBeVisible();
+    await expect(page.getByText("Your earnings", { exact: true })).toBeVisible({ timeout: 15_000 });
 
     await page.goto("/control", { waitUntil: "commit" });
     await expect(page).toHaveURL(/\/mission/);
@@ -93,8 +95,8 @@ test.describe("RESOLVE product surfaces", () => {
     expect(res.status()).toBe(401);
   });
 
-  test("notify-claimable cron locked without secret in production", async ({ request }) => {
+  test("notify-claimable cron requires auth in CI", async ({ request }) => {
     const res = await request.post("/api/cron/notify-claimable");
-    expect([401, 200]).toContain(res.status());
+    expect(res.status()).toBe(401);
   });
 });

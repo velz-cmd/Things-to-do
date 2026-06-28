@@ -78,8 +78,8 @@ const checks: Check[] = [
     path: "/api/health/live",
     expectStatus: 200,
     expect: (b) => {
-      const year = (b as { dataYear?: number }).dataYear;
-      return year === 2026;
+      const body = b as { ok?: boolean; dataYear?: number };
+      return Boolean(body.ok && body.dataYear === new Date().getUTCFullYear());
     },
   },
   {
@@ -111,7 +111,7 @@ const checks: Check[] = [
     expect: (b) => {
       const updated = (b as { updatedAt?: string }).updatedAt;
       if (!updated) return false;
-      return updated.startsWith("2026");
+      return updated.startsWith(String(new Date().getUTCFullYear()));
     },
   },
   {

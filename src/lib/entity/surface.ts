@@ -361,7 +361,7 @@ export async function buildEntitySurface(entityId: string): Promise<EntitySurfac
   }
 
   const [authRows, treasury] = await Promise.all([
-    fetchAuthRowsForEntity(entityId),
+    fetchAuthRowsForEntity(entityId).catch(() => [] as AuthRow[]),
     getTreasurySnapshot().catch(() => null),
   ]);
 

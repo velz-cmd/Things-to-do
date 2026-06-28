@@ -7,25 +7,33 @@ import { getTreasurySnapshot } from "@/lib/treasury/engine";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getNavidromeSyncStatus } from "@/lib/connectors/navidrome-sync";
 import { buildLiveTimeline } from "@/lib/mission/server/timeline";
+import { buildCommunityObservatory } from "@/lib/communities/observatory";
+import { buildEconomicMemory } from "@/lib/communities/economic-memory";
+import { computePlatformFee } from "@/lib/payment/platform-fee";
+import { resolvePayee } from "@/lib/registry/resolvers";
 import type { CommunityImpactChain, CommunitySurface } from "./types";
 
 function buildImpactChain(input: {
   treasuryUsd: number;
   programBudgetUsd: number;
+  communityObligationsUsd: number;
   authorizedUsd: number;
   settledUsd: number;
+  platformFeeUsd: number;
   playCount: number;
   artistCount: number;
 }): CommunityImpactChain {
-  const estImpact = Math.round(input.playCount * 3.2);
+  const estimatedReach = input.artistCount > 0 ? input.playCount : 0;
   return {
     treasuryUsd: input.treasuryUsd,
     programBudgetUsd: input.programBudgetUsd,
+    communityObligationsUsd: input.communityObligationsUsd,
     authorizedUsd: input.authorizedUsd,
     settledUsd: input.settledUsd,
+    platformFeeUsd: input.platformFeeUsd,
     playCount: input.playCount,
     artistCount: input.artistCount,
-    estimatedListeners: estImpact,
+    estimatedReach,
     stages: [
       {
         id: "capital",
@@ -37,7 +45,7 @@ function buildImpactChain(input: {
         id: "program",
         label: "Program",
         value: `$${input.programBudgetUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-        sublabel: "Budget deployed",
+        sublabel: "Budget",
       },
       {
         id: "artists",
@@ -49,13 +57,13 @@ function buildImpactChain(input: {
         id: "plays",
         label: "Plays",
         value: input.playCount.toLocaleString(),
-        sublabel: "Verified",
+        sublabel: "Authorized",
       },
       {
         id: "impact",
-        label: "Est. impact",
-        value: estImpact.toLocaleString(),
-        sublabel: "Listener reach",
+        label: "Settled",
+        value: `$${input.settledUsd.toFixed(2)}`,
+        sublabel: input.platformFeeUsd > 0 ? `+$${input.platformFeeUsd.toFixed(2)} platform` : "On Arc",
       },
     ],
   };
@@ -87,6 +95,32 @@ export async function buildCommunitySurface(
   let playCount = 0;
   let artistCount = 0;
   const missionIds = programs.map((p) => p.missionId).filter(Boolean) as string[];
+  const authorizationPreviews: CommunitySurface["authorizations"] = [];
+  if (missionIds.length) {
+    const rows = await prisma.paymentAuthorization.findMany({
+      where: { missionId: { in: missionIds } },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        payeeKey: true,
+        amountUsd: true,
+        status: true,
+        contextLabel: true,
+        createdAt: true,
+      },
+    });
+    for (const a of rows) {
+      authorizationPreviews.push({
+        id: a.id,
+        payeeKey: a.payeeKey,
+        amountUsd: a.amountUsd,
+        status: a.status,
+        contextLabel: a.contextLabel,
+        createdAt: a.createdAt.toISOString(),
+      });
+    }
+  }
 
   for (const missionId of missionIds) {
     const summary = await getAuthorizationSummary({ missionId });
@@ -98,6 +132,8 @@ export async function buildCommunitySurface(
   }
 
   const programBudgetUsd = programs.reduce((s, p) => s + p.budgetUsd, 0);
+  const communityObligationsUsd = authorizedUsd;
+  const platformFeeUsd = computePlatformFee(authorizedUsd);
 
   const connectorStatus = community.connectors.map((id) => {
     const live = connectors.find((c) => c.id === id);
@@ -108,12 +144,54 @@ export async function buildCommunitySurface(
     };
   });
 
-  const timeline =
-    userId && install?.ecosystemId
-      ? await buildLiveTimeline(userId, install.ecosystemId)
-      : userId
-        ? await buildLiveTimeline(userId)
-        : [];
+  const timeline = userId
+    ? await buildLiveTimeline(userId, {
+        ecosystemId: install?.ecosystemId ?? undefined,
+        missionIds,
+      })
+    : [];
+
+  const observatory =
+    userId && install
+      ? await buildCommunityObservatory({
+          userId,
+          communitySlug: slug,
+          ecosystemId: install.ecosystemId,
+          programs,
+          kind: community.kind,
+        })
+      : [];
+
+  const economicMemory =
+    userId
+      ? await buildEconomicMemory({
+          userId,
+          ecosystemId: install?.ecosystemId ?? null,
+          missionIds,
+        })
+      : [];
+
+  let walletMappedCount = 0;
+  const authorizedForDeploy = missionIds.length
+    ? (await getAuthorizationSummary({ missionId: missionIds[0]! })).authorizations.filter(
+        (a) => a.status === "authorized" || a.status === "pending_funding",
+      )
+    : [];
+
+  for (const a of authorizedForDeploy) {
+    const payee = await resolvePayee({
+      platform: "navidrome",
+      payload: { exifArtist: a.payeeKey },
+    });
+    if (payee.wallet) walletMappedCount++;
+  }
+
+  const deployReasons: string[] = [];
+  if (!install) deployReasons.push("Install RESOLVE on this community");
+  if (authorizedForDeploy.length === 0) deployReasons.push("Sync scrobbles via Navidrome bridge");
+  if (treasury.availableUsd < authorizedUsd && authorizedUsd > 0) {
+    deployReasons.push("Fund treasury to cover obligations");
+  }
 
   return {
     slug: community.slug,
@@ -130,17 +208,24 @@ export async function buildCommunitySurface(
     health: {
       treasuryUsd: treasury.balanceUsd,
       obligationsUsd: treasury.obligationsUsd,
+      communityObligationsUsd,
       connectorStatus,
       scrobbleBridge: Boolean(navidrome?.cursor),
+      lastScrobbleAt: navidrome?.cursor?.lastSubmissionTime ?? null,
     },
     impact: buildImpactChain({
       treasuryUsd: treasury.balanceUsd,
       programBudgetUsd,
+      communityObligationsUsd,
       authorizedUsd,
       settledUsd,
+      platformFeeUsd,
       playCount,
       artistCount,
     }),
+    observatory,
+    economicMemory,
+    authorizations: authorizationPreviews.slice(0, 12),
     timeline: timeline.slice(0, 20).map((t) => ({
       id: t.id,
       eventType: t.eventType,
@@ -148,6 +233,12 @@ export async function buildCommunitySurface(
       detail: t.detail,
       createdAt: t.createdAt,
     })),
+    deployReadiness: {
+      canDeploy: deployReasons.length === 0 && authorizedForDeploy.length > 0,
+      authorizedCount: authorizedForDeploy.length,
+      walletMappedCount,
+      reasons: deployReasons,
+    },
   };
 }
 

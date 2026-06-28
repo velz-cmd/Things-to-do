@@ -110,6 +110,11 @@ async function main() {
     return;
   }
 
+  const missionId = process.env.NAVIDROME_PROGRAM_MISSION_ID?.trim();
+  const perPlayUsd = process.env.NAVIDROME_PER_PLAY_USD
+    ? Number(process.env.NAVIDROME_PER_PLAY_USD)
+    : undefined;
+
   const res = await fetch(syncUrl, {
     method: "POST",
     headers: {
@@ -118,6 +123,8 @@ async function main() {
     },
     body: JSON.stringify({
       instanceId,
+      ...(missionId ? { missionId } : {}),
+      ...(perPlayUsd ? { perPlayUsd } : {}),
       scrobbles: rows.map((r) => ({
         id: r.id,
         userId: r.userId,
@@ -138,7 +145,7 @@ async function main() {
   const last = rows[rows.length - 1]!;
   saveCursor({ lastSubmissionTime: last.submissionTime, lastId: last.id });
   console.log(
-    `[navidrome-bridge] pushed ${rows.length} scrobbles → ingested ${data.ingested ?? 0}`,
+    `[navidrome-bridge] pushed ${rows.length} scrobbles → ingested ${data.ingested ?? 0}${data.missionId ? ` · mission ${data.missionId}` : ""}`,
   );
 }
 

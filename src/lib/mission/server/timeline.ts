@@ -61,18 +61,30 @@ export async function listTimeline(
 }
 
 /** Enrich timeline with live authorization and settlement events */
-export async function buildLiveTimeline(userId: string, ecosystemId?: string) {
+export async function buildLiveTimeline(
+  userId: string,
+  opts?: { ecosystemId?: string; missionIds?: string[] },
+) {
+  const ecosystemId = opts?.ecosystemId;
+  const missionIds = opts?.missionIds?.filter(Boolean) ?? [];
   const stored = await listTimeline(userId, { ecosystemId, limit: 30 });
 
+  const authWhere =
+    missionIds.length > 0
+      ? { missionId: { in: missionIds }, founderUserId: userId }
+      : { founderUserId: userId };
+
   const authEvents = await prisma.paymentAuthorization.findMany({
+    where: authWhere,
     orderBy: { createdAt: "desc" },
-    take: 10,
+    take: 15,
     select: {
       id: true,
       missionId: true,
       amountUsd: true,
       status: true,
       contextLabel: true,
+      payeeKey: true,
       createdAt: true,
     },
   });
@@ -82,8 +94,8 @@ export async function buildLiveTimeline(userId: string, ecosystemId?: string) {
     ecosystemId: ecosystemId ?? null,
     missionId: a.missionId,
     eventType: "authorization",
-    title: a.contextLabel ?? "Value recognized",
-    detail: `$${a.amountUsd.toFixed(2)} · ${a.status}`,
+    title: a.contextLabel ?? `Play · ${a.payeeKey}`,
+    detail: `$${a.amountUsd.toFixed(4)} · ${a.status}`,
     severity: a.status === "claimable" ? "watch" : "info",
     createdAt: a.createdAt.toISOString(),
   }));

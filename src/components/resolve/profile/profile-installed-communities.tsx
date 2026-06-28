@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Loader2 } from "lucide-react";
-import { listFeaturedCommunities } from "@/lib/communities/catalog";
+import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 
 type CommunitySummary = {
@@ -13,7 +13,7 @@ type CommunitySummary = {
 };
 
 export function ProfileInstalledCommunities() {
-  const featured = listFeaturedCommunities();
+  const catalog = COMMUNITY_CATALOG;
   const [communities, setCommunities] = useState<CommunitySummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,7 +55,7 @@ export function ProfileInstalledCommunities() {
         <div className="space-y-3">
           {installed.length > 0 ? (
             installed.map((c) => {
-              const meta = featured.find((f) => f.slug === c.slug);
+              const meta = catalog.find((f) => f.slug === c.slug);
               if (!meta) return null;
               return (
                 <InstallResolveCard
@@ -67,7 +67,7 @@ export function ProfileInstalledCommunities() {
               );
             })
           ) : (
-            featured.slice(0, 2).map((c) => (
+            catalog.filter((c) => c.featured).slice(0, 2).map((c) => (
               <InstallResolveCard
                 key={c.slug}
                 community={c}

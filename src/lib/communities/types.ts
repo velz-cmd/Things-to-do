@@ -1,4 +1,6 @@
 import type { ProgramTemplateId } from "./catalog";
+import type { ObservatoryAlert } from "./observatory";
+import type { EconomicMemoryEntry } from "./economic-memory";
 
 export type CommunityInstallRecord = {
   id: string;
@@ -13,9 +15,13 @@ export type CommunityInstallRecord = {
 
 export type ProgramRules = {
   perPlayUsd?: number;
+  perMergeUsd?: number;
+  perCveUsd?: number;
+  perCitationUsd?: number;
   minDurationSec?: number;
   splitMode?: string;
   connectorId?: string;
+  eventType?: string;
 };
 
 export type ProgramRecord = {
@@ -38,17 +44,28 @@ export type ProgramRecord = {
 export type CommunityImpactChain = {
   treasuryUsd: number;
   programBudgetUsd: number;
+  communityObligationsUsd: number;
   authorizedUsd: number;
   settledUsd: number;
+  platformFeeUsd: number;
   playCount: number;
   artistCount: number;
-  estimatedListeners: number;
+  estimatedReach: number;
   stages: Array<{
     id: string;
     label: string;
     value: string;
     sublabel?: string;
   }>;
+};
+
+export type AuthorizationPreview = {
+  id: string;
+  payeeKey: string;
+  amountUsd: number;
+  status: string;
+  contextLabel: string | null;
+  createdAt: string;
 };
 
 export type CommunitySurface = {
@@ -66,10 +83,15 @@ export type CommunitySurface = {
   health: {
     treasuryUsd: number;
     obligationsUsd: number;
+    communityObligationsUsd: number;
     connectorStatus: Array<{ id: string; health: string; label: string }>;
     scrobbleBridge: boolean;
+    lastScrobbleAt: string | null;
   };
   impact: CommunityImpactChain;
+  observatory: ObservatoryAlert[];
+  economicMemory: EconomicMemoryEntry[];
+  authorizations: AuthorizationPreview[];
   timeline: Array<{
     id: string;
     eventType: string;
@@ -77,4 +99,10 @@ export type CommunitySurface = {
     detail: string | null;
     createdAt: string;
   }>;
+  deployReadiness: {
+    canDeploy: boolean;
+    authorizedCount: number;
+    walletMappedCount: number;
+    reasons: string[];
+  };
 };

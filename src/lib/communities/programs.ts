@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import {
   getCommunityBySlug,
   PROGRAM_TEMPLATES,
+  listProgramTemplatesForKind,
   type ProgramTemplateId,
 } from "@/lib/communities/catalog";
 import type { ProgramRecord, ProgramRules } from "./types";
@@ -92,7 +93,10 @@ export async function createProgram(
     return { ok: false as const, error: "Install RESOLVE on this community first" };
   }
 
-  const templateId = input.templateId ?? "user-centric-royalties";
+  const kindTemplates = listProgramTemplatesForKind(community.kind);
+  const defaultTemplateId =
+    kindTemplates[0]?.id ?? ("user-centric-royalties" satisfies ProgramTemplateId);
+  const templateId = input.templateId ?? defaultTemplateId;
   const template = PROGRAM_TEMPLATES[templateId];
   if (!template) return { ok: false as const, error: "Unknown program template" };
 

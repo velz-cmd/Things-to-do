@@ -10,6 +10,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
+import { CapitalCommunityPrograms } from "@/components/resolve/capital/capital-community-programs";
 import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
 
 type Overview = {
@@ -182,6 +183,10 @@ export function PaymentsOS() {
             Settled: <Money amount={ledger?.settledUsd ?? 0} size="sm" className="inline" />
           </span>
         </div>
+      </section>
+
+      <section className="border-b border-resolve-border py-8">
+        <CapitalCommunityPrograms />
       </section>
 
       <section className="border-b border-resolve-border py-8">

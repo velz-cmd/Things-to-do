@@ -18,7 +18,11 @@ import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
 import { CapitalFlowImpact } from "@/components/resolve/communities/capital-flow-impact";
+import { CommunityObservatory } from "@/components/resolve/communities/community-observatory";
+import { EconomicMemoryTimeline } from "@/components/resolve/communities/economic-memory-timeline";
+import { MeasureLearnPanel } from "@/components/resolve/communities/measure-learn-panel";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
+import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
 import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
 
@@ -38,18 +42,31 @@ function HealthPill({ label, ok }: { label: string; ok: boolean }) {
   );
 }
 
+function programRulesLabel(program: ProgramRecord): string {
+  const t = PROGRAM_TEMPLATES[program.templateId as keyof typeof PROGRAM_TEMPLATES];
+  if (t?.description) return t.description;
+  if (program.rules.perPlayUsd) return `$${program.rules.perPlayUsd} per verified play`;
+  if (program.rules.perCitationUsd) return `$${program.rules.perCitationUsd} per citation`;
+  if (program.rules.perMergeUsd) return `$${program.rules.perMergeUsd} per docs merge`;
+  return program.templateId;
+}
+
 function ProgramCard({
   program,
   slug,
   onDeploy,
   deploying,
+  readiness,
 }: {
   program: ProgramRecord;
   slug: string;
   onDeploy: (id: string) => void;
   deploying: string | null;
+  readiness?: CommunitySurface["deployReadiness"];
 }) {
   const isDeploying = deploying === program.id;
+  const canRedeploy = (readiness?.authorizedCount ?? 0) > 0;
+  const deployDisabled = isDeploying || (program.status === "deployed" && !canRedeploy);
 
   return (
     <BlueGlowCard variant="subtle" className="space-y-4">
@@ -59,9 +76,7 @@ function ProgramCard({
             Program
           </p>
           <h3 className="mt-1 text-base font-semibold text-white">{program.name}</h3>
-          <p className="mt-1 text-xs text-resolve-muted">
-            ${program.rules.perPlayUsd?.toFixed(4) ?? "0.0004"} per verified play · MusicBrainz splits
-          </p>
+          <p className="mt-1 text-xs text-resolve-muted">{programRulesLabel(program)}</p>
         </div>
         <span
           className={clsx(
@@ -86,18 +101,22 @@ function ProgramCard({
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
           <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Rules</p>
-          <p className="mt-0.5 text-sm font-semibold text-white">Per play</p>
+          <p className="mt-0.5 text-sm font-semibold text-white truncate">
+            {program.rules.connectorId ?? "arc"}
+          </p>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Recipients</p>
-          <p className="mt-0.5 text-sm font-semibold text-white">Artists</p>
+          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Owed</p>
+          <p className="mt-0.5 text-sm font-semibold text-white">
+            {readiness?.authorizedCount ?? 0}
+          </p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
-          disabled={isDeploying || program.status === "deployed"}
+          disabled={deployDisabled || !readiness?.canDeploy}
           onClick={() => onDeploy(program.id)}
         >
           {isDeploying ? (
@@ -105,11 +124,13 @@ function ProgramCard({
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Deploying on Arc…
             </>
-          ) : program.status === "deployed" ? (
+          ) : program.status === "deployed" && !canRedeploy ? (
             <>
               <CheckCircle2 className="h-3.5 w-3.5" />
               Deployed
             </>
+          ) : program.status === "deployed" && canRedeploy ? (
+            "Deploy batch on Arc"
           ) : (
             "Deploy on Arc"
           )}
@@ -121,11 +142,26 @@ function ProgramCard({
           Connect Navidrome
           <ArrowUpRight className="h-3 w-3" />
         </Link>
+        <Link
+          href={`/mission?community=${slug}&program=${program.missionId ?? program.id}`}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-resolve-accent/30 px-3 py-1.5 text-xs text-resolve-accent hover:bg-resolve-accent/10"
+        >
+          Open in Mission
+          <ArrowUpRight className="h-3 w-3" />
+        </Link>
       </div>
 
-      {program.lastSettlementId && (
-        <p className="text-[11px] text-resolve-muted-dim">
-          Last receipt · {program.lastSettlementId.slice(0, 12)}…
+      {readiness?.reasons && readiness.reasons.length > 0 && (
+        <ul className="space-y-1 text-[11px] text-amber-200/90">
+          {readiness.reasons.map((r) => (
+            <li key={r}>· {r}</li>
+          ))}
+        </ul>
+      )}
+
+      {program.missionId && (
+        <p className="text-[10px] text-resolve-muted-dim font-mono">
+          Bridge env: NAVIDROME_PROGRAM_MISSION_ID={program.missionId}
         </p>
       )}
     </BlueGlowCard>
@@ -227,7 +263,8 @@ export function CommunityHome({ slug }: { slug: string }) {
                 <Money amount={surface?.health.treasuryUsd ?? 0} />
               </p>
               <p className="text-xs text-resolve-muted">
-                ${(surface?.health.obligationsUsd ?? 0).toFixed(2)} obligations
+                <Money amount={surface?.health.communityObligationsUsd ?? 0} size="sm" className="inline" />{" "}
+                community obligations
               </p>
             </BlueGlowCard>
 
@@ -253,7 +290,29 @@ export function CommunityHome({ slug }: { slug: string }) {
             </BlueGlowCard>
           </section>
 
+          {surface?.observatory && surface.observatory.length > 0 && (
+            <CommunityObservatory alerts={surface.observatory} />
+          )}
+
           {surface?.impact && <CapitalFlowImpact impact={surface.impact} />}
+
+          {surface?.authorizations && surface.authorizations.length > 0 && (
+            <section>
+              <h2 className="text-sm font-semibold text-white">Recent authorizations</h2>
+              <p className="mt-1 text-xs text-resolve-muted">Plays → owed — live from ledger</p>
+              <ul className="mt-3 divide-y divide-white/[0.06] rounded-xl border border-white/[0.06]">
+                {surface.authorizations.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-white">{a.payeeKey}</p>
+                      <p className="text-[11px] text-resolve-muted">{a.status}</p>
+                    </div>
+                    <Money amount={a.amountUsd} size="sm" className="shrink-0 text-emerald-300" />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section>
             <h2 className="text-sm font-semibold text-white">Programs</h2>
@@ -268,10 +327,22 @@ export function CommunityHome({ slug }: { slug: string }) {
                   slug={slug}
                   onDeploy={(id) => void deploy(id)}
                   deploying={deploying}
+                  readiness={surface?.deployReadiness}
                 />
               ))}
             </div>
           </section>
+
+          {(surface?.programs ?? []).map((p) => (
+            <MeasureLearnPanel
+              key={`ml-${p.id}`}
+              slug={slug}
+              programId={p.id}
+              onUpdated={() => void refresh()}
+            />
+          ))}
+
+          <EconomicMemoryTimeline entries={surface?.economicMemory ?? []} />
 
           {surface?.timeline && surface.timeline.length > 0 && (
             <section>

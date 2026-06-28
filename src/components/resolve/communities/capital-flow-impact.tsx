@@ -82,8 +82,18 @@ export function CapitalFlowImpact({
           </span>
           <span className="text-resolve-muted-dim">→</span>
           <span className="text-resolve-accent">
-            ~{impact.estimatedListeners.toLocaleString()} est. listener reach
+            {impact.playCount > 0
+              ? `${impact.playCount} authorized plays`
+              : "Awaiting scrobble sync"}
           </span>
+          {impact.platformFeeUsd > 0 && (
+            <>
+              <span className="text-resolve-muted-dim">·</span>
+              <span className="text-resolve-muted">
+                <Money amount={impact.platformFeeUsd} size="sm" className="inline" /> RESOLVE fee
+              </span>
+            </>
+          )}
         </div>
       </div>
     </BlueGlowCard>

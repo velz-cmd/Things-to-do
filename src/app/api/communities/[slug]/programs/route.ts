@@ -7,7 +7,15 @@ import { getCommunityBySlug } from "@/lib/communities/catalog";
 type Params = { params: Promise<{ slug: string }> };
 
 const createSchema = z.object({
-  templateId: z.enum(["user-centric-royalties"]).optional(),
+  templateId: z
+    .enum([
+      "user-centric-royalties",
+      "docs-bounty",
+      "security-fund",
+      "quadratic-funding",
+      "citation-toll",
+    ])
+    .optional(),
   name: z.string().min(1).max(120).optional(),
   budgetUsd: z.number().positive().optional(),
   rules: z

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import {
   getCommunityBySlug,
   PROGRAM_TEMPLATES,
+  listProgramTemplatesForKind,
   type ProgramTemplateId,
 } from "@/lib/communities/catalog";
 import { ensureSeedEcosystems } from "@/lib/mission/server/ecosystems";
@@ -78,9 +79,21 @@ export async function installCommunity(userId: string, communitySlug: string) {
   }
 
   await ensureSeedEcosystems(userId);
-  const ecosystem = await prisma.resolveEcosystem.findFirst({
+  let ecosystem = await prisma.resolveEcosystem.findFirst({
     where: { userId, name: community.name },
   });
+  if (!ecosystem) {
+    ecosystem = await prisma.resolveEcosystem.create({
+      data: {
+        userId,
+        name: community.name,
+        kind: community.kind,
+        keywordsJson: JSON.stringify(community.keywords),
+        reposJson: "[]",
+        connectorsJson: JSON.stringify(community.connectors),
+      },
+    });
+  }
 
   const liveConnectors = (await getConnectorLiveStatuses().catch(() => []))
     .filter((c) => community.connectors.includes(c.id) && c.health === "healthy")
@@ -102,18 +115,36 @@ export async function installCommunity(userId: string, communitySlug: string) {
     },
   });
 
-  const template = PROGRAM_TEMPLATES["user-centric-royalties"];
+  const kindTemplates = listProgramTemplatesForKind(community.kind);
+  const defaultTemplate = kindTemplates[0] ?? PROGRAM_TEMPLATES["user-centric-royalties"];
+  const templateId = defaultTemplate.id as ProgramTemplateId;
+  const missionId = `program-${install.id}-${templateId.slice(0, 8)}`;
   const program = await prisma.resolveProgram.create({
     data: {
       userId,
       installId: install.id,
-      templateId: "user-centric-royalties" satisfies ProgramTemplateId,
-      name: template.name,
+      templateId,
+      name: defaultTemplate.name,
       status: "active",
-      budgetUsd: template.defaultBudgetUsd,
-      rulesJson: JSON.stringify(template.defaultRules),
-      missionId: `program-${install.id}-royalties`,
+      budgetUsd: defaultTemplate.defaultBudgetUsd,
+      rulesJson: JSON.stringify(defaultTemplate.defaultRules),
+      missionId,
       metadataJson: JSON.stringify({ communitySlug }),
+    },
+  });
+
+  await prisma.resolveCommunityInstall.update({
+    where: { id: install.id },
+    data: {
+      doctrineJson: JSON.stringify({
+        text: community.doctrine,
+        attachShape: community.attachShape,
+        upstream: community.upstream,
+        missionId,
+        bridgeEnv: {
+          NAVIDROME_PROGRAM_MISSION_ID: missionId,
+        },
+      }),
     },
   });
 

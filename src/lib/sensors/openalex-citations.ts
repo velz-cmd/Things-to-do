@@ -57,9 +57,13 @@ async function fetchCitingWorks(workId: string, perPage = 3): Promise<OpenAlexWo
   return json.results ?? [];
 }
 
-function workEntityId(openAlexId: string): string {
-  const short = openAlexId.replace("https://openalex.org/", "");
-  return EntityIds.workOpenAlex(short);
+function workEntityId(openAlexShortId: string): string {
+  return EntityIds.workOpenAlex(openAlexShortId);
+}
+
+function openAlexShortId(id: string | null | undefined): string | null {
+  if (!id) return null;
+  return id.replace("https://openalex.org/", "");
 }
 
 /** OpenAlex sensor — verified citations → observations (RFB #2). */
@@ -79,15 +83,23 @@ export async function scanCitationObservations(input: {
     const works = await fetchOpenAlexWorks(query, input.worksPerQuery ?? 3);
     for (const cited of works) {
       if ((cited.cited_by_count ?? 0) < 1) continue;
+      const citedShort = openAlexShortId(cited.id);
+      if (!citedShort) continue;
 
       const citingWorks = await fetchCitingWorks(cited.id, input.citationsPerWork ?? 2);
       const payee = cited.authorships?.[0]?.author;
-      if (!payee) continue;
+      if (!payee?.display_name) continue;
 
-      const citedId = workEntityId(cited.id);
+      const payeeShort =
+        openAlexShortId(payee.id) ??
+        payee.display_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 48);
+      const citedId = workEntityId(citedShort);
 
       for (const citing of citingWorks) {
-        const idempotencyKey = `openalex:cite:${cited.id}:${citing.id}`;
+        const citingShort = openAlexShortId(citing.id);
+        if (!citingShort) continue;
+
+        const idempotencyKey = `openalex:cite:${citedShort}:${citingShort}`;
         if (seen.has(idempotencyKey)) continue;
         seen.add(idempotencyKey);
 
@@ -105,7 +117,7 @@ export async function scanCitationObservations(input: {
           observedAt: new Date().toISOString(),
           actor: {
             type: "person",
-            id: `person:openalex:${payee.id.replace("https://openalex.org/", "")}`,
+            id: `person:openalex:${payeeShort}`,
             label: payee.display_name,
           },
           subject: {
@@ -115,7 +127,7 @@ export async function scanCitationObservations(input: {
           },
           object: {
             type: "work",
-            id: workEntityId(citing.id),
+            id: workEntityId(citingShort),
             label: citing.title,
           },
           metrics: {
@@ -124,7 +136,7 @@ export async function scanCitationObservations(input: {
           },
           confidence,
           proofHash: sensorProofHash(idempotencyKey),
-          evidenceRefs: [cited.id, citing.id],
+          evidenceRefs: [citedShort, citingShort],
           raw: {
             citedTitle: cited.title,
             citingTitle: citing.title,

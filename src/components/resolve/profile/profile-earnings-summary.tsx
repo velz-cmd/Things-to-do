@@ -41,20 +41,30 @@ export function ProfileEarningsSummary() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-resolve-muted">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading earnings…
-      </div>
+      <section className="space-y-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-400/90">
+          Your earnings
+        </p>
+        <div className="flex items-center gap-2 text-sm text-resolve-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading earnings…
+        </div>
+      </section>
     );
   }
 
   if (!data?.signedIn) {
     return (
-      <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <p className="text-sm text-resolve-muted">
-          Sign in to see verified earnings from connected communities.
+      <section className="space-y-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-400/90">
+          Your earnings
         </p>
-      </div>
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5">
+          <p className="text-sm text-resolve-muted">
+            Sign in to see verified earnings from connected communities.
+          </p>
+        </div>
+      </section>
     );
   }
 

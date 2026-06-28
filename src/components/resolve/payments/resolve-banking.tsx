@@ -225,7 +225,10 @@ function TechnicalDetails({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
-            <p className="text-[10px] uppercase">Settlement pool</p>
+            <p className="text-[10px] uppercase">Settlement pool (platform)</p>
+            <p className="mt-0.5 text-[10px] text-resolve-muted-dim">
+              Not your money — batch payouts only
+            </p>
             <p className="mt-1 text-sm text-white">
               <Money amount={arc.settlementBalanceUsd ?? 0} size="sm" className="inline" />
             </p>
@@ -234,7 +237,10 @@ function TechnicalDetails({
             )}
           </div>
           <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
-            <p className="text-[10px] uppercase">On-chain balance</p>
+            <p className="text-[10px] uppercase">Your wallet on Arc</p>
+            <p className="mt-0.5 text-[10px] text-resolve-muted-dim">
+              On-chain USDC in your identity wallet
+            </p>
             <p className="mt-1 text-sm text-white">
               <Money
                 amount={account.balances.onChainUsdcUsd ?? arc.identityWallet?.onChainUsdcUsd ?? 0}

@@ -7,7 +7,7 @@ import {
   ARC_USDC_CONTRACT,
 } from "@/lib/settlement/arc-config";
 import { getArcReadiness } from "@/lib/treasury/arc-readiness";
-import { getArcUsdcBalance, isAlchemyConfigured } from "@/lib/wallet/alchemy";
+import { getArcUsdcBalance } from "@/lib/wallet/alchemy";
 import {
   appWalletProvider,
   circleWalletIdForUser,
@@ -93,7 +93,7 @@ export async function getBankingArcRail(profile: User | null): Promise<BankingAr
   const readiness = await getArcReadiness();
 
   let identityOnChainUsd: number | null = null;
-  if (profile?.walletAddress && isAlchemyConfigured()) {
+  if (profile?.walletAddress) {
     try {
       const bal = await getArcUsdcBalance(profile.walletAddress);
       identityOnChainUsd = round(bal.balanceUsd);

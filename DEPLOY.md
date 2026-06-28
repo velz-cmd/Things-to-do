@@ -21,6 +21,33 @@ Free tier allows **100 deploys per 24 hours**. If you see:
 
 ---
 
+## Build failed: `CRON_SECRET` whitespace (Vercel cron validation)
+
+If deploy logs show:
+
+```text
+Error: The `CRON_SECRET` environment variable contains leading or trailing whitespace
+```
+
+**Cause:** Vercel rejects cron jobs when `CRON_SECRET` has spaces/newlines. This repo **no longer defines Vercel crons** in `vercel.json` — daily jobs run via GitHub Actions (`.github/workflows/cron-daily.yml`) instead.
+
+**Fix (1 minute):**
+
+1. Vercel → **things-to-do** → **Settings** → **Environment Variables**
+2. Edit `CRON_SECRET` — remove any leading/trailing spaces or newlines
+3. Save and redeploy `main` (or wait for the next merge)
+
+Verify after deploy:
+
+```text
+https://resolve-task.vercel.app/api/health/deploy
+https://resolve-task.vercel.app/api/health/env
+```
+
+`commit` in `/api/health/deploy` should match the latest `main` SHA (e.g. `8ad8bc8`).
+
+---
+
 ## Build failed: missing `DATABASE_URL` (P1012)
 
 Add in Vercel → **things-to-do** → **Environment Variables**:

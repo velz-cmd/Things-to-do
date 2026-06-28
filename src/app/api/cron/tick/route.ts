@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { processScheduledTasks } from "@/lib/deputy/executor";
 import { syncListenBrainzListens } from "@/lib/connectors/listenbrainz-sync";
 import { isListenBrainzConfigured } from "@/lib/integrations/listenbrainz";
+import { getCronSecret } from "@/lib/env/cron-secret";
 
 export async function GET(req: Request) {
+  const secret = getCronSecret();
   const auth = req.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
   if (secret && auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

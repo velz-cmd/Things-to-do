@@ -315,7 +315,7 @@ export function MissionSidebar({
             </p>
           </div>
           <p className="mt-1 px-2 text-[10px] leading-relaxed text-resolve-muted-dim">
-            Background intelligence — never sleeps.
+            Derived from GitHub opportunity scans — not separate live sensors.
           </p>
           <ul className="mt-2 space-y-1">
             {observatories.map((obs) => (

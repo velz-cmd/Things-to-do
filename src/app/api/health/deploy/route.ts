@@ -26,7 +26,7 @@ export async function GET() {
     warnings: [
       ...(cronSecretHasWhitespace()
         ? [
-            "CRON_SECRET has leading/trailing whitespace in Vercel — trim it in Environment Variables",
+            "CRON_SECRET has leading/trailing whitespace in Vercel — runtime uses trimmed value; trim in dashboard to clear this warning",
           ]
         : []),
       ...(claimTokenSecretHasWhitespace()

@@ -1,14 +1,26 @@
 import { NextResponse } from "next/server";
 import { requireReadyUser } from "@/lib/auth/session";
 import { listProgramsForCommunity } from "@/lib/communities/programs";
+import { listPublicCapitalPrograms } from "@/lib/communities/public-programs";
 import { measureProgramOutcomes } from "@/lib/communities/measure-learn";
 import { prisma } from "@/lib/db";
 
-/** Capital ↔ Programs — all operational programs for the signed-in user */
+/** Capital ↔ Programs — public catalog + signed-in installs */
 export async function GET() {
   const ready = await requireReadyUser();
   if ("error" in ready) {
-    return NextResponse.json({ error: ready.error }, { status: ready.status });
+    try {
+      const programs = await listPublicCapitalPrograms();
+      return NextResponse.json({ ok: true, public: true, programs });
+    } catch (e) {
+      console.error("[capital/programs] public catalog", e);
+      return NextResponse.json({
+        ok: true,
+        public: true,
+        programs: [],
+        emptyReason: "Connect DATABASE_URL to list community programs.",
+      });
+    }
   }
 
   const installs = await prisma.resolveCommunityInstall.findMany({

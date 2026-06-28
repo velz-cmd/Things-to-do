@@ -32,9 +32,6 @@ test.describe("Community phases — APIs", () => {
     const programs = await request.get("/api/communities/independent-music/programs");
     expect(programs.status()).toBe(401);
 
-    const capital = await request.get("/api/capital/programs");
-    expect(capital.status()).toBe(401);
-
     const deploy = await request.post(
       "/api/communities/independent-music/programs/test-id/deploy",
     );
@@ -44,6 +41,15 @@ test.describe("Community phases — APIs", () => {
       "/api/communities/independent-music/programs/test-id/rebalance",
     );
     expect(rebalance.status()).toBe(401);
+  });
+
+  test("GET /api/capital/programs returns public catalog without auth", async ({ request }) => {
+    const res = await request.get("/api/capital/programs");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.public).toBe(true);
+    expect(Array.isArray(body.programs)).toBe(true);
   });
 
   test("navidrome sync GET returns bridge status", async ({ request }) => {

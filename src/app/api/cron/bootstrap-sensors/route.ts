@@ -7,10 +7,13 @@ function authorize(req: Request): boolean {
   const cron = process.env.CRON_SECRET?.trim();
   const bootstrap = process.env.BOOTSTRAP_SENSOR_SECRET?.trim();
   const auth = req.headers.get("authorization");
+  const isProd =
+    process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
 
   if (cron && auth === `Bearer ${cron}`) return true;
   if (bootstrap && auth === `Bearer ${bootstrap}`) return true;
-  if (!cron && !bootstrap) return true;
+  // Dev-only open endpoint; production requires CRON_SECRET or BOOTSTRAP_SENSOR_SECRET
+  if (!isProd && !cron && !bootstrap) return true;
   return false;
 }
 
@@ -56,6 +59,6 @@ export async function GET(req: Request) {
     endpoint: "POST /api/cron/bootstrap-sensors",
     githubToken: hasGithubToken(),
     openAlex: INTEGRATIONS.openAlex(),
-    hint: "Installs react/linux/open-research, creates RFB programs, runs sensor sync",
+    hint: "Operator-only: installs all gated communities. Users refresh sensors from each community page.",
   });
 }

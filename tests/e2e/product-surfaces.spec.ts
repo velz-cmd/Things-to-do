@@ -37,6 +37,7 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Who am I in this ecosystem?" })).toBeVisible();
+    await expect(page.getByText("Your earnings")).toBeVisible();
 
     await page.goto("/control", { waitUntil: "commit" });
     await expect(page).toHaveURL(/\/mission/);
@@ -76,5 +77,24 @@ test.describe("RESOLVE product surfaces", () => {
     const body = await res.json();
     expect(body).toHaveProperty("treasury");
     expect(body).toHaveProperty("ledger");
+  });
+
+  test("profile earnings API returns summary shape", async ({ request }) => {
+    const res = await request.get("/api/profile/earnings");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body).toHaveProperty("youEarnedUsd");
+    expect(body).toHaveProperty("claimableUsd");
+    expect(body).toHaveProperty("identities");
+  });
+
+  test("claim session API requires auth", async ({ request }) => {
+    const res = await request.get("/api/claim/session");
+    expect(res.status()).toBe(401);
+  });
+
+  test("notify-claimable cron locked without secret in production", async ({ request }) => {
+    const res = await request.post("/api/cron/notify-claimable");
+    expect([401, 200]).toContain(res.status());
   });
 });

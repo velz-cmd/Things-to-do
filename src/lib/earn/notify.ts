@@ -2,6 +2,10 @@ import { prisma } from "@/lib/db";
 import { createClaimToken, claimUrlForToken } from "@/lib/claim/tokens";
 import { sendClaimEmail } from "@/lib/deputy/tools/resend";
 import { getResendClient } from "@/lib/resend/client";
+import {
+  aggregateNotifyCandidate,
+  evaluateNotifyCandidate,
+} from "@/lib/earn/notify-policy";
 
 export type EarnNotifyResult = {
   payeeKeyType: string;
@@ -11,6 +15,18 @@ export type EarnNotifyResult = {
   claimUrl: string;
   channel: "email" | "log";
   reason?: string;
+  urgency?: number;
+  skipped?: boolean;
+};
+
+type AuthorizationRow = {
+  id: string;
+  amountUsd: number;
+  confidence: number;
+  fulfilledAt: Date | null;
+  updatedAt: Date;
+  createdAt: Date;
+  contextLabel: string | null;
 };
 
 async function resolvePayeeEmail(
@@ -51,7 +67,11 @@ function payeeLabel(payeeKeyType: string, payeeKey: string) {
   return payeeKey;
 }
 
-/** Notify a payee that earnings are claimable — email when possible, always log claim URL. */
+function claimableSinceFromRow(row: AuthorizationRow) {
+  return row.fulfilledAt ?? row.updatedAt ?? row.createdAt;
+}
+
+/** Notify a payee that earnings are claimable — email when policy passes, always log claim URL. */
 export async function notifyEarnAvailable(input: {
   payeeKeyType: string;
   payeeKey: string;
@@ -59,6 +79,9 @@ export async function notifyEarnAvailable(input: {
   amountUsd: number;
   missionId?: string;
   contextLabel?: string;
+  confidence?: number;
+  claimableSince?: Date;
+  authorizationRows?: AuthorizationRow[];
 }): Promise<EarnNotifyResult> {
   const payeeKey = input.payeeKey.toLowerCase();
   const token = createClaimToken({
@@ -71,36 +94,61 @@ export async function notifyEarnAvailable(input: {
   const label = payeeLabel(input.payeeKeyType, payeeKey);
   const amount = Math.round(input.amountUsd * 100) / 100;
 
+  const candidate =
+    input.authorizationRows?.length
+      ? aggregateNotifyCandidate(
+          input.authorizationRows.map((row) => ({
+            amountUsd: row.amountUsd,
+            confidence: row.confidence,
+            claimableSince: claimableSinceFromRow(row),
+          })),
+        )
+      : {
+          amountUsd: amount,
+          confidence: input.confidence ?? 0.85,
+          claimableSince: input.claimableSince ?? new Date(),
+        };
+
+  const policy = candidate
+    ? evaluateNotifyCandidate(candidate)
+    : { notify: false, urgency: 0, decay: 1, reason: "no_candidate" };
+
   const resolvedEmail = await resolvePayeeEmail(input.payeeKeyType, payeeKey);
   const devInbox = process.env.RESEND_CLAIM_TO?.trim();
   const to = resolvedEmail ?? devInbox ?? null;
 
   let emailSent = false;
   let channel: EarnNotifyResult["channel"] = "log";
-  let reason: string | undefined;
+  let reason: string | undefined = policy.reason;
 
-  if (getResendClient() && to) {
+  if (!policy.notify) {
+    reason = reason ?? "notify_policy_skip";
+    console.info(
+      `[earn] skip notify ${input.payeeKeyType}:${payeeKey} $${amount} — ${reason} (urgency=${policy.urgency.toFixed(2)})`,
+    );
+  } else if (getResendClient() && to) {
     try {
       await sendClaimEmail({
         to,
-        subject: `You've earned $${amount.toFixed(2)} on RESOLVE`,
+        subject: `You earned $${amount.toFixed(2)} — claim`,
         body: [
           `Hi ${label},`,
           "",
           `RESOLVE verified $${amount.toFixed(2)} in compensation for your contribution.`,
           input.contextLabel ? `Source: ${input.contextLabel}` : "",
           "",
-          "Claim your earnings (sign in with GitHub, connect wallet, receive USDC):",
-          claimUrl,
+          "Claim your earnings (sign in with GitHub, connect wallet, receive USDC).",
           "",
           "This link expires in 14 days.",
         ]
           .filter(Boolean)
           .join("\n"),
+        claimUrl,
         taskId: input.missionId,
       });
       emailSent = true;
       channel = "email";
+      reason = undefined;
     } catch (e) {
       reason = e instanceof Error ? e.message : "email_failed";
       console.warn("[earn] email failed:", reason);
@@ -116,7 +164,7 @@ export async function notifyEarnAvailable(input: {
   );
 
   const now = new Date();
-  if (input.authorizationIds.length) {
+  if (input.authorizationIds.length && (emailSent || !policy.notify)) {
     await prisma.paymentAuthorization.updateMany({
       where: { id: { in: input.authorizationIds }, notifiedAt: null },
       data: { notifiedAt: now },
@@ -143,6 +191,8 @@ export async function notifyEarnAvailable(input: {
     claimUrl,
     channel,
     reason,
+    urgency: policy.urgency,
+    skipped: !policy.notify,
   };
 }
 
@@ -154,15 +204,30 @@ export async function notifyClaimableAuthorizationsForMission(missionId: string)
 
   const groups = new Map<
     string,
-    { payeeKeyType: string; payeeKey: string; ids: string[]; amountUsd: number; contextLabel?: string }
+    {
+      payeeKeyType: string;
+      payeeKey: string;
+      ids: string[];
+      rows: AuthorizationRow[];
+      contextLabel?: string;
+    }
   >();
 
   for (const row of rows) {
     const key = `${row.payeeKeyType}:${row.payeeKey}`;
     const existing = groups.get(key);
+    const authRow: AuthorizationRow = {
+      id: row.id,
+      amountUsd: row.amountUsd,
+      confidence: row.confidence,
+      fulfilledAt: row.fulfilledAt,
+      updatedAt: row.updatedAt,
+      createdAt: row.createdAt,
+      contextLabel: row.contextLabel,
+    };
     if (existing) {
       existing.ids.push(row.id);
-      existing.amountUsd += row.amountUsd;
+      existing.rows.push(authRow);
       if (!existing.contextLabel && row.contextLabel) {
         existing.contextLabel = row.contextLabel;
       }
@@ -171,7 +236,7 @@ export async function notifyClaimableAuthorizationsForMission(missionId: string)
         payeeKeyType: row.payeeKeyType,
         payeeKey: row.payeeKey,
         ids: [row.id],
-        amountUsd: row.amountUsd,
+        rows: [authRow],
         contextLabel: row.contextLabel ?? undefined,
       });
     }
@@ -179,16 +244,39 @@ export async function notifyClaimableAuthorizationsForMission(missionId: string)
 
   const results: EarnNotifyResult[] = [];
   for (const g of groups.values()) {
+    const amountUsd = g.rows.reduce((s, r) => s + r.amountUsd, 0);
     results.push(
       await notifyEarnAvailable({
         payeeKeyType: g.payeeKeyType,
         payeeKey: g.payeeKey,
         authorizationIds: g.ids,
-        amountUsd: g.amountUsd,
+        amountUsd,
         missionId,
         contextLabel: g.contextLabel,
+        authorizationRows: g.rows,
       }),
     );
+  }
+  return results;
+}
+
+/** Scan all un-notified claimable rows (cron / passive channel). */
+export async function notifyAllUnnotifiedClaimable() {
+  const rows = await prisma.paymentAuthorization.findMany({
+    where: { status: "claimable", notifiedAt: null },
+    take: 500,
+  });
+
+  const byMission = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = byMission.get(row.missionId) ?? [];
+    list.push(row);
+    byMission.set(row.missionId, list);
+  }
+
+  const results: EarnNotifyResult[] = [];
+  for (const missionId of byMission.keys()) {
+    results.push(...(await notifyClaimableAuthorizationsForMission(missionId)));
   }
   return results;
 }

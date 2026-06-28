@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isHash } from "viem";
 import { prisma } from "@/lib/db";
 import { requireReadyUser } from "@/lib/auth/session";
-import { verifyAgentEscrowDeposit } from "@/lib/wallet/verify-crypto-deposit";
+import { verifyArcIdentityDeposit } from "@/lib/wallet/verify-crypto-deposit";
 
 const bodySchema = z.object({
   txHash: z.string(),
@@ -35,10 +35,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No wallet on profile" }, { status: 400 });
   }
 
-  const verified = await verifyAgentEscrowDeposit({
+  const verified = await verifyArcIdentityDeposit({
     txHash: txHash as `0x${string}`,
     expectedUsd: amountUsd,
-    fromWallet: ready.profile.walletAddress,
+    depositAddress: ready.profile.walletAddress,
   });
 
   if (!verified.ok) {

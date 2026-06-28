@@ -10,10 +10,9 @@ import {
 } from "wagmi";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
-import { RESOLVE_AGENT_ESCROW_ADDRESS, arcTestnet } from "@/lib/arc/config";
+import { arcTestnet } from "@/lib/arc/config";
 import { usdcToWei } from "@/lib/arc/utils";
 import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
-import { AgentEscrowBadge } from "@/components/resolve/access-gate";
 import { CctpBridgePanel } from "@/components/wallet/cctp-bridge-panel";
 import { toast } from "sonner";
 import clsx from "clsx";
@@ -48,6 +47,8 @@ export function AddFundsModal({
   const [method, setMethod] = useState<(typeof CARD_METHODS)[number]["id"]>("card");
   const [amount, setAmount] = useState(50);
   const [loading, setLoading] = useState(false);
+  const [depositAddress, setDepositAddress] = useState<string | null>(null);
+  const [walletProvider, setWalletProvider] = useState<"circle" | "embedded" | null>(null);
 
   const { sendTransaction, data: txHash, isPending, error: sendError } =
     useSendTransaction();
@@ -65,6 +66,22 @@ export function AddFundsModal({
       })
       .catch(() => setTab("crypto"));
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !user) return;
+    void fetch("/api/banking/account", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const identity = data?.arc?.identityWallet;
+        if (identity?.depositAddress) {
+          setDepositAddress(identity.depositAddress);
+          setWalletProvider(identity.provider ?? null);
+        }
+      })
+      .catch(() => {
+        /* optional */
+      });
+  }, [open, user]);
 
   useEffect(() => {
     if (suggestedUsd) setAmount(suggestedUsd);
@@ -140,6 +157,12 @@ export function AddFundsModal({
   }
 
   async function handleCryptoDeposit() {
+    if (!depositAddress) {
+      toast.error("Arc identity wallet not ready", {
+        description: "Sign in and wait a moment, then try again",
+      });
+      return;
+    }
     if (!cryptoReady || !address) {
       toast.error("Connect your crypto wallet first", {
         description: "Use the account menu → Connect crypto wallet",
@@ -156,7 +179,7 @@ export function AddFundsModal({
 
       sendTransaction({
         chainId: arcTestnet.id,
-        to: RESOLVE_AGENT_ESCROW_ADDRESS,
+        to: depositAddress as `0x${string}`,
         value: usdcToWei(amount),
       });
     } catch (e) {
@@ -173,10 +196,10 @@ export function AddFundsModal({
         <h2 className="text-lg font-semibold">Add funds</h2>
         <p className="mt-1 text-sm text-deputy-muted">
           {tab === "simple"
-            ? "Demo instant credit — not a real Circle on-ramp."
+            ? "Demo instant credit — production uses Arc USDC."
             : tab === "bridge"
-              ? "Bridge USDC from another chain via CCTP."
-              : "Send USDC on Arc Testnet from your connected wallet."}
+              ? "Bridge USDC from another chain via CCTP to Arc."
+              : "Send native USDC on Arc to your Circle identity wallet — one address per account."}
         </p>
 
         <div className="mt-4 flex gap-1 rounded-lg bg-black/30 p-1">
@@ -253,7 +276,17 @@ export function AddFundsModal({
           <CctpBridgePanel amount={amount} onSuccess={onClose} />
         ) : (
           <>
-            <AgentEscrowBadge className="mt-4" />
+            {depositAddress && (
+              <div className="mt-4 rounded-lg border border-deputy-border bg-black/20 px-3 py-2 text-xs">
+                <p className="text-deputy-muted">Your Arc identity wallet</p>
+                <p className="mt-1 font-mono text-white">
+                  {depositAddress.slice(0, 10)}…{depositAddress.slice(-8)}
+                </p>
+                {walletProvider === "circle" && (
+                  <p className="mt-1 text-deputy-muted">Circle · ARC-TESTNET · USDC gas</p>
+                )}
+              </div>
+            )}
             {!cryptoReady && (
               <p className="mt-3 rounded-lg border border-deputy-warn/40 bg-deputy-warn/10 px-3 py-2 text-xs text-deputy-warn">
                 Connect your wallet from the account menu, then click below — your
@@ -262,7 +295,7 @@ export function AddFundsModal({
             )}
             <button
               type="button"
-              disabled={loading || isPending || confirming || !cryptoReady}
+              disabled={loading || isPending || confirming || !cryptoReady || !depositAddress}
               onClick={handleCryptoDeposit}
               className="mt-5 w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg disabled:opacity-50"
             >

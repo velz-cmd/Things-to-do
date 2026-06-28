@@ -1,10 +1,16 @@
-import { formatUnits } from "viem";
+import { createPublicClient, formatUnits, http } from "viem";
+import { arcTestnet } from "@/lib/arc/config";
 
 const ARC_ALCHEMY_BASE =
   process.env.ALCHEMY_ARC_RPC_URL?.trim() ||
   (process.env.ALCHEMY_API_KEY?.trim()
     ? `https://arc-testnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY.trim()}`
     : null);
+
+const arcPublicClient = createPublicClient({
+  chain: arcTestnet,
+  transport: http(),
+});
 
 export function isAlchemyConfigured(): boolean {
   return Boolean(ARC_ALCHEMY_BASE);
@@ -28,15 +34,33 @@ async function alchemyRpc<T>(method: string, params: unknown[]): Promise<T> {
   return data.result as T;
 }
 
-/** Native USDC balance on Arc testnet via Alchemy (18-decimal wei → 6-decimal USDC). */
+function parseNativeUsdcBalance(hex: string) {
+  const wei = BigInt(hex);
+  const balanceUsd = Number(formatUnits(wei, 18));
+  return { balanceUsd, balanceWei: hex };
+}
+
+async function getArcUsdcBalanceViaPublicRpc(address: string) {
+  const wei = await arcPublicClient.getBalance({
+    address: address as `0x${string}`,
+  });
+  return parseNativeUsdcBalance(`0x${wei.toString(16)}`);
+}
+
+/** Native USDC balance on Arc testnet (18-decimal wei). Alchemy first, public RPC fallback. */
 export async function getArcUsdcBalance(address: string): Promise<{
   balanceUsd: number;
   balanceWei: string;
 }> {
-  const hex = await alchemyRpc<string>("eth_getBalance", [address, "latest"]);
-  const wei = BigInt(hex);
-  const balanceUsd = Number(formatUnits(wei, 18));
-  return { balanceUsd, balanceWei: hex };
+  if (ARC_ALCHEMY_BASE) {
+    try {
+      const hex = await alchemyRpc<string>("eth_getBalance", [address, "latest"]);
+      return parseNativeUsdcBalance(hex);
+    } catch {
+      /* fall through to public RPC */
+    }
+  }
+  return getArcUsdcBalanceViaPublicRpc(address);
 }
 
 export async function getArcTransactionCount(address: string): Promise<number> {

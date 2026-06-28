@@ -4,6 +4,7 @@ import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
 import { getBankingArcRail, buildFallbackArcRail } from "@/lib/banking/arc-rail";
+import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 import type { User } from "@prisma/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -103,7 +104,8 @@ async function buildStatement(userId: string, availableUsd: number): Promise<Sta
     balanceAfterUsd: null,
     label:
       t.type === "deposit" ?
-        t.method === "crypto" ? "Arc USDC deposit"
+        t.label === "sync:onchain" ? "Arc wallet sync"
+        : t.method === "crypto" ? "Arc USDC deposit"
         : t.method === "card" ? "Card deposit"
         : "Deposit"
       : t.label ?? t.type,
@@ -165,9 +167,8 @@ export async function getBankingAccountSnapshot(input: {
     count: 0,
   }));
 
-  const arc = await getBankingArcRail(input.profile).catch(() => buildFallbackArcRail());
-
   if (!input.authUser || !input.profile) {
+    const arc = await getBankingArcRail(null).catch(() => buildFallbackArcRail());
     return {
       ok: true,
       signedIn: false,
@@ -208,16 +209,23 @@ export async function getBankingAccountSnapshot(input: {
   }
 
   const { authUser, profile } = input;
+
+  await syncIdentityBalance(profile.id).catch(() => null);
+  const freshProfile =
+    (await prisma.user.findUnique({ where: { id: profile.id } })) ?? profile;
+
+  const arc = await getBankingArcRail(freshProfile).catch(() => buildFallbackArcRail());
+
   const gh = extractGithubIdentity(authUser);
-  const github = gh.login ?? profile.githubUsername ?? null;
-  const walletAddress = profile.walletAddress ?? profile.scanWalletAddress ?? null;
+  const github = gh.login ?? freshProfile.githubUsername ?? null;
+  const walletAddress = freshProfile.walletAddress ?? freshProfile.scanWalletAddress ?? null;
 
   const [reservedUsd, totalDepositedUsd, programs, statement, earnings] = await Promise.all([
-    getReservedForPrograms(profile.id).catch(() => 0),
-    getTotalDeposited(profile.id).catch(() => 0),
-    buildProgramWallets(profile.id).catch(() => []),
-    buildStatement(profile.id, profile.availableUsd).catch(() => []),
-    getProfileEarningsSummary({ profile, authUser }).catch(() => ({
+    getReservedForPrograms(freshProfile.id).catch(() => 0),
+    getTotalDeposited(freshProfile.id).catch(() => 0),
+    buildProgramWallets(freshProfile.id).catch(() => []),
+    buildStatement(freshProfile.id, freshProfile.availableUsd).catch(() => []),
+    getProfileEarningsSummary({ profile: freshProfile, authUser }).catch(() => ({
       claimableUsd: 0,
       authorizedUsd: 0,
       settledUsd: 0,
@@ -228,19 +236,19 @@ export async function getBankingAccountSnapshot(input: {
   return {
     ok: true,
     signedIn: true,
-    accountId: profile.id,
+    accountId: freshProfile.id,
     displayName:
       profile.displayName ??
       authUser.user_metadata?.full_name ??
       authUser.email?.split("@")[0] ??
       null,
     email: authUser.email ?? profile.email ?? null,
-    memberSince: profile.createdAt.toISOString(),
+    memberSince: freshProfile.createdAt.toISOString(),
     walletAddress,
     walletLabel: walletLabel(walletAddress),
     policy: BANKING_POLICY,
     balances: {
-      availableUsd: round(profile.availableUsd),
+      availableUsd: round(freshProfile.availableUsd),
       reservedUsd,
       earnedClaimableUsd: round(earnings.claimableUsd),
       earnedAuthorizedUsd: round(earnings.authorizedUsd),

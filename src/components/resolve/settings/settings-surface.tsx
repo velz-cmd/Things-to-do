@@ -16,10 +16,19 @@ import {
 import type { ConnectorLiveStatus } from "@/lib/connectors/live-stats";
 import type { SettingsConnection } from "@/app/api/settings/status/route";
 
+type OperatorIntegration = {
+  id: string;
+  label: string;
+  configured: boolean;
+  detail: string;
+  health?: string;
+};
+
 type SettingsSnapshot = {
   ok: boolean;
   signedIn: boolean;
   connections: SettingsConnection[];
+  operatorIntegrations?: OperatorIntegration[];
   distributionSensors: ConnectorLiveStatus[];
   communitySensors: {
     slug: string;
@@ -128,7 +137,14 @@ export function SettingsSurface() {
         </p>
         {loading ?
           <p className="text-sm text-resolve-muted">Loading connection status…</p>
-        : !snapshot?.connections.length ?
+        : !snapshot?.signedIn ?
+          <div className="rounded-xl border border-dashed border-resolve-border/80 px-4 py-6 text-sm text-resolve-muted">
+            <p>Sign in to see your email, GitHub, and wallet status.</p>
+            <Link href="/profile" className="mt-2 inline-block text-resolve-accent hover:underline">
+              Go to Profile to sign in →
+            </Link>
+          </div>
+        : !snapshot.connections.length ?
           <p className="text-sm text-resolve-muted">Sign in to see your connections.</p>
         : <ul className="divide-y divide-resolve-border/60 rounded-xl border border-resolve-border/60">
             {snapshot.connections.map((c) => (
@@ -161,6 +177,33 @@ export function SettingsSurface() {
                     </span>
                   )}
                 </div>
+              </li>
+            ))}
+          </ul>
+        }
+      </section>
+
+      <section className="mb-10 border-b border-resolve-border pb-10">
+        <div className="mb-4 flex items-center gap-2">
+          <Shield className="h-4 w-4 text-resolve-accent" />
+          <h2 className="text-sm font-semibold text-white">Vercel integrations</h2>
+        </div>
+        <p className="mb-4 text-xs text-resolve-muted">
+          Operator-configured on Vercel — separate from your personal Profile links.
+        </p>
+        {loading ?
+          <p className="text-sm text-resolve-muted">Loading…</p>
+        : <ul className="divide-y divide-resolve-border/60 rounded-xl border border-resolve-border/60">
+            {(snapshot?.operatorIntegrations ?? []).map((item) => (
+              <li key={item.id} className="flex items-start justify-between gap-4 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{item.label}</p>
+                  <p className="mt-0.5 text-xs text-resolve-muted">{item.detail}</p>
+                </div>
+                <StatusPill
+                  ok={item.configured}
+                  label={item.configured ? "Configured" : "Missing"}
+                />
               </li>
             ))}
           </ul>

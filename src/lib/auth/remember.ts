@@ -27,7 +27,7 @@ export function getRememberedProvider(): RememberedProvider | null {
   if (typeof window === "undefined") return null;
   try {
     const v = localStorage.getItem(REMEMBERED_PROVIDER_KEY);
-    if (v === "email" || v === "google" || v === "wallet") return v;
+    if (v === "email" || v === "google" || v === "github" || v === "wallet") return v;
     return null;
   } catch {
     return null;

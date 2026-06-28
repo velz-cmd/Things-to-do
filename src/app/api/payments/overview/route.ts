@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { getGlobalAuthorizationSummary, getAuthorizationHistory } from "@/lib/authorization/ledger";
-import { getTreasurySnapshot } from "@/lib/treasury/engine";
-import { getTreasuryStats } from "@/lib/treasury/distribute";
+import {
+  getUserAuthorizationSummary,
+  getAuthorizationsForPayee,
+} from "@/lib/authorization/ledger";
+import { requireSessionUser, ensureProfileForUser } from "@/lib/auth/session";
+import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { prisma } from "@/lib/db";
 
 const EMPTY_LEDGER = {
@@ -12,54 +15,64 @@ const EMPTY_LEDGER = {
   count: 0,
 };
 
-/** Financial operating system snapshot — real treasury + ledger + settlements */
+/** Per-member financial snapshot — never mixes other users' ledger rows. */
 export async function GET() {
-  const [treasury, stats, ledger, recentAuthorizations, settlements] = await Promise.all([
-    getTreasurySnapshot(),
-    getTreasuryStats().catch(() => ({
-      totalDistributedUsd: 0,
-      batchCount: 0,
-      contributorCount: 0,
-      recentBatches: [],
-      missionSettledUsd: 0,
-    })),
-    getGlobalAuthorizationSummary().catch(() => EMPTY_LEDGER),
-    getAuthorizationHistory(20).catch(() => []),
-    prisma.missionSettlement
-      .findMany({
-        orderBy: { createdAt: "desc" },
-        take: 15,
-        select: {
-          id: true,
-          missionId: true,
-          repo: true,
-          status: true,
-          treasuryAmount: true,
-          createdAt: true,
-          escrowTxHash: true,
-        },
-      })
-      .catch(() => []),
+  const session = await requireSessionUser();
+  if ("error" in session) {
+    return NextResponse.json({ error: session.error }, { status: session.status });
+  }
+
+  const profile = await ensureProfileForUser(session.user);
+  const { login } = extractGithubIdentity(session.user);
+  const githubUsername = login ?? profile.githubUsername;
+
+  const programs = await prisma.resolveProgram.findMany({
+    where: { userId: profile.id },
+    select: { missionId: true },
+  });
+  const missionIds = programs
+    .map((p) => p.missionId)
+    .filter((id): id is string => Boolean(id));
+
+  const settlementWhere =
+    missionIds.length > 0 ? { missionId: { in: missionIds } } : null;
+
+  const [ledger, userAuthorizations, settlements] = await Promise.all([
+    getUserAuthorizationSummary({
+      userId: profile.id,
+      githubUsername,
+    }).catch(() => EMPTY_LEDGER),
+    githubUsername
+      ? getAuthorizationsForPayee("github", githubUsername, [
+          "claimable",
+          "authorized",
+          "settled",
+          "pending_funding",
+        ]).catch(() => [])
+      : Promise.resolve([]),
+    settlementWhere
+      ? prisma.missionSettlement
+          .findMany({
+            where: settlementWhere,
+            orderBy: { createdAt: "desc" },
+            take: 15,
+            select: {
+              id: true,
+              missionId: true,
+              repo: true,
+              status: true,
+              treasuryAmount: true,
+              createdAt: true,
+              escrowTxHash: true,
+            },
+          })
+          .catch(() => [])
+      : Promise.resolve([]),
   ]);
 
   return NextResponse.json({
-    treasury: {
-      balanceUsd: treasury.balanceUsd,
-      obligationsUsd: treasury.obligationsUsd,
-      availableUsd: treasury.availableUsd,
-      authorizedUsd: treasury.authorizedUsd,
-      pendingFundingUsd: treasury.pendingFundingUsd,
-      claimableUsd: treasury.claimableUsd,
-      liveArc: treasury.liveArc,
-      canDistributeOnChain: treasury.canSettleGlobally,
-      canSettleGlobally: treasury.canSettleGlobally,
-      fundingWallet: treasury.fundingWallet,
-      message: treasury.message,
-      totalDistributedUsd: stats.totalDistributedUsd ?? 0,
-      batchCount: stats.batchCount ?? 0,
-    },
     ledger,
-    recentAuthorizations: recentAuthorizations.map((a) => ({
+    recentAuthorizations: userAuthorizations.slice(0, 20).map((a) => ({
       id: a.id,
       connectorId: a.connectorId,
       missionId: a.missionId,

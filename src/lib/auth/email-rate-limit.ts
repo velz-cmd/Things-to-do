@@ -4,11 +4,11 @@ import { prisma } from "@/lib/db";
 /** Rolling window for abuse detection. */
 export const ABUSE_WINDOW_MS = 8 * 60 * 1000;
 /** Max link requests allowed within the abuse window before a block. */
-export const ABUSE_MAX_REQUESTS = 6;
+export const ABUSE_MAX_REQUESTS = 20;
 /** Block duration after abuse threshold is exceeded. */
-export const ABUSE_BLOCK_MS = 10 * 60 * 1000;
+export const ABUSE_BLOCK_MS = 2 * 60 * 1000;
 /** Minimum wait between link requests for the same email. */
-export const MIN_RESEND_INTERVAL_MS = 5 * 60 * 1000;
+export const MIN_RESEND_INTERVAL_MS = 60 * 1000;
 /** Shown to users — links should be used within this window. */
 export const LINK_VALID_MINUTES = 5;
 

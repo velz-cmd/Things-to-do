@@ -69,12 +69,9 @@ test.describe("Community phases — APIs", () => {
     expect(body.snapshot).toHaveProperty("availableUsd");
   });
 
-  test("payments overview returns treasury and ledger", async ({ request }) => {
+  test("payments overview requires sign-in", async ({ request }) => {
     const res = await request.get("/api/payments/overview");
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    expect(body).toHaveProperty("treasury");
-    expect(body).toHaveProperty("ledger");
+    expect(res.status()).toBe(401);
   });
 
   test("discover radar API returns real shape", async ({ request }) => {

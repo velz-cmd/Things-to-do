@@ -31,24 +31,13 @@ export type SensorMaintenanceResult = {
   sensorLive: Record<string, boolean>;
 };
 
-/** Keep gated communities live — incremental sync, then bootstrap if ledger is still empty. */
+/** Incremental sensor sync on every tick — keeps Discover feed fresh. */
 export async function refreshStaleSensors(): Promise<SensorMaintenanceResult> {
   const founderUserId = await resolveFounderUserId();
   const refreshed: SensorMaintenanceResult["refreshed"] = [];
 
   for (const slug of ["react", "linux"] as const) {
     const wasLive = await communityHasLiveSensorEvents(slug);
-    if (wasLive) {
-      refreshed.push({
-        communitySlug: slug,
-        wasLive: true,
-        observations: 0,
-        ingested: 0,
-        live: true,
-      });
-      continue;
-    }
-
     const result = await syncGithubCommunitySensors({
       communitySlug: slug,
       founderUserId,
@@ -56,7 +45,7 @@ export async function refreshStaleSensors(): Promise<SensorMaintenanceResult> {
     });
     refreshed.push({
       communitySlug: slug,
-      wasLive: false,
+      wasLive,
       observations: result.observations,
       ingested: result.ingested,
       live: await communityHasLiveSensorEvents(slug),
@@ -64,27 +53,17 @@ export async function refreshStaleSensors(): Promise<SensorMaintenanceResult> {
   }
 
   const researchWasLive = await communityHasLiveSensorEvents("open-research");
-  if (!researchWasLive) {
-    const result = await syncOpenAlexCommunitySensors({
-      communitySlug: "open-research",
-      founderUserId,
-    });
-    refreshed.push({
-      communitySlug: "open-research",
-      wasLive: false,
-      observations: result.observations,
-      ingested: result.ingested,
-      live: await communityHasLiveSensorEvents("open-research"),
-    });
-  } else {
-    refreshed.push({
-      communitySlug: "open-research",
-      wasLive: true,
-      observations: 0,
-      ingested: 0,
-      live: true,
-    });
-  }
+  const openAlexResult = await syncOpenAlexCommunitySensors({
+    communitySlug: "open-research",
+    founderUserId,
+  });
+  refreshed.push({
+    communitySlug: "open-research",
+    wasLive: researchWasLive,
+    observations: openAlexResult.observations,
+    ingested: openAlexResult.ingested,
+    live: await communityHasLiveSensorEvents("open-research"),
+  });
 
   const stillStale = await Promise.all(GATED_SLUGS.map((s) => communityHasLiveSensorEvents(s)));
   let bootstrapped = false;

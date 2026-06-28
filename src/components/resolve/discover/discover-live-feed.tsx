@@ -72,7 +72,10 @@ export function DiscoverLiveFeed({ className }: { className?: string }) {
         </div>
         {data?.live && data.updatedAt && (
           <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">
-            Live · {new Date(data.updatedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+            Live · refreshed {formatRelative(data.updatedAt)}
+            {data.activity[0]?.at ?
+              ` · latest event ${formatRelative(data.activity[0].at)}`
+            : ""}
           </span>
         )}
       </div>

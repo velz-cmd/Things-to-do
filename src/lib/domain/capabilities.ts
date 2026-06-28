@@ -58,9 +58,9 @@ export const CAPABILITIES: Capability[] = [
     id: "research_attribution",
     label: "Research attribution",
     description: "Citations, authorship, institutional links",
-    status: "planned",
-    implementations: ["OpenAlex (planned)", "Crossref (planned)"],
-    modules: ["lib/integrations/config"],
+    status: "partial",
+    implementations: ["OpenAlex", "Crossref (planned)"],
+    modules: ["lib/sensors/openalex-citations", "lib/connectors/openalex"],
   },
   {
     id: "video_attribution",

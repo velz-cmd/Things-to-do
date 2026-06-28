@@ -104,6 +104,7 @@ test.describe("RESOLVE product surfaces", () => {
     await page.goto("/settings", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: "Your connections" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Vercel integrations" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: "Distribution sensors" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: "Operator keys" })).toBeVisible();
   });
@@ -114,9 +115,9 @@ test.describe("RESOLVE product surfaces", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(Array.isArray(body.connections)).toBe(true);
-    expect(body.connections.some((c: { id: string }) => c.id === "github")).toBe(true);
+    expect(Array.isArray(body.operatorIntegrations)).toBe(true);
+    expect(body.operatorIntegrations.some((c: { id: string }) => c.id === "github-sensor")).toBe(true);
     expect(Array.isArray(body.distributionSensors)).toBe(true);
-    expect(body.distributionSensors.some((c: { id: string }) => c.id === "github")).toBe(true);
   });
 
   test("connectors redirect to settings", async ({ page }) => {

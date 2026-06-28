@@ -26,6 +26,8 @@ test.describe("RESOLVE product surfaces", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Where should money move?" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
     await expect(page.getByText("Your money, one simple account")).toBeVisible();
+    await page.getByRole("button", { name: "Programs" }).click();
+    await expect(page.getByText("Community programs")).toBeVisible();
 
     await page.goto("/network", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/discover/);

@@ -18,6 +18,7 @@ function authorize(req: Request): boolean {
 const batchSchema = z.object({
   instanceId: z.string().optional(),
   perPlayUsd: z.number().positive().optional(),
+  missionId: z.string().optional(),
   scrobbles: z.array(
     z.object({
       id: z.string().min(1),
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
     const result = await ingestNavidromeScrobbles(parsed.data.scrobbles, {
       instanceId: parsed.data.instanceId,
       perPlayUsd: parsed.data.perPlayUsd,
+      missionId: parsed.data.missionId,
     });
 
     const last = parsed.data.scrobbles[parsed.data.scrobbles.length - 1];
@@ -64,6 +66,7 @@ export async function POST(req: Request) {
       scanned: parsed.data.scrobbles.length,
       ingested: result.ingested,
       skipped: result.skipped,
+      missionId: result.missionId,
     });
   }
 

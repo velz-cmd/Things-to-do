@@ -21,6 +21,53 @@ export type NavidromeScrobbleRow = {
   durationSec?: number;
 };
 
+/** Resolve mission scope for scrobble authorizations — program > env > day bucket */
+async function resolveScrobbleMissionContext(options?: {
+  missionId?: string;
+  perPlayUsd?: number;
+  founderUserId?: string;
+}): Promise<{ missionId?: string; perPlayUsd?: number; founderUserId?: string }> {
+  if (options?.missionId) {
+    return {
+      missionId: options.missionId,
+      perPlayUsd: options.perPlayUsd,
+      founderUserId: options.founderUserId,
+    };
+  }
+
+  const envMission = process.env.NAVIDROME_PROGRAM_MISSION_ID?.trim();
+  if (envMission) {
+    return {
+      missionId: envMission,
+      perPlayUsd: options?.perPlayUsd ?? Number(process.env.NAVIDROME_PER_PLAY_USD ?? "0.0004"),
+      founderUserId: options?.founderUserId,
+    };
+  }
+
+  const activeProgram = await prisma.resolveProgram.findFirst({
+    where: { status: { in: ["active", "deployed"] }, missionId: { not: null } },
+    orderBy: { updatedAt: "desc" },
+    include: { install: true },
+  });
+
+  if (activeProgram?.missionId) {
+    let perPlayUsd = options?.perPlayUsd;
+    try {
+      const rules = JSON.parse(activeProgram.rulesJson) as { perPlayUsd?: number };
+      perPlayUsd = perPlayUsd ?? rules.perPlayUsd;
+    } catch {
+      /* ignore */
+    }
+    return {
+      missionId: activeProgram.missionId,
+      perPlayUsd: perPlayUsd ?? 0.0004,
+      founderUserId: activeProgram.userId,
+    };
+  }
+
+  return { perPlayUsd: options?.perPlayUsd, founderUserId: options?.founderUserId };
+}
+
 async function getCursor(instanceId: string): Promise<NavidromeSyncCursor | null> {
   const row = await prisma.appConfig.findUnique({
     where: { key: NAVIDROME_SYNC_CURSOR_KEY },
@@ -45,9 +92,10 @@ async function setCursor(cursor: NavidromeSyncCursor) {
 
 export async function ingestNavidromeScrobbles(
   rows: NavidromeScrobbleRow[],
-  options?: { instanceId?: string; perPlayUsd?: number },
+  options?: { instanceId?: string; perPlayUsd?: number; missionId?: string; founderUserId?: string },
 ) {
   const instanceId = options?.instanceId ?? process.env.NAVIDROME_INSTANCE_ID ?? "default";
+  const ctx = await resolveScrobbleMissionContext(options);
   const events = [];
 
   for (const row of rows) {
@@ -60,20 +108,22 @@ export async function ingestNavidromeScrobbles(
       recordingMbid: row.recordingMbid,
       durationSec: row.durationSec,
       instanceId,
-      perPlayUsd: options?.perPlayUsd,
+      perPlayUsd: ctx.perPlayUsd ?? options?.perPlayUsd,
+      missionId: ctx.missionId,
     });
     events.push(...rowEvents);
   }
 
   if (!events.length) {
-    return { ingested: 0, skipped: rows.length, events: [] as const };
+    return { ingested: 0, skipped: rows.length, events: [] as const, missionId: ctx.missionId ?? null };
   }
 
-  const batch = await ingestSettlementBatch(events);
+  const batch = await ingestSettlementBatch(events, { founderUserId: ctx.founderUserId });
   return {
     ingested: batch.count,
     skipped: rows.length - batch.count,
     events: batch.authorizations,
+    missionId: ctx.missionId ?? batch.missionId,
   };
 }
 

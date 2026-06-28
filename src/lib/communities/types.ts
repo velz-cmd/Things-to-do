@@ -1,0 +1,80 @@
+import type { ProgramTemplateId } from "./catalog";
+
+export type CommunityInstallRecord = {
+  id: string;
+  communitySlug: string;
+  status: string;
+  ecosystemId: string | null;
+  connectorIds: string[];
+  doctrine: Record<string, unknown> | null;
+  installedAt: string;
+  updatedAt: string;
+};
+
+export type ProgramRules = {
+  perPlayUsd?: number;
+  minDurationSec?: number;
+  splitMode?: string;
+  connectorId?: string;
+};
+
+export type ProgramRecord = {
+  id: string;
+  installId: string;
+  communitySlug: string;
+  templateId: ProgramTemplateId | string;
+  name: string;
+  status: string;
+  budgetUsd: number;
+  rules: ProgramRules;
+  recipients: unknown[];
+  missionId: string | null;
+  lastDeployAt: string | null;
+  lastSettlementId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommunityImpactChain = {
+  treasuryUsd: number;
+  programBudgetUsd: number;
+  authorizedUsd: number;
+  settledUsd: number;
+  playCount: number;
+  artistCount: number;
+  estimatedListeners: number;
+  stages: Array<{
+    id: string;
+    label: string;
+    value: string;
+    sublabel?: string;
+  }>;
+};
+
+export type CommunitySurface = {
+  slug: string;
+  name: string;
+  tagline: string;
+  kind: string;
+  upstream: string;
+  doctrine: string;
+  connectors: string[];
+  accent: string;
+  installed: boolean;
+  install: CommunityInstallRecord | null;
+  programs: ProgramRecord[];
+  health: {
+    treasuryUsd: number;
+    obligationsUsd: number;
+    connectorStatus: Array<{ id: string; health: string; label: string }>;
+    scrobbleBridge: boolean;
+  };
+  impact: CommunityImpactChain;
+  timeline: Array<{
+    id: string;
+    eventType: string;
+    title: string;
+    detail: string | null;
+    createdAt: string;
+  }>;
+};

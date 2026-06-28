@@ -20,14 +20,14 @@ export type MusicScrobbleInput = {
 
 /** Music play → credit chain authorizations (MusicBrainz attribution). */
 export async function musicScrobbleToSettlementEvents(
-  input: MusicScrobbleInput,
+  input: MusicScrobbleInput & { missionId?: string },
 ): Promise<SettlementInputEvent[]> {
   const duration = input.durationSec ?? 0;
   if (duration > 0 && duration < 30) return [];
 
   const instance = input.instanceId ?? "default";
   const day = input.submissionTime.slice(0, 10);
-  const missionId = `music-${instance}-${input.userId}-${day}`;
+  const missionId = input.missionId ?? `music-${instance}-${input.userId}-${day}`;
   const baseKey = `music:${input.mediaFileId}:${input.userId}:${input.submissionTime}`;
   const perPlayUsd = input.perPlayUsd ?? 0.0004;
 

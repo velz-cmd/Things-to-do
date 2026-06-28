@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { useMissionScope } from "@/lib/mission/mission-context";
 import { IntelligenceBriefing } from "@/components/resolve/intelligence/intelligence-briefing";
+import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import type { FundingOpportunity } from "@/lib/github/types";
 
 const DOMAINS = [
@@ -51,6 +52,8 @@ export function DiscoverSurface() {
       </header>
 
       <IntelligenceBriefing className="mb-10 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 p-6" />
+
+      <DiscoverCommunities />
 
       <form
         className="relative mb-8"

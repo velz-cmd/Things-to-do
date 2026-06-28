@@ -1,0 +1,301 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Activity,
+  ArrowUpRight,
+  CheckCircle2,
+  Loader2,
+  Music2,
+  Radio,
+  Wallet,
+} from "lucide-react";
+import clsx from "clsx";
+import { toast } from "sonner";
+import { ProductPage } from "@/components/resolve/layout/product-page";
+import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
+import { Button } from "@/components/resolve/ui/button";
+import { Money } from "@/components/resolve/ui/money";
+import { CapitalFlowImpact } from "@/components/resolve/communities/capital-flow-impact";
+import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
+import { getCommunityBySlug } from "@/lib/communities/catalog";
+import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
+
+function HealthPill({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]",
+        ok
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+          : "border-white/10 bg-white/[0.03] text-resolve-muted",
+      )}
+    >
+      <span className={clsx("h-1.5 w-1.5 rounded-full", ok ? "bg-emerald-400" : "bg-resolve-muted-dim")} />
+      {label}
+    </span>
+  );
+}
+
+function ProgramCard({
+  program,
+  slug,
+  onDeploy,
+  deploying,
+}: {
+  program: ProgramRecord;
+  slug: string;
+  onDeploy: (id: string) => void;
+  deploying: string | null;
+}) {
+  const isDeploying = deploying === program.id;
+
+  return (
+    <BlueGlowCard variant="subtle" className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-resolve-accent">
+            Program
+          </p>
+          <h3 className="mt-1 text-base font-semibold text-white">{program.name}</h3>
+          <p className="mt-1 text-xs text-resolve-muted">
+            ${program.rules.perPlayUsd?.toFixed(4) ?? "0.0004"} per verified play · MusicBrainz splits
+          </p>
+        </div>
+        <span
+          className={clsx(
+            "rounded-full px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+            program.status === "deployed"
+              ? "bg-emerald-500/15 text-emerald-300"
+              : program.status === "active"
+                ? "bg-resolve-accent/15 text-resolve-accent"
+                : "bg-white/5 text-resolve-muted",
+          )}
+        >
+          {program.status}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Budget</p>
+          <p className="mt-0.5 text-sm font-semibold text-white">
+            <Money amount={program.budgetUsd} size="sm" className="inline" />
+          </p>
+        </div>
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Rules</p>
+          <p className="mt-0.5 text-sm font-semibold text-white">Per play</p>
+        </div>
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Recipients</p>
+          <p className="mt-0.5 text-sm font-semibold text-white">Artists</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          disabled={isDeploying || program.status === "deployed"}
+          onClick={() => onDeploy(program.id)}
+        >
+          {isDeploying ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Deploying on Arc…
+            </>
+          ) : program.status === "deployed" ? (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Deployed
+            </>
+          ) : (
+            "Deploy on Arc"
+          )}
+        </Button>
+        <Link
+          href="/profile"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
+        >
+          Connect Navidrome
+          <ArrowUpRight className="h-3 w-3" />
+        </Link>
+      </div>
+
+      {program.lastSettlementId && (
+        <p className="text-[11px] text-resolve-muted-dim">
+          Last receipt · {program.lastSettlementId.slice(0, 12)}…
+        </p>
+      )}
+    </BlueGlowCard>
+  );
+}
+
+export function CommunityHome({ slug }: { slug: string }) {
+  const catalog = getCommunityBySlug(slug);
+  const [surface, setSurface] = useState<CommunitySurface | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deploying, setDeploying] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const res = await fetch(`/api/communities/${slug}`, { credentials: "include" });
+    const data = await res.json();
+    if (res.ok) setSurface(data.community);
+    setLoading(false);
+  }, [slug]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  async function deploy(programId: string) {
+    setDeploying(programId);
+    try {
+      const res = await fetch(`/api/communities/${slug}/programs/${programId}/deploy`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? data.error ?? "Deploy failed");
+      toast.success(data.message);
+      if (data.community) setSurface(data.community);
+      else await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Deploy failed");
+    } finally {
+      setDeploying(null);
+    }
+  }
+
+  if (!catalog) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <p className="text-resolve-muted">Community not found</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-16 text-center">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin text-resolve-accent" />
+        <p className="mt-3 text-sm text-resolve-muted">Entering {catalog.name}…</p>
+      </div>
+    );
+  }
+
+  const installed = surface?.installed ?? false;
+
+  return (
+    <ProductPage
+      icon={Music2}
+      title={catalog.name}
+      description={catalog.tagline}
+      workflows={[
+        { label: "Health", active: true },
+        { label: "Treasury" },
+        { label: "People" },
+        { label: "Programs" },
+      ]}
+      width="wide"
+      accent="emerald"
+      actions={
+        !installed ? (
+          <InstallResolveCard community={catalog} installed={false} compact />
+        ) : (
+          <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            RESOLVE connected
+          </span>
+        )
+      }
+    >
+      {!installed ? (
+        <div className="max-w-lg">
+          <InstallResolveCard community={catalog} onInstalled={() => void refresh()} />
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <section className="grid gap-4 md:grid-cols-3">
+            <BlueGlowCard variant="subtle" className="space-y-2">
+              <div className="flex items-center gap-2 text-resolve-muted">
+                <Wallet className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-wider">Treasury</span>
+              </div>
+              <p className="text-2xl font-semibold text-white">
+                <Money amount={surface?.health.treasuryUsd ?? 0} />
+              </p>
+              <p className="text-xs text-resolve-muted">
+                ${(surface?.health.obligationsUsd ?? 0).toFixed(2)} obligations
+              </p>
+            </BlueGlowCard>
+
+            <BlueGlowCard variant="subtle" className="space-y-2">
+              <div className="flex items-center gap-2 text-resolve-muted">
+                <Activity className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-wider">Health</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {surface?.health.connectorStatus.map((c) => (
+                  <HealthPill key={c.id} label={c.label} ok={c.health === "healthy"} />
+                ))}
+                <HealthPill label="Scrobble bridge" ok={surface?.health.scrobbleBridge ?? false} />
+              </div>
+            </BlueGlowCard>
+
+            <BlueGlowCard variant="subtle" className="space-y-2">
+              <div className="flex items-center gap-2 text-resolve-muted">
+                <Radio className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-wider">Doctrine</span>
+              </div>
+              <p className="text-sm leading-relaxed text-white/90">{catalog.doctrine}</p>
+            </BlueGlowCard>
+          </section>
+
+          {surface?.impact && <CapitalFlowImpact impact={surface.impact} />}
+
+          <section>
+            <h2 className="text-sm font-semibold text-white">Programs</h2>
+            <p className="mt-1 text-xs text-resolve-muted">
+              Founders operate programs — budget, rules, recipients, deploy.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              {(surface?.programs ?? []).map((p) => (
+                <ProgramCard
+                  key={p.id}
+                  program={p}
+                  slug={slug}
+                  onDeploy={(id) => void deploy(id)}
+                  deploying={deploying}
+                />
+              ))}
+            </div>
+          </section>
+
+          {surface?.timeline && surface.timeline.length > 0 && (
+            <section>
+              <h2 className="text-sm font-semibold text-white">Community history</h2>
+              <p className="mt-1 text-xs text-resolve-muted">Installs, authorizations, Arc receipts</p>
+              <ul className="mt-4 divide-y divide-white/[0.06] rounded-xl border border-white/[0.06]">
+                {surface.timeline.slice(0, 8).map((ev) => (
+                  <li key={ev.id} className="flex items-start justify-between gap-4 px-4 py-3">
+                    <div>
+                      <p className="text-sm text-white">{ev.title}</p>
+                      {ev.detail && (
+                        <p className="mt-0.5 text-xs text-resolve-muted">{ev.detail}</p>
+                      )}
+                    </div>
+                    <time className="shrink-0 text-[10px] text-resolve-muted-dim">
+                      {new Date(ev.createdAt).toLocaleDateString()}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      )}
+    </ProductPage>
+  );
+}

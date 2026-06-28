@@ -90,6 +90,7 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/missions": "/mission/fund",
   "/connectors": "/profile",
   "/radar": "/discover",
+  "/e": "/communities/independent-music",
   "/weight": "/mission",
   "/methodology": "/mission",
   "/signals": "/mission",

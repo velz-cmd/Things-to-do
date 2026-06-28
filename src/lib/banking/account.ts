@@ -3,7 +3,7 @@ import { getProfileEarningsSummary } from "@/lib/earn/summary";
 import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
-import { getBankingArcRail } from "@/lib/banking/arc-rail";
+import { getBankingArcRail, buildFallbackArcRail } from "@/lib/banking/arc-rail";
 import type { User } from "@prisma/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -165,7 +165,7 @@ export async function getBankingAccountSnapshot(input: {
     count: 0,
   }));
 
-  const arc = await getBankingArcRail(input.profile);
+  const arc = await getBankingArcRail(input.profile).catch(() => buildFallbackArcRail());
 
   if (!input.authUser || !input.profile) {
     return {
@@ -213,11 +213,16 @@ export async function getBankingAccountSnapshot(input: {
   const walletAddress = profile.walletAddress ?? profile.scanWalletAddress ?? null;
 
   const [reservedUsd, totalDepositedUsd, programs, statement, earnings] = await Promise.all([
-    getReservedForPrograms(profile.id),
-    getTotalDeposited(profile.id),
-    buildProgramWallets(profile.id),
-    buildStatement(profile.id, profile.availableUsd),
-    getProfileEarningsSummary({ profile, authUser }),
+    getReservedForPrograms(profile.id).catch(() => 0),
+    getTotalDeposited(profile.id).catch(() => 0),
+    buildProgramWallets(profile.id).catch(() => []),
+    buildStatement(profile.id, profile.availableUsd).catch(() => []),
+    getProfileEarningsSummary({ profile, authUser }).catch(() => ({
+      claimableUsd: 0,
+      authorizedUsd: 0,
+      settledUsd: 0,
+      githubLinked: false,
+    })),
   ]);
 
   return {

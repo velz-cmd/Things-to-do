@@ -24,37 +24,72 @@ function isRealTxHash(hash: string | null | undefined): hash is string {
 }
 
 async function getRecentMemoActivity(limit = 10): Promise<BankingMemoActivity[]> {
-  const settlements = await prisma.missionSettlement.findMany({
-    where: {
-      escrowTxHash: { startsWith: "0x" },
-    },
-    orderBy: { updatedAt: "desc" },
-    take: limit,
-    select: {
-      id: true,
-      missionId: true,
-      repo: true,
-      treasuryAmount: true,
-      escrowTxHash: true,
-      status: true,
-      updatedAt: true,
-      batchNumber: true,
-    },
-  });
+  try {
+    const settlements = await prisma.missionSettlement.findMany({
+      where: {
+        escrowTxHash: { startsWith: "0x" },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        missionId: true,
+        repo: true,
+        treasuryAmount: true,
+        escrowTxHash: true,
+        status: true,
+        updatedAt: true,
+        batchNumber: true,
+      },
+    });
 
-  return settlements.map((s) => ({
-    id: s.id,
-    at: s.updatedAt.toISOString(),
-    kind: "batch_memo" as const,
-    amountUsd: round(s.treasuryAmount),
-    txHash: s.escrowTxHash!,
-    label: s.repo ?? s.missionId,
-    batchNumber: s.batchNumber,
-  }));
+    return settlements.map((s) => ({
+      id: s.id,
+      at: s.updatedAt.toISOString(),
+      kind: "batch_memo" as const,
+      amountUsd: round(s.treasuryAmount),
+      txHash: s.escrowTxHash!,
+      label: s.repo ?? s.missionId,
+      batchNumber: s.batchNumber,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Safe Arc rail snapshot when DB or network is unavailable (CI, cold start). */
+export function buildFallbackArcRail(): BankingArcRail {
+  return {
+    chain: "Arc Testnet",
+    chainId: ARC_CHAIN_ID,
+    currency: "USDC",
+    usdcGas: true,
+    live: false,
+    canDistribute: false,
+    blockers: [],
+    message: "Account overview",
+    contracts: { usdc: ARC_USDC_CONTRACT, memo: ARC_MEMO_CONTRACT },
+    agentWallet: ARC_PROVIDER_WALLET_ADDRESS ?? null,
+    settlementWallet: null,
+    settlementBalanceUsd: null,
+    explorerUrl: ARC_EXPLORER_URL,
+    capabilities: {
+      identityWallet: true,
+      depositArcUsdc: true,
+      batchMemoPayouts: true,
+      agentNanoPayments: true,
+      erc8183Escrow: true,
+      cctpBridge: true,
+    },
+    stats: { nanoPaymentsSettled: 0, recentMemoCount: 0 },
+    identityWallet: null,
+    recentMemos: [],
+  };
 }
 
 /** Circle Arc rail — USDC gas, memo payouts, agent nano-payments, one identity wallet. */
 export async function getBankingArcRail(profile: User | null): Promise<BankingArcRail> {
+  try {
   const readiness = await getArcReadiness();
 
   let identityOnChainUsd: number | null = null;
@@ -67,9 +102,9 @@ export async function getBankingArcRail(profile: User | null): Promise<BankingAr
     }
   }
 
-  const nanoCount = await prisma.settlementNanoPayment.count({
-    where: { status: "settled" },
-  });
+  const nanoCount = await prisma.settlementNanoPayment
+    .count({ where: { status: "settled" } })
+    .catch(() => 0);
 
   const memoActivity = await getRecentMemoActivity(8);
 
@@ -115,4 +150,7 @@ export async function getBankingArcRail(profile: User | null): Promise<BankingAr
       : null,
     recentMemos: memoActivity.filter((m) => isRealTxHash(m.txHash)),
   };
+  } catch {
+    return buildFallbackArcRail();
+  }
 }

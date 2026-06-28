@@ -1,0 +1,48 @@
+name: Daily cron (tick + notify + sensors)
+
+# Vercel crons removed from vercel.json — CRON_SECRET with whitespace breaks Vercel builds.
+# GitHub Actions calls the same endpoints with a trimmed secret from repo secrets.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: resolve-daily-cron
+  cancel-in-progress: false
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tick scheduled tasks
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PRODUCTION_URL: https://resolve-task.vercel.app
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::CRON_SECRET not set in GitHub secrets — skipping cron calls"
+            exit 0
+          fi
+          SECRET="$(echo -n "$CRON_SECRET" | tr -d '[:space:]' | xargs)"
+          curl -fsS -X POST "$PRODUCTION_URL/api/cron/tick" \
+            -H "Authorization: Bearer $SECRET" | head -c 500
+          echo ""
+          curl -fsS -X POST "$PRODUCTION_URL/api/cron/notify-claimable" \
+            -H "Authorization: Bearer $SECRET" | head -c 500
+          echo ""
+
+      - name: Refresh sensor bootstrap (gated communities)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PRODUCTION_URL: https://resolve-task.vercel.app
+        run: |
+          if [ -z "$CRON_SECRET" ]; then exit 0; fi
+          SECRET="$(echo -n "$CRON_SECRET" | tr -d '[:space:]' | xargs)"
+          curl -fsS -X POST "$PRODUCTION_URL/api/cron/bootstrap-sensors" \
+            -H "Authorization: Bearer $SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{}' | head -c 800
+          echo ""

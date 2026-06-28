@@ -4,9 +4,12 @@ import Link from "next/link";
 import {
   ArrowDownLeft,
   BadgeCheck,
+  CircleDollarSign,
   Landmark,
+  Layers,
   Shield,
   Wallet,
+  Zap,
 } from "lucide-react";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Money } from "@/components/resolve/ui/money";
@@ -126,21 +129,22 @@ export function ResolveBanking({
   onPayoutCurrencyChange,
   onClaim,
   onSignIn,
-  githubOAuthReady,
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
 
   const balances = account?.balances;
   const network = account?.network;
+  const arc = account?.arc;
   const yourClaimable = balances?.earnedClaimableUsd ?? 0;
   const yourDeposits = balances?.availableUsd ?? 0;
   const reserved = balances?.reservedUsd ?? 0;
+  const onChainUsd = balances?.onChainUsdcUsd ?? arc?.identityWallet?.onChainUsdcUsd ?? null;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 lg:px-8">
       <header className="mb-8">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-          RESOLVE Banking
+          RESOLVE Banking · Arc USDC
         </p>
         <h1 className="mt-2 text-2xl font-semibold text-white">Where should money move?</h1>
         <p className="mt-2 text-sm text-resolve-muted">
@@ -167,7 +171,14 @@ export function ResolveBanking({
                 <p className="mt-2 text-4xl font-semibold tabular-nums text-white">
                   <Money amount={signedIn ? yourDeposits : 0} size="lg" />
                 </p>
-                <p className="mt-1 text-xs text-resolve-muted">USDC custody · 1:1 · no yield</p>
+                <p className="mt-1 text-xs text-resolve-muted">
+                  Arc USDC custody · Circle identity wallet · no yield
+                </p>
+                {onChainUsd !== null && (
+                  <p className="mt-1 text-[11px] text-resolve-muted-dim">
+                    On-chain wallet: <Money amount={onChainUsd} size="sm" className="inline" />
+                  </p>
+                )}
               </>
             }
           </div>
@@ -228,8 +239,12 @@ export function ResolveBanking({
       {signedIn && account?.identities && (
         <section className="mb-8 flex flex-wrap gap-2">
           <IdentityPill
-            label="Wallet"
-            value={account.walletLabel ?? "Provisioning…"}
+            label="Arc wallet"
+            value={
+              arc?.identityWallet?.provider === "circle" ?
+                `Circle ${account.walletLabel ?? ""}`
+              : account.walletLabel ?? "Provisioning…"
+            }
             ok={Boolean(account.walletAddress)}
           />
           {account.identities.github ?
@@ -278,21 +293,78 @@ export function ResolveBanking({
         </div>
       )}
 
-      <section className="mb-8 rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
-          Settlement rail (platform)
-        </p>
-        <p className="mt-1 text-sm text-white">
-          <Money amount={account?.settlementRail.balanceUsd ?? 0} size="sm" className="inline" /> on
-          Arc
-        </p>
-        <p className="mt-1 text-xs text-resolve-muted">
-          {account?.settlementRail.role ??
-            "On-chain payout rail — not user spendable balance"}
-          {account?.settlementRail.wallet ?
-            ` · ${account.settlementRail.wallet.slice(0, 6)}…${account.settlementRail.wallet.slice(-4)}`
-          : ""}
-        </p>
+      <section className="mb-8 rounded-lg border border-resolve-accent/20 bg-resolve-accent/[0.04] px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-resolve-accent">
+              <CircleDollarSign className="h-3.5 w-3.5" />
+              Circle Arc rail
+            </p>
+            <p className="mt-2 text-sm text-white">
+              {arc?.live ?
+                "Live — memo batch payouts & agent nano-payments on Arc USDC"
+              : arc?.message ?? "Arc rail configuring…"}
+            </p>
+          </div>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+              arc?.canDistribute ?
+                "bg-emerald-500/15 text-emerald-200"
+              : "bg-amber-500/15 text-amber-200"
+            }`}
+          >
+            {arc?.canDistribute ? "Live" : "Standby"}
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
+            <p className="text-[10px] uppercase text-resolve-muted-dim">Settlement wallet</p>
+            <p className="mt-1 text-sm text-white">
+              <Money amount={arc?.settlementBalanceUsd ?? 0} size="sm" className="inline" />
+            </p>
+            <p className="mt-0.5 font-mono text-[10px] text-resolve-muted">
+              {arc?.settlementWallet ?
+                `${arc.settlementWallet.slice(0, 8)}…${arc.settlementWallet.slice(-6)}`
+              : "Not configured"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
+            <p className="text-[10px] uppercase text-resolve-muted-dim">Your deposit address</p>
+            <p className="mt-1 font-mono text-xs text-white">
+              {arc?.identityWallet?.depositAddress ?
+                `${arc.identityWallet.depositAddress.slice(0, 10)}…${arc.identityWallet.depositAddress.slice(-8)}`
+              : "Sign in to provision"}
+            </p>
+            <p className="mt-0.5 text-[10px] text-resolve-muted">
+              One Circle wallet per identity — not a new address per payment
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
+          {arc?.capabilities.batchMemoPayouts && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-resolve-muted">
+              <Layers className="h-3 w-3" /> Batch memos
+            </span>
+          )}
+          {arc?.capabilities.agentNanoPayments && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-resolve-muted">
+              <Zap className="h-3 w-3" /> Agent nano-pay
+            </span>
+          )}
+          {arc?.usdcGas && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-resolve-muted">
+              USDC gas · {arc.chain}
+            </span>
+          )}
+          {arc?.stats.nanoPaymentsSettled ?
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-resolve-muted">
+              {arc.stats.nanoPaymentsSettled} nano payments settled
+            </span>
+          : null}
+        </div>
+
         <div className="mt-3 flex flex-wrap gap-4 text-xs text-resolve-muted">
           <span>
             Network authorized:{" "}
@@ -307,6 +379,36 @@ export function ResolveBanking({
           </span>
         </div>
       </section>
+
+      {arc?.recentMemos && arc.recentMemos.length > 0 && (
+        <section className="mb-8 border-b border-resolve-border pb-8">
+          <p className="text-sm font-semibold text-white">Recent Arc memo settlements</p>
+          <p className="mt-1 text-xs text-resolve-muted">
+            Batch payouts with on-chain memo attribution — verified on Arcscan.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {arc.recentMemos.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center justify-between rounded-lg border border-white/[0.06] px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm text-white">{m.label}</p>
+                  <a
+                    href={`${arc.explorerUrl}/tx/${m.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] text-resolve-accent hover:underline"
+                  >
+                    {m.txHash.slice(0, 10)}…{m.txHash.slice(-8)}
+                  </a>
+                </div>
+                <Money amount={m.amountUsd} size="sm" className="text-white" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="border-b border-resolve-border py-8">
         <CapitalCommunityPrograms />
@@ -406,9 +508,9 @@ export function ResolveBanking({
                 disabled={claiming || yourClaimable <= 0 || !payoutWallet}
               >
                 {claiming ?
-                  "Claiming…"
+                  "Claiming via Arc memo…"
                 : yourClaimable > 0 ?
-                  "Claim to your wallet"
+                  "Claim to Arc wallet (batched)"
                 : "Nothing to claim yet"}
               </Button>
             </div>

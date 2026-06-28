@@ -70,6 +70,20 @@ test.describe("Community phases — APIs", () => {
     expect(body).toHaveProperty("treasury");
     expect(body).toHaveProperty("ledger");
   });
+
+  test("discover radar API returns real shape", async ({ request }) => {
+    const res = await request.get("/api/discover/radar");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body).toHaveProperty("activity");
+    expect(body).toHaveProperty("graph");
+    expect(body.graph).toHaveProperty("nodes");
+    expect(body.graph).toHaveProperty("edges");
+    expect(body).toHaveProperty("metrics");
+    expect(body.metrics).toHaveProperty("fundingEntropy");
+    expect(body.metrics.fundingEntropy).toHaveProperty("evidence");
+  });
 });
 
 test.describe("Community phases — surfaces", () => {
@@ -94,6 +108,12 @@ test.describe("Community phases — surfaces", () => {
     ).toBeVisible();
   });
 
+  test("discover shows live radar sections", async ({ page }) => {
+    await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("main").getByText("Live activity")).toBeVisible();
+    await expect(page.getByRole("main").getByText("Value graph preview")).toBeVisible();
+  });
+
   test("network redirects to discover", async ({ page }) => {
     await page.goto("/network", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/discover/);
@@ -111,7 +131,9 @@ test.describe("Community phases — surfaces", () => {
     await page.goto("/communities", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
     await expect(page.getByText("Your operating rooms")).toBeVisible();
-    await expect(page.getByRole("navigation").getByRole("link", { name: "Communities" })).toBeVisible();
+    await expect(
+      page.getByRole("navigation").getByRole("link", { name: "Communities" }).first(),
+    ).toBeVisible();
   });
 
   test("claim page stays on claim route", async ({ page }) => {

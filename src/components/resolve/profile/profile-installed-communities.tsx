@@ -38,10 +38,10 @@ export function ProfileInstalledCommunities() {
           </p>
         </div>
         <Link
-          href="/discover"
+          href="/communities"
           className="inline-flex items-center gap-1 text-xs font-medium text-resolve-accent hover:underline"
         >
-          Discover more
+          Communities hub
           <ArrowUpRight className="h-3 w-3" />
         </Link>
       </div>

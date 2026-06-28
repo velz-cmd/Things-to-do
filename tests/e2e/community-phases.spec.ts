@@ -106,4 +106,17 @@ test.describe("Community phases — surfaces", () => {
     ).toBeVisible();
     await expect(page.getByText("Community programs")).toBeVisible();
   });
+
+  test("communities hub loads and nav highlights Communities", async ({ page }) => {
+    await page.goto("/communities", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
+    await expect(page.getByText("Your operating rooms")).toBeVisible();
+    await expect(page.getByRole("navigation").getByRole("link", { name: "Communities" })).toBeVisible();
+  });
+
+  test("claim page stays on claim route", async ({ page }) => {
+    await page.goto("/claim", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/claim/);
+    await expect(page.getByRole("heading", { level: 1, name: "Claim earnings" })).toBeVisible();
+  });
 });

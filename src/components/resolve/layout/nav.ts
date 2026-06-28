@@ -1,12 +1,13 @@
 import {
   Compass,
+  Layers,
   Sparkles,
   Wallet,
   User,
 } from "lucide-react";
 
 /**
- * FROZEN — five primary areas. Network folded into Communities/Discover.
+ * FROZEN — five primary areas. Network folded into Discover; Communities = operate.
  */
 export const PRODUCT_NAV = [
   {
@@ -21,6 +22,13 @@ export const PRODUCT_NAV = [
     label: "Mission",
     question: "What should I do?",
     icon: Sparkles,
+    exact: false as const,
+  },
+  {
+    href: "/communities",
+    label: "Communities",
+    question: "How is this community operating?",
+    icon: Layers,
     exact: false as const,
   },
   {
@@ -74,7 +82,6 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/treasury": "/capital",
   "/settle": "/capital",
   "/distribute": "/capital",
-  "/claim": "/capital",
   "/decide": "/mission/fund",
   "/workspace/fund": "/mission/fund",
   "/missions": "/mission/fund",

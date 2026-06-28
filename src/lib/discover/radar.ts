@@ -4,6 +4,7 @@ import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { domainLabel, domainForConnector } from "@/lib/workspace/domains";
 import { eventTypeLabel, explainRecognition } from "@/lib/workspace/events";
 import { EntityIds } from "@/lib/domain/entities";
+import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
 import {
   fundingEntropy,
   rankGraphNodes,
@@ -19,6 +20,8 @@ export type DiscoverActivityItem = {
   status?: string;
   connectorId?: string;
   domain?: string;
+  entityId?: string;
+  entityPath?: string;
   at: string;
   evidence: string;
 };
@@ -27,6 +30,7 @@ export type DiscoverGraphNode = {
   id: string;
   label: string;
   type: string;
+  entityPath?: string;
   x?: number;
   y?: number;
   weight: number;
@@ -129,6 +133,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
   for (const r of authRows) {
     const domain = domainLabel(r.connectorId);
     const context = r.contextLabel ?? r.payeeKey;
+    const entityId = payeeToEntityId(r.payeeKey, r.payeeKeyType);
     activity.push({
       id: `auth-${r.id}`,
       kind: "authorization",
@@ -138,6 +143,8 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       status: r.status,
       connectorId: r.connectorId,
       domain,
+      entityId,
+      entityPath: entityIdToPath(entityId) ?? undefined,
       at: r.updatedAt.toISOString(),
       evidence: explainRecognition({
         eventType: r.eventType,
@@ -172,11 +179,12 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
 
   function addNode(id: string, label: string, type: string, weight = 1) {
     const existing = nodeMap.get(id);
+    const entityPath = entityIdToPath(id) ?? undefined;
     if (existing) {
       existing.weight += weight;
       return;
     }
-    nodeMap.set(id, { id, label, type, weight });
+    nodeMap.set(id, { id, label, type, weight, entityPath });
     labels.set(id, label);
   }
 

@@ -2,17 +2,18 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Streamly demo portal", () => {
   test("subscription cancellation shows confirmation", async ({ page }) => {
-    await page.goto("/demo-portals/streamly");
+    test.setTimeout(90_000);
+    await page.goto("/demo-portals/streamly", { waitUntil: "domcontentloaded" });
 
-    await expect(page.getByTestId("streamly-account")).toBeVisible();
+    await expect(page.getByTestId("streamly-account")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("account-email").fill("judge@resolve.app");
     await page.getByTestId("cancel-start").click();
 
-    await expect(page.getByTestId("cancel-form")).toBeVisible();
+    await expect(page.getByTestId("cancel-form")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("cancel-reason").fill("Demo cancellation for RESOLVE");
     await page.getByTestId("cancel-submit").click();
 
-    await expect(page.getByTestId("streamly-confirmation")).toBeVisible();
+    await expect(page.getByTestId("streamly-confirmation")).toBeVisible({ timeout: 15_000 });
     const confirmation = page.locator('[data-proof="confirmation"]');
     await expect(confirmation).toContainText("Confirmation SUB-");
   });

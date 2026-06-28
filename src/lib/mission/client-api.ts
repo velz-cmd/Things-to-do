@@ -278,14 +278,19 @@ export async function migrateLocalSessions(
   });
 }
 
-export function serverMissionToSession(m: ServerMission) {
+export function serverMissionToSession(
+  m: ServerMission,
+  ecosystemName?: string,
+) {
+  const repoLike = /^[\w.-]+\/[\w.-]+$/.test(m.title);
   return {
     id: m.id,
-    title: m.title,
+    title: repoLike && ecosystemName ? ecosystemName : m.title,
     kind: "mission" as const,
     query: m.scope ?? m.title,
     scope: m.scope ?? undefined,
     ecosystemId: m.ecosystemId ?? undefined,
+    worldName: ecosystemName,
     phase: (m.phase as MissionPhase | undefined) ?? undefined,
     status: m.status,
     savedAt: m.createdAt,

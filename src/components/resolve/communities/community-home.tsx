@@ -20,6 +20,7 @@ import { Money } from "@/components/resolve/ui/money";
 import { CapitalFlowImpact } from "@/components/resolve/communities/capital-flow-impact";
 import { CommunityObservatory } from "@/components/resolve/communities/community-observatory";
 import { EconomicMemoryTimeline } from "@/components/resolve/communities/economic-memory-timeline";
+import { MeasureLearnPanel } from "@/components/resolve/communities/measure-learn-panel";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
@@ -135,6 +136,13 @@ function ProgramCard({
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
         >
           Connect Navidrome
+          <ArrowUpRight className="h-3 w-3" />
+        </Link>
+        <Link
+          href={`/mission?community=${slug}&program=${program.missionId ?? program.id}`}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-resolve-accent/30 px-3 py-1.5 text-xs text-resolve-accent hover:bg-resolve-accent/10"
+        >
+          Open in Mission
           <ArrowUpRight className="h-3 w-3" />
         </Link>
       </div>
@@ -320,6 +328,15 @@ export function CommunityHome({ slug }: { slug: string }) {
               ))}
             </div>
           </section>
+
+          {(surface?.programs ?? []).map((p) => (
+            <MeasureLearnPanel
+              key={`ml-${p.id}`}
+              slug={slug}
+              programId={p.id}
+              onUpdated={() => void refresh()}
+            />
+          ))}
 
           <EconomicMemoryTimeline entries={surface?.economicMemory ?? []} />
 

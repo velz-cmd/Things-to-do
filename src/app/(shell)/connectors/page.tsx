@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Connectors — identity & sensors live under Me */
+/** Connectors — admin surface lives under Settings */
 export default function ConnectorsRedirect() {
-  redirect("/profile");
+  redirect("/settings");
 }

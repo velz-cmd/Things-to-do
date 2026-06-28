@@ -5,13 +5,14 @@ import { isListenBrainzConfigured } from "@/lib/integrations/listenbrainz";
 import { authorizeCronRequest } from "@/lib/env/cron-secret";
 import { notifyAllUnnotifiedClaimable } from "@/lib/earn/notify";
 import { refreshStaleSensors } from "@/lib/sensors/maintenance";
+import { releaseClaimableWithinTreasury } from "@/lib/treasury/claimable-release";
 
 export async function GET(req: Request) {
   if (!authorizeCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [tasks, music, sensors, notify] = await Promise.all([
+  const [tasks, music, sensors, notify, claimableRelease] = await Promise.all([
     processScheduledTasks(),
     isListenBrainzConfigured() ? syncListenBrainzListens() : Promise.resolve(null),
     refreshStaleSensors().catch((e) => ({
@@ -19,6 +20,9 @@ export async function GET(req: Request) {
     })),
     notifyAllUnnotifiedClaimable().catch((e) => ({
       error: e instanceof Error ? e.message : "notify_failed",
+    })),
+    releaseClaimableWithinTreasury().catch((e) => ({
+      error: e instanceof Error ? e.message : "claimable_release_failed",
     })),
   ]);
 
@@ -30,6 +34,7 @@ export async function GET(req: Request) {
     earnNotify: Array.isArray(notify)
       ? { processed: notify.length, emailed: notify.filter((r) => r.emailSent).length }
       : notify,
+    claimableRelease,
   });
 }
 

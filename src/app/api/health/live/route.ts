@@ -35,6 +35,7 @@ export async function GET() {
     })),
     secrets: {
       cronConfigured: Boolean(getCronSecret()),
+      cronRuntimeOk: Boolean(getCronSecret()),
       claimTokenConfigured: Boolean(getClaimTokenSecret()),
       cronWhitespace: cronSecretHasWhitespace(),
       claimTokenWhitespace: claimTokenSecretHasWhitespace(),

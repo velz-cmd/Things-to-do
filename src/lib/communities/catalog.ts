@@ -186,7 +186,7 @@ export const PROGRAM_TEMPLATES = {
     defaultBudgetUsd: 1000,
     defaultRules: {
       perCitationUsd: 0.05,
-      connectorId: "crossref",
+      connectorId: "openalex",
       eventType: "citation.verified",
     },
     deployLabel: "Enable citation tolls",

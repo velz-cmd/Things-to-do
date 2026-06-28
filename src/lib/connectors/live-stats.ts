@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { CONNECTOR_CATALOG } from "@/lib/connectors/types";
+import { INTEGRATIONS } from "@/lib/integrations/config";
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
 import { isNavidromeConfigured } from "@/lib/integrations/navidrome";
 import { isListenBrainzConfigured } from "@/lib/integrations/listenbrainz";
@@ -60,6 +61,8 @@ export async function getConnectorLiveStatuses(): Promise<ConnectorLiveStatus[]>
 
     const installed =
       c.id === "github" ? githubOk
+      : c.id === "openalex" ?
+        (stats?._count.id ?? 0) > 0 || INTEGRATIONS.openAlex()
       : c.id === "navidrome" ? musicSensorOk || (stats?._count.id ?? 0) > 0
       : c.status === "live" && (stats?._count.id ?? 0) > 0;
 
@@ -68,6 +71,11 @@ export async function getConnectorLiveStatuses(): Promise<ConnectorLiveStatus[]>
       healthStatus = "upcoming";
     } else if (c.id === "github") {
       healthStatus = githubOk ? (eventsToday > 0 || stats ? "healthy" : "waiting") : "offline";
+    } else if (c.id === "openalex") {
+      healthStatus =
+        (stats?._count.id ?? 0) > 0 ? "healthy"
+        : INTEGRATIONS.openAlex() ? "waiting"
+        : "offline";
     } else if (c.id === "navidrome") {
       if (stats?._count.id) healthStatus = "healthy";
       else if (navidromeApiOk || listenBrainzOk) healthStatus = "healthy";
@@ -88,7 +96,11 @@ export async function getConnectorLiveStatuses(): Promise<ConnectorLiveStatus[]>
       authorizationVolumeUsd: Math.round((stats?._sum.amountUsd ?? 0) * 100) / 100,
       authorizationCount: stats?._count.id ?? 0,
       lastEventAt,
-      docsPath: c.id === "github" ? "/api/github/allocate" : c.id === "navidrome" ? "/api/connectors/navidrome/sync" : null,
+      docsPath:
+        c.id === "github" ? "/api/github/allocate"
+        : c.id === "navidrome" ? "/api/connectors/navidrome/sync"
+        : c.id === "openalex" ? "/api/connectors/openalex/sync"
+        : null,
     };
   });
 }

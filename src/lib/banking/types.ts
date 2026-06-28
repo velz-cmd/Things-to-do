@@ -1,10 +1,11 @@
-/** RESOLVE Banking — custody model (1:1 USDC, no interest, same rails for all users). */
+/** RESOLVE Banking — Arc USDC custody (1:1, no interest, Circle identity wallet). */
 
 export type BankingPolicy = {
   interestBearing: false;
   lending: false;
   currency: "USDC";
   model: "custody";
+  rail: "arc";
   tagline: string;
 };
 
@@ -13,7 +14,9 @@ export const BANKING_POLICY: BankingPolicy = {
   lending: false,
   currency: "USDC",
   model: "custody",
-  tagline: "Deposit · hold · distribute — no interest, no lending, one account for everyone",
+  rail: "arc",
+  tagline:
+    "One Arc USDC account per identity — Circle wallet, memo batch payouts, agent nano-payments",
 };
 
 export type StatementLine = {
@@ -43,6 +46,56 @@ export type BankingProgramWallet = {
   status: string;
 };
 
+export type BankingMemoActivity = {
+  id: string;
+  at: string;
+  kind: "batch_memo" | "claim" | "nano";
+  amountUsd: number;
+  txHash: string;
+  label: string;
+  batchNumber: number | null;
+};
+
+export type BankingArcRail = {
+  chain: string;
+  chainId: number;
+  currency: "USDC";
+  usdcGas: true;
+  live: boolean;
+  canDistribute: boolean;
+  blockers: string[];
+  message: string;
+  contracts: {
+    usdc: string;
+    memo: string;
+  };
+  agentWallet: string | null;
+  settlementWallet: string | null;
+  settlementBalanceUsd: number | null;
+  explorerUrl: string;
+  capabilities: {
+    identityWallet: boolean;
+    depositArcUsdc: boolean;
+    batchMemoPayouts: boolean;
+    agentNanoPayments: boolean;
+    erc8183Escrow: boolean;
+    cctpBridge: boolean;
+  };
+  stats: {
+    nanoPaymentsSettled: number;
+    recentMemoCount: number;
+  };
+  identityWallet: {
+    address: string;
+    label: string;
+    provider: "circle" | "embedded";
+    circleWalletId: string | null;
+    depositAddress: string;
+    onChainUsdcUsd: number | null;
+  } | null;
+  recentMemos: BankingMemoActivity[];
+};
+
 export type BankingAccountSnapshot = {
   ok: true;
   signedIn: boolean;
@@ -60,6 +113,7 @@ export type BankingAccountSnapshot = {
     earnedAuthorizedUsd: number;
     earnedSettledUsd: number;
     totalDepositedUsd: number;
+    onChainUsdcUsd: number | null;
   };
   programs: BankingProgramWallet[];
   statement: StatementLine[];
@@ -69,11 +123,7 @@ export type BankingAccountSnapshot = {
     settledUsd: number;
     pendingFundingUsd: number;
   };
-  settlementRail: {
-    balanceUsd: number;
-    wallet: string | null;
-    role: string;
-  };
+  arc: BankingArcRail;
   identities: {
     github: string | null;
     emailVerified: boolean;

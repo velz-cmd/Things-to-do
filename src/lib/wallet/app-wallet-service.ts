@@ -120,3 +120,7 @@ export async function ensureAppWalletForUser(user: DbUser): Promise<DbUser> {
 export function appWalletProvider(user: DbUser): "circle" | "embedded" {
   return readMeta(user.taskMemoryJson)?.provider ?? "embedded";
 }
+
+export function circleWalletIdForUser(user: DbUser): string | null {
+  return readMeta(user.taskMemoryJson)?.circleWalletId ?? null;
+}

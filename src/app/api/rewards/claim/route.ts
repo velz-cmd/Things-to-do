@@ -7,9 +7,7 @@ import {
   markRewardSettled,
 } from "@/lib/identity/pending-rewards";
 import { markAuthorizationSettled } from "@/lib/authorization/ledger";
-import { sendUsdcWithMemo } from "@/lib/arc/memo";
-import { buildContributorMemo } from "@/lib/payment/memo";
-import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { settleClaimBatch } from "@/lib/banking/claim-settlement";
 import { buildFxSwapHint } from "@/lib/settlement/fx";
 import { getContributorPayoutPreference } from "@/lib/identity/contributors";
 import { prisma } from "@/lib/db";
@@ -28,7 +26,7 @@ type ClaimedItem = {
   status: string;
 };
 
-/** Contributor claims claimable Authorizations — GitHub identity + wallet → Fulfillment */
+/** Contributor claims — batched Arc memo payout to identity wallet (one tx per claim action). */
 export async function POST(req: Request) {
   const session = await requireSessionUser();
   if ("error" in session) {
@@ -77,164 +75,138 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No claimable authorizations", claimed: [] });
   }
 
-  const claimed: ClaimedItem[] = [];
+  const claimItems = [
+    ...authToClaim.map((a) => ({
+      id: a.id,
+      source: "authorization" as const,
+      amountUsd: a.amountUsd,
+      missionId: a.missionId,
+      contextLabel: a.contextLabel,
+      proofHash: a.proofHash,
+      settlementId: a.settlementId,
+      connectorId: a.connectorId,
+    })),
+    ...rewardsToClaim.map((r) => ({
+      id: r.id,
+      source: "legacy_reward" as const,
+      amountUsd: r.amountUsd,
+      missionId: r.missionId,
+      repo: r.repo,
+      proofHash: r.proofHash,
+      settlementId: r.settlementId,
+    })),
+  ];
 
-  for (const auth of authToClaim) {
-    const intent = {
-      id: `claim:${auth.id}`,
-      wallet: parsed.data.walletAddress,
-      login: githubUsername,
-      weight: auth.weight,
-      amountUsd: auth.amountUsd,
-      rank: 0,
-      status: "processing" as const,
-    };
+  let batchTxHash: string | undefined;
+  let batchMemo: string | undefined;
+  let batchId: string | undefined;
+  let settlementFailed = false;
 
-    const memoText = buildContributorMemo({
-      missionId: auth.missionId,
-      repo: auth.contextLabel ?? undefined,
-      intent,
-      proofHash: auth.proofHash,
-      batchNumber: 0,
-    });
-
-    let txHash: string | undefined;
-    let status = "settled";
-
-    if (isLiveArcEnabled()) {
-      try {
-        const result = await sendUsdcWithMemo({
-          recipient: parsed.data.walletAddress as `0x${string}`,
-          amountUsd: auth.amountUsd,
-          memo: memoText,
-          memoRef: `claim:${auth.id}:${githubUsername}`,
-        });
-        txHash = result.txHash;
-      } catch (e) {
-        console.error("[claim] authorization payout failed:", e);
-        claimed.push({
-          id: auth.id,
-          source: "authorization",
-          amountUsd: auth.amountUsd,
-          status: "failed",
-        });
-        continue;
-      }
-    } else {
-      txHash = `offchain-claim-${auth.id.slice(0, 8)}`;
-    }
-
-    await markAuthorizationSettled(auth.id, {
-      settlementId: auth.settlementId ?? undefined,
+  try {
+    const settlement = await settleClaimBatch({
+      githubUsername,
       walletAddress: parsed.data.walletAddress,
+      items: claimItems.map((i) => ({
+        id: i.id,
+        source: i.source,
+        amountUsd: i.amountUsd,
+        missionId: i.missionId,
+        contextLabel: "contextLabel" in i ? i.contextLabel : undefined,
+        repo: "repo" in i ? i.repo : undefined,
+        proofHash: i.proofHash,
+      })),
     });
 
-    if (auth.settlementId) {
-      await prisma.paymentEvent
-        .create({
-          data: {
-            settlementId: auth.settlementId,
-            type: "AuthorizationClaimed",
-            payloadJson: JSON.stringify({
-              authorizationId: auth.id,
-              connectorId: auth.connectorId,
-              githubUsername,
-              amountUsd: auth.amountUsd,
-              txHash,
-              memo: memoText,
-            }),
-          },
-        })
-        .catch(() => {
-          /* non-fatal */
-        });
+    batchId = settlement.batchId;
+    if ("txHash" in settlement) {
+      batchTxHash = settlement.txHash;
+      batchMemo = settlement.memo;
+    } else {
+      batchTxHash = `offchain-${settlement.batchId.slice(0, 24)}`;
     }
-
-    claimed.push({
-      id: auth.id,
-      source: "authorization",
-      amountUsd: auth.amountUsd,
-      txHash,
-      status,
-    });
+  } catch (e) {
+    console.error("[claim] Arc batch settlement failed:", e);
+    settlementFailed = true;
   }
 
-  for (const reward of rewardsToClaim) {
-    const intent = {
-      id: `claim:${reward.id}`,
-      wallet: parsed.data.walletAddress,
-      login: githubUsername,
-      weight: reward.weight,
-      amountUsd: reward.amountUsd,
-      rank: 0,
-      status: "processing" as const,
-    };
+  const claimed: ClaimedItem[] = [];
 
-    const memoText = buildContributorMemo({
-      missionId: reward.missionId,
-      repo: reward.repo ?? undefined,
-      intent,
-      proofHash: reward.proofHash,
-      batchNumber: 0,
-    });
-
-    let txHash: string | undefined;
-    let status = "settled";
-
-    if (isLiveArcEnabled()) {
-      try {
-        const result = await sendUsdcWithMemo({
-          recipient: parsed.data.walletAddress as `0x${string}`,
-          amountUsd: reward.amountUsd,
-          memo: memoText,
-          memoRef: `claim:${reward.id}:${githubUsername}`,
-        });
-        txHash = result.txHash;
-      } catch (e) {
-        console.error("[claim] legacy reward payout failed:", e);
-        claimed.push({
-          id: reward.id,
-          source: "legacy_reward",
-          amountUsd: reward.amountUsd,
-          status: "failed",
-        });
-        continue;
-      }
-    } else {
-      txHash = `offchain-claim-${reward.id.slice(0, 8)}`;
+  for (const item of claimItems) {
+    if (settlementFailed) {
+      claimed.push({
+        id: item.id,
+        source: item.source,
+        amountUsd: item.amountUsd,
+        status: "failed",
+      });
+      continue;
     }
 
-    await markRewardSettled(reward.id, {
-      walletAddress: parsed.data.walletAddress,
-      txHash,
-    });
+    const txHash = batchTxHash;
 
-    if (reward.settlementId) {
-      await prisma.paymentEvent
-        .create({
-          data: {
-            settlementId: reward.settlementId,
-            type: "RewardClaimed",
-            payloadJson: JSON.stringify({
-              rewardId: reward.id,
-              githubUsername,
-              amountUsd: reward.amountUsd,
-              txHash,
-              memo: memoText,
-            }),
-          },
-        })
-        .catch(() => {
-          /* non-fatal */
-        });
+    if (item.source === "authorization") {
+      await markAuthorizationSettled(item.id, {
+        settlementId: item.settlementId ?? undefined,
+        walletAddress: parsed.data.walletAddress,
+      });
+
+      if (item.settlementId) {
+        await prisma.paymentEvent
+          .create({
+            data: {
+              settlementId: item.settlementId,
+              type: "AuthorizationClaimed",
+              payloadJson: JSON.stringify({
+                authorizationId: item.id,
+                connectorId: "connectorId" in item ? item.connectorId : undefined,
+                githubUsername,
+                amountUsd: item.amountUsd,
+                txHash,
+                batchId,
+                memo: batchMemo,
+                arcBatch: true,
+              }),
+            },
+          })
+          .catch(() => {
+            /* non-fatal */
+          });
+      }
+    } else {
+      await markRewardSettled(item.id, {
+        walletAddress: parsed.data.walletAddress,
+        txHash,
+      });
+
+      if (item.settlementId) {
+        await prisma.paymentEvent
+          .create({
+            data: {
+              settlementId: item.settlementId,
+              type: "RewardClaimed",
+              payloadJson: JSON.stringify({
+                rewardId: item.id,
+                githubUsername,
+                amountUsd: item.amountUsd,
+                txHash,
+                batchId,
+                memo: batchMemo,
+                arcBatch: true,
+              }),
+            },
+          })
+          .catch(() => {
+            /* non-fatal */
+          });
+      }
     }
 
     claimed.push({
-      id: reward.id,
-      source: "legacy_reward",
-      amountUsd: reward.amountUsd,
+      id: item.id,
+      source: item.source,
+      amountUsd: item.amountUsd,
       txHash,
-      status,
+      status: "settled",
     });
   }
 
@@ -246,12 +218,14 @@ export async function POST(req: Request) {
   const fxHint = buildFxSwapHint(totalUsd, payoutCurrency);
 
   return NextResponse.json({
-    ok: true,
+    ok: !settlementFailed,
     githubUsername,
     walletAddress: parsed.data.walletAddress,
     claimed,
     totalUsd: Math.round(totalUsd * 100) / 100,
     payoutCurrency,
     fxHint,
+    batchId,
+    arcBatch: true,
   });
 }

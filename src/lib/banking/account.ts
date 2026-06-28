@@ -2,8 +2,8 @@ import { prisma } from "@/lib/db";
 import { getProfileEarningsSummary } from "@/lib/earn/summary";
 import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
-import { getTreasurySnapshot } from "@/lib/treasury/engine";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
+import { getBankingArcRail } from "@/lib/banking/arc-rail";
 import type { User } from "@prisma/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -103,7 +103,7 @@ async function buildStatement(userId: string, availableUsd: number): Promise<Sta
     balanceAfterUsd: null,
     label:
       t.type === "deposit" ?
-        t.method === "crypto" ? "USDC deposit (Arc)"
+        t.method === "crypto" ? "Arc USDC deposit"
         : t.method === "card" ? "Card deposit"
         : "Deposit"
       : t.label ?? t.type,
@@ -157,19 +157,15 @@ export async function getBankingAccountSnapshot(input: {
   authUser: SupabaseUser | null;
   profile: User | null;
 }): Promise<BankingAccountSnapshot> {
-  const [ledger, treasury] = await Promise.all([
-    getGlobalAuthorizationSummary().catch(() => ({
-      authorizedUsd: 0,
-      claimableUsd: 0,
-      settledUsd: 0,
-      pendingFundingUsd: 0,
-      count: 0,
-    })),
-    getTreasurySnapshot().catch(() => ({
-      balanceUsd: 0,
-      fundingWallet: null,
-    })),
-  ]);
+  const ledger = await getGlobalAuthorizationSummary().catch(() => ({
+    authorizedUsd: 0,
+    claimableUsd: 0,
+    settledUsd: 0,
+    pendingFundingUsd: 0,
+    count: 0,
+  }));
+
+  const arc = await getBankingArcRail(input.profile);
 
   if (!input.authUser || !input.profile) {
     return {
@@ -189,6 +185,7 @@ export async function getBankingAccountSnapshot(input: {
         earnedAuthorizedUsd: 0,
         earnedSettledUsd: 0,
         totalDepositedUsd: 0,
+        onChainUsdcUsd: null,
       },
       programs: [],
       statement: [],
@@ -198,16 +195,13 @@ export async function getBankingAccountSnapshot(input: {
         settledUsd: ledger.settledUsd,
         pendingFundingUsd: ledger.pendingFundingUsd,
       },
-      settlementRail: {
-        balanceUsd: treasury.balanceUsd,
-        wallet: treasury.fundingWallet,
-        role: "On-chain payout rail — not user spendable balance",
-      },
+      arc,
       identities: {
         github: null,
         emailVerified: false,
         gmailConnected: false,
-        gmailOperatorLive: googleOAuthConfigured() && Boolean(process.env.GOOGLE_REFRESH_TOKEN?.trim()),
+        gmailOperatorLive:
+          googleOAuthConfigured() && Boolean(process.env.GOOGLE_REFRESH_TOKEN?.trim()),
       },
       updatedAt: new Date().toISOString(),
     };
@@ -247,6 +241,7 @@ export async function getBankingAccountSnapshot(input: {
       earnedAuthorizedUsd: round(earnings.authorizedUsd),
       earnedSettledUsd: round(earnings.settledUsd),
       totalDepositedUsd,
+      onChainUsdcUsd: arc.identityWallet?.onChainUsdcUsd ?? null,
     },
     programs,
     statement,
@@ -256,16 +251,13 @@ export async function getBankingAccountSnapshot(input: {
       settledUsd: ledger.settledUsd,
       pendingFundingUsd: ledger.pendingFundingUsd,
     },
-    settlementRail: {
-      balanceUsd: treasury.balanceUsd,
-      wallet: treasury.fundingWallet,
-      role: "On-chain payout rail — not user spendable balance",
-    },
+    arc,
     identities: {
       github: github ? `@${github}` : null,
       emailVerified: Boolean(authUser.email_confirmed_at ?? authUser.email),
       gmailConnected: profile.gmailConnected,
-      gmailOperatorLive: googleOAuthConfigured() && Boolean(process.env.GOOGLE_REFRESH_TOKEN?.trim()),
+      gmailOperatorLive:
+        googleOAuthConfigured() && Boolean(process.env.GOOGLE_REFRESH_TOKEN?.trim()),
     },
     updatedAt: new Date().toISOString(),
   };

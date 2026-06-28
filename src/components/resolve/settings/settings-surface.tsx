@@ -369,7 +369,7 @@ export function SettingsSurface() {
           <span className="font-mono text-xs">Authorization: Bearer $CRON_SECRET</span>.
         </p>
         <p className="mt-3 text-xs text-resolve-muted-dim">
-          Each tick: incremental sensor sync, treasury-backed claimable release, earn notify.
+          Each tick: incremental sensor sync, deposit-funded claimable release, earn notify.
           Bootstrap: <span className="font-mono">POST /api/cron/bootstrap-sensors</span> (operator).
         </p>
       </section>

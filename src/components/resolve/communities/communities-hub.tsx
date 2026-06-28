@@ -7,6 +7,7 @@ import clsx from "clsx";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
+import { listBrowsableCommunities, type CommunitySensorStatus } from "@/lib/sensors/catalog-visibility";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 
 type CommunitySummary = {
@@ -22,15 +23,25 @@ const KINDS = ["all", "music", "oss", "research", "protocol"] as const;
 /** Communities hub — installed operating rooms + catalog browse */
 export function CommunitiesHub() {
   const [communities, setCommunities] = useState<CommunitySummary[]>([]);
+  const [sensorStatuses, setSensorStatuses] = useState<CommunitySensorStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<(typeof KINDS)[number]>("all");
 
   useEffect(() => {
-    void fetch("/api/communities", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : { communities: [] }))
-      .then((d: { communities?: CommunitySummary[] }) => {
-        setCommunities(d.communities ?? []);
+    void Promise.all([
+      fetch("/api/communities", { credentials: "include" }).then((r) =>
+        r.ok ? r.json() : { communities: [], sensorStatuses: [] },
+      ),
+      fetch("/api/communities/sensor-status").then((r) =>
+        r.ok ? r.json() : { statuses: [] },
+      ),
+    ])
+      .then(([commRes, statusRes]) => {
+        setCommunities(commRes.communities ?? []);
+        setSensorStatuses(
+          commRes.sensorStatuses ?? statusRes.statuses ?? [],
+        );
       })
       .finally(() => setLoading(false));
   }, []);
@@ -52,7 +63,8 @@ export function CommunitiesHub() {
 
   const browse = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return COMMUNITY_CATALOG.filter((c) => {
+    const catalog = listBrowsableCommunities(sensorStatuses);
+    return catalog.filter((c) => {
       if (kind !== "all" && c.kind !== kind) return false;
       if (!q) return true;
       return (
@@ -61,7 +73,9 @@ export function CommunitiesHub() {
         c.keywords.some((k) => k.includes(q))
       );
     });
-  }, [query, kind]);
+  }, [query, kind, sensorStatuses]);
+
+  const gatedCount = sensorStatuses.filter((s) => s.sensorGated && !s.sensorLive).length;
 
   return (
     <ProductPage
@@ -143,6 +157,12 @@ export function CommunitiesHub() {
         <h2 className="mt-2 text-lg font-semibold text-white">Attach to existing communities</h2>
         <p className="mt-1 max-w-2xl text-sm text-resolve-muted">
           Not a marketplace — install doctrine, RFB programs, and settlement beside upstream tools.
+          {gatedCount > 0 && (
+            <span className="mt-1 block text-resolve-muted-dim">
+              {gatedCount} OSS/research community{gatedCount > 1 ? "ies" : ""} hidden until sensors
+              produce real ledger events.
+            </span>
+          )}
         </p>
 
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">

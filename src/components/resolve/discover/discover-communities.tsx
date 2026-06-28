@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
+import { listBrowsableCommunities, type CommunitySensorStatus } from "@/lib/sensors/catalog-visibility";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 
 type CommunitySummary = {
@@ -14,23 +14,32 @@ const KINDS = ["all", "music", "oss", "research", "protocol"] as const;
 
 export function DiscoverCommunities() {
   const [installed, setInstalled] = useState<Record<string, boolean>>({});
+  const [sensorStatuses, setSensorStatuses] = useState<CommunitySensorStatus[]>([]);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<(typeof KINDS)[number]>("all");
 
   useEffect(() => {
-    void fetch("/api/communities", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : { communities: [] }))
-      .then((d: { communities?: CommunitySummary[] }) => {
+    void Promise.all([
+      fetch("/api/communities", { credentials: "include" }).then((r) =>
+        r.ok ? r.json() : { communities: [], sensorStatuses: [] },
+      ),
+      fetch("/api/communities/sensor-status").then((r) =>
+        r.ok ? r.json() : { statuses: [] },
+      ),
+    ])
+      .then(([commRes, statusRes]) => {
         const map: Record<string, boolean> = {};
-        for (const c of d.communities ?? []) map[c.slug] = c.installed;
+        for (const c of commRes.communities ?? []) map[c.slug] = c.installed;
         setInstalled(map);
+        setSensorStatuses(commRes.sensorStatuses ?? statusRes.statuses ?? []);
       })
       .catch(() => undefined);
   }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return COMMUNITY_CATALOG.filter((c) => {
+    const catalog = listBrowsableCommunities(sensorStatuses);
+    return catalog.filter((c) => {
       if (kind !== "all" && c.kind !== kind) return false;
       if (!q) return true;
       return (
@@ -39,7 +48,7 @@ export function DiscoverCommunities() {
         c.keywords.some((k) => k.includes(q))
       );
     });
-  }, [query, kind]);
+  }, [query, kind, sensorStatuses]);
 
   return (
     <section className="mb-12">

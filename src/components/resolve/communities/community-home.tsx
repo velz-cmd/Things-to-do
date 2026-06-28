@@ -21,6 +21,7 @@ import { CapitalFlowImpact } from "@/components/resolve/communities/capital-flow
 import { CommunityObservatory } from "@/components/resolve/communities/community-observatory";
 import { EconomicMemoryTimeline } from "@/components/resolve/communities/economic-memory-timeline";
 import { MeasureLearnPanel } from "@/components/resolve/communities/measure-learn-panel";
+import { CommunitySensorPanel } from "@/components/resolve/communities/community-sensor-panel";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
@@ -289,6 +290,8 @@ export function CommunityHome({ slug }: { slug: string }) {
               <p className="text-sm leading-relaxed text-white/90">{catalog.doctrine}</p>
             </BlueGlowCard>
           </section>
+
+          <CommunitySensorPanel slug={slug} />
 
           {surface?.observatory && surface.observatory.length > 0 && (
             <CommunityObservatory alerts={surface.observatory} />

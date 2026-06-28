@@ -84,6 +84,40 @@ test.describe("Community phases — APIs", () => {
     expect(body.metrics).toHaveProperty("fundingEntropy");
     expect(body.metrics.fundingEntropy).toHaveProperty("evidence");
   });
+
+  test("entity API returns surface for repository", async ({ request }) => {
+    const res = await request.get("/api/entity/repo/vercel/next.js");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.id).toBe("repo:vercel/next.js");
+    expect(body.kind).toBe("repository");
+    expect(body).toHaveProperty("overview");
+    expect(body).toHaveProperty("valueCreated");
+    expect(body).toHaveProperty("fundingGap");
+    expect(body).toHaveProperty("relationships");
+    expect(body).toHaveProperty("people");
+    expect(body).toHaveProperty("timeline");
+    expect(body).toHaveProperty("payments");
+    expect(body).toHaveProperty("evidence");
+    expect(body.economics).toHaveProperty("conservation");
+    expect(body.economics).toHaveProperty("gini");
+    expect(body.economics.conservation).toHaveProperty("evidence");
+  });
+
+  test("entity API returns surface for community", async ({ request }) => {
+    const res = await request.get("/api/entity/community/independent-music");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.kind).toBe("community");
+    expect(body.label).toBe("Independent Music");
+  });
+
+  test("entity API 400 for invalid path", async ({ request }) => {
+    const res = await request.get("/api/entity/invalid");
+    expect(res.status()).toBe(400);
+  });
 });
 
 test.describe("Community phases — surfaces", () => {
@@ -140,5 +174,21 @@ test.describe("Community phases — surfaces", () => {
     await page.goto("/claim", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/claim/);
     await expect(page.getByRole("heading", { level: 1, name: "Claim earnings" })).toBeVisible();
+  });
+
+  test("entity page loads for repository", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.goto("/e/repo/vercel/next.js", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Overview")).toBeVisible();
+    await expect(page.getByText("Conservation flow")).toBeVisible();
+    await expect(page.getByText("Gini coefficient")).toBeVisible();
+  });
+
+  test("entity page loads for community", async ({ page }) => {
+    await page.goto("/e/community/independent-music", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Independent Music" })).toBeVisible({
+      timeout: 30_000,
+    });
   });
 });

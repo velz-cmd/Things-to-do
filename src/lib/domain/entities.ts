@@ -125,6 +125,9 @@ export function parseEntityRef(canonicalId: string): Pick<EntityRef, "type" | "i
   if (canonicalId.startsWith("community:")) {
     return { type: "community", id: canonicalId };
   }
+  if (canonicalId.startsWith("creator:")) {
+    return { type: "creator", id: canonicalId };
+  }
   const [prefix] = canonicalId.split(":");
   const typeMap: Record<string, EntityType> = {
     org: "organization",

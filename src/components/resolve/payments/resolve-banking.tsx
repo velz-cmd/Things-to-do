@@ -1,15 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowDownLeft,
+  ArrowUpRight,
   BadgeCheck,
-  CircleDollarSign,
+  ChevronDown,
+  Copy,
   Landmark,
-  Layers,
-  Shield,
+  Sparkles,
   Wallet,
-  Zap,
 } from "lucide-react";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Money } from "@/components/resolve/ui/money";
@@ -19,6 +20,7 @@ import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-tr
 import { CurrencySelect } from "@/components/resolve/capital/currency-select";
 import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
+import { BANKING_UI, friendlyStatementLabel, friendlyStatus } from "@/lib/banking/copy";
 import type { BankingAccountSnapshot, StatementLine } from "@/lib/banking/types";
 import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
 
@@ -30,6 +32,8 @@ type SettlementRow = {
   status: string;
   at: string;
 };
+
+type Tab = "overview" | "activity" | "programs";
 
 type ResolveBankingProps = {
   account: BankingAccountSnapshot | null;
@@ -55,66 +59,219 @@ function formatDate(iso: string) {
   });
 }
 
-function StatementRow({ line }: { line: StatementLine }) {
-  const isCredit = line.direction === "credit";
+function Stat({ label, amount }: { label: string; amount: number }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">{label}</p>
+      <p className="mt-1 text-sm font-medium text-white">
+        <Money amount={amount} size="sm" className="inline" />
+      </p>
+    </div>
+  );
+}
+
+function ActivityRow({
+  title,
+  subtitle,
+  amountUsd,
+  direction,
+}: {
+  title: string;
+  subtitle: string;
+  amountUsd: number;
+  direction?: "credit" | "debit";
+}) {
+  const credit = direction !== "debit";
   return (
     <li className="flex items-center justify-between gap-3 border-b border-white/[0.04] py-3 last:border-0">
       <div className="min-w-0">
-        <p className="truncate text-sm text-white">{line.label}</p>
-        <p className="text-[11px] text-resolve-muted">
-          {formatDate(line.at)}
-          {line.reference ? ` · ${line.reference.slice(0, 18)}` : ""}
-        </p>
+        <p className="truncate text-sm text-white">{title}</p>
+        <p className="text-[11px] text-resolve-muted">{subtitle}</p>
       </div>
       <p
         className={`shrink-0 text-sm font-medium tabular-nums ${
-          isCredit ? "text-emerald-300" : "text-white"
+          credit ? "text-emerald-300" : "text-white"
         }`}
       >
-        {isCredit ? "+" : "−"}
-        <Money amount={line.amountUsd} size="sm" className="inline" />
+        {credit ? "+" : "−"}
+        <Money amount={amountUsd} size="sm" className="inline" />
       </p>
     </li>
   );
 }
 
-function IdentityPill({
-  label,
-  value,
-  ok,
-  href,
+function TabButton({
+  active,
+  onClick,
+  children,
 }: {
-  label: string;
-  value: string;
-  ok: boolean;
-  href?: string;
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
-  const inner = (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] ${
-        ok ?
-          "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-        : "border-white/10 bg-white/[0.03] text-resolve-muted"
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition ${
+        active ?
+          "bg-white/[0.08] text-white"
+        : "text-resolve-muted hover:text-white"
       }`}
     >
-      {ok ?
-        <BadgeCheck className="h-3 w-3" />
-      : <span className="h-1.5 w-1.5 rounded-full bg-white/20" />}
-      <span className="text-resolve-muted-dim">{label}</span>
-      <span className="text-white/90">{value}</span>
-    </span>
+      {children}
+    </button>
   );
-  if (href) {
-    return (
-      <Link href={href} className="hover:opacity-90">
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
 }
 
-/** RESOLVE Banking — custody account for every user (no interest, deposit-first). */
+function GuestLanding({ onSignIn }: { onSignIn: () => void }) {
+  return (
+    <BlueGlowCard className="mb-8">
+      <div className="flex items-start gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-resolve-accent/15">
+          <Sparkles className="h-5 w-5 text-resolve-accent" />
+        </div>
+        <div>
+          <p className="text-lg font-semibold text-white">{BANKING_UI.guestTitle}</p>
+          <p className="mt-2 text-sm leading-relaxed text-resolve-muted">{BANKING_UI.guestBody}</p>
+          <Button onClick={onSignIn} className="mt-5">
+            {BANKING_UI.signIn}
+          </Button>
+        </div>
+      </div>
+      <ol className="mt-8 grid gap-3 sm:grid-cols-3">
+        {BANKING_UI.howItWorks.map((step) => (
+          <li
+            key={step.step}
+            className="rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-accent">
+              Step {step.step}
+            </p>
+            <p className="mt-1 text-sm font-medium text-white">{step.title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-resolve-muted">{step.body}</p>
+          </li>
+        ))}
+      </ol>
+    </BlueGlowCard>
+  );
+}
+
+function TechnicalDetails({
+  account,
+  arc,
+}: {
+  account: BankingAccountSnapshot;
+  arc: BankingAccountSnapshot["arc"];
+}) {
+  const [copied, setCopied] = useState(false);
+  const address = arc.identityWallet?.depositAddress ?? account.walletAddress;
+
+  async function copyAddress() {
+    if (!address) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <details className="group mb-8 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-white [&::-webkit-details-marker]:hidden">
+        <span>
+          {BANKING_UI.technicalDetails}
+          <span className="mt-0.5 block text-xs font-normal text-resolve-muted">
+            {BANKING_UI.technicalHint}
+          </span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-resolve-muted transition group-open:rotate-180" />
+      </summary>
+      <div className="space-y-4 border-t border-white/[0.06] px-4 py-4 text-xs text-resolve-muted">
+        <div className="flex flex-wrap gap-2">
+          <span
+            className={`rounded-full px-2 py-0.5 font-semibold uppercase ${
+              arc.canDistribute ?
+                "bg-emerald-500/15 text-emerald-200"
+              : "bg-amber-500/15 text-amber-200"
+            }`}
+          >
+            {arc.canDistribute ? "Payouts live" : "Payouts standby"}
+          </span>
+          <span className="rounded-full border border-white/10 px-2 py-0.5">
+            {arc.chain} · USDC
+          </span>
+          {arc.identityWallet?.provider === "circle" && (
+            <span className="rounded-full border border-white/10 px-2 py-0.5">Circle wallet</span>
+          )}
+        </div>
+
+        {address && (
+          <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+            <p className="text-[10px] uppercase text-resolve-muted-dim">{BANKING_UI.walletAddress}</p>
+            <p className="mt-1 break-all font-mono text-[11px] text-white">{address}</p>
+            <button
+              type="button"
+              onClick={() => void copyAddress()}
+              className="mt-2 inline-flex items-center gap-1 text-resolve-accent hover:underline"
+            >
+              <Copy className="h-3 w-3" />
+              {copied ? BANKING_UI.copied : BANKING_UI.copyAddress}
+            </button>
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+            <p className="text-[10px] uppercase">Settlement pool</p>
+            <p className="mt-1 text-sm text-white">
+              <Money amount={arc.settlementBalanceUsd ?? 0} size="sm" className="inline" />
+            </p>
+            {arc.settlementWallet && (
+              <p className="mt-1 font-mono text-[10px]">{arc.settlementWallet}</p>
+            )}
+          </div>
+          <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
+            <p className="text-[10px] uppercase">On-chain balance</p>
+            <p className="mt-1 text-sm text-white">
+              <Money
+                amount={account.balances.onChainUsdcUsd ?? arc.identityWallet?.onChainUsdcUsd ?? 0}
+                size="sm"
+                className="inline"
+              />
+            </p>
+          </div>
+        </div>
+
+        {arc.recentMemos.length > 0 && (
+          <ul className="space-y-2">
+            {arc.recentMemos.slice(0, 5).map((m) => (
+              <li key={m.id} className="flex items-center justify-between gap-2">
+                <span className="truncate text-white">{m.label}</span>
+                <a
+                  href={`${arc.explorerUrl}/tx/${m.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-resolve-accent hover:underline"
+                >
+                  View receipt
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {arc.blockers.length > 0 && (
+          <p className="text-amber-200/90">{arc.blockers[0]}</p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/** RESOLVE Banking — simple on screen, Arc/Circle on the backend. */
 export function ResolveBanking({
   account,
   settlements,
@@ -131,6 +288,7 @@ export function ResolveBanking({
   onSignIn,
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
+  const [tab, setTab] = useState<Tab>("overview");
 
   const balances = account?.balances;
   const network = account?.network;
@@ -138,426 +296,300 @@ export function ResolveBanking({
   const yourClaimable = balances?.earnedClaimableUsd ?? 0;
   const yourDeposits = balances?.availableUsd ?? 0;
   const reserved = balances?.reservedUsd ?? 0;
-  const onChainUsd = balances?.onChainUsdcUsd ?? arc?.identityWallet?.onChainUsdcUsd ?? null;
+
+  const statementLines: StatementLine[] = account?.statement ?? [];
+  const activityItems = [
+    ...statementLines.map((line) => ({
+      id: line.id,
+      title: friendlyStatementLabel(line.label),
+      subtitle: formatDate(line.at),
+      amountUsd: line.amountUsd,
+      direction: line.direction,
+    })),
+    ...settlements.map((s) => ({
+      id: s.id,
+      title: s.label,
+      subtitle: `${formatDate(s.at)} · ${friendlyStatus(s.status)}`,
+      amountUsd: s.amountUsd,
+      direction: "credit" as const,
+    })),
+  ];
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 lg:px-8">
-      <header className="mb-8">
+      <header className="mb-6">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-          RESOLVE Banking · Arc USDC
+          {BANKING_UI.eyebrow}
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">Where should money move?</h1>
-        <p className="mt-2 text-sm text-resolve-muted">
-          {account?.policy.tagline ??
-            "Deposit · hold · distribute — no interest, no lending, one account for everyone"}
-        </p>
+        <h1 className="mt-2 text-2xl font-semibold text-white">{BANKING_UI.title}</h1>
+        <p className="mt-2 text-sm text-resolve-muted">{BANKING_UI.subtitle}</p>
         {signedIn && account?.displayName && (
           <p className="mt-3 text-xs text-resolve-muted">
             {account.displayName}
-            {account.memberSince ? ` · member since ${formatDate(account.memberSince)}` : ""}
+            {account.memberSince ? ` · since ${formatDate(account.memberSince)}` : ""}
           </p>
         )}
       </header>
 
-      <BlueGlowCard className="mb-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
-              Available balance
-            </p>
-            {initialLoading ?
-              <p className="mt-2 text-sm text-resolve-muted">Loading…</p>
-            : <>
-                <p className="mt-2 text-4xl font-semibold tabular-nums text-white">
-                  <Money amount={signedIn ? yourDeposits : 0} size="lg" />
-                </p>
-                <p className="mt-1 text-xs text-resolve-muted">
-                  Arc USDC custody · Circle identity wallet · no yield
-                </p>
-                {onChainUsd !== null && (
-                  <p className="mt-1 text-[11px] text-resolve-muted-dim">
-                    On-chain wallet: <Money amount={onChainUsd} size="sm" className="inline" />
-                  </p>
-                )}
-              </>
-            }
-          </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
-            <Landmark className="h-5 w-5 text-resolve-accent" />
-          </div>
-        </div>
+      <div className="mb-6 flex gap-1 rounded-xl border border-white/[0.06] bg-black/20 p-1">
+        <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>
+          {BANKING_UI.overview}
+        </TabButton>
+        <TabButton active={tab === "activity"} onClick={() => setTab("activity")}>
+          {BANKING_UI.activity}
+        </TabButton>
+        <TabButton active={tab === "programs"} onClick={() => setTab("programs")}>
+          {BANKING_UI.programs}
+        </TabButton>
+      </div>
 
-        {signedIn && (
-          <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-5 sm:grid-cols-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">Reserved</p>
-              <p className="mt-1 text-sm font-medium text-white">
-                <Money amount={reserved} size="sm" className="inline" />
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">
-                Total deposited
-              </p>
-              <p className="mt-1 text-sm font-medium text-white">
-                <Money amount={balances?.totalDepositedUsd ?? 0} size="sm" className="inline" />
-              </p>
-            </div>
-            <div className="col-span-2 sm:col-span-1">
-              <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">
-                Claimable earnings
-              </p>
-              <p className="mt-1 text-sm font-medium text-emerald-200">
-                <Money amount={yourClaimable} size="sm" className="inline" />
-              </p>
-            </div>
-          </div>
-        )}
+      {!signedIn && tab === "overview" && <GuestLanding onSignIn={onSignIn} />}
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          {signedIn ?
-            <Button onClick={() => openAddFunds()} className="gap-2">
-              <ArrowDownLeft className="h-4 w-4" />
-              Deposit USDC
-            </Button>
-          : <Button onClick={onSignIn}>Sign in to open account</Button>}
+      {tab === "overview" && (
+        <>
           {signedIn && (
-            <Link
-              href="/settings"
-              className="inline-flex items-center justify-center gap-2 rounded-resolve px-5 py-2.5 text-sm font-semibold text-resolve-muted transition hover:bg-white/[0.06] hover:text-white"
-            >
-              <Shield className="h-4 w-4" />
-              Connections
-            </Link>
-          )}
-        </div>
-        {refreshing && (
-          <p className="mt-3 text-[10px] text-resolve-muted-dim">Refreshing account…</p>
-        )}
-      </BlueGlowCard>
+            <BlueGlowCard className="mb-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
+                    {BANKING_UI.balanceLabel}
+                  </p>
+                  {initialLoading ?
+                    <p className="mt-2 text-sm text-resolve-muted">Loading…</p>
+                  : <>
+                      <p className="mt-2 text-4xl font-semibold tabular-nums text-white">
+                        <Money amount={yourDeposits} size="lg" />
+                      </p>
+                      <p className="mt-1 text-xs text-resolve-muted">{BANKING_UI.balanceHint}</p>
+                    </>
+                  }
+                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
+                  <Landmark className="h-5 w-5 text-resolve-accent" />
+                </div>
+              </div>
 
-      {signedIn && account?.identities && (
-        <section className="mb-8 flex flex-wrap gap-2">
-          <IdentityPill
-            label="Arc wallet"
-            value={
-              arc?.identityWallet?.provider === "circle" ?
-                `Circle ${account.walletLabel ?? ""}`
-              : account.walletLabel ?? "Provisioning…"
-            }
-            ok={Boolean(account.walletAddress)}
-          />
-          {account.identities.github ?
-            <IdentityPill label="GitHub" value={account.identities.github} ok />
-          : <IdentityPill label="GitHub" value="Link on Profile" ok={false} href="/profile" />}
-          <IdentityPill
-            label="Email"
-            value={account.identities.emailVerified ? "Verified" : "Unverified"}
-            ok={account.identities.emailVerified}
-          />
-          <IdentityPill
-            label="Gmail"
-            value={
-              account.identities.gmailConnected ? "Linked"
-              : account.identities.gmailOperatorLive ? "Connect in Settings"
-              : "Operator pending"
-            }
-            ok={account.identities.gmailConnected}
-            href="/settings"
-          />
+              <div className="mt-5 grid grid-cols-3 gap-3 border-t border-white/[0.06] pt-5">
+                <Stat label={BANKING_UI.reserved} amount={reserved} />
+                <Stat label={BANKING_UI.totalIn} amount={balances?.totalDepositedUsd ?? 0} />
+                <Stat label={BANKING_UI.readyToClaim} amount={yourClaimable} />
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button onClick={() => openAddFunds()} className="gap-2">
+                  <ArrowDownLeft className="h-4 w-4" />
+                  {BANKING_UI.addMoney}
+                </Button>
+                {yourClaimable > 0 && (
+                  <Button variant="secondary" onClick={onClaim} disabled={claiming || !payoutWallet}>
+                    {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}
+                  </Button>
+                )}
+                <Link
+                  href="/settings"
+                  className="inline-flex items-center justify-center gap-2 rounded-resolve px-5 py-2.5 text-sm font-semibold text-resolve-muted transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  {BANKING_UI.connections}
+                </Link>
+              </div>
+              {refreshing && (
+                <p className="mt-3 text-[10px] text-resolve-muted-dim">Updating…</p>
+              )}
+            </BlueGlowCard>
+          )}
+
+          {signedIn && (
+            <section className="mb-6 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+              <p className="text-sm font-semibold text-white">{BANKING_UI.claimTitle}</p>
+              <p className="mt-1 text-xs text-resolve-muted">{BANKING_UI.claimBody}</p>
+              {yourClaimable > 0 ?
+                <>
+                  <p className="mt-3 text-2xl font-semibold text-emerald-200">
+                    <Money amount={yourClaimable} size="lg" className="inline" />
+                  </p>
+                  {!account?.identities?.github && (
+                    <p className="mt-2 text-xs text-amber-200/90">{BANKING_UI.linkGithub}</p>
+                  )}
+                  {currencyOptions.length > 0 && (
+                    <div className="mt-3">
+                      <CurrencySelect
+                        value={payoutCurrency}
+                        options={currencyOptions}
+                        onChange={onPayoutCurrencyChange}
+                      />
+                    </div>
+                  )}
+                  {fxHint && (
+                    <div className="mt-3">
+                      <FxSwapPanel hint={fxHint} />
+                    </div>
+                  )}
+                  <Button
+                    className="mt-4"
+                    onClick={onClaim}
+                    disabled={claiming || !payoutWallet}
+                  >
+                    {claiming ? BANKING_UI.claimWorking : BANKING_UI.claimButton}
+                  </Button>
+                </>
+              : <p className="mt-3 text-sm text-resolve-muted">{BANKING_UI.claimEmpty}</p>
+              }
+            </section>
+          )}
+
+          {!initialLoading && network && network.pendingFundingUsd > 0 && (
+            <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100/90">
+              {BANKING_UI.pendingFunding}
+            </div>
+          )}
+
+          {signedIn && account && arc && <TechnicalDetails account={account} arc={arc} />}
+
+          {!signedIn && network && (
+            <div className="mb-6 rounded-lg border border-white/[0.06] px-4 py-3 text-xs text-resolve-muted">
+              <p className="font-medium text-white">{BANKING_UI.networkPulse}</p>
+              <p className="mt-2">
+                <Money amount={network.claimableUsd} size="sm" className="inline text-white" /> ready
+                to collect network-wide ·{" "}
+                <Money amount={network.settledUsd} size="sm" className="inline text-white" /> paid out
+              </p>
+            </div>
+          )}
+
+          {signedIn && account?.programs && account.programs.length > 0 && (
+            <section className="mb-6">
+              <p className="mb-3 text-sm font-semibold text-white">Your programs</p>
+              <ul className="space-y-2">
+                {account.programs.slice(0, 4).map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-center justify-between rounded-lg border border-white/[0.06] px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-white">{p.name}</p>
+                      <p className="text-[11px] text-resolve-muted">{p.communitySlug}</p>
+                    </div>
+                    <div className="text-right text-xs">
+                      <p className="text-resolve-muted">
+                        Budget{" "}
+                        <Money amount={p.budgetUsd} size="sm" className="inline text-white" />
+                      </p>
+                      <p className="text-resolve-muted">
+                        Held{" "}
+                        <Money amount={p.committedUsd} size="sm" className="inline text-white" />
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {account.programs.length > 4 && (
+                <button
+                  type="button"
+                  onClick={() => setTab("programs")}
+                  className="mt-2 text-xs text-resolve-accent hover:underline"
+                >
+                  View all programs
+                </button>
+              )}
+            </section>
+          )}
+        </>
+      )}
+
+      {tab === "activity" && (
+        <section className="py-2">
+          {initialLoading ?
+            <p className="text-sm text-resolve-muted">Loading…</p>
+          : !activityItems.length ?
+            <p className="text-sm text-resolve-muted">{BANKING_UI.activityEmpty}</p>
+          : <ul>
+              {activityItems.slice(0, 24).map((item) => (
+                <ActivityRow
+                  key={item.id}
+                  title={item.title}
+                  subtitle={item.subtitle}
+                  amountUsd={item.amountUsd}
+                  direction={item.direction}
+                />
+              ))}
+            </ul>
+          }
+          {settlements.some((s) => s.txHash) && (
+            <div className="mt-8">
+              <p className="text-sm font-semibold text-white">Payment receipts</p>
+              <p className="mt-1 text-xs text-resolve-muted">
+                Verified on-chain — only shown after confirmation.
+              </p>
+              <ul className="mt-4">
+                {settlements
+                  .filter((s) => s.txHash)
+                  .slice(0, 12)
+                  .map((s) => (
+                    <CapitalSettlementRow
+                      key={s.id}
+                      label={s.label}
+                      amountUsd={s.amountUsd}
+                      txHash={s.txHash}
+                      status={s.status}
+                      at={s.at}
+                    />
+                  ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
-      {!initialLoading && network && (network.authorizedUsd > 0 || network.pendingFundingUsd > 0) && (
-        <div className="mb-8 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm">
-          <p className="font-medium text-amber-100">Recognized ≠ funded yet</p>
-          <p className="mt-1 text-xs leading-relaxed text-amber-200/80">
-            <Money amount={network.authorizedUsd} size="sm" className="inline text-white" />{" "}
-            recognized across the network. Program operators deposit USDC to their account before
-            authorizations become claimable — the platform settlement rail never funds user
-            programs.
-          </p>
-          {signedIn && yourDeposits < 0.01 && network.authorizedUsd > 0 && (
-            <p className="mt-2 text-xs text-amber-200/90">
-              Your deposit balance is $0 —{" "}
-              <button
-                type="button"
-                onClick={() => openAddFunds()}
-                className="text-resolve-accent hover:underline"
-              >
-                deposit USDC
-              </button>{" "}
-              to fund programs you operate.
-            </p>
+      {tab === "programs" && (
+        <section className="py-2">
+          <CapitalCommunityPrograms />
+          {signedIn && account?.programs && account.programs.length > 0 && (
+            <ul className="mt-6 space-y-2">
+              {account.programs.map((p) => (
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between rounded-lg border border-white/[0.06] px-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-white">{p.name}</p>
+                    <p className="text-[11px] text-resolve-muted">
+                      {p.communitySlug} · {friendlyStatus(p.status)}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/communities/${p.communitySlug}`}
+                    className="inline-flex items-center gap-1 text-xs text-resolve-accent hover:underline"
+                  >
+                    Open
+                    <ArrowUpRight className="h-3 w-3" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
-        </div>
+        </section>
       )}
 
-      <section className="mb-8 rounded-lg border border-resolve-accent/20 bg-resolve-accent/[0.04] px-4 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-resolve-accent">
-              <CircleDollarSign className="h-3.5 w-3.5" />
-              Circle Arc rail
-            </p>
-            <p className="mt-2 text-sm text-white">
-              {arc?.live ?
-                "Live — memo batch payouts & agent nano-payments on Arc USDC"
-              : arc?.message ?? "Arc rail configuring…"}
-            </p>
-          </div>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-              arc?.canDistribute ?
-                "bg-emerald-500/15 text-emerald-200"
-              : "bg-amber-500/15 text-amber-200"
-            }`}
-          >
-            {arc?.canDistribute ? "Live" : "Standby"}
-          </span>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-            <p className="text-[10px] uppercase text-resolve-muted-dim">Settlement wallet</p>
-            <p className="mt-1 text-sm text-white">
-              <Money amount={arc?.settlementBalanceUsd ?? 0} size="sm" className="inline" />
-            </p>
-            <p className="mt-0.5 font-mono text-[10px] text-resolve-muted">
-              {arc?.settlementWallet ?
-                `${arc.settlementWallet.slice(0, 8)}…${arc.settlementWallet.slice(-6)}`
-              : "Not configured"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-            <p className="text-[10px] uppercase text-resolve-muted-dim">Your deposit address</p>
-            <p className="mt-1 font-mono text-xs text-white">
-              {arc?.identityWallet?.depositAddress ?
-                `${arc.identityWallet.depositAddress.slice(0, 10)}…${arc.identityWallet.depositAddress.slice(-8)}`
-              : "Sign in to provision"}
-            </p>
-            <p className="mt-0.5 text-[10px] text-resolve-muted">
-              One Circle wallet per identity — not a new address per payment
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
-          {arc?.capabilities.batchMemoPayouts && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-resolve-muted">
-              <Layers className="h-3 w-3" /> Batch memos
-            </span>
-          )}
-          {arc?.capabilities.agentNanoPayments && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-resolve-muted">
-              <Zap className="h-3 w-3" /> Agent nano-pay
-            </span>
-          )}
-          {arc?.usdcGas && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-resolve-muted">
-              USDC gas · {arc.chain}
-            </span>
-          )}
-          {arc?.stats.nanoPaymentsSettled ?
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-1 text-resolve-muted">
-              {arc.stats.nanoPaymentsSettled} nano payments settled
+      {signedIn && account?.identities && tab === "overview" && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {account.identities.github ?
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-100">
+              <BadgeCheck className="h-3 w-3" /> GitHub {account.identities.github}
             </span>
           : null}
+          {account.identities.emailVerified && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-[11px] text-resolve-muted">
+              <BadgeCheck className="h-3 w-3" /> Email verified
+            </span>
+          )}
+          {payoutWallet && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-[11px] text-resolve-muted">
+              <Wallet className="h-3 w-3" />
+              {payoutWallet.slice(0, 6)}…{payoutWallet.slice(-4)}
+            </span>
+          )}
         </div>
-
-        <div className="mt-3 flex flex-wrap gap-4 text-xs text-resolve-muted">
-          <span>
-            Network authorized:{" "}
-            <Money amount={network?.authorizedUsd ?? 0} size="sm" className="inline" />
-          </span>
-          <span>
-            Network claimable:{" "}
-            <Money amount={network?.claimableUsd ?? 0} size="sm" className="inline" />
-          </span>
-          <span>
-            Settled: <Money amount={network?.settledUsd ?? 0} size="sm" className="inline" />
-          </span>
-        </div>
-      </section>
-
-      {arc?.recentMemos && arc.recentMemos.length > 0 && (
-        <section className="mb-8 border-b border-resolve-border pb-8">
-          <p className="text-sm font-semibold text-white">Recent Arc memo settlements</p>
-          <p className="mt-1 text-xs text-resolve-muted">
-            Batch payouts with on-chain memo attribution — verified on Arcscan.
-          </p>
-          <ul className="mt-4 space-y-2">
-            {arc.recentMemos.map((m) => (
-              <li
-                key={m.id}
-                className="flex items-center justify-between rounded-lg border border-white/[0.06] px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm text-white">{m.label}</p>
-                  <a
-                    href={`${arc.explorerUrl}/tx/${m.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-[10px] text-resolve-accent hover:underline"
-                  >
-                    {m.txHash.slice(0, 10)}…{m.txHash.slice(-8)}
-                  </a>
-                </div>
-                <Money amount={m.amountUsd} size="sm" className="text-white" />
-              </li>
-            ))}
-          </ul>
-        </section>
       )}
-
-      <section className="border-b border-resolve-border py-8">
-        <CapitalCommunityPrograms />
-      </section>
-
-      {signedIn && account?.programs && account.programs.length > 0 && (
-        <section className="border-b border-resolve-border py-8">
-          <p className="text-sm font-semibold text-white">Your program wallets</p>
-          <p className="mt-1 text-xs text-resolve-muted">
-            Committed funds stay in your custody until contributors claim.
-          </p>
-          <ul className="mt-4 space-y-2">
-            {account.programs.map((p) => (
-              <li
-                key={p.id}
-                className="flex items-center justify-between rounded-lg border border-white/[0.06] px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm font-medium text-white">{p.name}</p>
-                  <p className="text-[11px] text-resolve-muted">
-                    {p.communitySlug} · {p.status}
-                  </p>
-                </div>
-                <div className="text-right text-xs text-resolve-muted">
-                  <p>
-                    Budget <Money amount={p.budgetUsd} size="sm" className="inline text-white" />
-                  </p>
-                  <p>
-                    Committed{" "}
-                    <Money amount={p.committedUsd} size="sm" className="inline text-white" />
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="border-b border-resolve-border py-8">
-        <p className="text-sm font-semibold text-white">Pending</p>
-        <p className="mt-3 text-sm text-resolve-muted">
-          {signedIn && balances ?
-            <>
-              Your authorized:{" "}
-              <Money amount={balances.earnedAuthorizedUsd} size="sm" className="inline" />
-              {" · "}
-              Your claimable: <Money amount={yourClaimable} size="sm" className="inline" />
-            </>
-          : <>
-              Network authorized:{" "}
-              <Money amount={network?.authorizedUsd ?? 0} size="sm" className="inline" />
-            </>
-          }
-          {" · "}
-          Awaiting deposit funding:{" "}
-          <Money amount={network?.pendingFundingUsd ?? 0} size="sm" className="inline" />
-        </p>
-      </section>
-
-      <section className="border-b border-resolve-border py-8">
-        <p className="text-sm font-semibold text-white">Claims</p>
-        {!signedIn ?
-          <div className="mt-4 space-y-3">
-            <p className="text-sm text-resolve-muted">Sign in to collect your earnings.</p>
-            <Button onClick={onSignIn}>Sign in</Button>
-          </div>
-        : <>
-            <p className="mt-3 text-lg font-medium text-white">
-              <Money amount={yourClaimable} size="sm" className="inline" /> claimable for you
-            </p>
-            {!account?.identities?.github && (
-              <p className="mt-1 text-xs text-amber-200/90">
-                Link GitHub on Profile to match authorizations to your contributor identity.
-              </p>
-            )}
-            {payoutWallet && (
-              <p className="mt-2 flex items-center gap-1.5 font-mono text-xs text-resolve-muted">
-                <Wallet className="h-3 w-3" />
-                {payoutWallet.slice(0, 6)}…{payoutWallet.slice(-4)} — one wallet for your account
-              </p>
-            )}
-            {currencyOptions.length > 0 && (
-              <CurrencySelect
-                value={payoutCurrency}
-                options={currencyOptions}
-                onChange={onPayoutCurrencyChange}
-              />
-            )}
-            {fxHint && (
-              <div className="mt-4">
-                <FxSwapPanel hint={fxHint} />
-              </div>
-            )}
-            <div className="mt-4">
-              <Button
-                onClick={onClaim}
-                disabled={claiming || yourClaimable <= 0 || !payoutWallet}
-              >
-                {claiming ?
-                  "Claiming via Arc memo…"
-                : yourClaimable > 0 ?
-                  "Claim to Arc wallet (batched)"
-                : "Nothing to claim yet"}
-              </Button>
-            </div>
-          </>
-        }
-      </section>
-
-      <section className="border-b border-resolve-border py-8">
-        <p className="text-sm font-semibold text-white">Account statement</p>
-        <p className="mt-1 text-xs text-resolve-muted">
-          Deposits and program reserves — same rails for every account size.
-        </p>
-        {initialLoading ?
-          <p className="mt-3 text-sm text-resolve-muted">Loading…</p>
-        : !account?.statement.length ?
-          <p className="mt-3 text-sm text-resolve-muted">No account activity yet.</p>
-        : <ul className="mt-4">
-            {account.statement.map((line) => (
-              <StatementRow key={line.id} line={line} />
-            ))}
-          </ul>
-        }
-      </section>
-
-      <section className="py-8">
-        <p className="text-sm font-semibold text-white">Settlement history</p>
-        <p className="mt-1 text-xs text-resolve-muted">
-          On-chain settlements show explorer verification — never optimistic paid state.
-        </p>
-        {initialLoading ?
-          <p className="mt-3 text-sm text-resolve-muted">Loading…</p>
-        : !settlements.length ?
-          <p className="mt-3 text-sm text-resolve-muted">No settlements yet.</p>
-        : <ul className="mt-4">
-            {settlements.map((s) => (
-              <CapitalSettlementRow
-                key={s.id}
-                label={s.label}
-                amountUsd={s.amountUsd}
-                txHash={s.txHash}
-                status={s.status}
-                at={s.at}
-              />
-            ))}
-          </ul>
-        }
-      </section>
     </div>
   );
 }

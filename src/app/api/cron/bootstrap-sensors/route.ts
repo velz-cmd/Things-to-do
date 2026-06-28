@@ -2,24 +2,11 @@ import { NextResponse } from "next/server";
 import { bootstrapProductionSensors } from "@/lib/sensors/bootstrap";
 import { hasGithubToken } from "@/lib/github/client";
 import { INTEGRATIONS } from "@/lib/integrations/config";
-
-function authorize(req: Request): boolean {
-  const cron = process.env.CRON_SECRET?.trim();
-  const bootstrap = process.env.BOOTSTRAP_SENSOR_SECRET?.trim();
-  const auth = req.headers.get("authorization");
-  const isProd =
-    process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
-
-  if (cron && auth === `Bearer ${cron}`) return true;
-  if (bootstrap && auth === `Bearer ${bootstrap}`) return true;
-  // Dev-only open endpoint; production requires CRON_SECRET or BOOTSTRAP_SENSOR_SECRET
-  if (!isProd && !cron && !bootstrap) return true;
-  return false;
-}
+import { authorizeCronRequest } from "@/lib/env/cron-secret";
 
 /** One-shot production bootstrap: install communities → programs → sensor sync → ledger rows. */
 export async function POST(req: Request) {
-  if (!authorize(req)) {
+  if (!authorizeCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -50,7 +37,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  if (!authorize(req)) {
+  if (!authorizeCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

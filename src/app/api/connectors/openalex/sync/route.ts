@@ -3,11 +3,12 @@ import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
 import { syncOpenAlexCommunitySensors } from "@/lib/sensors/sync";
 import { INTEGRATIONS } from "@/lib/integrations/config";
+import { getCronSecret } from "@/lib/env/cron-secret";
 
 function authorizeCron(req: Request): boolean {
-  const secret = process.env.CRON_SECRET?.trim();
+  const secret = getCronSecret();
   if (!secret) return true;
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  return req.headers.get("authorization")?.trim() === `Bearer ${secret}`;
 }
 
 const bodySchema = z.object({

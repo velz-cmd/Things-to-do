@@ -99,4 +99,21 @@ test.describe("RESOLVE product surfaces", () => {
     const res = await request.post("/api/cron/notify-claimable");
     expect(res.status()).toBe(401);
   });
+
+  test("settings page loads", async ({ page }) => {
+    await page.goto("/settings", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Connectors" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Operator keys" })).toBeVisible();
+  });
+
+  test("command palette opens", async ({ page }) => {
+    await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Open command palette" }).click();
+    const dialog = page.getByRole("dialog", { name: "Command palette" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("Go to", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  });
 });

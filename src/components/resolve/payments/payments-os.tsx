@@ -11,6 +11,7 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
 import { CapitalCommunityPrograms } from "@/components/resolve/capital/capital-community-programs";
+import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-truth";
 import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
 
 type Overview = {
@@ -262,24 +263,33 @@ export function PaymentsOS() {
 
       <section className="py-8">
         <p className="text-sm font-semibold text-white">History</p>
+        <p className="mt-1 text-xs text-resolve-muted">
+          Settlements show explorer verification — never optimistic paid state.
+        </p>
         {loading ?
           <p className="mt-3 text-sm text-resolve-muted">Loading…</p>
         : !overview?.settlements.length && !overview?.recentAuthorizations.length ?
           <p className="mt-3 text-sm text-resolve-muted">No settlements yet.</p>
-        : <ul className="mt-4 divide-y divide-resolve-border/60">
-            {overview?.recentAuthorizations.slice(0, 8).map((a) => (
-              <li key={a.id} className="flex justify-between gap-2 py-3 text-sm">
-                <span className="text-resolve-muted">{a.contextLabel ?? a.missionId}</span>
-                <span>
-                  <Money amount={a.amountUsd} size="sm" className="inline" />
-                </span>
-              </li>
-            ))}
+        : <ul className="mt-4">
             {overview?.settlements.map((s) => (
-              <li key={s.id} className="flex justify-between gap-2 py-3 text-sm">
-                <span className="text-resolve-muted">{s.repo ?? s.missionId}</span>
-                <Money amount={s.treasuryAmount} size="sm" />
-              </li>
+              <CapitalSettlementRow
+                key={s.id}
+                label={s.repo ?? s.missionId}
+                amountUsd={s.treasuryAmount}
+                txHash={s.escrowTxHash}
+                status={s.status}
+                at={s.createdAt}
+              />
+            ))}
+            {overview?.recentAuthorizations.slice(0, 8).map((a) => (
+              <CapitalSettlementRow
+                key={a.id}
+                label={a.contextLabel ?? a.missionId}
+                amountUsd={a.amountUsd}
+                txHash={null}
+                status={a.status}
+                at={a.updatedAt}
+              />
             ))}
           </ul>
         }

@@ -7,7 +7,7 @@ import { useMissionScope } from "@/lib/mission/mission-context";
 import { IntelligenceBriefing } from "@/components/resolve/intelligence/intelligence-briefing";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import { DiscoverLiveFeed } from "@/components/resolve/discover/discover-live-feed";
-import { DiscoverGraphPreview } from "@/components/resolve/discover/discover-graph-preview";
+import { ValueGraph } from "@/components/resolve/discover/value-graph";
 import type { FundingOpportunity } from "@/lib/github/types";
 
 const DOMAINS = [
@@ -57,7 +57,7 @@ export function DiscoverSurface() {
 
       <DiscoverLiveFeed />
 
-      <DiscoverGraphPreview />
+      <ValueGraph variant="full" />
 
       <DiscoverCommunities />
 

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { CommandProvider } from "@/components/resolve/command/command-context";
 import { MissionScopeProvider } from "@/lib/mission/mission-context";
 import { MissionModalProvider } from "@/components/resolve/missions/mission-modal-context";
+import { CommandPaletteHost } from "@/components/resolve/command/command-palette-host";
 import { NewMissionModal } from "@/components/resolve/missions/new-mission-modal";
 import { AppTopNav } from "@/components/resolve/layout/app-top-nav";
 import { MissionScopeBar } from "@/components/resolve/mission-control/mission-scope-bar";
@@ -29,6 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <main className="relative overflow-auto">{children}</main>
             </div>
             <NewMissionModal />
+            <CommandPaletteHost />
           </MissionScopeProvider>
         </Suspense>
       </MissionModalProvider>

@@ -7,7 +7,7 @@ function round(n: number) {
   return Math.round(n * 100) / 100;
 }
 
-async function getReservedForPrograms(userId: string): Promise<number> {
+export async function getReservedForPrograms(userId: string): Promise<number> {
   const programs = await prisma.resolveProgram.findMany({
     where: { userId, status: { in: ["active", "deployed"] }, missionId: { not: null } },
     select: { missionId: true },
@@ -24,49 +24,69 @@ async function getReservedForPrograms(userId: string): Promise<number> {
 
 export type IdentityBalanceSyncResult = {
   synced: boolean;
-  creditedUsd: number;
+  adjustedUsd: number;
   onChainUsd: number | null;
+  reservedUsd: number;
   availableUsd: number;
 };
 
 /**
- * Credit user deposits that arrived on-chain (faucet, bridge, direct transfer)
- * but were not yet recorded in the ledger. Treasury/settlement wallets are never touched.
+ * Keep User.availableUsd aligned with real Arc USDC in the identity wallet.
+ * Credits faucet/bridge deposits and removes demo-only ledger inflation.
  */
 export async function syncIdentityBalance(userId: string): Promise<IdentityBalanceSyncResult> {
   const profile = await prisma.user.findUnique({ where: { id: userId } });
   if (!profile?.walletAddress) {
-    return { synced: false, creditedUsd: 0, onChainUsd: null, availableUsd: profile?.availableUsd ?? 0 };
+    return {
+      synced: false,
+      adjustedUsd: 0,
+      onChainUsd: null,
+      reservedUsd: 0,
+      availableUsd: profile?.availableUsd ?? 0,
+    };
   }
+
+  const reservedUsd = await getReservedForPrograms(userId);
 
   let onChainUsd: number;
   try {
     const bal = await getArcUsdcBalance(profile.walletAddress);
     onChainUsd = round(bal.balanceUsd);
   } catch {
-    return { synced: false, creditedUsd: 0, onChainUsd: null, availableUsd: profile.availableUsd };
+    return {
+      synced: false,
+      adjustedUsd: 0,
+      onChainUsd: null,
+      reservedUsd,
+      availableUsd: profile.availableUsd,
+    };
   }
 
-  const reservedUsd = await getReservedForPrograms(userId);
-  const accountedUsd = round(profile.availableUsd + reservedUsd);
-  const delta = round(onChainUsd - accountedUsd);
+  const targetAvailable = round(Math.max(0, onChainUsd - reservedUsd));
+  const delta = round(targetAvailable - profile.availableUsd);
 
-  if (delta < MIN_SYNC_USD) {
-    return { synced: false, creditedUsd: 0, onChainUsd, availableUsd: profile.availableUsd };
+  if (Math.abs(delta) < MIN_SYNC_USD) {
+    return {
+      synced: false,
+      adjustedUsd: 0,
+      onChainUsd,
+      reservedUsd,
+      availableUsd: profile.availableUsd,
+    };
   }
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
-      data: { availableUsd: { increment: delta } },
+      data: { availableUsd: targetAvailable },
     }),
     prisma.walletTransaction.create({
       data: {
         userId,
-        type: "deposit",
+        type: delta > 0 ? "deposit" : "withdrawal",
         method: "crypto",
-        amountUsd: delta,
-        label: "sync:onchain",
+        amountUsd: Math.abs(delta),
+        label: delta > 0 ? "sync:onchain" : "sync:reconcile",
         status: "completed",
       },
     }),
@@ -74,8 +94,33 @@ export async function syncIdentityBalance(userId: string): Promise<IdentityBalan
 
   return {
     synced: true,
-    creditedUsd: delta,
+    adjustedUsd: delta,
     onChainUsd,
+    reservedUsd,
     availableUsd: updated.availableUsd,
+  };
+}
+
+/** Spendable balance = on-chain USDC minus program reserves (source of truth). */
+export async function getRealSpendableUsd(userId: string): Promise<{
+  availableUsd: number;
+  onChainUsd: number | null;
+  reservedUsd: number;
+}> {
+  const sync = await syncIdentityBalance(userId);
+  if (sync.onChainUsd !== null) {
+    return {
+      availableUsd: sync.availableUsd,
+      onChainUsd: sync.onChainUsd,
+      reservedUsd: sync.reservedUsd,
+    };
+  }
+
+  const profile = await prisma.user.findUnique({ where: { id: userId } });
+  const reservedUsd = await getReservedForPrograms(userId);
+  return {
+    availableUsd: profile?.availableUsd ?? 0,
+    onChainUsd: null,
+    reservedUsd,
   };
 }

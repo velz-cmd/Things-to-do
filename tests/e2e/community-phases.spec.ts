@@ -118,6 +118,34 @@ test.describe("Community phases — APIs", () => {
     const res = await request.get("/api/entity/invalid");
     expect(res.status()).toBe(400);
   });
+
+  test("sensor status API returns gated communities", async ({ request }) => {
+    const res = await request.get("/api/communities/sensor-status");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.statuses?.length).toBeGreaterThanOrEqual(5);
+    const react = body.statuses.find((s: { slug: string }) => s.slug === "react");
+    expect(react).toHaveProperty("sensorGated", true);
+    expect(react).toHaveProperty("sensorLive");
+  });
+
+  test("github sensor sync GET returns pipeline info", async ({ request }) => {
+    const res = await request.get("/api/connectors/github/sync");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.programs).toContain("docs-bounty (RFB #3)");
+    expect(body.communities).toContain("react");
+  });
+
+  test("openalex sensor sync GET returns pipeline info", async ({ request }) => {
+    const res = await request.get("/api/connectors/openalex/sync");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.program).toContain("RFB #2");
+  });
 });
 
 test.describe("Community phases — surfaces", () => {
@@ -140,6 +168,7 @@ test.describe("Community phases — surfaces", () => {
     await expect(
       page.getByRole("main").getByText("Install on Independent Music"),
     ).toBeVisible();
+    await expect(page.getByRole("main").getByText("Install on React")).toHaveCount(0);
   });
 
   test("discover shows live radar sections", async ({ page }) => {

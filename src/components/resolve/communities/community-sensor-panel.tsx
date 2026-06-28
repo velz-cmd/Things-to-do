@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Radio, Zap } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, Radio, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Button } from "@/components/resolve/ui/button";
@@ -10,6 +10,7 @@ type SyncResponse = {
   ok: boolean;
   observations?: number;
   ingested?: number;
+  skipped?: number;
   eventTypes?: string[];
   reposScanned?: string[];
   live?: boolean;
@@ -18,37 +19,73 @@ type SyncResponse = {
 
 const SENSOR_SLUGS = new Set(["react", "linux", "open-research"]);
 
-export function CommunitySensorPanel({ slug }: { slug: string }) {
+type Props = {
+  slug: string;
+  /** When false, show install-first hint (no API call). */
+  installed?: boolean;
+  /** Reload authorizations / community surface after a successful sync. */
+  onSynced?: () => void | Promise<void>;
+};
+
+export function CommunitySensorPanel({ slug, installed = true, onSynced }: Props) {
   const [syncing, setSyncing] = useState(false);
   const [last, setLast] = useState<SyncResponse | null>(null);
-
-  if (!SENSOR_SLUGS.has(slug)) return null;
+  const [sensorReady, setSensorReady] = useState<boolean | null>(null);
 
   const isResearch = slug === "open-research";
   const endpoint = isResearch ? "/api/connectors/openalex/sync" : "/api/connectors/github/sync";
 
+  const loadStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/communities/sensor-status");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        statuses?: Array<{ slug: string; sensorReady: boolean; sensorLive: boolean }>;
+      };
+      const row = data.statuses?.find((s) => s.slug === slug);
+      if (row) setSensorReady(row.sensorReady);
+    } catch {
+      /* optional */
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (SENSOR_SLUGS.has(slug)) void loadStatus();
+  }, [slug, loadStatus]);
+
+  if (!SENSOR_SLUGS.has(slug)) return null;
+
   async function runSync() {
+    if (!installed) {
+      toast.message("Install RESOLVE on this community first");
+      return;
+    }
+
     setSyncing(true);
     try {
       const res = await fetch(endpoint, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isResearch ? { communitySlug: slug } : { communitySlug: slug }),
+        body: JSON.stringify({ communitySlug: slug }),
       });
       const data = (await res.json()) as SyncResponse;
       setLast(data);
       if (!res.ok) {
-        toast.error(data.error ?? "Sensor sync failed");
+        toast.error(data.error ?? "Could not refresh sensors");
         return;
       }
       if ((data.ingested ?? 0) > 0) {
-        toast.success(`${data.ingested} authorization(s) from sensor`);
+        toast.success(`${data.ingested} new authorization(s) from live sensors`);
+      } else if ((data.observations ?? 0) > 0) {
+        toast.message("Sensors checked — no new authorizations (already in ledger)");
       } else {
-        toast.message("Sensor ran — no new authorizations (check API keys or targets)");
+        toast.message("Sensors ran — no new events in this slice yet");
       }
+      await onSynced?.();
+      await loadStatus();
     } catch {
-      toast.error("Sensor sync unreachable");
+      toast.error("Could not reach sensor API");
     } finally {
       setSyncing(false);
     }
@@ -56,20 +93,30 @@ export function CommunitySensorPanel({ slug }: { slug: string }) {
 
   return (
     <BlueGlowCard variant="subtle" className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Radio className="h-4 w-4 text-resolve-accent" />
-        <span className="text-xs font-medium uppercase tracking-wider text-resolve-muted">
-          Fair-pay sensor
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Radio className="h-4 w-4 text-resolve-accent" />
+          <span className="text-xs font-medium uppercase tracking-wider text-resolve-muted">
+            Live sensors
+          </span>
+        </div>
+        {sensorReady === false && (
+          <span className="text-[10px] text-amber-400/90">Platform keys pending</span>
+        )}
       </div>
       <p className="text-sm text-white/90">
         {isResearch
-          ? "OpenAlex citation toll (RFB #2) — sensor → observation → authorization"
-          : "GitHub docs + security (RFB #3 / #4) — sensor → observation → authorization"}
+          ? "Pulls new OpenAlex citations into the authorization ledger (RFB #2)."
+          : "Pulls merged docs PRs and security issues from GitHub into the ledger (RFB #3 / #4)."}
       </p>
+      {!installed && (
+        <p className="text-xs text-resolve-muted">
+          Install RESOLVE above, then use Refresh sensors to load live fair-pay events.
+        </p>
+      )}
       {last && (
-        <p className="text-[11px] text-resolve-muted-dim">
-          Last run: {last.observations ?? 0} observations · {last.ingested ?? 0} ingested
+        <p className="text-[11px] leading-relaxed text-resolve-muted-dim">
+          Last refresh: {last.observations ?? 0} observation(s) · {last.ingested ?? 0} new in ledger
           {last.eventTypes?.length ? ` · ${last.eventTypes.join(", ")}` : ""}
           {last.reposScanned?.length ? ` · ${last.reposScanned.join(", ")}` : ""}
         </p>
@@ -78,12 +125,17 @@ export function CommunitySensorPanel({ slug }: { slug: string }) {
         type="button"
         variant="secondary"
         size="sm"
-        disabled={syncing}
+        disabled={syncing || !installed}
         onClick={() => void runSync()}
         className="gap-2"
+        title={installed ? "Fetch latest sensor events" : "Install this community first"}
       >
-        {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-        Run sensor sync
+        {syncing ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <RefreshCw className="h-3.5 w-3.5" />
+        )}
+        Refresh sensors
       </Button>
     </BlueGlowCard>
   );

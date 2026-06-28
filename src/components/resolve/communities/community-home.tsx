@@ -249,8 +249,9 @@ export function CommunityHome({ slug }: { slug: string }) {
       }
     >
       {!installed ? (
-        <div className="max-w-lg">
+        <div className="max-w-lg space-y-6">
           <InstallResolveCard community={catalog} onInstalled={() => void refresh()} />
+          <CommunitySensorPanel slug={slug} installed={false} />
         </div>
       ) : (
         <div className="space-y-8">
@@ -291,7 +292,7 @@ export function CommunityHome({ slug }: { slug: string }) {
             </BlueGlowCard>
           </section>
 
-          <CommunitySensorPanel slug={slug} />
+          <CommunitySensorPanel slug={slug} installed onSynced={refresh} />
 
           {surface?.observatory && surface.observatory.length > 0 && (
             <CommunityObservatory alerts={surface.observatory} />

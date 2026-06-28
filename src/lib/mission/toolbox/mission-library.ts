@@ -8,6 +8,8 @@ export type MissionSession = {
   query: string;
   scope?: string;
   ecosystemId?: string;
+  /** Display world name — not repo title */
+  worldName?: string;
   phase?: MissionPhase;
   status?: string;
   savedAt: string;
@@ -146,6 +148,36 @@ export function saveMissionLibraryEntry(entry: {
 
 export function removeMissionLibraryEntry(id: string) {
   removeMissionSession(id);
+}
+
+const REPO_TITLE = /^[\w.-]+\/[\w.-]+$/;
+
+/** Mission library shows worlds, not raw repo titles */
+export function sessionDisplayTitle(
+  session: MissionSession,
+  workspaces?: Array<{ id: string; name: string }>,
+): string {
+  if (session.worldName) return session.worldName;
+  if (session.ecosystemId && workspaces?.length) {
+    const world = workspaces.find((w) => w.id === session.ecosystemId);
+    if (world) return world.name;
+  }
+  const title = session.title?.trim();
+  if (title && !REPO_TITLE.test(title)) return title;
+  const scope = session.scope ?? session.query ?? "";
+  if (scope && !REPO_TITLE.test(scope.split(/\s/)[0] ?? "")) {
+    return scope.slice(0, 80);
+  }
+  return title || "Mission";
+}
+
+export function sessionSubtitle(session: MissionSession): string {
+  const objective = session.query || session.scope;
+  if (!objective) return "";
+  if (REPO_TITLE.test(session.title ?? "") && objective !== session.title) {
+    return objective.slice(0, 60);
+  }
+  return objective.slice(0, 60);
 }
 
 export function formatSessionTime(iso: string): string {

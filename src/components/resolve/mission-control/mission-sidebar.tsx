@@ -17,6 +17,8 @@ import {
   formatSessionTime,
   loadMissionSessions,
   removeMissionSession,
+  sessionDisplayTitle,
+  sessionSubtitle,
   type MissionSession,
 } from "@/lib/mission/toolbox/mission-library";
 import {
@@ -81,7 +83,12 @@ export function MissionSidebar({
 
     if (missions !== null) {
       setServerMode(true);
-      setSessions(missions.map(serverMissionToSession));
+      const ecoMap = new Map((eco ?? []).map((e) => [e.id, e.name]));
+      setSessions(
+        missions.map((m) =>
+          serverMissionToSession(m, m.ecosystemId ? ecoMap.get(m.ecosystemId) : undefined),
+        ),
+      );
     } else {
       setServerMode(false);
       setSessions(loadMissionSessions());
@@ -210,10 +217,13 @@ export function MissionSidebar({
                     )}
                   >
                     <span className="block truncate text-[13px]">
-                      {s.title || s.query || "Untitled mission"}
+                      {sessionDisplayTitle(s, workspaces)}
                     </span>
                     <span className="mt-0.5 flex gap-1.5 truncate text-[10px] text-resolve-muted-dim">
                       {formatSessionTime(s.updatedAt)}
+                      {sessionSubtitle(s) && (
+                        <span className="truncate">· {sessionSubtitle(s)}</span>
+                      )}
                       {s.status && (
                         <span className="text-resolve-accent/80">
                           · {statusLabel(s.status as MissionStatus)}

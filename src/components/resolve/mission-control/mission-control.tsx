@@ -360,7 +360,7 @@ export function MissionControl() {
           ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
         });
         if (created) {
-          activeSession = serverMissionToSession(created);
+          activeSession = serverMissionToSession(created, activeWorkspace?.name);
           setSession(activeSession);
         }
       }
@@ -472,7 +472,7 @@ export function MissionControl() {
         }
 
         if (serverMode && data.mission) {
-          const updated = serverMissionToSession(data.mission);
+          const updated = serverMissionToSession(data.mission, activeWorkspace?.name);
           setSession(updated);
           setMissionStatus(data.status ?? updated.status ?? null);
           void loadTimelineForMission(updated.id, workspaceId);
@@ -634,7 +634,7 @@ export function MissionControl() {
 
     if (serverMode) {
       const created = await createServerMission({ ecosystemId: wsId });
-      setSession(created ? serverMissionToSession(created) : createMissionSession(wsId));
+      setSession(created ? serverMissionToSession(created, activeWorkspace?.name) : createMissionSession(wsId));
     } else {
       setSession(createMissionSession(wsId));
     }
@@ -660,7 +660,7 @@ export function MissionControl() {
     if (serverMode && !s.id.startsWith("ms-")) {
       const full = await fetchMission(s.id);
       if (full) {
-        const restored = serverMissionToSession(full);
+        const restored = serverMissionToSession(full, activeWorkspace?.name ?? s.worldName);
         setSession(restored);
         setMissionStatus(restored.status ?? null);
         const turnList = turnsFromSession(restored);

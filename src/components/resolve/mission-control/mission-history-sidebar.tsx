@@ -37,7 +37,7 @@ export function MissionHistorySidebar({
     const missions = await fetchMissions();
     if (missions !== null) {
       setServerMode(true);
-      setSessions(missions.map(serverMissionToSession));
+      setSessions(missions.map((m) => serverMissionToSession(m)));
     } else {
       setServerMode(false);
       setSessions(loadMissionSessions());

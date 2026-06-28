@@ -19,6 +19,7 @@ export type ProgramRules = {
   perCveUsd?: number;
   perCitationUsd?: number;
   minDurationSec?: number;
+  minLines?: number;
   splitMode?: string;
   connectorId?: string;
   eventType?: string;

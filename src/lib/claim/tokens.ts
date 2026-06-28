@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { getClaimTokenSecret } from "@/lib/env/cron-secret";
 
 export type ClaimTokenPayload = {
   v: 1;
@@ -12,10 +13,7 @@ export type ClaimTokenPayload = {
 const TOKEN_TTL_SEC = 60 * 60 * 24 * 14;
 
 function secret(): string {
-  const s =
-    process.env.CLAIM_TOKEN_SECRET?.trim() ||
-    process.env.CRON_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const s = getClaimTokenSecret();
   if (!s) throw new Error("CLAIM_TOKEN_SECRET or CRON_SECRET required for claim tokens");
   return s;
 }

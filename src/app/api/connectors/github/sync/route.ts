@@ -6,10 +6,12 @@ import { syncGithubCommunitySensors } from "@/lib/sensors/sync";
 import { hasGithubToken } from "@/lib/github/client";
 import { COMMUNITY_GITHUB_TARGETS } from "@/lib/sensors/targets";
 
+import { getCronSecret } from "@/lib/env/cron-secret";
+
 function authorizeCron(req: Request): boolean {
-  const secret = process.env.CRON_SECRET?.trim();
+  const secret = getCronSecret();
   if (!secret) return true;
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  return req.headers.get("authorization")?.trim() === `Bearer ${secret}`;
 }
 
 const bodySchema = z.object({

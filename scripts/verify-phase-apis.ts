@@ -73,6 +73,16 @@ const checks: Check[] = [
     expect: (b) => Boolean((b as { snapshot?: { balanceUsd?: number } }).snapshot?.balanceUsd !== undefined),
   },
   {
+    name: "health live fingerprint",
+    method: "GET",
+    path: "/api/health/live",
+    expectStatus: 200,
+    expect: (b) => {
+      const year = (b as { dataYear?: number }).dataYear;
+      return year === 2026;
+    },
+  },
+  {
     name: "health deploy fingerprint",
     method: "GET",
     path: "/api/health/deploy",

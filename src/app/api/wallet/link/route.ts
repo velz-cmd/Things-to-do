@@ -16,7 +16,33 @@ export async function POST(req: Request) {
   }
 
   const external = walletAddress.toLowerCase();
-  const user = await prisma.user.update({
+
+  const identityOwner = await prisma.user.findFirst({
+    where: {
+      walletAddress: external,
+      embeddedWallet: true,
+      id: { not: session.user.id },
+    },
+    select: { id: true },
+  });
+  if (identityOwner) {
+    return NextResponse.json(
+      { error: "That address is another member's RESOLVE wallet" },
+      { status: 409 },
+    );
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (user?.walletAddress?.toLowerCase() === external) {
+    return NextResponse.json({
+      ok: true,
+      appWalletAddress: user.walletAddress,
+      externalWalletAddress: user.scanWalletAddress,
+      message: "That is already your RESOLVE wallet address",
+    });
+  }
+
+  const updated = await prisma.user.update({
     where: { id: session.user.id },
     data: {
       scanWalletAddress: external,
@@ -25,7 +51,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    appWalletAddress: user.walletAddress,
-    externalWalletAddress: user.scanWalletAddress,
+    appWalletAddress: updated.walletAddress,
+    externalWalletAddress: updated.scanWalletAddress,
   });
 }

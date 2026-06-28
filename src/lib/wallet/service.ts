@@ -28,6 +28,7 @@ export async function ensureUserProfile(params: {
     update: {
       email: params.email ?? undefined,
       displayName: params.displayName ?? undefined,
+      authProvider: params.authProvider ?? undefined,
     },
   });
 }

@@ -65,6 +65,8 @@ function ProgramCard({
   readiness?: CommunitySurface["deployReadiness"];
 }) {
   const isDeploying = deploying === program.id;
+  const canRedeploy = (readiness?.authorizedCount ?? 0) > 0;
+  const deployDisabled = isDeploying || (program.status === "deployed" && !canRedeploy);
 
   return (
     <BlueGlowCard variant="subtle" className="space-y-4">
@@ -114,7 +116,7 @@ function ProgramCard({
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
-          disabled={isDeploying || program.status === "deployed" || !readiness?.canDeploy}
+          disabled={deployDisabled || !readiness?.canDeploy}
           onClick={() => onDeploy(program.id)}
         >
           {isDeploying ? (
@@ -122,11 +124,13 @@ function ProgramCard({
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Deploying on Arc…
             </>
-          ) : program.status === "deployed" ? (
+          ) : program.status === "deployed" && !canRedeploy ? (
             <>
               <CheckCircle2 className="h-3.5 w-3.5" />
               Deployed
             </>
+          ) : program.status === "deployed" && canRedeploy ? (
+            "Deploy batch on Arc"
           ) : (
             "Deploy on Arc"
           )}

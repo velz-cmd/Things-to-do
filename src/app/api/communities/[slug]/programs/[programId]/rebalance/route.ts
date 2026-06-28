@@ -36,15 +36,15 @@ export async function POST(_req: Request, { params }: Params) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
+  const report = result as import("@/lib/communities/measure-learn").MeasureLearnReport;
   const community = await buildCommunitySurface(ready.user.id, slug);
 
   return NextResponse.json({
     ok: true,
-    report: result,
+    report,
     community,
-    message:
-      "applied" in result && result.applied
-        ? `Rebalanced — ${JSON.stringify(result.appliedChange)}`
-        : "Measured — no automatic adjustment recommended yet",
+    message: report.applied
+      ? `Rebalanced — ${JSON.stringify(report.appliedChange)}`
+      : "Measured — no automatic adjustment recommended yet",
   });
 }

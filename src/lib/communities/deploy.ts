@@ -124,7 +124,7 @@ export async function deployProgramOnArc(
 
   const treasuryAmount = Math.min(
     program.budgetUsd > 0 ? program.budgetUsd : grossTotal + pendingClaimUsd,
-    grossTotal + pendingClaimUsd,
+    grossTotal + pendingClaimUsd + platformFeeUsd,
   );
 
   if (treasuryAmount <= 0) {

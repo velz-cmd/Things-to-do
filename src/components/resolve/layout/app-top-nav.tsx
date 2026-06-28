@@ -26,8 +26,15 @@ function isActive(pathname: string, href: string) {
       pathname.startsWith("/workspace")
     );
   }
+  if (href === "/communities") {
+    return pathname === href || pathname.startsWith("/communities/");
+  }
   if (href === "/capital") {
-    return pathname === href || pathname.startsWith("/capital") || pathname.startsWith("/payments");
+    return (
+      pathname === href ||
+      pathname.startsWith("/capital") ||
+      pathname.startsWith("/payments")
+    );
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

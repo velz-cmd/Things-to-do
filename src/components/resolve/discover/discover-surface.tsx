@@ -55,6 +55,15 @@ export function DiscoverSurface() {
 
       <DiscoverCommunities />
 
+      <p className="mb-8 text-center">
+        <Link
+          href="/communities"
+          className="text-xs font-medium text-resolve-accent hover:underline"
+        >
+          Open Communities hub →
+        </Link>
+      </p>
+
       <form
         className="relative mb-8"
         onSubmit={(e) => {

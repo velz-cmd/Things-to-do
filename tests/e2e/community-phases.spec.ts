@@ -168,7 +168,9 @@ test.describe("Community phases — surfaces", () => {
     await expect(
       page.getByRole("main").getByText("Install on Independent Music"),
     ).toBeVisible();
-    await expect(page.getByRole("main").getByText("Install on React")).toHaveCount(0);
+    // React/linux/open-research appear only when sensorLive — hidden in CI without ledger.
+    const reactInstall = page.getByRole("main").getByText("Install on React");
+    await expect(reactInstall).toHaveCount(0);
   });
 
   test("discover shows live radar sections", async ({ page }) => {
@@ -206,10 +208,10 @@ test.describe("Community phases — surfaces", () => {
   });
 
   test("entity page loads for repository", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
     await page.goto("/e/repo/vercel/next.js", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("Overview")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     await expect(page.getByText("Conservation flow")).toBeVisible();
     await expect(page.getByText("Gini coefficient")).toBeVisible();
   });

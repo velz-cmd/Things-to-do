@@ -41,9 +41,12 @@ export function authorizeCronRequest(req: Request): boolean {
   if (secret && auth === `Bearer ${secret}`) return true;
   if (bootstrap && auth === `Bearer ${bootstrap}`) return true;
 
-  const isProd =
-    process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+  // CI and production always require a bearer token.
+  if (process.env.CI === "true" || process.env.VERCEL_ENV === "production") {
+    return false;
+  }
 
+  const isProd = process.env.NODE_ENV === "production";
   if (!isProd && !secret && !bootstrap) return true;
   return false;
 }

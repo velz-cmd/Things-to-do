@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cronSecretHasWhitespace } from "@/lib/env/cron-secret";
+import { cronSecretHasWhitespace, claimTokenSecretHasWhitespace } from "@/lib/env/cron-secret";
 
 /** Production deploy fingerprint — verify main is live on Vercel. */
 export async function GET() {
@@ -27,6 +27,9 @@ export async function GET() {
         ? [
             "CRON_SECRET has leading/trailing whitespace in Vercel — trim it in Environment Variables",
           ]
+        : []),
+      ...(claimTokenSecretHasWhitespace()
+        ? ["CLAIM_TOKEN_SECRET has leading/trailing whitespace — trim in Vercel"]
         : []),
     ],
   });

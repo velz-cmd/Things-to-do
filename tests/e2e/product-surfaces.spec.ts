@@ -103,8 +103,25 @@ test.describe("RESOLVE product surfaces", () => {
   test("settings page loads", async ({ page }) => {
     await page.goto("/settings", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: "Connectors" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Your connections" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Distribution sensors" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: "Operator keys" })).toBeVisible();
+  });
+
+  test("settings status API returns real shape", async ({ request }) => {
+    const res = await request.get("/api/settings/status");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.connections)).toBe(true);
+    expect(body.connections.some((c: { id: string }) => c.id === "github")).toBe(true);
+    expect(Array.isArray(body.distributionSensors)).toBe(true);
+    expect(body.distributionSensors.some((c: { id: string }) => c.id === "github")).toBe(true);
+  });
+
+  test("connectors redirect to settings", async ({ page }) => {
+    await page.goto("/connectors", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/settings/);
   });
 
   test("command palette opens", async ({ page }) => {

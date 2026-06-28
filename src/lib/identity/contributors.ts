@@ -102,11 +102,18 @@ export async function linkWalletToGithub(input: {
   });
 
   if (input.userId) {
+    const user = await prisma.user.findUnique({ where: { id: input.userId } });
+    if (!user) return updated;
+
+    // Never replace the Circle identity wallet — payout preference only.
+    const payout = input.walletAddress.toLowerCase();
+    const identity = user.walletAddress?.toLowerCase();
     await prisma.user.update({
       where: { id: input.userId },
       data: {
         githubUsername: login,
-        walletAddress: input.walletAddress,
+        scanWalletAddress:
+          identity && payout === identity ? user.scanWalletAddress : payout,
       },
     });
   }

@@ -63,10 +63,6 @@ export async function GET(request: Request) {
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
-        const { data: existing } = await supabase.auth.getUser();
-        if (existing.user) {
-          return response;
-        }
         return NextResponse.redirect(
           `${origin}/?auth_error=${encodeURIComponent(error.message)}`
         );
@@ -77,10 +73,6 @@ export async function GET(request: Request) {
         type,
       });
       if (error) {
-        const { data: existing } = await supabase.auth.getUser();
-        if (existing.user) {
-          return response;
-        }
         return NextResponse.redirect(
           `${origin}/?auth_error=${encodeURIComponent(error.message)}`
         );
@@ -117,10 +109,6 @@ export async function GET(request: Request) {
       e instanceof Error
         ? e.message
         : "Sign-in link expired or already used. Request a new one.";
-    const { data: existing } = await supabase.auth.getUser();
-    if (existing.user) {
-      return response;
-    }
     return NextResponse.redirect(
       `${origin}/?auth_error=${encodeURIComponent(message)}`
     );

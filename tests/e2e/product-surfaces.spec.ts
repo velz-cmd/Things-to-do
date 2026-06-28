@@ -92,12 +92,9 @@ test.describe("RESOLVE product surfaces", () => {
     expect(body.network).toHaveProperty("pendingFundingUsd");
   });
 
-  test("payments overview API returns treasury and ledger", async ({ request }) => {
+  test("payments overview API requires sign-in", async ({ request }) => {
     const res = await request.get("/api/payments/overview");
-    expect(res.ok()).toBeTruthy();
-    const body = await res.json();
-    expect(body).toHaveProperty("treasury");
-    expect(body).toHaveProperty("ledger");
+    expect(res.status()).toBe(401);
   });
 
   test("profile earnings API returns summary shape", async ({ request }) => {

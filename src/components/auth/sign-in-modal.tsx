@@ -20,7 +20,7 @@ type AuthAction = "email" | "google" | "wallet" | "guest" | null;
 const COOLDOWN_KEY = "resolve.signin.cooldownUntil";
 const EMAIL_KEY = "resolve.signin.email";
 const VERIFY_STEP_KEY = "resolve.signin.verifyPending";
-const DEFAULT_RESEND_COOLDOWN_SEC = 300;
+const DEFAULT_RESEND_COOLDOWN_SEC = 60;
 
 function getCooldownRemaining(): number {
   try {

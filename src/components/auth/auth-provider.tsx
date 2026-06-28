@@ -19,7 +19,7 @@ import {
   markGoogleAuthBroken,
 } from "@/hooks/use-auth-capabilities";
 import { syncLocalMemoryToServer } from "@/lib/auth/memory-sync";
-import { syncLocalEcosystemsToServer } from "@/lib/auth/ecosystem-sync";
+import { syncLocalEcosystemsToServer, clearGuestSessionStorage } from "@/lib/auth/ecosystem-sync";
 import {
   setRememberedEmail,
   setRememberedProvider,
@@ -165,6 +165,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       if (nextSession?.user) {
+        const userId = nextSession.user.id;
+        try {
+          const lastUserId = sessionStorage.getItem("resolve.auth.lastUserId");
+          if (lastUserId && lastUserId !== userId) {
+            clearGuestSessionStorage();
+          }
+          sessionStorage.setItem("resolve.auth.lastUserId", userId);
+        } catch {
+          /* ignore */
+        }
+
         const email = nextSession.user.email?.trim().toLowerCase();
         if (email) {
           setRememberedEmail(email);
@@ -183,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           /* non-fatal */
         });
 
-        void syncLocalEcosystemsToServer().catch(() => {
+        void syncLocalEcosystemsToServer(userId).catch(() => {
           /* non-fatal */
         });
 
@@ -385,13 +396,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: trimmed, confirm: true }),
         }).catch(() => {
-          /* non-fatal — link was already sent */
+          /* non-fatal */
         });
 
         return {
           ok: true,
           expiresInMinutes: data.expiresInMinutes ?? 5,
-          resendCooldownSeconds: data.resendCooldownSeconds ?? 300,
+          resendCooldownSeconds: data.resendCooldownSeconds ?? 60,
         };
       } catch (e) {
         if (e instanceof Error && e.message === "timeout") {
@@ -405,6 +416,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
+    clearGuestSessionStorage();
+    try {
+      sessionStorage.removeItem("resolve.auth.lastUserId");
+    } catch {
+      /* ignore */
+    }
     setSession(null);
     setUser(null);
     setBalance(null);

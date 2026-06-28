@@ -39,7 +39,7 @@ export const BANKING_UI = {
   walletAddress: "Your wallet address",
   copyAddress: "Copy address",
   copied: "Copied",
-  networkPulse: "Across RESOLVE",
+  networkPulse: "Your programs",
   verifiedPayment: "Verified payment",
   pendingPayment: "Pending",
 } as const;

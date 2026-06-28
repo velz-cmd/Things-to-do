@@ -246,6 +246,7 @@ export async function getGlobalAuthorizationSummary() {
 export async function getUserAuthorizationSummary(input: {
   userId: string;
   githubUsername?: string | null;
+  walletAddress?: string | null;
 }) {
   const programs = await prisma.resolveProgram.findMany({
     where: { userId: input.userId },
@@ -258,8 +259,14 @@ export async function getUserAuthorizationSummary(input: {
   const or: Record<string, unknown>[] = [];
   if (input.githubUsername) {
     or.push({
-      payeeKeyType: "github",
+      payeeKeyType: "github_username",
       payeeKey: input.githubUsername.toLowerCase(),
+    });
+  }
+  if (input.walletAddress) {
+    or.push({
+      payeeKeyType: "wallet",
+      payeeKey: input.walletAddress.toLowerCase(),
     });
   }
   if (missionIds.length) {

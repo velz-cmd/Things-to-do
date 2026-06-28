@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
-import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { ResolveBanking } from "@/components/resolve/payments/resolve-banking";
 import type { BankingAccountSnapshot } from "@/lib/banking/types";
@@ -31,11 +30,9 @@ type Overview = {
 };
 
 export function PaymentsOS() {
-  const { user, signInWithGitHub, githubEnabled } = useAuth();
+  const { user, refreshBalance } = useAuth();
   const { openSignIn } = useSignInModal();
-  const capabilities = useAuthCapabilities();
   const account = useResolveAccount();
-  const githubOAuthReady = capabilities.loaded && capabilities.github;
 
   const [banking, setBanking] = useState<BankingAccountSnapshot | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -61,7 +58,8 @@ export function PaymentsOS() {
         ]);
 
         if (!bankRes.ok) throw new Error("banking account failed");
-        setBanking(await bankRes.json());
+        const next = await bankRes.json();
+        setBanking(next);
 
         if (ovRes.ok) {
           const ov = await ovRes.json();
@@ -70,6 +68,7 @@ export function PaymentsOS() {
             recentAuthorizations: ov.recentAuthorizations ?? [],
           });
         }
+        void refreshBalance();
       } catch {
         if (!opts?.silent) toast.error("Could not load your account");
       } finally {
@@ -77,7 +76,7 @@ export function PaymentsOS() {
         setRefreshing(false);
       }
     },
-    [],
+    [refreshBalance],
   );
 
   useEffect(() => {
@@ -128,8 +127,7 @@ export function PaymentsOS() {
   }
 
   function handleSignIn() {
-    if (githubOAuthReady && githubEnabled) signInWithGitHub();
-    else openSignIn();
+    openSignIn();
   }
 
   const settlements = useMemo(() => {

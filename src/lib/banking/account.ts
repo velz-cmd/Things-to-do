@@ -4,7 +4,7 @@ import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { getUserAuthorizationSummary } from "@/lib/authorization/ledger";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
 import { getBankingArcRail, buildFallbackArcRail } from "@/lib/banking/arc-rail";
-import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
+import { getRealSpendableUsd, resolveSpendableUsd } from "@/lib/wallet/sync-identity-balance";
 import type { User } from "@prisma/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -157,6 +157,7 @@ export async function getBankingAccountSnapshot(input: {
       ? await getUserAuthorizationSummary({
           userId: input.profile.id,
           githubUsername: input.profile.githubUsername,
+          walletAddress: input.profile.walletAddress,
         }).catch(() => ({
           authorizedUsd: 0,
           claimableUsd: 0,
@@ -218,9 +219,14 @@ export async function getBankingAccountSnapshot(input: {
   const realBalance = await getRealSpendableUsd(profile.id).catch(() => null);
   const freshProfile =
     (await prisma.user.findUnique({ where: { id: profile.id } })) ?? profile;
-  const availableUsd = realBalance?.availableUsd ?? freshProfile.availableUsd;
-  const onChainUsd = realBalance?.onChainUsd ?? null;
   const reservedUsdFromChain = realBalance?.reservedUsd;
+  const onChainUsd = realBalance?.onChainUsd ?? null;
+  const reservedForDisplay = reservedUsdFromChain ?? 0;
+  const availableUsd = resolveSpendableUsd({
+    availableUsd: realBalance?.availableUsd ?? freshProfile.availableUsd,
+    onChainUsd,
+    reservedUsd: reservedForDisplay,
+  });
 
   const arc = await getBankingArcRail(freshProfile).catch(() => buildFallbackArcRail());
 

@@ -36,7 +36,8 @@ async function fetchOpenAlexWorks(query: string, perPage = 5): Promise<OpenAlexW
   const url = openAlexUrl("/works", {
     search: query,
     per_page: String(perPage),
-    sort: "cited_by_count:desc",
+    sort: "publication_date:desc",
+    filter: "publication_year:>2023",
   });
   const res = await fetch(url, { headers: openAlexHeaders(), next: { revalidate: 86400 } });
   if (!res.ok) return [];
@@ -140,7 +141,8 @@ export async function scanCitationObservations(input: {
           raw: {
             citedTitle: cited.title,
             citingTitle: citing.title,
-            publicationYear: cited.publication_year,
+            publicationYear: citing.publication_year ?? cited.publication_year,
+            observedYear: new Date().getUTCFullYear(),
           },
           missionId: input.program.missionId,
           policyId: input.program.templateId,

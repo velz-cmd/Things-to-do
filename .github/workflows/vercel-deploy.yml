@@ -43,15 +43,21 @@ jobs:
         id: health
         run: |
           echo "Verifying $PRODUCTION_URL (Vercel Git deploys automatically on push to main)..."
+          EXPECT_SHA="${{ github.sha }}"
           for i in $(seq 1 40); do
+            DEPLOY_JSON=$(curl -fsS "$PRODUCTION_URL/api/health/deploy" 2>/dev/null || echo '{}')
+            COMMIT=$(echo "$DEPLOY_JSON" | grep -o '"commit":"[^"]*"' | head -1 | cut -d'"' -f4)
             if curl -fsS "$PRODUCTION_URL/api/health/env" | grep -q '"ok":true'; then
-              echo "✓ Production healthy (attempt $i)"
-              curl -fsS "$PRODUCTION_URL/api/config" | head -c 400 || true
-              echo ""
-              exit 0
+              if [ -n "$COMMIT" ] && [ "${EXPECT_SHA:0:7}" = "$COMMIT" ]; then
+                echo "✓ Production healthy · deploy commit $COMMIT matches push ${EXPECT_SHA:0:7}"
+                curl -fsS "$PRODUCTION_URL/api/config" | head -c 400 || true
+                echo ""
+                exit 0
+              fi
+              echo "✓ Health OK but deploy commit=${COMMIT:-unknown} (expect ${EXPECT_SHA:0:7}) — attempt $i"
             fi
             echo "Waiting for deployment... ($i/40)"
             sleep 15
           done
-          echo "::warning::Production not healthy yet — may be Vercel rate limit. Site may still be on previous deploy."
+          echo "::warning::Production not on latest commit yet — check Vercel deploy logs (CRON_SECRET whitespace is a common blocker)."
           exit 0

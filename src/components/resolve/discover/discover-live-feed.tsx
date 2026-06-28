@@ -24,6 +24,16 @@ function formatRelative(iso: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function formatAbsolute(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function DiscoverLiveFeed({ className }: { className?: string }) {
   const [data, setData] = useState<RadarResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,9 +70,9 @@ export function DiscoverLiveFeed({ className }: { className?: string }) {
             </p>
           </div>
         </div>
-        {data?.live && (
+        {data?.live && data.updatedAt && (
           <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">
-            Live
+            Live · {new Date(data.updatedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
           </span>
         )}
       </div>
@@ -115,7 +125,11 @@ export function DiscoverLiveFeed({ className }: { className?: string }) {
                       ${item.amountUsd.toFixed(4)}
                     </p>
                   )}
-                  <p className="text-[10px] text-resolve-muted-dim">{formatRelative(item.at)}</p>
+                  <p className="text-[10px] text-resolve-muted-dim">
+                    {formatAbsolute(item.at)}
+                    <span className="mx-1">·</span>
+                    {formatRelative(item.at)}
+                  </p>
                 </div>
               </div>
             </li>

@@ -81,6 +81,8 @@ export async function createPendingRewardsFromAllocation(input: {
           amountUsd: reward.amountUsd,
           missionId: reward.missionId,
           contextLabel: reward.repo ?? undefined,
+          confidence: reward.confidence,
+          claimableSince: reward.createdAt,
         });
       } catch (e) {
         console.error("[pending-rewards] earn notification failed:", e);

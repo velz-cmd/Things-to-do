@@ -36,7 +36,7 @@ type ClaimPreview = {
     contextLabel: string | null;
   }[];
   legacyRewardIds: string[];
-  expiresAt: string;
+  expiresAt?: string;
   error?: string;
 };
 
@@ -57,26 +57,53 @@ export function ClaimEntry({ embedded = false }: { embedded?: boolean }) {
   const [fxHint, setFxHint] = useState<FxSwapHint | null>(null);
 
   const load = useCallback(async () => {
-    if (!token) {
-      setPreview(null);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
-      const res = await fetch(`/api/claim/preview?token=${encodeURIComponent(token)}`);
+      if (token) {
+        const res = await fetch(`/api/claim/preview?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (!res.ok) {
+          setPreview({ ok: false, error: data.error } as ClaimPreview);
+        } else {
+          setPreview(data);
+        }
+        return;
+      }
+
+      if (!user) {
+        setPreview(null);
+        return;
+      }
+
+      const res = await fetch("/api/claim/session", { credentials: "include" });
       const data = await res.json();
       if (!res.ok) {
         setPreview({ ok: false, error: data.error } as ClaimPreview);
+      } else if (data.ok) {
+        setPreview({
+          ok: true,
+          payeeKeyType: data.payeeKeyType ?? "github_username",
+          payeeKey: data.payeeKey ?? "",
+          payeeLabel: data.payeeLabel ?? "you",
+          amountUsd: data.amountUsd ?? 0,
+          claimableCount: data.claimableCount ?? 0,
+          status: data.status ?? "pending",
+          signedIn: data.signedIn ?? true,
+          signedInGithub: data.signedInGithub ?? null,
+          identityMatch: data.identityMatch ?? false,
+          requiresGithub: data.requiresGithub ?? true,
+          authorizations: data.authorizations ?? [],
+          legacyRewardIds: data.legacyRewardIds ?? [],
+        });
       } else {
-        setPreview(data);
+        setPreview(null);
       }
     } catch {
       setPreview({ ok: false, error: "Could not load claim preview" } as ClaimPreview);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, user]);
 
   useEffect(() => {
     void load();
@@ -125,17 +152,39 @@ export function ClaimEntry({ embedded = false }: { embedded?: boolean }) {
   const wrap = (content: React.ReactNode) =>
     embedded ? content : <div className="mx-auto max-w-lg px-4 py-10">{content}</div>;
 
-  if (!token) {
+  if (!token && !user) {
     return wrap(
       <Panel variant="glass">
         {!embedded && <h1 className="text-lg font-semibold text-white">Claim earnings</h1>}
         <p className={clsx("text-sm text-resolve-muted", !embedded && "mt-2")}>
-          Open the link from your earn notification, or go to{" "}
-          <Link href="/payments" className="text-emerald-300 hover:underline">
-            Payments
-          </Link>{" "}
-          if you are already signed in.
+          Open the link from your earn notification, or sign in to see claimable value from the
+          ledger.
         </p>
+        <button
+          type="button"
+          onClick={() => openSignIn()}
+          className="mt-4 rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400"
+        >
+          Sign in to claim
+        </button>
+      </Panel>,
+    );
+  }
+
+  if (!token && user && loading) {
+    return wrap(<p className="text-sm text-resolve-muted">Loading your earnings…</p>);
+  }
+
+  if (!token && user && !loading && !preview) {
+    return wrap(
+      <Panel variant="glass">
+        <p className="text-sm text-resolve-muted">
+          No claimable earnings on your connected identities yet. When sensors authorize value for
+          you, it will appear here and in your profile.
+        </p>
+        <Link href="/profile" className="mt-4 inline-block text-sm text-emerald-300 hover:underline">
+          View profile
+        </Link>
       </Panel>,
     );
   }
@@ -261,7 +310,9 @@ export function ClaimEntry({ embedded = false }: { embedded?: boolean }) {
       </Panel>
 
       <p className="text-center text-xs text-resolve-muted">
-        Link expires {new Date(preview.expiresAt).toLocaleString()}
+        {preview.expiresAt
+          ? `Link expires ${new Date(preview.expiresAt).toLocaleString()}`
+          : "Signed-in claim · ledger-backed authorizations"}
       </p>
 
       {fxHint && (

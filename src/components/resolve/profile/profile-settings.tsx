@@ -536,7 +536,7 @@ export function ProfileSettings() {
                       {renderConnectButton(def.id, state)}
                       {def.id === "github" && connected && (
                         <Link
-                          href="/capital"
+                          href="/claim"
                           className="text-xs font-medium text-resolve-accent hover:underline"
                         >
                           View claimable earnings →

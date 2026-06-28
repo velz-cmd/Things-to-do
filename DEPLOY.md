@@ -104,6 +104,35 @@ Until `DATABASE_URL` is set, **every** redeploy will fail at the Prisma step —
 
 ---
 
+## Community programs — before production merge (Phases 1–3)
+
+After merging the community install + royalty loop branch:
+
+1. **Run migration** `20250622230000_community_programs` on Supabase (see `prisma/migrations/`). Requires Mission OS tables from `20250622140000_resolve_mission_os` if not already applied.
+
+2. **Set env vars** in Vercel (Production + Preview):
+
+| Variable | Notes |
+|----------|-------|
+| `DATABASE_URL` | Required (Supabase pooler URI) |
+| `NAVIDROME_SYNC_SECRET` | Recommended — protects scrobble ingest endpoint |
+| `NAVIDROME_PROGRAM_MISSION_ID` | Set on **Navidrome bridge host** after install (shown on community page) |
+| `RESOLVE_PLATFORM_FEE_BPS` | Optional — `250` = 2.5% (default) |
+
+3. **Verify** after deploy:
+
+```text
+https://resolve-task.vercel.app/api/communities
+https://resolve-task.vercel.app/discover
+https://resolve-task.vercel.app/communities/independent-music
+```
+
+Full checklist: [docs/VERCEL_ENV.md](./docs/VERCEL_ENV.md#community-programs-phases-13--production-merge-checklist).
+
+Live Arc settlement still needs a funded treasury and real scrobble data from `scripts/navidrome-bridge.ts`.
+
+---
+
 ## Easiest fix — 4 clicks in Vercel
 
 You are already on the right page (**Deployments**).

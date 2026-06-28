@@ -47,9 +47,55 @@ Enable **Production**, **Preview**, and **Development** for each.
 https://resolve-task.vercel.app/api/health/env
 https://resolve-task.vercel.app/api/settlement/config
 https://resolve-task.vercel.app/demo-portals/streamly
+https://resolve-task.vercel.app/api/communities
+https://resolve-task.vercel.app/discover
 ```
 
 `missingRecommended` should be empty when everything is set.
+
+## Community programs (Phases 1–3) — production merge checklist
+
+Run **before** or **immediately after** merging community install + royalty loop to `main`.
+
+### 1. Database migration
+
+Apply Prisma migration `20250622230000_community_programs` on Supabase (creates `ResolveCommunityInstall` + `ResolveProgram`).
+
+If Mission OS tables are missing, apply `20250622140000_resolve_mission_os` first (dependency for `ResolveEcosystem` FK).
+
+**Supabase SQL editor** — paste from:
+
+`prisma/migrations/20250622140000_resolve_mission_os/migration.sql`  
+`prisma/migrations/20250622230000_community_programs/migration.sql`
+
+Or via CLI against production:
+
+```bash
+DATABASE_URL="postgresql://..." npx prisma migrate deploy
+```
+
+### 2. Environment variables (Vercel)
+
+| Name | Required | Value |
+|------|----------|-------|
+| `DATABASE_URL` | **Yes** | Supabase pooler URI (already required) |
+| `NAVIDROME_PROGRAM_MISSION_ID` | Per bridge host | Copy from community page after **Install** (e.g. `program-<installId>-user-cen`). Bridge script on Navidrome host uses this to route scrobbles. |
+| `NAVIDROME_SYNC_SECRET` | Recommended | Shared secret for `POST /api/connectors/navidrome/sync` (bridge batches) |
+| `RESOLVE_PLATFORM_FEE_BPS` | Optional | `250` = 2.5% platform fee on program deploy (default if unset) |
+
+`NAVIDROME_PROGRAM_MISSION_ID` is **auto-generated per install** and shown on `/communities/independent-music` after install — set it on the Navidrome bridge host, not necessarily as a global Vercel var unless you have one primary program.
+
+### 3. Happy path (production smoke)
+
+```
+Discover → Install Independent Music → copy NAVIDROME_PROGRAM_MISSION_ID
+Profile → Connect Navidrome → run scripts/navidrome-bridge.ts on Navidrome host
+Community page → authorizations appear → Deploy on Arc
+Capital → community programs with owed amounts
+Measure/Learn → rebalance panel on program card
+```
+
+Live Arc settlement requires a **funded treasury** and **real scrobble data** from the bridge.
 
 ## GitHub Actions + Vercel deploy
 

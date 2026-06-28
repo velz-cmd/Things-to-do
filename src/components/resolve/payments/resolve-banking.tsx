@@ -391,17 +391,18 @@ export function ResolveBanking({
                   <ArrowDownLeft className="h-4 w-4" />
                   {BANKING_UI.addMoney}
                 </Button>
-                {yourDeposits > 0 && (
-                  <Button variant="secondary" onClick={() => openSendFunds()} className="gap-2">
-                    <ArrowUpRight className="h-4 w-4" />
-                    {BANKING_UI.sendMoney}
-                  </Button>
-                )}
-                {yourClaimable > 0 && (
-                  <Button variant="secondary" onClick={onClaim} disabled={claiming || !payoutWallet}>
-                    {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}
-                  </Button>
-                )}
+                <Button variant="secondary" onClick={() => openSendFunds()} className="gap-2">
+                  <ArrowUpRight className="h-4 w-4" />
+                  {BANKING_UI.sendMoney}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={onClaim}
+                  disabled={claiming || !payoutWallet}
+                  className="gap-2"
+                >
+                  {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}
+                </Button>
                 <Link
                   href="/settings"
                   className="inline-flex items-center justify-center gap-2 rounded-resolve px-5 py-2.5 text-sm font-semibold text-resolve-muted transition hover:bg-white/[0.06] hover:text-white"
@@ -424,9 +425,6 @@ export function ResolveBanking({
                   <p className="mt-3 text-2xl font-semibold text-emerald-200">
                     <Money amount={yourClaimable} size="lg" className="inline" />
                   </p>
-                  {!account?.identities?.github && (
-                    <p className="mt-2 text-xs text-amber-200/90">{BANKING_UI.linkGithub}</p>
-                  )}
                   {currencyOptions.length > 0 && (
                     <div className="mt-3">
                       <CurrencySelect
@@ -449,7 +447,20 @@ export function ResolveBanking({
                     {claiming ? BANKING_UI.claimWorking : BANKING_UI.claimButton}
                   </Button>
                 </>
-              : <p className="mt-3 text-sm text-resolve-muted">{BANKING_UI.claimEmpty}</p>
+              : <>
+                  <p className="mt-3 text-sm text-resolve-muted">{BANKING_UI.claimEmpty}</p>
+                  <Button
+                    className="mt-4"
+                    variant="secondary"
+                    onClick={onClaim}
+                    disabled={claiming || !payoutWallet}
+                  >
+                    {claiming ? BANKING_UI.claimWorking : BANKING_UI.claimButton}
+                  </Button>
+                  {!account?.identities?.github && (
+                    <p className="mt-2 text-xs text-resolve-muted">{BANKING_UI.linkGithub}</p>
+                  )}
+                </>
               }
             </section>
           )}

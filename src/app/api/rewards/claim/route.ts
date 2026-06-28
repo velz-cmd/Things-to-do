@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSessionUser, ensureProfileForUser } from "@/lib/auth/session";
 import { linkWalletToGithub, extractGithubIdentity } from "@/lib/identity/contributors";
 import {
-  getClaimableItemsForGithub,
+  getClaimableItemsForUser,
   markRewardSettled,
 } from "@/lib/identity/pending-rewards";
 import { markAuthorizationSettled } from "@/lib/authorization/ledger";
@@ -26,7 +26,7 @@ type ClaimedItem = {
   status: string;
 };
 
-/** Contributor claims — batched Arc memo payout to identity wallet (one tx per claim action). */
+/** Contributor claims — batched Arc memo payout to RESOLVE identity wallet. */
 export async function POST(req: Request) {
   const session = await requireSessionUser();
   if ("error" in session) {
@@ -42,14 +42,11 @@ export async function POST(req: Request) {
   const { login } = extractGithubIdentity(session.user);
   const githubUsername = login ?? profile.githubUsername;
 
-  if (!githubUsername) {
-    return NextResponse.json(
-      { error: "Sign in with GitHub to claim rewards" },
-      { status: 403 },
-    );
+  const payoutWallet = profile.walletAddress ?? parsed.data.walletAddress;
+  if (!payoutWallet) {
+    return NextResponse.json({ error: "No RESOLVE wallet on your account" }, { status: 400 });
   }
 
-  const payoutWallet = profile.walletAddress ?? parsed.data.walletAddress;
   if (
     profile.walletAddress &&
     parsed.data.walletAddress.toLowerCase() !== profile.walletAddress.toLowerCase()
@@ -60,13 +57,18 @@ export async function POST(req: Request) {
     );
   }
 
-  await linkWalletToGithub({
-    login: githubUsername,
-    walletAddress: payoutWallet,
-    userId: session.user.id,
-  });
+  if (githubUsername) {
+    await linkWalletToGithub({
+      login: githubUsername,
+      walletAddress: payoutWallet,
+      userId: session.user.id,
+    });
+  }
 
-  const { authorizations, legacyRewards } = await getClaimableItemsForGithub(githubUsername);
+  const { authorizations, legacyRewards } = await getClaimableItemsForUser({
+    githubUsername,
+    walletAddress: payoutWallet,
+  });
 
   const authToClaim =
     parsed.data.authorizationIds?.length ?
@@ -83,7 +85,7 @@ export async function POST(req: Request) {
     : legacyRewards;
 
   if (!authToClaim.length && !rewardsToClaim.length) {
-    return NextResponse.json({ error: "No claimable authorizations", claimed: [] });
+    return NextResponse.json({ error: "No claimable rewards yet", claimed: [] });
   }
 
   const claimItems = [
@@ -115,7 +117,7 @@ export async function POST(req: Request) {
 
   try {
     const settlement = await settleClaimBatch({
-      githubUsername,
+      githubUsername: githubUsername ?? payoutWallet.slice(0, 10),
       walletAddress: payoutWallet,
       items: claimItems.map((i) => ({
         id: i.id,
@@ -225,7 +227,10 @@ export async function POST(req: Request) {
     .filter((c) => c.status === "settled")
     .reduce((s, c) => s + c.amountUsd, 0);
 
-  const payoutCurrency = await getContributorPayoutPreference(githubUsername);
+  const payoutCurrency =
+    githubUsername ?
+      await getContributorPayoutPreference(githubUsername)
+    : "USDC";
   const fxHint = buildFxSwapHint(totalUsd, payoutCurrency);
 
   return NextResponse.json({

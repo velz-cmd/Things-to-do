@@ -48,7 +48,6 @@ export function AddFundsModal({
   const [amount, setAmount] = useState(50);
   const [loading, setLoading] = useState(false);
   const [depositAddress, setDepositAddress] = useState<string | null>(null);
-  const [walletProvider, setWalletProvider] = useState<"circle" | "embedded" | null>(null);
 
   const { sendTransaction, data: txHash, isPending, error: sendError } =
     useSendTransaction();
@@ -75,7 +74,6 @@ export function AddFundsModal({
         const identity = data?.arc?.identityWallet;
         if (identity?.depositAddress) {
           setDepositAddress(identity.depositAddress);
-          setWalletProvider(identity.provider ?? null);
         }
       })
       .catch(() => {
@@ -100,7 +98,7 @@ export function AddFundsModal({
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Could not confirm deposit");
-        toast.success("Crypto deposit confirmed", { description: data.message });
+        toast.success("Money added to your account", { description: data.message });
         await refreshBalance();
         onClose();
       } catch (e) {
@@ -193,13 +191,13 @@ export function AddFundsModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-md rounded-2xl border border-deputy-border bg-deputy-panel p-6">
-        <h2 className="text-lg font-semibold">Add funds</h2>
+        <h2 className="text-lg font-semibold">Add money</h2>
         <p className="mt-1 text-sm text-deputy-muted">
           {tab === "simple"
-            ? "Demo instant credit — production uses Arc USDC."
+            ? "Instant demo credit for trying RESOLVE."
             : tab === "bridge"
-              ? "Bridge USDC from another chain via CCTP to Arc."
-              : "Send native USDC on Arc to your Circle identity wallet — one address per account."}
+              ? "Move dollars from another network."
+              : "Send from your crypto wallet — we credit your account balance."}
         </p>
 
         <div className="mt-4 flex gap-1 rounded-lg bg-black/30 p-1">
@@ -209,10 +207,10 @@ export function AddFundsModal({
             </TabButton>
           )}
           <TabButton active={tab === "bridge"} onClick={() => setTab("bridge")}>
-            Bridge
+            Transfer
           </TabButton>
           <TabButton active={tab === "crypto"} onClick={() => setTab("crypto")}>
-            Arc
+            Crypto wallet
           </TabButton>
         </div>
 
@@ -278,19 +276,19 @@ export function AddFundsModal({
           <>
             {depositAddress && (
               <div className="mt-4 rounded-lg border border-deputy-border bg-black/20 px-3 py-2 text-xs">
-                <p className="text-deputy-muted">Your Arc identity wallet</p>
+                <p className="text-deputy-muted">Send to your account address</p>
                 <p className="mt-1 font-mono text-white">
                   {depositAddress.slice(0, 10)}…{depositAddress.slice(-8)}
                 </p>
-                {walletProvider === "circle" && (
-                  <p className="mt-1 text-deputy-muted">Circle · ARC-TESTNET · USDC gas</p>
-                )}
+                <p className="mt-1 text-deputy-muted">
+                  One secure address for your account — we handle the rest.
+                </p>
               </div>
             )}
             {!cryptoReady && (
               <p className="mt-3 rounded-lg border border-deputy-warn/40 bg-deputy-warn/10 px-3 py-2 text-xs text-deputy-warn">
-                Connect your wallet from the account menu, then click below — your
-                wallet will open to confirm the transfer.
+                Connect a crypto wallet from the account menu first, then confirm the transfer
+                here.
               </p>
             )}
             <button
@@ -300,8 +298,8 @@ export function AddFundsModal({
               className="mt-5 w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg disabled:opacity-50"
             >
               {isPending || confirming
-                ? "Confirm in wallet…"
-                : `Send $${amount} USDC on Arc`}
+                ? "Confirm in your wallet…"
+                : `Add $${amount} to my account`}
             </button>
             {sendError && (
               <p className="mt-2 text-xs text-deputy-danger">{sendError.message}</p>

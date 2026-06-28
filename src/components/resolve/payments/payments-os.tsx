@@ -71,7 +71,7 @@ export function PaymentsOS() {
           });
         }
       } catch {
-        if (!opts?.silent) toast.error("Could not load banking account");
+        if (!opts?.silent) toast.error("Could not load your account");
       } finally {
         setInitialLoading(false);
         setRefreshing(false);
@@ -115,7 +115,10 @@ export function PaymentsOS() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Claim failed");
       if (data.fxHint) setFxHint(data.fxHint);
-      toast.success("Authorizations claimed");
+      const total = data.totalUsd ?? 0;
+      toast.success(
+        total > 0 ? `$${total.toFixed(2)} sent to your wallet` : "Earnings collected",
+      );
       void load({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Claim failed");

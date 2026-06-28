@@ -24,6 +24,7 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/capital", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Where should money move?" })).toBeVisible();
+    await expect(page.getByText("RESOLVE Banking")).toBeVisible();
 
     await page.goto("/network", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/discover/);
@@ -71,6 +72,18 @@ test.describe("RESOLVE product surfaces", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(body).toHaveProperty("intelligence");
+  });
+
+  test("banking account API returns custody snapshot", async ({ request }) => {
+    const res = await request.get("/api/banking/account");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.policy.interestBearing).toBe(false);
+    expect(body).toHaveProperty("balances");
+    expect(body).toHaveProperty("settlementRail");
+    expect(body).toHaveProperty("identities");
+    expect(body.network).toHaveProperty("pendingFundingUsd");
   });
 
   test("payments overview API returns treasury and ledger", async ({ request }) => {

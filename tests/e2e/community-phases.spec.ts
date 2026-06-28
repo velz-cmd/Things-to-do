@@ -195,6 +195,7 @@ test.describe("Community phases — surfaces", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Where should money move?" }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "Programs" }).click();
     await expect(page.getByText("Community programs")).toBeVisible();
   });
 

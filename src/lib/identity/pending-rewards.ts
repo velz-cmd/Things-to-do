@@ -103,7 +103,46 @@ export async function getPendingRewardsForGithub(login: string) {
   });
 }
 
-/** Unified claim queue — Authorization Ledger first, legacy PendingReward fallback. */
+/** Unified claim queue — GitHub, wallet, and authorization ledger. */
+export async function getClaimableItemsForUser(input: {
+  githubUsername?: string | null;
+  walletAddress?: string | null;
+}) {
+  const authorizations: Awaited<ReturnType<typeof getClaimableAuthorizations>> = [];
+  const legacyRewards: Awaited<ReturnType<typeof getPendingRewardsForGithub>> = [];
+  const seenAuth = new Set<string>();
+  const seenLegacy = new Set<string>();
+
+  if (input.githubUsername) {
+    const gh = await getClaimableItemsForGithub(input.githubUsername);
+    for (const row of gh.authorizations) {
+      if (!seenAuth.has(row.id)) {
+        seenAuth.add(row.id);
+        authorizations.push(row);
+      }
+    }
+    for (const row of gh.legacyRewards) {
+      if (!seenLegacy.has(row.id)) {
+        seenLegacy.add(row.id);
+        legacyRewards.push(row);
+      }
+    }
+  }
+
+  if (input.walletAddress) {
+    const wallet = input.walletAddress.toLowerCase();
+    const walletAuth = await getClaimableAuthorizations("wallet", wallet);
+    for (const row of walletAuth) {
+      if (!seenAuth.has(row.id)) {
+        seenAuth.add(row.id);
+        authorizations.push(row);
+      }
+    }
+  }
+
+  return { authorizations, legacyRewards };
+}
+
 export async function getClaimableItemsForGithub(login: string) {
   const normalized = login.toLowerCase();
   const [authorizations, legacyRewards] = await Promise.all([

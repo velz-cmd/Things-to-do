@@ -187,7 +187,7 @@ export function useResolveAccount(): ResolveAccountState {
         : undefined);
 
     const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
-    const isAuthenticated = hasSupabase;
+    const isAuthenticated = hasSupabase || hasExternalWallet;
 
     return {
       isAuthenticated,

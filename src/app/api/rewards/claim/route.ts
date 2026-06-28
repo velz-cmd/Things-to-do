@@ -49,9 +49,20 @@ export async function POST(req: Request) {
     );
   }
 
+  const payoutWallet = profile.walletAddress ?? parsed.data.walletAddress;
+  if (
+    profile.walletAddress &&
+    parsed.data.walletAddress.toLowerCase() !== profile.walletAddress.toLowerCase()
+  ) {
+    return NextResponse.json(
+      { error: "Earnings are sent to your RESOLVE wallet on file" },
+      { status: 400 },
+    );
+  }
+
   await linkWalletToGithub({
     login: githubUsername,
-    walletAddress: parsed.data.walletAddress,
+    walletAddress: payoutWallet,
     userId: session.user.id,
   });
 
@@ -105,7 +116,7 @@ export async function POST(req: Request) {
   try {
     const settlement = await settleClaimBatch({
       githubUsername,
-      walletAddress: parsed.data.walletAddress,
+      walletAddress: payoutWallet,
       items: claimItems.map((i) => ({
         id: i.id,
         source: i.source,
@@ -147,7 +158,7 @@ export async function POST(req: Request) {
     if (item.source === "authorization") {
       await markAuthorizationSettled(item.id, {
         settlementId: item.settlementId ?? undefined,
-        walletAddress: parsed.data.walletAddress,
+        walletAddress: payoutWallet,
       });
 
       if (item.settlementId) {
@@ -174,7 +185,7 @@ export async function POST(req: Request) {
       }
     } else {
       await markRewardSettled(item.id, {
-        walletAddress: parsed.data.walletAddress,
+        walletAddress: payoutWallet,
         txHash,
       });
 
@@ -220,7 +231,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: !settlementFailed,
     githubUsername,
-    walletAddress: parsed.data.walletAddress,
+    walletAddress: payoutWallet,
     claimed,
     totalUsd: Math.round(totalUsd * 100) / 100,
     payoutCurrency,

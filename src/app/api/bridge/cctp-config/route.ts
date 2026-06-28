@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { isHash } from "viem";
 import { prisma } from "@/lib/db";
 import { requireReadyUser } from "@/lib/auth/session";
-import { verifyArcTx } from "@/lib/settlement/arc-verify";
+import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
+import { verifyArcDepositToWallet } from "@/lib/wallet/verify-bridge-deposit";
 
 /** CCTP Sepolia → Arc testnet configuration (Circle docs) */
 export async function GET() {
@@ -29,48 +31,53 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { mintTxHash, amountUsd } = body as {
-    mintTxHash?: string;
-    amountUsd?: number;
-  };
+  const { mintTxHash } = body as { mintTxHash?: string };
 
-  if (!mintTxHash || !amountUsd) {
-    return NextResponse.json({ error: "Missing mintTxHash or amountUsd" }, { status: 400 });
+  if (!mintTxHash || !isHash(mintTxHash)) {
+    return NextResponse.json({ error: "Valid mintTxHash required" }, { status: 400 });
   }
 
-  const verified = await verifyArcTx(mintTxHash);
-  if (!verified.found || !verified.success) {
-    return NextResponse.json(
-      { error: "Mint transaction not confirmed on Arc yet" },
-      { status: 400 }
-    );
+  if (!ready.profile.walletAddress) {
+    return NextResponse.json({ error: "No RESOLVE wallet on profile" }, { status: 400 });
   }
 
   const existing = await prisma.walletTransaction.findFirst({
-    where: { label: mintTxHash, type: "deposit" },
+    where: { userId: ready.user.id, label: mintTxHash, type: "deposit" },
   });
   if (existing) {
-    return NextResponse.json({ ok: true, message: "Bridge deposit already credited" });
+    const sync = await syncIdentityBalance(ready.user.id);
+    return NextResponse.json({
+      ok: true,
+      message: "Bridge deposit already recorded",
+      availableUsd: sync.availableUsd,
+    });
   }
 
-  await prisma.user.update({
-    where: { id: ready.user.id },
-    data: { availableUsd: { increment: amountUsd } },
+  const verified = await verifyArcDepositToWallet({
+    txHash: mintTxHash,
+    depositAddress: ready.profile.walletAddress,
   });
+  if (!verified.ok) {
+    return NextResponse.json({ error: verified.error }, { status: 400 });
+  }
 
   await prisma.walletTransaction.create({
     data: {
       userId: ready.user.id,
       type: "deposit",
       method: "cctp_bridge",
-      amountUsd,
+      amountUsd: verified.amountUsd,
       label: mintTxHash,
       status: "completed",
     },
   });
 
+  const sync = await syncIdentityBalance(ready.user.id);
+
   return NextResponse.json({
     ok: true,
-    message: `$${amountUsd.toFixed(2)} credited from CCTP bridge`,
+    message: `$${verified.amountUsd.toFixed(2)} synced from CCTP bridge`,
+    availableUsd: sync.availableUsd,
+    onChainUsd: sync.onChainUsd,
   });
 }

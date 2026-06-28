@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getProfileEarningsSummary } from "@/lib/earn/summary";
 import { extractGithubIdentity } from "@/lib/identity/contributors";
-import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
+import { getUserAuthorizationSummary } from "@/lib/authorization/ledger";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
 import { getBankingArcRail, buildFallbackArcRail } from "@/lib/banking/arc-rail";
 import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
@@ -152,13 +152,25 @@ export async function getBankingAccountSnapshot(input: {
   authUser: SupabaseUser | null;
   profile: User | null;
 }): Promise<BankingAccountSnapshot> {
-  const ledger = await getGlobalAuthorizationSummary().catch(() => ({
-    authorizedUsd: 0,
-    claimableUsd: 0,
-    settledUsd: 0,
-    pendingFundingUsd: 0,
-    count: 0,
-  }));
+  const ledger =
+    input.authUser && input.profile
+      ? await getUserAuthorizationSummary({
+          userId: input.profile.id,
+          githubUsername: input.profile.githubUsername,
+        }).catch(() => ({
+          authorizedUsd: 0,
+          claimableUsd: 0,
+          settledUsd: 0,
+          pendingFundingUsd: 0,
+          count: 0,
+        }))
+      : {
+          authorizedUsd: 0,
+          claimableUsd: 0,
+          settledUsd: 0,
+          pendingFundingUsd: 0,
+          count: 0,
+        };
 
   if (!input.authUser || !input.profile) {
     const arc = await getBankingArcRail(null).catch(() => buildFallbackArcRail());

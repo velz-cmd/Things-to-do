@@ -239,6 +239,54 @@ export async function getGlobalAuthorizationSummary() {
     select: { status: true, amountUsd: true },
   }).catch(() => []);
 
+  return summarizeAuthorizationRows(rows);
+}
+
+/** Ledger totals for one member — their GitHub earnings + programs they run. */
+export async function getUserAuthorizationSummary(input: {
+  userId: string;
+  githubUsername?: string | null;
+}) {
+  const programs = await prisma.resolveProgram.findMany({
+    where: { userId: input.userId },
+    select: { missionId: true },
+  });
+  const missionIds = programs
+    .map((p) => p.missionId)
+    .filter((id): id is string => Boolean(id));
+
+  const or: Record<string, unknown>[] = [];
+  if (input.githubUsername) {
+    or.push({
+      payeeKeyType: "github",
+      payeeKey: input.githubUsername.toLowerCase(),
+    });
+  }
+  if (missionIds.length) {
+    or.push({ missionId: { in: missionIds } });
+  }
+
+  if (!or.length) {
+    return {
+      authorizedUsd: 0,
+      pendingFundingUsd: 0,
+      claimableUsd: 0,
+      settledUsd: 0,
+      count: 0,
+    };
+  }
+
+  const rows = await prisma.paymentAuthorization.findMany({
+    where: { OR: or },
+    select: { status: true, amountUsd: true },
+  }).catch(() => []);
+
+  return summarizeAuthorizationRows(rows);
+}
+
+function summarizeAuthorizationRows(
+  rows: { status: string; amountUsd: number }[],
+) {
   const sum = (statuses: AuthorizationStatus[]) =>
     rows
       .filter((r) => statuses.includes(r.status as AuthorizationStatus))

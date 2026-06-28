@@ -1,10 +1,10 @@
 import { loadEcosystems } from "@/lib/mission/ecosystems";
 
-/** Push guest localStorage workspaces to Postgres once after sign-in. */
-export async function syncLocalEcosystemsToServer(): Promise<void> {
-  if (typeof window === "undefined") return;
+/** Push guest localStorage workspaces to Postgres once per user after sign-in. */
+export async function syncLocalEcosystemsToServer(userId: string): Promise<void> {
+  if (typeof window === "undefined" || !userId) return;
 
-  const key = "resolve-ecosystems-synced";
+  const key = `resolve-ecosystems-synced.${userId}`;
   if (localStorage.getItem(key) === "1") return;
 
   const ecosystems = loadEcosystems();
@@ -24,5 +24,16 @@ export async function syncLocalEcosystemsToServer(): Promise<void> {
 
   if (res.ok) {
     localStorage.setItem(key, "1");
+  }
+}
+
+export function clearGuestSessionStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("resolve.workspace.memory");
+    localStorage.removeItem("resolve-ecosystems-synced");
+    localStorage.removeItem("resolve.signin.verifyPending");
+  } catch {
+    /* ignore */
   }
 }

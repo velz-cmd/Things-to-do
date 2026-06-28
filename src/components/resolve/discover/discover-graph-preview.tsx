@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import clsx from "clsx";
 import { GitBranch, Network } from "lucide-react";
 import type { DiscoverGraphEdge, DiscoverGraphNode } from "@/lib/discover/radar";
@@ -147,7 +148,16 @@ export function DiscoverGraphPreview({ className }: { className?: string }) {
               <ul className="mt-3 space-y-3">
                 {(data?.metrics.topNodes ?? []).map((n) => (
                   <li key={n.id} className="text-xs">
-                    <p className="font-medium text-white">{n.label}</p>
+                    {data?.graph.nodes.find((gn) => gn.id === n.id)?.entityPath ? (
+                      <Link
+                        href={data.graph.nodes.find((gn) => gn.id === n.id)!.entityPath!}
+                        className="font-medium text-resolve-accent hover:underline"
+                      >
+                        {n.label}
+                      </Link>
+                    ) : (
+                      <p className="font-medium text-white">{n.label}</p>
+                    )}
                     <p className="mt-0.5 text-resolve-muted">{n.evidence}</p>
                   </li>
                 ))}

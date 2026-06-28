@@ -11,6 +11,7 @@ import { buildCommunityObservatory } from "@/lib/communities/observatory";
 import { buildEconomicMemory } from "@/lib/communities/economic-memory";
 import { computePlatformFee } from "@/lib/payment/platform-fee";
 import { resolvePayee } from "@/lib/registry/resolvers";
+import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
 import type { CommunityImpactChain, CommunitySurface } from "./types";
 
 function buildImpactChain(input: {
@@ -104,6 +105,7 @@ export async function buildCommunitySurface(
       select: {
         id: true,
         payeeKey: true,
+        payeeKeyType: true,
         amountUsd: true,
         status: true,
         contextLabel: true,
@@ -111,9 +113,13 @@ export async function buildCommunitySurface(
       },
     });
     for (const a of rows) {
+      const entityId = payeeToEntityId(a.payeeKey, a.payeeKeyType);
       authorizationPreviews.push({
         id: a.id,
         payeeKey: a.payeeKey,
+        payeeKeyType: a.payeeKeyType,
+        entityId,
+        entityPath: entityIdToPath(entityId) ?? undefined,
         amountUsd: a.amountUsd,
         status: a.status,
         contextLabel: a.contextLabel,

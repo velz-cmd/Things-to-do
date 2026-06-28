@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import clsx from "clsx";
 import { Activity, Radio } from "lucide-react";
 import type { DiscoverActivityItem } from "@/lib/discover/radar";
@@ -95,7 +96,15 @@ export function DiscoverLiveFeed({ className }: { className?: string }) {
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-resolve-muted">{item.detail}</p>
+                  <p className="mt-0.5 truncate text-xs text-resolve-muted">
+                    {item.entityPath ? (
+                      <Link href={item.entityPath} className="hover:text-resolve-accent hover:underline">
+                        {item.detail}
+                      </Link>
+                    ) : (
+                      item.detail
+                    )}
+                  </p>
                   <p className="mt-1.5 text-[11px] leading-relaxed text-resolve-muted-dim">
                     {item.evidence}
                   </p>

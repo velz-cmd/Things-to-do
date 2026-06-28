@@ -304,7 +304,16 @@ export function CommunityHome({ slug }: { slug: string }) {
                 {surface.authorizations.map((a) => (
                   <li key={a.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
                     <div className="min-w-0">
-                      <p className="truncate text-sm text-white">{a.payeeKey}</p>
+                      {a.entityPath ? (
+                        <Link
+                          href={a.entityPath}
+                          className="truncate text-sm text-resolve-accent hover:underline"
+                        >
+                          {a.payeeKey}
+                        </Link>
+                      ) : (
+                        <p className="truncate text-sm text-white">{a.payeeKey}</p>
+                      )}
                       <p className="text-[11px] text-resolve-muted">{a.status}</p>
                     </div>
                     <Money amount={a.amountUsd} size="sm" className="shrink-0 text-emerald-300" />

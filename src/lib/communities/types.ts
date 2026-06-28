@@ -62,6 +62,9 @@ export type CommunityImpactChain = {
 export type AuthorizationPreview = {
   id: string;
   payeeKey: string;
+  payeeKeyType?: string;
+  entityId?: string;
+  entityPath?: string;
   amountUsd: number;
   status: string;
   contextLabel: string | null;

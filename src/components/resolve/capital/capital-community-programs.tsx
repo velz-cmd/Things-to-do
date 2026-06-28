@@ -29,7 +29,9 @@ export function CapitalCommunityPrograms() {
   useEffect(() => {
     void fetch("/api/capital/programs", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { programs: [] }))
-      .then((d: { programs?: CapitalProgram[] }) => setPrograms(d.programs ?? []))
+      .then((d: { programs?: CapitalProgram[]; public?: boolean }) =>
+        setPrograms(d.programs ?? []),
+      )
       .finally(() => setLoading(false));
   }, []);
 
@@ -60,7 +62,9 @@ export function CapitalCommunityPrograms() {
         <Radio className="h-4 w-4 text-resolve-accent" />
         <h2 className="text-sm font-semibold text-white">Community programs</h2>
       </div>
-      <p className="text-xs text-resolve-muted">Capital executes through programs — not orphan transfers</p>
+      <p className="text-xs text-resolve-muted">
+        Capital executes through community programs — public catalog when signed out
+      </p>
       <ul className="space-y-2">
         {programs.map((p) => (
           <li key={p.id}>

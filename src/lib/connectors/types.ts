@@ -21,6 +21,12 @@ export const CONNECTOR_CATALOG: ConnectorMeta[] = [
     description: "Subsonic scrobble plays → per-listen Authorization",
   },
   {
+    id: "openalex",
+    label: "OpenAlex",
+    status: "live",
+    description: "Research citations → micropayment authorizations (RFB #2)",
+  },
+  {
     id: "peertube",
     label: "PeerTube",
     status: "upcoming",

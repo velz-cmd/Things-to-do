@@ -157,6 +157,31 @@ export function PaymentsOS() {
         <p className="mt-2 text-sm text-resolve-muted">
           Treasury · Pending · Claims · History — real USDC, no invoice flow.
         </p>
+        {!loading && treasury && (
+          <div className="mt-6 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm">
+            {(treasury.obligationsUsd ?? 0) > (treasury.balanceUsd ?? 0) + 0.5 ? (
+              <>
+                <p className="font-medium text-amber-100">Recognized ≠ funded yet</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-200/80">
+                  <Money amount={ledger?.authorizedUsd ?? 0} size="sm" className="inline text-white" />{" "}
+                  recognized in the ledger · treasury holds{" "}
+                  <Money amount={treasury.balanceUsd ?? 0} size="sm" className="inline text-white" />.
+                  Cron moves a treasury-backed slice to claimable; fund the Arc wallet to increase
+                  claimable pool.
+                </p>
+              </>
+            ) : (ledger?.claimableUsd ?? 0) > 0 ? (
+              <p className="text-emerald-200/90">
+                <Money amount={ledger!.claimableUsd} size="sm" className="inline text-white" /> ready
+                to claim — backed by treasury.
+              </p>
+            ) : (
+              <p className="text-resolve-muted text-xs">
+                {treasury.message}
+              </p>
+            )}
+          </div>
+        )}
       </header>
 
       <section className="border-b border-resolve-border pb-8">

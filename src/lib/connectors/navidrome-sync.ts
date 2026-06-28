@@ -70,11 +70,12 @@ async function resolveScrobbleMissionContext(options?: {
 }
 
 async function getCursor(instanceId: string): Promise<NavidromeSyncCursor | null> {
-  const row = await prisma.appConfig.findUnique({
-    where: { key: NAVIDROME_SYNC_CURSOR_KEY },
-  });
-  if (!row?.value) return null;
+  if (!process.env.DATABASE_URL) return null;
   try {
+    const row = await prisma.appConfig.findUnique({
+      where: { key: NAVIDROME_SYNC_CURSOR_KEY },
+    });
+    if (!row?.value) return null;
     const parsed = JSON.parse(row.value) as NavidromeSyncCursor;
     if (parsed.instanceId !== instanceId) return null;
     return parsed;
@@ -84,11 +85,16 @@ async function getCursor(instanceId: string): Promise<NavidromeSyncCursor | null
 }
 
 async function setCursor(cursor: NavidromeSyncCursor) {
-  await prisma.appConfig.upsert({
-    where: { key: NAVIDROME_SYNC_CURSOR_KEY },
-    create: { key: NAVIDROME_SYNC_CURSOR_KEY, value: JSON.stringify(cursor) },
-    update: { value: JSON.stringify(cursor) },
-  });
+  if (!process.env.DATABASE_URL) return;
+  try {
+    await prisma.appConfig.upsert({
+      where: { key: NAVIDROME_SYNC_CURSOR_KEY },
+      create: { key: NAVIDROME_SYNC_CURSOR_KEY, value: JSON.stringify(cursor) },
+      update: { value: JSON.stringify(cursor) },
+    });
+  } catch {
+    /* ignore when DB unavailable */
+  }
 }
 
 export async function ingestNavidromeScrobbles(

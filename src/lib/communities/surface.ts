@@ -172,11 +172,19 @@ export async function buildCommunitySurface(
       : [];
 
   let walletMappedCount = 0;
-  const authorizedForDeploy = missionIds.length
-    ? (await getAuthorizationSummary({ missionId: missionIds[0]! })).authorizations.filter(
-        (a) => a.status === "authorized" || a.status === "pending_funding",
-      )
-    : [];
+  const authorizedForDeploy: Array<{
+    payeeKey: string;
+    status: string;
+  }> = [];
+
+  for (const missionId of missionIds) {
+    const summary = await getAuthorizationSummary({ missionId });
+    for (const a of summary.authorizations) {
+      if (a.status === "authorized" || a.status === "pending_funding") {
+        authorizedForDeploy.push({ payeeKey: a.payeeKey, status: a.status });
+      }
+    }
+  }
 
   for (const a of authorizedForDeploy) {
     const payee = await resolvePayee({

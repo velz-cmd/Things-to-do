@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
-import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
+import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
 
 export async function getSessionUserId(): Promise<string | null> {
   const supabase = await createClient();
@@ -33,7 +33,7 @@ export async function ensureUserProfile(params: {
 }
 
 export async function getWalletBalance(userId: string) {
-  await syncIdentityBalance(userId).catch(() => null);
+  const real = await getRealSpendableUsd(userId).catch(() => null);
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
@@ -67,7 +67,9 @@ export async function getWalletBalance(userId: string) {
   });
 
   return {
-    availableUsd: user.availableUsd,
+    availableUsd: real?.availableUsd ?? user.availableUsd,
+    onChainUsd: real?.onChainUsd ?? null,
+    reservedUsd: real?.reservedUsd ?? 0,
     lockedUsd,
     releasedUsd,
     recentActivity: recentActivity.map((t) => ({

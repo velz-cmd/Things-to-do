@@ -20,6 +20,7 @@ import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-tr
 import { CurrencySelect } from "@/components/resolve/capital/currency-select";
 import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
+import { useSendFunds } from "@/components/wallet/send-funds-context";
 import { BANKING_UI, friendlyStatementLabel, friendlyStatus } from "@/lib/banking/copy";
 import type { BankingAccountSnapshot, StatementLine } from "@/lib/banking/types";
 import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
@@ -294,6 +295,7 @@ export function ResolveBanking({
   onSignIn,
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
+  const { openSendFunds } = useSendFunds();
   const [tab, setTab] = useState<Tab>("overview");
 
   const balances = account?.balances;
@@ -377,7 +379,10 @@ export function ResolveBanking({
 
               <div className="mt-5 grid grid-cols-3 gap-3 border-t border-white/[0.06] pt-5">
                 <Stat label={BANKING_UI.reserved} amount={reserved} />
-                <Stat label={BANKING_UI.totalIn} amount={balances?.totalDepositedUsd ?? 0} />
+                <Stat
+                  label={BANKING_UI.totalIn}
+                  amount={balances?.onChainUsdcUsd ?? balances?.totalDepositedUsd ?? 0}
+                />
                 <Stat label={BANKING_UI.readyToClaim} amount={yourClaimable} />
               </div>
 
@@ -386,6 +391,12 @@ export function ResolveBanking({
                   <ArrowDownLeft className="h-4 w-4" />
                   {BANKING_UI.addMoney}
                 </Button>
+                {yourDeposits > 0 && (
+                  <Button variant="secondary" onClick={() => openSendFunds()} className="gap-2">
+                    <ArrowUpRight className="h-4 w-4" />
+                    {BANKING_UI.sendMoney}
+                  </Button>
+                )}
                 {yourClaimable > 0 && (
                   <Button variant="secondary" onClick={onClaim} disabled={claiming || !payoutWallet}>
                     {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}

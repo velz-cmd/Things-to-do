@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { User } from "lucide-react";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { ProfileSettings } from "@/components/resolve/profile/profile-settings";
+import { ProfileInstalledCommunities } from "@/components/resolve/profile/profile-installed-communities";
 
 export default function ProfilePage() {
   return (
@@ -20,7 +21,10 @@ export default function ProfilePage() {
       accent="blue"
     >
       <Suspense fallback={<p className="text-sm text-resolve-muted">Loading profile…</p>}>
-        <ProfileSettings />
+        <div className="space-y-10">
+          <ProfileInstalledCommunities />
+          <ProfileSettings />
+        </div>
       </Suspense>
     </ProductPage>
   );

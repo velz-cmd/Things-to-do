@@ -73,6 +73,38 @@ const checks: Check[] = [
     expect: (b) => Boolean((b as { snapshot?: { balanceUsd?: number } }).snapshot?.balanceUsd !== undefined),
   },
   {
+    name: "health deploy fingerprint",
+    method: "GET",
+    path: "/api/health/deploy",
+    expectStatus: 200,
+    expect: (b) => Boolean((b as { ok?: boolean; phases?: { phase4?: boolean } }).ok && (b as { phases?: { phase4?: boolean } }).phases?.phase4),
+  },
+  {
+    name: "profile earnings",
+    method: "GET",
+    path: "/api/profile/earnings",
+    expectStatus: 200,
+    expect: (b) => (b as { youEarnedUsd?: number }).youEarnedUsd !== undefined,
+  },
+  {
+    name: "sensor status",
+    method: "GET",
+    path: "/api/communities/sensor-status",
+    expectStatus: 200,
+    expect: (b) => Boolean((b as { statuses?: unknown[] }).statuses?.length),
+  },
+  {
+    name: "discover radar",
+    method: "GET",
+    path: "/api/discover/radar",
+    expectStatus: 200,
+    expect: (b) => {
+      const updated = (b as { updatedAt?: string }).updatedAt;
+      if (!updated) return false;
+      return updated.startsWith("2026");
+    },
+  },
+  {
     name: "payments overview",
     method: "GET",
     path: "/api/payments/overview",

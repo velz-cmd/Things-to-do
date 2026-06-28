@@ -2,11 +2,5 @@
   "buildCommand": "prisma generate && next build",
   "installCommand": "npm install --legacy-peer-deps",
   "framework": "nextjs",
-  "ignoreCommand": "bash -c 'if [ \"$VERCEL_ENV\" = \"preview\" ]; then echo \"Skipping preview deploy (saves free-tier quota)\"; exit 0; fi; exit 1'",
-  "crons": [
-    {
-      "path": "/api/cron/tick",
-      "schedule": "0 0 * * *"
-    }
-  ]
+  "ignoreCommand": "bash -c 'if [ \"$VERCEL_ENV\" = \"preview\" ]; then echo \"Skipping preview deploy (saves free-tier quota)\"; exit 0; fi; exit 1'"
 }

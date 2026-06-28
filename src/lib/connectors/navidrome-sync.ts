@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { navidromeScrobbleToSettlementEvents } from "@/lib/connectors/navidrome";
 import { ingestSettlementBatch } from "@/lib/authorization/ledger";
+import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 
 export const NAVIDROME_SYNC_CURSOR_KEY = "navidrome.sync.cursor";
 
@@ -69,11 +70,12 @@ async function resolveScrobbleMissionContext(options?: {
 }
 
 async function getCursor(instanceId: string): Promise<NavidromeSyncCursor | null> {
-  const row = await prisma.appConfig.findUnique({
-    where: { key: NAVIDROME_SYNC_CURSOR_KEY },
-  });
-  if (!row?.value) return null;
+  if (!process.env.DATABASE_URL) return null;
   try {
+    const row = await prisma.appConfig.findUnique({
+      where: { key: NAVIDROME_SYNC_CURSOR_KEY },
+    });
+    if (!row?.value) return null;
     const parsed = JSON.parse(row.value) as NavidromeSyncCursor;
     if (parsed.instanceId !== instanceId) return null;
     return parsed;
@@ -83,11 +85,16 @@ async function getCursor(instanceId: string): Promise<NavidromeSyncCursor | null
 }
 
 async function setCursor(cursor: NavidromeSyncCursor) {
-  await prisma.appConfig.upsert({
-    where: { key: NAVIDROME_SYNC_CURSOR_KEY },
-    create: { key: NAVIDROME_SYNC_CURSOR_KEY, value: JSON.stringify(cursor) },
-    update: { value: JSON.stringify(cursor) },
-  });
+  if (!process.env.DATABASE_URL) return;
+  try {
+    await prisma.appConfig.upsert({
+      where: { key: NAVIDROME_SYNC_CURSOR_KEY },
+      create: { key: NAVIDROME_SYNC_CURSOR_KEY, value: JSON.stringify(cursor) },
+      update: { value: JSON.stringify(cursor) },
+    });
+  } catch {
+    /* ignore when DB unavailable */
+  }
 }
 
 export async function ingestNavidromeScrobbles(
@@ -119,6 +126,18 @@ export async function ingestNavidromeScrobbles(
   }
 
   const batch = await ingestSettlementBatch(events, { founderUserId: ctx.founderUserId });
+
+  if (batch.count > 0 && ctx.founderUserId && ctx.missionId) {
+    await recordTimelineEvent({
+      userId: ctx.founderUserId,
+      missionId: ctx.missionId,
+      eventType: "scrobble_batch",
+      title: `${batch.count} plays authorized`,
+      detail: `$${batch.totalUsd.toFixed(4)} owed · mission ${ctx.missionId}`,
+      severity: "info",
+    }).catch(() => undefined);
+  }
+
   return {
     ingested: batch.count,
     skipped: rows.length - batch.count,

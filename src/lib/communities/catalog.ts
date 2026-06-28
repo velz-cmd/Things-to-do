@@ -61,14 +61,72 @@ export const COMMUNITY_CATALOG: CommunityCatalogEntry[] = [
       { label: "Treasury", key: "treasury" },
     ],
   },
+  {
+    slug: "react",
+    name: "React",
+    tagline: "Fund maintainers behind the UI layer the web runs on",
+    kind: "oss",
+    attachShape: "index",
+    upstream: "GitHub · Open Collective",
+    doctrine: "Observe contribution signals. Route capital to maintainers with verified impact.",
+    connectors: ["github", "opencollective"],
+    keywords: ["react", "next.js", "maintainer", "frontend"],
+    accent: "blue",
+    featured: false,
+    installCta: "Install on React",
+    healthSignals: [
+      { label: "Repos", key: "github" },
+      { label: "Funding", key: "opencollective" },
+      { label: "Settlement", key: "arc" },
+    ],
+  },
+  {
+    slug: "linux",
+    name: "Linux",
+    tagline: "Kernel and desktop commons — security, docs, maintainer sustainability",
+    kind: "oss",
+    attachShape: "index",
+    upstream: "GitHub · kernel.org",
+    doctrine: "Programs for security response, documentation bounties, and maintainer retention.",
+    connectors: ["github"],
+    keywords: ["linux", "kernel", "gnome", "fedora", "maintainer"],
+    accent: "orange",
+    featured: false,
+    installCta: "Install on Linux",
+    healthSignals: [
+      { label: "Maintainers", key: "github" },
+      { label: "Security", key: "security" },
+      { label: "Treasury", key: "treasury" },
+    ],
+  },
+  {
+    slug: "open-research",
+    name: "Open Research",
+    tagline: "Citation tolls and reproducibility incentives for open science",
+    kind: "research",
+    attachShape: "wrapper",
+    upstream: "OpenAlex · Crossref",
+    doctrine: "Micropayments on verified citations. Researchers earn when work is reused.",
+    connectors: ["openalex", "crossref"],
+    keywords: ["research", "citation", "paper", "openalex", "grant"],
+    accent: "violet",
+    featured: false,
+    installCta: "Install on Open Research",
+    healthSignals: [
+      { label: "Citations", key: "crossref" },
+      { label: "Grants", key: "openalex" },
+      { label: "Settlement", key: "arc" },
+    ],
+  },
 ];
 
+/** RFB primitive templates — founders operate programs, not chat */
 export const PROGRAM_TEMPLATES = {
   "user-centric-royalties": {
     id: "user-centric-royalties",
     name: "User-centric royalties",
     description:
-      "Pay artists per verified play. MusicBrainz splits credits; Arc batches settlement.",
+      "RFB #7 — Pay artists per verified play. MusicBrainz splits credits; Arc batches settlement.",
     defaultBudgetUsd: 500,
     defaultRules: {
       perPlayUsd: 0.0004,
@@ -77,6 +135,62 @@ export const PROGRAM_TEMPLATES = {
       connectorId: "navidrome",
     },
     deployLabel: "Deploy on Arc",
+    kinds: ["music"] as CommunityKind[],
+  },
+  "docs-bounty": {
+    id: "docs-bounty",
+    name: "Documentation bounty",
+    description: "RFB #3 — Reward merged documentation PRs and tutorial authors.",
+    defaultBudgetUsd: 2000,
+    defaultRules: {
+      perMergeUsd: 25,
+      minLines: 20,
+      connectorId: "github",
+      eventType: "docs.merged",
+    },
+    deployLabel: "Fund docs program",
+    kinds: ["oss", "education", "wiki"] as CommunityKind[],
+  },
+  "security-fund": {
+    id: "security-fund",
+    name: "Security response fund",
+    description: "RFB #4 — CVE triage, patch review, and security maintainer retainers.",
+    defaultBudgetUsd: 5000,
+    defaultRules: {
+      perCveUsd: 150,
+      retainerUsd: 500,
+      connectorId: "github",
+      eventType: "security.advisory",
+    },
+    deployLabel: "Fund security program",
+    kinds: ["oss", "protocol"] as CommunityKind[],
+  },
+  "quadratic-funding": {
+    id: "quadratic-funding",
+    name: "Quadratic funding round",
+    description: "RFB #6 — Match community contributions with QF amplification on Arc.",
+    defaultBudgetUsd: 10000,
+    defaultRules: {
+      matchPoolUsd: 10000,
+      qfExponent: 0.5,
+      connectorId: "opencollective",
+      eventType: "qf.contribution",
+    },
+    deployLabel: "Launch QF round",
+    kinds: ["oss", "dao", "general"] as CommunityKind[],
+  },
+  "citation-toll": {
+    id: "citation-toll",
+    name: "Citation toll",
+    description: "RFB #2 — Micropayment per verified citation. Open science economic memory.",
+    defaultBudgetUsd: 1000,
+    defaultRules: {
+      perCitationUsd: 0.05,
+      connectorId: "crossref",
+      eventType: "citation.verified",
+    },
+    deployLabel: "Enable citation tolls",
+    kinds: ["research", "science", "education"] as CommunityKind[],
   },
 } as const;
 
@@ -88,4 +202,8 @@ export function getCommunityBySlug(slug: string): CommunityCatalogEntry | undefi
 
 export function listFeaturedCommunities(): CommunityCatalogEntry[] {
   return COMMUNITY_CATALOG.filter((c) => c.featured);
+}
+
+export function listProgramTemplatesForKind(kind: CommunityKind): (typeof PROGRAM_TEMPLATES)[ProgramTemplateId][] {
+  return Object.values(PROGRAM_TEMPLATES).filter((t) => t.kinds.includes(kind));
 }

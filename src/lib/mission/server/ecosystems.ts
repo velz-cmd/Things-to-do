@@ -31,6 +31,7 @@ const SEED_ECOSYSTEMS = [
   { name: "Ethereum", kind: "protocol", keywords: ["ethereum", "eth", "evm"] },
   { name: "Solana", kind: "protocol", keywords: ["solana", "sol"] },
   { name: "Independent Music", kind: "music", keywords: ["music", "artist", "listenbrainz", "royalty"] },
+  { name: "Navidrome", kind: "music", keywords: ["navidrome", "music", "scrobble", "self-hosted"] },
   { name: "Open Education", kind: "education", keywords: ["education", "course", "teaching"] },
   { name: "Digital Commons", kind: "general", keywords: ["commons", "creative commons", "open access"] },
   { name: "Pakistan OSS", kind: "local", keywords: ["pakistan", "oss", "maintainer"] },

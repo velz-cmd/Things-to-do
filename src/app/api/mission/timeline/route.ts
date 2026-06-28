@@ -12,14 +12,10 @@ export async function GET(req: Request) {
   const ecosystemId = url.searchParams.get("ecosystemId") ?? undefined;
   const missionId = url.searchParams.get("missionId") ?? undefined;
 
-  const timeline = await buildLiveTimeline(
-    ready.user.id,
+  const timeline = await buildLiveTimeline(ready.user.id, {
     ecosystemId,
-  );
+    missionIds: missionId ? [missionId] : undefined,
+  });
 
-  const filtered = missionId ?
-    timeline.filter((e) => !e.missionId || e.missionId === missionId)
-  : timeline;
-
-  return NextResponse.json({ ok: true, timeline: filtered });
+  return NextResponse.json({ ok: true, timeline });
 }

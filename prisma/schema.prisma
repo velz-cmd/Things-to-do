@@ -116,6 +116,8 @@ model User {
   resolveEcosystems ResolveEcosystem[]
   resolveKnowledge  ResolveKnowledgeEntry[]
   resolveTimeline   ResolveTimelineEvent[]
+  communityInstalls ResolveCommunityInstall[]
+  resolvePrograms   ResolveProgram[]
 }
 
 model WalletTransaction {
@@ -477,9 +479,56 @@ model ResolveEcosystem {
   missions       ResolveMission[]
   timeline       ResolveTimelineEvent[]
   knowledge      ResolveKnowledgeEntry[]
+  installs       ResolveCommunityInstall[]
 
   @@unique([userId, name])
   @@index([userId])
+}
+
+/// RESOLVE installed on a canonical community (Discover → Install → Operate)
+model ResolveCommunityInstall {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  communitySlug    String
+  ecosystemId      String?
+  ecosystem        ResolveEcosystem? @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
+  status           String   @default("active")
+  connectorIdsJson String   @default("[]")
+  doctrineJson     String?
+  installedAt      DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  programs         ResolveProgram[]
+
+  @@unique([userId, communitySlug])
+  @@index([communitySlug])
+  @@index([userId])
+}
+
+/// Operational program — budget, rules, verification, settlement
+model ResolveProgram {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installId        String
+  install          ResolveCommunityInstall @relation(fields: [installId], references: [id], onDelete: Cascade)
+  templateId       String   @default("user-centric-royalties")
+  name             String
+  status           String   @default("draft")
+  budgetUsd        Float    @default(0)
+  rulesJson        String   @default("{}")
+  recipientsJson   String   @default("[]")
+  missionId        String?
+  lastDeployAt     DateTime?
+  lastSettlementId String?
+  metadataJson     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([installId])
+  @@index([missionId])
+  @@index([status])
 }
 
 model ResolveKnowledgeEntry {

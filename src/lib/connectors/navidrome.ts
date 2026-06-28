@@ -15,6 +15,7 @@ export async function navidromeScrobbleToSettlementEvents(input: {
   instanceId?: string;
   perPlayUsd?: number;
   listenBrainzUser?: string;
+  missionId?: string;
 }): Promise<SettlementInputEvent[]> {
   return musicScrobbleToSettlementEvents({
     ...input,

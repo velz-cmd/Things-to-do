@@ -65,28 +65,32 @@ export async function syncIdentityBalance(userId: string): Promise<IdentityBalan
   const targetAvailable = round(Math.max(0, onChainUsd - reservedUsd));
   const delta = round(targetAvailable - profile.availableUsd);
 
-  if (Math.abs(delta) < MIN_SYNC_USD) {
+  if (delta < MIN_SYNC_USD) {
     return {
       synced: false,
       adjustedUsd: 0,
       onChainUsd,
       reservedUsd,
-      availableUsd: profile.availableUsd,
+      availableUsd: resolveSpendableUsd({
+        availableUsd: profile.availableUsd,
+        onChainUsd,
+        reservedUsd,
+      }),
     };
   }
 
   const [updated] = await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
-      data: { availableUsd: targetAvailable },
+      data: { availableUsd: { increment: delta } },
     }),
     prisma.walletTransaction.create({
       data: {
         userId,
-        type: delta > 0 ? "deposit" : "withdrawal",
+        type: "deposit",
         method: "crypto",
         amountUsd: Math.abs(delta),
-        label: delta > 0 ? "sync:onchain" : "sync:reconcile",
+        label: "sync:onchain",
         status: "completed",
       },
     }),
@@ -97,8 +101,24 @@ export async function syncIdentityBalance(userId: string): Promise<IdentityBalan
     adjustedUsd: delta,
     onChainUsd,
     reservedUsd,
-    availableUsd: updated.availableUsd,
+    availableUsd: resolveSpendableUsd({
+      availableUsd: updated.availableUsd,
+      onChainUsd,
+      reservedUsd,
+    }),
   };
+}
+
+/** Hero balance — on-chain USDC minus reserves when Arc read succeeds. */
+export function resolveSpendableUsd(input: {
+  availableUsd: number;
+  onChainUsd: number | null;
+  reservedUsd: number;
+}): number {
+  if (input.onChainUsd !== null) {
+    return round(Math.max(0, input.onChainUsd - input.reservedUsd));
+  }
+  return round(input.availableUsd);
 }
 
 /** Spendable balance = on-chain USDC minus program reserves (source of truth). */
@@ -110,7 +130,11 @@ export async function getRealSpendableUsd(userId: string): Promise<{
   const sync = await syncIdentityBalance(userId);
   if (sync.onChainUsd !== null) {
     return {
-      availableUsd: sync.availableUsd,
+      availableUsd: resolveSpendableUsd({
+        availableUsd: sync.availableUsd,
+        onChainUsd: sync.onChainUsd,
+        reservedUsd: sync.reservedUsd,
+      }),
       onChainUsd: sync.onChainUsd,
       reservedUsd: sync.reservedUsd,
     };

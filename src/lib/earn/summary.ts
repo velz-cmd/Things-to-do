@@ -42,7 +42,7 @@ function round(n: number) {
 }
 
 export function resolvePayeeIdentities(
-  profile: Pick<User, "githubUsername" | "listenbrainzUsername">,
+  profile: Pick<User, "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress">,
   authUser?: SupabaseUser | null,
 ): PayeeIdentity[] {
   const identities: PayeeIdentity[] = [];
@@ -77,6 +77,20 @@ export function resolvePayeeIdentities(
     }
   }
 
+  const wallet =
+    profile.walletAddress?.toLowerCase() ?? profile.scanWalletAddress?.toLowerCase();
+  if (wallet) {
+    const key = `wallet:${wallet}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      identities.push({
+        payeeKeyType: "wallet",
+        payeeKey: wallet,
+        label: `${wallet.slice(0, 6)}…${wallet.slice(-4)}`,
+      });
+    }
+  }
+
   return identities;
 }
 
@@ -90,6 +104,24 @@ async function earningsForIdentity(identity: PayeeIdentity): Promise<IdentityEar
       settledUsd: summary.settledUsd,
       verifiedUsd: summary.verifiedUsd,
       authorizationCount: summary.rewardCount,
+    };
+  }
+
+  if (identity.payeeKeyType === "wallet") {
+    const ledger = await getAuthorizationSummary({
+      payeeKeyType: "wallet",
+      payeeKey: identity.payeeKey,
+    }).catch(() => null);
+    const claimableUsd = ledger?.claimableUsd ?? 0;
+    const authorizedUsd = (ledger?.authorizedUsd ?? 0) + (ledger?.pendingFundingUsd ?? 0);
+    const settledUsd = ledger?.settledUsd ?? 0;
+    return {
+      ...identity,
+      claimableUsd,
+      authorizedUsd,
+      settledUsd,
+      verifiedUsd: round(claimableUsd + authorizedUsd),
+      authorizationCount: ledger?.count ?? 0,
     };
   }
 
@@ -113,7 +145,7 @@ async function earningsForIdentity(identity: PayeeIdentity): Promise<IdentityEar
 }
 
 export async function getProfileEarningsSummary(input: {
-  profile: Pick<User, "githubUsername" | "listenbrainzUsername">;
+  profile: Pick<User, "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress">;
   authUser?: SupabaseUser | null;
 }): Promise<ProfileEarningsSummary> {
   const identities = resolvePayeeIdentities(input.profile, input.authUser);

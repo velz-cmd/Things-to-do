@@ -46,35 +46,48 @@ async function buildProgramWallets(userId: string): Promise<BankingProgramWallet
     take: 12,
   });
 
-  const out: BankingProgramWallet[] = [];
-  for (const p of programs) {
-    let committedUsd = 0;
-    let authorizedUsd = 0;
-    if (p.missionId) {
-      const [claimable, authorized] = await Promise.all([
-        prisma.paymentAuthorization.aggregate({
-          where: { missionId: p.missionId, status: "claimable" },
-          _sum: { amountUsd: true },
-        }),
-        prisma.paymentAuthorization.aggregate({
-          where: { missionId: p.missionId, status: "authorized" },
-          _sum: { amountUsd: true },
-        }),
-      ]);
-      committedUsd = claimable._sum.amountUsd ?? 0;
-      authorizedUsd = authorized._sum.amountUsd ?? 0;
-    }
-    out.push({
+  const missionIds = programs.map((p) => p.missionId).filter((id): id is string => Boolean(id));
+  if (!missionIds.length) {
+    return programs.map((p) => ({
       id: p.id,
       name: p.name,
       communitySlug: p.install?.communitySlug ?? "unknown",
       budgetUsd: p.budgetUsd,
-      committedUsd: round(committedUsd),
-      authorizedUsd: round(authorizedUsd),
+      committedUsd: 0,
+      authorizedUsd: 0,
       status: p.status,
-    });
+    }));
   }
-  return out;
+
+  const [claimableRows, authorizedRows] = await Promise.all([
+    prisma.paymentAuthorization.groupBy({
+      by: ["missionId"],
+      where: { missionId: { in: missionIds }, status: "claimable" },
+      _sum: { amountUsd: true },
+    }),
+    prisma.paymentAuthorization.groupBy({
+      by: ["missionId"],
+      where: { missionId: { in: missionIds }, status: "authorized" },
+      _sum: { amountUsd: true },
+    }),
+  ]);
+
+  const claimableMap = new Map(
+    claimableRows.map((r) => [r.missionId, r._sum.amountUsd ?? 0]),
+  );
+  const authorizedMap = new Map(
+    authorizedRows.map((r) => [r.missionId, r._sum.amountUsd ?? 0]),
+  );
+
+  return programs.map((p) => ({
+    id: p.id,
+    name: p.name,
+    communitySlug: p.install?.communitySlug ?? "unknown",
+    budgetUsd: p.budgetUsd,
+    committedUsd: round(p.missionId ? (claimableMap.get(p.missionId) ?? 0) : 0),
+    authorizedUsd: round(p.missionId ? (authorizedMap.get(p.missionId) ?? 0) : 0),
+    status: p.status,
+  }));
 }
 
 async function buildStatement(userId: string, availableUsd: number): Promise<StatementLine[]> {
@@ -216,9 +229,11 @@ export async function getBankingAccountSnapshot(input: {
 
   const { authUser, profile } = input;
 
-  const realBalance = await getRealSpendableUsd(profile.id).catch(() => null);
-  const freshProfile =
-    (await prisma.user.findUnique({ where: { id: profile.id } })) ?? profile;
+  const [realBalance, freshProfile, ghIdentity] = await Promise.all([
+    getRealSpendableUsd(profile.id).catch(() => null),
+    prisma.user.findUnique({ where: { id: profile.id } }).then((u) => u ?? profile),
+    Promise.resolve(extractGithubIdentity(authUser)),
+  ]);
   const reservedUsdFromChain = realBalance?.reservedUsd;
   const onChainUsd = realBalance?.onChainUsd ?? null;
   const reservedForDisplay = reservedUsdFromChain ?? 0;
@@ -230,9 +245,10 @@ export async function getBankingAccountSnapshot(input: {
 
   const arc = await getBankingArcRail(freshProfile, {
     identityOnChainUsd: onChainUsd,
+    light: true,
   }).catch(() => buildFallbackArcRail());
 
-  const gh = extractGithubIdentity(authUser);
+  const gh = ghIdentity;
   const github = gh.login ?? freshProfile.githubUsername ?? null;
   const walletAddress = freshProfile.walletAddress ?? freshProfile.scanWalletAddress ?? null;
 

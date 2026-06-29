@@ -41,7 +41,10 @@ export async function GET() {
     profileRow = await ensureProfileForUser(authUser);
     const gh = extractGithubIdentity(authUser);
     githubUsername = gh.login ?? profileRow.githubUsername ?? null;
-    walletAddress = profileRow.scanWalletAddress ?? profileRow.walletAddress ?? null;
+    walletAddress =
+      profileRow.walletAddress ??
+      profileRow.scanWalletAddress ??
+      null;
     gmailConnected = profileRow.gmailConnected;
     await ensureSeedEcosystems(authUser.id);
   }

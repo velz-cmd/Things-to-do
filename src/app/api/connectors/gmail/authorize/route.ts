@@ -1,54 +1,56 @@
 import { NextResponse } from "next/server";
-import { requireReadyUser } from "@/lib/auth/session";
+import { requireSessionUser } from "@/lib/auth/session";
 import {
   buildGmailAuthorizeUrl,
   googleOAuthConfigured,
 } from "@/lib/google/oauth";
 import { randomBytes } from "crypto";
-import { cookies } from "next/headers";
+
+export const dynamic = "force-dynamic";
+
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  maxAge: 600,
+  path: "/",
+};
 
 export async function GET(req: Request) {
-  const ready = await requireReadyUser();
-  if ("error" in ready) {
+  const origin = new URL(req.url).origin;
+
+  try {
+    const session = await requireSessionUser();
+    if ("error" in session) {
+      return NextResponse.redirect(
+        `${origin}/?auth_error=${encodeURIComponent(session.error)}`,
+      );
+    }
+
+    if (!googleOAuthConfigured()) {
+      return NextResponse.redirect(`${origin}/profile?gmail_error=not_configured`);
+    }
+
+    const { searchParams } = new URL(req.url);
+    const sendAccess = searchParams.get("send") === "true";
+    const returnTo = searchParams.get("returnTo");
+    const state = randomBytes(16).toString("hex");
+
+    const target = buildGmailAuthorizeUrl(state, sendAccess);
+    const response = NextResponse.redirect(target);
+
+    response.cookies.set("gmail_oauth_state", state, COOKIE_OPTS);
+    response.cookies.set("gmail_oauth_user", session.user.id, COOKIE_OPTS);
+    if (returnTo?.startsWith("/")) {
+      response.cookies.set("gmail_oauth_return", returnTo, COOKIE_OPTS);
+    }
+
+    return response;
+  } catch (e) {
+    console.error("[gmail/authorize]", e);
+    const message = e instanceof Error ? e.message : "authorize_failed";
     return NextResponse.redirect(
-      new URL(`/?auth_error=${encodeURIComponent(ready.error)}`, req.url)
+      `${origin}/profile?gmail_error=${encodeURIComponent(message.slice(0, 80))}`,
     );
   }
-
-  if (!googleOAuthConfigured()) {
-    return NextResponse.redirect(
-      new URL("/start?gmail_error=not_configured", req.url)
-    );
-  }
-
-  const state = randomBytes(16).toString("hex");
-  const cookieStore = await cookies();
-  cookieStore.set("gmail_oauth_state", state, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 600,
-    path: "/",
-  });
-  cookieStore.set("gmail_oauth_user", ready.user.id, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 600,
-    path: "/",
-  });
-
-  const sendAccess = new URL(req.url).searchParams.get("send") === "true";
-  const returnTo = new URL(req.url).searchParams.get("returnTo");
-  if (returnTo?.startsWith("/")) {
-    cookieStore.set("gmail_oauth_return", returnTo, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 600,
-      path: "/",
-    });
-  }
-  const url = buildGmailAuthorizeUrl(state, sendAccess);
-  return NextResponse.redirect(url);
 }

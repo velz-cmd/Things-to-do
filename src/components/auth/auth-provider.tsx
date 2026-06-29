@@ -122,10 +122,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(async () => {
     setBalanceLoading(true);
     try {
-      const res = await fetch("/api/wallet/balance", { credentials: "include" });
+      const res = await fetch("/api/wallet/balance", {
+        credentials: "include",
+        signal: AbortSignal.timeout(15_000),
+      });
       if (res.ok) {
         setBalance(await res.json());
+      } else {
+        setBalance({
+          availableUsd: 0,
+          lockedUsd: 0,
+          releasedUsd: 0,
+          recentActivity: [],
+        });
       }
+    } catch {
+      setBalance({
+        availableUsd: 0,
+        lockedUsd: 0,
+        releasedUsd: 0,
+        recentActivity: [],
+      });
     } finally {
       setBalanceLoading(false);
     }

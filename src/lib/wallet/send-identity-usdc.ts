@@ -70,7 +70,7 @@ export async function sendIdentityUsdc(input: {
     throw new Error("Destination must be a different address");
   }
 
-  const spendable = await getRealSpendableUsd(input.user.id);
+  const spendable = await getRealSpendableUsd(input.user.id, { sync: true });
   const maxSend = round(Math.max(0, spendable.availableUsd - GAS_RESERVE_USD));
   if (amountUsd > maxSend + 0.000001) {
     throw new Error(
@@ -125,7 +125,7 @@ export async function sendIdentityUsdc(input: {
     }),
   ]);
 
-  await getRealSpendableUsd(input.user.id);
+  await getRealSpendableUsd(input.user.id, { sync: true });
 
   return {
     txHash,

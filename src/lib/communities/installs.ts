@@ -2,9 +2,8 @@ import { prisma } from "@/lib/db";
 import {
   getCommunityBySlug,
   PROGRAM_TEMPLATES,
-  listProgramTemplatesForKind,
-  type ProgramTemplateId,
 } from "@/lib/communities/catalog";
+import { programTemplatesForCommunity } from "@/lib/connectors/phase3-tracks";
 import { ensureSeedEcosystems } from "@/lib/mission/server/ecosystems";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
@@ -59,6 +58,62 @@ export async function listInstalls(userId: string): Promise<CommunityInstallReco
   return rows.map(toInstallRecord);
 }
 
+/** Ensure every program template for this community slug exists (idempotent). */
+export async function ensureCommunityPrograms(userId: string, communitySlug: string) {
+  const install = await prisma.resolveCommunityInstall.findUnique({
+    where: { userId_communitySlug: { userId, communitySlug } },
+    include: { programs: true },
+  });
+  if (!install) return { created: [] as string[] };
+
+  const existing = new Set(install.programs.map((p) => p.templateId));
+  const created: string[] = [];
+
+  for (const templateId of programTemplatesForCommunity(communitySlug)) {
+    if (existing.has(templateId)) continue;
+    const template = PROGRAM_TEMPLATES[templateId];
+    const missionId = `program-${install.id}-${templateId.slice(0, 8)}`;
+    await prisma.resolveProgram.create({
+      data: {
+        userId,
+        installId: install.id,
+        templateId,
+        name: template.name,
+        status: "active",
+        budgetUsd: template.defaultBudgetUsd,
+        rulesJson: JSON.stringify(template.defaultRules),
+        missionId,
+        metadataJson: JSON.stringify({ communitySlug }),
+      },
+    });
+    created.push(templateId);
+  }
+
+  if (created.length > 0) {
+    const primary = install.programs[0] ?? (await prisma.resolveProgram.findFirst({
+      where: { installId: install.id },
+      orderBy: { createdAt: "asc" },
+    }));
+    if (primary?.missionId) {
+      const community = getCommunityBySlug(communitySlug);
+      await prisma.resolveCommunityInstall.update({
+        where: { id: install.id },
+        data: {
+          doctrineJson: JSON.stringify({
+            text: community?.doctrine,
+            attachShape: community?.attachShape,
+            upstream: community?.upstream,
+            missionId: primary.missionId,
+            bridgeEnv: { NAVIDROME_PROGRAM_MISSION_ID: primary.missionId },
+          }),
+        },
+      });
+    }
+  }
+
+  return { created };
+}
+
 export async function installCommunity(userId: string, communitySlug: string) {
   const community = getCommunityBySlug(communitySlug);
   if (!community) {
@@ -70,10 +125,15 @@ export async function installCommunity(userId: string, communitySlug: string) {
     include: { programs: true },
   });
   if (existing) {
+    await ensureCommunityPrograms(userId, communitySlug);
+    const programs = await prisma.resolveProgram.findMany({
+      where: { installId: existing.id },
+      orderBy: { createdAt: "asc" },
+    });
     return {
       ok: true as const,
       install: toInstallRecord(existing),
-      programs: existing.programs,
+      programs,
       alreadyInstalled: true,
     };
   }
@@ -115,23 +175,32 @@ export async function installCommunity(userId: string, communitySlug: string) {
     },
   });
 
-  const kindTemplates = listProgramTemplatesForKind(community.kind);
-  const defaultTemplate = kindTemplates[0] ?? PROGRAM_TEMPLATES["user-centric-royalties"];
-  const templateId = defaultTemplate.id as ProgramTemplateId;
-  const missionId = `program-${install.id}-${templateId.slice(0, 8)}`;
-  const program = await prisma.resolveProgram.create({
-    data: {
-      userId,
-      installId: install.id,
-      templateId,
-      name: defaultTemplate.name,
-      status: "active",
-      budgetUsd: defaultTemplate.defaultBudgetUsd,
-      rulesJson: JSON.stringify(defaultTemplate.defaultRules),
-      missionId,
-      metadataJson: JSON.stringify({ communitySlug }),
-    },
-  });
+  const templateIds = programTemplatesForCommunity(communitySlug);
+  const programs = [];
+  let primaryMissionId: string | null = null;
+
+  for (const templateId of templateIds) {
+    const template = PROGRAM_TEMPLATES[templateId];
+    const missionId = `program-${install.id}-${templateId.slice(0, 8)}`;
+    if (!primaryMissionId) primaryMissionId = missionId;
+    const program = await prisma.resolveProgram.create({
+      data: {
+        userId,
+        installId: install.id,
+        templateId,
+        name: template.name,
+        status: "active",
+        budgetUsd: template.defaultBudgetUsd,
+        rulesJson: JSON.stringify(template.defaultRules),
+        missionId,
+        metadataJson: JSON.stringify({ communitySlug }),
+      },
+    });
+    programs.push(program);
+  }
+
+  const defaultTemplate = PROGRAM_TEMPLATES[templateIds[0] ?? "user-centric-royalties"];
+  const missionId = primaryMissionId ?? `program-${install.id}-${defaultTemplate.id.slice(0, 8)}`;
 
   await prisma.resolveCommunityInstall.update({
     where: { id: install.id },
@@ -161,7 +230,8 @@ export async function installCommunity(userId: string, communitySlug: string) {
   return {
     ok: true as const,
     install: toInstallRecord(install),
-    program,
+    programs,
+    program: programs[0] ?? null,
     alreadyInstalled: false,
   };
 }

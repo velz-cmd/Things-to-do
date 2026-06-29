@@ -9,6 +9,9 @@ export function eventTypeLabel(eventType: string): string {
     "package.install": "Package installed",
     "doc.referenced": "Documentation referenced",
     "feed.cite": "Citation detected",
+    "docs.merged": "Documentation merged",
+    "security.advisory": "Security advisory closed",
+    "citation.verified": "Citation verified",
     "video.watch": "Video watched",
   };
   return map[eventType] ?? "Value recognized";

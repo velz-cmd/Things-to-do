@@ -8,6 +8,7 @@ import {
   type ConnectPlatform,
 } from "@/lib/profile/user-connections";
 import { syncUserMusicSensors } from "@/lib/connectors/user-music-sync";
+import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 
 const navidromeSchema = z.object({
   url: z.string().url().max(512),
@@ -80,6 +81,12 @@ export async function POST(
         navidromePassword: parsed.data.password,
       },
     });
+
+    void autoInstallCommunitiesForUser(ready.user.id, {
+      navidromeUrl: parsed.data.url,
+      navidromeUsername: parsed.data.username,
+      navidromePassword: parsed.data.password,
+    }).catch(() => undefined);
 
     void syncUserMusicSensors(ready.user.id).catch(() => undefined);
 

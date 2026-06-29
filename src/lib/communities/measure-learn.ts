@@ -77,12 +77,31 @@ export async function measureProgramOutcomes(
   const recommendations: RebalanceRecommendation[] = [];
 
   if (playCount === 0) {
-    recommendations.push({
-      id: "sync-scrobbles",
-      severity: "watch",
-      action: "Sync scrobble bridge",
-      reason: "No verified plays in ledger — connect ListenBrainz on Profile and keep listening",
-    });
+    const tpl = program.templateId;
+    if (tpl === "docs-bounty" || tpl === "security-fund") {
+      recommendations.push({
+        id: "sync-github-sensors",
+        severity: "watch",
+        action: "Sync GitHub sensors",
+        reason:
+          "No merged docs or security signals yet — connect GitHub on Profile and sync OSS communities",
+      });
+    } else if (tpl === "citation-toll") {
+      recommendations.push({
+        id: "sync-openalex",
+        severity: "watch",
+        action: "Sync citation sensor",
+        reason:
+          "No verified citations in ledger — Open Research program scans OpenAlex on sync",
+      });
+    } else {
+      recommendations.push({
+        id: "sync-scrobbles",
+        severity: "watch",
+        action: "Sync scrobble bridge",
+        reason: "No verified plays in ledger — connect ListenBrainz on Profile and keep listening",
+      });
+    }
   }
 
   if (authorizedUsd > 0 && settlementRate < 0.25) {

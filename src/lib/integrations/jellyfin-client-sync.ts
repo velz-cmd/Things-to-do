@@ -2,17 +2,38 @@
 
 import {
   fetchJellyfinNowPlayingInBrowser,
+  resolveJellyfinAccessToken,
   type JellyfinBrowserWatch,
 } from "@/lib/integrations/jellyfin-browser";
+import { loadJellyfinSession } from "@/lib/integrations/jellyfin-shared";
 
 const pushed = new Set<string>();
 
-export async function pushJellyfinWatchesFromBrowser(creds: {
+export async function pushJellyfinWatchesFromBrowser(creds?: {
   url: string;
-  accessToken: string;
-  userId?: string;
+  accessToken?: string;
+  username?: string;
+  password?: string;
 }) {
-  const playing = await fetchJellyfinNowPlayingInBrowser(creds.url, creds.accessToken);
+  const session = creds?.username && creds?.password ?
+      {
+        url: creds.url,
+        username: creds.username,
+        password: creds.password,
+        accessToken: creds.accessToken,
+      }
+    : loadJellyfinSession();
+
+  if (!session && !creds?.accessToken) {
+    return { ingested: 0, watches: 0 };
+  }
+
+  const resolved =
+    session ?
+      await resolveJellyfinAccessToken(session)
+    : { url: creds!.url, accessToken: creds!.accessToken! };
+
+  const playing = await fetchJellyfinNowPlayingInBrowser(resolved.url, resolved.accessToken);
   const now = new Date().toISOString();
   const watches = playing
     .filter((row) => {
@@ -29,9 +50,7 @@ export async function pushJellyfinWatchesFromBrowser(creds: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify(
-      creds.userId ? { userId: creds.userId, watches } : { watches },
-    ),
+    body: JSON.stringify({ watches }),
   });
   const data = (await res.json()) as { error?: string; ingested?: number };
   if (!res.ok) throw new Error(data.error ?? "Jellyfin sync failed");

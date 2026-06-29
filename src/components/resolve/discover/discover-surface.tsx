@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
+import { useAuth } from "@/components/auth/auth-provider";
 import { useMissionScope } from "@/lib/mission/mission-context";
+import { FunderDiscoveryPanel } from "@/components/resolve/capital/funder-discovery-panel";
+import { MoneyFlowExplainer } from "@/components/resolve/capital/money-flow-explainer";
 import { IntelligenceBriefing } from "@/components/resolve/intelligence/intelligence-briefing";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import { DiscoverLiveFeed } from "@/components/resolve/discover/discover-live-feed";
@@ -19,6 +22,7 @@ const DOMAIN_CHIPS = [
 
 /** Observe — where value already exists. Mission entry, not connector admin. */
 export function DiscoverSurface() {
+  const { user } = useAuth();
   const { enterMission } = useMissionScope();
   const [query, setQuery] = useState("");
   const [opportunities, setOpportunities] = useState<FundingOpportunity[]>([]);
@@ -72,6 +76,16 @@ export function DiscoverSurface() {
       <ValueGraph variant="full" />
 
       <DiscoverCommunities kindFilter={communityKind} onKindFilterChange={setCommunityKind} />
+
+      <section className="mb-10 space-y-6 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 p-6">
+        <MoneyFlowExplainer />
+        <FunderDiscoveryPanel signedIn={Boolean(user)} />
+        <p className="text-center text-xs text-resolve-muted">
+          <Link href="/capital?tab=programs" className="text-resolve-accent hover:underline">
+            Open Capital — full portfolio & programs →
+          </Link>
+        </p>
+      </section>
 
       <p className="mb-8 text-center">
         <Link

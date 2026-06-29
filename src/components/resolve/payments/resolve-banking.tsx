@@ -17,6 +17,7 @@ import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
 import { CapitalCommunityPrograms } from "@/components/resolve/capital/capital-community-programs";
 import { FunderDiscoveryPanel } from "@/components/resolve/capital/funder-discovery-panel";
+import { MoneyFlowExplainer } from "@/components/resolve/capital/money-flow-explainer";
 import { FunderYieldPortfolio } from "@/components/resolve/capital/funder-yield-portfolio";
 import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
 import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-truth";
@@ -566,6 +567,7 @@ export function ResolveBanking({
               {CAPITAL_YIELD_COPY.ecosystemSubtitle}
             </p>
           </div>
+          <MoneyFlowExplainer />
           {signedIn && <FunderYieldPortfolio />}
           <FunderDiscoveryPanel signedIn={signedIn} />
           <CapitalCommunityPrograms />

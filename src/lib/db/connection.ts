@@ -19,7 +19,29 @@ export type DatabaseUrlDiagnostics = {
   /** True when runtime rewrote session pooler port 5432 → transaction 6543. */
   portRewritten: boolean;
   normalizedPort: number | null;
+  /** Which env var supplied the URL (value never exposed). */
+  envSource: string | null;
 };
+
+/** Vercel / Supabase integrations may use different key names. */
+export const DATABASE_ENV_KEYS = [
+  "DATABASE_URL",
+  "POSTGRES_PRISMA_URL",
+  "POSTGRES_URL",
+  "SUPABASE_DATABASE_URL",
+] as const;
+
+export function listPresentDatabaseEnvKeys(): string[] {
+  return DATABASE_ENV_KEYS.filter((key) => Boolean(process.env[key]?.trim()));
+}
+
+export function resolveRawDatabaseUrl(): { key: string; url: string } | null {
+  for (const key of DATABASE_ENV_KEYS) {
+    const url = process.env[key]?.trim();
+    if (url) return { key, url };
+  }
+  return null;
+}
 
 const PRISMA_POOL_PARAMS = {
   pgbouncer: "true",
@@ -87,7 +109,10 @@ export function rewriteSupabasePoolerPort(raw: string): string {
   return prefix + suffix.replace(/pooler\.supabase\.com:5432/i, "pooler.supabase.com:6543");
 }
 
-export function analyzeDatabaseUrl(rawInput?: string): DatabaseUrlDiagnostics {
+export function analyzeDatabaseUrl(
+  rawInput?: string,
+  envSource: string | null = null,
+): DatabaseUrlDiagnostics {
   const raw = rawInput?.trim() ?? "";
   if (!raw) {
     return {
@@ -106,6 +131,7 @@ export function analyzeDatabaseUrl(rawInput?: string): DatabaseUrlDiagnostics {
       prismaReady: false,
       portRewritten: false,
       normalizedPort: null,
+      envSource: null,
     };
   }
 
@@ -150,15 +176,21 @@ export function analyzeDatabaseUrl(rawInput?: string): DatabaseUrlDiagnostics {
     prismaReady,
     portRewritten,
     normalizedPort: normalizedEndpoint.port,
+    envSource,
   };
 }
 
 /** Normalize Supabase pooler URL for Prisma serverless (transaction mode). */
 export function getDatabaseUrl(): string | undefined {
-  const raw = process.env.DATABASE_URL?.trim();
-  if (!raw) return undefined;
-  const rewritten = rewriteSupabasePoolerPort(raw);
+  const resolved = resolveRawDatabaseUrl();
+  if (!resolved) return undefined;
+  const rewritten = rewriteSupabasePoolerPort(resolved.url);
   return appendDatabaseQueryParams(rewritten, { ...PRISMA_POOL_PARAMS });
+}
+
+export function getDatabaseDiagnostics(): DatabaseUrlDiagnostics {
+  const resolved = resolveRawDatabaseUrl();
+  return analyzeDatabaseUrl(resolved?.url, resolved?.key ?? null);
 }
 
 export function isDbPoolExhaustedError(error: unknown): boolean {

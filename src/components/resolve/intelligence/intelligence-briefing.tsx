@@ -51,6 +51,34 @@ export function IntelligenceBriefing({
     );
   }
 
+  const allZero =
+    data.recognizedUsd === 0 &&
+    data.pendingFundingUsd === 0 &&
+    data.settledUsd === 0 &&
+    data.leakingUsd === 0;
+
+  if (allZero) {
+    return (
+      <div className={clsx("space-y-4", className)}>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-muted-dim">
+            Network intelligence
+          </p>
+          <p className="mt-1 text-sm text-resolve-muted">
+            No value recognized yet. Install a community or connect a sensor — events appear here
+            automatically.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Recognized" value="$0.00" />
+          <Stat label="Pending funding" value="$0.00" />
+          <Stat label="Settled" value="$0.00" />
+          <Stat label="Sensors online" value={String(data.sensorsOnline)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={clsx("space-y-6", className)}>
       <div>

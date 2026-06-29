@@ -29,6 +29,7 @@ type SettlementRow = {
   txHash: string | null;
   status: string;
   at: string;
+  kind?: "settlement" | "authorization" | "statement";
 };
 
 type Tab = "overview" | "activity" | "programs";
@@ -69,17 +70,26 @@ function ActivityRow({
   subtitle,
   amountUsd,
   direction,
+  badge,
 }: {
   title: string;
   subtitle: string;
   amountUsd: number;
   direction?: "credit" | "debit";
+  badge?: string;
 }) {
   const credit = direction !== "debit";
   return (
     <li className="flex items-center justify-between gap-3 border-b border-white/[0.04] py-3 last:border-0">
       <div className="min-w-0">
-        <p className="truncate text-sm text-white">{title}</p>
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm text-white">{title}</p>
+          {badge && (
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-resolve-muted ring-1 ring-white/10">
+              {badge}
+            </span>
+          )}
+        </div>
         <p className="text-[11px] text-resolve-muted">{subtitle}</p>
       </div>
       <p
@@ -330,13 +340,15 @@ export function ResolveBanking({
       subtitle: formatDate(line.at),
       amountUsd: line.amountUsd,
       direction: line.direction,
+      badge: "wallet" as const,
     })),
     ...settlements.map((s) => ({
       id: s.id,
       title: s.label,
-      subtitle: `${formatDate(s.at)} · ${friendlyStatus(s.status)}`,
+      subtitle: `${formatDate(s.at)} · ${friendlyStatus(s.status)}${s.txHash ? " · on-chain" : ""}`,
       amountUsd: s.amountUsd,
       direction: "credit" as const,
+      badge: s.kind === "authorization" || !s.txHash ? "recognized" : "settled",
     })),
   ];
 
@@ -443,10 +455,10 @@ export function ResolveBanking({
 
           {!signedIn && network && (
             <div className="mb-6 rounded-lg border border-white/[0.06] px-4 py-3 text-xs text-resolve-muted">
-              <p className="font-medium text-white">{BANKING_UI.networkPulse}</p>
+              <p className="font-medium text-white">Network activity (all users)</p>
               <p className="mt-2">
                 <Money amount={network.claimableUsd} size="sm" className="inline text-white" /> ready
-                to collect network-wide ·{" "}
+                to collect across RESOLVE ·{" "}
                 <Money amount={network.settledUsd} size="sm" className="inline text-white" /> paid out
               </p>
             </div>
@@ -506,6 +518,7 @@ export function ResolveBanking({
                   subtitle={item.subtitle}
                   amountUsd={item.amountUsd}
                   direction={item.direction}
+                  badge={item.badge}
                 />
               ))}
             </ul>

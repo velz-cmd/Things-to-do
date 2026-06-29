@@ -5,7 +5,7 @@ import { LiveEventsList } from "@/components/resolve/events/live-events-list";
 /** Auto-refreshing authorization feed for a community operating room. */
 export function CommunityLiveAuthorizations({
   slug,
-  pollMs = 20_000,
+  pollMs = 30_000,
 }: {
   slug: string;
   pollMs?: number;

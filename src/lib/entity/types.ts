@@ -83,5 +83,6 @@ export type EntitySurface = {
     nodes: DiscoverGraphNode[];
     edges: DiscoverGraphEdge[];
   };
+  communitySlug?: string | null;
   updatedAt: string;
 };

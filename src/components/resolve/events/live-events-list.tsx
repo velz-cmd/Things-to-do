@@ -46,6 +46,7 @@ type LiveEventsListProps = {
   subtitle?: string;
   className?: string;
   emptyMessage?: string;
+  onData?: (data: LiveEventsResponse) => void;
 };
 
 export function LiveEventsList({
@@ -61,6 +62,7 @@ export function LiveEventsList({
   subtitle = "Real authorizations from the ledger — no synthetic feed",
   className,
   emptyMessage,
+  onData,
 }: LiveEventsListProps) {
   const [data, setData] = useState<LiveEventsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,14 +79,17 @@ export function LiveEventsList({
     const load = () =>
       fetch(`/api/events/live?${params}`)
         .then((r) => r.json())
-        .then((d: LiveEventsResponse) => setData(d))
+        .then((d: LiveEventsResponse) => {
+          setData(d);
+          onData?.(d);
+        })
         .catch(() => setData(null))
         .finally(() => setLoading(false));
 
     void load();
     const t = setInterval(() => void load(), pollMs);
     return () => clearInterval(t);
-  }, [domain, community, mission, status, scope, limit, pollMs]);
+  }, [domain, community, mission, status, scope, limit, pollMs, onData]);
 
   return (
     <section className={clsx(compact ? "space-y-2" : "mb-12", className)}>

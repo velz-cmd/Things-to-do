@@ -1,4 +1,5 @@
 import { EntityIds, parseEntityRef } from "@/lib/domain/entities";
+import { getCommunityBySlug } from "@/lib/communities/catalog";
 
 export type EntitySurfaceKind = "repository" | "artist" | "maintainer" | "work" | "community";
 
@@ -98,3 +99,15 @@ export const ENTITY_KIND_LABELS: Record<EntitySurfaceKind, string> = {
   work: "Work",
   community: "Community",
 };
+
+/** Best community install target for an entity kind. */
+export function suggestedCommunitySlugForEntity(
+  kind: EntitySurfaceKind,
+  communitySlug?: string | null,
+): string | null {
+  if (communitySlug && getCommunityBySlug(communitySlug)) return communitySlug;
+  if (kind === "artist") return "independent-music";
+  if (kind === "maintainer" || kind === "repository") return "react";
+  if (kind === "work") return "open-research";
+  return null;
+}

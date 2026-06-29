@@ -560,6 +560,7 @@ export function ResolveBanking({
       {tab === "programs" && (
         <section className="space-y-8 py-2">
           <EcosystemBenefitsProgram variant="compact" defaultRole="funder" />
+          {signedIn && <PendingAuthorizationsPanel signedIn={signedIn} variant="programs" />}
           {signedIn && <FunderYieldPortfolio />}
           <FunderDiscoveryPanel signedIn={signedIn} />
           <CapitalCommunityPrograms />

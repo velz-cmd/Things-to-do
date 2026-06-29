@@ -436,6 +436,7 @@ export async function buildEntitySurface(entityId: string): Promise<EntitySurfac
           : null,
     },
     graph,
+    communitySlug: communitySlug ?? null,
     updatedAt: new Date().toISOString(),
   };
 }

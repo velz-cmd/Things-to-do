@@ -8,6 +8,8 @@ import {
 } from "@/lib/integrations/musicbrainz-oauth";
 import { syncUserSensors } from "@/lib/connectors/user-sensor-sync";
 
+export const dynamic = "force-dynamic";
+
 function redirectWith(
   origin: string,
   returnTo: string | undefined,
@@ -21,6 +23,14 @@ function redirectWith(
   return NextResponse.redirect(url.toString());
 }
 
+function clearOAuthCookies(response: NextResponse) {
+  const clear = { maxAge: 0, path: "/" };
+  response.cookies.set("lb_oauth_state", "", clear);
+  response.cookies.set("lb_oauth_user", "", clear);
+  response.cookies.set("lb_oauth_verifier", "", clear);
+  response.cookies.set("lb_oauth_return", "", clear);
+}
+
 /** MusicBrainz OAuth callback → store ListenBrainz username + sync plays. */
 export async function GET(req: Request) {
   const { searchParams, origin } = new URL(req.url);
@@ -32,24 +42,19 @@ export async function GET(req: Request) {
   const returnTo = cookieStore.get("lb_oauth_return")?.value;
 
   if (error) {
-    cookieStore.delete("lb_oauth_state");
-    cookieStore.delete("lb_oauth_user");
-    cookieStore.delete("lb_oauth_verifier");
-    cookieStore.delete("lb_oauth_return");
-    return redirectWith(origin, returnTo, { listenbrainz_error: error });
+    const response = redirectWith(origin, returnTo, { listenbrainz_error: error });
+    clearOAuthCookies(response);
+    return response;
   }
 
   const expectedState = cookieStore.get("lb_oauth_state")?.value;
   const userId = cookieStore.get("lb_oauth_user")?.value;
   const verifier = cookieStore.get("lb_oauth_verifier")?.value;
 
-  cookieStore.delete("lb_oauth_state");
-  cookieStore.delete("lb_oauth_user");
-  cookieStore.delete("lb_oauth_verifier");
-  cookieStore.delete("lb_oauth_return");
-
   if (!code || !state || !expectedState || state !== expectedState || !userId || !verifier) {
-    return redirectWith(origin, returnTo, { listenbrainz_error: "invalid_state" });
+    const response = redirectWith(origin, returnTo, { listenbrainz_error: "invalid_state" });
+    clearOAuthCookies(response);
+    return response;
   }
 
   try {
@@ -58,7 +63,9 @@ export async function GET(req: Request) {
     const username = listenBrainzUsernameFromUserInfo(info);
 
     if (!username) {
-      return redirectWith(origin, returnTo, { listenbrainz_error: "no_username" });
+      const response = redirectWith(origin, returnTo, { listenbrainz_error: "no_username" });
+      clearOAuthCookies(response);
+      return response;
     }
 
     await prisma.user.update({
@@ -71,11 +78,15 @@ export async function GET(req: Request) {
 
     void syncUserSensors(userId).catch(() => undefined);
 
-    return redirectWith(origin, returnTo, { listenbrainz_connected: "1" });
+    const response = redirectWith(origin, returnTo, { listenbrainz_connected: "1" });
+    clearOAuthCookies(response);
+    return response;
   } catch (e) {
     const message = e instanceof Error ? e.message : "ListenBrainz connection failed";
-    return redirectWith(origin, returnTo, {
+    const response = redirectWith(origin, returnTo, {
       listenbrainz_error: message.slice(0, 120),
     });
+    clearOAuthCookies(response);
+    return response;
   }
 }

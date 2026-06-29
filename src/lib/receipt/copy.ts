@@ -16,7 +16,7 @@ export const RECEIPT_COPY = {
     badge: "Earning",
     title: "Earning receipt",
     subtitle:
-      "One verified contribution — who earned it, from which community, and how much.",
+      "One verified contribution from an existing community — who earned it, where it came from, and how much.",
     amountLabel: "Amount earned",
     recipientSection: "Paid to",
   },
@@ -25,7 +25,7 @@ export const RECEIPT_COPY = {
     badge: "Payout",
     title: "Payout receipt",
     subtitle:
-      "A batch release to everyone who earned from this program — transparent and shareable.",
+      "A batch release to everyone who earned from an existing community program — transparent and shareable.",
     amountLabel: "Total paid out",
     recipientSection: "Recipients",
     itemsLabel: (n: number) => `${n} earning${n === 1 ? "" : "s"} included`,
@@ -96,38 +96,114 @@ export function friendlyPayeeRole(payeeKeyType: string): string {
   return "Recipient";
 }
 
-export const ARTIST_PAYOUT_COPY = {
-  title: "Get paid as an artist",
+export const CONTRIBUTOR_IDENTITY_COPY = {
+  title: "Your earnings identity",
   subtitle:
-    "When your music is played in a RESOLVE community, we match credits to your name and send earnings to your account.",
+    "RESOLVE plugs into communities that already exist — GitHub, Jellyfin, Navidrome, ListenBrainz, and more. We verify real activity there and credit the right people when a program is funded.",
+  doctrine: {
+    title: "Your audience doesn't need RESOLVE",
+    body:
+      "Fans can keep listening, watching, and contributing wherever they already do. RESOLVE attaches to those communities — we check what happened upstream, then route earnings to the people who earned them. You only connect once so we know it's you and where to pay you.",
+    bullets: [
+      "Music plays on Navidrome, ListenBrainz, or any scrobbling setup — artists still get credit",
+      "Code and docs on GitHub — maintainers get credit without every user joining RESOLVE",
+      "Videos on Jellyfin — watches in funded programs can credit creators",
+    ],
+  },
+  communities: {
+    open_source: {
+      id: "open_source",
+      label: "Open source & code",
+      platform: "GitHub",
+      icon: "github",
+      whenYouEarn:
+        "Merged docs, contributions, and maintainer work in funded programs like React or Linux communities.",
+      audienceNote: "Contributors use GitHub as usual — RESOLVE reads public activity.",
+      connectedLabel: "Connected as",
+      connectCta: "Connect GitHub",
+      connectHint: "Links your @username for code and maintainer payouts.",
+      connectUrl: "/connect/github",
+    },
+    music: {
+      id: "music",
+      label: "Music & artists",
+      platform: "MusicBrainz",
+      icon: "music",
+      whenYouEarn:
+        "Verified plays in funded music communities — credits from album metadata, not from listeners joining RESOLVE.",
+      audienceNote:
+        "Listeners keep their normal apps and servers. If plays are part of a funded program, we match credits to your artist name.",
+      searchPlaceholder: "Type your artist name…",
+      searching: "Searching artist credits…",
+      noResults: "No match — try a different spelling or stage name.",
+      confirmButton: "This is me",
+      confirmedButton: "Confirmed",
+      linkedBody: "Plays and credits for this name can route earnings to your account.",
+      linkedToast: "Artist name confirmed — earnings will route to your account",
+      errorSearch: "Could not search right now — try again in a moment",
+      errorLink: "Could not save — try again",
+    },
+    media: {
+      id: "media",
+      label: "Video & media",
+      platform: "Jellyfin",
+      icon: "jellyfin",
+      whenYouEarn:
+        "Watches in funded Jellyfin communities — viewers use their own servers; creators still get credited.",
+      audienceNote:
+        "Viewers don't need a RESOLVE account. Connect Jellyfin if you host or watch from your library.",
+      connectedLabel: "Connected",
+      connectCta: "Connect Jellyfin",
+      connectHint: "Sign in once — RESOLVE syncs watches from your server.",
+      connectUrl: "/connect/jellyfin",
+    },
+    research: {
+      id: "research",
+      label: "Research & citations",
+      platform: "OpenAlex",
+      icon: "research",
+      whenYouEarn:
+        "Verified citations in open-research programs — scholars get credit from public research graphs.",
+      audienceNote: "Readers don't join RESOLVE — we verify citations upstream.",
+      exploreCta: "Open Research community",
+      exploreUrl: "/communities/open-research",
+    },
+  },
+  needAccount: {
+    title: "Add a payout account first",
+    body: "Sign in and connect a wallet in Settings, or use email sign-in — we create a simple account for you. No crypto experience required.",
+    cta: "Open settings",
+  },
+} as const;
+
+/** @deprecated use CONTRIBUTOR_IDENTITY_COPY.communities.music */
+export const ARTIST_PAYOUT_COPY = {
+  title: CONTRIBUTOR_IDENTITY_COPY.communities.music.label,
+  subtitle: CONTRIBUTOR_IDENTITY_COPY.communities.music.whenYouEarn,
   howItWorksTitle: "How it works",
   steps: [
     {
       title: "Search your artist name",
-      body: "We use MusicBrainz — the public database behind album credits — to find the right name.",
+      body: "We use MusicBrainz — the public database behind album credits.",
     },
     {
       title: "Confirm it's you",
-      body: "Pick your name from the list. If there are two artists with the same name, use the subtitle to tell them apart.",
+      body: "Pick your name from the list. Use the subtitle if two artists share a name.",
     },
     {
-      title: "Choose where earnings go",
-      body: "Earnings land in your RESOLVE account. Sign in with email if you prefer — no crypto experience required.",
+      title: "Earnings find you",
+      body: CONTRIBUTOR_IDENTITY_COPY.doctrine.body,
     },
   ],
-  searchPlaceholder: "Type your artist name…",
-  searching: "Searching artist credits…",
-  noResults: "No match — try a different spelling or add your stage name.",
-  needAccount: {
-    title: "Add a payout account first",
-    body: "Sign in and connect a wallet in Settings, or use email sign-in — we create a simple account for you.",
-    cta: "Open settings",
-  },
-  confirmButton: "This is me",
-  confirmedButton: "Confirmed",
+  searchPlaceholder: CONTRIBUTOR_IDENTITY_COPY.communities.music.searchPlaceholder,
+  searching: CONTRIBUTOR_IDENTITY_COPY.communities.music.searching,
+  noResults: CONTRIBUTOR_IDENTITY_COPY.communities.music.noResults,
+  needAccount: CONTRIBUTOR_IDENTITY_COPY.needAccount,
+  confirmButton: CONTRIBUTOR_IDENTITY_COPY.communities.music.confirmButton,
+  confirmedButton: CONTRIBUTOR_IDENTITY_COPY.communities.music.confirmedButton,
   linkedTitle: "You're set up",
-  linkedBody: "Plays and credits for this name can route earnings to your account.",
-  linkedToast: "Artist name confirmed — earnings will route to your account",
-  errorSearch: "Could not search right now — try again in a moment",
-  errorLink: "Could not save — try again",
+  linkedBody: CONTRIBUTOR_IDENTITY_COPY.communities.music.linkedBody,
+  linkedToast: CONTRIBUTOR_IDENTITY_COPY.communities.music.linkedToast,
+  errorSearch: CONTRIBUTOR_IDENTITY_COPY.communities.music.errorSearch,
+  errorLink: CONTRIBUTOR_IDENTITY_COPY.communities.music.errorLink,
 } as const;

@@ -1,49 +1,73 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { randomBytes } from "crypto";
-import { requireReadyUser } from "@/lib/auth/session";
+import { requireSessionUser } from "@/lib/auth/session";
 import {
   buildMusicBrainzAuthorizeUrl,
   createPkcePair,
+  listenBrainzOAuthRedirectUri,
   musicBrainzOAuthConfigured,
 } from "@/lib/integrations/musicbrainz-oauth";
 
+export const dynamic = "force-dynamic";
+
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  maxAge: 600,
+  path: "/",
+};
+
 /** Redirect user to MusicBrainz OAuth — same identity as ListenBrainz. */
 export async function GET(req: Request) {
-  const ready = await requireReadyUser();
-  if ("error" in ready) {
+  const origin = new URL(req.url).origin;
+
+  try {
+    const session = await requireSessionUser();
+    if ("error" in session) {
+      return NextResponse.redirect(
+        `${origin}/?auth_error=${encodeURIComponent(session.error)}`,
+      );
+    }
+
+    if (!musicBrainzOAuthConfigured()) {
+      return NextResponse.redirect(`${origin}/profile?listenbrainz_error=not_configured`);
+    }
+
+    const { searchParams } = new URL(req.url);
+    const returnTo = searchParams.get("returnTo");
+    const state = randomBytes(16).toString("hex");
+    const { verifier, challenge } = createPkcePair();
+
+    const target = buildMusicBrainzAuthorizeUrl(state, challenge);
+    const response = NextResponse.redirect(target);
+
+    response.cookies.set("lb_oauth_state", state, COOKIE_OPTS);
+    response.cookies.set("lb_oauth_user", session.user.id, COOKIE_OPTS);
+    response.cookies.set("lb_oauth_verifier", verifier, COOKIE_OPTS);
+    if (returnTo?.startsWith("/")) {
+      response.cookies.set("lb_oauth_return", returnTo, COOKIE_OPTS);
+    }
+
+    return response;
+  } catch (e) {
+    console.error("[listenbrainz/authorize]", e);
+    const message = e instanceof Error ? e.message : "authorize_failed";
     return NextResponse.redirect(
-      new URL(`/?auth_error=${encodeURIComponent(ready.error)}`, req.url),
+      `${origin}/profile?listenbrainz_error=${encodeURIComponent(message.slice(0, 80))}`,
     );
   }
+}
 
-  if (!musicBrainzOAuthConfigured()) {
-    return NextResponse.redirect(
-      new URL("/profile?listenbrainz_error=not_configured", req.url),
-    );
-  }
+/** OAuth readiness — shows redirect URI to register on MusicBrainz. */
+export async function HEAD() {
+  return new NextResponse(null, { status: musicBrainzOAuthConfigured() ? 200 : 503 });
+}
 
-  const { searchParams } = new URL(req.url);
-  const returnTo = searchParams.get("returnTo");
-  const state = randomBytes(16).toString("hex");
-  const { verifier, challenge } = createPkcePair();
-
-  const cookieStore = await cookies();
-  const cookieOpts = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
-    maxAge: 600,
-    path: "/",
-  };
-
-  cookieStore.set("lb_oauth_state", state, cookieOpts);
-  cookieStore.set("lb_oauth_user", ready.user.id, cookieOpts);
-  cookieStore.set("lb_oauth_verifier", verifier, cookieOpts);
-
-  if (returnTo?.startsWith("/")) {
-    cookieStore.set("lb_oauth_return", returnTo, cookieOpts);
-  }
-
-  return NextResponse.redirect(buildMusicBrainzAuthorizeUrl(state, challenge));
+export async function POST() {
+  return NextResponse.json({
+    ok: musicBrainzOAuthConfigured(),
+    redirectUri: listenBrainzOAuthRedirectUri(),
+    authorizeUrl: "/api/connectors/listenbrainz/authorize?returnTo=/profile",
+  });
 }

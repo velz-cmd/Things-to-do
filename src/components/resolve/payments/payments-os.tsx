@@ -8,6 +8,7 @@ import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { ResolveBanking } from "@/components/resolve/payments/resolve-banking";
 import type { BankingAccountSnapshot } from "@/lib/banking/types";
 import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
+import { BANKING_UI } from "@/lib/banking/copy";
 
 type Overview = {
   recentAuthorizations: {
@@ -103,6 +104,11 @@ export function PaymentsOS() {
       toast.error("No wallet on your account — sign in again or contact support");
       return;
     }
+  const claimable = banking?.balances?.earnedClaimableUsd ?? 0;
+  if (claimable <= 0) {
+    toast.message(BANKING_UI.claimNothing);
+    return;
+  }
     setClaiming(true);
     try {
       const res = await fetch("/api/rewards/claim", {
@@ -113,11 +119,15 @@ export function PaymentsOS() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Claim failed");
-      if (data.fxHint) setFxHint(data.fxHint);
       const total = data.totalUsd ?? 0;
-      toast.success(
-        total > 0 ? `$${total.toFixed(2)} sent to your wallet` : "Earnings collected",
-      );
+      const claimed = Array.isArray(data.claimed) ? data.claimed : [];
+      const settled = claimed.filter((c: { status?: string }) => c.status === "settled");
+      if (total <= 0 || settled.length === 0) {
+        toast.message(data.error ?? BANKING_UI.claimNothing);
+        return;
+      }
+      if (data.fxHint) setFxHint(data.fxHint);
+      toast.success(`${BANKING_UI.claimSuccess} — $${total.toFixed(2)}`);
       void load({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Claim failed");

@@ -85,7 +85,10 @@ export async function POST(req: Request) {
     : legacyRewards;
 
   if (!authToClaim.length && !rewardsToClaim.length) {
-    return NextResponse.json({ error: "No claimable rewards yet", claimed: [] });
+    return NextResponse.json(
+      { error: "Nothing to collect right now", claimed: [], totalUsd: 0 },
+      { status: 404 },
+    );
   }
 
   const claimItems = [

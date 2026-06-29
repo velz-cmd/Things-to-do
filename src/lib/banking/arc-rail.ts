@@ -106,12 +106,15 @@ export function buildFallbackArcRail(): BankingArcRail {
 }
 
 /** Circle Arc rail — USDC gas, memo payouts, agent nano-payments, one identity wallet. */
-export async function getBankingArcRail(profile: User | null): Promise<BankingArcRail> {
+export async function getBankingArcRail(
+  profile: User | null,
+  opts?: { identityOnChainUsd?: number | null },
+): Promise<BankingArcRail> {
   try {
   const readiness = await getArcReadiness();
 
-  let identityOnChainUsd: number | null = null;
-  if (profile?.walletAddress) {
+  let identityOnChainUsd: number | null = opts?.identityOnChainUsd ?? null;
+  if (identityOnChainUsd === null && profile?.walletAddress) {
     try {
       const bal = await getArcUsdcBalance(profile.walletAddress);
       identityOnChainUsd = round(bal.balanceUsd);

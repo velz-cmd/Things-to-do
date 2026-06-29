@@ -228,7 +228,9 @@ export async function getBankingAccountSnapshot(input: {
     reservedUsd: reservedForDisplay,
   });
 
-  const arc = await getBankingArcRail(freshProfile).catch(() => buildFallbackArcRail());
+  const arc = await getBankingArcRail(freshProfile, {
+    identityOnChainUsd: onChainUsd,
+  }).catch(() => buildFallbackArcRail());
 
   const gh = extractGithubIdentity(authUser);
   const github = gh.login ?? freshProfile.githubUsername ?? null;

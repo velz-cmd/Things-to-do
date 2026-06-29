@@ -7,9 +7,11 @@ const ARC_ALCHEMY_BASE =
     ? `https://arc-testnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY.trim()}`
     : null);
 
+const ARC_RPC_TIMEOUT_MS = 8_000;
+
 const arcPublicClient = createPublicClient({
   chain: arcTestnet,
-  transport: http(),
+  transport: http(undefined, { timeout: ARC_RPC_TIMEOUT_MS }),
 });
 
 export function isAlchemyConfigured(): boolean {
@@ -23,6 +25,7 @@ async function alchemyRpc<T>(method: string, params: unknown[]): Promise<T> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    signal: AbortSignal.timeout(ARC_RPC_TIMEOUT_MS),
   });
 
   if (!res.ok) {

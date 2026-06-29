@@ -396,7 +396,7 @@ export function ResolveBanking({
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
                     {BANKING_UI.balanceLabel}
                   </p>
-                  {initialLoading ?
+                  {initialLoading && !balances ?
                     <p className="mt-2 text-sm text-resolve-muted">Loading…</p>
                   : <>
                       <p className="mt-2 text-4xl font-semibold tabular-nums text-white">

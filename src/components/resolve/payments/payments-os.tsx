@@ -45,11 +45,18 @@ export function PaymentsOS() {
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
+      if (!user) {
+        setBanking(null);
+        setInitialLoading(false);
+        setRefreshing(false);
+        return;
+      }
       if (!opts?.silent) setRefreshing(true);
       try {
+        const signal = AbortSignal.timeout(20_000);
         const [bankRes, ovRes] = await Promise.all([
-          fetch("/api/banking/account", { credentials: "include" }),
-          fetch("/api/payments/overview"),
+          fetch("/api/banking/account", { credentials: "include", signal }),
+          fetch("/api/payments/overview", { credentials: "include", signal }),
         ]);
 
         if (!bankRes.ok) throw new Error("banking account failed");
@@ -71,14 +78,18 @@ export function PaymentsOS() {
         setRefreshing(false);
       }
     },
-    [refreshBalance],
+    [refreshBalance, user],
   );
 
   useEffect(() => {
+    if (!user) {
+      setInitialLoading(false);
+      return;
+    }
     void load();
     const t = setInterval(() => void load({ silent: true }), 30_000);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, user]);
 
   async function handleClaim() {
     if (!payoutWallet) {

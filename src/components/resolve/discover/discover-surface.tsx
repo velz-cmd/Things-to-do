@@ -10,16 +10,12 @@ import { DiscoverLiveFeed } from "@/components/resolve/discover/discover-live-fe
 import { ValueGraph } from "@/components/resolve/discover/value-graph";
 import type { FundingOpportunity } from "@/lib/github/types";
 
-const DOMAINS = [
-  "Communities",
-  "Projects",
-  "Creators",
-  "Libraries",
-  "Music",
-  "Research",
-  "Design",
-  "Datasets",
-] as const;
+const DOMAIN_CHIPS = [
+  { label: "Music", kind: "music" as const },
+  { label: "OSS", kind: "oss" as const },
+  { label: "Research", kind: "research" as const },
+  { label: "All communities", kind: "all" as const },
+];
 
 /** Observe — where value already exists. Mission entry, not connector admin. */
 export function DiscoverSurface() {
@@ -27,6 +23,9 @@ export function DiscoverSurface() {
   const [query, setQuery] = useState("");
   const [opportunities, setOpportunities] = useState<FundingOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [communityKind, setCommunityKind] = useState<
+    "all" | "music" | "oss" | "research" | "protocol"
+  >("all");
 
   useEffect(() => {
     void fetch("/api/github/opportunities")
@@ -40,6 +39,11 @@ export function DiscoverSurface() {
     if (!q) return true;
     return o.fullName.toLowerCase().includes(q) || o.headline.toLowerCase().includes(q);
   });
+
+  function scrollToCommunities(kind: typeof communityKind) {
+    setCommunityKind(kind);
+    document.getElementById("communities")?.scrollIntoView({ behavior: "smooth" });
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
@@ -59,7 +63,7 @@ export function DiscoverSurface() {
 
       <ValueGraph variant="full" />
 
-      <DiscoverCommunities />
+      <DiscoverCommunities kindFilter={communityKind} onKindFilterChange={setCommunityKind} />
 
       <p className="mb-8 text-center">
         <Link
@@ -87,20 +91,26 @@ export function DiscoverSurface() {
       </form>
 
       <div className="mb-8 flex flex-wrap gap-2">
-        {DOMAINS.map((d) => (
-          <span
-            key={d}
-            className="rounded-full border border-resolve-border/60 px-3 py-1 text-[11px] text-resolve-muted"
+        {DOMAIN_CHIPS.map((d) => (
+          <button
+            key={d.label}
+            type="button"
+            onClick={() => scrollToCommunities(d.kind)}
+            className={`rounded-full border px-3 py-1 text-[11px] transition ${
+              communityKind === d.kind
+                ? "border-resolve-accent/40 bg-resolve-accent/10 text-resolve-accent"
+                : "border-resolve-border/60 text-resolve-muted hover:text-white"
+            }`}
           >
-            {d}
-          </span>
+            {d.label}
+          </button>
         ))}
       </div>
 
       <section>
         <p className="text-sm font-semibold text-white">Funding opportunities</p>
         <p className="mt-1 text-xs text-resolve-muted">
-          Underfunded maintainers and communities — enter any as a mission.
+          Underfunded maintainers — enter any as a mission. Scanned from live GitHub signals.
         </p>
         {loading ? (
           <p className="mt-6 text-sm text-resolve-muted">Scanning open ecosystems…</p>
@@ -116,7 +126,7 @@ export function DiscoverSurface() {
                 </div>
                 <button
                   type="button"
-      onClick={() => enterMission(o.fullName)}
+                  onClick={() => enterMission(o.fullName)}
                   className="shrink-0 rounded-lg border border-resolve-accent/30 px-3 py-1.5 text-xs font-medium text-resolve-accent hover:bg-resolve-accent/10"
                 >
                   Enter mission

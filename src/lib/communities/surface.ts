@@ -181,16 +181,23 @@ export async function buildCommunitySurface(
       : [];
 
   let walletMappedCount = 0;
+  let authorizedForDeployUsd = 0;
   const authorizedForDeploy: Array<{
     payeeKey: string;
     status: string;
+    amountUsd: number;
   }> = [];
 
   for (const missionId of missionIds) {
     const summary = await getAuthorizationSummary({ missionId });
     for (const a of summary.authorizations) {
       if (a.status === "authorized" || a.status === "pending_funding") {
-        authorizedForDeploy.push({ payeeKey: a.payeeKey, status: a.status });
+        authorizedForDeployUsd += a.amountUsd;
+        authorizedForDeploy.push({
+          payeeKey: a.payeeKey,
+          status: a.status,
+          amountUsd: a.amountUsd,
+        });
       }
     }
   }
@@ -254,6 +261,7 @@ export async function buildCommunitySurface(
     deployReadiness: {
       canDeploy: deployReasons.length === 0 && authorizedForDeploy.length > 0,
       authorizedCount: authorizedForDeploy.length,
+      authorizedUsd: Math.round(authorizedForDeployUsd * 10000) / 10000,
       walletMappedCount,
       reasons: deployReasons,
     },

@@ -47,7 +47,11 @@ export type DiscoverGraphEdge = {
 
 export type DiscoverRadarPayload = {
   ok: true;
+  /** True when ledger authorization rows exist (real observed value). */
   live: boolean;
+  /** Graph includes catalog/GitHub scan nodes without ledger events. */
+  hasCatalogPreview: boolean;
+  ledgerEventCount: number;
   activity: DiscoverActivityItem[];
   graph: {
     nodes: DiscoverGraphNode[];
@@ -270,7 +274,9 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
 
   const entropy = fundingEntropy(payeeAmounts);
 
-  const live = trimmedActivity.length > 0 || laidOut.length > 0;
+  const ledgerEventCount = authRows.length;
+  const live = ledgerEventCount > 0;
+  const hasCatalogPreview = laidOut.length > ledgerEventCount;
   const emptyReason =
     live
       ? null
@@ -279,6 +285,8 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
   return {
     ok: true,
     live,
+    hasCatalogPreview,
+    ledgerEventCount,
     activity: trimmedActivity,
     graph: { nodes: laidOut, edges: filteredEdges },
     metrics: { topNodes, fundingEntropy: entropy },

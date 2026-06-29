@@ -129,6 +129,7 @@ export function PaymentsOS() {
         txHash: s.escrowTxHash,
         status: s.status,
         at: s.createdAt,
+        kind: "settlement" as const,
       })) ?? []),
       ...(overview?.recentAuthorizations.slice(0, 12).map((a) => ({
         id: a.id,
@@ -137,6 +138,7 @@ export function PaymentsOS() {
         txHash: null,
         status: a.status,
         at: a.updatedAt,
+        kind: "authorization" as const,
       })) ?? []),
     ];
     return rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());

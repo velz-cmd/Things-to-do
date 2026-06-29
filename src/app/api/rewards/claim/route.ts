@@ -68,6 +68,8 @@ export async function POST(req: Request) {
   const { authorizations, legacyRewards } = await getClaimableItemsForUser({
     githubUsername,
     walletAddress: payoutWallet,
+    profile,
+    authUser: session.user,
   });
 
   const authToClaim =

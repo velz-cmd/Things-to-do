@@ -1,3 +1,5 @@
+import type { User } from "@prisma/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { prisma } from "@/lib/db";
 import {
   getAuthorizationSummary,
@@ -7,6 +9,7 @@ import {
 import type { GitHubAllocationResult } from "@/lib/github/types";
 import { ensureContributorFromGithub } from "@/lib/identity/contributors";
 import { notifyEarnAvailable } from "@/lib/earn/notify";
+import { resolveClaimIdentities } from "@/lib/identity/claim-identities";
 
 export type PendingRewardStatus = "claimable" | "claimed" | "settled" | "cancelled";
 
@@ -103,18 +106,60 @@ export async function getPendingRewardsForGithub(login: string) {
   });
 }
 
-/** Unified claim queue — GitHub, wallet, and authorization ledger. */
+/** Unified claim queue — every payee identity linked to the user (OSS, music, wallet). */
 export async function getClaimableItemsForUser(input: {
   githubUsername?: string | null;
   walletAddress?: string | null;
+  profile?: Pick<
+    User,
+    "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress"
+  > | null;
+  authUser?: SupabaseUser | null;
 }) {
   const authorizations: Awaited<ReturnType<typeof getClaimableAuthorizations>> = [];
   const legacyRewards: Awaited<ReturnType<typeof getPendingRewardsForGithub>> = [];
   const seenAuth = new Set<string>();
   const seenLegacy = new Set<string>();
 
-  if (input.githubUsername) {
-    const gh = await getClaimableItemsForGithub(input.githubUsername);
+  const identities =
+    input.profile
+      ? await resolveClaimIdentities({ profile: input.profile, authUser: input.authUser })
+      : [];
+
+  if (!identities.length) {
+    if (input.githubUsername) {
+      identities.push({
+        payeeKeyType: "github_username",
+        payeeKey: input.githubUsername.toLowerCase(),
+        label: `@${input.githubUsername}`,
+      });
+    }
+    if (input.walletAddress) {
+      const w = input.walletAddress.toLowerCase();
+      identities.push({
+        payeeKeyType: "wallet",
+        payeeKey: w,
+        label: `${w.slice(0, 6)}…${w.slice(-4)}`,
+      });
+    }
+  }
+
+  for (const identity of identities) {
+    const rows = await getClaimableAuthorizations(identity.payeeKeyType, identity.payeeKey);
+    for (const row of rows) {
+      if (!seenAuth.has(row.id)) {
+        seenAuth.add(row.id);
+        authorizations.push(row);
+      }
+    }
+  }
+
+  const githubUsername =
+    input.githubUsername ??
+    identities.find((i) => i.payeeKeyType === "github_username")?.payeeKey;
+
+  if (githubUsername) {
+    const gh = await getClaimableItemsForGithub(githubUsername);
     for (const row of gh.authorizations) {
       if (!seenAuth.has(row.id)) {
         seenAuth.add(row.id);
@@ -129,18 +174,7 @@ export async function getClaimableItemsForUser(input: {
     }
   }
 
-  if (input.walletAddress) {
-    const wallet = input.walletAddress.toLowerCase();
-    const walletAuth = await getClaimableAuthorizations("wallet", wallet);
-    for (const row of walletAuth) {
-      if (!seenAuth.has(row.id)) {
-        seenAuth.add(row.id);
-        authorizations.push(row);
-      }
-    }
-  }
-
-  return { authorizations, legacyRewards };
+  return { authorizations, legacyRewards, identities };
 }
 
 export async function getClaimableItemsForGithub(login: string) {

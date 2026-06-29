@@ -106,6 +106,7 @@ export type CommunitySurface = {
   deployReadiness: {
     canDeploy: boolean;
     authorizedCount: number;
+    authorizedUsd: number;
     walletMappedCount: number;
     reasons: string[];
   };

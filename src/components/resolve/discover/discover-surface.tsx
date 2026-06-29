@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useMissionScope } from "@/lib/mission/mission-context";
 import { FunderDiscoveryPanel } from "@/components/resolve/capital/funder-discovery-panel";
+import { EcosystemBenefitsProgram } from "@/components/resolve/capital/ecosystem-benefits-program";
 import { MoneyFlowExplainer } from "@/components/resolve/capital/money-flow-explainer";
 import { IntelligenceBriefing } from "@/components/resolve/intelligence/intelligence-briefing";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
@@ -59,7 +60,16 @@ export function DiscoverSurface() {
         <p className="mt-2 max-w-2xl text-sm text-resolve-muted">
           Communities, projects, creators — pick a mission and everything else follows that context.
         </p>
+        <p className="mt-3">
+          <Link href="/program" className="text-xs font-medium text-resolve-accent hover:underline">
+            New here? See how everyone benefits →
+          </Link>
+        </p>
       </header>
+
+      <div className="mb-10">
+        <EcosystemBenefitsProgram variant="compact" />
+      </div>
 
       <IntelligenceBriefing className="mb-10 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 p-6" />
 

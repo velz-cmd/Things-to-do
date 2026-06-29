@@ -47,6 +47,12 @@ export function HomePage() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <HomePrimaryCta />
+            <Link href="/program">
+              <Button variant="secondary" size="lg" className="gap-2">
+                How everyone benefits
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
           </div>
         </div>
         <ValueFlowAnimation />

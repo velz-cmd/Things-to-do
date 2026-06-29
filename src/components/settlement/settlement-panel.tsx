@@ -88,7 +88,7 @@ export function SettlementPanel({
         throw new Error(data.error ?? data.settlement?.error ?? "Escrow failed");
       }
       toast.success(
-        data.mode === "live_arc" ? "Task budget locked" : "Demo budget locked",
+        data.mode === "live_arc" ? "Task budget locked" : "Budget recorded in ledger",
         { description: data.message }
       );
       await load();
@@ -120,7 +120,7 @@ export function SettlementPanel({
           <h2 className="text-sm font-semibold text-white">Proof-based payment</h2>
           <p className="mt-1 text-xs text-resolve-muted">
             Your task budget stays locked until verified proof exists.
-            {isLive ? " Settled on Arc." : " Demo mode — no real funds."}
+            {isLive ? " Settled on Arc." : " Configure Arc credentials to settle on-chain."}
           </p>
         </div>
         <span
@@ -131,7 +131,7 @@ export function SettlementPanel({
               : "border-amber-500/30 bg-amber-500/10 text-amber-300"
           )}
         >
-          {isLive ? "Live" : "Demo mode"}
+          {isLive ? "Live on Arc" : "Ledger record"}
         </span>
       </div>
 

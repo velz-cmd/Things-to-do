@@ -78,27 +78,27 @@ export function HeroVisual() {
       <GlassPanel className="absolute bottom-0 left-0 right-0 z-30 p-4" glow>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs text-resolve-muted">Live mission</p>
-            <p className="mt-0.5 text-sm font-medium">Cancel StreamDemo Plus</p>
+            <p className="text-xs text-resolve-muted">Program flow</p>
+            <p className="mt-0.5 text-sm font-medium">User-centric royalties</p>
           </div>
-          <StatusChip label="Demo mission" variant="demo" />
+          <StatusChip label="Arc settlement" variant="verified" />
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[10px]">
           <div>
-            <p className="text-resolve-muted">Progress</p>
-            <p className="font-semibold text-white">76%</p>
+            <p className="text-resolve-muted">Recognized</p>
+            <p className="font-semibold text-white">Plays</p>
           </div>
           <div>
-            <p className="text-resolve-muted">Value</p>
-            <p className="font-semibold text-white">$12.99/mo</p>
+            <p className="text-resolve-muted">Attributed</p>
+            <p className="font-semibold text-white">MusicBrainz</p>
           </div>
           <div>
-            <p className="text-resolve-muted">Budget</p>
-            <p className="font-semibold text-emerald-300">Locked</p>
+            <p className="text-resolve-muted">Settled</p>
+            <p className="font-semibold text-emerald-300">USDC</p>
           </div>
         </div>
         <p className="mt-2 text-[11px] text-resolve-muted">
-          Next: Verify cancellation proof
+          Connect ListenBrainz or Navidrome — RESOLVE routes value to credited artists.
         </p>
       </GlassPanel>
     </div>

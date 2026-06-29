@@ -49,8 +49,8 @@ export function AgentCredentialPanel({ compact }: { compact?: boolean }) {
           </div>
         </div>
         <StatusChip
-          label={agent.mode === "live" ? "Arc verified" : "Demo mode"}
-          variant={agent.mode === "live" ? "verified" : "demo"}
+          label={agent.mode === "live" ? "Arc verified" : "Off-chain"}
+          variant={agent.mode === "live" ? "verified" : "neutral"}
         />
       </div>
 

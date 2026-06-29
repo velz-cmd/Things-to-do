@@ -77,7 +77,6 @@ export function CommandInput({
         <p className="mt-3 text-sm text-resolve-muted">
           Detected: {classification.category.replace(/_/g, " ")}
           {classification.company ? ` · ${classification.company}` : ""}
-          {classification.isDemo ? " · Demo data" : ""}
         </p>
       )}
 

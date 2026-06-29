@@ -1,3 +1,4 @@
+import { getAuthorizationSummary } from "@/lib/authorization/ledger";
 import { prisma } from "@/lib/db";
 import { COMMUNITY_CATALOG, getCommunityBySlug } from "@/lib/communities/catalog";
 import {
@@ -38,11 +39,15 @@ export async function listFundableOpportunities(limit = 24): Promise<FundableOpp
       yieldSnap?.fundingGapUsd ??
       fundingGapForTarget(impactValueUsd, principalFundedUsd, targetMultiplier);
     const settlementRate = measure?.metrics.settlementRate ?? 0;
+    const pendingFundingUsd = yieldSnap?.missionId ?
+      (await getAuthorizationSummary({ missionId: yieldSnap.missionId })).pendingFundingUsd
+    : 0;
     const { whyFund, whoBenefits } = whyFundCopy({
       templateId: p.templateId,
       communityName: community?.name ?? slug,
       fundingGapUsd,
       settlementRate,
+      pendingFundingUsd,
     });
 
     opportunities.push({
@@ -67,6 +72,7 @@ export async function listFundableOpportunities(limit = 24): Promise<FundableOpp
       whyFund,
       whoBenefits,
       score: 0,
+      metricKind: yieldSnap?.metricKind ?? "fulfillment",
     });
   }
 
@@ -77,6 +83,7 @@ export async function listFundableOpportunities(limit = 24): Promise<FundableOpp
       signalCount: o.signalCount,
       yieldMultiplier: o.yieldMultiplier,
       targetMultiplier: o.targetMultiplier,
+      pendingFundingUsd: o.fundingGapUsd,
     });
   }
 

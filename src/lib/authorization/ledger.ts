@@ -11,11 +11,13 @@ export type { AuthorizationStatus, SettlementInputEvent } from "@/lib/authorizat
 /** Ingest one normalized connector event → Authorization Ledger row. */
 export async function ingestSettlementInput(
   event: SettlementInputEvent,
-  options?: { founderUserId?: string },
+  options?: { founderUserId?: string; status?: AuthorizationStatus },
 ) {
   if (event.amountUsd <= 0) {
     return { skipped: true as const, reason: "zero_amount" };
   }
+
+  const status = options?.status ?? "authorized";
 
   const row = await prisma.paymentAuthorization.upsert({
     where: { idempotencyKey: event.idempotencyKey },
@@ -30,7 +32,7 @@ export async function ingestSettlementInput(
       weight: event.weight ?? 0,
       proofHash: event.proofHash,
       confidence: event.confidence ?? 0.85,
-      status: "authorized",
+      status,
       contextLabel: event.contextLabel,
       evidenceJson: JSON.stringify({
         evidenceRefs: event.evidenceRefs,
@@ -44,7 +46,7 @@ export async function ingestSettlementInput(
       weight: event.weight ?? 0,
       proofHash: event.proofHash,
       confidence: event.confidence ?? 0.85,
-      status: "authorized",
+      status,
       contextLabel: event.contextLabel,
       evidenceJson: JSON.stringify({
         evidenceRefs: event.evidenceRefs,
@@ -59,7 +61,7 @@ export async function ingestSettlementInput(
 
 export async function ingestSettlementBatch(
   events: SettlementInputEvent[],
-  options?: { founderUserId?: string },
+  options?: { founderUserId?: string; status?: AuthorizationStatus },
 ) {
   const results = [];
   for (const event of events) {

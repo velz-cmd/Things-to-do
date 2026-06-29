@@ -1,7 +1,7 @@
 import type { ProgramTemplateId } from "@/lib/communities/catalog";
 
 /** Phase 3 — three live connector tracks, same program core. */
-export type Phase3TrackId = "music" | "oss" | "research" | "media";
+export type Phase3TrackId = "music" | "oss" | "research" | "media" | "qf";
 
 export type Phase3Track = {
   id: Phase3TrackId;
@@ -33,6 +33,15 @@ export const PHASE3_TRACKS: Phase3Track[] = [
     description: "GitHub sensor — merged docs PRs and security advisories",
   },
   {
+    id: "qf",
+    name: "Quadratic funding",
+    event: "qf.contribution",
+    connector: "opencollective",
+    programTemplate: "quadratic-funding",
+    communitySlugs: ["react"],
+    description: "Open Collective contributions → QF match on Arc (RFB #6)",
+  },
+  {
     id: "research",
     name: "Research",
     event: "citation.verified",
@@ -58,7 +67,7 @@ export function programTemplatesForCommunity(communitySlug: string): ProgramTemp
     case "linux":
       return ["docs-bounty", "security-fund"];
     case "react":
-      return ["docs-bounty"];
+      return ["docs-bounty", "quadratic-funding"];
     case "open-research":
       return ["citation-toll"];
     case "independent-music":

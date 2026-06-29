@@ -26,6 +26,7 @@ export type ObservationKind =
   | "community_moderation"
   | "identity_linked"
   | "treasury_deposit"
+  | "community_contribution"
   | "policy_defined"
   | "authorization_created"
   | "settlement_completed"
@@ -80,6 +81,7 @@ export const OBSERVATION_KIND_LABELS: Record<ObservationKind, string> = {
   community_moderation: "Community moderation",
   identity_linked: "Identity linked",
   treasury_deposit: "Treasury deposit",
+  community_contribution: "Community contribution",
   policy_defined: "Policy defined",
   authorization_created: "Authorization created",
   settlement_completed: "Settlement completed",

@@ -5,6 +5,7 @@ import type { ProgramTemplateId } from "@/lib/communities/catalog";
 import {
   syncGithubCommunitySensors,
   syncOpenAlexCommunitySensors,
+  syncOpenCollectiveCommunitySensors,
   communityHasLiveSensorEvents,
 } from "@/lib/sensors/sync";
 
@@ -116,6 +117,14 @@ export async function bootstrapProductionSensors(input?: {
     }
   }
 
+  const qf = await ensureActiveProgram(userId, "react", "quadratic-funding");
+  if ("error" in qf && qf.error) errors.push(`react/quadratic-funding: ${qf.error}`);
+  else programs.push({
+    communitySlug: "react",
+    templateId: "quadratic-funding",
+    missionId: qf.missionId,
+  });
+
   const citation = await ensureActiveProgram(userId, RESEARCH_SLUG, "citation-toll");
   if ("error" in citation && citation.error) errors.push(`open-research/citation-toll: ${citation.error}`);
   else programs.push({
@@ -157,6 +166,23 @@ export async function bootstrapProductionSensors(input?: {
     });
   } catch (e) {
     errors.push(`open-research sync: ${e instanceof Error ? e.message : "failed"}`);
+  }
+
+  try {
+    const result = await syncOpenCollectiveCommunitySensors({
+      communitySlug: "react",
+      founderUserId: userId,
+      openCollectiveSlug: "babel",
+    });
+    sync.push({
+      communitySlug: "react",
+      observations: result.observations,
+      ingested: result.ingested,
+      eventTypes: result.eventTypes,
+      live: result.live,
+    });
+  } catch (e) {
+    errors.push(`react/qf sync: ${e instanceof Error ? e.message : "failed"}`);
   }
 
   const sensorLive: Record<string, boolean> = {};

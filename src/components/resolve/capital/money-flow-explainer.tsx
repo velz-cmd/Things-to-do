@@ -4,10 +4,10 @@ import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
 
 const FLOW_STEPS = [
-  { key: "funder", label: "Funder stakes", detail: "Anyone deposits into a community program pool" },
-  { key: "program", label: "Program verifies", detail: "Work upstream (GitHub, Jellyfin, music) is recognized" },
-  { key: "creator", label: "Creators earn", detail: "Contributors claim when value is verified" },
-  { key: "impact", label: "2× impact tracked", detail: "Funder sees verified economic value vs stake" },
+  { key: "value", label: "Value exists upstream", detail: "GitHub, Open Collective, Jellyfin — connectors observe" },
+  { key: "authorize", label: "Authorization recorded", detail: "Economic fact at event time — not founder discretion" },
+  { key: "fulfill", label: "Funder fulfills", detail: "Clear the queue or seed a QF match pool" },
+  { key: "claim", label: "Creator claims", detail: "Settlement on Arc when capital exists" },
 ] as const;
 
 export function MoneyFlowExplainer({ compact = false }: { compact?: boolean }) {
@@ -16,12 +16,12 @@ export function MoneyFlowExplainer({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
       <BlueGlowCard variant="subtle" className="text-xs leading-relaxed text-resolve-muted">
-        <p className="font-medium text-white">How money moves</p>
+        <p className="font-medium text-white">How money moves (bootstrap doctrine)</p>
         <p className="mt-1">
-          Funders stake on programs → verified work unlocks payouts → creators claim to wallet.
-          RESOLVE escrow is the rail, not a subsidy.{" "}
+          Connectors authorize what is already owed → funders fulfill → creators claim.
+          Founders operate programs; they do not invent value.{" "}
           <Link href="/capital?tab=programs" className="text-resolve-accent hover:underline">
-            Fund a program
+            Fulfill obligations
           </Link>
         </p>
       </BlueGlowCard>
@@ -35,8 +35,8 @@ export function MoneyFlowExplainer({ compact = false }: { compact?: boolean }) {
           How money moves
         </p>
         <p className="mt-1 max-w-2xl text-xs leading-relaxed text-resolve-muted">
-          Treasury is not free platform money. Every dollar in a program pool came from a funder or
-          operator deposit — RESOLVE verifies and routes it.
+          {CAPITAL_YIELD_COPY.yieldExplainer.formula}. Treasury is not free platform money — every
+          dollar came from a funder or operator deposit.
         </p>
       </div>
 

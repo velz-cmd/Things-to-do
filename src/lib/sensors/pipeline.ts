@@ -10,6 +10,7 @@ function payeeFromObservation(obs: Observation): {
   payeeKey: string;
 } | null {
   const actor = obs.actor;
+  const subject = obs.subject;
   if (!actor?.id) return null;
 
   if (actor.id.startsWith("person:github:")) {
@@ -22,6 +23,12 @@ function payeeFromObservation(obs: Observation): {
     return {
       payeeKeyType: "openalex_author",
       payeeKey: actor.id.slice("person:openalex:".length),
+    };
+  }
+  if (subject?.id?.startsWith("project:opencollective:")) {
+    return {
+      payeeKeyType: "opencollective_project",
+      payeeKey: subject.id.slice("project:opencollective:".length),
     };
   }
   if (actor.label) {
@@ -38,6 +45,10 @@ function amountFromPolicy(obs: Observation, program: SensorProgramContext): numb
   if (program.templateId === "docs-bounty") return rules.perMergeUsd ?? 25;
   if (program.templateId === "security-fund") return rules.perCveUsd ?? 150;
   if (program.templateId === "citation-toll") return rules.perCitationUsd ?? 0.05;
+  if (program.templateId === "quadratic-funding") {
+    const hint = obs.metrics?.contribution_usd ?? obs.metrics?.amount_hint_usd;
+    return typeof hint === "number" ? hint : 0;
+  }
   return 0;
 }
 
@@ -45,7 +56,12 @@ function eventTypeForObservation(obs: Observation, program: SensorProgramContext
   if (program.templateId === "docs-bounty") return "docs.merged";
   if (program.templateId === "security-fund") return "security.advisory";
   if (program.templateId === "citation-toll") return "citation.verified";
+  if (program.templateId === "quadratic-funding") return "qf.contribution";
   return obs.kind;
+}
+
+function ingestStatusForProgram(program: SensorProgramContext): "authorized" | "recognized" {
+  return program.templateId === "quadratic-funding" ? "recognized" : "authorized";
 }
 
 /** Observation → Authorization — policy applies amounts; ledger stays connector-agnostic. */
@@ -102,6 +118,7 @@ export async function ingestObservationPipeline(input: {
 
   const batch = await ingestSettlementBatch(events, {
     founderUserId: input.founderUserId ?? input.program.founderUserId,
+    status: ingestStatusForProgram(input.program),
   });
 
   return {

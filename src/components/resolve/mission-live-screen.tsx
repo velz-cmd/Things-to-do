@@ -49,9 +49,6 @@ export function MissionLiveScreen({
       <GlassPanel className="p-5" glow>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            {task.isDemo && (
-              <StatusChip label="Demo data" variant="demo" />
-            )}
             <p className="mt-2 text-xs uppercase tracking-wide text-resolve-muted">Mission</p>
             <h1 className="mt-1 text-xl font-semibold leading-snug text-white">{task.title}</h1>
           </div>

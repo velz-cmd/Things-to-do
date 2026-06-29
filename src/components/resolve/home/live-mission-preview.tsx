@@ -7,12 +7,12 @@ import { taskProgress, taskStatusLabel } from "@/lib/resolve/progress";
 import { GlassPanel } from "@/components/resolve/ui/glass-panel";
 import { StatusChip } from "@/components/resolve/ui/status-chip";
 
-const DEMO_EVENTS = [
-  "Receipt found",
-  "Policy checked",
-  "Portal opened",
-  "Cancellation submitted",
-  "Confirmation pending",
+const FALLBACK_EVENTS = [
+  "Sensor recognizes contribution",
+  "Authorization recorded in ledger",
+  "Program capital reserved",
+  "Ready to deploy on Arc",
+  "Creator can collect at Claim",
 ];
 
 export function LiveMissionPreview() {
@@ -45,23 +45,23 @@ export function LiveMissionPreview() {
       <GlassPanel className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs text-resolve-muted">Example mission</p>
-            <p className="mt-1 text-lg font-semibold text-white">Cancel StreamDemo Plus</p>
+            <p className="text-xs text-resolve-muted">Active program</p>
+            <p className="mt-1 text-lg font-semibold text-white">Documentation bounty — react</p>
           </div>
-          <StatusChip label="Demo mission" variant="demo" />
+          <StatusChip label="Recognized" variant="running" />
         </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-4">
-          <Metric label="Status" value="Claim submitted" />
-          <Metric label="Progress" value="76%" />
-          <Metric label="Value" value="$12.99/mo" />
-          <Metric label="Cost" value="$0.018" />
+          <Metric label="Status" value="Authorized" />
+          <Metric label="Progress" value="Ready" />
+          <Metric label="Amount" value="$25.00" />
+          <Metric label="Connector" value="GitHub" />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <StatusChip label="Demo escrow (simulated)" variant="demo" />
-          <StatusChip label="Next: Verify cancellation proof" variant="running" />
+          <StatusChip label="Ledger evidence" variant="verified" />
+          <StatusChip label="Next: Fund and deploy" variant="running" />
         </div>
         <ul className="mt-4 space-y-1.5 border-t border-white/[0.06] pt-4">
-          {DEMO_EVENTS.map((e) => (
+          {FALLBACK_EVENTS.map((e) => (
             <li key={e} className="flex items-center gap-2 text-sm text-resolve-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
               {e}
@@ -69,10 +69,10 @@ export function LiveMissionPreview() {
           ))}
         </ul>
         <Link
-          href="/missions"
+          href="/discover"
           className="mt-5 inline-block text-sm font-medium text-resolve-accent hover:text-blue-300"
         >
-          Start your own mission →
+          Install a community →
         </Link>
       </GlassPanel>
     );
@@ -92,7 +92,6 @@ export function LiveMissionPreview() {
             {task.title}
           </Link>
         </div>
-        {task.isDemo && <StatusChip label="Demo mission" variant="demo" />}
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-4">
         <Metric label="Status" value={taskStatusLabel(task.status)} />

@@ -69,7 +69,7 @@ export default function CommandContent() {
       if (!createRes.ok) throw new Error(data.error ?? "Could not create task");
 
       toast.success("Mission created", {
-        description: cls.isDemo ? "Demo data — lock budget to continue" : "Lock task budget to continue",
+        description: "Lock task budget to continue",
       });
       router.push(`/missions/${data.task.id}`);
     } catch (e) {

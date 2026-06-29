@@ -212,7 +212,7 @@ export function MissionsWorkspace({ embedded }: { embedded?: boolean } = {}) {
         if (!createRes.ok) throw new Error(data.error ?? "Could not create task");
 
         toast.success("Task started", {
-          description: cls.isDemo ? "Demo — lock task budget when ready" : "Lock task budget to continue",
+          description: "Lock task budget to continue",
         });
         router.replace(`/missions?mission=${data.task.id}`);
         await loadMission(data.task.id);
@@ -487,7 +487,6 @@ function IntakeSummary({ classification }: { classification: TaskClassification 
       {classification.question && (
         <p className="text-amber-100">{classification.question}</p>
       )}
-      {classification.isDemo && <StatusChip label="Demo data" variant="demo" />}
     </div>
   );
 }
@@ -511,7 +510,6 @@ function ActiveMissionPanel({
     <Panel className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          {task.isDemo && <StatusChip label="Demo" variant="demo" />}
           <h2 className="mt-2 text-lg font-semibold text-white">{task.title}</h2>
           <p className="mt-2">
             <Money amount={task.targetValueUsd} size="sm" />

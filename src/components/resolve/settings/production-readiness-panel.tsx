@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import type { ProductionDemoReadiness, ReadinessItem } from "@/lib/demo/production-readiness";
 import clsx from "clsx";
 import { CheckCircle2, AlertCircle, Circle, Rocket, ExternalLink } from "lucide-react";
-import type { ProductionDemoReadiness, ReadinessItem } from "@/lib/demo/production-readiness";
 
 function StatusIcon({ status }: { status: ReadinessItem["status"] }) {
   if (status === "ready") return <CheckCircle2 className="h-4 w-4 text-emerald-400" />;
@@ -12,7 +12,7 @@ function StatusIcon({ status }: { status: ReadinessItem["status"] }) {
   return <AlertCircle className="h-4 w-4 text-red-400" />;
 }
 
-export function DemoReadinessPanel() {
+export function ProductionReadinessPanel() {
   const [data, setData] = useState<ProductionDemoReadiness | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -24,13 +24,13 @@ export function DemoReadinessPanel() {
   }, []);
 
   if (loading) {
-    return <p className="text-sm text-resolve-muted">Loading demo readiness…</p>;
+    return <p className="text-sm text-resolve-muted">Loading production status…</p>;
   }
 
   if (!data) {
     return (
       <p className="text-sm text-resolve-muted">
-        Could not load demo readiness. Try{" "}
+        Could not load production status. Try{" "}
         <a href="/api/status/demo-readiness" className="text-resolve-accent hover:underline">
           /api/status/demo-readiness
         </a>
@@ -47,10 +47,10 @@ export function DemoReadinessPanel() {
           <div>
             <div className="flex items-center gap-2">
               <Rocket className="h-4 w-4 text-resolve-accent" />
-              <p className="text-sm font-semibold text-white">Lepton / external-user demo</p>
+              <p className="text-sm font-semibold text-white">Production readiness</p>
             </div>
             <p className="mt-2 text-xs text-resolve-muted">
-              Honest production checklist — env, treasury, music ingress, claims.{" "}
+              Live env, treasury, music ingress, and claims — nothing cosmetic.{" "}
               <span className="text-white">{pct}% ready</span> ({data.score.toFixed(1)}/
               {data.total})
             </p>
@@ -61,13 +61,14 @@ export function DemoReadinessPanel() {
               data.ok ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-200",
             )}
           >
-            {data.ok ? "Demo ready" : "Setup needed"}
+            {data.ok ? "Ready" : "Setup needed"}
           </span>
         </div>
         {data.demoMode && (
           <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-            DEPUTY_DEMO_MODE is on — set <code className="text-amber-50">false</code> on Vercel
-            Production before external judges test.
+            Synthetic credits are still enabled — set{" "}
+            <code className="text-amber-50">DEPUTY_DEMO_MODE=false</code> on Vercel Production
+            and redeploy before external review.
           </p>
         )}
       </div>
@@ -117,7 +118,7 @@ export function DemoReadinessPanel() {
             className="rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3"
           >
             <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted">
-              {path} path
+              {path} flow
             </p>
             <ol className="mt-2 list-decimal space-y-1 pl-4 text-[11px] text-resolve-muted">
               {data.paths[path].map((step) => (
@@ -127,17 +128,9 @@ export function DemoReadinessPanel() {
           </div>
         ))}
       </div>
-
-      <p className="text-[10px] text-resolve-muted-dim">
-        API:{" "}
-        <a href="/api/status/demo-readiness" className="text-resolve-accent hover:underline">
-          /api/status/demo-readiness
-        </a>
-        {" · "}
-        <a href="/api/status/production" className="text-resolve-accent hover:underline">
-          /api/status/production
-        </a>
-      </p>
     </div>
   );
 }
+
+/** @deprecated use ProductionReadinessPanel */
+export const DemoReadinessPanel = ProductionReadinessPanel;

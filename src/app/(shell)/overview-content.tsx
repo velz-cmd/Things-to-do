@@ -7,7 +7,7 @@ import { OutcomeSnapshot } from "@/components/resolve/outcome-snapshot";
 import { ActiveMissions } from "@/components/resolve/active-missions";
 import { SuccessFeed } from "@/components/resolve/success-feed";
 import { OutcomeInput } from "@/components/resolve/outcome-input";
-import { DemoTimeline } from "@/components/resolve/demo-timeline";
+import { GettingStartedPanel } from "@/components/resolve/getting-started-panel";
 import { BalanceSummary } from "@/components/wallet/balance-summary";
 import { AgentEscrowBadge } from "@/components/resolve/access-gate";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
@@ -110,7 +110,7 @@ export default function OverviewContent() {
       {hasActive ? (
         <ActiveMissions tasks={active} />
       ) : (
-        <DemoTimeline />
+        <GettingStartedPanel />
       )}
 
       <SuccessFeed tasks={tasks.filter((t) => t.status === "settled")} stats={stats} />

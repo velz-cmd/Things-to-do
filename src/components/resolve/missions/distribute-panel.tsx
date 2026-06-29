@@ -17,7 +17,7 @@ import type { ImpactEvaluation } from "@/lib/weight/types";
 export function DistributePanel({ embedded }: { embedded?: boolean }) {
   const { ready } = useResolveAccess();
   const { openSignIn } = useSignInModal();
-  const [csv, setCsv] = useState(DEMO_DISTRIBUTION_CSV);
+  const [csv, setCsv] = useState("");
   const [fundPoolUsd, setFundPoolUsd] = useState(50);
   const [loading, setLoading] = useState(false);
   const [evaluation, setEvaluation] = useState<ImpactEvaluation | null>(null);
@@ -158,7 +158,7 @@ export function DistributePanel({ embedded }: { embedded?: boolean }) {
             onClick={() => setCsv(DEMO_DISTRIBUTION_CSV)}
             className="text-[10px] text-resolve-accent hover:underline"
           >
-            Load demo
+            Load sample events
           </button>
         </div>
         <textarea

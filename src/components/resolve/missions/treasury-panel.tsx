@@ -86,11 +86,11 @@ export function TreasuryPanel({ embedded }: { embedded?: boolean }) {
             onClick={async () => {
               await fetch("/api/treasury", { method: "POST" });
               await load();
-              toast.success("Registry seeded");
+              toast.success("Contributor registry updated");
             }}
             className="text-[10px] text-resolve-accent hover:underline"
           >
-            Seed demo
+            Seed registry
           </button>
         </div>
         {!data?.recentBatches?.length ? (

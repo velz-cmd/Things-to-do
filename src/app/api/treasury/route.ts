@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getTreasuryStats } from "@/lib/treasury/distribute";
 import { getArcReadiness } from "@/lib/treasury/arc-readiness";
 import { seedContributorRegistry } from "@/lib/registry/seed";
+import { seedProductionArtistRegistry } from "@/lib/registry/production-artists";
+import { isDeputyDemoMode } from "@/lib/config/demo-mode";
 
 export async function GET() {
   const [stats, arc] = await Promise.all([getTreasuryStats(), getArcReadiness()]);
@@ -16,6 +18,10 @@ export async function GET() {
 }
 
 export async function POST() {
-  const seeded = await seedContributorRegistry();
-  return NextResponse.json({ ok: true, seeded });
+  if (isDeputyDemoMode()) {
+    const seeded = await seedContributorRegistry();
+    return NextResponse.json({ ok: true, seeded, source: "legacy" });
+  }
+  const result = await seedProductionArtistRegistry();
+  return NextResponse.json({ ok: true, ...result, source: "production" });
 }

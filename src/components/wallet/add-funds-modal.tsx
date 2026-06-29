@@ -194,7 +194,7 @@ export function AddFundsModal({
         <h2 className="text-lg font-semibold">Add money</h2>
         <p className="mt-1 text-sm text-deputy-muted">
           {tab === "simple"
-            ? "Instant demo credit for trying RESOLVE."
+            ? "Add funds to your RESOLVE balance."
             : tab === "bridge"
               ? "Move dollars from another network."
               : "Send from your crypto wallet — we credit your account balance."}
@@ -203,7 +203,7 @@ export function AddFundsModal({
         <div className="mt-4 flex gap-1 rounded-lg bg-black/30 p-1">
           {cardOnRamp && (
             <TabButton active={tab === "simple"} onClick={() => setTab("simple")}>
-              Card (demo)
+              Card
             </TabButton>
           )}
           <TabButton active={tab === "bridge"} onClick={() => setTab("bridge")}>
@@ -258,8 +258,8 @@ export function AddFundsModal({
               ))}
             </div>
             <p className="mt-3 text-xs leading-relaxed text-deputy-muted">
-              Demo mode only — credits your in-app balance instantly. Production uses
-              Arc USDC deposit (Arc tab).
+              Card deposits credit your in-app balance. For on-chain USDC, use Transfer or Crypto
+              wallet.
             </p>
             <button
               type="button"

@@ -54,8 +54,8 @@ export default function MerchantPage() {
       <header className="border-b border-deputy-border bg-deputy-panel/80 px-6 py-4">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <div>
-            <p className="text-xs uppercase text-deputy-muted">Demo merchant</p>
-            <h1 className="text-xl font-semibold">SkyDemo / StreamDemo Portal</h1>
+            <p className="text-xs uppercase text-deputy-muted">Merchant confirmation</p>
+            <h1 className="text-xl font-semibold">Refund & cancellation portal</h1>
           </div>
           <Link href="/" className="text-sm text-deputy-accent underline">
             ← RESOLVE Overview
@@ -65,9 +65,8 @@ export default function MerchantPage() {
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <p className="mb-6 text-sm text-deputy-muted">
-          Simulates airline/support confirming a refund. When RESOLVE&apos;s
-          verification agent receives proof here, Arc escrow releases on the user
-          console.
+          Merchants confirm refunds or cancellations here. When RESOLVE verifies proof,
+          settlement releases on Arc for the assigned task.
         </p>
 
         {tasks.length === 0 ? (

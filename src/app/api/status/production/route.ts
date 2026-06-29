@@ -62,7 +62,6 @@ export async function GET() {
     cosmetic: {
       escrowLockRef:
         "Mission escrow lock is a ledger record (escrow:...) until ERC-8183 vault is wired",
-      homepageDemoMission: "Example mission on homepage is labeled Demo when no live task",
     },
     issues,
     integrations: integrations.live,

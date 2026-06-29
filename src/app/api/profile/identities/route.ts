@@ -104,7 +104,7 @@ export async function GET() {
       hint:
         navidromeConnected || navidromeLive?.installed ?
           undefined
-        : "Connect your Navidrome instance",
+        : "Optional — ListenBrainz sign-in covers most music listeners",
       health: navidromeLive?.health,
       eventsToday: navidromeLive?.eventsToday,
     },

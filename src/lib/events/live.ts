@@ -36,6 +36,13 @@ export type LiveEventsPayload = {
   updatedAt: string;
 };
 
+/** UI chips may say "oss"; ledger domains use `code`. */
+export function normalizeLiveEventDomain(domain: string | null | undefined): string | null {
+  if (!domain || domain === "all") return null;
+  if (domain === "oss") return "code";
+  return domain;
+}
+
 const DOMAIN_CONNECTORS: Record<ValueDomain, string[]> = {
   code: ["github"],
   music: ["navidrome", "listenbrainz", "musicbrainz"],
@@ -58,15 +65,20 @@ export async function buildLiveEvents(input: {
   missionId?: string | null;
   status?: string | null;
   userId?: string | null;
+  /** `network` = all ledger rows (Discover). `mine` = only programs you operate. */
+  scope?: "network" | "mine";
 }): Promise<LiveEventsPayload> {
   const limit = Math.min(Math.max(input.limit ?? 24, 1), 100);
+  const domain = normalizeLiveEventDomain(input.domain);
+  const scope = input.scope ?? (input.communitySlug || input.missionId ? "mine" : "network");
+  const userId = scope === "mine" ? input.userId : null;
 
   let missionIds: string[] | undefined;
   if (input.missionId) {
     missionIds = [input.missionId];
-  } else if (input.communitySlug && input.userId) {
+  } else if (input.communitySlug && userId) {
     const installs = await prisma.resolveCommunityInstall.findMany({
-      where: { userId: input.userId, communitySlug: input.communitySlug },
+      where: { userId, communitySlug: input.communitySlug },
       select: { id: true },
     });
     const programs = await prisma.resolveProgram.findMany({
@@ -74,18 +86,15 @@ export async function buildLiveEvents(input: {
       select: { missionId: true, install: { select: { communitySlug: true } } },
     });
     missionIds = programs.map((p) => p.missionId).filter((id): id is string => Boolean(id));
-  } else if (input.userId) {
+  } else if (userId) {
     const programs = await prisma.resolveProgram.findMany({
-      where: { userId: input.userId, missionId: { not: null } },
+      where: { userId, missionId: { not: null } },
       select: { missionId: true, install: { select: { communitySlug: true } } },
     });
     missionIds = programs.map((p) => p.missionId!).filter(Boolean);
   }
 
-  const connectorFilter =
-    input.domain && input.domain !== "all"
-      ? DOMAIN_CONNECTORS[input.domain as ValueDomain] ?? []
-      : undefined;
+  const connectorFilter = domain ? DOMAIN_CONNECTORS[domain as ValueDomain] ?? [] : undefined;
 
   const authWhere: Record<string, unknown> = {};
   if (missionIds?.length) authWhere.missionId = { in: missionIds };
@@ -113,10 +122,10 @@ export async function buildLiveEvents(input: {
         },
       })
       .catch(() => []),
-    input.communitySlug && input.userId
+    input.communitySlug && userId
       ? prisma.resolveTimelineEvent
           .findMany({
-            where: { userId: input.userId },
+            where: { userId },
             orderBy: { createdAt: "desc" },
             take: Math.min(limit, 12),
             select: {
@@ -201,7 +210,7 @@ export async function buildLiveEvents(input: {
     total: events.length,
     events: events.slice(0, limit),
     filters: {
-      domain: input.domain ?? null,
+      domain: domain ?? null,
       community: input.communitySlug ?? null,
       mission: input.missionId ?? null,
       status: input.status ?? null,

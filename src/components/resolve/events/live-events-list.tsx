@@ -38,6 +38,7 @@ type LiveEventsListProps = {
   community?: string | null;
   mission?: string | null;
   status?: string | null;
+  scope?: "network" | "mine";
   limit?: number;
   pollMs?: number;
   compact?: boolean;
@@ -52,6 +53,7 @@ export function LiveEventsList({
   community,
   mission,
   status,
+  scope,
   limit = 24,
   pollMs = 20_000,
   compact = false,
@@ -70,6 +72,7 @@ export function LiveEventsList({
     if (community) params.set("community", community);
     if (mission) params.set("mission", mission);
     if (status) params.set("status", status);
+    if (scope) params.set("scope", scope);
 
     const load = () =>
       fetch(`/api/events/live?${params}`)
@@ -81,7 +84,7 @@ export function LiveEventsList({
     void load();
     const t = setInterval(() => void load(), pollMs);
     return () => clearInterval(t);
-  }, [domain, community, mission, status, limit, pollMs]);
+  }, [domain, community, mission, status, scope, limit, pollMs]);
 
   return (
     <section className={clsx(compact ? "space-y-2" : "mb-12", className)}>

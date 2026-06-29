@@ -9,6 +9,7 @@ export async function GET(req: Request) {
   const community = searchParams.get("community");
   const mission = searchParams.get("mission");
   const status = searchParams.get("status");
+  const scope = searchParams.get("scope") === "mine" ? "mine" : "network";
   const limit = Number(searchParams.get("limit") ?? "24");
 
   const authUser = await getSessionUser();
@@ -21,6 +22,7 @@ export async function GET(req: Request) {
       missionId: mission || null,
       status: status || null,
       userId: authUser?.id ?? null,
+      scope,
     });
     return NextResponse.json(payload);
   } catch (e) {

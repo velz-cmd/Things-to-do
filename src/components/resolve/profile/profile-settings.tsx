@@ -9,6 +9,7 @@ import {
   LogOut,
   Mail,
   Music,
+  Tv,
   CheckCircle2,
   Loader2,
 } from "lucide-react";
@@ -46,6 +47,7 @@ const PLATFORM_ICONS: Record<
   wallet: Wallet,
   listenbrainz: Music,
   navidrome: Music,
+  jellyfin: Tv,
   gmail: Mail,
 };
 
@@ -173,6 +175,65 @@ function ConnectNavidromeForm({ onConnected }: { onConnected: () => void }) {
       />
       <Button type="submit" size="sm" variant="secondary" disabled={busy}>
         {busy ? "Connecting…" : "Connect Navidrome"}
+      </Button>
+    </form>
+  );
+}
+
+function ConnectJellyfinForm({ onConnected }: { onConnected: () => void }) {
+  const [url, setUrl] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await fetch("/api/profile/connect/jellyfin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ url, username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Connection failed");
+      toast.success("Jellyfin connected");
+      onConnected();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not connect Jellyfin");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={(e) => void submit(e)} className="mt-2 space-y-2">
+      <input
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://jellyfin.example.com"
+        type="url"
+        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
+        required
+      />
+      <input
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder="Jellyfin username"
+        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
+        required
+      />
+      <input
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        type="password"
+        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
+        required
+      />
+      <Button type="submit" size="sm" variant="secondary" disabled={busy}>
+        {busy ? "Connecting…" : "Connect Jellyfin"}
       </Button>
     </form>
   );
@@ -344,7 +405,7 @@ export function ProfileSettings() {
 
   const byCommunity = useMemo(() => platformsByCommunity(), []);
 
-  const communityOrder: CommunityKind[] = ["open_source", "music", "settlement"];
+  const communityOrder: CommunityKind[] = ["open_source", "music", "media", "settlement"];
 
   function renderPlatformActions(platformId: IdentityPlatformId, connected: boolean) {
     if (platformId === "github") {
@@ -388,6 +449,9 @@ export function ProfileSettings() {
     }
     if (platformId === "navidrome" && connected) {
       return <TextAction label="Remove" onClick={() => void disconnectPlatform("navidrome")} />;
+    }
+    if (platformId === "jellyfin" && connected) {
+      return <TextAction label="Remove" onClick={() => void disconnectPlatform("jellyfin")} />;
     }
     return null;
   }
@@ -443,6 +507,22 @@ export function ProfileSettings() {
               </Button>
             </div>;
       }
+      case "jellyfin":
+        return connectingPlatform === "jellyfin" ?
+            <ConnectJellyfinForm
+              onConnected={() => {
+                setConnectingPlatform(null);
+                void load();
+              }}
+            />
+          : <div className="space-y-2">
+              <Button size="sm" onClick={() => setConnectingPlatform("jellyfin")}>
+                Connect Jellyfin
+              </Button>
+              <p className="text-[11px] text-resolve-muted-dim">
+                Your server must be reachable from the internet for session polling.
+              </p>
+            </div>;
       case "listenbrainz":
         return (
           <div className="space-y-2">

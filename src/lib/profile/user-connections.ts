@@ -1,6 +1,7 @@
 import type { User } from "@prisma/client";
+import { authenticateJellyfin } from "@/lib/integrations/jellyfin-client";
 
-export type ConnectPlatform = "github" | "gmail" | "listenbrainz" | "navidrome";
+export type ConnectPlatform = "github" | "gmail" | "listenbrainz" | "navidrome" | "jellyfin";
 
 export function userListenBrainzConfigured(user: Pick<User, "listenbrainzUsername">): boolean {
   return Boolean(user.listenbrainzUsername?.trim());
@@ -14,6 +15,12 @@ export function userNavidromeConfigured(
       user.navidromeUsername?.trim() &&
       user.navidromePassword?.trim(),
   );
+}
+
+export function userJellyfinConfigured(
+  user: Pick<User, "jellyfinUrl" | "jellyfinAccessToken">,
+): boolean {
+  return Boolean(user.jellyfinUrl?.trim() && user.jellyfinAccessToken?.trim());
 }
 
 export async function validateListenBrainzCredentials(
@@ -111,6 +118,26 @@ export async function validateNavidromeCredentials(
   }
 }
 
+export async function validateJellyfinCredentials(
+  url: string,
+  username: string,
+  password: string,
+): Promise<{ ok: boolean; message: string }> {
+  const base = url.trim().replace(/\/$/, "");
+  if (!base) return { ok: false, message: "Jellyfin URL is required" };
+  if (!username.trim() || !password) {
+    return { ok: false, message: "Username and password are required" };
+  }
+
+  try {
+    new URL(base);
+  } catch {
+    return { ok: false, message: "Invalid Jellyfin URL" };
+  }
+
+  return authenticateJellyfin({ url: base, username, password });
+}
+
 export const DISCONNECT_FIELDS: Record<
   ConnectPlatform,
   Partial<
@@ -125,6 +152,9 @@ export const DISCONNECT_FIELDS: Record<
       | "navidromeUrl"
       | "navidromeUsername"
       | "navidromePassword"
+      | "jellyfinUrl"
+      | "jellyfinUsername"
+      | "jellyfinAccessToken"
     >
   >
 > = {
@@ -132,4 +162,5 @@ export const DISCONNECT_FIELDS: Record<
   gmail: { gmailConnected: false, gmailRefreshToken: null },
   listenbrainz: { listenbrainzUsername: null, listenbrainzToken: null },
   navidrome: { navidromeUrl: null, navidromeUsername: null, navidromePassword: null },
+  jellyfin: { jellyfinUrl: null, jellyfinUsername: null, jellyfinAccessToken: null },
 };

@@ -5,7 +5,7 @@ import { getProfileEarningsSummary } from "@/lib/earn/summary";
 import { listCommunitySummaries } from "@/lib/communities/surface";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getConnectorStatuses } from "@/lib/connectors/connector-service";
-import { userListenBrainzConfigured, userNavidromeConfigured } from "@/lib/profile/user-connections";
+import { userListenBrainzConfigured, userNavidromeConfigured, userJellyfinConfigured } from "@/lib/profile/user-connections";
 import { safeUrlHostname } from "@/lib/profile/safe-url";
 import { normalizeGithubLogin } from "@/lib/identity/github-login";
 import { embeddedWalletFor } from "@/lib/wallet/embedded";
@@ -38,6 +38,7 @@ export async function GET() {
     const githubUsername = normalizeGithubLogin(profile.githubUsername);
     const listenbrainzConnected = userListenBrainzConfigured(profile);
     const navidromeConnected = userNavidromeConfigured(profile);
+    const jellyfinConnected = userJellyfinConfigured(profile);
 
     const liveConnectors = await getConnectorLiveStatuses().catch(() => []);
     const connectorStatuses = await getConnectorStatuses(authUser.id).catch(() => []);
@@ -49,6 +50,7 @@ export async function GET() {
     const gmailStatus = connectorStatuses.find((c) => c.id === "gmail");
     const arcStatus = connectorStatuses.find((c) => c.id === "arc");
     const navidromeHost = safeUrlHostname(profile.navidromeUrl);
+    const jellyfinHost = safeUrlHostname(profile.jellyfinUrl);
 
     const identities: ProfileIdentityState[] = [
       {
@@ -78,6 +80,17 @@ export async function GET() {
           : "Optional — ListenBrainz covers most listeners",
         health: navidromeLive?.health,
         eventsToday: navidromeLive?.eventsToday,
+      },
+      {
+        id: "jellyfin",
+        connected: jellyfinConnected,
+        displayValue:
+          jellyfinHost ??
+          (profile.jellyfinUsername ? `@${profile.jellyfinUsername}` : undefined),
+        hint:
+          jellyfinConnected ?
+            undefined
+          : "Connect Jellyfin for video.watch authorizations",
       },
       {
         id: "listenbrainz",

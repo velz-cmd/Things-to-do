@@ -8,6 +8,7 @@ import {
   type ConnectPlatform,
 } from "@/lib/profile/user-connections";
 import { syncUserMusicSensors } from "@/lib/connectors/user-music-sync";
+import { syncUserJellyfinSensors, connectJellyfinForUser } from "@/lib/connectors/user-jellyfin-sync";
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 
 const navidromeSchema = z.object({
@@ -16,7 +17,15 @@ const navidromeSchema = z.object({
   password: z.string().min(1).max(256),
 });
 
-const PLATFORMS = new Set<ConnectPlatform>(["github", "gmail", "listenbrainz", "navidrome"]);
+const jellyfinSchema = navidromeSchema;
+
+const PLATFORMS = new Set<ConnectPlatform>([
+  "github",
+  "gmail",
+  "listenbrainz",
+  "navidrome",
+  "jellyfin",
+]);
 
 export async function POST(
   req: Request,
@@ -91,6 +100,28 @@ export async function POST(
     void syncUserMusicSensors(ready.user.id).catch(() => undefined);
 
     return NextResponse.json({ ok: true, message: check.message });
+  }
+
+  if (platform === "jellyfin") {
+    const parsed = jellyfinSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid Jellyfin credentials" }, { status: 400 });
+    }
+
+    const result = await connectJellyfinForUser(ready.user.id, parsed.data);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    void autoInstallCommunitiesForUser(ready.user.id, {
+      jellyfinUrl: parsed.data.url.trim().replace(/\/$/, ""),
+      jellyfinUsername: parsed.data.username.trim(),
+      jellyfinAccessToken: "connected",
+    }).catch(() => undefined);
+
+    void syncUserJellyfinSensors(ready.user.id).catch(() => undefined);
+
+    return NextResponse.json({ ok: true, message: result.message });
   }
 
   return NextResponse.json({ error: "Unsupported platform" }, { status: 400 });

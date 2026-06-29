@@ -116,7 +116,10 @@ export function CommunityBridgePanel({
         </span>
       </div>
 
-      <p className="text-sm text-white/90">{status.instructions}</p>
+      <p className="text-sm text-white/90">
+        {status.instructions ||
+          "Connect ListenBrainz once on Profile. Plays sync automatically — no SSH or server access required."}
+      </p>
 
       {status.program && (
         <div className="rounded-lg border border-white/[0.06] bg-black/25 px-3 py-2.5">

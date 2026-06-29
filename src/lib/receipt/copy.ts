@@ -142,6 +142,13 @@ export const CONTRIBUTOR_IDENTITY_COPY = {
       linkedToast: "Artist name confirmed — earnings will route to your account",
       errorSearch: "Could not search right now — try again in a moment",
       errorLink: "Could not save — try again",
+      aliasTitle: "Scrobble under a different name?",
+      aliasHint:
+        "If ListenBrainz or Navidrome shows a stage name that is not your MusicBrainz credit, link it here so plays still route to you.",
+      aliasPlaceholder: "Stage name as it appears in scrobbles…",
+      aliasButton: "Link scrobble name",
+      aliasLinkedToast: "Scrobble name linked — plays under this name route to your wallet",
+      aliasError: "Could not link name — try again",
     },
     media: {
       id: "media",

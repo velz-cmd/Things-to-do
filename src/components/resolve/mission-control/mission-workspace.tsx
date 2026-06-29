@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type FormEvent } from "react";
+import { useEffect, useRef, type FormEvent, useState } from "react";
 import { Loader2, Send } from "lucide-react";
 import { MissionThinking } from "@/components/resolve/mission-control/mission-thinking";
 import { MissionEmptyState } from "@/components/resolve/mission-control/mission-empty-state";
@@ -113,6 +113,8 @@ export function MissionWorkspace({
   const showPlanning = shouldShowPlanningBar(phase);
   const showExecute = shouldShowExecuteBar(phase);
   const lastReport = lastResolve?.report;
+  const [evidenceCount, setEvidenceCount] = useState(0);
+  const executeBlocked = showExecute && evidenceCount < 1;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -205,7 +207,11 @@ export function MissionWorkspace({
             </div>
           )}
 
-          <MissionEvidencePanel visible={showPlanning || showExecute} missionId={missionId} />
+          <MissionEvidencePanel
+            visible={showPlanning || showExecute}
+            missionId={missionId}
+            onEvidenceCount={setEvidenceCount}
+          />
 
           <MissionPlanningBar
             visible={showPlanning && !loading}
@@ -234,6 +240,8 @@ export function MissionWorkspace({
 
           <MissionExecuteBar
             visible={showExecute && !loading}
+            executeBlocked={executeBlocked}
+            blockReason="Connect sensors or wait for ledger rows before authorizing settlement."
             actions={[
               {
                 id: "review-package-bar",

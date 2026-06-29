@@ -65,6 +65,9 @@ function CommunityIdentityPanel({
   const [linking, setLinking] = useState<string | null>(null);
   const [results, setResults] = useState<ArtistHit[]>([]);
   const [linkedArtist, setLinkedArtist] = useState<ArtistHit | null>(null);
+  const [aliasName, setAliasName] = useState("");
+  const [aliasLinking, setAliasLinking] = useState(false);
+  const [aliases, setAliases] = useState<Array<{ id: string; artistName: string }>>([]);
   const account = useResolveAccount();
   const payoutWallet =
     account.appWalletAddress ?? account.walletAddress ?? account.externalWalletAddress;
@@ -91,6 +94,47 @@ function CommunityIdentityPanel({
     const t = setTimeout(() => void search(query), 350);
     return () => clearTimeout(t);
   }, [query, search, tab]);
+
+  useEffect(() => {
+    if (tab !== "music" || !payoutWallet) return;
+    void fetch("/api/registry/musicbrainz/alias", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : { aliases: [] }))
+      .then((d) => setAliases(d.aliases ?? []))
+      .catch(() => setAliases([]));
+  }, [tab, payoutWallet]);
+
+  async function linkAlias() {
+    if (!payoutWallet) {
+      toast.error(CONTRIBUTOR_IDENTITY_COPY.needAccount.body);
+      return;
+    }
+    const name = aliasName.trim();
+    if (name.length < 2) {
+      toast.error("Enter the name as it appears in your scrobbles");
+      return;
+    }
+    setAliasLinking(true);
+    try {
+      const res = await fetch("/api/registry/musicbrainz/alias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          artistName: name,
+          musicbrainzId: linkedArtist?.mbid,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? music.aliasError);
+      toast.success(music.aliasLinkedToast);
+      setAliases((prev) => [{ id: data.alias.id, artistName: name }, ...prev]);
+      setAliasName("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : music.aliasError);
+    } finally {
+      setAliasLinking(false);
+    }
+  }
 
   async function confirmArtist(artist: ArtistHit) {
     if (!payoutWallet) {
@@ -296,6 +340,44 @@ function CommunityIdentityPanel({
           {!searching && query.length >= 2 && results.length === 0 && (
             <p className="text-xs text-resolve-muted">{music.noResults}</p>
           )}
+
+          <div className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 px-4 py-4 space-y-3">
+            <div>
+              <p className="text-sm font-medium text-white">{music.aliasTitle}</p>
+              <p className="mt-1 text-xs leading-relaxed text-resolve-muted">{music.aliasHint}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="text"
+                value={aliasName}
+                onChange={(e) => setAliasName(e.target.value)}
+                placeholder={music.aliasPlaceholder}
+                className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={aliasLinking || !payoutReady}
+                onClick={() => void linkAlias()}
+              >
+                {aliasLinking ?
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : music.aliasButton}
+              </Button>
+            </div>
+            {aliases.length > 0 && (
+              <ul className="flex flex-wrap gap-2">
+                {aliases.map((a) => (
+                  <li
+                    key={a.id}
+                    className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200"
+                  >
+                    {a.artistName}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </>
       )}
     </div>

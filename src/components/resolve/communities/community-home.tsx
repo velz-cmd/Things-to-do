@@ -133,6 +133,20 @@ function ProgramCard({
         </div>
       </div>
 
+      {readiness && readiness.pendingObligationsUsd > 0.01 && (
+        <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-200/90">
+            Pending obligations
+          </p>
+          <p className="mt-1 text-sm font-semibold text-amber-100">
+            <Money amount={readiness.pendingObligationsUsd} size="sm" className="inline" />
+            <span className="ml-2 text-[11px] font-normal text-resolve-muted">
+              · {readiness.authorizedCount} payee(s) waiting
+            </span>
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"

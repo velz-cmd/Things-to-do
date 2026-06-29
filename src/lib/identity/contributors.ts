@@ -253,6 +253,68 @@ export async function getContributorByMusicBrainz(mbid: string) {
   });
 }
 
+/** Map a scrobble/listen artist string to the user's payout wallet (when ≠ MusicBrainz name). */
+export async function linkScrobbleArtistAlias(input: {
+  userId: string;
+  aliasName: string;
+  walletAddress: string;
+  musicbrainzId?: string | null;
+}) {
+  const alias = input.aliasName.trim();
+  if (alias.length < 2) throw new Error("Artist name too short");
+  if (!input.walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+    throw new Error("Invalid wallet address");
+  }
+
+  const existing = await prisma.contributorRegistry.findFirst({
+    where: {
+      exifArtist: { equals: alias, mode: "insensitive" },
+    },
+  });
+
+  if (existing && existing.walletAddress?.toLowerCase() !== input.walletAddress.toLowerCase()) {
+    throw new Error("This artist name is already linked to another account");
+  }
+
+  if (existing) {
+    return prisma.contributorRegistry.update({
+      where: { id: existing.id },
+      data: {
+        walletAddress: input.walletAddress.toLowerCase(),
+        verified: true,
+        status: "verified",
+        lastSeenAt: new Date(),
+        ...(input.musicbrainzId ? { musicbrainzId: input.musicbrainzId.toLowerCase() } : {}),
+      },
+    });
+  }
+
+  return prisma.contributorRegistry.create({
+    data: {
+      platform: "musicbrainz_alias",
+      platformId: input.userId,
+      creatorName: alias,
+      exifArtist: alias,
+      musicbrainzId: input.musicbrainzId?.toLowerCase() ?? null,
+      walletAddress: input.walletAddress.toLowerCase(),
+      verified: true,
+      status: "verified",
+      lastSeenAt: new Date(),
+    },
+  });
+}
+
+export async function listScrobbleAliasesForWallet(walletAddress: string) {
+  return prisma.contributorRegistry.findMany({
+    where: {
+      walletAddress: walletAddress.toLowerCase(),
+      OR: [{ platform: "musicbrainz_alias" }, { exifArtist: { not: null } }],
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 12,
+  });
+}
+
 export async function setContributorPayoutPreference(login: string, currency: string) {
   const payoutCurrency = normalizePayoutCurrency(currency);
   const contributor = await ensureContributorFromGithub({ login });

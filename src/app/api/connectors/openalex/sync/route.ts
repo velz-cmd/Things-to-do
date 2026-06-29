@@ -34,14 +34,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  if (!INTEGRATIONS.openAlex()) {
-    return NextResponse.json({
-      ok: false,
-      error: "OPENALEX_API_KEY required for citation sensor sync",
-      live: false,
-    }, { status: 503 });
-  }
-
   const result = await syncOpenAlexCommunitySensors({
     communitySlug: parsed.data.communitySlug,
     missionId: parsed.data.missionId,
@@ -51,6 +43,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     pipeline: "sensor → observation → authorization",
+    publicApi: true,
     ...result,
   });
 }

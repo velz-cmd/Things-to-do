@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { processScheduledTasks } from "@/lib/deputy/executor";
-import { syncListenBrainzListens } from "@/lib/connectors/listenbrainz-sync";
-import { syncAllUsersMusicSensors } from "@/lib/connectors/user-music-sync";
-import { isListenBrainzConfigured } from "@/lib/integrations/listenbrainz";
+import { syncAllUsersSensors } from "@/lib/connectors/user-sensor-sync";
 import { authorizeCronRequest } from "@/lib/env/cron-secret";
 import { notifyAllUnnotifiedClaimable } from "@/lib/earn/notify";
 import { refreshStaleSensors } from "@/lib/sensors/maintenance";
@@ -13,11 +11,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [tasks, music, userMusic, sensors, notify, claimableRelease] = await Promise.all([
+  const [tasks, userSensors, sensors, notify, claimableRelease] = await Promise.all([
     processScheduledTasks(),
-    isListenBrainzConfigured() ? syncListenBrainzListens() : Promise.resolve(null),
-    syncAllUsersMusicSensors().catch((e) => ({
-      error: e instanceof Error ? e.message : "user_music_sync_failed",
+    syncAllUsersSensors().catch((e) => ({
+      error: e instanceof Error ? e.message : "user_sensor_sync_failed",
     })),
     refreshStaleSensors().catch((e) => ({
       error: e instanceof Error ? e.message : "sensor_maintenance_failed",
@@ -33,8 +30,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     ...tasks,
-    listenBrainz: music,
-    userMusicSensors: userMusic,
+    userSensors,
     sensors,
     earnNotify: Array.isArray(notify)
       ? { processed: notify.length, emailed: notify.filter((r) => r.emailSent).length }

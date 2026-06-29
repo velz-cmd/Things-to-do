@@ -53,7 +53,7 @@ export function CommunityBridgePanel({
   async function syncNow() {
     setSyncing(true);
     try {
-      const res = await fetch("/api/connectors/music/sync", {
+      const res = await fetch("/api/connectors/sensors/sync", {
         method: "POST",
         credentials: "include",
       });

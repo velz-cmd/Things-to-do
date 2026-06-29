@@ -19,6 +19,7 @@ import { CapitalCommunityPrograms } from "@/components/resolve/capital/capital-c
 import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-truth";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
+import { PendingAuthorizationsPanel } from "@/components/resolve/payments/pending-authorizations-panel";
 import { BANKING_UI, friendlyStatementLabel, friendlyStatus } from "@/lib/banking/copy";
 import type { BankingAccountSnapshot, StatementLine } from "@/lib/banking/types";
 
@@ -444,6 +445,8 @@ export function ResolveBanking({
               )}
             </BlueGlowCard>
           )}
+
+          {signedIn && <PendingAuthorizationsPanel signedIn={signedIn} />}
 
           {!initialLoading && network && network.pendingFundingUsd > 0 && (
             <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100/90">

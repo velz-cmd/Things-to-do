@@ -59,7 +59,15 @@ export function DiscoverSurface() {
 
       <IntelligenceBriefing className="mb-10 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 p-6" />
 
-      <DiscoverLiveFeed />
+      <DiscoverLiveFeed
+        domain={
+          communityKind === "all"
+            ? null
+            : communityKind === "oss"
+              ? "code"
+              : communityKind
+        }
+      />
 
       <ValueGraph variant="full" />
 

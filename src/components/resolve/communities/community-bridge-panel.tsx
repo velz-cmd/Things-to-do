@@ -131,10 +131,10 @@ export function CommunityBridgePanel({
       <div className="flex flex-wrap gap-2">
         {!connected && (
           <Link
-            href="/profile"
+            href="/api/connectors/listenbrainz/authorize?returnTo=/communities/independent-music"
             className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-white hover:bg-white/[0.08]"
           >
-            Connect on Profile
+            Connect ListenBrainz
           </Link>
         )}
         {connected && (

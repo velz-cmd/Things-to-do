@@ -3,8 +3,10 @@ import { getCommunityBySlug } from "@/lib/communities/catalog";
 import { scanDocsMergedObservations } from "@/lib/sensors/github-docs";
 import { scanSecurityAdvisoryObservations } from "@/lib/sensors/github-security";
 import { scanCitationObservations } from "@/lib/sensors/openalex-citations";
+import { scanOpenCollectiveContributions } from "@/lib/sensors/opencollective-contributions";
 import { ingestObservationPipeline } from "@/lib/sensors/pipeline";
 import { resolveSensorProgramContext } from "@/lib/sensors/program-context";
+import { runQfMatchAllocation } from "@/lib/capital/qf-allocator";
 import { COMMUNITY_GITHUB_TARGETS } from "@/lib/sensors/targets";
 import type { Observation } from "@/lib/domain/observation";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
@@ -216,6 +218,107 @@ export async function syncOpenAlexCommunitySensors(input: {
   };
 }
 
+/** Sync Open Collective contributions + run QF match allocation (RFB #6). */
+export async function syncOpenCollectiveCommunitySensors(input: {
+  communitySlug?: string;
+  missionId?: string;
+  founderUserId?: string;
+  openCollectiveSlug?: string;
+}): Promise<SensorSyncResult & { qfMatches?: number; matchLeverage?: number }> {
+  const communitySlug = input.communitySlug ?? "react";
+  const program = await resolveSensorProgramContext({
+    communitySlug,
+    templateId: "quadratic-funding",
+    missionIdOverride: input.missionId,
+    founderUserId: input.founderUserId,
+  });
+
+  if (!program) {
+    return {
+      communitySlug,
+      observations: 0,
+      ingested: 0,
+      skipped: 0,
+      missionId: null,
+      eventTypes: [],
+      reposScanned: [],
+      live: false,
+    };
+  }
+
+  if (input.openCollectiveSlug) {
+    program.rules.openCollectiveSlug = input.openCollectiveSlug;
+  }
+
+  const observations = await scanOpenCollectiveContributions({ program });
+  const result = await ingestObservationPipeline({
+    observations,
+    program,
+    founderUserId: input.founderUserId,
+  });
+
+  let qfMatches = 0;
+  let matchLeverage = 0;
+
+  if (result.missionId && program.rules) {
+    const programRow = await prisma.resolveProgram.findFirst({
+      where: {
+        missionId: result.missionId,
+        templateId: "quadratic-funding",
+      },
+      select: { id: true, rulesJson: true },
+    });
+
+    if (programRow) {
+      let rules = program.rules;
+      if (programRow.rulesJson) {
+        try {
+          rules = { ...rules, ...JSON.parse(programRow.rulesJson) };
+        } catch {
+          /* keep defaults */
+        }
+      }
+      const alloc = await runQfMatchAllocation({
+        programId: programRow.id,
+        missionId: result.missionId,
+        rules,
+        founderUserId: input.founderUserId,
+      });
+      qfMatches = alloc.allocations;
+      matchLeverage = alloc.summary.leverage;
+    }
+  }
+
+  if ((result.ingested > 0 || qfMatches > 0) && input.founderUserId) {
+    await recordTimelineEvent({
+      userId: input.founderUserId,
+      missionId: result.missionId ?? undefined,
+      eventType: "sensor_sync",
+      title: `QF sensor · ${communitySlug}`,
+      detail: `${result.ingested} contribution(s) · ${qfMatches} match authorization(s)`,
+      severity: "info",
+      metadata: { communitySlug, eventTypes: ["qf.contribution", "qf.match"], matchLeverage },
+    }).catch(() => undefined);
+  }
+
+  const eventTypes: string[] = [];
+  if (observations.length) eventTypes.push("qf.contribution");
+  if (qfMatches > 0) eventTypes.push("qf.match");
+
+  return {
+    communitySlug,
+    observations: observations.length,
+    ingested: result.ingested + qfMatches,
+    skipped: result.skipped,
+    missionId: result.missionId,
+    eventTypes,
+    reposScanned: [program.rules.openCollectiveSlug ?? communitySlug],
+    live: result.ingested > 0 || observations.length > 0 || qfMatches > 0,
+    qfMatches,
+    matchLeverage,
+  };
+}
+
 /** Count ledger rows proving sensor is live for a community slug. */
 export async function communityHasLiveSensorEvents(communitySlug: string): Promise<boolean> {
   const community = getCommunityBySlug(communitySlug);
@@ -224,7 +327,9 @@ export async function communityHasLiveSensorEvents(communitySlug: string): Promi
   const eventTypes =
     communitySlug === "open-research"
       ? ["citation.verified"]
-      : ["docs.merged", "security.advisory"];
+      : communitySlug === "react"
+        ? ["qf.contribution", "qf.match", "docs.merged", "security.advisory"]
+        : ["docs.merged", "security.advisory"];
 
   const count = await prisma.paymentAuthorization
     .count({

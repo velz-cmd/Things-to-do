@@ -1,28 +1,41 @@
-/** Community Yield — verified impact multiplier for funders (target 2× by default). */
+/** Program fulfillment metrics — doctrine-aligned, not speculative ROI. */
 
-export const DEFAULT_TARGET_YIELD_MULTIPLIER = 2;
+import {
+  computeMatchLeverage,
+  DEFAULT_MATCH_LEVERAGE_TARGET,
+} from "@/lib/capital/quadratic-funding";
+
+export const DEFAULT_TARGET_YIELD_MULTIPLIER = DEFAULT_MATCH_LEVERAGE_TARGET;
 
 export type ProgramImpactInput = {
   settledUsd: number;
   claimableUsd: number;
   authorizedUsd: number;
   contributorCount: number;
+  templateId?: string;
+  communityContributionsUsd?: number;
+  matchDistributedUsd?: number;
 };
 
 export type ProgramYieldSnapshot = {
   programId: string;
   missionId: string | null;
+  templateId: string;
+  /** Verified value cleared or unlocked by program capital */
   impactValueUsd: number;
   principalFundedUsd: number;
   yieldMultiplier: number;
   targetMultiplier: number;
   targetMet: boolean;
   fundingGapUsd: number;
+  metricKind: "fulfillment" | "match_leverage";
   breakdown: {
     fromSettled: number;
     fromClaimable: number;
     fromAuthorized: number;
     fromContributors: number;
+    fromCommunityContributions?: number;
+    fromMatchDistributed?: number;
   };
 };
 
@@ -40,6 +53,7 @@ export type FunderStakeYield = {
   targetMet: boolean;
   status: string;
   fundedAt: string;
+  metricKind: "fulfillment" | "match_leverage";
 };
 
 export type FundableOpportunity = {
@@ -64,15 +78,35 @@ export type FundableOpportunity = {
   whyFund: string;
   whoBenefits: string;
   score: number;
+  metricKind: "fulfillment" | "match_leverage";
 };
 
-/** Verified economic value created in a program (not speculative ROI). */
+/** Verified economic value — fulfillment ratio for standard programs, match leverage for QF. */
 export function computeProgramImpactValue(input: ProgramImpactInput): {
   total: number;
+  metricKind: "fulfillment" | "match_leverage";
   breakdown: ProgramYieldSnapshot["breakdown"];
 } {
+  if (input.templateId === "quadratic-funding") {
+    const communityContributionsUsd = input.communityContributionsUsd ?? 0;
+    const matchDistributedUsd = input.matchDistributedUsd ?? input.settledUsd;
+    const total = communityContributionsUsd + matchDistributedUsd;
+    return {
+      total: Math.round(total * 100) / 100,
+      metricKind: "match_leverage",
+      breakdown: {
+        fromSettled: 0,
+        fromClaimable: 0,
+        fromAuthorized: 0,
+        fromContributors: input.contributorCount,
+        fromCommunityContributions: Math.round(communityContributionsUsd * 100) / 100,
+        fromMatchDistributed: Math.round(matchDistributedUsd * 100) / 100,
+      },
+    };
+  }
+
   const fromSettled = input.settledUsd;
-  const fromClaimable = input.claimableUsd * 0.9;
+  const fromClaimable = input.claimableUsd;
   const fromAuthorized = input.authorizedUsd * 0.5;
   const fromContributors = Math.min(input.contributorCount * 2, 50);
 
@@ -82,6 +116,7 @@ export function computeProgramImpactValue(input: ProgramImpactInput): {
 
   return {
     total,
+    metricKind: "fulfillment",
     breakdown: {
       fromSettled: Math.round(fromSettled * 100) / 100,
       fromClaimable: Math.round(fromClaimable * 100) / 100,
@@ -115,7 +150,7 @@ export function templateLabel(templateId: string): string {
     "docs-bounty": "Documentation bounties",
     "security-fund": "Security fund",
     "citation-toll": "Research citations",
-    "quadratic-funding": "Matched funding round",
+    "quadratic-funding": "Quadratic funding (RFB #6)",
   };
   return map[templateId] ?? templateId.replace(/-/g, " ");
 }
@@ -125,12 +160,29 @@ export function whyFundCopy(input: {
   communityName: string;
   fundingGapUsd: number;
   settlementRate: number;
+  pendingFundingUsd?: number;
 }): { whyFund: string; whoBenefits: string } {
+  if (input.templateId === "quadratic-funding") {
+    const gap =
+      input.fundingGapUsd > 0 ?
+        `$${input.fundingGapUsd.toFixed(0)} more in the match pool reaches 2× community leverage.`
+      : "Community is contributing on Open Collective — add match pool to amplify with QF.";
+
+    return {
+      whyFund:
+        `RFB #6 quadratic round for ${input.communityName}. ${gap} Funders fulfill the match pool; small donors get amplified.`,
+      whoBenefits:
+        "Hosted projects and maintainers on Open Collective — contributors keep using OC as normal.",
+    };
+  }
+
   const tpl = templateLabel(input.templateId);
-  const gap =
-    input.fundingGapUsd > 0 ?
-      `$${input.fundingGapUsd.toFixed(0)} more unlocks verified payouts at 2× impact.`
-    : "Program is creating verified value — add capital to accelerate payouts.";
+  const pending =
+    (input.pendingFundingUsd ?? 0) > 0 ?
+      `$${input.pendingFundingUsd!.toFixed(0)} already authorized, waiting for fulfillment.`
+    : input.fundingGapUsd > 0 ?
+      `$${input.fundingGapUsd.toFixed(0)} more clears owed authorizations at 2× fulfillment.`
+    : "Authorizations are building — fund to clear the queue.";
 
   const whoBenefits =
     input.templateId.includes("royalt") || input.templateId.includes("music") ?
@@ -144,7 +196,7 @@ export function whyFundCopy(input: {
     : `Creators in ${input.communityName} — upstream communities unchanged.`;
 
   return {
-    whyFund: `${tpl} in ${input.communityName}. ${gap}`,
+    whyFund: `${tpl} in ${input.communityName}. ${pending}`,
     whoBenefits,
   };
 }
@@ -155,11 +207,14 @@ export function opportunityScore(input: {
   signalCount: number;
   yieldMultiplier: number;
   targetMultiplier: number;
+  pendingFundingUsd?: number;
 }): number {
   let score = 0;
-  score += Math.min(input.fundingGapUsd / 10, 40);
+  score += Math.min((input.pendingFundingUsd ?? input.fundingGapUsd) / 10, 40);
   score += input.settlementRate * 25;
   score += Math.min(input.signalCount, 20);
   if (input.yieldMultiplier >= input.targetMultiplier) score += 15;
   return Math.round(score);
 }
+
+export { computeMatchLeverage };

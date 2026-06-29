@@ -37,11 +37,39 @@ export async function computeProgramYield(programId: string): Promise<ProgramYie
   const ownerFunded = Math.max(0, program.budgetUsd - pool.principalUsd);
   const principalFundedUsd = round(pool.principalUsd + ownerFunded);
 
+  let communityContributionsUsd = 0;
+  let matchDistributedUsd = 0;
+
+  if (program.templateId === "quadratic-funding") {
+    const contrib = await prisma.paymentAuthorization.aggregate({
+      where: { missionId: program.missionId, eventType: "qf.contribution", status: "recognized" },
+      _sum: { amountUsd: true },
+    });
+    communityContributionsUsd = contrib._sum.amountUsd ?? 0;
+
+    const match = await prisma.paymentAuthorization.aggregate({
+      where: {
+        missionId: program.missionId,
+        eventType: "qf.match",
+        status: { in: ["authorized", "pending_funding", "claimable", "settled", "claimed"] },
+      },
+      _sum: { amountUsd: true },
+    });
+    const matchSettled = await prisma.paymentAuthorization.aggregate({
+      where: { missionId: program.missionId, eventType: "qf.match", status: "settled" },
+      _sum: { amountUsd: true },
+    });
+    matchDistributedUsd = matchSettled._sum.amountUsd ?? match._sum.amountUsd ?? 0;
+  }
+
   const impact = computeProgramImpactValue({
     settledUsd: summary.settledUsd,
     claimableUsd: summary.claimableUsd,
     authorizedUsd: summary.authorizedUsd + summary.pendingFundingUsd,
     contributorCount: new Set(summary.authorizations.map((a) => a.payeeKey)).size,
+    templateId: program.templateId,
+    communityContributionsUsd,
+    matchDistributedUsd,
   });
 
   const yieldMultiplier = computeYieldMultiplier(impact.total, principalFundedUsd);
@@ -50,12 +78,14 @@ export async function computeProgramYield(programId: string): Promise<ProgramYie
   return {
     programId,
     missionId: program.missionId,
+    templateId: program.templateId,
     impactValueUsd: impact.total,
     principalFundedUsd,
     yieldMultiplier,
     targetMultiplier,
     targetMet: yieldMultiplier >= targetMultiplier,
     fundingGapUsd: fundingGapForTarget(impact.total, principalFundedUsd, targetMultiplier),
+    metricKind: impact.metricKind,
     breakdown: impact.breakdown,
   };
 }
@@ -145,6 +175,7 @@ export async function listFunderPortfolio(userId: string): Promise<FunderStakeYi
       targetMet: multiplier >= stake.targetYieldMultiplier,
       status: stake.status,
       fundedAt: stake.createdAt.toISOString(),
+      metricKind: yieldSnap?.metricKind ?? "fulfillment",
     });
   }
   return out;

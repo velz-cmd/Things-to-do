@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Radio, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Loader2, Radio, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Button } from "@/components/resolve/ui/button";
@@ -14,16 +15,18 @@ type SyncResponse = {
   eventTypes?: string[];
   reposScanned?: string[];
   live?: boolean;
+  qfMatches?: number;
+  matchLeverage?: number;
   error?: string;
 };
 
-const SENSOR_SLUGS = new Set(["react", "linux", "open-research"]);
+const GITHUB_SLUGS = new Set(["react", "linux"]);
+const RESEARCH_SLUG = "open-research";
+const QF_SLUGS = new Set(["react"]);
 
 type Props = {
   slug: string;
-  /** When false, show install-first hint (no API call). */
   installed?: boolean;
-  /** Reload authorizations / community surface after a successful sync. */
   onSynced?: () => void | Promise<void>;
 };
 
@@ -32,8 +35,14 @@ export function CommunitySensorPanel({ slug, installed = true, onSynced }: Props
   const [last, setLast] = useState<SyncResponse | null>(null);
   const [sensorReady, setSensorReady] = useState<boolean | null>(null);
 
-  const isResearch = slug === "open-research";
-  const endpoint = isResearch ? "/api/connectors/openalex/sync" : "/api/connectors/github/sync";
+  const isResearch = slug === RESEARCH_SLUG;
+  const isQf = QF_SLUGS.has(slug);
+  const isGithub = GITHUB_SLUGS.has(slug);
+
+  const endpoint =
+    isResearch ? "/api/connectors/openalex/sync"
+    : isQf ? "/api/connectors/opencollective/sync"
+    : "/api/connectors/github/sync";
 
   const loadStatus = useCallback(async () => {
     try {
@@ -50,10 +59,10 @@ export function CommunitySensorPanel({ slug, installed = true, onSynced }: Props
   }, [slug]);
 
   useEffect(() => {
-    if (SENSOR_SLUGS.has(slug)) void loadStatus();
-  }, [slug, loadStatus]);
+    if (isGithub || isResearch || isQf) void loadStatus();
+  }, [slug, loadStatus, isGithub, isResearch, isQf]);
 
-  if (!SENSOR_SLUGS.has(slug)) return null;
+  if (!isGithub && !isResearch && !isQf) return null;
 
   async function runSync() {
     if (!installed) {
@@ -91,52 +100,70 @@ export function CommunitySensorPanel({ slug, installed = true, onSynced }: Props
     }
   }
 
+  const description =
+    isResearch ? "Pulls new OpenAlex citations into the authorization ledger (RFB #2)."
+    : isQf ?
+      "Pulls Open Collective contributions, scores QF, and creates match authorizations (RFB #6)."
+    : "Pulls merged docs PRs and security issues from GitHub into the ledger (RFB #3 / #4).";
+
   return (
-    <BlueGlowCard variant="subtle" className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Radio className="h-4 w-4 text-resolve-accent" />
-          <span className="text-xs font-medium uppercase tracking-wider text-resolve-muted">
-            Live sensors
-          </span>
+    <div className="space-y-3">
+      <BlueGlowCard variant="subtle" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Radio className="h-4 w-4 text-resolve-accent" />
+            <span className="text-xs font-medium uppercase tracking-wider text-resolve-muted">
+              Live sensors
+            </span>
+          </div>
+          {sensorReady === false && (
+            <span className="text-[10px] text-amber-400/90">Platform keys pending</span>
+          )}
         </div>
-        {sensorReady === false && (
-          <span className="text-[10px] text-amber-400/90">Platform keys pending</span>
+        <p className="text-sm text-white/90">{description}</p>
+        {!installed && (
+          <p className="text-xs text-resolve-muted">
+            Install RESOLVE above, then use Refresh sensors to load live fair-pay events.
+          </p>
         )}
-      </div>
-      <p className="text-sm text-white/90">
-        {isResearch
-          ? "Pulls new OpenAlex citations into the authorization ledger (RFB #2)."
-          : "Pulls merged docs PRs and security issues from GitHub into the ledger (RFB #3 / #4)."}
-      </p>
-      {!installed && (
-        <p className="text-xs text-resolve-muted">
-          Install RESOLVE above, then use Refresh sensors to load live fair-pay events.
+        {last && (
+          <p className="text-[11px] leading-relaxed text-resolve-muted-dim">
+            Last refresh: {last.observations ?? 0} observation(s) · {last.ingested ?? 0} new in ledger
+            {last.eventTypes?.length ? ` · ${last.eventTypes.join(", ")}` : ""}
+            {last.reposScanned?.length ? ` · ${last.reposScanned.join(", ")}` : ""}
+            {last.matchLeverage ? ` · ${last.matchLeverage.toFixed(2)}× match leverage` : ""}
+          </p>
+        )}
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={syncing || !installed}
+          onClick={() => void runSync()}
+          className="gap-2"
+          title={installed ? "Fetch latest sensor events" : "Install this community first"}
+        >
+          {syncing ?
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          : <RefreshCw className="h-3.5 w-3.5" />}
+          Refresh sensors
+        </Button>
+      </BlueGlowCard>
+
+      {isQf && (
+        <p className="text-[11px] text-resolve-muted">
+          <Link
+            href="https://opencollective.com"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-0.5 text-resolve-accent hover:underline"
+          >
+            Open Collective
+            <ArrowUpRight className="h-3 w-3" />
+          </Link>{" "}
+          contributions are recognized signals — funders seed the match pool on Arc.
         </p>
       )}
-      {last && (
-        <p className="text-[11px] leading-relaxed text-resolve-muted-dim">
-          Last refresh: {last.observations ?? 0} observation(s) · {last.ingested ?? 0} new in ledger
-          {last.eventTypes?.length ? ` · ${last.eventTypes.join(", ")}` : ""}
-          {last.reposScanned?.length ? ` · ${last.reposScanned.join(", ")}` : ""}
-        </p>
-      )}
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled={syncing || !installed}
-        onClick={() => void runSync()}
-        className="gap-2"
-        title={installed ? "Fetch latest sensor events" : "Install this community first"}
-      >
-        {syncing ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <RefreshCw className="h-3.5 w-3.5" />
-        )}
-        Refresh sensors
-      </Button>
-    </BlueGlowCard>
+    </div>
   );
 }

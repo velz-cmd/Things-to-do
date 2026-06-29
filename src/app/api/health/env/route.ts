@@ -13,7 +13,7 @@ import { isOpenCollectiveConfigured } from "@/lib/integrations/opencollective";
 import { isDiscordConfigured } from "@/lib/integrations/discord";
 import { isMastodonConfigured } from "@/lib/integrations/mastodon";
 import { githubOAuthConfigured } from "@/lib/integrations/github-oauth";
-import { getDatabaseUrl } from "@/lib/db/connection";
+import { analyzeDatabaseUrl } from "@/lib/db/connection";
 
 /** Safe env presence check — never returns secret values. */
 export async function GET() {
@@ -21,19 +21,26 @@ export async function GET() {
   const circleWalletSetId = await getCircleWalletSetId();
   const ai = listConfiguredProviders();
   const search = listSearchProviders();
+  const db = analyzeDatabaseUrl(process.env.DATABASE_URL);
 
   const env = {
     APP_URL: present("APP_URL") || present("NEXT_PUBLIC_APP_URL"),
     NEXT_PUBLIC_APP_URL: present("NEXT_PUBLIC_APP_URL"),
     PLAYWRIGHT_ENABLED: process.env.PLAYWRIGHT_ENABLED === "true",
-    DATABASE_URL: present("DATABASE_URL"),
-    DATABASE_PGBOUNCER:
-      (process.env.DATABASE_URL ?? "").includes("pgbouncer=true") ||
-      Boolean(getDatabaseUrl()?.includes("pgbouncer=true")),
-    DATABASE_POOL_LIMIT:
-      (process.env.DATABASE_URL ?? "").includes("connection_limit=1") ||
-      Boolean(getDatabaseUrl()?.includes("connection_limit=1")),
-    DATABASE_POOLER_PORT_6543: (process.env.DATABASE_URL ?? "").includes(":6543"),
+    DATABASE_URL: db.configured,
+    /** True when Vercel string literally contains pgbouncer=true (Supabase UI omits this). */
+    DATABASE_PGBOUNCER_RAW: db.rawHasPgbouncerParam,
+    /** True after app auto-appends params at runtime (what Prisma actually uses). */
+    DATABASE_PGBOUNCER: db.normalizedHasPgbouncerParam,
+    DATABASE_POOL_LIMIT_RAW: db.rawHasConnectionLimit,
+    DATABASE_POOL_LIMIT: db.normalizedHasConnectionLimit,
+    DATABASE_TRANSACTION_POOLER: db.isTransactionPooler,
+    DATABASE_SESSION_POOLER: db.isSessionPooler,
+    DATABASE_DIRECT_SUPABASE: db.isDirectSupabase,
+    DATABASE_PRISMA_READY: db.prismaReady,
+    DATABASE_POOLER_PORT_6543: db.port === 6543,
+    DATABASE_POOLER_PORT_5432: db.port === 5432,
+    DATABASE_HOST: db.host,
     NEXT_PUBLIC_REOWN_PROJECT_ID: present("NEXT_PUBLIC_REOWN_PROJECT_ID"),
     SUPABASE_URL: Boolean(getSupabaseServerUrl()),
     NEXT_PUBLIC_SUPABASE_URL: present("NEXT_PUBLIC_SUPABASE_URL"),
@@ -106,6 +113,21 @@ export async function GET() {
   if (!env.PLAYWRIGHT_ENABLED) missing.push("PLAYWRIGHT_ENABLED=true");
   if (!env.APP_URL) missing.push("APP_URL=https://resolve-task.vercel.app");
   if (!env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (db.isSessionPooler) {
+    missing.push(
+      "DATABASE_URL port 5432 on pooler.supabase.com is session mode — use transaction pooler port 6543",
+    );
+  }
+  if (db.isDirectSupabase) {
+    missing.push(
+      "DATABASE_URL points at direct db.*.supabase.co — use pooler.supabase.com:6543 on Vercel",
+    );
+  }
+  if (db.isTransactionPooler && !db.rawHasPgbouncerParam) {
+    missing.push(
+      "DATABASE_URL missing ?pgbouncer=true (app auto-adds at runtime; optional in Vercel)",
+    );
+  }
   if (!aiReady) missing.push("GROQ_API_KEY or GEMINI_API_KEY or OPENROUTER_API_KEY");
   if (!env.SEARCH_CONFIGURED) missing.push("TAVILY_API_KEY or SERPER_API_KEY");
   if (!env.GITHUB_TOKEN) missing.push("GITHUB_TOKEN (optional — higher GitHub rate limits)");
@@ -113,8 +135,25 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    deploy: "env-diagnostic-v2",
+    deploy: "env-diagnostic-v3",
     env,
+    database: {
+      host: db.host,
+      port: db.port,
+      mode:
+        db.isTransactionPooler ? "transaction"
+        : db.isSessionPooler ? "session"
+        : db.isDirectSupabase ? "direct"
+        : db.configured ? "unknown"
+        : "unset",
+      prismaReady: db.prismaReady,
+      note:
+        db.isTransactionPooler && !db.rawHasPgbouncerParam ?
+          "Transaction pooler detected (port 6543). Supabase UI does not add pgbouncer=true — RESOLVE appends it automatically."
+        : db.isSessionPooler ?
+          "Session pooler (port 5432) exhausts at ~15 connections on serverless — switch to transaction pooler (6543)."
+        : undefined,
+    },
     capabilities: {
       ai: aiReady,
       search: env.SEARCH_CONFIGURED,

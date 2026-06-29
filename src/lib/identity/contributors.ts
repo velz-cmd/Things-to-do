@@ -156,6 +156,103 @@ export async function getContributorPayoutPreference(login: string): Promise<Pay
   return normalizePayoutCurrency(row?.payoutCurrency);
 }
 
+export async function ensureContributorFromMusicBrainz(input: {
+  mbid: string;
+  artistName: string;
+  email?: string | null;
+}) {
+  const mbid = input.mbid.toLowerCase();
+  const existing = await prisma.contributorRegistry.findFirst({
+    where: { musicbrainzId: mbid },
+  });
+
+  if (existing) {
+    return prisma.contributorRegistry.update({
+      where: { id: existing.id },
+      data: {
+        creatorName: input.artistName,
+        platformId: input.email ?? existing.platformId,
+        lastSeenAt: new Date(),
+        status:
+          existing.walletAddress?.match(/^0x[a-fA-F0-9]{40}$/) ?
+            "verified"
+          : existing.status === "unlinked" ?
+            "claimable"
+          : existing.status,
+      },
+    });
+  }
+
+  return prisma.contributorRegistry.create({
+    data: {
+      platform: "musicbrainz",
+      platformId: input.email ?? mbid,
+      creatorName: input.artistName,
+      musicbrainzId: mbid,
+      walletAddress: null,
+      verified: false,
+      status: "claimable",
+      lastSeenAt: new Date(),
+    },
+  });
+}
+
+export async function linkWalletToMusicBrainz(input: {
+  mbid: string;
+  artistName: string;
+  walletAddress: string;
+  email?: string | null;
+  userId?: string;
+}) {
+  const mbid = input.mbid.toLowerCase();
+  if (!mbid.match(/^[a-f0-9-]{36}$/)) {
+    throw new Error("Invalid MusicBrainz artist ID");
+  }
+  if (!input.walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+    throw new Error("Invalid wallet address");
+  }
+
+  const contributor = await ensureContributorFromMusicBrainz({
+    mbid,
+    artistName: input.artistName,
+    email: input.email,
+  });
+
+  const updated = await prisma.contributorRegistry.update({
+    where: { id: contributor.id },
+    data: {
+      walletAddress: input.walletAddress,
+      verified: true,
+      status: "verified",
+      lastSeenAt: new Date(),
+      ...(input.email ? { platformId: input.email } : {}),
+    },
+  });
+
+  if (input.userId) {
+    const user = await prisma.user.findUnique({ where: { id: input.userId } });
+    if (user) {
+      const payout = input.walletAddress.toLowerCase();
+      const identity = user.walletAddress?.toLowerCase();
+      await prisma.user.update({
+        where: { id: input.userId },
+        data: {
+          scanWalletAddress:
+            identity && payout === identity ? user.scanWalletAddress : payout,
+        },
+      });
+    }
+  }
+
+  return updated;
+}
+
+export async function getContributorByMusicBrainz(mbid: string) {
+  return prisma.contributorRegistry.findFirst({
+    where: { musicbrainzId: mbid.toLowerCase() },
+  });
+}
+
 export async function setContributorPayoutPreference(login: string, currency: string) {
   const payoutCurrency = normalizePayoutCurrency(currency);
   const contributor = await ensureContributorFromGithub({ login });

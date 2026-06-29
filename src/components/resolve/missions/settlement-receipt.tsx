@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ExternalLink, Download } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
 import { Money, MonoHash } from "@/components/resolve/ui/money";
@@ -14,6 +15,7 @@ export function SettlementReceipt({
   txHash,
   explorerUrl,
   complianceCsv,
+  receiptId,
   onDownload,
 }: {
   title?: string;
@@ -23,6 +25,7 @@ export function SettlementReceipt({
   txHash?: string | null;
   explorerUrl?: string | null;
   complianceCsv?: string;
+  receiptId?: string;
   onDownload?: () => void;
 }) {
   const onChain = isOnChainTxHash(txHash);
@@ -69,6 +72,15 @@ export function SettlementReceipt({
           </p>
         )}
         <div className="flex flex-wrap gap-2 pt-1">
+          {receiptId && (
+            <Link
+              href={`/ledger/${receiptId}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-resolve-border-strong bg-resolve-hover px-3 py-2 text-xs font-medium text-white hover:border-resolve-accent/40"
+            >
+              Public receipt
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          )}
           {arcExplorer && onChain && (
             <a
               href={arcExplorer}

@@ -212,7 +212,7 @@ export async function buildCommunitySurface(
 
   const deployReasons: string[] = [];
   if (!install) deployReasons.push("Install RESOLVE on this community");
-  if (authorizedForDeploy.length === 0) deployReasons.push("Sync scrobbles via Navidrome bridge");
+  if (authorizedForDeploy.length === 0) deployReasons.push("Connect ListenBrainz on Profile — plays sync automatically");
   const ownerDepositUsd = ownerProfile?.availableUsd ?? 0;
   if (userId && ownerDepositUsd < authorizedUsd && authorizedUsd > 0) {
     deployReasons.push("Deposit USDC to your account to cover program obligations");

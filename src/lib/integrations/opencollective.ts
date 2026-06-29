@@ -8,6 +8,16 @@ export type OpenCollectiveAccount = {
   url: string;
 };
 
+export type OpenCollectiveContribution = {
+  id: string;
+  amountUsd: number;
+  createdAt: string;
+  contributorSlug: string;
+  contributorName: string;
+  recipientSlug: string;
+  recipientName: string;
+};
+
 const ENDPOINT = "https://api.opencollective.com/graphql/v2";
 
 export function isOpenCollectiveConfigured(): boolean {
@@ -183,4 +193,117 @@ export async function pingOpenCollective(): Promise<{ ok: boolean; message: stri
     return { ok: true, message: `Open Collective connected · ${sample.name}` };
   }
   return { ok: false, message: "Open Collective auth or query failed" };
+}
+
+type OcTransactionNode = {
+  id?: string;
+  createdAt?: string;
+  amount?: { value?: number; currency?: string };
+  fromAccount?: { slug?: string; name?: string };
+};
+
+function usdAmount(amount?: { value?: number; currency?: string }): number {
+  if (!amount?.value || amount.value <= 0) return 0;
+  if (amount.currency && amount.currency !== "USD") return 0;
+  return Math.round(amount.value * 100) / 100;
+}
+
+/** Pull CREDIT transactions for QF scoring — parent collective + hosted children. */
+export async function fetchCollectiveContributions(
+  collectiveSlug: string,
+  options?: { since?: string; limit?: number },
+): Promise<OpenCollectiveContribution[]> {
+  const slug = collectiveSlug.trim().toLowerCase();
+  if (!slug) return [];
+
+  const limit = Math.min(options?.limit ?? 100, 200);
+  const since = options?.since;
+
+  const data = await graphql<{
+    account?: {
+      slug?: string;
+      name?: string;
+      transactions?: {
+        nodes?: OcTransactionNode[];
+      };
+      childrenAccounts?: {
+        nodes?: Array<{
+          slug?: string;
+          name?: string;
+          transactions?: { nodes?: OcTransactionNode[] };
+        }>;
+      };
+    };
+  }>(
+    `query CollectiveContributions($slug: String!, $limit: Int!, $since: DateTime) {
+      account(slug: $slug) {
+        slug
+        name
+        transactions(type: CREDIT, limit: $limit, createdFrom: $since) {
+          nodes {
+            id
+            createdAt
+            amount { value currency }
+            fromAccount { slug name }
+          }
+        }
+        ... on AccountWithHost {
+          childrenAccounts(limit: 30) {
+            nodes {
+              slug
+              name
+              transactions(type: CREDIT, limit: $limit, createdFrom: $since) {
+                nodes {
+                  id
+                  createdAt
+                  amount { value currency }
+                  fromAccount { slug name }
+                }
+              }
+            }
+          }
+        }
+      }
+    }`,
+    { slug, limit, since: since ?? null },
+  );
+
+  const account = data?.account;
+  if (!account?.slug) return [];
+
+  const out: OpenCollectiveContribution[] = [];
+  const seen = new Set<string>();
+
+  function pushTx(
+    tx: OcTransactionNode,
+    recipientSlug: string,
+    recipientName: string,
+  ) {
+    if (!tx.id || seen.has(tx.id)) return;
+    const amountUsd = usdAmount(tx.amount);
+    if (amountUsd < 0.01) return;
+    seen.add(tx.id);
+    out.push({
+      id: tx.id,
+      amountUsd,
+      createdAt: tx.createdAt ?? new Date().toISOString(),
+      contributorSlug: tx.fromAccount?.slug ?? "anonymous",
+      contributorName: tx.fromAccount?.name ?? "Anonymous",
+      recipientSlug,
+      recipientName,
+    });
+  }
+
+  for (const tx of account.transactions?.nodes ?? []) {
+    pushTx(tx, account.slug!, account.name ?? account.slug!);
+  }
+
+  for (const child of account.childrenAccounts?.nodes ?? []) {
+    if (!child.slug) continue;
+    for (const tx of child.transactions?.nodes ?? []) {
+      pushTx(tx, child.slug, child.name ?? child.slug);
+    }
+  }
+
+  return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

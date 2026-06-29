@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { refreshProgramYieldCache } from "@/lib/capital/yield-service";
+import { runQfMatchAllocation } from "@/lib/capital/qf-allocator";
 import { DEFAULT_TARGET_YIELD_MULTIPLIER } from "@/lib/capital/community-yield";
+import type { ProgramRules } from "@/lib/communities/types";
 
 const MIN_FUND_USD = 5;
 
@@ -87,12 +89,27 @@ export async function fundCommunityProgram(input: {
     ecosystemId: program.install?.ecosystemId ?? undefined,
     eventType: "community_funded",
     title: `Funded ${program.name}`,
-    detail: `Staked $${amount.toFixed(2)} — target ${target}× verified impact`,
+    detail: `Staked $${amount.toFixed(2)} — fulfills obligations toward 2× leverage`,
     severity: "info",
     metadata: { programId: program.id, stakeId: stake.id, amountUsd: amount },
   }).catch(() => {});
 
   await refreshProgramYieldCache(program.id);
+
+  if (program.templateId === "quadratic-funding" && program.missionId) {
+    let rules: ProgramRules = {};
+    try {
+      rules = JSON.parse(program.rulesJson) as ProgramRules;
+    } catch {
+      /* defaults */
+    }
+    await runQfMatchAllocation({
+      programId: program.id,
+      missionId: program.missionId,
+      rules,
+      founderUserId: input.userId,
+    }).catch(() => undefined);
+  }
 
   return {
     ok: true,

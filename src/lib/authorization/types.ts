@@ -5,6 +5,7 @@
 
 export type AuthorizationStatus =
   | "authorized"
+  | "recognized"
   | "pending_funding"
   | "claimable"
   | "claimed"

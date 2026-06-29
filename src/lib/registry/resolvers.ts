@@ -46,6 +46,27 @@ export async function resolvePayee(input: {
     }
   }
 
+  const artistName = String(input.payload.artistName ?? input.payload.listenArtist ?? "");
+  if (artistName) {
+    const row = await prisma.contributorRegistry.findFirst({
+      where: {
+        OR: [
+          { creatorName: { equals: artistName, mode: "insensitive" } },
+          { exifArtist: { equals: artistName, mode: "insensitive" } },
+        ],
+        musicbrainzId: { not: null },
+      },
+    });
+    if (row) {
+      return {
+        wallet: row.walletAddress,
+        payeeName: row.creatorName ?? artistName,
+        attribution: `musicbrainz_name:${artistName}`,
+        confidence: row.verified ? 96 : 82,
+      };
+    }
+  }
+
   if (mbid) {
     const row = await prisma.contributorRegistry.findFirst({
       where: { musicbrainzId: mbid },

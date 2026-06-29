@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { createClaimToken, claimUrlForToken } from "@/lib/claim/tokens";
 import { sendClaimEmail } from "@/lib/deputy/tools/resend";
 import { getResendClient } from "@/lib/resend/client";
+import { communityLabelForMission } from "@/lib/earn/community-label";
 import {
   aggregateNotifyCandidate,
   evaluateNotifyCandidate,
@@ -41,16 +42,27 @@ async function resolvePayeeEmail(
     if (user?.email) return user.email;
   }
 
+  if (payeeKeyType === "musicbrainz_artist") {
+    const byMbid = await prisma.contributorRegistry.findFirst({
+      where: { musicbrainzId: payeeKey },
+      select: { platformId: true },
+    });
+    if (byMbid?.platformId?.includes("@")) return byMbid.platformId;
+  }
+
   const contributor = await prisma.contributorRegistry.findFirst({
     where:
       payeeKeyType === "github_username"
         ? { githubUsername: { equals: payeeKey, mode: "insensitive" } }
-        : {
-            OR: [
-              { exifArtist: { equals: payeeKey, mode: "insensitive" } },
-              { creatorName: { equals: payeeKey, mode: "insensitive" } },
-            ],
-          },
+        : payeeKeyType === "musicbrainz_artist"
+          ? { musicbrainzId: payeeKey }
+          : {
+              OR: [
+                { exifArtist: { equals: payeeKey, mode: "insensitive" } },
+                { creatorName: { equals: payeeKey, mode: "insensitive" } },
+                { musicbrainzId: payeeKey },
+              ],
+            },
     select: { platformId: true },
   });
 
@@ -93,6 +105,11 @@ export async function notifyEarnAvailable(input: {
   const claimUrl = claimUrlForToken(token);
   const label = payeeLabel(input.payeeKeyType, payeeKey);
   const amount = Math.round(input.amountUsd * 100) / 100;
+  const community =
+    input.missionId ?
+      await communityLabelForMission(input.missionId)
+    : { communityName: input.contextLabel ?? "RESOLVE" };
+  const communityName = community.communityName;
 
   const candidate =
     input.authorizationRows?.length
@@ -130,14 +147,15 @@ export async function notifyEarnAvailable(input: {
     try {
       await sendClaimEmail({
         to,
-        subject: `You earned $${amount.toFixed(2)} — claim`,
+        subject: `You've earned $${amount.toFixed(2)} from ${communityName}`,
         body: [
           `Hi ${label},`,
           "",
-          `RESOLVE verified $${amount.toFixed(2)} in compensation for your contribution.`,
+          `You've earned $${amount.toFixed(2)} from ${communityName}.`,
+          `RESOLVE verified this compensation for your contribution.`,
           input.contextLabel ? `Source: ${input.contextLabel}` : "",
           "",
-          "Claim your earnings (sign in with GitHub, connect wallet, receive USDC).",
+          "Claim your earnings (sign in, connect wallet, receive USDC on Arc).",
           "",
           "This link expires in 14 days.",
         ]

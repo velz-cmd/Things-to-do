@@ -7,7 +7,7 @@ import { ProfileSettings } from "@/components/resolve/profile/profile-settings";
 import { ProfileInstalledCommunities } from "@/components/resolve/profile/profile-installed-communities";
 import { ProfileConnectorTracks } from "@/components/resolve/profile/profile-connector-tracks";
 import { ProfileEarningsSummary } from "@/components/resolve/profile/profile-earnings-summary";
-import { ProfileMusicBrainzRegistry } from "@/components/resolve/profile/profile-musicbrainz-registry";
+import { ProfileContributorIdentity } from "@/components/resolve/profile/profile-contributor-identity";
 import { ProfileBootstrapProvider } from "@/components/resolve/profile/profile-bootstrap";
 
 export default function ProfilePage() {
@@ -15,11 +15,12 @@ export default function ProfilePage() {
     <ProductPage
       icon={User}
       title="Who am I in this ecosystem?"
-      description="Connect where each community lives — code, music, research, settlement. One identity layer for funding open communities."
+      description="RESOLVE attaches to communities you already use — GitHub, Jellyfin, music servers, and more. Connect once per community so we can credit you when work happens upstream. Your audience doesn't need RESOLVE."
       workflows={[
         { label: "Open source" },
         { label: "Music" },
-        { label: "Settlement" },
+        { label: "Video" },
+        { label: "Get paid" },
       ]}
       width="narrow"
       accent="blue"
@@ -33,7 +34,7 @@ export default function ProfilePage() {
         <ProfileBootstrapProvider>
           <div className="space-y-10">
             <ProfileEarningsSummary />
-            <ProfileMusicBrainzRegistry />
+            <ProfileContributorIdentity />
             <ProfileConnectorTracks />
             <ProfileInstalledCommunities />
             <ProfileSettings />

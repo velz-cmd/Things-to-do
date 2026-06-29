@@ -14,6 +14,23 @@ import { join } from "path";
 
 type Cursor = Record<string, string>;
 
+/** Load jellyfin-bridge.env from repo root (Windows-friendly). */
+function loadEnvFile() {
+  const envPath = join(process.cwd(), "jellyfin-bridge.env");
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const val = trimmed.slice(eq + 1).trim();
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
+
+loadEnvFile();
+
 const jellyfinUrl = process.env.JELLYFIN_URL?.trim()?.replace(/\/$/, "");
 const apiKey = process.env.JELLYFIN_API_KEY?.trim();
 const userId = process.env.RESOLVE_USER_ID?.trim();

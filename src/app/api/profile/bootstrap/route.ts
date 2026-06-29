@@ -112,6 +112,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       signedIn: true,
+      userId: authUser.id,
       email: authUser.email ?? null,
       emailVerified: Boolean(authUser.email_confirmed_at ?? authUser.email),
       identities,

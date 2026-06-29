@@ -52,15 +52,27 @@ function programRulesLabel(program: ProgramRecord): string {
   return program.templateId;
 }
 
+function connectorLink(slug: string, kind: string): { href: string; label: string } {
+  if (kind === "music") {
+    return { href: "/settings", label: "Connect sensors" };
+  }
+  if (kind === "research") {
+    return { href: "/settings", label: "Connect research APIs" };
+  }
+  return { href: "/settings", label: "Connect GitHub sensor" };
+}
+
 function ProgramCard({
   program,
   slug,
+  communityKind,
   onDeploy,
   deploying,
   readiness,
 }: {
   program: ProgramRecord;
   slug: string;
+  communityKind: string;
   onDeploy: (id: string) => void;
   deploying: string | null;
   readiness?: CommunitySurface["deployReadiness"];
@@ -107,10 +119,15 @@ function ProgramCard({
           </p>
         </div>
         <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Owed</p>
+          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Authorized</p>
           <p className="mt-0.5 text-sm font-semibold text-white">
-            {readiness?.authorizedCount ?? 0}
+            <Money amount={readiness?.authorizedUsd ?? 0} size="sm" className="inline" />
           </p>
+          {(readiness?.authorizedCount ?? 0) > 0 && (
+            <p className="text-[9px] text-resolve-muted-dim">
+              {readiness?.authorizedCount} events
+            </p>
+          )}
         </div>
       </div>
 
@@ -137,10 +154,10 @@ function ProgramCard({
           )}
         </Button>
         <Link
-          href="/profile"
+          href={connectorLink(slug, communityKind).href}
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
         >
-          Connect Navidrome
+          {connectorLink(slug, communityKind).label}
           <ArrowUpRight className="h-3 w-3" />
         </Link>
         <Link
@@ -230,10 +247,10 @@ export function CommunityHome({ slug }: { slug: string }) {
       title={catalog.name}
       description={catalog.tagline}
       workflows={[
-        { label: "Health", active: true },
-        { label: "Treasury" },
-        { label: "People" },
-        { label: "Programs" },
+        { label: "Health", href: "#health", active: true },
+        { label: "Treasury", href: "#treasury" },
+        { label: "Events", href: "#events" },
+        { label: "Programs", href: "#programs" },
       ]}
       width="wide"
       accent="emerald"
@@ -255,7 +272,7 @@ export function CommunityHome({ slug }: { slug: string }) {
         </div>
       ) : (
         <div className="space-y-8">
-          <section className="grid gap-4 md:grid-cols-3">
+          <section id="treasury" className="grid gap-4 md:grid-cols-3 scroll-mt-24">
             <BlueGlowCard variant="subtle" className="space-y-2">
               <div className="flex items-center gap-2 text-resolve-muted">
                 <Wallet className="h-4 w-4" />
@@ -292,7 +309,9 @@ export function CommunityHome({ slug }: { slug: string }) {
             </BlueGlowCard>
           </section>
 
-          <CommunitySensorPanel slug={slug} installed onSynced={refresh} />
+          <div id="health" className="scroll-mt-24">
+            <CommunitySensorPanel slug={slug} installed onSynced={refresh} />
+          </div>
 
           {surface?.observatory && surface.observatory.length > 0 && (
             <CommunityObservatory alerts={surface.observatory} />
@@ -301,7 +320,7 @@ export function CommunityHome({ slug }: { slug: string }) {
           {surface?.impact && <CapitalFlowImpact impact={surface.impact} />}
 
           {surface?.authorizations && surface.authorizations.length > 0 && (
-            <section>
+            <section id="events" className="scroll-mt-24">
               <h2 className="text-sm font-semibold text-white">Recent authorizations</h2>
               <p className="mt-1 text-xs text-resolve-muted">Plays → owed — live from ledger</p>
               <ul className="mt-3 divide-y divide-white/[0.06] rounded-xl border border-white/[0.06]">
@@ -327,7 +346,7 @@ export function CommunityHome({ slug }: { slug: string }) {
             </section>
           )}
 
-          <section>
+          <section id="programs" className="scroll-mt-24">
             <h2 className="text-sm font-semibold text-white">Programs</h2>
             <p className="mt-1 text-xs text-resolve-muted">
               Founders operate programs — budget, rules, recipients, deploy.
@@ -338,6 +357,7 @@ export function CommunityHome({ slug }: { slug: string }) {
                   key={p.id}
                   program={p}
                   slug={slug}
+                  communityKind={catalog.kind}
                   onDeploy={(id) => void deploy(id)}
                   deploying={deploying}
                   readiness={surface?.deployReadiness}

@@ -15,7 +15,7 @@ const navidromeSchema = z.object({
   password: z.string().min(1).max(256),
 });
 
-const PLATFORMS = new Set<ConnectPlatform>(["gmail", "listenbrainz", "navidrome"]);
+const PLATFORMS = new Set<ConnectPlatform>(["github", "gmail", "listenbrainz", "navidrome"]);
 
 export async function POST(
   req: Request,
@@ -30,6 +30,17 @@ export async function POST(
   const ready = await requireReadyUser();
   if ("error" in ready) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
+  }
+
+  if (platform === "github") {
+    const returnTo = new URL(req.url).searchParams.get("returnTo") ?? "/profile";
+    const safeReturn = returnTo.startsWith("/") ? returnTo : "/profile";
+    return NextResponse.redirect(
+      new URL(
+        `/api/connectors/github/authorize?returnTo=${encodeURIComponent(safeReturn)}`,
+        req.url,
+      ),
+    );
   }
 
   if (platform === "gmail") {

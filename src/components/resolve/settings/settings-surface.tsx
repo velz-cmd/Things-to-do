@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { ConnectorLiveStatus } from "@/lib/connectors/live-stats";
 import type { SettingsConnection } from "@/app/api/settings/status/route";
+import { DemoReadinessPanel } from "@/components/resolve/settings/demo-readiness-panel";
 
 type OperatorIntegration = {
   id: string;
@@ -122,6 +123,10 @@ export function SettingsSurface() {
           {error}
         </p>
       )}
+
+      <section className="mb-10 border-b border-resolve-border pb-10">
+        <DemoReadinessPanel />
+      </section>
 
       <section className="mb-10 border-b border-resolve-border pb-10">
         <div className="mb-4 flex items-center gap-2">

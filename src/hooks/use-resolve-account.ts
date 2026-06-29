@@ -135,22 +135,25 @@ export function useResolveAccount(): ResolveAccountState {
       setAppWalletPending(false);
     }
 
-    fetch("/api/account/wallets", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        setWallets(data.wallets ?? []);
-        setAppWalletPending(Boolean(data.appWalletPending));
-      })
-      .catch(() => {
-        /* non-fatal */
-      })
-      .finally(() => {
-        if (!cancelled) setWalletsLoading(false);
-      });
+    const walletSyncTimer = window.setTimeout(() => {
+      fetch("/api/account/wallets", { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (cancelled || !data) return;
+          setWallets(data.wallets ?? []);
+          setAppWalletPending(Boolean(data.appWalletPending));
+        })
+        .catch(() => {
+          /* non-fatal */
+        })
+        .finally(() => {
+          if (!cancelled) setWalletsLoading(false);
+        });
+    }, 8_000);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(walletSyncTimer);
     };
   }, [userId]);
 

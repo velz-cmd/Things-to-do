@@ -10,21 +10,23 @@ import { safeUrlHostname } from "@/lib/profile/safe-url";
 import { normalizeGithubLogin } from "@/lib/identity/github-login";
 import { embeddedWalletFor } from "@/lib/wallet/embedded";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
+import { isDbPoolExhaustedError } from "@/lib/db/connection";
+import { offlineProfileBootstrap } from "@/lib/profile/bootstrap-fallback";
 import type { ProfileIdentityState } from "@/app/api/profile/identities/route";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Single profile load — one DB session instead of 5+ parallel API calls.
- * Reduces Supabase pool exhaustion on Vercel.
+ * Returns offline fallbacks when Postgres pool is saturated (never 500 for signed-in users).
  */
 export async function GET() {
-  try {
-    const authUser = await getSessionUser();
-    if (!authUser) {
-      return NextResponse.json({ ok: true, signedIn: false });
-    }
+  const authUser = await getSessionUser();
+  if (!authUser) {
+    return NextResponse.json({ ok: true, signedIn: false });
+  }
 
+  try {
     let profile = await ensureProfileForUser(authUser);
     profile = await sanitizeConnectorIdentities(authUser.id, profile);
 
@@ -37,12 +39,10 @@ export async function GET() {
     const listenbrainzConnected = userListenBrainzConfigured(profile);
     const navidromeConnected = userNavidromeConfigured(profile);
 
-    const [liveConnectors, connectorStatuses, earnings, communities] = await Promise.all([
-      getConnectorLiveStatuses().catch(() => []),
-      getConnectorStatuses(authUser.id).catch(() => []),
-      getProfileEarningsSummary({ profile }).catch(() => null),
-      listCommunitySummaries(authUser.id).catch(() => []),
-    ]);
+    const liveConnectors = await getConnectorLiveStatuses().catch(() => []);
+    const connectorStatuses = await getConnectorStatuses(authUser.id).catch(() => []);
+    const earnings = await getProfileEarningsSummary({ profile }).catch(() => null);
+    const communities = await listCommunitySummaries(authUser.id).catch(() => []);
 
     const githubLive = liveConnectors.find((c) => c.id === "github");
     const navidromeLive = liveConnectors.find((c) => c.id === "navidrome");
@@ -113,7 +113,17 @@ export async function GET() {
     });
   } catch (e) {
     console.error("[profile/bootstrap]", e);
+    if (isDbPoolExhaustedError(e)) {
+      return NextResponse.json(offlineProfileBootstrap(authUser));
+    }
     const message = e instanceof Error ? e.message : "profile_load_failed";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    if (
+      message.includes("prisma") ||
+      message.includes("database") ||
+      message.includes("connect")
+    ) {
+      return NextResponse.json(offlineProfileBootstrap(authUser));
+    }
+    return NextResponse.json(offlineProfileBootstrap(authUser));
   }
 }

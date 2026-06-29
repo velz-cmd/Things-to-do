@@ -12,6 +12,7 @@ export function DiscoverLiveFeed({
   return (
     <LiveEventsList
       domain={domain ?? undefined}
+      scope="network"
       limit={24}
       pollMs={20_000}
       className={className}

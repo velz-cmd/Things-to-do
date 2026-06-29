@@ -180,86 +180,6 @@ function ConnectNavidromeForm({ onConnected }: { onConnected: () => void }) {
   );
 }
 
-function ConnectJellyfinForm({ onConnected }: { onConnected: () => void }) {
-  const [url, setUrl] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const localHint =
-    url.includes("localhost") ||
-    url.includes("127.0.0.1") ||
-    /\/\/10\.|\/\/192\.168\.|\/\/172\.(1[6-9]|2\d|3[01])\./.test(url);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const res = await fetch("/api/profile/connect/jellyfin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ url, username, password }),
-      });
-      const data = (await res.json()) as {
-        error?: string;
-        message?: string;
-        localMode?: boolean;
-      };
-      if (!res.ok) throw new Error(data.error ?? "Connection failed");
-      toast.success(
-        data.localMode ?
-          "Jellyfin saved — run scripts/jellyfin-bridge.ts on your PC to sync"
-        : (data.message ?? "Jellyfin connected"),
-      );
-      onConnected();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not connect Jellyfin");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={(e) => void submit(e)} className="mt-2 space-y-2">
-      <input
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="http://localhost:8096 or https://jellyfin.example.com"
-        type="url"
-        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
-        required
-      />
-      <input
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="Jellyfin username"
-        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
-        required
-      />
-      <input
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder={localHint ? "API key (Dashboard → Advanced → API Keys)" : "Password or API key"}
-        type="password"
-        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
-        required
-      />
-      {localHint && (
-        <p className="text-[11px] leading-relaxed text-amber-200/90">
-          Local server detected — RESOLVE cloud cannot reach your PC directly. Create an API key in
-          Jellyfin → Dashboard → Advanced → API Keys, paste it above, then run{" "}
-          <code className="text-[10px] text-white/90">scripts/jellyfin-bridge.ts</code> on the same
-          machine.
-        </p>
-      )}
-      <Button type="submit" size="sm" variant="secondary" disabled={busy}>
-        {busy ? "Connecting…" : "Connect Jellyfin"}
-      </Button>
-    </form>
-  );
-}
-
 export function ProfileSettings() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -378,6 +298,11 @@ export function ProfileSettings() {
       router.replace("/profile");
       void refreshAfterOAuth();
     }
+    if (searchParams.get("jellyfin_connected") === "1") {
+      toast.success("Jellyfin connected — RESOLVE will sync your watches automatically");
+      router.replace("/profile");
+      void refreshAfterOAuth();
+    }
     const lbError = searchParams.get("listenbrainz_error");
     if (lbError) {
       toast.error(
@@ -422,6 +347,10 @@ export function ProfileSettings() {
 
   function connectListenBrainz() {
     window.location.href = "/connect/listenbrainz";
+  }
+
+  function connectJellyfin() {
+    window.location.href = "/connect/jellyfin";
   }
 
   const byCommunity = useMemo(() => platformsByCommunity(), []);
@@ -472,7 +401,12 @@ export function ProfileSettings() {
       return <TextAction label="Remove" onClick={() => void disconnectPlatform("navidrome")} />;
     }
     if (platformId === "jellyfin" && connected) {
-      return <TextAction label="Remove" onClick={() => void disconnectPlatform("jellyfin")} />;
+      return (
+        <>
+          <TextAction label="Reconnect" onClick={() => connectJellyfin()} />
+          <TextAction label="Remove" onClick={() => void disconnectPlatform("jellyfin")} />
+        </>
+      );
     }
     return null;
   }
@@ -529,22 +463,17 @@ export function ProfileSettings() {
             </div>;
       }
       case "jellyfin":
-        return connectingPlatform === "jellyfin" ?
-            <ConnectJellyfinForm
-              onConnected={() => {
-                setConnectingPlatform(null);
-                void load();
-              }}
-            />
-          : <div className="space-y-2">
-              <Button size="sm" onClick={() => setConnectingPlatform("jellyfin")}>
-                Connect Jellyfin
-              </Button>
-              <p className="text-[11px] text-resolve-muted-dim">
-                Public server: use your Jellyfin password. Local PC (localhost / 10.x / 192.168.x):
-                use an API key instead.
-              </p>
-            </div>;
+        return (
+          <div className="space-y-2">
+            <Button size="sm" onClick={() => connectJellyfin()}>
+              Install Jellyfin
+            </Button>
+            <p className="text-[11px] text-resolve-muted-dim">
+              Sign in with your Jellyfin account — RESOLVE installs the community and syncs watches
+              automatically.
+            </p>
+          </div>
+        );
       case "listenbrainz":
         return (
           <div className="space-y-2">

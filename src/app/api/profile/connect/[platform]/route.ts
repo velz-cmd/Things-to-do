@@ -119,9 +119,15 @@ export async function POST(
       jellyfinAccessToken: "connected",
     }).catch(() => undefined);
 
-    void syncUserJellyfinSensors(ready.user.id).catch(() => undefined);
+    if (!result.localMode) {
+      void syncUserJellyfinSensors(ready.user.id).catch(() => undefined);
+    }
 
-    return NextResponse.json({ ok: true, message: result.message });
+    return NextResponse.json({
+      ok: true,
+      message: result.message,
+      localMode: result.localMode ?? false,
+    });
   }
 
   return NextResponse.json({ error: "Unsupported platform" }, { status: 400 });

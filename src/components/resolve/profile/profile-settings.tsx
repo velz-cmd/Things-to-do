@@ -186,6 +186,11 @@ function ConnectJellyfinForm({ onConnected }: { onConnected: () => void }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const localHint =
+    url.includes("localhost") ||
+    url.includes("127.0.0.1") ||
+    /\/\/10\.|\/\/192\.168\.|\/\/172\.(1[6-9]|2\d|3[01])\./.test(url);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -196,9 +201,17 @@ function ConnectJellyfinForm({ onConnected }: { onConnected: () => void }) {
         credentials: "include",
         body: JSON.stringify({ url, username, password }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        error?: string;
+        message?: string;
+        localMode?: boolean;
+      };
       if (!res.ok) throw new Error(data.error ?? "Connection failed");
-      toast.success("Jellyfin connected");
+      toast.success(
+        data.localMode ?
+          "Jellyfin saved — run scripts/jellyfin-bridge.ts on your PC to sync"
+        : (data.message ?? "Jellyfin connected"),
+      );
       onConnected();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not connect Jellyfin");
@@ -212,7 +225,7 @@ function ConnectJellyfinForm({ onConnected }: { onConnected: () => void }) {
       <input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
-        placeholder="https://jellyfin.example.com"
+        placeholder="http://localhost:8096 or https://jellyfin.example.com"
         type="url"
         className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
         required
@@ -227,11 +240,19 @@ function ConnectJellyfinForm({ onConnected }: { onConnected: () => void }) {
       <input
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
+        placeholder={localHint ? "API key (Dashboard → Advanced → API Keys)" : "Password or API key"}
         type="password"
         className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
         required
       />
+      {localHint && (
+        <p className="text-[11px] leading-relaxed text-amber-200/90">
+          Local server detected — RESOLVE cloud cannot reach your PC directly. Create an API key in
+          Jellyfin → Dashboard → Advanced → API Keys, paste it above, then run{" "}
+          <code className="text-[10px] text-white/90">scripts/jellyfin-bridge.ts</code> on the same
+          machine.
+        </p>
+      )}
       <Button type="submit" size="sm" variant="secondary" disabled={busy}>
         {busy ? "Connecting…" : "Connect Jellyfin"}
       </Button>
@@ -520,7 +541,8 @@ export function ProfileSettings() {
                 Connect Jellyfin
               </Button>
               <p className="text-[11px] text-resolve-muted-dim">
-                Your server must be reachable from the internet for session polling.
+                Public server: use your Jellyfin password. Local PC (localhost / 10.x / 192.168.x):
+                use an API key instead.
               </p>
             </div>;
       case "listenbrainz":

@@ -56,9 +56,26 @@ Docs: https://api.jellyfin.org/
 
 1. **Merge** Jellyfin community PR (catalog + connector code)
 2. **Run** `npx prisma db push` on production DB (adds `jellyfin*` user fields)
-3. On Profile → connect Jellyfin server URL + username + password (stores access token)
+3. On Profile → connect Jellyfin server URL + username + password **or API key**
 4. Auto-installs **Jellyfin** community + `video-royalties` program
-5. **Sync sensors** — polls sessions → ledger authorizations
+5. **Sync sensors** — polls sessions → ledger authorizations (public servers only)
+
+### Local Jellyfin (localhost / home network)
+
+RESOLVE on Vercel **cannot** reach `localhost`, `10.x`, or `192.168.x` addresses. If Jellyfin runs on your PC:
+
+1. Jellyfin → **Dashboard → Advanced → API Keys** → **+ New API Key**
+2. Profile → Jellyfin URL e.g. `http://localhost:8096`, username, paste **API key** in the password field
+3. On the same PC, run `scripts/jellyfin-bridge.ts` (polls Jellyfin locally, pushes watches to RESOLVE)
+
+```bash
+JELLYFIN_URL=http://localhost:8096 \
+JELLYFIN_API_KEY=your-api-key \
+RESOLVE_USER_ID=your-user-id \
+RESOLVE_SYNC_URL=https://resolve-task.vercel.app/api/connectors/jellyfin/sync \
+JELLYFIN_SYNC_SECRET=your-cron-secret \
+npx tsx scripts/jellyfin-bridge.ts
+```
 
 ### Optional later: Jellyfin webhook plugin
 

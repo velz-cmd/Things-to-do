@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfileForUser } from "@/lib/auth/session";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
+import { embeddedWalletFor } from "@/lib/wallet/embedded";
 import type { ResolveWallet } from "@/lib/auth/types";
 
 export async function GET() {
@@ -16,7 +17,28 @@ export async function GET() {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const profile = await ensureProfileForUser(authUser);
+  let profile;
+  try {
+    profile = await ensureProfileForUser(authUser);
+  } catch {
+    const address = embeddedWalletFor(authUser.id).toLowerCase();
+    return NextResponse.json({
+      wallets: [
+        {
+          id: `app-${authUser.id}`,
+          type: "app_managed",
+          chain: "evm",
+          address,
+          provider: "embedded",
+          isPrimary: true,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      appWalletPending: false,
+      notificationEmail: authUser.email ?? undefined,
+      notificationEmailVerified: Boolean(authUser.email),
+    });
+  }
   const wallets: ResolveWallet[] = [];
   const createdAt = profile.createdAt.toISOString();
   const provider = appWalletProvider(profile);
@@ -48,9 +70,22 @@ export async function GET() {
   }
 
   if (wallets.length === 0) {
+    const address = embeddedWalletFor(authUser.id).toLowerCase();
     return NextResponse.json({
-      wallets: [],
-      appWalletPending: true,
+      wallets: [
+        {
+          id: `app-${authUser.id}`,
+          type: "app_managed",
+          chain: "evm",
+          address,
+          provider: "embedded",
+          isPrimary: true,
+          createdAt: createdAt,
+        },
+      ],
+      appWalletPending: false,
+      notificationEmail: profile.email ?? undefined,
+      notificationEmailVerified: Boolean(profile.email),
     });
   }
 

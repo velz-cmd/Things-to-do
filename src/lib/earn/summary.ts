@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import type { User } from "@prisma/client";
 import { getAuthorizationSummary } from "@/lib/authorization/ledger";
 import { getContributorRewardSummary } from "@/lib/identity/pending-rewards";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   decayFactor,
   effectiveNotifySignal,
@@ -43,7 +42,6 @@ function round(n: number) {
 
 export function resolvePayeeIdentities(
   profile: Pick<User, "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress">,
-  authUser?: SupabaseUser | null,
 ): PayeeIdentity[] {
   const identities: PayeeIdentity[] = [];
   const seen = new Set<string>();
@@ -144,11 +142,9 @@ async function earningsForIdentity(identity: PayeeIdentity): Promise<IdentityEar
 
 export async function getProfileEarningsSummary(input: {
   profile: Pick<User, "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress">;
-  authUser?: SupabaseUser | null;
 }): Promise<ProfileEarningsSummary> {
   const identities = await resolveClaimIdentities({
     profile: input.profile,
-    authUser: input.authUser,
   });
   const githubLinked = identities.some((i) => i.payeeKeyType === "github_username");
 

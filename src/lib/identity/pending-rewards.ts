@@ -123,7 +123,7 @@ export async function getClaimableItemsForUser(input: {
 
   const identities =
     input.profile
-      ? await resolveClaimIdentities({ profile: input.profile, authUser: input.authUser })
+      ? await resolveClaimIdentities({ profile: input.profile })
       : [];
 
   if (!identities.length) {

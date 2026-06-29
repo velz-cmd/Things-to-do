@@ -59,7 +59,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const tokens = await exchangeMusicBrainzCode(code, verifier);
+    const tokens = await exchangeMusicBrainzCode(code, verifier, origin);
     const info = await fetchMusicBrainzUserInfo(tokens.access_token!);
     const username = listenBrainzUsernameFromUserInfo(info);
 

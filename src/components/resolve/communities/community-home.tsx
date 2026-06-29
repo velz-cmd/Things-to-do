@@ -22,6 +22,8 @@ import { CommunityObservatory } from "@/components/resolve/communities/community
 import { EconomicMemoryTimeline } from "@/components/resolve/communities/economic-memory-timeline";
 import { MeasureLearnPanel } from "@/components/resolve/communities/measure-learn-panel";
 import { CommunitySensorPanel } from "@/components/resolve/communities/community-sensor-panel";
+import { CommunityBridgePanel } from "@/components/resolve/communities/community-bridge-panel";
+import { CommunityLiveAuthorizations } from "@/components/resolve/communities/community-live-authorizations";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
@@ -176,12 +178,6 @@ function ProgramCard({
           ))}
         </ul>
       )}
-
-      {program.missionId && (
-        <p className="text-[10px] text-resolve-muted-dim font-mono">
-          Bridge env: NAVIDROME_PROGRAM_MISSION_ID={program.missionId}
-        </p>
-      )}
     </BlueGlowCard>
   );
 }
@@ -202,6 +198,12 @@ export function CommunityHome({ slug }: { slug: string }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!surface?.installed) return;
+    const t = setInterval(() => void refresh(), 30_000);
+    return () => clearInterval(t);
+  }, [surface?.installed, refresh]);
 
   async function deploy(programId: string) {
     setDeploying(programId);
@@ -311,6 +313,9 @@ export function CommunityHome({ slug }: { slug: string }) {
 
           <div id="health" className="scroll-mt-24">
             <CommunitySensorPanel slug={slug} installed onSynced={refresh} />
+            <div className="mt-4">
+              <CommunityBridgePanel communitySlug={slug} onSynced={refresh} />
+            </div>
           </div>
 
           {surface?.observatory && surface.observatory.length > 0 && (
@@ -319,32 +324,9 @@ export function CommunityHome({ slug }: { slug: string }) {
 
           {surface?.impact && <CapitalFlowImpact impact={surface.impact} />}
 
-          {surface?.authorizations && surface.authorizations.length > 0 && (
-            <section id="events" className="scroll-mt-24">
-              <h2 className="text-sm font-semibold text-white">Recent authorizations</h2>
-              <p className="mt-1 text-xs text-resolve-muted">Plays → owed — live from ledger</p>
-              <ul className="mt-3 divide-y divide-white/[0.06] rounded-xl border border-white/[0.06]">
-                {surface.authorizations.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
-                    <div className="min-w-0">
-                      {a.entityPath ? (
-                        <Link
-                          href={a.entityPath}
-                          className="truncate text-sm text-resolve-accent hover:underline"
-                        >
-                          {a.payeeKey}
-                        </Link>
-                      ) : (
-                        <p className="truncate text-sm text-white">{a.payeeKey}</p>
-                      )}
-                      <p className="text-[11px] text-resolve-muted">{a.status}</p>
-                    </div>
-                    <Money amount={a.amountUsd} size="sm" className="shrink-0 text-emerald-300" />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          <div id="events" className="scroll-mt-24">
+            <CommunityLiveAuthorizations slug={slug} />
+          </div>
 
           <section id="programs" className="scroll-mt-24">
             <h2 className="text-sm font-semibold text-white">Programs</h2>

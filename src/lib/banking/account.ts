@@ -240,7 +240,7 @@ export async function getBankingAccountSnapshot(input: {
       : getReservedForPrograms(freshProfile.id).catch(() => 0),
     buildProgramWallets(freshProfile.id).catch(() => []),
     buildStatement(freshProfile.id, availableUsd).catch(() => []),
-    getProfileEarningsSummary({ profile: freshProfile, authUser }).catch(() => ({
+    getProfileEarningsSummary({ profile: freshProfile }).catch(() => ({
       claimableUsd: 0,
       authorizedUsd: 0,
       settledUsd: 0,

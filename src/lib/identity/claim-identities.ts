@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
 import type { User } from "@prisma/client";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { resolvePayeeIdentities, type PayeeIdentity } from "@/lib/earn/summary";
+import { normalizeGithubLogin } from "@/lib/identity/github-login";
+import { normalizeListenBrainzUsername } from "@/lib/identity/listenbrainz-login";
 
 const MUSIC_PAYEE_PREFIXES = [
   "listen_artist",
@@ -17,15 +18,20 @@ function isMusicPayeeType(payeeKeyType: string) {
   return MUSIC_PAYEE_PREFIXES.some((p) => p === payeeKeyType);
 }
 
-/** All ledger payee keys a signed-in user may claim — GitHub, wallet, ListenBrainz, registry names. */
+/** Ledger payee keys — only from explicit connector fields, never mixed display names. */
 export async function resolveClaimIdentities(input: {
   profile: Pick<
     User,
     "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress"
   >;
-  authUser?: SupabaseUser | null;
 }): Promise<PayeeIdentity[]> {
-  const base = resolvePayeeIdentities(input.profile, input.authUser);
+  const sanitizedProfile = {
+    ...input.profile,
+    githubUsername: normalizeGithubLogin(input.profile.githubUsername),
+    listenbrainzUsername: normalizeListenBrainzUsername(input.profile.listenbrainzUsername),
+  };
+
+  const base = resolvePayeeIdentities(sanitizedProfile);
   const seen = new Set(base.map((i) => `${i.payeeKeyType}:${i.payeeKey.toLowerCase()}`));
   const identities = [...base];
 
@@ -36,39 +42,24 @@ export async function resolveClaimIdentities(input: {
     identities.push({ payeeKeyType, payeeKey: payeeKey.toLowerCase(), label });
   }
 
-  const gh =
-    input.profile.githubUsername?.toLowerCase() ??
-    base.find((i) => i.payeeKeyType === "github_username")?.payeeKey;
-
+  const gh = sanitizedProfile.githubUsername?.toLowerCase();
   const wallet =
-    input.profile.walletAddress?.toLowerCase() ??
-    input.profile.scanWalletAddress?.toLowerCase() ??
-    base.find((i) => i.payeeKeyType === "wallet")?.payeeKey;
+    sanitizedProfile.walletAddress?.toLowerCase() ??
+    sanitizedProfile.scanWalletAddress?.toLowerCase();
 
   const registryOr: Array<Record<string, string>> = [];
   if (gh) registryOr.push({ githubUsername: gh });
   if (wallet) registryOr.push({ walletAddress: wallet });
 
-  if (registryOr.length) {
+  if (registryOr.length && gh) {
     const rows = await prisma.contributorRegistry.findMany({
       where: { OR: registryOr },
-      select: {
-        creatorName: true,
-        exifArtist: true,
-        githubUsername: true,
-        walletAddress: true,
-      },
+      select: { githubUsername: true },
     });
 
     for (const row of rows) {
-      if (row.githubUsername) {
+      if (row.githubUsername?.toLowerCase() === gh) {
         add("github_username", row.githubUsername, `@${row.githubUsername}`);
-      }
-      if (row.creatorName) {
-        add("listen_artist", row.creatorName, row.creatorName);
-      }
-      if (row.exifArtist && row.exifArtist !== row.creatorName) {
-        add("listen_artist", row.exifArtist, row.exifArtist);
       }
     }
   }

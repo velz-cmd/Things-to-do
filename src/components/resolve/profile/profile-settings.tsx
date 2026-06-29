@@ -252,7 +252,7 @@ export function ProfileSettings() {
     if (githubError) {
       toast.error(
         githubError === "not_configured"
-          ? "GitHub sign-in is not configured on the server yet"
+          ? "GitHub install is not available yet — server needs GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET"
           : `GitHub: ${githubError}`,
       );
       router.replace("/profile");
@@ -383,10 +383,10 @@ export function ProfileSettings() {
         return (
           <div className="space-y-2">
             <Button size="sm" onClick={() => connectGithub()}>
-              Connect GitHub
+              Install GitHub
             </Button>
             <p className="text-[11px] text-resolve-muted-dim">
-              Authorize with GitHub — RESOLVE stores only your GitHub username for code attribution.
+              Opens GitHub authorization — RESOLVE stores only your @username for code attribution.
             </p>
           </div>
         );
@@ -430,11 +430,11 @@ export function ProfileSettings() {
         return (
           <div className="space-y-2">
             <Button size="sm" onClick={() => connectListenBrainz()}>
-              Sign in with MusicBrainz
+              Install MusicBrainz
             </Button>
             <p className="text-[11px] text-resolve-muted-dim">
-              Uses your MusicBrainz account (same login as ListenBrainz). One-time sign-in — RESOLVE
-              syncs listens automatically after.
+              Opens MusicBrainz authorization (same account as ListenBrainz). One-time — sync runs
+              automatically after.
             </p>
           </div>
         );

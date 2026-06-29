@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     const state = randomBytes(16).toString("hex");
     const { verifier, challenge } = createPkcePair();
 
-    const target = buildMusicBrainzAuthorizeUrl(state, challenge);
+    const target = buildMusicBrainzAuthorizeUrl(state, challenge, origin);
     const response = NextResponse.redirect(target);
 
     response.cookies.set("lb_oauth_state", state, COOKIE_OPTS);
@@ -64,10 +64,11 @@ export async function HEAD() {
   return new NextResponse(null, { status: musicBrainzOAuthConfigured() ? 200 : 503 });
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const origin = new URL(req.url).origin;
   return NextResponse.json({
     ok: musicBrainzOAuthConfigured(),
-    redirectUri: listenBrainzOAuthRedirectUri(),
+    redirectUri: listenBrainzOAuthRedirectUri(origin),
     authorizeUrl: "/api/connectors/listenbrainz/authorize?returnTo=/profile",
   });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
 import { getArcReadiness } from "@/lib/treasury/arc-readiness";
+import { getProductionDemoReadiness } from "@/lib/demo/production-readiness";
 import { prisma } from "@/lib/db";
 import {
   fetchSupabaseAuthSettings,
@@ -9,13 +10,14 @@ import {
 
 /** Honest production status — what is real vs not configured */
 export async function GET() {
-  const [integrations, arc, settlementCount, pendingRewardCount, authorizationCount] =
+  const [integrations, arc, settlementCount, pendingRewardCount, authorizationCount, demoReadiness] =
     await Promise.all([
     runIntegrationHealthCheck(),
     getArcReadiness(),
     prisma.missionSettlement.count().catch(() => -1),
     prisma.pendingReward.count().catch(() => -1),
     prisma.paymentAuthorization.count().catch(() => -1),
+    getProductionDemoReadiness(),
   ]);
 
   let githubOAuth = false;
@@ -29,6 +31,9 @@ export async function GET() {
 
   const issues: string[] = [];
   if (!arc.canDistributeOnChain) issues.push(arc.message);
+  if (demoReadiness.demoMode) {
+    issues.push("DEPUTY_DEMO_MODE=true — set false on production for honest external demo");
+  }
   if (!githubOAuth) {
     issues.push("GitHub OAuth not enabled in Supabase — /claim sign-in will not work until enabled");
   }
@@ -62,5 +67,11 @@ export async function GET() {
     issues,
     integrations: integrations.live,
     arc,
+    demoReadiness: {
+      ok: demoReadiness.ok,
+      score: demoReadiness.score,
+      total: demoReadiness.total,
+      blocked: demoReadiness.items.filter((i) => i.status === "blocked").map((i) => i.label),
+    },
   });
 }

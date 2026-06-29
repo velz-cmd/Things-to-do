@@ -17,13 +17,6 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!INTEGRATIONS.openAlex()) {
-    return NextResponse.json(
-      { ok: false, error: "OPENALEX_API_KEY not configured on server" },
-      { status: 503 },
-    );
-  }
-
   let userId: string | undefined;
   try {
     const body = (await req.json().catch(() => ({}))) as { userId?: string };
@@ -46,6 +39,11 @@ export async function GET(req: Request) {
     endpoint: "POST /api/cron/bootstrap-sensors",
     githubToken: hasGithubToken(),
     openAlex: INTEGRATIONS.openAlex(),
-    hint: "Operator-only: installs all gated communities. Users refresh sensors from each community page.",
+    musicbrainzOAuth: Boolean(
+      process.env.MUSICBRAINZ_CLIENT_ID?.trim() &&
+        process.env.MUSICBRAINZ_CLIENT_SECRET?.trim(),
+    ),
+    navidrome: Boolean(process.env.NAVIDROME_URL?.trim()),
+    hint: "Operator-only: installs OSS + research + music communities, seeds artist registry, syncs sensors.",
   });
 }

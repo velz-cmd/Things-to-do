@@ -348,7 +348,7 @@ export function ProfileSettings() {
     switch (platformId) {
       case "github":
         return (
-          <Button size="sm" variant="secondary" onClick={() => void linkGitHubAccount()}>
+          <Button size="sm" onClick={() => void linkGitHubAccount()}>
             Connect GitHub
           </Button>
         );
@@ -364,7 +364,8 @@ export function ProfileSettings() {
             Connect Gmail
           </Button>
         );
-      case "navidrome":
+      case "navidrome": {
+        const listenBrainzOn = identityMap.get("listenbrainz")?.connected;
         return connectingPlatform === "navidrome" ?
             <ConnectNavidromeForm
               onConnected={() => {
@@ -372,17 +373,25 @@ export function ProfileSettings() {
                 void load();
               }}
             />
-          : <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setConnectingPlatform("navidrome")}
-            >
-              Connect Navidrome
-            </Button>;
+          : <div className="flex flex-wrap items-center gap-2">
+              {!listenBrainzOn && (
+                <Button size="sm" onClick={() => connectListenBrainz()}>
+                  Connect ListenBrainz
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setConnectingPlatform("navidrome")}
+              >
+                {listenBrainzOn ? "Add server URL" : "Or add server URL"}
+              </Button>
+            </div>;
+      }
       case "listenbrainz":
         return (
-          <Button size="sm" variant="secondary" onClick={() => connectListenBrainz()}>
-            Connect ListenBrainz
+          <Button size="sm" onClick={() => connectListenBrainz()}>
+            Sign in with MusicBrainz
           </Button>
         );
       default:
@@ -438,9 +447,43 @@ export function ProfileSettings() {
         <div>
           <h2 className="text-base font-semibold text-white">Link your community identities</h2>
           <p className="mt-1 max-w-xl text-sm text-resolve-muted">
-            Each open community connects through its own platform. RESOLVE uses these links for
-            attribution and payouts — not as the product itself.
+            One-click connect for each platform — RESOLVE handles attribution and payouts in the
+            background. No tokens, scripts, or manual setup.
           </p>
+        </div>
+
+        <div className="rounded-xl border border-resolve-accent/20 bg-resolve-accent/[0.06] px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-accent">
+            Quick connect
+          </p>
+          <p className="mt-1 text-xs text-resolve-muted">
+            GitHub · ListenBrainz · Gmail · Wallet — each uses secure sign-in, like logging into any
+            app.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!identityMap.get("github")?.connected && (
+              <Button size="sm" variant="secondary" onClick={() => void linkGitHubAccount()}>
+                GitHub
+              </Button>
+            )}
+            {!identityMap.get("listenbrainz")?.connected && (
+              <Button size="sm" variant="secondary" onClick={() => connectListenBrainz()}>
+                ListenBrainz
+              </Button>
+            )}
+            {!identityMap.get("wallet")?.connected && (
+              <Button size="sm" variant="secondary" onClick={() => open({ view: "Connect" })}>
+                Wallet
+              </Button>
+            )}
+            {(identityMap.get("github")?.connected ||
+              identityMap.get("listenbrainz")?.connected ||
+              identityMap.get("wallet")?.connected) && (
+              <span className="self-center text-xs text-emerald-300/90">
+                Connected — earnings sync automatically
+              </span>
+            )}
+          </div>
         </div>
 
         {communityOrder.map((community) => {

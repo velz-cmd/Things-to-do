@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { Money } from "@/components/resolve/ui/money";
 import { formatDecayUrgencyLabel } from "@/lib/earn/summary";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useSignInModal } from "@/components/auth/sign-in-context";
 
 type IdentityRow = {
   label: string;
@@ -43,11 +45,15 @@ function identityKindDescription(payeeKeyType: string): string {
 }
 
 export function ProfileEarningsSummary() {
+  const { user } = useAuth();
+  const { openSignIn } = useSignInModal();
   const [data, setData] = useState<EarningsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+
     const load = () =>
       fetch("/api/profile/earnings", { credentials: "include" })
         .then((r) => r.json())
@@ -67,7 +73,7 @@ export function ProfileEarningsSummary() {
       cancelled = true;
       clearInterval(t);
     };
-  }, []);
+  }, [user?.id]);
 
   if (loading) {
     return (
@@ -91,8 +97,19 @@ export function ProfileEarningsSummary() {
         </p>
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5">
           <p className="text-sm text-resolve-muted">
-            Sign in to see verified earnings from connected communities.
+            {user ?
+              "Connect GitHub or ListenBrainz below — earnings appear here automatically after your first recognized activity."
+            : "Sign in to see verified earnings from connected communities."}
           </p>
+          {!user && (
+            <button
+              type="button"
+              onClick={() => openSignIn()}
+              className="mt-3 text-sm font-medium text-resolve-accent hover:underline"
+            >
+              Sign in →
+            </button>
+          )}
         </div>
       </section>
     );
@@ -120,6 +137,12 @@ export function ProfileEarningsSummary() {
             "No verified earnings yet"
           )}
         </h2>
+        {!hasEarnings && (
+          <p className="mt-2 text-sm text-resolve-muted">
+            Connect GitHub or ListenBrainz below — one click each. RESOLVE watches your communities
+            and credits earnings automatically.
+          </p>
+        )}
         {(data.claimableUsd > 0 || data.authorizedUsd > 0) && (
           <p className="mt-2 text-sm text-resolve-muted">
             {data.claimableUsd > 0 && (

@@ -43,6 +43,8 @@ const OPERATOR_KEYS = [
   { name: "ARC_FUNDING_PRIVATE_KEY", purpose: "On-chain settlement", required: false },
   { name: "GITHUB_TOKEN", purpose: "Code sensor (server)", required: false },
   { name: "OPENALEX_API_KEY", purpose: "Research sensor", required: false, altKeys: ["OPENALEX_EMAIL"] },
+  { name: "MUSICBRAINZ_CLIENT_ID", purpose: "ListenBrainz OAuth sign-in", required: false },
+  { name: "MUSICBRAINZ_CLIENT_SECRET", purpose: "ListenBrainz OAuth sign-in", required: false },
   { name: "GOOGLE_REFRESH_TOKEN", purpose: "Operator Gmail inbox", required: false },
 ] as const;
 

@@ -115,8 +115,8 @@ export async function GET() {
         profileRow?.listenbrainzUsername ?
           `@${profileRow.listenbrainzUsername}`
         : undefined,
-      hint: listenbrainzConnected ? undefined : "Connect with your ListenBrainz username and token",
-      health: navidromeLive?.health,
+      hint: listenbrainzConnected ? undefined : "Sign in with MusicBrainz — one click, no token",
+      authorizeUrl: "/api/connectors/listenbrainz/authorize?returnTo=/profile",
     },
     {
       id: "gmail",

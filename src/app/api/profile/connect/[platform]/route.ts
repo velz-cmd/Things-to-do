@@ -4,16 +4,10 @@ import { prisma } from "@/lib/db";
 import { requireReadyUser } from "@/lib/auth/session";
 import {
   DISCONNECT_FIELDS,
-  validateListenBrainzCredentials,
   validateNavidromeCredentials,
   type ConnectPlatform,
 } from "@/lib/profile/user-connections";
 import { syncUserMusicSensors } from "@/lib/connectors/user-music-sync";
-
-const listenbrainzSchema = z.object({
-  username: z.string().min(1).max(120),
-  token: z.string().max(512).optional(),
-});
 
 const navidromeSchema = z.object({
   url: z.string().url().max(512),
@@ -49,34 +43,18 @@ export async function POST(
     );
   }
 
-  const body = await req.json().catch(() => ({}));
-
   if (platform === "listenbrainz") {
-    const parsed = listenbrainzSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid ListenBrainz credentials" }, { status: 400 });
-    }
-
-    const check = await validateListenBrainzCredentials(
-      parsed.data.username,
-      parsed.data.token,
+    const returnTo = new URL(req.url).searchParams.get("returnTo") ?? "/profile";
+    const safeReturn = returnTo.startsWith("/") ? returnTo : "/profile";
+    return NextResponse.redirect(
+      new URL(
+        `/api/connectors/listenbrainz/authorize?returnTo=${encodeURIComponent(safeReturn)}`,
+        req.url,
+      ),
     );
-    if (!check.ok) {
-      return NextResponse.json({ error: check.message }, { status: 400 });
-    }
-
-    await prisma.user.update({
-      where: { id: ready.user.id },
-      data: {
-        listenbrainzUsername: parsed.data.username.trim().toLowerCase(),
-        listenbrainzToken: parsed.data.token?.trim() || null,
-      },
-    });
-
-    void syncUserMusicSensors(ready.user.id).catch(() => undefined);
-
-    return NextResponse.json({ ok: true, message: check.message });
   }
+
+  const body = await req.json().catch(() => ({}));
 
   if (platform === "navidrome") {
     const parsed = navidromeSchema.safeParse(body);

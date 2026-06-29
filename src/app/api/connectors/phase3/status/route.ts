@@ -3,7 +3,11 @@ import { prisma } from "@/lib/db";
 import { requireSessionUser } from "@/lib/auth/session";
 import { PHASE3_TRACKS, type Phase3TrackId } from "@/lib/connectors/phase3-tracks";
 import { getAuthorizationSummary } from "@/lib/authorization/ledger";
-import { userListenBrainzConfigured, userNavidromeConfigured } from "@/lib/profile/user-connections";
+import {
+  userListenBrainzConfigured,
+  userNavidromeConfigured,
+  userJellyfinConfigured,
+} from "@/lib/profile/user-connections";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +20,8 @@ async function trackConnectorReady(
     navidromeUrl: string | null;
     navidromeUsername: string | null;
     navidromePassword: string | null;
+    jellyfinUrl: string | null;
+    jellyfinAccessToken: string | null;
   },
 ): Promise<boolean> {
   if (trackId === "music") {
@@ -25,6 +31,9 @@ async function trackConnectorReady(
   }
   if (trackId === "oss") {
     return Boolean(profile.githubUsername?.trim());
+  }
+  if (trackId === "media") {
+    return userJellyfinConfigured(profile);
   }
   return true;
 }
@@ -44,6 +53,8 @@ export async function GET() {
       navidromeUrl: true,
       navidromeUsername: true,
       navidromePassword: true,
+      jellyfinUrl: true,
+      jellyfinAccessToken: true,
     },
   });
 

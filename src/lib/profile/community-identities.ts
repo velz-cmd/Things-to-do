@@ -1,5 +1,5 @@
 /** Which open-community each identity platform belongs to. */
-export type CommunityKind = "open_source" | "music" | "settlement";
+export type CommunityKind = "open_source" | "music" | "media" | "settlement";
 
 export type IdentityPlatformId =
   | "email"
@@ -7,6 +7,7 @@ export type IdentityPlatformId =
   | "wallet"
   | "listenbrainz"
   | "navidrome"
+  | "jellyfin"
   | "gmail";
 
 export type IdentityPlatformDef = {
@@ -23,6 +24,7 @@ export type IdentityPlatformDef = {
 export const COMMUNITY_LABELS: Record<CommunityKind, string> = {
   open_source: "Open source & code",
   music: "Music & creative work",
+  media: "Video & self-hosted media",
   settlement: "Settlement & payouts",
 };
 
@@ -54,6 +56,16 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
       "Self-hosted library? Connect ListenBrainz above first (enable scrobbling in Navidrome). Only add your server URL if it is reachable from the internet.",
     status: "live",
     usedFor: "Advanced · direct library link",
+  },
+  {
+    id: "jellyfin",
+    community: "media",
+    communityLabel: COMMUNITY_LABELS.media,
+    platform: "Jellyfin",
+    description:
+      "Self-hosted movies and TV? Connect your Jellyfin server — RESOLVE polls active sessions for verified watches.",
+    status: "live",
+    usedFor: "Video.watch authorizations · creator royalties",
   },
   {
     id: "wallet",

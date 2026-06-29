@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Music2, GitBranch, BookOpen, RefreshCw, ArrowRight } from "lucide-react";
+import { Loader2, Music2, GitBranch, BookOpen, Tv, RefreshCw, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
@@ -26,6 +26,7 @@ const ICONS = {
   music: Music2,
   oss: GitBranch,
   research: BookOpen,
+  media: Tv,
 } as const;
 
 export function ProfileConnectorTracks() {
@@ -90,7 +91,7 @@ export function ProfileConnectorTracks() {
           </p>
           <h2 className="mt-1 text-sm font-semibold text-white">Phase 3 — live programs</h2>
           <p className="mt-0.5 text-xs text-resolve-muted">
-            Music · Open source · Research — same settlement core, three parallel sensors
+            Music · Open source · Research · Video — same settlement core, parallel sensors
           </p>
         </div>
         <Button size="sm" variant="secondary" disabled={syncing} onClick={() => void syncAll()}>
@@ -101,7 +102,7 @@ export function ProfileConnectorTracks() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tracks.map((track) => {
           const Icon = ICONS[track.id as keyof typeof ICONS] ?? Music2;
           const community = track.communitySlugs[0];

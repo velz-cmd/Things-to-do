@@ -5,14 +5,20 @@ import {
   syncAllUsersGithubSensors,
   syncAllUsersOpenAlexSensors,
 } from "@/lib/connectors/user-github-sync";
+import { syncUserJellyfinSensors } from "@/lib/connectors/user-jellyfin-sync";
 
-/** All observation sensors for one user — music, code, research. No operator keys required. */
+/** All observation sensors for one user — music, video, code, research. */
 export async function syncUserSensors(userId: string) {
-  const [music, github, openAlex] = await Promise.all([
+  const [music, jellyfin, github, openAlex] = await Promise.all([
     syncUserMusicSensors(userId).catch((e) => ({
       ok: false as const,
       ingested: 0,
       error: e instanceof Error ? e.message : "music_sync_failed",
+    })),
+    syncUserJellyfinSensors(userId).catch((e) => ({
+      ok: false as const,
+      ingested: 0,
+      error: e instanceof Error ? e.message : "jellyfin_sync_failed",
     })),
     syncUserGithubSensors(userId).catch((e) => ({
       ok: false as const,
@@ -27,12 +33,16 @@ export async function syncUserSensors(userId: string) {
   ]);
 
   const ingested =
-    (music.ingested ?? 0) + (github.ingested ?? 0) + (openAlex.ingested ?? 0);
+    (music.ingested ?? 0) +
+    (jellyfin.ingested ?? 0) +
+    (github.ingested ?? 0) +
+    (openAlex.ingested ?? 0);
 
   return {
     ok: true as const,
     ingested,
     music,
+    jellyfin,
     github,
     openAlex,
   };

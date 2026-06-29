@@ -9,26 +9,41 @@ export async function getSessionUserId(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
-export async function ensureUserProfile(params: {
+type EnsureUserProfileInput = {
   id: string;
   email?: string | null;
   displayName?: string | null;
   authProvider?: string;
-}) {
-  return prisma.user.upsert({
-    where: { id: params.id },
-    create: {
+};
+
+/** Create or lightly update user — find-first avoids upsert contention under pool pressure. */
+export async function ensureUserProfile(params: EnsureUserProfileInput) {
+  const existing = await prisma.user.findUnique({ where: { id: params.id } });
+  if (existing) {
+    const email = params.email ?? undefined;
+    const displayName = params.displayName ?? undefined;
+    const authProvider = params.authProvider ?? undefined;
+    const changed =
+      (email !== undefined && email !== existing.email) ||
+      (displayName !== undefined && displayName !== existing.displayName) ||
+      (authProvider !== undefined && authProvider !== existing.authProvider);
+
+    if (!changed) return existing;
+
+    return prisma.user.update({
+      where: { id: params.id },
+      data: { email, displayName, authProvider },
+    });
+  }
+
+  return prisma.user.create({
+    data: {
       id: params.id,
       email: params.email ?? undefined,
       displayName: params.displayName ?? undefined,
-      authProvider: params.authProvider ?? "google",
+      authProvider: params.authProvider ?? "email",
       embeddedWallet: true,
       availableUsd: 0,
-    },
-    update: {
-      email: params.email ?? undefined,
-      displayName: params.displayName ?? undefined,
-      authProvider: params.authProvider ?? undefined,
     },
   });
 }

@@ -26,6 +26,8 @@ export async function GET() {
     NEXT_PUBLIC_APP_URL: present("NEXT_PUBLIC_APP_URL"),
     PLAYWRIGHT_ENABLED: process.env.PLAYWRIGHT_ENABLED === "true",
     DATABASE_URL: present("DATABASE_URL"),
+    DATABASE_PGBOUNCER: (process.env.DATABASE_URL ?? "").includes("pgbouncer=true"),
+    DATABASE_POOL_LIMIT: (process.env.DATABASE_URL ?? "").includes("connection_limit=1"),
     NEXT_PUBLIC_REOWN_PROJECT_ID: present("NEXT_PUBLIC_REOWN_PROJECT_ID"),
     SUPABASE_URL: Boolean(getSupabaseServerUrl()),
     NEXT_PUBLIC_SUPABASE_URL: present("NEXT_PUBLIC_SUPABASE_URL"),

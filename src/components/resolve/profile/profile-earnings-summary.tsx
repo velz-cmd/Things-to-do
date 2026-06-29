@@ -7,6 +7,7 @@ import { Money } from "@/components/resolve/ui/money";
 import { formatDecayUrgencyLabel } from "@/lib/earn/summary";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { useProfileBootstrap } from "@/components/resolve/profile/profile-bootstrap";
 
 type IdentityRow = {
   label: string;
@@ -47,35 +48,31 @@ function identityKindDescription(payeeKeyType: string): string {
 export function ProfileEarningsSummary() {
   const { user } = useAuth();
   const { openSignIn } = useSignInModal();
+  const { data: bootstrap, loading: bootstrapLoading } = useProfileBootstrap();
   const [data, setData] = useState<EarningsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    if (bootstrapLoading) return;
+    if (bootstrap?.earnings) {
+      setData(bootstrap.earnings as EarningsResponse);
+      setLoading(false);
+      return;
+    }
+    if (!user) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    void fetch("/api/profile/earnings", { credentials: "include" })
+      .then((r) => r.json())
+      .then((body) => setData(body))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [bootstrap, bootstrapLoading, user?.id]);
 
-    const load = () =>
-      fetch("/api/profile/earnings", { credentials: "include" })
-        .then((r) => r.json())
-        .then((body) => {
-          if (!cancelled) setData(body);
-        })
-        .catch(() => {
-          if (!cancelled) setData(null);
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-
-    void load();
-    const t = setInterval(() => void load(), 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, [user?.id]);
-
-  if (loading) {
+  if (loading || bootstrapLoading) {
     return (
       <section className="space-y-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-400/90">

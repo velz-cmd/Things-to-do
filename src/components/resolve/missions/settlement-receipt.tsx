@@ -68,16 +68,16 @@ export function SettlementReceipt({
         )}
         {txHash && !onChain && (
           <p className="text-[11px] text-resolve-muted">
-            Settlement recorded in ledger. On-chain memo tx hashes appear after live Arc payout.
+            Recorded in RESOLVE. A shareable payment link appears after live payout.
           </p>
         )}
         <div className="flex flex-wrap gap-2 pt-1">
           {receiptId && (
             <Link
-              href={`/ledger/${receiptId}`}
+              href={`/receipt/${receiptId}`}
               className="inline-flex items-center gap-1.5 rounded-md border border-resolve-border-strong bg-resolve-hover px-3 py-2 text-xs font-medium text-white hover:border-resolve-accent/40"
             >
-              Public receipt
+              Shareable receipt
               <ExternalLink className="h-3 w-3" />
             </Link>
           )}

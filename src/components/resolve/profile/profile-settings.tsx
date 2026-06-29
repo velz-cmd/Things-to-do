@@ -214,7 +214,7 @@ export function ProfileSettings() {
 
   useEffect(() => {
     void load();
-  }, [load, user?.id, account.externalWalletAddress]);
+  }, [load, user?.id, account.externalWalletAddress, account.appWalletAddress]);
 
   useEffect(() => {
     if (searchParams.get("gmail_connected") === "1") {

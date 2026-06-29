@@ -3,6 +3,28 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { exchangeGoogleCode } from "@/lib/google/oauth";
 
+export const dynamic = "force-dynamic";
+
+function redirectWith(
+  origin: string,
+  returnTo: string | undefined,
+  params: Record<string, string>,
+) {
+  const dest = returnTo?.startsWith("/") ? returnTo : "/profile";
+  const url = new URL(dest, origin);
+  for (const [k, v] of Object.entries(params)) {
+    url.searchParams.set(k, v);
+  }
+  return NextResponse.redirect(url.toString());
+}
+
+function clearOAuthCookies(response: NextResponse) {
+  const clear = { maxAge: 0, path: "/" };
+  response.cookies.set("gmail_oauth_state", "", clear);
+  response.cookies.set("gmail_oauth_user", "", clear);
+  response.cookies.set("gmail_oauth_return", "", clear);
+}
+
 export async function GET(req: Request) {
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get("code");
@@ -10,30 +32,21 @@ export async function GET(req: Request) {
   const error = searchParams.get("error");
   const cookieStore = await cookies();
 
+  const returnTo = cookieStore.get("gmail_oauth_return")?.value;
+
   if (error) {
-    const returnTo = cookieStore.get("gmail_oauth_return")?.value;
-    cookieStore.delete("gmail_oauth_return");
-    const dest =
-      returnTo && returnTo.startsWith("/") ? returnTo : "/start";
-    const suffix = dest.includes("?") ? "&" : "?";
-    return NextResponse.redirect(
-      `${origin}${dest}${suffix}gmail_error=${encodeURIComponent(error)}`,
-    );
+    const response = redirectWith(origin, returnTo, { gmail_error: error });
+    clearOAuthCookies(response);
+    return response;
   }
 
   const expectedState = cookieStore.get("gmail_oauth_state")?.value;
   const userId = cookieStore.get("gmail_oauth_user")?.value;
 
-  cookieStore.delete("gmail_oauth_state");
-  cookieStore.delete("gmail_oauth_user");
-
   if (!code || !state || !expectedState || state !== expectedState || !userId) {
-    const returnTo = cookieStore.get("gmail_oauth_return")?.value;
-    cookieStore.delete("gmail_oauth_return");
-    const dest =
-      returnTo && returnTo.startsWith("/") ? returnTo : "/start";
-    const suffix = dest.includes("?") ? "&" : "?";
-    return NextResponse.redirect(`${origin}${dest}${suffix}gmail_error=invalid_state`);
+    const response = redirectWith(origin, returnTo, { gmail_error: "invalid_state" });
+    clearOAuthCookies(response);
+    return response;
   }
 
   try {
@@ -45,20 +58,16 @@ export async function GET(req: Request) {
         ...(tokens.refresh_token ? { gmailRefreshToken: tokens.refresh_token } : {}),
       },
     });
-    const returnTo = cookieStore.get("gmail_oauth_return")?.value;
-    cookieStore.delete("gmail_oauth_return");
-    const dest = returnTo && returnTo.startsWith("/") ? returnTo : "/start";
-    const suffix = dest.includes("?") ? "&" : "?";
-    return NextResponse.redirect(`${origin}${dest}${suffix}gmail_connected=1`);
+
+    const response = redirectWith(origin, returnTo, { gmail_connected: "1" });
+    clearOAuthCookies(response);
+    return response;
   } catch (e) {
     const message = e instanceof Error ? e.message : "Gmail connection failed";
-    const returnTo = cookieStore.get("gmail_oauth_return")?.value;
-    cookieStore.delete("gmail_oauth_return");
-    const dest =
-      returnTo && returnTo.startsWith("/") ? returnTo : "/start";
-    const suffix = dest.includes("?") ? "&" : "?";
-    return NextResponse.redirect(
-      `${origin}${dest}${suffix}gmail_error=${encodeURIComponent(message)}`,
-    );
+    const response = redirectWith(origin, returnTo, {
+      gmail_error: message.slice(0, 120),
+    });
+    clearOAuthCookies(response);
+    return response;
   }
 }

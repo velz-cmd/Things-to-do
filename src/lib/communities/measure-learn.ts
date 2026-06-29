@@ -81,7 +81,7 @@ export async function measureProgramOutcomes(
       id: "sync-scrobbles",
       severity: "watch",
       action: "Sync scrobble bridge",
-      reason: "No verified plays in ledger — run navidrome-bridge.ts with program missionId",
+      reason: "No verified plays in ledger — connect ListenBrainz on Profile and keep listening",
     });
   }
 

@@ -8,6 +8,7 @@ import {
   validateNavidromeCredentials,
   type ConnectPlatform,
 } from "@/lib/profile/user-connections";
+import { syncUserMusicSensors } from "@/lib/connectors/user-music-sync";
 
 const listenbrainzSchema = z.object({
   username: z.string().min(1).max(120),
@@ -72,6 +73,8 @@ export async function POST(
       },
     });
 
+    void syncUserMusicSensors(ready.user.id).catch(() => undefined);
+
     return NextResponse.json({ ok: true, message: check.message });
   }
 
@@ -98,6 +101,8 @@ export async function POST(
         navidromePassword: parsed.data.password,
       },
     });
+
+    void syncUserMusicSensors(ready.user.id).catch(() => undefined);
 
     return NextResponse.json({ ok: true, message: check.message });
   }

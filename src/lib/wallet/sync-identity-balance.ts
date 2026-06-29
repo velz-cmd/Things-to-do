@@ -121,30 +121,71 @@ export function resolveSpendableUsd(input: {
   return round(input.availableUsd);
 }
 
-/** Spendable balance = on-chain USDC minus program reserves (source of truth). */
-export async function getRealSpendableUsd(userId: string): Promise<{
+/** Read-only spendable balance — no ledger writes (safe for UI snapshots). */
+export async function readIdentityBalance(userId: string): Promise<{
   availableUsd: number;
   onChainUsd: number | null;
   reservedUsd: number;
 }> {
-  const sync = await syncIdentityBalance(userId);
-  if (sync.onChainUsd !== null) {
+  const profile = await prisma.user.findUnique({ where: { id: userId } });
+  if (!profile) {
+    return { availableUsd: 0, onChainUsd: null, reservedUsd: 0 };
+  }
+
+  const reservedUsd = await getReservedForPrograms(userId).catch(() => 0);
+
+  if (!profile.walletAddress) {
     return {
-      availableUsd: resolveSpendableUsd({
-        availableUsd: sync.availableUsd,
-        onChainUsd: sync.onChainUsd,
-        reservedUsd: sync.reservedUsd,
-      }),
-      onChainUsd: sync.onChainUsd,
-      reservedUsd: sync.reservedUsd,
+      availableUsd: profile.availableUsd,
+      onChainUsd: null,
+      reservedUsd,
     };
   }
 
-  const profile = await prisma.user.findUnique({ where: { id: userId } });
-  const reservedUsd = await getReservedForPrograms(userId);
-  return {
-    availableUsd: profile?.availableUsd ?? 0,
-    onChainUsd: null,
-    reservedUsd,
-  };
+  try {
+    const bal = await getArcUsdcBalance(profile.walletAddress);
+    const onChainUsd = round(bal.balanceUsd);
+    return {
+      availableUsd: resolveSpendableUsd({
+        availableUsd: profile.availableUsd,
+        onChainUsd,
+        reservedUsd,
+      }),
+      onChainUsd,
+      reservedUsd,
+    };
+  } catch {
+    return {
+      availableUsd: profile.availableUsd,
+      onChainUsd: null,
+      reservedUsd,
+    };
+  }
+}
+
+/** Spendable balance — syncs ledger when requested (e.g. before send/bridge). */
+export async function getRealSpendableUsd(
+  userId: string,
+  opts?: { sync?: boolean },
+): Promise<{
+  availableUsd: number;
+  onChainUsd: number | null;
+  reservedUsd: number;
+}> {
+  if (opts?.sync) {
+    const sync = await syncIdentityBalance(userId);
+    if (sync.onChainUsd !== null) {
+      return {
+        availableUsd: resolveSpendableUsd({
+          availableUsd: sync.availableUsd,
+          onChainUsd: sync.onChainUsd,
+          reservedUsd: sync.reservedUsd,
+        }),
+        onChainUsd: sync.onChainUsd,
+        reservedUsd: sync.reservedUsd,
+      };
+    }
+  }
+
+  return readIdentityBalance(userId);
 }

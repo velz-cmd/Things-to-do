@@ -174,9 +174,9 @@ export function AuthHeader() {
                   Your wallet · {shortAddress(account.externalWalletAddress!)}
                 </p>
               )}
-              {!balanceLoading && balance && hasEmailSession && (
+              {!balanceLoading && hasEmailSession && (
                 <p className="mt-2 text-xs text-deputy-accent">
-                  ${balance.availableUsd.toFixed(2)} available
+                  ${(balance?.availableUsd ?? 0).toFixed(2)} available
                 </p>
               )}
             </div>

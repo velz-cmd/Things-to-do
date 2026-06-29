@@ -7,7 +7,6 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { ResolveBanking } from "@/components/resolve/payments/resolve-banking";
 import type { BankingAccountSnapshot } from "@/lib/banking/types";
-import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
 import { BANKING_UI } from "@/lib/banking/copy";
 
 type Overview = {
@@ -40,11 +39,6 @@ export function PaymentsOS() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  const [fxHint, setFxHint] = useState<FxSwapHint | null>(null);
-  const [payoutCurrency, setPayoutCurrency] = useState<PayoutCurrency>("USDC");
-  const [currencyOptions, setCurrencyOptions] = useState<
-    { id: PayoutCurrency; label: string }[]
-  >([]);
 
   const payoutWallet =
     account.appWalletAddress ?? account.walletAddress ?? account.externalWalletAddress;
@@ -86,19 +80,6 @@ export function PaymentsOS() {
     return () => clearInterval(t);
   }, [load]);
 
-  useEffect(() => {
-    if (!user) return;
-    void fetch("/api/profile/payout-preference", { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.currency) setPayoutCurrency(data.currency);
-        if (data.options) setCurrencyOptions(data.options);
-      })
-      .catch(() => {
-        /* optional */
-      });
-  }, [user]);
-
   async function handleClaim() {
     if (!payoutWallet) {
       toast.error("No wallet on your account — sign in again or contact support");
@@ -126,7 +107,6 @@ export function PaymentsOS() {
         toast.message(data.error ?? BANKING_UI.claimNothing);
         return;
       }
-      if (data.fxHint) setFxHint(data.fxHint);
       toast.success(`${BANKING_UI.claimSuccess} — $${total.toFixed(2)}`);
       void load({ silent: true });
     } catch (e) {
@@ -170,19 +150,7 @@ export function PaymentsOS() {
       refreshing={refreshing}
       signedIn={Boolean(user)}
       payoutWallet={payoutWallet ?? null}
-      payoutCurrency={payoutCurrency}
-      currencyOptions={currencyOptions}
-      fxHint={fxHint}
       claiming={claiming}
-      onPayoutCurrencyChange={(next) => {
-        setPayoutCurrency(next);
-        void fetch("/api/profile/payout-preference", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ currency: next }),
-        });
-      }}
       onClaim={() => void handleClaim()}
       onSignIn={handleSignIn}
     />

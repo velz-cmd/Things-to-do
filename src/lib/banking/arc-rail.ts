@@ -108,13 +108,14 @@ export function buildFallbackArcRail(): BankingArcRail {
 /** Circle Arc rail — USDC gas, memo payouts, agent nano-payments, one identity wallet. */
 export async function getBankingArcRail(
   profile: User | null,
-  opts?: { identityOnChainUsd?: number | null },
+  opts?: { identityOnChainUsd?: number | null; light?: boolean },
 ): Promise<BankingArcRail> {
   try {
-  const readiness = await getArcReadiness();
+  const readiness =
+    opts?.light ? null : await getArcReadiness();
 
   let identityOnChainUsd: number | null = opts?.identityOnChainUsd ?? null;
-  if (identityOnChainUsd === null && profile?.walletAddress) {
+  if (identityOnChainUsd === null && profile?.walletAddress && !opts?.light) {
     try {
       const bal = await getArcUsdcBalance(profile.walletAddress);
       identityOnChainUsd = round(bal.balanceUsd);
@@ -123,28 +124,30 @@ export async function getBankingArcRail(
     }
   }
 
-  const nanoCount = await prisma.settlementNanoPayment
-    .count({ where: { status: "settled" } })
-    .catch(() => 0);
+  const nanoCount = opts?.light
+    ? 0
+    : await prisma.settlementNanoPayment
+        .count({ where: { status: "settled" } })
+        .catch(() => 0);
 
-  const memoActivity = await getRecentMemoActivity(profile?.id ?? null, 8);
+  const memoActivity = opts?.light ? [] : await getRecentMemoActivity(profile?.id ?? null, 8);
 
   return {
     chain: "Arc Testnet",
     chainId: ARC_CHAIN_ID,
     currency: "USDC",
     usdcGas: true,
-    live: readiness.liveArc,
-    canDistribute: readiness.canDistributeOnChain,
-    blockers: readiness.blockers,
-    message: readiness.message,
+    live: readiness?.liveArc ?? false,
+    canDistribute: readiness?.canDistributeOnChain ?? false,
+    blockers: readiness?.blockers ?? [],
+    message: readiness?.message ?? "Account overview",
     contracts: {
       usdc: ARC_USDC_CONTRACT,
       memo: ARC_MEMO_CONTRACT,
     },
     agentWallet: ARC_PROVIDER_WALLET_ADDRESS ?? null,
-    settlementWallet: readiness.clientWallet,
-    settlementBalanceUsd: readiness.balanceUsd,
+    settlementWallet: readiness?.clientWallet ?? null,
+    settlementBalanceUsd: readiness?.balanceUsd ?? null,
     explorerUrl: ARC_EXPLORER_URL,
     capabilities: {
       identityWallet: true,

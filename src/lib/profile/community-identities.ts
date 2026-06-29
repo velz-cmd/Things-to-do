@@ -37,15 +37,6 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     usedFor: "Code attribution · maintainer claims",
   },
   {
-    id: "navidrome",
-    community: "music",
-    communityLabel: COMMUNITY_LABELS.music,
-    platform: "Navidrome",
-    description: "Self-hosted music library — scrobbles map to MusicBrainz credits and per-listen attribution.",
-    status: "live",
-    usedFor: "Creative attribution · listen royalties",
-  },
-  {
     id: "listenbrainz",
     community: "music",
     communityLabel: COMMUNITY_LABELS.music,
@@ -53,6 +44,16 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     description: "Sign in with MusicBrainz — RESOLVE syncs your listening history automatically. No tokens or setup.",
     status: "live",
     usedFor: "MusicBrainz identity · scrobble sync",
+  },
+  {
+    id: "navidrome",
+    community: "music",
+    communityLabel: COMMUNITY_LABELS.music,
+    platform: "Navidrome (optional)",
+    description:
+      "Self-hosted library? Connect ListenBrainz above first (enable scrobbling in Navidrome). Only add your server URL if it is reachable from the internet.",
+    status: "live",
+    usedFor: "Advanced · direct library link",
   },
   {
     id: "wallet",

@@ -23,10 +23,28 @@ function isRealTxHash(hash: string | null | undefined): hash is string {
   return Boolean(hash && hash.startsWith("0x") && hash.length >= 66);
 }
 
-async function getRecentMemoActivity(limit = 10): Promise<BankingMemoActivity[]> {
+async function getRecentMemoActivity(
+  userId: string | null,
+  limit = 10,
+): Promise<BankingMemoActivity[]> {
   try {
+    const missionIds =
+      userId ?
+        (
+          await prisma.resolveProgram.findMany({
+            where: { userId },
+            select: { missionId: true },
+          })
+        )
+          .map((p) => p.missionId)
+          .filter((id): id is string => Boolean(id))
+      : [];
+
+    if (!missionIds.length) return [];
+
     const settlements = await prisma.missionSettlement.findMany({
       where: {
+        missionId: { in: missionIds },
         escrowTxHash: { startsWith: "0x" },
       },
       orderBy: { updatedAt: "desc" },
@@ -106,7 +124,7 @@ export async function getBankingArcRail(profile: User | null): Promise<BankingAr
     .count({ where: { status: "settled" } })
     .catch(() => 0);
 
-  const memoActivity = await getRecentMemoActivity(8);
+  const memoActivity = await getRecentMemoActivity(profile?.id ?? null, 8);
 
   return {
     chain: "Arc Testnet",

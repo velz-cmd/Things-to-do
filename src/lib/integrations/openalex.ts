@@ -1,5 +1,10 @@
 import { env, INTEGRATIONS } from "@/lib/integrations/config";
 
+export function openAlexPoliteUserAgent(): string {
+  const email = env("OPENALEX_EMAIL") ?? env("RESOLVE_CONTACT_EMAIL") ?? "resolve@arc.network";
+  return `RESOLVE/1.0 (mailto:${email})`;
+}
+
 export type OpenAlexWork = {
   id: string;
   title: string;
@@ -18,7 +23,7 @@ function openAlexHeaders(): HeadersInit {
   const key = env("OPENALEX_API_KEY");
   return {
     Accept: "application/json",
-    "User-Agent": "RESOLVE/1.0 (mailto:resolve@arc.network)",
+    "User-Agent": openAlexPoliteUserAgent(),
     ...(key ? { Authorization: `Bearer ${key}` } : {}),
   };
 }
@@ -91,15 +96,18 @@ export async function fetchRepoResearchSignal(
 }
 
 export async function pingOpenAlex(): Promise<{ ok: boolean; message: string }> {
-  if (!INTEGRATIONS.openAlex()) {
-    return { ok: false, message: "OPENALEX_API_KEY not set" };
-  }
   try {
     const res = await fetch(openAlexUrl("/works", { per_page: "1" }), {
       headers: openAlexHeaders(),
     });
     if (!res.ok) return { ok: false, message: `OpenAlex HTTP ${res.status}` };
-    return { ok: true, message: "OpenAlex connected" };
+    const boosted = Boolean(env("OPENALEX_API_KEY"));
+    return {
+      ok: true,
+      message: boosted
+        ? "OpenAlex connected (platform key — higher limits)"
+        : "OpenAlex connected (public API — works for all users globally)",
+    };
   } catch {
     return { ok: false, message: "OpenAlex unreachable" };
   }

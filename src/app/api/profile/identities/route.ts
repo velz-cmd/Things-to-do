@@ -7,6 +7,7 @@ import { listEcosystems } from "@/lib/mission/server/ecosystems";
 import {
   userListenBrainzConfigured,
   userNavidromeConfigured,
+  userJellyfinConfigured,
 } from "@/lib/profile/user-connections";
 import { safeUrlHostname } from "@/lib/profile/safe-url";
 import { sanitizeConnectorIdentities } from "@/lib/identity/sanitize-profile";
@@ -68,6 +69,8 @@ export async function GET() {
       profileRow ? userListenBrainzConfigured(profileRow) : false;
     const navidromeConnected = profileRow ? userNavidromeConfigured(profileRow) : false;
     const navidromeHost = safeUrlHostname(profileRow?.navidromeUrl);
+    const jellyfinConnected = profileRow ? userJellyfinConfigured(profileRow) : false;
+    const jellyfinHost = safeUrlHostname(profileRow?.jellyfinUrl);
 
     const ecosystems =
       userId ?
@@ -117,6 +120,17 @@ export async function GET() {
           : "Optional — ListenBrainz sign-in covers most music listeners",
         health: navidromeLive?.health,
         eventsToday: navidromeLive?.eventsToday,
+      },
+      {
+        id: "jellyfin",
+        connected: jellyfinConnected,
+        displayValue:
+          jellyfinHost ??
+          (profileRow?.jellyfinUsername ? `@${profileRow.jellyfinUsername}` : undefined),
+        hint:
+          jellyfinConnected ?
+            undefined
+          : "Connect your Jellyfin server for video.watch authorizations",
       },
       {
         id: "listenbrainz",

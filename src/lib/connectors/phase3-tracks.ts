@@ -1,7 +1,7 @@
 import type { ProgramTemplateId } from "@/lib/communities/catalog";
 
 /** Phase 3 — three live connector tracks, same program core. */
-export type Phase3TrackId = "music" | "oss" | "research";
+export type Phase3TrackId = "music" | "oss" | "research" | "media";
 
 export type Phase3Track = {
   id: Phase3TrackId;
@@ -41,6 +41,15 @@ export const PHASE3_TRACKS: Phase3Track[] = [
     communitySlugs: ["open-research"],
     description: "OpenAlex enrichment — verified citations become micropayment tolls",
   },
+  {
+    id: "media",
+    name: "Video",
+    event: "video.watch",
+    connector: "jellyfin",
+    programTemplate: "video-royalties",
+    communitySlugs: ["jellyfin"],
+    description: "Jellyfin sessions API — verified movie and episode watches",
+  },
 ];
 
 /** Program templates to activate per community install (not one wedge — parallel programs). */
@@ -55,6 +64,8 @@ export function programTemplatesForCommunity(communitySlug: string): ProgramTemp
     case "independent-music":
     case "navidrome":
       return ["user-centric-royalties"];
+    case "jellyfin":
+      return ["video-royalties"];
     default:
       return ["user-centric-royalties"];
   }

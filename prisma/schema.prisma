@@ -105,6 +105,9 @@ model User {
   navidromeUrl         String?
   navidromeUsername    String?
   navidromePassword    String?
+  jellyfinUrl          String?
+  jellyfinUsername     String?
+  jellyfinAccessToken  String?
   taskMemoryJson  String?
   embeddedWallet  Boolean  @default(false)
   availableUsd    Float    @default(0)

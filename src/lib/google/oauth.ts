@@ -3,9 +3,17 @@ const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 
 export function googleOAuthConfigured(): boolean {
   return Boolean(
-    process.env.GOOGLE_CLIENT_ID?.trim() &&
-      process.env.GOOGLE_CLIENT_SECRET?.trim()
+    (process.env.GMAIL_CLIENT_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim()) &&
+      (process.env.GMAIL_CLIENT_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET?.trim()),
   );
+}
+
+function googleClientId() {
+  return process.env.GMAIL_CLIENT_ID?.trim() || process.env.GOOGLE_CLIENT_ID!.trim();
+}
+
+function googleClientSecret() {
+  return process.env.GMAIL_CLIENT_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET!.trim();
 }
 
 export function appOrigin() {
@@ -21,7 +29,7 @@ export function gmailRedirectUri() {
 }
 
 export function buildGmailAuthorizeUrl(state: string, sendAccess = false) {
-  const clientId = process.env.GOOGLE_CLIENT_ID!;
+  const clientId = googleClientId();
   const scopes = sendAccess
     ? [GMAIL_READONLY_SCOPE, GMAIL_SEND_SCOPE]
     : [GMAIL_READONLY_SCOPE];
@@ -45,8 +53,8 @@ export async function exchangeGoogleCode(code: string) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      client_id: googleClientId(),
+      client_secret: googleClientSecret(),
       redirect_uri: gmailRedirectUri(),
       grant_type: "authorization_code",
     }),

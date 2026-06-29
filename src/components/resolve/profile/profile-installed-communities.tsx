@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
+import { useAuth } from "@/components/auth/auth-provider";
+import { PROFILE_REFRESH_EVENT } from "@/lib/profile/refresh-events";
 
 type CommunitySummary = {
   slug: string;
@@ -13,11 +15,13 @@ type CommunitySummary = {
 };
 
 export function ProfileInstalledCommunities() {
+  const { user } = useAuth();
   const catalog = COMMUNITY_CATALOG;
   const [communities, setCommunities] = useState<CommunitySummary[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
     void fetch("/api/communities", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { communities: [] }))
       .then((d: { communities?: CommunitySummary[] }) => {
@@ -25,6 +29,16 @@ export function ProfileInstalledCommunities() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load, user?.id]);
+
+  useEffect(() => {
+    const onRefresh = () => load();
+    window.addEventListener(PROFILE_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(PROFILE_REFRESH_EVENT, onRefresh);
+  }, [load]);
 
   const installed = communities.filter((c) => c.installed);
 
@@ -68,7 +82,9 @@ export function ProfileInstalledCommunities() {
             })
           ) : (
             <>
-              <p className="text-xs text-resolve-muted-dim">Suggested installs — not connected yet</p>
+              <p className="text-xs text-resolve-muted-dim">
+                Connect GitHub or ListenBrainz below — featured communities install automatically.
+              </p>
               {catalog.filter((c) => c.featured).slice(0, 2).map((c) => (
                 <InstallResolveCard
                   key={c.slug}

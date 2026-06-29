@@ -74,13 +74,21 @@ export async function pingListenBrainz(): Promise<{ ok: boolean; message: string
 /** Pull listens for music authorization ingest (Navidrome → ListenBrainz → RESOLVE). */
 export async function fetchListenBrainzListens(
   count = 50,
+  options?: { username?: string; token?: string | null },
 ): Promise<ListenBrainzListen[]> {
-  const user = username();
+  const user = options?.username?.trim() || username();
   if (!user) return [];
+
+  const h: Record<string, string> = {
+    Accept: "application/json",
+    "User-Agent": "RESOLVE/1.0",
+  };
+  const token = options?.token?.trim() || env("LISTENBRAINZ_TOKEN");
+  if (token) h.Authorization = `Token ${token}`;
 
   const res = await fetch(
     `https://api.listenbrainz.org/1/user/${encodeURIComponent(user)}/listens?count=${count}`,
-    { headers: headers(), signal: AbortSignal.timeout(15_000) },
+    { headers: h, signal: AbortSignal.timeout(15_000) },
   );
   if (!res.ok) return [];
 

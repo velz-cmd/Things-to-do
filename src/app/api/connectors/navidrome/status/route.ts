@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { getNavidromeSyncStatus } from "@/lib/connectors/navidrome-sync";
+import { getUserMusicSensorStatus } from "@/lib/connectors/user-music-sync";
 import { prisma } from "@/lib/db";
 
-/** Bridge health for music communities — mission ID from install, not manual env copy. */
+/** Music sensor health — user-friendly, no bridge scripts. */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const communitySlug = searchParams.get("community") ?? "independent-music";
@@ -14,8 +15,17 @@ export async function GET(req: Request) {
   let installMissionId: string | null = null;
   let programName: string | null = null;
   let installed = false;
+  let userSensor = {
+    listenBrainzConnected: false,
+    navidromeConnected: false,
+    receiving: false,
+    lastSyncAt: null as string | null,
+    mode: "cloud" as const,
+  };
 
   if (authUser) {
+    userSensor = await getUserMusicSensorStatus(authUser.id);
+
     const install = await prisma.resolveCommunityInstall.findFirst({
       where: { userId: authUser.id, communitySlug },
       orderBy: { installedAt: "desc" },
@@ -32,25 +42,41 @@ export async function GET(req: Request) {
     }
   }
 
-  const bridgeHealthy = Boolean(global.cursor?.lastSubmissionTime);
-  const lastSync = global.cursor?.lastSubmissionTime ?? null;
+  const lastSync =
+    userSensor.lastSyncAt ?? global.cursor?.lastSubmissionTime ?? null;
+  const receiving =
+    userSensor.receiving || Boolean(global.cursor?.lastSubmissionTime);
+
+  let instructions: string;
+  if (!installed) {
+    instructions =
+      "Install this music community — then connect ListenBrainz on Profile. RESOLVE watches your plays automatically.";
+  } else if (userSensor.listenBrainzConnected) {
+    instructions =
+      "ListenBrainz connected. RESOLVE syncs your plays in the background — just keep listening.";
+  } else if (userSensor.navidromeConnected) {
+    instructions =
+      "Navidrome connected. RESOLVE polls your library from the cloud when it is reachable.";
+  } else {
+    instructions =
+      "Open Profile → connect ListenBrainz (recommended). If Navidrome scrobbles to ListenBrainz, plays appear here with no extra setup.";
+  }
 
   return NextResponse.json({
     ok: true,
-    mode: "bridge",
+    mode: "cloud",
     installed,
-    bridgeHealthy,
+    receiving,
+    bridgeHealthy: receiving,
     lastSyncAt: lastSync,
-    instanceId: global.instanceId,
     perPlayUsd: global.perPlayUsd,
-    syncEndpoint: global.syncEndpoint,
-    bridgeScript: global.bridgeScript,
     program: installMissionId
       ? { missionId: installMissionId, name: programName, communitySlug }
       : null,
-    envMissionId: process.env.NAVIDROME_PROGRAM_MISSION_ID?.trim() || null,
-    instructions: installed
-      ? "Run scripts/navidrome-bridge.ts on your Navidrome host — mission ID is resolved from your install automatically."
-      : "Install the music community first; RESOLVE will assign a program mission ID.",
+    sensors: {
+      listenBrainz: userSensor.listenBrainzConnected,
+      navidrome: userSensor.navidromeConnected,
+    },
+    instructions,
   });
 }

@@ -94,7 +94,7 @@ export async function buildCommunityObservatory(input: {
         id: "scrobble-bridge",
         severity: "watch",
         title: "Scrobble bridge not synced",
-        detail: "Run scripts/navidrome-bridge.ts on your Navidrome host to ingest plays",
+        detail: "Connect ListenBrainz on Profile — RESOLVE syncs plays automatically from the cloud",
         at: now,
       });
     } else {

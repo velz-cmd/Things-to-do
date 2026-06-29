@@ -16,6 +16,9 @@ import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
 import { CapitalCommunityPrograms } from "@/components/resolve/capital/capital-community-programs";
+import { FunderDiscoveryPanel } from "@/components/resolve/capital/funder-discovery-panel";
+import { FunderYieldPortfolio } from "@/components/resolve/capital/funder-yield-portfolio";
+import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
 import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-truth";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
@@ -554,7 +557,17 @@ export function ResolveBanking({
       )}
 
       {tab === "programs" && (
-        <section className="py-2">
+        <section className="space-y-8 py-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
+              {CAPITAL_YIELD_COPY.ecosystemTitle}
+            </p>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-resolve-muted">
+              {CAPITAL_YIELD_COPY.ecosystemSubtitle}
+            </p>
+          </div>
+          {signedIn && <FunderYieldPortfolio />}
+          <FunderDiscoveryPanel signedIn={signedIn} />
           <CapitalCommunityPrograms />
           {signedIn && account?.programs && account.programs.length > 0 && (
             <ul className="mt-6 space-y-2">

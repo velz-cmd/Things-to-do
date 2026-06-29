@@ -8,9 +8,13 @@ import {
   syncOpenCollectiveCommunitySensors,
   communityHasLiveSensorEvents,
 } from "@/lib/sensors/sync";
+import { syncUserListenBrainz } from "@/lib/connectors/user-music-sync";
+import { seedProductionArtistRegistry } from "@/lib/registry/production-artists";
+import { pingNavidrome, isNavidromeConfigured } from "@/lib/integrations/navidrome";
 
 const OSS_SLUGS = ["react", "linux"] as const;
 const RESEARCH_SLUG = "open-research";
+const MUSIC_SLUGS = ["independent-music", "navidrome"] as const;
 
 export type BootstrapSensorsResult = {
   ok: boolean;
@@ -100,7 +104,7 @@ export async function bootstrapProductionSensors(input?: {
     };
   }
 
-  for (const slug of [...OSS_SLUGS, RESEARCH_SLUG]) {
+  for (const slug of [...OSS_SLUGS, RESEARCH_SLUG, ...MUSIC_SLUGS]) {
     const result = await installCommunity(userId, slug);
     if (!result.ok) {
       errors.push(`${slug}: ${result.error}`);
@@ -132,6 +136,63 @@ export async function bootstrapProductionSensors(input?: {
     templateId: "citation-toll",
     missionId: citation.missionId,
   });
+
+  const royalties = await ensureActiveProgram(userId, "independent-music", "user-centric-royalties");
+  if ("error" in royalties && royalties.error) {
+    errors.push(`independent-music/user-centric-royalties: ${royalties.error}`);
+  } else {
+    programs.push({
+      communitySlug: "independent-music",
+      templateId: "user-centric-royalties",
+      missionId: royalties.missionId,
+    });
+  }
+
+  try {
+    const registry = await seedProductionArtistRegistry();
+    if (registry.seeded > 0) {
+      sync.push({
+        communitySlug: "registry",
+        observations: registry.seeded,
+        ingested: registry.seeded,
+        eventTypes: ["registry.artist"],
+        live: true,
+      });
+    }
+  } catch (e) {
+    errors.push(`registry: ${e instanceof Error ? e.message : "seed failed"}`);
+  }
+
+  const founder = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { listenbrainzUsername: true, listenbrainzToken: true },
+  });
+  if (founder?.listenbrainzUsername) {
+    try {
+      const lb = await syncUserListenBrainz(userId, { max: 30 });
+      sync.push({
+        communitySlug: "independent-music",
+        observations: lb.scanned ?? 0,
+        ingested: lb.ingested ?? 0,
+        eventTypes: ["listenbrainz.play"],
+        live: (lb.ingested ?? 0) > 0,
+      });
+    } catch (e) {
+      errors.push(`listenbrainz: ${e instanceof Error ? e.message : "sync failed"}`);
+    }
+  }
+
+  if (isNavidromeConfigured()) {
+    const ping = await pingNavidrome();
+    sync.push({
+      communitySlug: "navidrome",
+      observations: ping.ok ? 1 : 0,
+      ingested: 0,
+      eventTypes: ["navidrome.ping"],
+      live: ping.ok,
+    });
+    if (!ping.ok) errors.push(`navidrome: ${ping.message}`);
+  }
 
   for (const slug of OSS_SLUGS) {
     try {
@@ -186,7 +247,7 @@ export async function bootstrapProductionSensors(input?: {
   }
 
   const sensorLive: Record<string, boolean> = {};
-  for (const slug of [...OSS_SLUGS, RESEARCH_SLUG]) {
+  for (const slug of [...OSS_SLUGS, RESEARCH_SLUG, ...MUSIC_SLUGS]) {
     sensorLive[slug] = await communityHasLiveSensorEvents(slug);
   }
 

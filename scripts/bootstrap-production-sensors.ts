@@ -1,6 +1,7 @@
 /**
- * Local production bootstrap — requires DATABASE_URL, GITHUB_TOKEN, OPENALEX_API_KEY.
- * Usage: DATABASE_URL=... GITHUB_TOKEN=... OPENALEX_API_KEY=... npx tsx scripts/bootstrap-production-sensors.ts
+ * Local production bootstrap — requires DATABASE_URL, GITHUB_TOKEN.
+ * Optional: MUSICBRAINZ_CLIENT_* for ListenBrainz sync, NAVIDROME_* for music bridge.
+ * Usage: DATABASE_URL=... GITHUB_TOKEN=... npx tsx scripts/bootstrap-production-sensors.ts
  */
 import { bootstrapProductionSensors } from "../src/lib/sensors/bootstrap";
 

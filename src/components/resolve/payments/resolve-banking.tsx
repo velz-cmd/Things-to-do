@@ -17,13 +17,10 @@ import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
 import { CapitalCommunityPrograms } from "@/components/resolve/capital/capital-community-programs";
 import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-truth";
-import { CurrencySelect } from "@/components/resolve/capital/currency-select";
-import { FxSwapPanel } from "@/components/wallet/fx-swap-panel";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
 import { BANKING_UI, friendlyStatementLabel, friendlyStatus } from "@/lib/banking/copy";
 import type { BankingAccountSnapshot, StatementLine } from "@/lib/banking/types";
-import type { FxSwapHint, PayoutCurrency } from "@/lib/settlement/fx";
 
 type SettlementRow = {
   id: string;
@@ -43,11 +40,7 @@ type ResolveBankingProps = {
   refreshing: boolean;
   signedIn: boolean;
   payoutWallet: string | null;
-  payoutCurrency: PayoutCurrency;
-  currencyOptions: { id: PayoutCurrency; label: string }[];
-  fxHint: FxSwapHint | null;
   claiming: boolean;
-  onPayoutCurrencyChange: (next: PayoutCurrency) => void;
   onClaim: () => void;
   onSignIn: () => void;
 };
@@ -314,11 +307,7 @@ export function ResolveBanking({
   refreshing,
   signedIn,
   payoutWallet,
-  payoutCurrency,
-  currencyOptions,
-  fxHint,
   claiming,
-  onPayoutCurrencyChange,
   onClaim,
   onSignIn,
 }: ResolveBankingProps) {
@@ -330,7 +319,6 @@ export function ResolveBanking({
   const network = account?.network;
   const arc = account?.arc;
   const yourClaimable = balances?.earnedClaimableUsd ?? 0;
-  const yourSettled = balances?.earnedSettledUsd ?? 0;
   const yourDeposits = balances?.availableUsd ?? 0;
   const reserved = balances?.reservedUsd ?? 0;
 
@@ -443,53 +431,6 @@ export function ResolveBanking({
                 <p className="mt-3 text-[10px] text-resolve-muted-dim">Updating…</p>
               )}
             </BlueGlowCard>
-          )}
-
-          {signedIn && (
-            <section className="mb-6 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-              <p className="text-sm font-semibold text-white">{BANKING_UI.claimTitle}</p>
-              <p className="mt-1 text-xs text-resolve-muted">{BANKING_UI.claimBody}</p>
-              {yourClaimable > 0 ?
-                <>
-                  <p className="mt-3 text-2xl font-semibold text-emerald-200">
-                    <Money amount={yourClaimable} size="lg" className="inline" />
-                  </p>
-                  {currencyOptions.length > 0 && (
-                    <div className="mt-3">
-                      <CurrencySelect
-                        value={payoutCurrency}
-                        options={currencyOptions}
-                        onChange={onPayoutCurrencyChange}
-                      />
-                    </div>
-                  )}
-                  {fxHint && (
-                    <div className="mt-3">
-                      <FxSwapPanel hint={fxHint} />
-                    </div>
-                  )}
-                  <Button
-                    className="mt-4"
-                    onClick={onClaim}
-                    disabled={claiming || !payoutWallet}
-                  >
-                    {claiming ? BANKING_UI.claimWorking : BANKING_UI.claimButton}
-                  </Button>
-                </>
-              : <>
-                  <p className="mt-3 text-sm text-resolve-muted">{BANKING_UI.claimEmpty}</p>
-                  {yourSettled > 0 && (
-                    <p className="mt-2 text-xs text-resolve-muted">
-                      {BANKING_UI.claimSettledBefore}:{" "}
-                      <Money amount={yourSettled} size="sm" className="inline text-white" />
-                    </p>
-                  )}
-                  {!account?.identities?.github && (
-                    <p className="mt-2 text-xs text-resolve-muted">{BANKING_UI.linkGithub}</p>
-                  )}
-                </>
-              }
-            </section>
           )}
 
           {!initialLoading && network && network.pendingFundingUsd > 0 && (

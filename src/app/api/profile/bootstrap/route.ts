@@ -90,7 +90,8 @@ export async function GET() {
         hint:
           jellyfinConnected ?
             undefined
-          : "Connect Jellyfin for video.watch authorizations",
+          : "Install Jellyfin — one click",
+        authorizeUrl: "/connect/jellyfin",
       },
       {
         id: "listenbrainz",
@@ -123,6 +124,13 @@ export async function GET() {
         embedded: profile.embeddedWallet || true,
         provider: appWalletProvider(profile),
       },
+      jellyfinSync:
+        jellyfinConnected && profile.jellyfinUrl && profile.jellyfinAccessToken ?
+          {
+            url: profile.jellyfinUrl,
+            accessToken: profile.jellyfinAccessToken,
+          }
+        : null,
       updatedAt: new Date().toISOString(),
     });
   } catch (e) {

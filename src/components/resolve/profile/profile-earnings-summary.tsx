@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { Money } from "@/components/resolve/ui/money";
-import { formatDecayUrgencyLabel } from "@/lib/earn/summary";
+import { formatDecayUrgencyLabel } from "@/lib/earn/format";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useProfileBootstrap } from "@/components/resolve/profile/profile-bootstrap";
@@ -54,8 +54,22 @@ export function ProfileEarningsSummary() {
 
   useEffect(() => {
     if (bootstrapLoading) return;
-    if (bootstrap?.earnings) {
-      setData(bootstrap.earnings as EarningsResponse);
+    if (bootstrap?.signedIn) {
+      if (bootstrap.earnings) {
+        setData(bootstrap.earnings as EarningsResponse);
+      } else {
+        setData({
+          signedIn: true,
+          youEarnedUsd: 0,
+          claimableUsd: 0,
+          authorizedUsd: 0,
+          settledUsd: 0,
+          stalestClaimableAt: null,
+          notifyUrgency: 0,
+          githubLinked: false,
+          identities: [],
+        });
+      }
       setLoading(false);
       return;
     }
@@ -70,7 +84,7 @@ export function ProfileEarningsSummary() {
       .then((body) => setData(body))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [bootstrap, bootstrapLoading, user?.id]);
+  }, [bootstrap, bootstrapLoading, user]);
 
   if (loading || bootstrapLoading) {
     return (

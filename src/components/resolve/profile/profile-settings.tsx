@@ -227,19 +227,21 @@ export function ProfileSettings() {
 
   useEffect(() => {
     if (bootstrapLoading) return;
-    if (bootstrap?.identities?.length) {
-      setEmail(bootstrap.email ?? null);
-      setEmailVerified(Boolean(bootstrap.emailVerified));
-      const map = new Map<IdentityPlatformId, ProfileIdentityState>();
-      for (const row of bootstrap.identities) {
-        map.set(row.id, row);
+    if (bootstrap?.signedIn) {
+      setEmail(bootstrap.email ?? user?.email ?? null);
+      setEmailVerified(Boolean(bootstrap.emailVerified ?? user?.email));
+      if (bootstrap.identities?.length) {
+        const map = new Map<IdentityPlatformId, ProfileIdentityState>();
+        for (const row of bootstrap.identities) {
+          map.set(row.id, row);
+        }
+        setIdentityMap(map);
       }
-      setIdentityMap(map);
       setLoading(false);
       return;
     }
     void load();
-  }, [bootstrap, bootstrapLoading, load]);
+  }, [bootstrap, bootstrapLoading, load, user?.email]);
 
   const refreshAfterOAuth = useCallback(async () => {
     reloadBootstrap();

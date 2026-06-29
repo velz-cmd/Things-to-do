@@ -7,6 +7,7 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { ResolveBanking } from "@/components/resolve/payments/resolve-banking";
 import type { BankingAccountSnapshot } from "@/lib/banking/types";
+import { bankingSnapshotFromWalletBalance } from "@/lib/banking/fallback-snapshot";
 import { BANKING_UI } from "@/lib/banking/copy";
 
 type Overview = {
@@ -29,8 +30,14 @@ type Overview = {
   }[];
 };
 
+type WalletBalanceResponse = {
+  availableUsd: number;
+  onChainUsd?: number | null;
+  reservedUsd?: number;
+};
+
 export function PaymentsOS() {
-  const { user, refreshBalance } = useAuth();
+  const { user, refreshBalance, balance } = useAuth();
   const { openSignIn } = useSignInModal();
   const account = useResolveAccount();
 
@@ -43,6 +50,35 @@ export function PaymentsOS() {
   const payoutWallet =
     account.appWalletAddress ?? account.walletAddress ?? account.externalWalletAddress;
 
+  const applyWalletFallback = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/wallet/balance", {
+        credentials: "include",
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as WalletBalanceResponse;
+      if (!user) return false;
+      setBanking(
+        bankingSnapshotFromWalletBalance({
+          userId: user.id,
+          email: user.email,
+          displayName:
+            (user.user_metadata?.full_name as string | undefined) ??
+            user.email?.split("@")[0] ??
+            null,
+          walletAddress: payoutWallet ?? undefined,
+          availableUsd: data.availableUsd,
+          onChainUsd: data.onChainUsd ?? null,
+          reservedUsd: data.reservedUsd ?? 0,
+        }),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, [payoutWallet, user]);
+
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!user) {
@@ -52,33 +88,55 @@ export function PaymentsOS() {
         return;
       }
       if (!opts?.silent) setRefreshing(true);
+      let loaded = false;
+
       try {
-        const signal = AbortSignal.timeout(20_000);
-        const [bankRes, ovRes] = await Promise.all([
-          fetch("/api/banking/account", { credentials: "include", signal }),
-          fetch("/api/payments/overview", { credentials: "include", signal }),
-        ]);
-
-        if (!bankRes.ok) throw new Error("banking account failed");
-        const next = await bankRes.json();
-        setBanking(next);
-
-        if (ovRes.ok) {
-          const ov = await ovRes.json();
-          setOverview({
-            settlements: ov.settlements ?? [],
-            recentAuthorizations: ov.recentAuthorizations ?? [],
+        try {
+          const bankRes = await fetch("/api/banking/account", {
+            credentials: "include",
+            signal: AbortSignal.timeout(25_000),
           });
+
+          if (bankRes.ok) {
+            const next = await bankRes.json();
+            setBanking(next);
+            loaded = true;
+          }
+        } catch {
+          /* fall through to wallet balance */
         }
+
+        if (!loaded) {
+          loaded = await applyWalletFallback();
+        }
+
+        try {
+          const ovRes = await fetch("/api/payments/overview", {
+            credentials: "include",
+            signal: AbortSignal.timeout(12_000),
+          });
+          if (ovRes.ok) {
+            const ov = await ovRes.json();
+            setOverview({
+              settlements: ov.settlements ?? [],
+              recentAuthorizations: ov.recentAuthorizations ?? [],
+            });
+          }
+        } catch {
+          /* overview is optional */
+        }
+
         void refreshBalance();
-      } catch {
-        if (!opts?.silent) toast.error("Could not load your account");
+
+        if (!loaded && !opts?.silent) {
+          toast.error("Could not load your account");
+        }
       } finally {
         setInitialLoading(false);
         setRefreshing(false);
       }
     },
-    [refreshBalance, user],
+    [applyWalletFallback, refreshBalance, user],
   );
 
   useEffect(() => {
@@ -91,12 +149,32 @@ export function PaymentsOS() {
     return () => clearInterval(t);
   }, [load, user]);
 
+  useEffect(() => {
+    if (!balance || !user || banking || initialLoading) return;
+    void applyWalletFallback();
+  }, [applyWalletFallback, balance, banking, initialLoading, user]);
+
+  const displayAccount = useMemo(() => {
+    if (banking) return banking;
+    if (!balance || !user) return null;
+    return bankingSnapshotFromWalletBalance({
+      userId: user.id,
+      email: user.email,
+      displayName:
+        (user.user_metadata?.full_name as string | undefined) ??
+        user.email?.split("@")[0] ??
+        null,
+      walletAddress: payoutWallet ?? undefined,
+      availableUsd: balance.availableUsd,
+    });
+  }, [balance, banking, payoutWallet, user]);
+
   async function handleClaim() {
     if (!payoutWallet) {
       toast.error("No wallet on your account — sign in again or contact support");
       return;
     }
-  const claimable = banking?.balances?.earnedClaimableUsd ?? 0;
+  const claimable = displayAccount?.balances?.earnedClaimableUsd ?? 0;
   if (claimable <= 0) {
     toast.message(BANKING_UI.claimNothing);
     return;
@@ -157,9 +235,9 @@ export function PaymentsOS() {
 
   return (
     <ResolveBanking
-      account={banking}
+      account={displayAccount}
       settlements={settlements}
-      initialLoading={initialLoading}
+      initialLoading={initialLoading && !displayAccount}
       refreshing={refreshing}
       signedIn={Boolean(user)}
       payoutWallet={payoutWallet ?? null}

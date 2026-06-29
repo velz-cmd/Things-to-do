@@ -35,6 +35,7 @@ import {
   PROFILE_REFRESH_EVENT,
   dispatchProfileRefresh,
 } from "@/lib/profile/refresh-events";
+import { useProfileBootstrap } from "@/components/resolve/profile/profile-bootstrap";
 
 const PLATFORM_ICONS: Record<
   IdentityPlatformId,
@@ -183,6 +184,8 @@ export function ProfileSettings() {
   const { user, signOut, signInWithGitHub, linkGitHub, githubEnabled, balance, balanceLoading } =
     useAuth();
   const { openSignIn } = useSignInModal();
+  const { data: bootstrap, loading: bootstrapLoading, reload: reloadBootstrap } =
+    useProfileBootstrap();
   const account = useResolveAccount();
   const capabilities = useAuthCapabilities();
   const { open } = useAppKit();
@@ -222,25 +225,37 @@ export function ProfileSettings() {
     }
   }, []);
 
-  const refreshAfterOAuth = useCallback(async () => {
-    await load();
-    dispatchProfileRefresh();
-  }, [load]);
-
   useEffect(() => {
+    if (bootstrapLoading) return;
+    if (bootstrap?.identities?.length) {
+      setEmail(bootstrap.email ?? null);
+      setEmailVerified(Boolean(bootstrap.emailVerified));
+      const map = new Map<IdentityPlatformId, ProfileIdentityState>();
+      for (const row of bootstrap.identities) {
+        map.set(row.id, row);
+      }
+      setIdentityMap(map);
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load, user?.id, account.externalWalletAddress, account.appWalletAddress]);
+  }, [bootstrap, bootstrapLoading, load]);
+
+  const refreshAfterOAuth = useCallback(async () => {
+    reloadBootstrap();
+    dispatchProfileRefresh();
+  }, [reloadBootstrap]);
 
   useEffect(() => {
-    const onWalletLinked = () => void load();
-    const onProfileRefresh = () => void load();
+    const onWalletLinked = () => reloadBootstrap();
+    const onProfileRefresh = () => reloadBootstrap();
     window.addEventListener(WALLET_LINKED_EVENT, onWalletLinked);
     window.addEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
     return () => {
       window.removeEventListener(WALLET_LINKED_EVENT, onWalletLinked);
       window.removeEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
     };
-  }, [load]);
+  }, [reloadBootstrap]);
 
   useEffect(() => {
     if (searchParams.get("github_connected") === "1") {
@@ -464,7 +479,7 @@ export function ProfileSettings() {
             : undefined
           }
         />
-        {loading ?
+        {loading || bootstrapLoading ?
           <div className="flex items-center gap-2 text-sm text-resolve-muted">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading…

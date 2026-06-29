@@ -1,6 +1,14 @@
+import "server-only";
+
 import { PrismaClient } from "@prisma/client";
+import { getDatabaseUrl } from "@/lib/db/connection";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+
+const connectionString = getDatabaseUrl();
+if (connectionString) {
+  process.env.DATABASE_URL = connectionString;
+}
 
 /**
  * Singleton Prisma client — required on Vercel/serverless to avoid exhausting

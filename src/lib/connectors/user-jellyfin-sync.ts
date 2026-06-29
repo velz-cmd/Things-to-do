@@ -70,6 +70,19 @@ export async function ingestJellyfinWatches(
   };
 }
 
+function jellyfinIsConnected(profile: {
+  jellyfinUrl: string | null;
+  jellyfinUsername: string | null;
+  jellyfinAccessToken: string | null;
+  jellyfinPassword: string | null;
+}) {
+  return Boolean(
+    profile.jellyfinUrl?.trim() &&
+      profile.jellyfinUsername?.trim() &&
+      (profile.jellyfinAccessToken?.trim() || profile.jellyfinPassword?.trim()),
+  );
+}
+
 /** Cloud sync — public Jellyfin URLs only. Local servers sync via the user's browser. */
 export async function syncUserJellyfinSensors(userId: string) {
   const profile = await prisma.user.findUnique({
@@ -78,14 +91,15 @@ export async function syncUserJellyfinSensors(userId: string) {
       jellyfinUrl: true,
       jellyfinUsername: true,
       jellyfinAccessToken: true,
+      jellyfinPassword: true,
     },
   });
 
-  if (!profile?.jellyfinUrl?.trim() || !profile.jellyfinAccessToken?.trim()) {
+  if (!profile || !jellyfinIsConnected(profile)) {
     return { ok: false as const, reason: "jellyfin_not_connected", ingested: 0 };
   }
 
-  if (isPrivateJellyfinUrl(profile.jellyfinUrl)) {
+  if (isPrivateJellyfinUrl(profile.jellyfinUrl!) || !profile.jellyfinAccessToken?.trim()) {
     return {
       ok: true as const,
       ingested: 0,
@@ -95,7 +109,7 @@ export async function syncUserJellyfinSensors(userId: string) {
   }
 
   const playing = await getJellyfinNowPlaying({
-    url: profile.jellyfinUrl,
+    url: profile.jellyfinUrl!,
     accessToken: profile.jellyfinAccessToken,
   });
 
@@ -120,14 +134,23 @@ export async function syncUserJellyfinSensors(userId: string) {
 
 export async function saveJellyfinConnection(
   userId: string,
-  input: { url: string; username: string; accessToken: string },
+  input: {
+    url: string;
+    username: string;
+    accessToken?: string;
+    password?: string;
+  },
 ) {
   const url = input.url.trim().replace(/\/$/, "");
   const username = input.username.trim();
-  const accessToken = input.accessToken.trim();
+  const accessToken = input.accessToken?.trim() ?? "";
+  const password = input.password?.trim() ?? "";
 
-  if (!url || !username || !accessToken) {
-    return { ok: false as const, error: "Server URL, username, and access token are required" };
+  if (!url || !username || (!accessToken && !password)) {
+    return {
+      ok: false as const,
+      error: "Server URL, username, and Jellyfin account password are required",
+    };
   }
 
   await prisma.user.update({
@@ -135,30 +158,50 @@ export async function saveJellyfinConnection(
     data: {
       jellyfinUrl: url,
       jellyfinUsername: username,
-      jellyfinAccessToken: accessToken,
+      jellyfinAccessToken: accessToken || null,
+      jellyfinPassword: password || null,
     },
   });
 
   return {
     ok: true as const,
     message: "Jellyfin connected — community installed, watches sync automatically",
-    accessToken,
+    accessToken: accessToken || undefined,
   };
 }
 
-/** Legacy server-side password connect (public URLs). Prefer browser token flow. */
+/** Connect with Jellyfin account password — same pattern as Navidrome credentials. */
 export async function connectJellyfinForUser(
   userId: string,
-  input: { url: string; username: string; password: string },
+  input: { url: string; username: string; password: string; accessToken?: string },
 ) {
-  const auth = await authenticateJellyfin(input);
-  if (!auth.ok || !auth.accessToken) {
-    return { ok: false as const, error: auth.message };
+  const url = input.url.trim().replace(/\/$/, "");
+  const username = input.username.trim();
+  const password = input.password.trim();
+
+  if (input.accessToken?.trim()) {
+    return saveJellyfinConnection(userId, {
+      url,
+      username,
+      accessToken: input.accessToken,
+      password,
+    });
   }
 
-  return saveJellyfinConnection(userId, {
-    url: input.url,
-    username: input.username,
-    accessToken: auth.accessToken,
-  });
+  if (!isPrivateJellyfinUrl(url)) {
+    const auth = await authenticateJellyfin({ url, username, password });
+    if (auth.ok && auth.accessToken) {
+      return saveJellyfinConnection(userId, {
+        url,
+        username,
+        accessToken: auth.accessToken,
+        password,
+      });
+    }
+    if (auth.message && !auth.message.includes("could not reach")) {
+      return { ok: false as const, error: auth.message };
+    }
+  }
+
+  return saveJellyfinConnection(userId, { url, username, password });
 }

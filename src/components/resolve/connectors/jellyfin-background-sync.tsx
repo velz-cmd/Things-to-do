@@ -3,13 +3,15 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { pushJellyfinWatchesFromBrowser } from "@/lib/integrations/jellyfin-client-sync";
+import { loadJellyfinSession } from "@/lib/integrations/jellyfin-shared";
 
 type JellyfinSyncConfig = {
   url: string;
-  accessToken: string;
+  accessToken?: string;
+  username?: string;
 };
 
-/** Polls Jellyfin from the user's browser while signed in — handles localhost without a bridge script. */
+/** Polls Jellyfin from the user's browser while signed in — uses account password from session. */
 export function JellyfinBackgroundSync() {
   const { user } = useAuth();
   const configRef = useRef<JellyfinSyncConfig | null>(null);
@@ -20,12 +22,18 @@ export function JellyfinBackgroundSync() {
     let cancelled = false;
 
     async function loadConfig() {
+      const session = loadJellyfinSession();
+      if (session) {
+        configRef.current = session;
+        return;
+      }
+
       const res = await fetch("/api/profile/bootstrap", { credentials: "include" });
       const data = (await res.json()) as {
         signedIn?: boolean;
         jellyfinSync?: JellyfinSyncConfig | null;
       };
-      if (cancelled || !data.signedIn || !data.jellyfinSync?.url || !data.jellyfinSync.accessToken) {
+      if (cancelled || !data.signedIn || !data.jellyfinSync?.url) {
         configRef.current = null;
         return;
       }
@@ -33,10 +41,9 @@ export function JellyfinBackgroundSync() {
     }
 
     async function tick() {
-      const cfg = configRef.current;
-      if (!cfg) return;
+      if (!configRef.current && !loadJellyfinSession()) return;
       try {
-        await pushJellyfinWatchesFromBrowser(cfg);
+        await pushJellyfinWatchesFromBrowser();
       } catch {
         /* non-fatal background poll */
       }

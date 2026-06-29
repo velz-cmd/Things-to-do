@@ -21,6 +21,8 @@ async function trackConnectorReady(
     navidromeUsername: string | null;
     navidromePassword: string | null;
     jellyfinUrl: string | null;
+    jellyfinUsername: string | null;
+    jellyfinPassword: string | null;
     jellyfinAccessToken: string | null;
   },
 ): Promise<boolean> {
@@ -54,6 +56,8 @@ export async function GET() {
       navidromeUsername: true,
       navidromePassword: true,
       jellyfinUrl: true,
+      jellyfinUsername: true,
+      jellyfinPassword: true,
       jellyfinAccessToken: true,
     },
   });

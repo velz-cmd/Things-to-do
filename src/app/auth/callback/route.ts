@@ -4,6 +4,8 @@ import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { getSupabaseServerUrl } from "@/lib/supabase/admin";
 import { ensureProfileForUser } from "@/lib/auth/session";
+import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
+import { prisma } from "@/lib/db";
 
 function appOrigin(request: Request) {
   const forwardedHost = request.headers.get("x-forwarded-host");
@@ -98,6 +100,13 @@ export async function GET(request: Request) {
     if (userData.user) {
       try {
         await ensureProfileForUser(userData.user);
+        const profile = await prisma.user.findUnique({
+          where: { id: userData.user.id },
+          select: { githubUsername: true, listenbrainzUsername: true },
+        });
+        if (profile) {
+          await autoInstallCommunitiesForUser(userData.user.id, profile);
+        }
       } catch {
         /* non-fatal */
       }

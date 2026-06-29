@@ -30,6 +30,11 @@ import {
   type IdentityPlatformId,
 } from "@/lib/profile/community-identities";
 import type { ProfileIdentityState } from "@/app/api/profile/identities/route";
+import { WALLET_LINKED_EVENT } from "@/components/wallet/wallet-link-effect";
+import {
+  PROFILE_REFRESH_EVENT,
+  dispatchProfileRefresh,
+} from "@/lib/profile/refresh-events";
 
 const PLATFORM_ICONS: Record<
   IdentityPlatformId,
@@ -198,7 +203,10 @@ export function ProfileSettings() {
     try {
       const res = await fetch("/api/profile/identities", { credentials: "include" });
       const data = await res.json();
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast.error((data as { error?: string }).error ?? "Could not load profile identities");
+        return;
+      }
       setEmail(data.email ?? null);
       setEmailVerified(Boolean(data.emailVerified));
       const map = new Map<IdentityPlatformId, ProfileIdentityState>();
@@ -207,25 +215,46 @@ export function ProfileSettings() {
       }
       setIdentityMap(map);
       setEcosystems(data.ecosystems ?? []);
+    } catch {
+      toast.error("Could not load profile identities");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const refreshAfterOAuth = useCallback(async () => {
+    await fetch("/api/identity/sync-github", { method: "POST", credentials: "include" }).catch(
+      () => undefined,
+    );
+    await load();
+    dispatchProfileRefresh();
+  }, [load]);
 
   useEffect(() => {
     void load();
   }, [load, user?.id, account.externalWalletAddress, account.appWalletAddress]);
 
   useEffect(() => {
+    const onWalletLinked = () => void load();
+    const onProfileRefresh = () => void load();
+    window.addEventListener(WALLET_LINKED_EVENT, onWalletLinked);
+    window.addEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
+    return () => {
+      window.removeEventListener(WALLET_LINKED_EVENT, onWalletLinked);
+      window.removeEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
+    };
+  }, [load]);
+
+  useEffect(() => {
     if (searchParams.get("gmail_connected") === "1") {
       toast.success("Gmail connected");
       router.replace("/profile");
-      void load();
+      void refreshAfterOAuth();
     }
     if (searchParams.get("github_linked") === "1") {
       toast.success("GitHub linked to your account");
       router.replace("/profile");
-      void load();
+      void refreshAfterOAuth();
     }
     const gmailError = searchParams.get("gmail_error");
     if (gmailError) {
@@ -235,7 +264,7 @@ export function ProfileSettings() {
     if (searchParams.get("listenbrainz_connected") === "1") {
       toast.success("ListenBrainz connected — RESOLVE will sync your listens automatically");
       router.replace("/profile");
-      void load();
+      void refreshAfterOAuth();
     }
     const lbError = searchParams.get("listenbrainz_error");
     if (lbError) {
@@ -246,7 +275,7 @@ export function ProfileSettings() {
       );
       router.replace("/profile");
     }
-  }, [searchParams, router, load]);
+  }, [searchParams, router, refreshAfterOAuth]);
 
   async function disconnectPlatform(platform: IdentityPlatformId) {
     const res = await fetch(`/api/profile/connect/${platform}`, {
@@ -390,9 +419,15 @@ export function ProfileSettings() {
       }
       case "listenbrainz":
         return (
-          <Button size="sm" onClick={() => connectListenBrainz()}>
-            Sign in with MusicBrainz
-          </Button>
+          <div className="space-y-2">
+            <Button size="sm" onClick={() => connectListenBrainz()}>
+              Sign in with MusicBrainz
+            </Button>
+            <p className="text-[11px] text-resolve-muted-dim">
+              Uses your MusicBrainz account (same login as ListenBrainz). One-time sign-in — RESOLVE
+              syncs listens automatically after.
+            </p>
+          </div>
         );
       default:
         return null;
@@ -471,14 +506,15 @@ export function ProfileSettings() {
                 ListenBrainz
               </Button>
             )}
-            {!identityMap.get("wallet")?.connected && (
+            {!identityMap.get("wallet")?.connected && !account.appWalletAddress && (
               <Button size="sm" variant="secondary" onClick={() => open({ view: "Connect" })}>
                 Wallet
               </Button>
             )}
             {(identityMap.get("github")?.connected ||
               identityMap.get("listenbrainz")?.connected ||
-              identityMap.get("wallet")?.connected) && (
+              identityMap.get("wallet")?.connected ||
+              account.appWalletAddress) && (
               <span className="self-center text-xs text-emerald-300/90">
                 Connected — earnings sync automatically
               </span>
@@ -499,10 +535,20 @@ export function ProfileSettings() {
               {platforms.map((def) => {
                 const state = identityMap.get(def.id);
                 const Icon = PLATFORM_ICONS[def.id];
-                const connected = state?.connected ?? false;
+                const walletFromAccount =
+                  account.appWalletAddress ?? account.walletAddress ?? undefined;
+                const connected =
+                  def.id === "wallet" ?
+                    Boolean(state?.connected || walletFromAccount)
+                  : (state?.connected ?? false);
                 const display =
-                  def.id === "wallet" && account.externalWalletAddress ?
-                    `${account.externalWalletAddress.slice(0, 6)}…${account.externalWalletAddress.slice(-4)}`
+                  def.id === "wallet" ?
+                    state?.displayValue ??
+                    (walletFromAccount ?
+                      `${walletFromAccount.slice(0, 6)}…${walletFromAccount.slice(-4)}`
+                    : account.externalWalletAddress ?
+                      `${account.externalWalletAddress.slice(0, 6)}…${account.externalWalletAddress.slice(-4)}`
+                    : undefined)
                   : state?.displayValue;
 
                 return (

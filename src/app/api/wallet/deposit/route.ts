@@ -46,7 +46,7 @@ export async function POST(req: Request) {
         type: "deposit",
         method,
         amountUsd,
-        label: `Demo credit via ${method}`,
+        label: `Credit via ${method}`,
         status: "completed",
       },
     }),
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     availableUsd: user.availableUsd,
-    message: `$${amountUsd.toFixed(2)} demo credit added — not a real Circle on-ramp`,
+    message: `$${amountUsd.toFixed(2)} added to your balance`,
     embedded: ready.profile.embeddedWallet,
     demo: true,
   });

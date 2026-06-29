@@ -52,7 +52,7 @@ export function RegistryPanel({ embedded }: { embedded?: boolean }) {
           <EmptyState
             icon={Users}
             title="No contributors"
-            description="Seed treasury to load demo payees."
+            description="Seed registry to load contributor payees."
             className="border-0 py-6"
           />
         ) : (

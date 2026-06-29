@@ -35,7 +35,7 @@ export function IntegrationsPanel() {
 }
 
 function StatusBadge({ status }: { status: ConnectorMeta["status"] }) {
-  const label = status === "live" ? "Live" : status === "demo" ? "Demo" : "Upcoming";
+  const label = status === "live" ? "Live" : status === "demo" ? "Beta" : "Upcoming";
   const cls =
     status === "live" ? "text-emerald-300 bg-emerald-500/15"
     : status === "demo" ? "text-amber-300 bg-amber-500/15"

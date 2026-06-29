@@ -209,50 +209,77 @@ function TechnicalDetails({
           )}
         </div>
 
+        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
+            {BANKING_UI.paymentFlowTitle}
+          </p>
+          <ol className="mt-3 space-y-2">
+            {BANKING_UI.paymentFlow.map((step, i) => (
+              <li key={step} className="flex gap-2 text-[11px] leading-relaxed text-resolve-muted">
+                <span className="shrink-0 font-mono text-resolve-accent">{i + 1}.</span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
         {address && (
-          <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
-            <p className="text-[10px] uppercase text-resolve-muted-dim">{BANKING_UI.walletAddress}</p>
-            <p className="mt-1 break-all font-mono text-[11px] text-white">{address}</p>
-            <button
-              type="button"
-              onClick={() => void copyAddress()}
-              className="mt-2 inline-flex items-center gap-1 text-resolve-accent hover:underline"
-            >
-              <Copy className="h-3 w-3" />
-              {copied ? BANKING_UI.copied : BANKING_UI.copyAddress}
-            </button>
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-200/90">
+              {BANKING_UI.walletAddress}
+            </p>
+            <p className="mt-0.5 text-[10px] text-resolve-muted-dim">Your USDC — only you can spend this</p>
+            <p className="mt-2 break-all font-mono text-[11px] text-white">{address}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <p className="text-sm font-medium text-white">
+                <Money
+                  amount={account.balances.onChainUsdcUsd ?? arc.identityWallet?.onChainUsdcUsd ?? 0}
+                  size="sm"
+                  className="inline"
+                />
+              </p>
+              <button
+                type="button"
+                onClick={() => void copyAddress()}
+                className="inline-flex items-center gap-1 text-resolve-accent hover:underline"
+              >
+                <Copy className="h-3 w-3" />
+                {copied ? BANKING_UI.copied : BANKING_UI.copyAddress}
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
-            <p className="text-[10px] uppercase">Settlement pool (platform)</p>
-            <p className="mt-0.5 text-[10px] text-resolve-muted-dim">
-              Not your money — batch payouts only
+        {arc.settlementWallet && (
+          <div className="rounded-lg border border-white/[0.08] bg-black/20 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
+              {BANKING_UI.paymentRailTitle}
             </p>
-            <p className="mt-1 text-sm text-white">
-              <Money amount={arc.settlementBalanceUsd ?? 0} size="sm" className="inline" />
+            <p className="mt-1 text-[11px] leading-relaxed text-resolve-muted">
+              {BANKING_UI.paymentRailBody}
             </p>
-            {arc.settlementWallet && (
-              <p className="mt-1 font-mono text-[10px]">{arc.settlementWallet}</p>
-            )}
+            <p className="mt-3 text-xs font-medium text-white">
+              {arc.canDistribute ? BANKING_UI.paymentRailStatusLive : BANKING_UI.paymentRailStatusStandby}
+            </p>
+            <p className="mt-2 break-all font-mono text-[10px] text-resolve-muted-dim">
+              {arc.settlementWallet}
+            </p>
+            <a
+              href={`${arc.explorerUrl}/address/${arc.settlementWallet}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-block text-resolve-accent hover:underline"
+            >
+              View on Arcscan
+            </a>
           </div>
-          <div className="rounded-lg border border-white/[0.06] bg-black/20 p-3">
-            <p className="text-[10px] uppercase">Your wallet on Arc</p>
-            <p className="mt-0.5 text-[10px] text-resolve-muted-dim">
-              On-chain USDC in your identity wallet
-            </p>
-            <p className="mt-1 text-sm text-white">
-              <Money
-                amount={account.balances.onChainUsdcUsd ?? arc.identityWallet?.onChainUsdcUsd ?? 0}
-                size="sm"
-                className="inline"
-              />
-            </p>
-          </div>
-        </div>
+        )}
 
         {arc.recentMemos.length > 0 && (
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
+              Your program payouts
+            </p>
           <ul className="space-y-2">
             {arc.recentMemos.slice(0, 5).map((m) => (
               <li key={m.id} className="flex items-center justify-between gap-2">
@@ -268,6 +295,7 @@ function TechnicalDetails({
               </li>
             ))}
           </ul>
+          </div>
         )}
 
         {arc.blockers.length > 0 && (
@@ -302,6 +330,7 @@ export function ResolveBanking({
   const network = account?.network;
   const arc = account?.arc;
   const yourClaimable = balances?.earnedClaimableUsd ?? 0;
+  const yourSettled = balances?.earnedSettledUsd ?? 0;
   const yourDeposits = balances?.availableUsd ?? 0;
   const reserved = balances?.reservedUsd ?? 0;
 
@@ -398,7 +427,7 @@ export function ResolveBanking({
                 <Button
                   variant="secondary"
                   onClick={onClaim}
-                  disabled={claiming || !payoutWallet}
+                  disabled={claiming || !payoutWallet || yourClaimable <= 0}
                   className="gap-2"
                 >
                   {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}
@@ -449,14 +478,12 @@ export function ResolveBanking({
                 </>
               : <>
                   <p className="mt-3 text-sm text-resolve-muted">{BANKING_UI.claimEmpty}</p>
-                  <Button
-                    className="mt-4"
-                    variant="secondary"
-                    onClick={onClaim}
-                    disabled={claiming || !payoutWallet}
-                  >
-                    {claiming ? BANKING_UI.claimWorking : BANKING_UI.claimButton}
-                  </Button>
+                  {yourSettled > 0 && (
+                    <p className="mt-2 text-xs text-resolve-muted">
+                      {BANKING_UI.claimSettledBefore}:{" "}
+                      <Money amount={yourSettled} size="sm" className="inline text-white" />
+                    </p>
+                  )}
                   {!account?.identities?.github && (
                     <p className="mt-2 text-xs text-resolve-muted">{BANKING_UI.linkGithub}</p>
                   )}

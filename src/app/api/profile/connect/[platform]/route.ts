@@ -35,12 +35,7 @@ export async function POST(
   if (platform === "github") {
     const returnTo = new URL(req.url).searchParams.get("returnTo") ?? "/profile";
     const safeReturn = returnTo.startsWith("/") ? returnTo : "/profile";
-    return NextResponse.redirect(
-      new URL(
-        `/api/connectors/github/authorize?returnTo=${encodeURIComponent(safeReturn)}`,
-        req.url,
-      ),
-    );
+    return NextResponse.redirect(new URL("/connect/github", req.url));
   }
 
   if (platform === "gmail") {
@@ -57,12 +52,7 @@ export async function POST(
   if (platform === "listenbrainz") {
     const returnTo = new URL(req.url).searchParams.get("returnTo") ?? "/profile";
     const safeReturn = returnTo.startsWith("/") ? returnTo : "/profile";
-    return NextResponse.redirect(
-      new URL(
-        `/api/connectors/listenbrainz/authorize?returnTo=${encodeURIComponent(safeReturn)}`,
-        req.url,
-      ),
-    );
+    return NextResponse.redirect(new URL("/connect/listenbrainz", req.url));
   }
 
   const body = await req.json().catch(() => ({}));

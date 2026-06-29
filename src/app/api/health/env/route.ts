@@ -38,8 +38,10 @@ export async function GET() {
     DATABASE_SESSION_POOLER: db.isSessionPooler,
     DATABASE_DIRECT_SUPABASE: db.isDirectSupabase,
     DATABASE_PRISMA_READY: db.prismaReady,
-    DATABASE_POOLER_PORT_6543: db.port === 6543,
-    DATABASE_POOLER_PORT_5432: db.port === 5432,
+    DATABASE_PORT_REWRITTEN: db.portRewritten,
+    DATABASE_NORMALIZED_PORT: db.normalizedPort,
+    DATABASE_POOLER_PORT_6543: db.normalizedPort === 6543 || db.port === 6543,
+    DATABASE_POOLER_PORT_5432: db.port === 5432 && !db.portRewritten,
     DATABASE_HOST: db.host,
     NEXT_PUBLIC_REOWN_PROJECT_ID: present("NEXT_PUBLIC_REOWN_PROJECT_ID"),
     SUPABASE_URL: Boolean(getSupabaseServerUrl()),
@@ -113,7 +115,7 @@ export async function GET() {
   if (!env.PLAYWRIGHT_ENABLED) missing.push("PLAYWRIGHT_ENABLED=true");
   if (!env.APP_URL) missing.push("APP_URL=https://resolve-task.vercel.app");
   if (!env.DATABASE_URL) missing.push("DATABASE_URL");
-  if (db.isSessionPooler) {
+  if (db.isSessionPooler && !db.portRewritten) {
     missing.push(
       "DATABASE_URL port 5432 on pooler.supabase.com is session mode — use transaction pooler port 6543",
     );
@@ -140,6 +142,8 @@ export async function GET() {
     database: {
       host: db.host,
       port: db.port,
+      normalizedPort: db.normalizedPort,
+      portRewritten: db.portRewritten,
       mode:
         db.isTransactionPooler ? "transaction"
         : db.isSessionPooler ? "session"
@@ -148,7 +152,9 @@ export async function GET() {
         : "unset",
       prismaReady: db.prismaReady,
       note:
-        db.isTransactionPooler && !db.rawHasPgbouncerParam ?
+        db.portRewritten ?
+          "Vercel DATABASE_URL uses session port 5432 — RESOLVE auto-rewrites to transaction port 6543 at runtime. Update Vercel to 6543 when you can."
+        : db.isTransactionPooler && !db.rawHasPgbouncerParam ?
           "Transaction pooler detected (port 6543). Supabase UI does not add pgbouncer=true — RESOLVE appends it automatically."
         : db.isSessionPooler ?
           "Session pooler (port 5432) exhausts at ~15 connections on serverless — switch to transaction pooler (6543)."

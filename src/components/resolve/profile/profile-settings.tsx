@@ -270,7 +270,9 @@ export function ProfileSettings() {
       toast.error(
         githubError === "not_configured"
           ? "GitHub install is not available yet — server needs GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET"
-          : `GitHub: ${githubError}`,
+          : githubError.includes("redirect") || githubError === "redirect_uri_mismatch"
+            ? "GitHub redirect URI not registered — open /connect/github for the exact callback URL to add in GitHub OAuth app settings"
+            : `GitHub: ${githubError}`,
       );
       router.replace("/profile");
     }
@@ -320,8 +322,7 @@ export function ProfileSettings() {
   }
 
   function connectGithub() {
-    window.location.href =
-      "/api/connectors/github/authorize?returnTo=" + encodeURIComponent("/profile");
+    window.location.href = "/connect/github";
   }
 
   async function linkGitHubAccount() {
@@ -338,8 +339,7 @@ export function ProfileSettings() {
   }
 
   function connectListenBrainz() {
-    window.location.href =
-      "/api/connectors/listenbrainz/authorize?returnTo=" + encodeURIComponent("/profile");
+    window.location.href = "/connect/listenbrainz";
   }
 
   const byCommunity = useMemo(() => platformsByCommunity(), []);

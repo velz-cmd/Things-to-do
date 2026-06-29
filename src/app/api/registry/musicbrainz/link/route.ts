@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
   if (!payoutWallet?.match(/^0x[a-fA-F0-9]{40}$/)) {
     return NextResponse.json(
-      { error: "Connect a wallet on your profile before linking a MusicBrainz artist" },
+      { error: "Connect a payout account in Settings first — email sign-in works too" },
       { status: 400 },
     );
   }

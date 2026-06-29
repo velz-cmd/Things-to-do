@@ -95,7 +95,7 @@ export function SettlementTruthBadge({
   const normalized = dbStatus.toLowerCase();
   if (normalized.includes("settled") || normalized.includes("released")) {
     return (
-      <span className="text-[10px] text-resolve-muted">Ledger recorded · no on-chain proof</span>
+      <span className="text-[10px] text-resolve-muted">Recorded in RESOLVE · payment proof pending</span>
     );
   }
 
@@ -132,10 +132,10 @@ export function CapitalSettlementRow({
         )}
         {receiptId && (
           <Link
-            href={`/ledger/${receiptId}`}
+            href={`/receipt/${receiptId}`}
             className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-resolve-accent hover:underline"
           >
-            Public receipt
+            View receipt
             <ExternalLink className="h-3 w-3" />
           </Link>
         )}

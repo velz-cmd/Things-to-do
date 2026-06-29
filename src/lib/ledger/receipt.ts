@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { communityLabelForMission } from "@/lib/earn/community-label";
 import { connectorLabel, payeeDisplayLabel, payeeRoleLabel } from "@/lib/ledger/labels";
 import { getSettlementById } from "@/lib/payment/store";
+import type { ReceiptKind } from "@/lib/receipt/copy";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { isOnChainTxHash } from "@/lib/payment/tx-utils";
 
@@ -15,7 +16,7 @@ export type PublicReceiptPayee = {
   status?: string;
 };
 
-export type PublicReceiptSignal = {
+export type PublicReceiptLineItem = {
   id: string;
   amountUsd: number;
   status: string;
@@ -30,7 +31,7 @@ export type PublicReceiptSignal = {
 };
 
 export type PublicReceipt = {
-  kind: "signal" | "ledger";
+  kind: ReceiptKind;
   id: string;
   status: string;
   amountUsd: number;
@@ -55,12 +56,15 @@ export type PublicReceipt = {
   proofHash?: string;
   createdAt: string;
   settledAt?: string | null;
-  signals?: PublicReceiptSignal[];
+  lineItems?: PublicReceiptLineItem[];
   payees?: PublicReceiptPayee[];
   currency?: string;
   payeeCount?: number;
-  signalCount?: number;
+  earningCount?: number;
 };
+
+/** @deprecated use PublicReceiptLineItem */
+export type PublicReceiptSignal = PublicReceiptLineItem;
 
 function arcBlock(txHash?: string | null) {
   const onChain = isOnChainTxHash(txHash);
@@ -81,7 +85,7 @@ async function missionBlock(missionId: string) {
   };
 }
 
-function authorizationToSignal(row: {
+function authorizationToLineItem(row: {
   id: string;
   amountUsd: number;
   status: string;
@@ -94,7 +98,7 @@ function authorizationToSignal(row: {
   createdAt: Date;
   settledAt: Date | null;
   walletAddress: string | null;
-}): PublicReceiptSignal {
+}): PublicReceiptLineItem {
   return {
     id: row.id,
     amountUsd: row.amountUsd,
@@ -118,8 +122,8 @@ function authorizationToSignal(row: {
   };
 }
 
-/** Single authorization — SIGNAL receipt. */
-export async function buildSignalReceipt(authorizationId: string): Promise<PublicReceipt | null> {
+/** Single verified earning — one authorization row. */
+export async function buildEarningReceipt(authorizationId: string): Promise<PublicReceipt | null> {
   const row = await prisma.paymentAuthorization.findUnique({
     where: { id: authorizationId },
   });
@@ -137,7 +141,7 @@ export async function buildSignalReceipt(authorizationId: string): Promise<Publi
     : null;
 
   return {
-    kind: "signal",
+    kind: "earning",
     id: row.id,
     status: row.status,
     amountUsd: row.amountUsd,
@@ -161,12 +165,15 @@ export async function buildSignalReceipt(authorizationId: string): Promise<Publi
     proofHash: row.proofHash,
     createdAt: row.createdAt.toISOString(),
     settledAt: row.settledAt?.toISOString() ?? null,
-    signalCount: 1,
+    earningCount: 1,
   };
 }
 
-/** Settlement batch — LEDGER receipt. */
-export async function buildLedgerReceipt(settlementId: string): Promise<PublicReceipt | null> {
+/** @deprecated use buildEarningReceipt */
+export const buildSignalReceipt = buildEarningReceipt;
+
+/** Batch payout — settlement with all recipients. */
+export async function buildPayoutReceipt(settlementId: string): Promise<PublicReceipt | null> {
   const settlement = await getSettlementById(settlementId);
   if (!settlement) return null;
 
@@ -177,18 +184,18 @@ export async function buildLedgerReceipt(settlementId: string): Promise<PublicRe
     take: 200,
   });
 
-  const signals = authorizations.map(authorizationToSignal);
+  const lineItems = authorizations.map(authorizationToLineItem);
   const connectorIds = [...new Set(authorizations.map((a) => a.connectorId))];
   const primaryConnector = connectorIds[0] ?? "resolve";
 
   const payeeMap = new Map<string, PublicReceiptPayee>();
-  for (const sig of signals) {
-    const key = `${sig.payee.keyType}:${sig.payee.key}`;
+  for (const item of lineItems) {
+    const key = `${item.payee.keyType}:${item.payee.key}`;
     const existing = payeeMap.get(key);
     if (existing) {
-      existing.amountUsd = Math.round((existing.amountUsd + sig.amountUsd) * 100) / 100;
+      existing.amountUsd = Math.round((existing.amountUsd + item.amountUsd) * 100) / 100;
     } else {
-      payeeMap.set(key, { ...sig.payee });
+      payeeMap.set(key, { ...item.payee });
     }
   }
 
@@ -196,7 +203,7 @@ export async function buildLedgerReceipt(settlementId: string): Promise<PublicRe
   const txHash = settlement.escrowTxHash ?? settlement.intents.find((i) => i.txHash)?.txHash ?? null;
 
   return {
-    kind: "ledger",
+    kind: "payout",
     id: settlement.id,
     status: settlement.status,
     amountUsd: settlement.treasuryAmount,
@@ -213,21 +220,24 @@ export async function buildLedgerReceipt(settlementId: string): Promise<PublicRe
     proofHash: settlement.proofHash,
     createdAt: settlement.createdAt.toISOString(),
     currency: settlement.currency,
-    signals,
+    lineItems,
     payees,
     payeeCount: payees.length,
-    signalCount: signals.length,
+    earningCount: lineItems.length,
   };
 }
 
-/** Resolve either SIGNAL (authorization id) or LEDGER (settlement id). */
+/** @deprecated use buildPayoutReceipt */
+export const buildLedgerReceipt = buildPayoutReceipt;
+
+/** Resolve either earning (authorization id) or payout (settlement id). */
 export async function buildPublicReceipt(id: string): Promise<PublicReceipt | null> {
-  const signal = await buildSignalReceipt(id);
-  if (signal) return signal;
-  return buildLedgerReceipt(id);
+  const earning = await buildEarningReceipt(id);
+  if (earning) return earning;
+  return buildPayoutReceipt(id);
 }
 
 export function receiptShareUrl(id: string, baseUrl?: string): string {
   const origin = baseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://resolve-task.vercel.app";
-  return `${origin.replace(/\/$/, "")}/ledger/${id}`;
+  return `${origin.replace(/\/$/, "")}/receipt/${id}`;
 }

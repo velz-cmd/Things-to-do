@@ -34,6 +34,26 @@ function apiBase(url: string) {
   return url.replace(/\/$/, "");
 }
 
+function formatJellyfinFetchError(e: unknown, url: string): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("fetch failed") ||
+    lower.includes("econnrefused") ||
+    lower.includes("etimedout") ||
+    lower.includes("enotfound") ||
+    lower.includes("network")
+  ) {
+    return (
+      "RESOLVE could not reach your Jellyfin server from the cloud. " +
+      "If Jellyfin runs on your PC or home network (localhost, 10.x, 192.168.x), " +
+      "use an API key from Jellyfin Dashboard → Advanced → API Keys instead of a password, " +
+      "then run scripts/jellyfin-bridge.ts on that PC."
+    );
+  }
+  return msg || `Could not connect to ${url}`;
+}
+
 export async function authenticateJellyfin(input: {
   url: string;
   username: string;
@@ -53,17 +73,39 @@ export async function authenticateJellyfin(input: {
       }),
       signal: AbortSignal.timeout(15_000),
     });
-    const data = (await res.json()) as { AccessToken?: string; Message?: string };
+
+    let data: { AccessToken?: string; Message?: string };
+    try {
+      data = (await res.json()) as { AccessToken?: string; Message?: string };
+    } catch {
+      return {
+        ok: false,
+        message: `Jellyfin returned a non-JSON response (HTTP ${res.status}). Check the server URL includes the port, e.g. http://10.0.0.5:8096`,
+      };
+    }
+
     if (!res.ok || !data.AccessToken) {
-      return { ok: false, message: data.Message ?? `Jellyfin auth HTTP ${res.status}` };
+      return {
+        ok: false,
+        message:
+          data.Message ??
+          (res.status === 401 ?
+            "Invalid Jellyfin username or password"
+          : `Jellyfin auth HTTP ${res.status}`),
+      };
     }
     return { ok: true, accessToken: data.AccessToken, message: "Jellyfin connected" };
   } catch (e) {
     return {
       ok: false,
-      message: e instanceof Error ? e.message : "Jellyfin unreachable",
+      message: formatJellyfinFetchError(e, input.url),
     };
   }
+}
+
+/** Store API key from Jellyfin Dashboard for local / unreachable servers. */
+export function normalizeJellyfinApiKey(raw: string): string {
+  return raw.trim();
 }
 
 export async function getJellyfinNowPlaying(

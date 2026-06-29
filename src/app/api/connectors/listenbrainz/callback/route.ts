@@ -6,7 +6,7 @@ import {
   fetchMusicBrainzUserInfo,
   listenBrainzUsernameFromUserInfo,
 } from "@/lib/integrations/musicbrainz-oauth";
-import { syncUserMusicSensors } from "@/lib/connectors/user-music-sync";
+import { syncUserSensors } from "@/lib/connectors/user-sensor-sync";
 
 function redirectWith(
   origin: string,
@@ -69,7 +69,7 @@ export async function GET(req: Request) {
       },
     });
 
-    void syncUserMusicSensors(userId).catch(() => undefined);
+    void syncUserSensors(userId).catch(() => undefined);
 
     return redirectWith(origin, returnTo, { listenbrainz_connected: "1" });
   } catch (e) {

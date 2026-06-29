@@ -457,8 +457,8 @@ export function ProfileSettings() {
             Quick connect
           </p>
           <p className="mt-1 text-xs text-resolve-muted">
-            GitHub · ListenBrainz · Gmail · Wallet — each uses secure sign-in, like logging into any
-            app.
+            GitHub · ListenBrainz · Gmail · Wallet — secure sign-in for anyone, anywhere. RESOLVE
+            syncs your communities automatically after you connect.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {!identityMap.get("github")?.connected && (

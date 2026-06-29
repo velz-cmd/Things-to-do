@@ -43,14 +43,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Community not found" }, { status: 404 });
   }
 
-  if (!hasGithubToken()) {
-    return NextResponse.json({
-      ok: false,
-      error: "GITHUB_TOKEN required for GitHub sensor sync",
-      live: false,
-    }, { status: 503 });
-  }
-
   const result = await syncGithubCommunitySensors({
     communitySlug,
     missionId,
@@ -61,6 +53,10 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     pipeline: "sensor → observation → authorization",
+    publicApi: !hasGithubToken(),
+    rateLimitNote: hasGithubToken()
+      ? "Platform token active — higher GitHub rate limits"
+      : "Using public GitHub API — works globally for any user",
     ...result,
   });
 }

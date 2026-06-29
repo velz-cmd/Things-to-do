@@ -1,3 +1,5 @@
+import { friendlyPayeeRole } from "@/lib/receipt/copy";
+
 export const CONNECTOR_LABELS: Record<string, string> = {
   github: "GitHub",
   navidrome: "Navidrome",
@@ -24,9 +26,5 @@ export function payeeDisplayLabel(payeeKeyType: string, payeeKey: string): strin
 }
 
 export function payeeRoleLabel(payeeKeyType: string): string {
-  if (payeeKeyType === "github_username") return "Maintainer";
-  if (payeeKeyType.startsWith("listen_")) return "Artist / credit";
-  if (payeeKeyType === "musicbrainz_artist") return "Artist";
-  if (payeeKeyType === "wallet") return "Wallet";
-  return "Payee";
+  return friendlyPayeeRole(payeeKeyType);
 }

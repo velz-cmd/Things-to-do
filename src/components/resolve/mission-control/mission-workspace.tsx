@@ -13,6 +13,7 @@ import {
   MissionResolveBubble,
   MissionThinkingBubble,
 } from "@/components/resolve/mission-control/mission-chat-bubble";
+import { MissionEvidencePanel } from "@/components/resolve/mission-control/mission-evidence-panel";
 import {
   MissionPlanningBar,
   MissionExecuteBar,
@@ -59,6 +60,7 @@ export function MissionWorkspace({
   onNewMission,
   onSelectSession,
   activeSessionId,
+  missionId = null,
   thinkingSteps,
   libraryTick,
   policies,
@@ -87,6 +89,7 @@ export function MissionWorkspace({
   onNewMission: () => void;
   onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
   activeSessionId?: string | null;
+  missionId?: string | null;
   thinkingSteps?: readonly string[];
   libraryTick?: number;
   policies: PolicyProposal[];
@@ -201,6 +204,8 @@ export function MissionWorkspace({
               />
             </div>
           )}
+
+          <MissionEvidencePanel visible={showPlanning || showExecute} missionId={missionId} />
 
           <MissionPlanningBar
             visible={showPlanning && !loading}

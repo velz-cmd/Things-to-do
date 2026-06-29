@@ -52,12 +52,6 @@ export function ResolveSidebar() {
       </nav>
 
       <div className="mt-auto space-y-2 border-t border-deputy-border pt-3">
-        <Link
-          href="/merchant"
-          className="block px-1 text-[10px] text-deputy-muted underline hover:text-blue-400"
-        >
-          Merchant portal (demo)
-        </Link>
         <ResolveAccountMenu compact />
       </div>
     </aside>

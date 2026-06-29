@@ -101,18 +101,18 @@ export async function getProductionDemoReadiness(): Promise<ProductionDemoReadin
   const items: ReadinessItem[] = [
     demoMode
       ? item(
-          "demo-mode",
+          "honesty",
           "Production honesty",
           "blocked",
-          "DEPUTY_DEMO_MODE=true — card credits and fake Gmail receipts are active",
+          "Synthetic card credits and placeholder Gmail receipts are enabled",
           "Set DEPUTY_DEMO_MODE=false on Vercel Production, then redeploy",
           "https://vercel.com/docs/projects/environment-variables",
         )
       : item(
-          "demo-mode",
+          "honesty",
           "Production honesty",
           "ready",
-          "Demo mode off — no fake card credits or synthetic Gmail receipts",
+          "No synthetic credits — Arc USDC and real sensors only",
         ),
 
     listenbrainzReady

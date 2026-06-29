@@ -6,6 +6,7 @@ import type { User as DbUser } from "@prisma/client";
 import { ensureUserProfile } from "@/lib/wallet/service";
 import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
 import { syncUserGithubIdentity, extractGithubIdentity } from "@/lib/identity/contributors";
+import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 
 export { getSessionUserId } from "@/lib/wallet/service";
 
@@ -52,7 +53,11 @@ export async function ensureProfileForUser(
 
   if (provider === "github" || extractGithubIdentity(user).login) {
     await syncUserGithubIdentity(user.id, user);
+    const fresh = await prisma.user.findUnique({ where: { id: user.id } });
+    if (fresh) profile = fresh;
   }
+
+  void autoInstallCommunitiesForUser(user.id, profile).catch(() => undefined);
 
   return profile;
 }

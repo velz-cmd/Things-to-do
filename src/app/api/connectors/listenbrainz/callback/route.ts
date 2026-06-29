@@ -7,6 +7,7 @@ import {
   listenBrainzUsernameFromUserInfo,
 } from "@/lib/integrations/musicbrainz-oauth";
 import { syncUserSensors } from "@/lib/connectors/user-sensor-sync";
+import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,9 @@ export async function GET(req: Request) {
       },
     });
 
+    void autoInstallCommunitiesForUser(userId, { listenbrainzUsername: username }).catch(
+      () => undefined,
+    );
     void syncUserSensors(userId).catch(() => undefined);
 
     const response = redirectWith(origin, returnTo, { listenbrainz_connected: "1" });

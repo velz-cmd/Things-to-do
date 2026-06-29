@@ -58,7 +58,7 @@ export async function GET() {
         hint: githubUsername ? undefined : "Install GitHub to claim code contributions",
         health: githubLive?.health,
         eventsToday: githubLive?.eventsToday,
-        authorizeUrl: "/api/connectors/github/authorize?returnTo=/profile",
+        authorizeUrl: "/connect/github",
       },
       {
         id: "wallet",
@@ -85,7 +85,7 @@ export async function GET() {
         displayValue:
           profile.listenbrainzUsername ? `@${profile.listenbrainzUsername}` : undefined,
         hint: listenbrainzConnected ? undefined : "Install MusicBrainz — one click",
-        authorizeUrl: "/api/connectors/listenbrainz/authorize?returnTo=/profile",
+        authorizeUrl: "/connect/listenbrainz",
       },
       {
         id: "gmail",

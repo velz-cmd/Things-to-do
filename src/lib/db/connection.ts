@@ -16,6 +16,9 @@ export type DatabaseUrlDiagnostics = {
   normalizedHasPgbouncerParam: boolean;
   normalizedHasConnectionLimit: boolean;
   prismaReady: boolean;
+  /** True when runtime rewrote session pooler port 5432 → transaction 6543. */
+  portRewritten: boolean;
+  normalizedPort: number | null;
 };
 
 const PRISMA_POOL_PARAMS = {
@@ -70,6 +73,20 @@ function parsePostgresEndpoint(raw: string): Pick<
   };
 }
 
+/** Supabase session pooler (5432) → transaction pooler (6543) for Vercel/serverless. */
+export function rewriteSupabasePoolerPort(raw: string): string {
+  const trimmed = raw.trim();
+  const withoutScheme = trimmed.replace(/^postgres(ql)?:\/\//i, "");
+  const at = withoutScheme.lastIndexOf("@");
+  if (at === -1) return trimmed;
+
+  const prefix = trimmed.slice(0, trimmed.length - withoutScheme.length + at + 1);
+  const suffix = withoutScheme.slice(at + 1);
+  if (!/pooler\.supabase\.com:5432/i.test(suffix)) return trimmed;
+
+  return prefix + suffix.replace(/pooler\.supabase\.com:5432/i, "pooler.supabase.com:6543");
+}
+
 export function analyzeDatabaseUrl(rawInput?: string): DatabaseUrlDiagnostics {
   const raw = rawInput?.trim() ?? "";
   if (!raw) {
@@ -87,17 +104,26 @@ export function analyzeDatabaseUrl(rawInput?: string): DatabaseUrlDiagnostics {
       normalizedHasPgbouncerParam: false,
       normalizedHasConnectionLimit: false,
       prismaReady: false,
+      portRewritten: false,
+      normalizedPort: null,
     };
   }
 
   const { host, port, database } = parsePostgresEndpoint(raw);
+  const rewritten = rewriteSupabasePoolerPort(raw);
+  const normalized = appendDatabaseQueryParams(rewritten, { ...PRISMA_POOL_PARAMS });
+  const normalizedEndpoint = parsePostgresEndpoint(normalized);
+  const portRewritten = rewritten !== raw;
+
   const hostLower = host?.toLowerCase() ?? "";
   const isSupabasePooler = hostLower.includes("pooler.supabase.com");
   const isDirectSupabase = hostLower.includes(".supabase.co") && !isSupabasePooler;
-  const isTransactionPooler = isSupabasePooler && port === 6543;
-  const isSessionPooler = isSupabasePooler && port === 5432;
+  const isTransactionPooler = Boolean(
+    normalizedEndpoint.host?.toLowerCase().includes("pooler.supabase.com") &&
+      normalizedEndpoint.port === 6543,
+  );
+  const isSessionPooler = isSupabasePooler && port === 5432 && !portRewritten;
 
-  const normalized = appendDatabaseQueryParams(raw, { ...PRISMA_POOL_PARAMS });
   const rawHasPgbouncerParam = /(?:^|[?&])pgbouncer=true(?:&|$)/i.test(raw);
   const rawHasConnectionLimit = /(?:^|[?&])connection_limit=1(?:&|$)/i.test(raw);
   const normalizedHasPgbouncerParam = /(?:^|[?&])pgbouncer=true(?:&|$)/i.test(normalized);
@@ -122,6 +148,8 @@ export function analyzeDatabaseUrl(rawInput?: string): DatabaseUrlDiagnostics {
     normalizedHasPgbouncerParam,
     normalizedHasConnectionLimit,
     prismaReady,
+    portRewritten,
+    normalizedPort: normalizedEndpoint.port,
   };
 }
 
@@ -129,7 +157,8 @@ export function analyzeDatabaseUrl(rawInput?: string): DatabaseUrlDiagnostics {
 export function getDatabaseUrl(): string | undefined {
   const raw = process.env.DATABASE_URL?.trim();
   if (!raw) return undefined;
-  return appendDatabaseQueryParams(raw, { ...PRISMA_POOL_PARAMS });
+  const rewritten = rewriteSupabasePoolerPort(raw);
+  return appendDatabaseQueryParams(rewritten, { ...PRISMA_POOL_PARAMS });
 }
 
 export function isDbPoolExhaustedError(error: unknown): boolean {

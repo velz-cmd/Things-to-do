@@ -34,7 +34,7 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     community: "open_source",
     communityLabel: COMMUNITY_LABELS.open_source,
     platform: "GitHub",
-    description: "Link your contributor identity to claim authorizations and receive maintainer payouts.",
+    description: "Link your @username so RESOLVE can credit GitHub work in funded programs — contributors don't need to join RESOLVE.",
     status: "live",
     usedFor: "Code attribution · maintainer claims",
   },
@@ -43,7 +43,8 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     community: "music",
     communityLabel: COMMUNITY_LABELS.music,
     platform: "ListenBrainz",
-    description: "Sign in with MusicBrainz — RESOLVE syncs your listening history automatically. No tokens or setup.",
+    description:
+      "Sign in with MusicBrainz — optional for listeners. Artists confirm their name below so plays anywhere can route earnings to them.",
     status: "live",
     usedFor: "MusicBrainz identity · scrobble sync",
   },
@@ -53,7 +54,7 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     communityLabel: COMMUNITY_LABELS.music,
     platform: "Navidrome (optional)",
     description:
-      "Self-hosted library? Connect ListenBrainz above first (enable scrobbling in Navidrome). Only add your server URL if it is reachable from the internet.",
+      "Optional — scrobble from Navidrome or other players. Listeners keep their normal apps; artists get credit when plays are part of a funded program.",
     status: "live",
     usedFor: "Advanced · direct library link",
   },
@@ -63,7 +64,7 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     communityLabel: COMMUNITY_LABELS.media,
     platform: "Jellyfin",
     description:
-      "Self-hosted movies and TV? Install Jellyfin — sign in once, RESOLVE syncs watches automatically.",
+      "Connect your Jellyfin server or account. Viewers don't need RESOLVE — watches in funded programs can credit creators.",
     status: "live",
     usedFor: "Video.watch authorizations · creator royalties",
   },

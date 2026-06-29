@@ -211,8 +211,20 @@ export async function buildCommunitySurface(
   }
 
   const deployReasons: string[] = [];
+  const pendingObligationsUsd = Math.round(authorizedForDeployUsd * 10000) / 10000;
   if (!install) deployReasons.push("Install RESOLVE on this community");
-  if (authorizedForDeploy.length === 0) deployReasons.push("Connect ListenBrainz on Profile — plays sync automatically");
+  if (authorizedForDeploy.length === 0) {
+    deployReasons.push(
+      community.kind === "music"
+        ? "Connect ListenBrainz on Profile — plays sync automatically"
+        : "Run live sensors — authorizations appear when upstream activity is recognized",
+    );
+  }
+  if (pendingObligationsUsd > 0.01) {
+    deployReasons.push(
+      `$${pendingObligationsUsd.toFixed(2)} owed — fund program pool or deposit before deploy`,
+    );
+  }
   const ownerDepositUsd = ownerProfile?.availableUsd ?? 0;
   if (userId && ownerDepositUsd < authorizedUsd && authorizedUsd > 0) {
     deployReasons.push("Deposit USDC to your account to cover program obligations");
@@ -262,6 +274,7 @@ export async function buildCommunitySurface(
       canDeploy: deployReasons.length === 0 && authorizedForDeploy.length > 0,
       authorizedCount: authorizedForDeploy.length,
       authorizedUsd: Math.round(authorizedForDeployUsd * 10000) / 10000,
+      pendingObligationsUsd,
       walletMappedCount,
       reasons: deployReasons,
     },

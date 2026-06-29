@@ -11,6 +11,7 @@ import {
   Scale,
   Users,
 } from "lucide-react";
+import { EntityActionBar } from "@/components/resolve/entity/entity-action-bar";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Money } from "@/components/resolve/ui/money";
@@ -109,6 +110,8 @@ export function EntityPage({ initial }: { initial: EntitySurface }) {
           {surface.emptyReason}
         </div>
       )}
+
+      <EntityActionBar surface={surface} />
 
       <div className="grid gap-10 lg:grid-cols-[1fr_280px]">
         <div className="space-y-12">

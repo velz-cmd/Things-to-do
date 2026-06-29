@@ -94,7 +94,7 @@ export async function GET() {
   if (!env.DATABASE_URL) missing.push("DATABASE_URL");
   if (!aiReady) missing.push("GROQ_API_KEY or GEMINI_API_KEY or OPENROUTER_API_KEY");
   if (!env.SEARCH_CONFIGURED) missing.push("TAVILY_API_KEY or SERPER_API_KEY");
-  if (!env.GITHUB_TOKEN) missing.push("GITHUB_TOKEN (community observation)");
+  if (!env.GITHUB_TOKEN) missing.push("GITHUB_TOKEN (optional — higher GitHub rate limits)");
   if (!env.NEXT_PUBLIC_REOWN_PROJECT_ID) missing.push("NEXT_PUBLIC_REOWN_PROJECT_ID");
 
   return NextResponse.json({
@@ -108,7 +108,7 @@ export async function GET() {
       walletConnect: env.NEXT_PUBLIC_REOWN_PROJECT_ID,
       gmail: env.GMAIL_LIVE,
       communitySensors: communitySensorsReady,
-      githubObservation: env.GITHUB_TOKEN,
+      githubObservation: env.GITHUB_TOKEN || "public_api",
     },
     ai: {
       gemini: ai.gemini,

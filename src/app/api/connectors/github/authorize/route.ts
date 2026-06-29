@@ -4,6 +4,7 @@ import { requireSessionUser } from "@/lib/auth/session";
 import {
   buildGithubAuthorizeUrl,
   githubOAuthConfigured,
+  githubOAuthRedirectUri,
 } from "@/lib/integrations/github-oauth";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
     const returnTo = searchParams.get("returnTo");
     const state = randomBytes(16).toString("hex");
 
-    const target = buildGithubAuthorizeUrl(state);
+    const target = buildGithubAuthorizeUrl(state, origin);
     const response = NextResponse.redirect(target);
 
     response.cookies.set("gh_oauth_state", state, COOKIE_OPTS);
@@ -55,9 +56,15 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const origin = new URL(req.url).origin;
   return NextResponse.json({
     ok: githubOAuthConfigured(),
+    redirectUri: githubOAuthRedirectUri(origin),
     authorizeUrl: "/api/connectors/github/authorize?returnTo=/profile",
+    missing:
+      githubOAuthConfigured() ?
+        []
+      : ["GITHUB_OAUTH_CLIENT_ID", "GITHUB_OAUTH_CLIENT_SECRET"],
   });
 }

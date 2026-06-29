@@ -3,12 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { ensureProfileForUser } from "@/lib/auth/session";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getConnectorStatuses } from "@/lib/connectors/connector-service";
-import { listEcosystems, ensureSeedEcosystems } from "@/lib/mission/server/ecosystems";
+import { listEcosystems } from "@/lib/mission/server/ecosystems";
 import {
   userListenBrainzConfigured,
   userNavidromeConfigured,
 } from "@/lib/profile/user-connections";
 import { safeUrlHostname } from "@/lib/profile/safe-url";
+import { sanitizeConnectorIdentities } from "@/lib/identity/sanitize-profile";
+import { normalizeGithubLogin } from "@/lib/identity/github-login";
 import type { IdentityPlatformId } from "@/lib/profile/community-identities";
 
 export const dynamic = "force-dynamic";
@@ -43,13 +45,13 @@ export async function GET() {
       email = authUser.email ?? null;
       emailVerified = Boolean(authUser.email_confirmed_at ?? authUser.email);
       profileRow = await ensureProfileForUser(authUser);
-      githubUsername = profileRow.githubUsername ?? null;
+      profileRow = await sanitizeConnectorIdentities(authUser.id, profileRow);
+      githubUsername = normalizeGithubLogin(profileRow.githubUsername);
       walletAddress =
         profileRow.walletAddress ??
         profileRow.scanWalletAddress ??
         null;
       gmailConnected = profileRow.gmailConnected;
-      await ensureSeedEcosystems(authUser.id);
     }
 
     const [liveConnectors, connectorStatuses] = await Promise.all([

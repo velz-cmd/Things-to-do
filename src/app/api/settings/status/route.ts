@@ -20,6 +20,7 @@ import {
   getClaimTokenSecret,
   getCronSecret,
 } from "@/lib/env/cron-secret";
+import { safeUrlHostname } from "@/lib/profile/safe-url";
 import { getCommunitySensorStatuses } from "@/lib/sensors/status";
 
 export type SettingsConnection = {
@@ -142,7 +143,7 @@ export async function GET() {
           label: "Navidrome (your instance)",
           connected: navidromeConnected,
           displayValue:
-            profileRow?.navidromeUrl ? new URL(profileRow.navidromeUrl).hostname : undefined,
+            safeUrlHostname(profileRow?.navidromeUrl) ?? undefined,
           hint: navidromeConnected ? undefined : "Optional — connect on Profile",
           health: navidromeConnected ? navidromeLive?.health : undefined,
           managePath: "/profile",

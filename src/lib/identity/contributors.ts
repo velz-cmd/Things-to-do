@@ -10,12 +10,21 @@ export function extractGithubIdentity(user: {
   const ghIdentity = user.identities?.find((i) => i.provider === "github");
   const meta = user.user_metadata ?? {};
   const idData = ghIdentity?.identity_data ?? {};
+  const rawMeta =
+    (meta.raw_user_meta_data as Record<string, unknown> | undefined) ?? {};
 
   const login =
+    (idData.login as string) ??
     (idData.user_name as string) ??
     (idData.preferred_username as string) ??
+    (idData.name as string) ??
+    (meta.login as string) ??
     (meta.user_name as string) ??
     (meta.preferred_username as string) ??
+    (meta.name as string) ??
+    (rawMeta.user_name as string) ??
+    (rawMeta.preferred_username as string) ??
+    (rawMeta.login as string) ??
     null;
 
   const githubId =

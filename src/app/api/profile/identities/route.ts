@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfileForUser } from "@/lib/auth/session";
-import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getConnectorStatuses } from "@/lib/connectors/connector-service";
 import { listEcosystems, ensureSeedEcosystems } from "@/lib/mission/server/ecosystems";
@@ -44,8 +43,7 @@ export async function GET() {
       email = authUser.email ?? null;
       emailVerified = Boolean(authUser.email_confirmed_at ?? authUser.email);
       profileRow = await ensureProfileForUser(authUser);
-      const gh = extractGithubIdentity(authUser);
-      githubUsername = gh.login ?? profileRow.githubUsername ?? null;
+      githubUsername = profileRow.githubUsername ?? null;
       walletAddress =
         profileRow.walletAddress ??
         profileRow.scanWalletAddress ??
@@ -87,9 +85,10 @@ export async function GET() {
         id: "github",
         connected: Boolean(githubUsername),
         displayValue: githubUsername ? `@${githubUsername}` : undefined,
-        hint: githubUsername ? undefined : "Required to claim code contributions",
+        hint: githubUsername ? undefined : "Connect GitHub to claim code contributions",
         health: githubLive?.health,
         eventsToday: githubLive?.eventsToday,
+        authorizeUrl: "/api/connectors/github/authorize?returnTo=/profile",
       },
       {
         id: "wallet",

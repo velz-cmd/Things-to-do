@@ -63,7 +63,7 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     communityLabel: COMMUNITY_LABELS.media,
     platform: "Jellyfin",
     description:
-      "Self-hosted movies and TV? Connect your Jellyfin server URL + username. Public servers use your password; local servers use an API key from Dashboard → Advanced → API Keys.",
+      "Self-hosted movies and TV? Install Jellyfin — sign in once, RESOLVE syncs watches automatically.",
     status: "live",
     usedFor: "Video.watch authorizations · creator royalties",
   },

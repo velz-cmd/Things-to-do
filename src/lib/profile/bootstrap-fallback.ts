@@ -28,7 +28,8 @@ export function offlineProfileBootstrap(authUser: SupabaseUser) {
     {
       id: "jellyfin",
       connected: false,
-      hint: "Connect Jellyfin for video.watch authorizations",
+      hint: "Install Jellyfin — one click",
+      authorizeUrl: "/connect/jellyfin",
     },
     {
       id: "listenbrainz",

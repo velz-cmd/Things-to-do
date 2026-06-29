@@ -3,7 +3,6 @@ import {
   authenticateJellyfin,
   getJellyfinNowPlaying,
   jellyfinTicksToSeconds,
-  normalizeJellyfinApiKey,
 } from "@/lib/integrations/jellyfin-client";
 import { isPrivateJellyfinUrl } from "@/lib/integrations/jellyfin-url";
 import { videoWatchToSettlementEvents } from "@/lib/connectors/video-pipeline";
@@ -71,6 +70,7 @@ export async function ingestJellyfinWatches(
   };
 }
 
+/** Cloud sync — public Jellyfin URLs only. Local servers sync via the user's browser. */
 export async function syncUserJellyfinSensors(userId: string) {
   const profile = await prisma.user.findUnique({
     where: { id: userId },
@@ -90,11 +90,9 @@ export async function syncUserJellyfinSensors(userId: string) {
       ok: true as const,
       ingested: 0,
       watches: 0,
-      reason: "local_bridge_required" as const,
+      reason: "browser_sync" as const,
     };
   }
-
-  const { missionId, perWatchUsd } = await jellyfinMissionForUser(userId);
 
   const playing = await getJellyfinNowPlaying({
     url: profile.jellyfinUrl,
@@ -120,48 +118,16 @@ export async function syncUserJellyfinSensors(userId: string) {
   };
 }
 
-export async function connectJellyfinForUser(
+export async function saveJellyfinConnection(
   userId: string,
-  input: { url: string; username: string; password: string },
+  input: { url: string; username: string; accessToken: string },
 ) {
   const url = input.url.trim().replace(/\/$/, "");
   const username = input.username.trim();
-  const secret = input.password.trim();
+  const accessToken = input.accessToken.trim();
 
-  if (!url || !username || !secret) {
-    return { ok: false as const, error: "Server URL, username, and password or API key are required" };
-  }
-
-  if (isPrivateJellyfinUrl(url)) {
-    const accessToken = normalizeJellyfinApiKey(secret);
-    if (accessToken.length < 8) {
-      return {
-        ok: false as const,
-        error:
-          "For local Jellyfin servers, create an API key in Dashboard → Advanced → API Keys and paste it in the password field.",
-      };
-    }
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        jellyfinUrl: url,
-        jellyfinUsername: username,
-        jellyfinAccessToken: accessToken,
-      },
-    });
-
-    return {
-      ok: true as const,
-      message:
-        "Jellyfin saved (local server). Community installed — run scripts/jellyfin-bridge.ts on your PC to sync watches.",
-      localMode: true as const,
-    };
-  }
-
-  const auth = await authenticateJellyfin({ url, username, password: secret });
-  if (!auth.ok || !auth.accessToken) {
-    return { ok: false as const, error: auth.message };
+  if (!url || !username || !accessToken) {
+    return { ok: false as const, error: "Server URL, username, and access token are required" };
   }
 
   await prisma.user.update({
@@ -169,9 +135,30 @@ export async function connectJellyfinForUser(
     data: {
       jellyfinUrl: url,
       jellyfinUsername: username,
-      jellyfinAccessToken: auth.accessToken,
+      jellyfinAccessToken: accessToken,
     },
   });
 
-  return { ok: true as const, message: auth.message, localMode: false as const };
+  return {
+    ok: true as const,
+    message: "Jellyfin connected — community installed, watches sync automatically",
+    accessToken,
+  };
+}
+
+/** Legacy server-side password connect (public URLs). Prefer browser token flow. */
+export async function connectJellyfinForUser(
+  userId: string,
+  input: { url: string; username: string; password: string },
+) {
+  const auth = await authenticateJellyfin(input);
+  if (!auth.ok || !auth.accessToken) {
+    return { ok: false as const, error: auth.message };
+  }
+
+  return saveJellyfinConnection(userId, {
+    url: input.url,
+    username: input.username,
+    accessToken: auth.accessToken,
+  });
 }

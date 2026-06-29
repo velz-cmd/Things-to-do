@@ -6,6 +6,7 @@ import { Loader2, Music2, GitBranch, BookOpen, Tv, RefreshCw, ArrowRight } from 
 import { toast } from "sonner";
 import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
+import { pushJellyfinWatchesFromBrowser } from "@/lib/integrations/jellyfin-client-sync";
 
 type TrackStatus = {
   id: string;
@@ -50,13 +51,27 @@ export function ProfileConnectorTracks() {
   async function syncAll() {
     setSyncing(true);
     try {
+      let browserIngested = 0;
+      try {
+        const boot = await fetch("/api/profile/bootstrap", { credentials: "include" }).then((r) =>
+          r.json(),
+        );
+        const cfg = boot.jellyfinSync as { url: string; accessToken: string } | null | undefined;
+        if (cfg?.url && cfg.accessToken) {
+          const pushed = await pushJellyfinWatchesFromBrowser(cfg);
+          browserIngested = pushed.ingested ?? 0;
+        }
+      } catch {
+        /* jellyfin browser sync optional */
+      }
+
       const res = await fetch("/api/connectors/sensors/sync", {
         method: "POST",
         credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Sync failed");
-      const n = data.ingested ?? 0;
+      const n = (data.ingested ?? 0) + browserIngested;
       toast.success(
         n > 0 ? `${n} new signal(s) recognized across tracks` : "Sensors up to date",
       );

@@ -16,6 +16,7 @@
     "deploy:escrow": "tsx scripts/deploy-escrow.ts",
     "test:integrations": "tsx scripts/test-integrations.ts",
     "test:github-integrations": "tsx scripts/test-github-integrations.ts",
+    "bridge:navidrome": "tsx scripts/navidrome-bridge.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

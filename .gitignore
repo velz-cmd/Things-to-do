@@ -16,3 +16,4 @@ contracts/broadcast
 test-results
 playwright-report
 .env*
+scripts/navidrome-bridge.local.env

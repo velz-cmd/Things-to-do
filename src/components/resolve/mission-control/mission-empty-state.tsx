@@ -3,13 +3,23 @@
 import { type FormEvent } from "react";
 import { Loader2, Send } from "lucide-react";
 
-const EXAMPLES = [
-  "I want to fund React.",
-  "How healthy is React?",
-  "Find communities losing contributors.",
-  "Who deserves funding?",
-  "Show hidden infrastructure.",
-  "Build a grant program.",
+const PRESETS = [
+  {
+    label: "User-centric royalties",
+    prompt: "Create a user-centric royalty program for my Navidrome listeners — split monthly budget by real plays.",
+  },
+  {
+    label: "Fund maintainers",
+    prompt: "Fund the top open-source maintainers in React based on real contribution signals.",
+  },
+  {
+    label: "Citation payout round",
+    prompt: "Run a citation payout round for research authors — split by OpenAlex impact signals.",
+  },
+  {
+    label: "Split by activity",
+    prompt: "Split my program budget across contributors by verified activity this month.",
+  },
 ];
 
 export function MissionEmptyState({
@@ -34,7 +44,7 @@ export function MissionEmptyState({
       <div className="w-full max-w-xl">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Mission</h1>
         <p className="mt-2 text-sm text-resolve-muted">
-          What would you like to accomplish?
+          Propose payout plans from real evidence — approve before anything settles.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8">
@@ -61,17 +71,18 @@ export function MissionEmptyState({
         </form>
 
         <div className="mt-8">
-          <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">Examples</p>
+          <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">Program templates</p>
           <ul className="mt-3 space-y-2">
-            {EXAMPLES.map((ex) => (
-              <li key={ex}>
+            {PRESETS.map((ex) => (
+              <li key={ex.label}>
                 <button
                   type="button"
                   disabled={loading}
-                  onClick={() => onSubmit(ex)}
+                  onClick={() => onSubmit(ex.prompt)}
                   className="text-left text-sm text-resolve-muted transition hover:text-white disabled:opacity-40"
                 >
-                  {ex}
+                  <span className="font-medium text-white/90">{ex.label}</span>
+                  <span className="mt-0.5 block text-xs text-resolve-muted-dim">{ex.prompt}</span>
                 </button>
               </li>
             ))}

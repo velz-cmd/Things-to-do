@@ -9,6 +9,7 @@ import {
   effectiveNotifySignal,
   type NotifyCandidate,
 } from "@/lib/earn/notify-policy";
+import { resolveClaimIdentities } from "@/lib/identity/claim-identities";
 
 export type PayeeIdentity = {
   payeeKeyType: string;
@@ -148,7 +149,10 @@ export async function getProfileEarningsSummary(input: {
   profile: Pick<User, "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress">;
   authUser?: SupabaseUser | null;
 }): Promise<ProfileEarningsSummary> {
-  const identities = resolvePayeeIdentities(input.profile, input.authUser);
+  const identities = await resolveClaimIdentities({
+    profile: input.profile,
+    authUser: input.authUser,
+  });
   const githubLinked = identities.some((i) => i.payeeKeyType === "github_username");
 
   if (!identities.length) {

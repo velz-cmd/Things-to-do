@@ -12,11 +12,30 @@ type CommunitySummary = {
 
 const KINDS = ["all", "music", "oss", "research", "protocol"] as const;
 
-export function DiscoverCommunities() {
+const DOMAIN_FILTERS: { label: string; kind: (typeof KINDS)[number] }[] = [
+  { label: "All", kind: "all" },
+  { label: "Music", kind: "music" },
+  { label: "OSS", kind: "oss" },
+  { label: "Research", kind: "research" },
+];
+
+export function DiscoverCommunities({
+  kindFilter,
+  onKindFilterChange,
+}: {
+  kindFilter?: (typeof KINDS)[number];
+  onKindFilterChange?: (kind: (typeof KINDS)[number]) => void;
+} = {}) {
   const [installed, setInstalled] = useState<Record<string, boolean>>({});
   const [sensorStatuses, setSensorStatuses] = useState<CommunitySensorStatus[]>([]);
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<(typeof KINDS)[number]>("all");
+  const [internalKind, setInternalKind] = useState<(typeof KINDS)[number]>("all");
+  const kind = kindFilter ?? internalKind;
+
+  function setKind(next: (typeof KINDS)[number]) {
+    if (onKindFilterChange) onKindFilterChange(next);
+    else setInternalKind(next);
+  }
 
   useEffect(() => {
     void Promise.all([
@@ -51,7 +70,7 @@ export function DiscoverCommunities() {
   }, [query, kind, sensorStatuses]);
 
   return (
-    <section className="mb-12">
+    <section id="communities" className="mb-12 scroll-mt-24">
       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
         Community directory
       </p>
@@ -71,20 +90,24 @@ export function DiscoverCommunities() {
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          {KINDS.map((k) => (
+          {(onKindFilterChange ? DOMAIN_FILTERS : KINDS).map((k) => {
+            const value = typeof k === "string" ? k : k.kind;
+            const label = typeof k === "string" ? (k === "all" ? "All" : k) : k.label;
+            return (
             <button
-              key={k}
+              key={value}
               type="button"
-              onClick={() => setKind(k)}
+              onClick={() => setKind(value)}
               className={
-                kind === k
+                kind === value
                   ? "rounded-full border border-resolve-accent/40 bg-resolve-accent/10 px-3 py-1 text-[11px] text-resolve-accent"
                   : "rounded-full border border-resolve-border/60 px-3 py-1 text-[11px] text-resolve-muted hover:text-white"
               }
             >
-              {k === "all" ? "All" : k}
+              {label}
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 

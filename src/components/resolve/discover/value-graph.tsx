@@ -25,6 +25,8 @@ type RadarGraphResponse = {
     };
   };
   live: boolean;
+  hasCatalogPreview?: boolean;
+  ledgerEventCount?: number;
   emptyReason: string | null;
 };
 
@@ -139,7 +141,12 @@ export function ValueGraph({ variant = "full", className }: ValueGraphProps) {
           <div className="overflow-hidden rounded-lg border border-white/[0.06] bg-[#060a12]/80 p-1">
             {graphSvg}
             <p className="px-2 py-1 text-[9px] text-resolve-muted-dim">
-              {data?.graph.nodes.length} nodes · live
+              {data?.graph.nodes.length} nodes
+              {data?.live
+                ? ` · ${data.ledgerEventCount ?? 0} ledger events`
+                : data?.hasCatalogPreview
+                  ? " · catalog preview"
+                  : ""}
             </p>
           </div>
         )}
@@ -178,7 +185,11 @@ export function ValueGraph({ variant = "full", className }: ValueGraphProps) {
             {graphSvg}
             <p className="border-t border-resolve-border/40 px-3 py-2 text-[10px] text-resolve-muted-dim">
               {data?.graph.nodes.length} nodes · {data?.graph.edges.length} edges ·{" "}
-              {data?.live ? "live ledger" : "cached"}
+              {data?.live
+                ? `${data.ledgerEventCount ?? 0} ledger events`
+                : data?.hasCatalogPreview
+                  ? "catalog preview — install a community for live data"
+                  : "waiting for events"}
             </p>
           </div>
 

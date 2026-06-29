@@ -67,14 +67,17 @@ export function ProfileInstalledCommunities() {
               );
             })
           ) : (
-            catalog.filter((c) => c.featured).slice(0, 2).map((c) => (
-              <InstallResolveCard
-                key={c.slug}
-                community={c}
-                installed={false}
-                compact
-              />
-            ))
+            <>
+              <p className="text-xs text-resolve-muted-dim">Suggested installs — not connected yet</p>
+              {catalog.filter((c) => c.featured).slice(0, 2).map((c) => (
+                <InstallResolveCard
+                  key={c.slug}
+                  community={c}
+                  installed={false}
+                  compact
+                />
+              ))}
+            </>
           )}
         </div>
       )}

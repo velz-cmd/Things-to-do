@@ -113,55 +113,6 @@ function TextAction({
   );
 }
 
-function ConnectListenBrainzForm({ onConnected }: { onConnected: () => void }) {
-  const [username, setUsername] = useState("");
-  const [token, setToken] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const res = await fetch("/api/profile/connect/listenbrainz", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username, token: token || undefined }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Connection failed");
-      toast.success("ListenBrainz connected");
-      onConnected();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not connect ListenBrainz");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={(e) => void submit(e)} className="mt-2 space-y-2">
-      <input
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="ListenBrainz username"
-        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
-        required
-      />
-      <input
-        value={token}
-        onChange={(e) => setToken(e.target.value)}
-        placeholder="User token (from listenbrainz.org)"
-        type="password"
-        className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
-      />
-      <Button type="submit" size="sm" variant="secondary" disabled={busy}>
-        {busy ? "Connecting…" : "Connect ListenBrainz"}
-      </Button>
-    </form>
-  );
-}
-
 function ConnectNavidromeForm({ onConnected }: { onConnected: () => void }) {
   const [url, setUrl] = useState("");
   const [username, setUsername] = useState("");
@@ -281,6 +232,20 @@ export function ProfileSettings() {
       toast.error(`Gmail: ${gmailError}`);
       router.replace("/profile");
     }
+    if (searchParams.get("listenbrainz_connected") === "1") {
+      toast.success("ListenBrainz connected — RESOLVE will sync your listens automatically");
+      router.replace("/profile");
+      void load();
+    }
+    const lbError = searchParams.get("listenbrainz_error");
+    if (lbError) {
+      toast.error(
+        lbError === "not_configured"
+          ? "ListenBrainz sign-in is not configured on the server yet"
+          : `ListenBrainz: ${lbError}`,
+      );
+      router.replace("/profile");
+    }
   }, [searchParams, router, load]);
 
   async function disconnectPlatform(platform: IdentityPlatformId) {
@@ -317,6 +282,11 @@ export function ProfileSettings() {
   function connectGmail() {
     window.location.href =
       "/api/connectors/gmail/authorize?returnTo=" + encodeURIComponent("/profile");
+  }
+
+  function connectListenBrainz() {
+    window.location.href =
+      "/api/connectors/listenbrainz/authorize?returnTo=" + encodeURIComponent("/profile");
   }
 
   const byCommunity = useMemo(() => platformsByCommunity(), []);
@@ -360,7 +330,10 @@ export function ProfileSettings() {
     }
     if (platformId === "listenbrainz" && connected) {
       return (
-        <TextAction label="Remove" onClick={() => void disconnectPlatform("listenbrainz")} />
+        <>
+          <TextAction label="Reconnect" onClick={() => connectListenBrainz()} />
+          <TextAction label="Remove" onClick={() => void disconnectPlatform("listenbrainz")} />
+        </>
       );
     }
     if (platformId === "navidrome" && connected) {
@@ -407,20 +380,11 @@ export function ProfileSettings() {
               Connect Navidrome
             </Button>;
       case "listenbrainz":
-        return connectingPlatform === "listenbrainz" ?
-            <ConnectListenBrainzForm
-              onConnected={() => {
-                setConnectingPlatform(null);
-                void load();
-              }}
-            />
-          : <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setConnectingPlatform("listenbrainz")}
-            >
-              Connect ListenBrainz
-            </Button>;
+        return (
+          <Button size="sm" variant="secondary" onClick={() => connectListenBrainz()}>
+            Connect ListenBrainz
+          </Button>
+        );
       default:
         return null;
     }

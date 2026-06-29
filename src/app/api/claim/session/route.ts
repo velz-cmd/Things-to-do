@@ -13,7 +13,7 @@ export async function GET() {
   }
 
   const profile = await ensureProfileForUser(session.user);
-  const earnings = await getProfileEarningsSummary({ profile, authUser: session.user });
+  const earnings = await getProfileEarningsSummary({ profile });
   const { login } = extractGithubIdentity(session.user);
   const githubUsername =
     login?.toLowerCase() ?? profile.githubUsername?.toLowerCase() ?? null;

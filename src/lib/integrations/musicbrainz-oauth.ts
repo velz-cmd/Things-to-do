@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto";
+import { normalizeListenBrainzUsername } from "@/lib/identity/listenbrainz-login";
 import { env, isConfigured } from "@/lib/integrations/config";
 
 const MB_OAUTH_BASE = "https://musicbrainz.org/oauth2";
@@ -8,16 +9,19 @@ export function musicBrainzOAuthConfigured(): boolean {
   return isConfigured("MUSICBRAINZ_CLIENT_ID") && isConfigured("MUSICBRAINZ_CLIENT_SECRET");
 }
 
-export function appOrigin() {
+export function appOrigin(requestOrigin?: string) {
+  const fromRequest = requestOrigin?.replace(/\/$/, "");
+  if (fromRequest && !fromRequest.includes("localhost")) return fromRequest;
   return (
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
     process.env.APP_URL?.replace(/\/$/, "") ??
+    fromRequest ??
     "http://localhost:3000"
   );
 }
 
-export function listenBrainzOAuthRedirectUri() {
-  return `${appOrigin()}/api/connectors/listenbrainz/callback`;
+export function listenBrainzOAuthRedirectUri(requestOrigin?: string) {
+  return `${appOrigin(requestOrigin)}/api/connectors/listenbrainz/callback`;
 }
 
 export function createPkcePair() {
@@ -26,11 +30,15 @@ export function createPkcePair() {
   return { verifier, challenge };
 }
 
-export function buildMusicBrainzAuthorizeUrl(state: string, codeChallenge: string) {
+export function buildMusicBrainzAuthorizeUrl(
+  state: string,
+  codeChallenge: string,
+  requestOrigin?: string,
+) {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: env("MUSICBRAINZ_CLIENT_ID")!,
-    redirect_uri: listenBrainzOAuthRedirectUri(),
+    redirect_uri: listenBrainzOAuthRedirectUri(requestOrigin),
     scope: SCOPES.join(" "),
     state,
     code_challenge: codeChallenge,
@@ -39,14 +47,18 @@ export function buildMusicBrainzAuthorizeUrl(state: string, codeChallenge: strin
   return `${MB_OAUTH_BASE}/authorize?${params.toString()}`;
 }
 
-export async function exchangeMusicBrainzCode(code: string, codeVerifier: string) {
+export async function exchangeMusicBrainzCode(
+  code: string,
+  codeVerifier: string,
+  requestOrigin?: string,
+) {
   const res = await fetch(`${MB_OAUTH_BASE}/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      redirect_uri: listenBrainzOAuthRedirectUri(),
+      redirect_uri: listenBrainzOAuthRedirectUri(requestOrigin),
       client_id: env("MUSICBRAINZ_CLIENT_ID")!,
       client_secret: env("MUSICBRAINZ_CLIENT_SECRET")!,
       code_verifier: codeVerifier,
@@ -92,12 +104,11 @@ export async function fetchMusicBrainzUserInfo(accessToken: string): Promise<Mus
   return res.json() as Promise<MusicBrainzUserInfo>;
 }
 
-/** ListenBrainz usernames match MusicBrainz account names. */
 export function listenBrainzUsernameFromUserInfo(info: MusicBrainzUserInfo): string | null {
-  const candidate =
-    info.name?.trim() ||
-    info.nickname?.trim() ||
-    info.preferred_username?.trim() ||
-    info.sub?.trim();
-  return candidate ? candidate.toLowerCase() : null;
+  return (
+    normalizeListenBrainzUsername(info.preferred_username) ??
+    normalizeListenBrainzUsername(info.sub) ??
+    normalizeListenBrainzUsername(info.nickname) ??
+    null
+  );
 }

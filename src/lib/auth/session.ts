@@ -5,7 +5,6 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { User as DbUser } from "@prisma/client";
 import { ensureUserProfile } from "@/lib/wallet/service";
 import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
-import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 
 export { getSessionUserId } from "@/lib/wallet/service";
 
@@ -49,8 +48,6 @@ export async function ensureProfileForUser(
   });
 
   profile = await ensureAppWalletForUser(profile);
-
-  void autoInstallCommunitiesForUser(user.id, profile).catch(() => undefined);
 
   return profile;
 }

@@ -13,22 +13,28 @@ export function githubClientId(): string | undefined {
   return (
     env("GITHUB_OAUTH_CLIENT_ID") ??
     env("GITHUB_CLIENT_ID") ??
-    env("NEXT_PUBLIC_GITHUB_CLIENT_ID")
+    env("GITHUB_APP_CLIENT_ID") ??
+    env("NEXT_PUBLIC_GITHUB_CLIENT_ID") ??
+    env("NEXT_PUBLIC_GITHUB_OAUTH_CLIENT_ID")
   );
 }
 
 export function githubClientSecret(): string | undefined {
-  return env("GITHUB_OAUTH_CLIENT_SECRET") ?? env("GITHUB_CLIENT_SECRET");
+  return (
+    env("GITHUB_OAUTH_CLIENT_SECRET") ??
+    env("GITHUB_CLIENT_SECRET") ??
+    env("GITHUB_APP_CLIENT_SECRET")
+  );
 }
 
-export function githubOAuthRedirectUri() {
-  return `${appOrigin()}/api/connectors/github/callback`;
+export function githubOAuthRedirectUri(requestOrigin?: string) {
+  return `${appOrigin(requestOrigin)}/api/connectors/github/callback`;
 }
 
-export function buildGithubAuthorizeUrl(state: string) {
+export function buildGithubAuthorizeUrl(state: string, requestOrigin?: string) {
   const params = new URLSearchParams({
     client_id: githubClientId()!,
-    redirect_uri: githubOAuthRedirectUri(),
+    redirect_uri: githubOAuthRedirectUri(requestOrigin),
     scope: SCOPES.join(" "),
     state,
     allow_signup: "true",
@@ -36,7 +42,7 @@ export function buildGithubAuthorizeUrl(state: string) {
   return `${GITHUB_OAUTH_BASE}/authorize?${params.toString()}`;
 }
 
-export async function exchangeGithubCode(code: string) {
+export async function exchangeGithubCode(code: string, requestOrigin?: string) {
   const res = await fetch(`${GITHUB_OAUTH_BASE}/access_token`, {
     method: "POST",
     headers: {
@@ -48,7 +54,7 @@ export async function exchangeGithubCode(code: string) {
       client_id: githubClientId(),
       client_secret: githubClientSecret(),
       code,
-      redirect_uri: githubOAuthRedirectUri(),
+      redirect_uri: githubOAuthRedirectUri(requestOrigin),
     }),
     signal: AbortSignal.timeout(15_000),
   });

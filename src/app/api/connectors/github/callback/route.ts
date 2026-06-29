@@ -58,7 +58,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const tokens = await exchangeGithubCode(code);
+    const tokens = await exchangeGithubCode(code, origin);
     const ghUser = await fetchGithubUser(tokens.access_token!);
     const login = normalizeGithubLogin(ghUser.login);
 

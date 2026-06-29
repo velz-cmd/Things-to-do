@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser, ensureProfileForUser } from "@/lib/auth/session";
 import { getProfileEarningsSummary } from "@/lib/earn/summary";
+import { sanitizeConnectorIdentities } from "@/lib/identity/sanitize-profile";
 
 /** Profile earnings — ledger-backed "You earned $X" summary. */
 export async function GET() {
@@ -22,8 +23,9 @@ export async function GET() {
     });
   }
 
-  const profile = await ensureProfileForUser(authUser);
-  const summary = await getProfileEarningsSummary({ profile, authUser });
+  let profile = await ensureProfileForUser(authUser);
+  profile = await sanitizeConnectorIdentities(authUser.id, profile);
+  const summary = await getProfileEarningsSummary({ profile });
 
   return NextResponse.json({
     ok: true,

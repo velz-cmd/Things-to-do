@@ -118,6 +118,27 @@ export const COMMUNITY_CATALOG: CommunityCatalogEntry[] = [
       { label: "Settlement", key: "arc" },
     ],
   },
+  {
+    slug: "jellyfin",
+    name: "Jellyfin",
+    tagline: "Self-hosted video — verified watches become creator authorizations",
+    kind: "media",
+    attachShape: "sidecar",
+    upstream: "Jellyfin",
+    upstreamUrl: "https://jellyfin.org",
+    doctrine:
+      "Attach RESOLVE to your Jellyfin server. Movie and episode watches become video.watch authorizations; settle on Arc.",
+    connectors: ["jellyfin"],
+    keywords: ["jellyfin", "video", "self-hosted", "streaming", "media"],
+    accent: "blue",
+    featured: true,
+    installCta: "Install on Jellyfin",
+    healthSignals: [
+      { label: "Playback bridge", key: "jellyfin" },
+      { label: "Sessions API", key: "jellyfin" },
+      { label: "Settlement", key: "arc" },
+    ],
+  },
 ];
 
 /** RFB primitive templates — founders operate programs, not chat */
@@ -191,6 +212,20 @@ export const PROGRAM_TEMPLATES = {
     },
     deployLabel: "Enable citation tolls",
     kinds: ["research", "science", "education"] as CommunityKind[],
+  },
+  "video-royalties": {
+    id: "video-royalties",
+    name: "Video watch royalties",
+    description: "RFB #7 variant — Pay creators per verified watch on self-hosted Jellyfin.",
+    defaultBudgetUsd: 750,
+    defaultRules: {
+      perWatchUsd: 0.001,
+      minDurationSec: 60,
+      connectorId: "jellyfin",
+      eventType: "video.watch",
+    },
+    deployLabel: "Deploy video program",
+    kinds: ["media"] as CommunityKind[],
   },
 } as const;
 

@@ -26,6 +26,11 @@ export function offlineProfileBootstrap(authUser: SupabaseUser) {
       hint: "Optional — ListenBrainz covers most listeners",
     },
     {
+      id: "jellyfin",
+      connected: false,
+      hint: "Connect Jellyfin for video.watch authorizations",
+    },
+    {
       id: "listenbrainz",
       connected: false,
       hint: "Install MusicBrainz — one click",

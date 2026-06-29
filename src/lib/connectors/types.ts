@@ -41,8 +41,8 @@ export const CONNECTOR_CATALOG: ConnectorMeta[] = [
   {
     id: "jellyfin",
     label: "Jellyfin",
-    status: "upcoming",
-    description: "Playback webhook plugin",
+    status: "live",
+    description: "Sessions API → video.watch authorizations (self-hosted video)",
   },
   {
     id: "rsshub",

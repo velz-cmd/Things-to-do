@@ -15,6 +15,7 @@ export type CommunityInstallRecord = {
 
 export type ProgramRules = {
   perPlayUsd?: number;
+  perWatchUsd?: number;
   perMergeUsd?: number;
   perCveUsd?: number;
   perCitationUsd?: number;

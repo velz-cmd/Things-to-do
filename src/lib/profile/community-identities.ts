@@ -50,7 +50,7 @@ export const IDENTITY_PLATFORMS: IdentityPlatformDef[] = [
     community: "music",
     communityLabel: COMMUNITY_LABELS.music,
     platform: "ListenBrainz",
-    description: "Open scrobble history tied to MusicBrainz — RESOLVE reads listens for creative payouts.",
+    description: "Sign in with MusicBrainz — RESOLVE syncs your listening history automatically. No tokens or setup.",
     status: "live",
     usedFor: "MusicBrainz identity · scrobble sync",
   },

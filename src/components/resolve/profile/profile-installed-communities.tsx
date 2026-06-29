@@ -17,8 +17,8 @@ export function ProfileInstalledCommunities() {
 
   useEffect(() => {
     if (bootstrapLoading) return;
-    if (bootstrap?.communities) {
-      setCommunities(bootstrap.communities);
+    if (bootstrap?.signedIn) {
+      setCommunities(bootstrap.communities ?? []);
       setLoading(false);
       return;
     }

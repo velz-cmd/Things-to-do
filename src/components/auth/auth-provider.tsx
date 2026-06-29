@@ -198,14 +198,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           /* non-fatal */
         });
 
-        void fetch("/api/wallet/provision", {
-          method: "POST",
-          credentials: "include",
-        })
-          .then(() => refreshBalance())
-          .catch(() => {
-            /* non-fatal */
-          });
+        // Defer wallet DB writes — profile bootstrap handles display; avoids pool storms on sign-in.
+        window.setTimeout(() => {
+          void fetch("/api/wallet/provision", {
+            method: "POST",
+            credentials: "include",
+          })
+            .then(() => refreshBalance())
+            .catch(() => {
+              /* non-fatal */
+            });
+        }, 12_000);
       } else if (event === "SIGNED_OUT") {
         setBalance(null);
       } else {

@@ -6,6 +6,7 @@ import { ProductPage } from "@/components/resolve/layout/product-page";
 import { ProfileSettings } from "@/components/resolve/profile/profile-settings";
 import { ProfileInstalledCommunities } from "@/components/resolve/profile/profile-installed-communities";
 import { ProfileEarningsSummary } from "@/components/resolve/profile/profile-earnings-summary";
+import { ProfileBootstrapProvider } from "@/components/resolve/profile/profile-bootstrap";
 
 export default function ProfilePage() {
   return (
@@ -27,11 +28,13 @@ export default function ProfilePage() {
             Settings — connectors & keys →
           </a>
         </p>
-        <div className="space-y-10">
-          <ProfileEarningsSummary />
-          <ProfileInstalledCommunities />
-          <ProfileSettings />
-        </div>
+        <ProfileBootstrapProvider>
+          <div className="space-y-10">
+            <ProfileEarningsSummary />
+            <ProfileInstalledCommunities />
+            <ProfileSettings />
+          </div>
+        </ProfileBootstrapProvider>
       </Suspense>
     </ProductPage>
   );

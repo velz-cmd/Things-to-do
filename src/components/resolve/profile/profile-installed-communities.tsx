@@ -1,44 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
-import { useAuth } from "@/components/auth/auth-provider";
-import { PROFILE_REFRESH_EVENT } from "@/lib/profile/refresh-events";
-
-type CommunitySummary = {
-  slug: string;
-  name: string;
-  installed: boolean;
-};
+import { useProfileBootstrap } from "@/components/resolve/profile/profile-bootstrap";
 
 export function ProfileInstalledCommunities() {
-  const { user } = useAuth();
   const catalog = COMMUNITY_CATALOG;
-  const [communities, setCommunities] = useState<CommunitySummary[]>([]);
+  const { data: bootstrap, loading: bootstrapLoading } = useProfileBootstrap();
+  const [communities, setCommunities] = useState<
+    Array<{ slug: string; name: string; installed: boolean }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  useEffect(() => {
+    if (bootstrapLoading) return;
+    if (bootstrap?.communities) {
+      setCommunities(bootstrap.communities);
+      setLoading(false);
+      return;
+    }
     void fetch("/api/communities", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : { communities: [] }))
-      .then((d: { communities?: CommunitySummary[] }) => {
+      .then((d: { communities?: typeof communities }) => {
         setCommunities(d.communities ?? []);
       })
       .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load, user?.id]);
-
-  useEffect(() => {
-    const onRefresh = () => load();
-    window.addEventListener(PROFILE_REFRESH_EVENT, onRefresh);
-    return () => window.removeEventListener(PROFILE_REFRESH_EVENT, onRefresh);
-  }, [load]);
+  }, [bootstrap, bootstrapLoading]);
 
   const installed = communities.filter((c) => c.installed);
 
@@ -60,7 +50,7 @@ export function ProfileInstalledCommunities() {
         </Link>
       </div>
 
-      {loading ? (
+      {loading || bootstrapLoading ? (
         <div className="flex items-center gap-2 text-sm text-resolve-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading installations…
@@ -83,7 +73,7 @@ export function ProfileInstalledCommunities() {
           ) : (
             <>
               <p className="text-xs text-resolve-muted-dim">
-                Connect GitHub or ListenBrainz below — featured communities install automatically.
+                Install GitHub or MusicBrainz below — featured communities attach automatically.
               </p>
               {catalog.filter((c) => c.featured).slice(0, 2).map((c) => (
                 <InstallResolveCard

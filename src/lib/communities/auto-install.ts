@@ -1,7 +1,9 @@
 import { installCommunity } from "@/lib/communities/installs";
+import { communitiesForTrack } from "@/lib/connectors/phase3-tracks";
 
-const MUSIC_SLUGS = ["independent-music"] as const;
-const OSS_SLUGS = ["react", "linux"] as const;
+const MUSIC_SLUGS = communitiesForTrack("music");
+const OSS_SLUGS = communitiesForTrack("oss");
+const RESEARCH_SLUGS = communitiesForTrack("research");
 
 /** Attach featured communities when the user connects the matching identity — idempotent. */
 export async function autoInstallCommunitiesForUser(
@@ -9,15 +11,30 @@ export async function autoInstallCommunitiesForUser(
   profile: {
     githubUsername?: string | null;
     listenbrainzUsername?: string | null;
+    navidromeUrl?: string | null;
+    navidromeUsername?: string | null;
+    navidromePassword?: string | null;
   },
 ) {
   const slugs = new Set<string>();
 
   if (profile.listenbrainzUsername?.trim()) {
     for (const slug of MUSIC_SLUGS) slugs.add(slug);
+    for (const slug of RESEARCH_SLUGS) slugs.add(slug);
   }
+
+  const navidromeReady =
+    profile.navidromeUrl?.trim() &&
+    profile.navidromeUsername?.trim() &&
+    profile.navidromePassword?.trim();
+  if (navidromeReady) {
+    slugs.add("navidrome");
+    slugs.add("independent-music");
+  }
+
   if (profile.githubUsername?.trim()) {
     for (const slug of OSS_SLUGS) slugs.add(slug);
+    for (const slug of RESEARCH_SLUGS) slugs.add(slug);
   }
 
   const installed: string[] = [];

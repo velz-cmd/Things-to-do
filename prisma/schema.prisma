@@ -122,6 +122,7 @@ model User {
   resolveTimeline   ResolveTimelineEvent[]
   communityInstalls ResolveCommunityInstall[]
   resolvePrograms   ResolveProgram[]
+  communityFundStakes CommunityFundStake[]
 }
 
 model WalletTransaction {
@@ -528,10 +529,31 @@ model ResolveProgram {
   metadataJson     String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  fundStakes       CommunityFundStake[]
 
   @@index([userId])
   @@index([installId])
   @@index([missionId])
+  @@index([status])
+}
+
+/// External or operator capital staked on a community program — yield tracked via verified impact
+model CommunityFundStake {
+  id                    String         @id @default(cuid())
+  programId             String
+  program               ResolveProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  principalUsd          Float
+  releasedUsd           Float          @default(0)
+  impactAttributedUsd   Float          @default(0)
+  targetYieldMultiplier Float          @default(2)
+  status                String         @default("active")
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([programId])
+  @@index([userId])
   @@index([status])
 }
 

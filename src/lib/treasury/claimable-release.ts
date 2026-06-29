@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { notifyClaimableAuthorizationsForMission } from "@/lib/earn/notify";
+import { debitStakePool, getProgramStakePool } from "@/lib/capital/yield-service";
 
 export type ClaimableReleaseResult = {
   releasedUsd: number;
@@ -10,16 +11,17 @@ export type ClaimableReleaseResult = {
 };
 
 type FundingPool = {
+  programId: string;
   missionId: string;
   ownerUserId: string;
   budgetUsd: number;
 };
 
-/** Resolve program owner + mission scope for funding (deposits, not platform agent wallet). */
 async function resolveFundingPools(): Promise<FundingPool[]> {
   const programs = await prisma.resolveProgram.findMany({
     where: { status: { in: ["active", "deployed"] }, missionId: { not: null } },
     select: {
+      id: true,
       missionId: true,
       budgetUsd: true,
       userId: true,
@@ -32,6 +34,7 @@ async function resolveFundingPools(): Promise<FundingPool[]> {
     const existing = pools.get(p.missionId);
     const budget = Math.max(p.budgetUsd, existing?.budgetUsd ?? 0);
     pools.set(p.missionId, {
+      programId: p.id,
       missionId: p.missionId,
       ownerUserId: p.userId,
       budgetUsd: budget,
@@ -42,7 +45,9 @@ async function resolveFundingPools(): Promise<FundingPool[]> {
 }
 
 /**
- * Move authorized → claimable using **program owner deposits** (User.availableUsd).
+ * Move authorized → claimable using program capital:
+ * - Community fund stakes (any funder)
+ * - Program owner deposits (User.availableUsd)
  * Platform ARC wallet is settlement rail only — never the funding source for claims.
  */
 export async function releaseClaimableWithinTreasury(): Promise<ClaimableReleaseResult> {
@@ -60,6 +65,7 @@ export async function releaseClaimableWithinTreasury(): Promise<ClaimableRelease
   const idsToRelease: string[] = [];
   const missions = new Set<string>();
   const ownerDebits = new Map<string, number>();
+  const stakeDebits = new Map<string, number>();
   let releasedUsd = 0;
 
   for (const pool of pools) {
@@ -67,7 +73,9 @@ export async function releaseClaimableWithinTreasury(): Promise<ClaimableRelease
       where: { id: pool.ownerUserId },
       select: { availableUsd: true },
     });
-    const depositBalance = owner?.availableUsd ?? 0;
+    const ownerBalance = owner?.availableUsd ?? 0;
+    const stakePool = await getProgramStakePool(pool.programId);
+    const depositBalance = round(ownerBalance + stakePool.availableUsd);
     if (depositBalance < 0.01) continue;
 
     const existingClaimable = await prisma.paymentAuthorization.aggregate({
@@ -77,10 +85,7 @@ export async function releaseClaimableWithinTreasury(): Promise<ClaimableRelease
     const alreadyClaimable = existingClaimable._sum.amountUsd ?? 0;
 
     const programCap = pool.budgetUsd > 0 ? pool.budgetUsd : depositBalance;
-    let remaining = Math.max(
-      0,
-      Math.min(depositBalance, programCap) - alreadyClaimable,
-    );
+    let remaining = Math.max(0, Math.min(depositBalance, programCap) - alreadyClaimable);
     if (remaining < 0.01) continue;
 
     const rows = await prisma.paymentAuthorization.findMany({
@@ -89,6 +94,7 @@ export async function releaseClaimableWithinTreasury(): Promise<ClaimableRelease
       select: { id: true, missionId: true, amountUsd: true },
     });
 
+    let missionReleaseTotal = 0;
     for (const row of rows) {
       if (remaining < 0.01) break;
       if (row.amountUsd > remaining) continue;
@@ -96,10 +102,24 @@ export async function releaseClaimableWithinTreasury(): Promise<ClaimableRelease
       missions.add(row.missionId);
       remaining -= row.amountUsd;
       releasedUsd += row.amountUsd;
-      ownerDebits.set(
-        pool.ownerUserId,
-        (ownerDebits.get(pool.ownerUserId) ?? 0) + row.amountUsd,
-      );
+      missionReleaseTotal += row.amountUsd;
+    }
+
+    if (missionReleaseTotal > 0) {
+      const fromStakes = Math.min(missionReleaseTotal, stakePool.availableUsd);
+      const fromOwner = missionReleaseTotal - fromStakes;
+      if (fromStakes > 0) {
+        stakeDebits.set(
+          pool.programId,
+          (stakeDebits.get(pool.programId) ?? 0) + fromStakes,
+        );
+      }
+      if (fromOwner > 0) {
+        ownerDebits.set(
+          pool.ownerUserId,
+          (ownerDebits.get(pool.ownerUserId) ?? 0) + fromOwner,
+        );
+      }
     }
   }
 
@@ -134,6 +154,10 @@ export async function releaseClaimableWithinTreasury(): Promise<ClaimableRelease
     ),
   ]);
 
+  for (const [programId, amount] of stakeDebits.entries()) {
+    await debitStakePool(programId, amount);
+  }
+
   for (const missionId of missions) {
     try {
       await notifyClaimableAuthorizationsForMission(missionId);
@@ -145,9 +169,13 @@ export async function releaseClaimableWithinTreasury(): Promise<ClaimableRelease
   const totalDeposits = await prisma.user.aggregate({ _sum: { availableUsd: true } });
 
   return {
-    releasedUsd: Math.round(releasedUsd * 100) / 100,
+    releasedUsd: round(releasedUsd),
     authorizationCount: idsToRelease.length,
     missions: [...missions],
     treasuryBalanceUsd: totalDeposits._sum.availableUsd ?? 0,
   };
+}
+
+function round(n: number) {
+  return Math.round(n * 100) / 100;
 }

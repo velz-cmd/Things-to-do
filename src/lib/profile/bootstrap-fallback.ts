@@ -11,7 +11,7 @@ export function offlineProfileBootstrap(authUser: SupabaseUser) {
       id: "github",
       connected: false,
       hint: "Install GitHub to claim code contributions",
-      authorizeUrl: "/api/connectors/github/authorize?returnTo=/profile",
+      authorizeUrl: "/connect/github",
     },
     {
       id: "wallet",
@@ -29,7 +29,7 @@ export function offlineProfileBootstrap(authUser: SupabaseUser) {
       id: "listenbrainz",
       connected: false,
       hint: "Install MusicBrainz — one click",
-      authorizeUrl: "/api/connectors/listenbrainz/authorize?returnTo=/profile",
+      authorizeUrl: "/connect/listenbrainz",
     },
     {
       id: "gmail",

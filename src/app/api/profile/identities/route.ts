@@ -130,7 +130,8 @@ export async function GET() {
         hint:
           jellyfinConnected ?
             undefined
-          : "Connect your Jellyfin server for video.watch authorizations",
+          : "Install Jellyfin — one click",
+        authorizeUrl: "/connect/jellyfin",
       },
       {
         id: "listenbrainz",

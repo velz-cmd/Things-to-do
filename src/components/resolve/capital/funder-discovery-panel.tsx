@@ -48,7 +48,7 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Fund failed");
-      toast.success(`Funded $${amountUsd.toFixed(2)} — tracking toward 2× verified impact`);
+      toast.success(`Funded $${amountUsd.toFixed(2)} — clearing obligations toward 2× leverage`);
       void load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not fund program");
@@ -114,7 +114,9 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
                 </div>
                 <div className="shrink-0 text-right text-xs">
                   <p className="text-[10px] uppercase text-resolve-muted-dim">
-                    {CAPITAL_YIELD_COPY.discover.multiplierLabel}
+                    {o.metricKind === "match_leverage" ?
+                      CAPITAL_YIELD_COPY.discover.qfLabel
+                    : CAPITAL_YIELD_COPY.discover.fulfillmentLabel}
                   </p>
                   <p className="text-lg font-semibold tabular-nums text-emerald-300">
                     {o.yieldMultiplier > 0 ? `${o.yieldMultiplier.toFixed(2)}×` : "—"}
@@ -151,7 +153,9 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
                     >
                       {fundingId === o.programId ?
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : CAPITAL_YIELD_COPY.discover.fundCta}
+                      : o.templateId === "quadratic-funding" ?
+                        CAPITAL_YIELD_COPY.discover.fundCta
+                      : CAPITAL_YIELD_COPY.discover.fundFulfillCta}
                     </Button>
                   </>
                 : <p className="text-[11px] text-resolve-muted">Sign in to fund programs</p>}

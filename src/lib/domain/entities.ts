@@ -66,6 +66,7 @@ export type Entity = EntityRef & {
 
 /** Canonical ID builders — keep IDs stable across connectors. */
 export const EntityIds = {
+  opencollectiveProject: (slug: string) => `project:opencollective:${slug.toLowerCase()}`,
   personGitHub: (username: string) => `person:github:${username.toLowerCase()}`,
   personMusicBrainz: (mbid: string) => `person:musicbrainz:${mbid}`,
   personWallet: (address: string) => `person:wallet:${address.toLowerCase()}`,

@@ -24,6 +24,10 @@ export type ProgramRules = {
   splitMode?: string;
   connectorId?: string;
   eventType?: string;
+  /** RFB #6 — sponsor match pool and QF exponent */
+  matchPoolUsd?: number;
+  qfExponent?: number;
+  openCollectiveSlug?: string;
 };
 
 export type ProgramRecord = {

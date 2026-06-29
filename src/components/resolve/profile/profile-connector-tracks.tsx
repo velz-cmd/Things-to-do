@@ -53,14 +53,8 @@ export function ProfileConnectorTracks() {
     try {
       let browserIngested = 0;
       try {
-        const boot = await fetch("/api/profile/bootstrap", { credentials: "include" }).then((r) =>
-          r.json(),
-        );
-        const cfg = boot.jellyfinSync as { url: string; accessToken: string } | null | undefined;
-        if (cfg?.url && cfg.accessToken) {
-          const pushed = await pushJellyfinWatchesFromBrowser(cfg);
-          browserIngested = pushed.ingested ?? 0;
-        }
+        const pushed = await pushJellyfinWatchesFromBrowser();
+        browserIngested = pushed.ingested ?? 0;
       } catch {
         /* jellyfin browser sync optional */
       }

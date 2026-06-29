@@ -8,7 +8,7 @@ import {
   type ConnectPlatform,
 } from "@/lib/profile/user-connections";
 import { syncUserMusicSensors } from "@/lib/connectors/user-music-sync";
-import { syncUserJellyfinSensors, saveJellyfinConnection, connectJellyfinForUser } from "@/lib/connectors/user-jellyfin-sync";
+import { syncUserJellyfinSensors, connectJellyfinForUser } from "@/lib/connectors/user-jellyfin-sync";
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 
 const navidromeSchema = z.object({
@@ -17,12 +17,11 @@ const navidromeSchema = z.object({
   password: z.string().min(1).max(256),
 });
 
-const jellyfinPasswordSchema = navidromeSchema;
-
-const jellyfinTokenSchema = z.object({
+const jellyfinConnectSchema = z.object({
   url: z.string().url().max(512),
   username: z.string().min(1).max(120),
-  accessToken: z.string().min(8).max(512),
+  password: z.string().min(1).max(256),
+  accessToken: z.string().min(8).max(512).optional(),
 });
 
 const PLATFORMS = new Set<ConnectPlatform>([
@@ -39,7 +38,7 @@ function contentTypeIncludesJson(req: Request) {
 
 async function finalizeJellyfinConnect(
   userId: string,
-  data: { url: string; username: string; accessToken: string },
+  data: { url: string; username: string; accessToken?: string; password?: string },
   message: string,
 ) {
   const url = data.url.trim().replace(/\/$/, "");
@@ -48,7 +47,7 @@ async function finalizeJellyfinConnect(
   void autoInstallCommunitiesForUser(userId, {
     jellyfinUrl: url,
     jellyfinUsername: username,
-    jellyfinAccessToken: data.accessToken,
+    jellyfinAccessToken: data.accessToken ?? "connected",
   }).catch(() => undefined);
 
   void syncUserJellyfinSensors(userId).catch(() => undefined);
@@ -140,42 +139,17 @@ export async function POST(
   }
 
   if (platform === "jellyfin") {
-    const tokenParsed = jellyfinTokenSchema.safeParse(body);
-    if (tokenParsed.success) {
-      const result = await saveJellyfinConnection(ready.user.id, tokenParsed.data);
-      if (!result.ok) {
-        return NextResponse.json({ error: result.error }, { status: 400 });
-      }
-      return finalizeJellyfinConnect(
-        ready.user.id,
-        {
-          url: tokenParsed.data.url,
-          username: tokenParsed.data.username,
-          accessToken: result.accessToken,
-        },
-        result.message,
-      );
-    }
-
-    const pwdParsed = jellyfinPasswordSchema.safeParse(body);
-    if (!pwdParsed.success) {
+    const parsed = jellyfinConnectSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json({ error: "Invalid Jellyfin credentials" }, { status: 400 });
     }
 
-    const result = await connectJellyfinForUser(ready.user.id, pwdParsed.data);
+    const result = await connectJellyfinForUser(ready.user.id, parsed.data);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
-    return finalizeJellyfinConnect(
-      ready.user.id,
-      {
-        url: pwdParsed.data.url,
-        username: pwdParsed.data.username,
-        accessToken: result.accessToken,
-      },
-      result.message,
-    );
+    return finalizeJellyfinConnect(ready.user.id, parsed.data, result.message);
   }
 
   return NextResponse.json({ error: "Unsupported platform" }, { status: 400 });

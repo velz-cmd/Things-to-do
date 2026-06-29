@@ -8,10 +8,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/resolve/ui/button";
 import { authenticateJellyfinInBrowser } from "@/lib/integrations/jellyfin-browser";
 import { pushJellyfinWatchesFromBrowser } from "@/lib/integrations/jellyfin-client-sync";
+import { saveJellyfinSession } from "@/lib/integrations/jellyfin-shared";
 
 export function JellyfinConnectBridge({ returnTo = "/profile" }: { returnTo?: string }) {
   const router = useRouter();
-  const [url, setUrl] = useState("http://localhost:8096");
+  const [url, setUrl] = useState("http://127.0.0.1:8096");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,26 +21,47 @@ export function JellyfinConnectBridge({ returnTo = "/profile" }: { returnTo?: st
     e.preventDefault();
     setBusy(true);
     try {
-      const auth = await authenticateJellyfinInBrowser(url, username, password);
-      if (!auth.ok) throw new Error(auth.error);
+      const trimmedUrl = url.trim();
+      const trimmedUser = username.trim();
+
+      let workingUrl = trimmedUrl;
+      let accessToken: string | undefined;
+
+      const auth = await authenticateJellyfinInBrowser(trimmedUrl, trimmedUser, password);
+      if (auth.ok) {
+        workingUrl = auth.auth.url;
+        accessToken = auth.auth.accessToken;
+      }
 
       const res = await fetch("/api/profile/connect/jellyfin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          url: url.trim(),
-          username: username.trim(),
-          accessToken: auth.auth.accessToken,
+          url: workingUrl,
+          username: trimmedUser,
+          password,
+          ...(accessToken ? { accessToken } : {}),
         }),
       });
       const data = (await res.json()) as { error?: string; message?: string };
-      if (!res.ok) throw new Error(data.error ?? "Could not save Jellyfin connection");
+      if (!res.ok) {
+        if (!auth.ok) throw new Error(auth.error);
+        throw new Error(data.error ?? "Could not save Jellyfin connection");
+      }
 
-      void pushJellyfinWatchesFromBrowser({
-        url: url.trim(),
-        accessToken: auth.auth.accessToken,
-      }).catch(() => undefined);
+      saveJellyfinSession({
+        url: workingUrl,
+        username: trimmedUser,
+        password,
+        accessToken,
+      });
+
+      if (accessToken) {
+        void pushJellyfinWatchesFromBrowser({ url: workingUrl, accessToken }).catch(() => undefined);
+      } else if (auth.ok) {
+        void pushJellyfinWatchesFromBrowser().catch(() => undefined);
+      }
 
       toast.success(data.message ?? "Jellyfin connected");
       router.replace(`${returnTo}?jellyfin_connected=1`);
@@ -70,7 +92,7 @@ export function JellyfinConnectBridge({ returnTo = "/profile" }: { returnTo?: st
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="http://localhost:8096"
+            placeholder="http://127.0.0.1:8096"
             type="url"
             required
             className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
@@ -85,14 +107,14 @@ export function JellyfinConnectBridge({ returnTo = "/profile" }: { returnTo?: st
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Jellyfin password"
+            placeholder="Jellyfin account password"
             type="password"
             required
             className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/40 focus:outline-none"
           />
           <p className="text-[11px] leading-relaxed text-resolve-muted-dim">
-            One-time sign-in with your Jellyfin account. RESOLVE stores an access token, installs the
-            Jellyfin community, and syncs watches automatically — same as GitHub and MusicBrainz.
+            Use the same username and password you sign in with on Jellyfin — not an API key. RESOLVE
+            installs the community and syncs your watches automatically.
           </p>
           <Button type="submit" className="w-full" disabled={busy}>
             {busy ?

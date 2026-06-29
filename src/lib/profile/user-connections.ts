@@ -18,9 +18,13 @@ export function userNavidromeConfigured(
 }
 
 export function userJellyfinConfigured(
-  user: Pick<User, "jellyfinUrl" | "jellyfinAccessToken">,
+  user: Pick<User, "jellyfinUrl" | "jellyfinAccessToken" | "jellyfinUsername" | "jellyfinPassword">,
 ): boolean {
-  return Boolean(user.jellyfinUrl?.trim() && user.jellyfinAccessToken?.trim());
+  return Boolean(
+    user.jellyfinUrl?.trim() &&
+      user.jellyfinUsername?.trim() &&
+      (user.jellyfinAccessToken?.trim() || user.jellyfinPassword?.trim()),
+  );
 }
 
 export async function validateListenBrainzCredentials(
@@ -154,6 +158,7 @@ export const DISCONNECT_FIELDS: Record<
       | "navidromePassword"
       | "jellyfinUrl"
       | "jellyfinUsername"
+      | "jellyfinPassword"
       | "jellyfinAccessToken"
     >
   >
@@ -162,5 +167,10 @@ export const DISCONNECT_FIELDS: Record<
   gmail: { gmailConnected: false, gmailRefreshToken: null },
   listenbrainz: { listenbrainzUsername: null, listenbrainzToken: null },
   navidrome: { navidromeUrl: null, navidromeUsername: null, navidromePassword: null },
-  jellyfin: { jellyfinUrl: null, jellyfinUsername: null, jellyfinAccessToken: null },
+  jellyfin: {
+    jellyfinUrl: null,
+    jellyfinUsername: null,
+    jellyfinPassword: null,
+    jellyfinAccessToken: null,
+  },
 };

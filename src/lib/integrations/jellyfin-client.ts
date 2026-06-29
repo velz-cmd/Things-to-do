@@ -30,11 +30,13 @@ type JellyfinSession = {
   };
 };
 
+import { jellyfinAuthHeaders } from "@/lib/integrations/jellyfin-shared";
+
 function apiBase(url: string) {
   return url.replace(/\/$/, "");
 }
 
-function formatJellyfinFetchError(e: unknown, url: string): string {
+function formatJellyfinFetchError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   const lower = msg.toLowerCase();
   if (
@@ -46,12 +48,10 @@ function formatJellyfinFetchError(e: unknown, url: string): string {
   ) {
     return (
       "RESOLVE could not reach your Jellyfin server from the cloud. " +
-      "If Jellyfin runs on your PC or home network (localhost, 10.x, 192.168.x), " +
-      "use an API key from Jellyfin Dashboard → Advanced → API Keys instead of a password, " +
-      "then run scripts/jellyfin-bridge.ts on that PC."
+      "Open /connect/jellyfin on the same PC as Jellyfin — your browser will sign in with your account password."
     );
   }
-  return msg || `Could not connect to ${url}`;
+  return msg || "Could not connect to Jellyfin";
 }
 
 export async function authenticateJellyfin(input: {
@@ -62,11 +62,7 @@ export async function authenticateJellyfin(input: {
   try {
     const res = await fetch(`${apiBase(input.url)}/Users/AuthenticateByName`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "User-Agent": "RESOLVE/1.0",
-      },
+      headers: jellyfinAuthHeaders(),
       body: JSON.stringify({
         Username: input.username,
         Pw: input.password,
@@ -98,7 +94,7 @@ export async function authenticateJellyfin(input: {
   } catch (e) {
     return {
       ok: false,
-      message: formatJellyfinFetchError(e, input.url),
+      message: formatJellyfinFetchError(e),
     };
   }
 }
@@ -114,11 +110,7 @@ export async function getJellyfinNowPlaying(
   const res = await fetch(
     `${apiBase(creds.url)}/Sessions?activeWithinSeconds=120&nowPlaying=true`,
     {
-      headers: {
-        Authorization: `MediaBrowser Token="${creds.accessToken}"`,
-        Accept: "application/json",
-        "User-Agent": "RESOLVE/1.0",
-      },
+      headers: jellyfinAuthHeaders(creds.accessToken),
       signal: AbortSignal.timeout(12_000),
     },
   );

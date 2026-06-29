@@ -1,6 +1,6 @@
 import type { User } from "@prisma/client";
 
-export type ConnectPlatform = "gmail" | "listenbrainz" | "navidrome";
+export type ConnectPlatform = "github" | "gmail" | "listenbrainz" | "navidrome";
 
 export function userListenBrainzConfigured(user: Pick<User, "listenbrainzUsername">): boolean {
   return Boolean(user.listenbrainzUsername?.trim());
@@ -116,6 +116,8 @@ export const DISCONNECT_FIELDS: Record<
   Partial<
     Pick<
       User,
+      | "githubUsername"
+      | "githubId"
       | "gmailConnected"
       | "gmailRefreshToken"
       | "listenbrainzUsername"
@@ -126,6 +128,7 @@ export const DISCONNECT_FIELDS: Record<
     >
   >
 > = {
+  github: { githubUsername: null, githubId: null },
   gmail: { gmailConnected: false, gmailRefreshToken: null },
   listenbrainz: { listenbrainzUsername: null, listenbrainzToken: null },
   navidrome: { navidromeUrl: null, navidromeUsername: null, navidromePassword: null },

@@ -12,6 +12,7 @@ import { googleOAuthConfigured } from "@/lib/google/oauth";
 import { isOpenCollectiveConfigured } from "@/lib/integrations/opencollective";
 import { isDiscordConfigured } from "@/lib/integrations/discord";
 import { isMastodonConfigured } from "@/lib/integrations/mastodon";
+import { githubOAuthConfigured } from "@/lib/integrations/github-oauth";
 
 /** Safe env presence check — never returns secret values. */
 export async function GET() {
@@ -54,6 +55,11 @@ export async function GET() {
     WEBSEARCH_API_KEY: present("WEBSEARCH_API_KEY"),
     SEARCH_CONFIGURED: isSearchConfigured(),
     GITHUB_TOKEN: present("GITHUB_TOKEN"),
+    GITHUB_OAUTH: githubOAuthConfigured(),
+    GITHUB_OAUTH_CLIENT_ID:
+      present("GITHUB_OAUTH_CLIENT_ID") || present("GITHUB_CLIENT_ID"),
+    GITHUB_OAUTH_CLIENT_SECRET:
+      present("GITHUB_OAUTH_CLIENT_SECRET") || present("GITHUB_CLIENT_SECRET"),
     OPENCOLLECTIVE_TOKEN: present("OPENCOLLECTIVE_TOKEN"),
     DISCORD_BOT_TOKEN: present("DISCORD_BOT_TOKEN"),
     MASTODON_ACCESS_TOKEN: present("MASTODON_ACCESS_TOKEN"),

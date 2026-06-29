@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { normalizePayoutCurrency, type PayoutCurrency } from "@/lib/settlement/fx";
 
+import { normalizeGithubLogin } from "@/lib/identity/github-login";
+
 export type ContributorStatus = "unlinked" | "claimable" | "verified" | "settled";
 
 export function extractGithubIdentity(user: {
@@ -13,19 +15,16 @@ export function extractGithubIdentity(user: {
   const rawMeta =
     (meta.raw_user_meta_data as Record<string, unknown> | undefined) ?? {};
 
-  const login =
+  const rawLogin =
     (idData.login as string) ??
     (idData.user_name as string) ??
-    (idData.preferred_username as string) ??
-    (idData.name as string) ??
     (meta.login as string) ??
     (meta.user_name as string) ??
-    (meta.preferred_username as string) ??
-    (meta.name as string) ??
-    (rawMeta.user_name as string) ??
-    (rawMeta.preferred_username as string) ??
     (rawMeta.login as string) ??
+    (rawMeta.user_name as string) ??
     null;
+
+  const login = normalizeGithubLogin(rawLogin);
 
   const githubId =
     (idData.sub as string) ??
@@ -33,7 +32,7 @@ export function extractGithubIdentity(user: {
     (meta.sub as string) ??
     null;
 
-  return { login: login?.toLowerCase() ?? null, githubId };
+  return { login, githubId };
 }
 
 /** Auto-register GitHub contributor — wallet optional */

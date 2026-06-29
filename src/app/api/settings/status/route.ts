@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfileForUser } from "@/lib/auth/session";
-import { extractGithubIdentity } from "@/lib/identity/contributors";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getConnectorStatuses } from "@/lib/connectors/connector-service";
 import {
@@ -67,8 +66,7 @@ export async function GET() {
 
   if (authUser) {
     profileRow = await ensureProfileForUser(authUser);
-    const gh = extractGithubIdentity(authUser);
-    githubUsername = gh.login ?? profileRow.githubUsername ?? null;
+    githubUsername = profileRow.githubUsername ?? null;
     walletAddress =
       profileRow.walletAddress ??
       profileRow.scanWalletAddress ??

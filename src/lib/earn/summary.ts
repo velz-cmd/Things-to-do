@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import type { User } from "@prisma/client";
 import { getAuthorizationSummary } from "@/lib/authorization/ledger";
 import { getContributorRewardSummary } from "@/lib/identity/pending-rewards";
-import { extractGithubIdentity } from "@/lib/identity/contributors";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   decayFactor,
@@ -49,9 +48,7 @@ export function resolvePayeeIdentities(
   const identities: PayeeIdentity[] = [];
   const seen = new Set<string>();
 
-  const ghLogin =
-    profile.githubUsername?.toLowerCase() ??
-    (authUser ? extractGithubIdentity(authUser).login?.toLowerCase() : undefined);
+  const ghLogin = profile.githubUsername?.toLowerCase();
 
   if (ghLogin) {
     const key = `github_username:${ghLogin}`;

@@ -223,9 +223,6 @@ export function ProfileSettings() {
   }, []);
 
   const refreshAfterOAuth = useCallback(async () => {
-    await fetch("/api/identity/sync-github", { method: "POST", credentials: "include" }).catch(
-      () => undefined,
-    );
     await load();
     dispatchProfileRefresh();
   }, [load]);
@@ -246,13 +243,27 @@ export function ProfileSettings() {
   }, [load]);
 
   useEffect(() => {
+    if (searchParams.get("github_connected") === "1") {
+      toast.success("GitHub connected — RESOLVE will sync your open-source activity");
+      router.replace("/profile");
+      void refreshAfterOAuth();
+    }
+    const githubError = searchParams.get("github_error");
+    if (githubError) {
+      toast.error(
+        githubError === "not_configured"
+          ? "GitHub sign-in is not configured on the server yet"
+          : `GitHub: ${githubError}`,
+      );
+      router.replace("/profile");
+    }
     if (searchParams.get("gmail_connected") === "1") {
       toast.success("Gmail connected");
       router.replace("/profile");
       void refreshAfterOAuth();
     }
     if (searchParams.get("github_linked") === "1") {
-      toast.success("GitHub linked to your account");
+      toast.success("GitHub linked");
       router.replace("/profile");
       void refreshAfterOAuth();
     }
@@ -291,21 +302,17 @@ export function ProfileSettings() {
     void load();
   }
 
+  function connectGithub() {
+    window.location.href =
+      "/api/connectors/github/authorize?returnTo=" + encodeURIComponent("/profile");
+  }
+
   async function linkGitHubAccount() {
     if (!user) {
       openSignIn();
       return;
     }
-    if (githubEnabled && capabilities.github) {
-      try {
-        await linkGitHub();
-      } catch {
-        await signInWithGitHub();
-      }
-      void load();
-    } else {
-      openSignIn();
-    }
+    connectGithub();
   }
 
   function connectGmail() {
@@ -326,11 +333,8 @@ export function ProfileSettings() {
     if (platformId === "github") {
       return connected ?
           <>
-            <TextAction label="Change" onClick={() => void linkGitHubAccount()} />
-            <TextAction
-              label="Remove"
-              onClick={() => toast.message("Unlink GitHub from your Supabase account settings.")}
-            />
+            <TextAction label="Change" onClick={() => connectGithub()} />
+            <TextAction label="Remove" onClick={() => void disconnectPlatform("github")} />
           </>
         : null;
     }
@@ -377,9 +381,14 @@ export function ProfileSettings() {
     switch (platformId) {
       case "github":
         return (
-          <Button size="sm" onClick={() => void linkGitHubAccount()}>
-            Connect GitHub
-          </Button>
+          <div className="space-y-2">
+            <Button size="sm" onClick={() => connectGithub()}>
+              Connect GitHub
+            </Button>
+            <p className="text-[11px] text-resolve-muted-dim">
+              Authorize with GitHub — RESOLVE stores only your GitHub username for code attribution.
+            </p>
+          </div>
         );
       case "wallet":
         return (
@@ -497,7 +506,7 @@ export function ProfileSettings() {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {!identityMap.get("github")?.connected && (
-              <Button size="sm" variant="secondary" onClick={() => void linkGitHubAccount()}>
+              <Button size="sm" variant="secondary" onClick={() => connectGithub()}>
                 GitHub
               </Button>
             )}

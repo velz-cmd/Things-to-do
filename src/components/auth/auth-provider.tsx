@@ -203,14 +203,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           credentials: "include",
         })
           .then(() => refreshBalance())
-          .then(() =>
-            fetch("/api/identity/sync-github", {
-              method: "POST",
-              credentials: "include",
-            }).catch(() => {
-              /* non-fatal */
-            }),
-          )
           .catch(() => {
             /* non-fatal */
           });

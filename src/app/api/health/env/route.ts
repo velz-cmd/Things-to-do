@@ -13,7 +13,7 @@ import { isOpenCollectiveConfigured } from "@/lib/integrations/opencollective";
 import { isDiscordConfigured } from "@/lib/integrations/discord";
 import { isMastodonConfigured } from "@/lib/integrations/mastodon";
 import { githubOAuthConfigured } from "@/lib/integrations/github-oauth";
-import { analyzeDatabaseUrl } from "@/lib/db/connection";
+import { analyzeDatabaseUrl, getDatabaseDiagnostics, listPresentDatabaseEnvKeys } from "@/lib/db/connection";
 
 /** Safe env presence check — never returns secret values. */
 export async function GET() {
@@ -21,13 +21,16 @@ export async function GET() {
   const circleWalletSetId = await getCircleWalletSetId();
   const ai = listConfiguredProviders();
   const search = listSearchProviders();
-  const db = analyzeDatabaseUrl(process.env.DATABASE_URL);
+  const db = getDatabaseDiagnostics();
+  const databaseEnvKeysPresent = listPresentDatabaseEnvKeys();
 
   const env = {
     APP_URL: present("APP_URL") || present("NEXT_PUBLIC_APP_URL"),
     NEXT_PUBLIC_APP_URL: present("NEXT_PUBLIC_APP_URL"),
     PLAYWRIGHT_ENABLED: process.env.PLAYWRIGHT_ENABLED === "true",
     DATABASE_URL: db.configured,
+    DATABASE_ENV_SOURCE: db.envSource,
+    DATABASE_ENV_KEYS_PRESENT: databaseEnvKeysPresent,
     /** True when Vercel string literally contains pgbouncer=true (Supabase UI omits this). */
     DATABASE_PGBOUNCER_RAW: db.rawHasPgbouncerParam,
     /** True after app auto-appends params at runtime (what Prisma actually uses). */
@@ -114,7 +117,11 @@ export async function GET() {
   const missing: string[] = [];
   if (!env.PLAYWRIGHT_ENABLED) missing.push("PLAYWRIGHT_ENABLED=true");
   if (!env.APP_URL) missing.push("APP_URL=https://resolve-task.vercel.app");
-  if (!env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!env.DATABASE_URL) {
+    missing.push(
+      "DATABASE_URL — add in Vercel, check Production + Preview boxes, then Redeploy (env vars do not apply until redeploy)",
+    );
+  }
   if (db.isSessionPooler && !db.portRewritten) {
     missing.push(
       "DATABASE_URL port 5432 on pooler.supabase.com is session mode — use transaction pooler port 6543",
@@ -137,7 +144,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
-    deploy: "env-diagnostic-v3",
+    deploy: "env-diagnostic-v4",
     env,
     database: {
       host: db.host,

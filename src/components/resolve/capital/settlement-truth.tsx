@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ExternalLink, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { Money } from "@/components/resolve/ui/money";
@@ -111,12 +112,14 @@ export function CapitalSettlementRow({
   txHash,
   status,
   at,
+  receiptId,
 }: {
   label: string;
   amountUsd: number;
   txHash?: string | null;
   status: string;
   at?: string;
+  receiptId?: string;
 }) {
   return (
     <li className="flex flex-col gap-2 border-b border-resolve-border/40 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
@@ -126,6 +129,15 @@ export function CapitalSettlementRow({
           <p className="text-[10px] text-resolve-muted-dim">
             {new Date(at).toLocaleString()}
           </p>
+        )}
+        {receiptId && (
+          <Link
+            href={`/ledger/${receiptId}`}
+            className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-resolve-accent hover:underline"
+          >
+            Public receipt
+            <ExternalLink className="h-3 w-3" />
+          </Link>
         )}
       </div>
       <div className={clsx("flex flex-col items-start gap-1 sm:items-end")}>

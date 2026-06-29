@@ -544,6 +544,7 @@ export function ResolveBanking({
                       txHash={s.txHash}
                       status={s.status}
                       at={s.at}
+                      receiptId={s.id}
                     />
                   ))}
               </ul>

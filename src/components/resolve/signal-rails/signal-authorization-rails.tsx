@@ -11,7 +11,7 @@ import {
   Radio,
 } from "lucide-react";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
-import { PremiumSignalCard } from "@/components/resolve/signal-rails/premium-signal-card";
+import { SignalLaneSection } from "@/components/resolve/signal-rails/signal-lane-panel";
 
 export type AgentServiceCard = {
   id: string;
@@ -178,56 +178,68 @@ export function SignalAuthorizationRails({
   return (
     <section
       id="signal-rails"
-      className={clsx("resolve-signal-rails scroll-mt-24 overflow-hidden rounded-2xl", className)}
+      className={clsx(
+        "resolve-signal-service-card resolve-card-hover scroll-mt-24 overflow-hidden rounded-2xl",
+        className,
+      )}
     >
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex w-full flex-wrap items-start justify-between gap-3 px-4 py-4 text-left transition hover:bg-white/[0.02] sm:px-5"
-        aria-expanded={expanded}
-      >
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-resolve-calm-periwinkle/15 bg-gradient-to-br from-resolve-calm-card/10 to-resolve-calm-lilac/5 shadow-[inset_0_1px_0_rgba(204,194,209,0.12)]">
-            <Radio className="h-4 w-4 text-resolve-calm-periwinkle" strokeWidth={1.75} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-resolve-calm-periwinkle/90">
-              Signal authorization rails
-            </p>
-            <h2 className="mt-1 bg-gradient-to-r from-white via-[#E8E4ED] to-resolve-calm-periwinkle/80 bg-clip-text text-base font-semibold tracking-tight text-transparent sm:text-lg">
-              Pay-per-signal infrastructure for missions and agents
-            </h2>
-            {!expanded && (
-              <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-resolve-muted">
-                {catalog?.doctrine ??
-                  "Micropay on Arc, authorize on ledger, mission continues."}
+      <div className="resolve-silver-strip resolve-silver-strip--headline">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex w-full flex-wrap items-start justify-between gap-3 px-4 py-3.5 text-left sm:px-5"
+          aria-expanded={expanded}
+        >
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.08]">
+              <Radio className="h-4 w-4 text-white/90" strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">
+                Signal authorization rails
               </p>
-            )}
+              <h2 className="mt-1 text-base font-semibold tracking-tight text-white sm:text-lg">
+                Pay-per-signal infrastructure for missions and agents
+              </h2>
+              {!expanded && (
+                <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-white/55">
+                  {catalog?.doctrine ??
+                    "Micropay on Arc, authorize on ledger, mission continues."}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+          <span className="inline-flex items-center gap-1 text-[11px] text-white/60">
+            {expanded ? "Collapse" : "Expand"}
+            <ChevronDown
+              className={clsx("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
+            />
+          </span>
+        </button>
+
         <div
-          className="flex flex-wrap items-center gap-2"
+          className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] px-4 py-2 sm:px-5"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           role="presentation"
         >
           {catalog && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-resolve-calm-periwinkle/20 bg-resolve-calm-card/[0.06] px-2.5 py-1 text-[10px] text-resolve-muted">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[10px] text-white/65">
               <span
                 className={clsx(
                   "h-1.5 w-1.5 rounded-full",
-                  catalog.gatewayEnabled ? "bg-emerald-400/90" : "bg-resolve-calm-periwinkle/50",
+                  catalog.gatewayEnabled ? "bg-emerald-400/90" : "bg-white/40",
                 )}
               />
               {catalog.gatewayEnabled ? "Arc live" : "Staging"}
-              <span className="text-resolve-muted-dim">·</span>
+              <span className="text-white/35">·</span>
               {serviceCount} rails
             </span>
           )}
           {!isMission && (
             <Link
               href={missionHref}
-              className="resolve-signal-cta inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-[#E8E4ED]"
+              className="resolve-signal-cta inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-white/90"
             >
               Run in Mission
               <ArrowRight className="h-3 w-3" />
@@ -240,18 +252,12 @@ export function SignalAuthorizationRails({
               cooldownMs={120_000}
             />
           )}
-          <span className="inline-flex items-center gap-1 rounded-lg border border-resolve-calm-periwinkle/15 px-2.5 py-1.5 text-[11px] text-resolve-muted">
-            {expanded ? "Collapse" : "Expand"}
-            <ChevronDown
-              className={clsx("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
-            />
-          </span>
         </div>
-      </button>
+      </div>
 
       {expanded && (
-        <div className="border-t border-resolve-calm-periwinkle/10 px-4 pb-5 pt-4 sm:px-5">
-          <p className="max-w-3xl text-sm leading-relaxed text-resolve-muted">
+        <div className="relative z-[1] px-4 pb-5 pt-4 sm:px-5">
+          <p className="max-w-3xl text-sm leading-relaxed text-white/55">
             {catalog?.doctrine ??
               "Micropay on Arc, authorize on ledger, mission continues — agents and operators share one proof rail."}
           </p>
@@ -273,44 +279,31 @@ export function SignalAuthorizationRails({
           {loading && !catalog ? (
             <p className="mt-8 text-xs text-resolve-muted">Loading catalog…</p>
           ) : (
-            <div className="mt-8 space-y-8">
+            <div className="mt-8 space-y-7">
               {lanes.map(({ lane, services }) => {
                 const meta = LANE_META[lane];
                 return (
-                  <div key={lane}>
-                    <div className="border-l-2 border-resolve-calm-periwinkle/25 pl-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-calm-periwinkle">
-                        {meta.title}
-                      </p>
-                      <p className="mt-0.5 text-xs text-resolve-muted-dim">{meta.subtitle}</p>
-                    </div>
-                    <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-                      {services.map((s) => (
-                        <li key={s.id}>
-                          <PremiumSignalCard
-                            service={s}
-                            lane={lane}
-                            isMission={isMission}
-                            missionHref={missionHref}
-                            onUseInMission={
-                              isMission && onMissionPrompt
-                                ? () => {
-                                    setSelectedServiceId(s.id);
-                                    setDemoText(s.examplePrompt);
-                                    onMissionPrompt(s.examplePrompt, s.id);
-                                  }
-                                : undefined
-                            }
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  <SignalLaneSection
+                    key={lane}
+                    title={meta.title}
+                    subtitle={meta.subtitle}
+                    services={services}
+                    isMission={isMission}
+                    onUseInMission={
+                      isMission && onMissionPrompt
+                        ? (serviceId, examplePrompt) => {
+                            setSelectedServiceId(serviceId);
+                            setDemoText(examplePrompt);
+                            onMissionPrompt(examplePrompt, serviceId);
+                          }
+                        : undefined
+                    }
+                  />
                 );
               })}
 
               {isMission && x402Services.length > 0 && (
-                <div className="resolve-calm-surface rounded-2xl p-5">
+                <div className="rounded-xl border border-white/[0.08] bg-black/15 p-5">
                   <p className="text-sm font-medium text-white">Authorize signal</p>
                   <p className="mt-1 max-w-xl text-xs leading-relaxed text-resolve-muted">
                     Settles on Arc and writes{" "}
@@ -328,7 +321,7 @@ export function SignalAuthorizationRails({
                     onChange={(e) => setDemoText(e.target.value)}
                     rows={2}
                     placeholder="Paste feedback, research snippet, or mission context…"
-                    className="mt-2 w-full rounded-xl border border-resolve-calm-periwinkle/15 bg-[#050a14]/50 px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-calm-blue/35 focus:outline-none focus:ring-1 focus:ring-resolve-calm-blue/20"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-calm-blue/35 focus:outline-none focus:ring-1 focus:ring-resolve-calm-blue/20"
                   />
 
                   {signedIn ? (
@@ -336,7 +329,7 @@ export function SignalAuthorizationRails({
                       type="button"
                       disabled={invoking || !demoText.trim()}
                       onClick={() => void runInvoke()}
-                      className="mt-4 inline-flex items-center gap-2 rounded-xl resolve-signal-cta px-4 py-2.5 text-xs font-medium text-[#E8E4ED] disabled:opacity-50"
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl resolve-signal-cta px-4 py-2.5 text-xs font-medium text-white/90 disabled:opacity-50"
                     >
                       {invoking ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -356,7 +349,7 @@ export function SignalAuthorizationRails({
                       className={clsx(
                         "mt-4 rounded-xl border px-4 py-3 text-xs",
                         lastResult.ok
-                          ? "border-resolve-calm-periwinkle/15 bg-resolve-calm-card/[0.05] text-resolve-muted"
+                          ? "border-white/10 bg-white/[0.04] text-resolve-muted"
                           : "border-resolve-calm-alert/20 bg-resolve-calm-alert/[0.05] text-resolve-muted",
                       )}
                     >

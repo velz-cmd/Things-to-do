@@ -44,10 +44,12 @@ jobs:
             sleep 2
           done
           npx tsx scripts/verify-discover-tab.ts http://localhost:3000
-          kill $(cat /tmp/next.pid) 2>/dev/null || true
-          sleep 2
+          bash scripts/stop-dev-server.sh
         env:
           PLAYWRIGHT_ENABLED: "true"
+
+      - name: Free port before Playwright
+        run: bash scripts/stop-dev-server.sh
 
       - name: Run Playwright tests
         run: npm run test:e2e

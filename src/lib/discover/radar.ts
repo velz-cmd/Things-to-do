@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import { domainLabel, domainForConnector } from "@/lib/workspace/domains";
@@ -336,6 +337,34 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
         `Est. ecosystem gap $${gapUsd.toLocaleString()} · ${opp.priority} priority`,
       );
     }
+  }
+
+  function catalogTemplate(kind: string): string {
+    if (kind === "music") return "user-centric-royalties";
+    if (kind === "media") return "video-royalties";
+    if (kind === "research") return "citation-toll";
+    return "docs-bounty";
+  }
+
+  function catalogDomain(kind: string): DiscoverGraphNode["graphDomain"] {
+    if (kind === "music") return "music";
+    if (kind === "research") return "research";
+    return "oss";
+  }
+
+  for (const c of COMMUNITY_CATALOG) {
+    const id = `community:${c.slug}`;
+    if (nodeMap.has(id)) continue;
+    addNode(id, c.name, "ecosystem", c.featured ? 12 : 6, {
+      dataSource: "community_catalog",
+      amountVerified: false,
+      whyItMatters: c.tagline,
+      entityPath: `/communities/${c.slug}`,
+      communitySlug: c.slug,
+      templateId: catalogTemplate(c.kind),
+      graphDomain: catalogDomain(c.kind),
+      synthetic: true,
+    });
   }
 
   if (ledgerTotalUsd > 0 || authRows.length > 0) {

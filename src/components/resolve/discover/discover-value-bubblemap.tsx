@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { Maximize2, Minimize2, Orbit } from "lucide-react";
 import type { DiscoverGraphEdge, DiscoverGraphNode } from "@/lib/discover/radar";
@@ -13,12 +13,11 @@ import {
   tintForDomain,
   type GraphDomainFilter,
 } from "@/lib/discover/graph-domain";
-import { bubblePopoverActions, filterGraphByIntent } from "@/lib/discover/graph-node-actions";
+import { bubbleOperatorActions, filterGraphByIntent } from "@/lib/discover/graph-node-actions";
 import {
-  DiscoverBubbleNodePopover,
-  type BubblePopoverAnchor,
-} from "@/components/resolve/discover/discover-bubble-node-popover";
-import { DiscoverBubblemapMetrics } from "@/components/resolve/discover/discover-bubblemap-metrics";
+  DiscoverBubbleOperatorPanel,
+  type BubbleOperatorAnchor,
+} from "@/components/resolve/discover/discover-bubble-operator-panel";
 import { DiscoverBubblemapSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
@@ -136,7 +135,7 @@ export function DiscoverValueBubblemap({
   const [hovered, setHovered] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [domainFilter, setDomainFilter] = useState<GraphDomainFilter>("all");
-  const [popover, setPopover] = useState<BubblePopoverAnchor | null>(null);
+  const [panel, setPanel] = useState<BubbleOperatorAnchor | null>(null);
   const isMobile = useMediaQuery("(max-width: 640px)");
 
   useEffect(() => {
@@ -208,20 +207,13 @@ export function DiscoverValueBubblemap({
       ? "GitHub scan preview — estimated gaps from repo health, not ledger"
       : "Waiting for ledger events";
 
-  const popoverActions = useMemo(() => {
-    if (!popover) return [];
-    return bubblePopoverActions(popover.node, data?.graph.edges ?? []);
-  }, [popover, data?.graph.edges]);
+  const panelActions = useMemo(() => {
+    if (!panel) return [];
+    return bubbleOperatorActions(panel.node, data?.graph.edges ?? []);
+  }, [panel, data?.graph.edges]);
 
-  const handleNodeClick = (b: BubbleNode, event: MouseEvent<SVGGElement>) => {
-    const rect = (event.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
-    const cx = event.clientX - rect.left;
-    const cy = event.clientY - rect.top;
-    setPopover({
-      node: b,
-      x: rect.left + cx,
-      y: rect.top + cy,
-    });
+  const handleNodeClick = (b: BubbleNode) => {
+    setPanel({ node: b });
   };
 
   const sectionBody = (
@@ -327,7 +319,7 @@ export function DiscoverValueBubblemap({
             {bubbles.map((b) => {
               const isHub = b.id === "pool:ledger" || b.id === bubbles[0]?.id;
               const isEcosystem = b.type === "ecosystem" || b.type === "repository";
-              const active = hovered === b.id || popover?.node.id === b.id;
+              const active = hovered === b.id || panel?.node.id === b.id;
               const fill = NODE_COLORS[b.type] ?? "#94a3b8";
               const pending = b.pendingFunding;
               const synthetic = b.synthetic;
@@ -339,7 +331,7 @@ export function DiscoverValueBubblemap({
                   className="cursor-pointer"
                   onMouseEnter={() => setHovered(b.id)}
                   onMouseLeave={() => setHovered(null)}
-                  onClick={(e) => handleNodeClick(b, e)}
+                  onClick={() => handleNodeClick(b)}
                 >
                   {synthetic && (
                     <circle
@@ -400,7 +392,7 @@ export function DiscoverValueBubblemap({
             })}
           </svg>
 
-          {hovered && !popover && (
+          {hovered && !panel && (
             <div className="absolute bottom-3 left-3 rounded-lg border border-white/10 bg-black/70 px-3 py-2 text-[11px] text-resolve-muted backdrop-blur">
               {(() => {
                 const b = bubbles.find((n) => n.id === hovered);
@@ -411,7 +403,7 @@ export function DiscoverValueBubblemap({
                     <p className="mt-0.5">
                       {b.type}
                       {b.pendingFunding ? " · pending funding" : ""}
-                      {" · click for actions"}
+                      {" · click for console"}
                     </p>
                   </>
                 );
@@ -421,16 +413,10 @@ export function DiscoverValueBubblemap({
         </div>
       )}
 
-      {hasGraph && data?.metrics && (
-        <DiscoverBubblemapMetrics
-          metrics={data.metrics}
-          nodes={data.graph.nodes}
-        />
-      )}
-
       {data?.updatedAt && (
         <p className="border-t border-white/[0.04] px-4 py-2 text-[9px] text-resolve-muted-dim">
-          Manual refresh · people & creators are nodes · ⬡ = ecosystem (repo/index), not a user
+          Manual refresh · click a bubble for operator console · Advanced metrics inside panel · ⬡ =
+          ecosystem
         </p>
       )}
     </>
@@ -501,11 +487,13 @@ export function DiscoverValueBubblemap({
         </div>
       )}
 
-      <DiscoverBubbleNodePopover
-        anchor={popover}
-        actions={popoverActions}
-        onClose={() => setPopover(null)}
-        mobileSheet={isMobile}
+      <DiscoverBubbleOperatorPanel
+        anchor={panel}
+        actions={panelActions}
+        nodes={data?.graph.nodes ?? []}
+        edges={data?.graph.edges ?? []}
+        metrics={data?.metrics ?? null}
+        onClose={() => setPanel(null)}
       />
     </>
   );

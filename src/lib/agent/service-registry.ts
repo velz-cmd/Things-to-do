@@ -72,7 +72,7 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
   {
     id: "play-attribution",
     name: "Play attribution signal",
-    tagline: "Pay per verified listen — RFB #7",
+    tagline: "Pay per verified listen",
     description:
       "Maps to user-centric royalties: each verified play authorizes artist value at event time (sensor path).",
     priceUsd: 0.0004,
@@ -89,7 +89,7 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
   {
     id: "citation-toll",
     name: "Citation toll",
-    tagline: "Pay per article signal — RFB #2",
+    tagline: "Pay per article signal",
     description:
       "Micropayment per verified citation — OpenAlex sensor authorizes researcher value.",
     priceUsd: 0.05,
@@ -106,7 +106,7 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
   {
     id: "docs-merge",
     name: "Docs merge bounty",
-    tagline: "Pay per merged PR — RFB #3",
+    tagline: "Pay per merged PR",
     description:
       "GitHub sensor authorizes maintainer value when documentation PRs merge.",
     priceUsd: 25,
@@ -125,7 +125,7 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
     name: "Video watch royalty",
     tagline: "Pay per verified view — Jellyfin",
     description:
-      "Self-hosted video watches become creator authorizations — RFB #7 video variant.",
+      "Self-hosted video watches become creator authorizations.",
     priceUsd: 0.002,
     urlPath: "/api/authorization/ingest",
     billingUnit: "view",

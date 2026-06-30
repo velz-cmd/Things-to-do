@@ -1,4 +1,5 @@
 import type { DiscoverAction } from "@/lib/discover/types";
+import { parseJsonResponse } from "@/lib/http/parse-json-response";
 
 export type FundSheetRequest = {
   programId?: string;
@@ -20,7 +21,7 @@ export async function apiInstallCommunity(slug: string) {
     method: "POST",
     credentials: "include",
   });
-  const data = await res.json();
+  const data = await parseJsonResponse<{ error?: string }>(res);
   if (!res.ok) throw new Error(data.error ?? "Install failed");
   return data as { alreadyInstalled?: boolean };
 }
@@ -32,7 +33,9 @@ export async function apiCreateProgram(slug: string, templateId?: string) {
     credentials: "include",
     body: JSON.stringify({ templateId }),
   });
-  const data = await res.json();
+  const data = await parseJsonResponse<{ error?: string; program?: { id: string; name: string } }>(
+    res,
+  );
   if (!res.ok) throw new Error(data.error ?? "Could not create program");
   return data as { program?: { id: string; name: string } };
 }
@@ -44,7 +47,7 @@ export async function apiFundProgram(programId: string, amountUsd: number) {
     credentials: "include",
     body: JSON.stringify({ programId, amountUsd }),
   });
-  const data = await res.json();
+  const data = await parseJsonResponse<{ error?: string }>(res);
   if (!res.ok) throw new Error(data.error ?? "Fund failed");
   return data;
 }
@@ -72,7 +75,7 @@ export async function apiResolveFundTarget(input: {
   if (input.missionId) params.set("missionId", input.missionId);
 
   const res = await fetch(`/api/discover/fund-target?${params}`, { credentials: "include" });
-  const data = await res.json();
+  const data = await parseJsonResponse<{ error?: string; target?: FundTargetPayload }>(res);
   if (!res.ok) throw new Error(data.error ?? "Could not resolve program");
   return data.target as FundTargetPayload;
 }
@@ -82,7 +85,9 @@ export async function apiFetchWallet(): Promise<WalletSnapshot> {
   if (!res.ok) {
     return { spendableUsd: 0, totalUsdc: "0", loaded: true };
   }
-  const data = await res.json();
+  const data = await parseJsonResponse<{
+    balance?: { spendableUsd?: string; totalUsdc?: string };
+  }>(res);
   const spendable = Number(
     data.balance?.spendableUsd ?? data.balance?.totalUsdc ?? 0,
   );

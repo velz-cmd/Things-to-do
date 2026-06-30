@@ -101,10 +101,10 @@ export function CommunitySensorPanel({ slug, installed = true, onSynced }: Props
   }
 
   const description =
-    isResearch ? "Pulls new OpenAlex citations into the authorization ledger (RFB #2)."
+    isResearch ? "Pulls new OpenAlex citations into the authorization ledger."
     : isQf ?
-      "Pulls Open Collective contributions, scores QF, and creates match authorizations (RFB #6)."
-    : "Pulls merged docs PRs and security issues from GitHub into the ledger (RFB #3 / #4).";
+      "Pulls Open Collective contributions, scores QF, and creates match authorizations."
+    : "Pulls merged docs PRs and security issues from GitHub into the ledger.";
 
   return (
     <div className="space-y-3">

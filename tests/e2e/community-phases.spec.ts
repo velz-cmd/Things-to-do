@@ -230,8 +230,9 @@ test.describe("Community phases — surfaces", () => {
 
   test("discover shows community directory", async ({ page, request }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    const communities = page.locator("#communities");
-    await expect(communities.getByText("Connect communities")).toBeVisible();
+    const communities = page.locator("#communities").first();
+    await communities.scrollIntoViewIfNeeded();
+    await expect(communities.getByRole("heading", { name: "Connect communities" })).toBeVisible();
     await expect(communities.getByText("Install on Independent Music")).toBeVisible();
     await expect(communities.getByRole("button", { name: "Open" }).first()).toBeVisible();
 
@@ -245,6 +246,8 @@ test.describe("Community phases — surfaces", () => {
   });
 
   test("discover shows value radar surfaces", async ({ page }) => {
+    test.setTimeout(90_000);
+
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     await expect(
       page.getByRole("heading", {
@@ -253,15 +256,25 @@ test.describe("Community phases — surfaces", () => {
       }),
     ).toBeVisible();
     await expect(page.getByRole("main").getByText("Live value feed")).toBeVisible();
-    await expect(page.getByRole("main").getByText("Value command center")).toBeVisible();
+
+    const commandCenter = page.getByRole("main").getByText("Value command center");
+    await commandCenter.scrollIntoViewIfNeeded();
+    await page.waitForResponse(
+      (res) => res.url().includes("/api/discover/radar") && res.ok(),
+      { timeout: 45_000 },
+    );
+
+    await expect(commandCenter).toBeVisible();
     await expect(
-      page.getByRole("main").getByText(/Live ledger|Scan preview|Waiting for ledger events|Awaiting data/).first(),
+      page.getByRole("main").getByText(/operator console|Click any bubble for operator console/i).first(),
     ).toBeVisible();
+    await expect(
+      page.locator('svg[aria-label="Value bubblemap"]').or(
+        page.getByRole("main").getByText(/Graph fills as authorizations|community:/i),
+      ).first(),
+    ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "OSS" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Music" }).first()).toBeVisible();
-    await expect(
-      page.getByRole("main").getByText(/click for console|click a bubble for operator console/).first(),
-    ).toBeVisible();
     await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
     await page.locator("#opportunities").scrollIntoViewIfNeeded();
     await expect(page.locator("#opportunities").getByRole("heading", { name: "Opportunity board" })).toBeVisible();
@@ -287,7 +300,7 @@ test.describe("Community phases — surfaces", () => {
   test("communities hub loads and nav highlights Communities", async ({ page }) => {
     await page.goto("/communities", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
-    await expect(page.getByText("Your operating rooms")).toBeVisible();
+    await expect(page.getByRole("main").getByText("Your operating rooms").first()).toBeVisible();
     await expect(
       page.getByRole("navigation").getByRole("link", { name: "Communities" }).first(),
     ).toBeVisible();

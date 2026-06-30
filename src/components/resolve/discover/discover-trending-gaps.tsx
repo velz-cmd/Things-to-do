@@ -3,15 +3,21 @@
 import { useEffect, useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { DiscoverActionCard } from "@/components/resolve/discover/discover-action-card";
-import type { TrendingValueGap } from "@/lib/discover/types";
+import type { TrendingValueGap, DiscoverIntent } from "@/lib/discover/types";
 
 type DiscoverTrendingGapsProps = {
   signedIn: boolean;
   query?: string;
+  intent?: DiscoverIntent;
   className?: string;
 };
 
-export function DiscoverTrendingGaps({ signedIn, query = "", className }: DiscoverTrendingGapsProps) {
+export function DiscoverTrendingGaps({
+  signedIn,
+  query = "",
+  intent = "all",
+  className,
+}: DiscoverTrendingGapsProps) {
   const [gaps, setGaps] = useState<TrendingValueGap[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,7 +61,7 @@ export function DiscoverTrendingGaps({ signedIn, query = "", className }: Discov
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {filtered.slice(0, 8).map((gap, i) => (
-            <DiscoverActionCard key={gap.id} gap={gap} signedIn={signedIn} rank={i + 1} />
+            <DiscoverActionCard key={gap.id} gap={gap} signedIn={signedIn} intent={intent} rank={i + 1} surface="trending-gaps" />
           ))}
         </div>
       )}

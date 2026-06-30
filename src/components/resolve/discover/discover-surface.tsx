@@ -14,6 +14,7 @@ import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverValueBubblemap } from "@/components/resolve/discover/discover-value-bubblemap";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
+import { DiscoverRadarFeedProvider } from "@/components/resolve/discover/discover-radar-feed-provider";
 import {
   DiscoverActionAuditPanel,
   DiscoverActionAuditProvider,
@@ -34,10 +35,12 @@ export function DiscoverSurface() {
   const { user } = useAuth();
   return (
     <DiscoverActionAuditProvider>
-      <DiscoverActionsProvider signedIn={Boolean(user)}>
-        <DiscoverSurfaceContent user={user} />
-        <DiscoverActionAuditPanel />
-      </DiscoverActionsProvider>
+      <DiscoverRadarFeedProvider>
+        <DiscoverActionsProvider signedIn={Boolean(user)}>
+          <DiscoverSurfaceContent user={user} />
+          <DiscoverActionAuditPanel />
+        </DiscoverActionsProvider>
+      </DiscoverRadarFeedProvider>
     </DiscoverActionAuditProvider>
   );
 }
@@ -162,6 +165,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
       <DiscoverDomainRadars
         signedIn={Boolean(user)}
         query={query}
+        intent={intent}
         className="mb-12"
       />
 

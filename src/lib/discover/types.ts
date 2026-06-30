@@ -44,6 +44,12 @@ export type TrendingValueGap = {
   dataSource: DiscoverDataSource;
   /** True when amountUsd comes from a live API/ledger, not catalog preview */
   amountVerified: boolean;
+  /** Ledger connector that produced this gap, when applicable */
+  proofConnectorId?: string;
+  /** Supabase authorization row id, when applicable */
+  proofAuthorizationId?: string;
+  /** ISO timestamp of live GitHub scan, when applicable */
+  proofGithubScanAt?: string;
   amountNeededUsd: number;
   moneyCanMoveUsd: number;
   peopleImpacted: number;
@@ -56,6 +62,37 @@ export type TrendingValueGap = {
   updatedAt?: string;
   proofHref?: string;
   actions: DiscoverAction[];
+};
+
+export type RadarEmptyState = {
+  id: "oss" | "music" | "dao";
+  title: string;
+  message: string;
+  actionLabel: string;
+  actionHref: string;
+};
+
+export type DiscoverRadarFeedPayload = {
+  ok: true;
+  gaps: TrendingValueGap[];
+  radars: {
+    oss: TrendingValueGap[];
+    music: TrendingValueGap[];
+    dao: TrendingValueGap[];
+  };
+  emptyStates: RadarEmptyState[];
+  intelligence: import("@/lib/workspace/intelligence").NetworkIntelligence;
+  fundableCount: number;
+  ossSignalCount: number;
+  realSignalCount: number;
+  githubScanAt: string | null;
+  claimHint: {
+    claimableUsd: number;
+    claimableCount: number;
+    href: string;
+    payeeLabel: string;
+  } | null;
+  updatedAt: string;
 };
 
 export type DiscoverSearchResult = {

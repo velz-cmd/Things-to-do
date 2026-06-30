@@ -4,6 +4,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Activity, ArrowRight, Radio } from "lucide-react";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
+import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
 export function DiscoverNetworkPulse({ className }: { className?: string }) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
@@ -67,7 +68,12 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <DiscoverSectionRefresh
+            sectionId="network-pulse"
+            onRefresh={refresh}
+            lastUpdated={feed?.updatedAt}
+          />
           {i.leakingUsd > 0 && (
             <a
               href="#opportunities"

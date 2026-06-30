@@ -21,6 +21,8 @@ import {
 import { DiscoverBubblemapMetrics } from "@/components/resolve/discover/discover-bubblemap-metrics";
 import { DiscoverBubblemapSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
+import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -61,7 +63,8 @@ const NODE_COLORS: Record<string, string> = {
   creator: "#34d399",
   mission: "#60a5fa",
   connector: "#a78bfa",
-  repository: "#fbbf24",
+  ecosystem: "#64748b",
+  repository: "#64748b",
   person: "#fb923c",
   community: "#2dd4bf",
   treasury: "#f87171",
@@ -116,9 +119,11 @@ function useMediaQuery(query: string) {
 export function DiscoverValueBubblemap({
   className,
   intent = "all",
+  role: _role = "all",
 }: {
   className?: string;
   intent?: DiscoverIntent;
+  role?: DiscoverRole;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [visible, setVisible] = useState(false);
@@ -168,8 +173,6 @@ export function DiscoverValueBubblemap({
   useEffect(() => {
     if (!visible) return;
     void loadRadar();
-    const t = setInterval(() => void loadRadar(), 20_000);
-    return () => clearInterval(t);
   }, [visible, loadRadar]);
 
   const filteredGraph = useMemo(() => {
@@ -243,6 +246,11 @@ export function DiscoverValueBubblemap({
           >
             {data?.live ? "Live ledger" : hasGraph ? "Scan preview" : "Awaiting data"}
           </span>
+          <DiscoverSectionRefresh
+            sectionId="value-bubblemap"
+            onRefresh={loadRadar}
+            lastUpdated={data?.updatedAt}
+          />
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
@@ -296,7 +304,7 @@ export function DiscoverValueBubblemap({
           <p className="text-sm text-resolve-muted">
             {domainFilter !== "all"
               ? `No ${domainFilter} nodes in the current graph — try another filter or connect a sensor.`
-              : data?.emptyReason ?? "Graph fills as authorizations arrive — install a community to start"}
+              : data?.emptyReason ?? "Graph fills as authorizations arrive — connect GitHub or Jellyfin to start"}
           </p>
         </div>
       ) : (
@@ -353,7 +361,8 @@ export function DiscoverValueBubblemap({
             })}
 
             {bubbles.map((b) => {
-              const isHub = b.id === bubbles[0]?.id;
+              const isHub = b.id === "pool:ledger" || b.id === bubbles[0]?.id;
+              const isEcosystem = b.type === "ecosystem" || b.type === "repository";
               const active = hovered === b.id || popover?.node.id === b.id;
               const fill = NODE_COLORS[b.type] ?? "#94a3b8";
               const pending = b.pendingFunding;
@@ -407,7 +416,7 @@ export function DiscoverValueBubblemap({
                       className="fill-white text-[10px] font-semibold"
                       style={{ fontSize: 10 * Math.min(scaleX, scaleY) }}
                     >
-                      VALUE
+                      {b.id === "pool:ledger" ? "LEDGER" : "VALUE"}
                     </text>
                   )}
                   {(active || b.r > 30) && !isHub && (
@@ -415,9 +424,10 @@ export function DiscoverValueBubblemap({
                       x={b.cx * scaleX}
                       y={b.cy * scaleY + b.r * scaleY + 12}
                       textAnchor="middle"
-                      className="fill-resolve-muted"
+                      className={clsx(isEcosystem ? "fill-slate-400" : "fill-resolve-muted")}
                       style={{ fontSize: 9 * Math.min(scaleX, scaleY) }}
                     >
+                      {isEcosystem ? "⬡ " : ""}
                       {b.label.length > 18 ? `${b.label.slice(0, 16)}…` : b.label}
                     </text>
                   )}
@@ -456,7 +466,7 @@ export function DiscoverValueBubblemap({
 
       {data?.updatedAt && (
         <p className="border-t border-white/[0.04] px-4 py-2 text-[9px] text-resolve-muted-dim">
-          Graph refreshes every 20s · last update {new Date(data.updatedAt).toLocaleTimeString()}
+          Manual refresh · people & creators are nodes · ⬡ = ecosystem (repo/index), not a user
         </p>
       )}
     </>

@@ -73,6 +73,7 @@ export interface RepoHealthScore {
   grade: "A" | "B" | "C" | "D" | "F";
   signals: { label: string; value: string; impact: "positive" | "negative" | "neutral" }[];
   maintainerCount: number;
+  mergedPrCount?: number;
   avgMergeDays?: number;
   fundingGapUsd: number;
   headline: string;

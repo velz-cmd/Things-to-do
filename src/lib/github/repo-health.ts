@@ -1,4 +1,5 @@
 import type { RepoHealthScore, RepoIngestResult } from "@/lib/github/types";
+import { estimateOssFundingGap } from "@/lib/discover/valuation-eligibility";
 
 function daysSince(iso?: string): number | undefined {
   if (!iso) return undefined;
@@ -53,9 +54,14 @@ export function computeRepoHealth(ingest: RepoIngestResult): RepoHealthScore {
       responsiveness * 0.1,
   );
 
-  const fundingGapUsd = Math.round(
-    stars * 0.5 + forks * 2 + (maintainerCount <= 1 ? stars * 0.3 : 0),
-  );
+  const mergedPrCount = ingest.pullRequests.filter((p) => p.mergedAt).length;
+  const valuation = estimateOssFundingGap({
+    stars,
+    forks,
+    mergedPrCount,
+    maintainerCount,
+  });
+  const fundingGapUsd = valuation.usd;
 
   const headline =
     maintainerCount <= 1 && stars > 5000
@@ -68,6 +74,7 @@ export function computeRepoHealth(ingest: RepoIngestResult): RepoHealthScore {
     score,
     grade: gradeFromScore(score),
     maintainerCount,
+    mergedPrCount,
     avgMergeDays: avgMergeDays !== undefined ? Math.round(avgMergeDays) : undefined,
     fundingGapUsd,
     headline,
@@ -77,7 +84,12 @@ export function computeRepoHealth(ingest: RepoIngestResult): RepoHealthScore {
       { label: "Open issues", value: String(issueBacklog), impact: issueBacklog > 100 ? "negative" : "neutral" },
       { label: "Maintainers", value: String(maintainerCount), impact: maintainerCount <= 1 ? "negative" : "positive" },
       { label: "Last push", value: daysSincePush !== undefined ? `${Math.round(daysSincePush)}d ago` : "—", impact: daysSincePush !== undefined && daysSincePush < 30 ? "positive" : "negative" },
-      { label: "Est. funding gap", value: `$${fundingGapUsd.toLocaleString()}`, impact: "negative" },
+      {
+        label: "Est. funding gap",
+        value: `$${fundingGapUsd.toLocaleString()}`,
+        impact: "negative",
+      },
+      { label: "Eligibility", value: valuation.tier, impact: "neutral" },
     ],
   };
 }

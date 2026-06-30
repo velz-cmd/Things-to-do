@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import clsx from "clsx";
 import type { DiscoverAction, DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
+import type { DiscoverRole } from "@/lib/discover/role-filters";
+import { filterActionsByRole } from "@/lib/discover/role-filters";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
@@ -22,6 +24,7 @@ type DiscoverActionCardProps = {
   gap: TrendingValueGap;
   signedIn: boolean;
   intent?: DiscoverIntent;
+  role?: DiscoverRole;
   rank?: number;
   compact?: boolean;
   surface?: string;
@@ -31,13 +34,15 @@ export function DiscoverActionCard({
   gap,
   signedIn: _signedIn,
   intent = "all",
+  role = "all",
   rank,
   compact,
   surface = "action-card",
 }: DiscoverActionCardProps) {
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
-  const actions = filterActionsByIntent(gap.actions, intent);
+  const byIntent = filterActionsByIntent(gap.actions, intent);
+  const actions = role !== "all" ? filterActionsByRole(byIntent, role) : byIntent;
   const needed = formatDiscoverMoney(
     gap.amountNeededUsd,
     gap.amountVerified,
@@ -86,6 +91,9 @@ export function DiscoverActionCard({
           {!compact && (
             <>
               <p className="mt-2 text-xs leading-relaxed text-resolve-muted">{gap.why}</p>
+              {gap.eligibilityCriteria && (
+                <p className="mt-1 text-[10px] text-amber-200/70">{gap.eligibilityCriteria}</p>
+              )}
               <p className="mt-1 text-[11px] text-resolve-muted-dim">{gap.whoBenefits}</p>
             </>
           )}

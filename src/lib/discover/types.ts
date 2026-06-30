@@ -46,6 +46,8 @@ export type TrendingValueGap = {
   amountVerified: boolean;
   /** Ledger vs modeled estimate — defaults from amountVerified when omitted */
   amountKind?: "ledger" | "estimate";
+  /** YouTube-style threshold copy for estimated amounts */
+  eligibilityCriteria?: string;
   /** Ledger connector that produced this gap, when applicable */
   proofConnectorId?: string;
   /** Supabase authorization row id, when applicable */

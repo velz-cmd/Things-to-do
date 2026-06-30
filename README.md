@@ -35,7 +35,8 @@ See [DEMO.md](./DEMO.md) for the full judge script.
 
 ## Stack
 
-**[Production stack page](https://resolve-task.vercel.app/stack)** — full architecture for judges.
+**[Production stack page](https://resolve-task.vercel.app/stack)** — full architecture for judges.  
+**[Economic infrastructure](docs/ECONOMIC-INFRASTRUCTURE.md)** — six engines, seven doors, unified Codex roadmap.
 
 | Layer | Tech |
 |-------|------|

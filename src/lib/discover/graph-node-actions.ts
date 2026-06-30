@@ -1,4 +1,50 @@
 import type { DiscoverAction, DiscoverDataSource } from "@/lib/discover/types";
+import type { DiscoverGraphEdge, DiscoverGraphNode } from "@/lib/discover/radar";
+import { hasFundingGapEdge } from "./graph-domain";
+
+export function bubblePopoverActions(
+  node: DiscoverGraphNode,
+  edges: DiscoverGraphEdge[],
+): DiscoverAction[] {
+  const actions: DiscoverAction[] = [];
+
+  if (node.entityPath) {
+    actions.push({ id: "open", label: "Open", kind: "open", entityPath: node.entityPath });
+  }
+
+  const gapEdge = hasFundingGapEdge(node.id, edges);
+  const canFund =
+    gapEdge ||
+    ((node.moneyGapUsd ?? 0) > 0 &&
+      (node.type === "repository" || node.type === "treasury" || node.type === "person"));
+
+  if (canFund) {
+    actions.push({
+      id: "fund",
+      label: gapEdge ? "Fund gap" : "Fund",
+      kind: "fund",
+      programId: node.programId,
+      communitySlug: node.communitySlug,
+      templateId: node.templateId,
+      missionId: node.missionId,
+      amountUsd:
+        node.moneyGapUsd != null && node.moneyGapUsd > 0
+          ? Math.max(5, Math.min(node.moneyGapUsd, 500))
+          : undefined,
+    });
+  }
+
+  if (node.type === "community" && node.communitySlug) {
+    actions.push({
+      id: "install",
+      label: "Install",
+      kind: "install",
+      communitySlug: node.communitySlug,
+    });
+  }
+
+  return actions;
+}
 
 export function defaultActionsForGraphNode(input: {
   type: string;

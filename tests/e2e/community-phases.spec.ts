@@ -96,6 +96,16 @@ test.describe("Community phases — APIs", () => {
     expect(fundBody.queueFilter).toBe("react");
   });
 
+  test("live events API returns labeled feed shape", async ({ request }) => {
+    const res = await request.get("/api/events/live?limit=12&scope=network");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body).toHaveProperty("events");
+    expect(Array.isArray(body.events)).toBe(true);
+    expect(body).toHaveProperty("updatedAt");
+  });
+
   test("discover radar-feed API returns unified feed shape", async ({ request }) => {
     const res = await request.get("/api/discover/radar-feed?limit=12");
     expect(res.ok()).toBeTruthy();
@@ -248,7 +258,9 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByRole("button", { name: "Music" }).first()).toBeVisible();
     await expect(page.getByRole("main").getByText("Funding entropy")).toBeVisible();
     await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
-    await expect(page.getByRole("main").getByText("Fulfillment queue")).toBeVisible();
+    await page.locator("#opportunities").scrollIntoViewIfNeeded();
+    await expect(page.locator("#opportunities").getByText("Fulfillment queue", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
   });
 
   test("network redirects to discover", async ({ page }) => {

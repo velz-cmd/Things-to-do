@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/db";
 import { domainLabel, type ValueDomain } from "@/lib/workspace/domains";
-import { eventTypeLabel, explainRecognition } from "@/lib/workspace/events";
+import { explainRecognition } from "@/lib/workspace/events";
+import { liveFeedEventLabel, normalizeLiveEventDomain } from "@/lib/events/live-feed-labels";
+
+export { normalizeLiveEventDomain };
 import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
 
 export type LiveEventItem = {
@@ -10,6 +13,7 @@ export type LiveEventItem = {
   detail: string;
   amountUsd?: number;
   status?: string;
+  eventType?: string;
   connectorId?: string;
   domain?: string;
   missionId?: string;
@@ -35,13 +39,6 @@ export type LiveEventsPayload = {
   };
   updatedAt: string;
 };
-
-/** UI chips may say "oss"; ledger domains use `code`. */
-export function normalizeLiveEventDomain(domain: string | null | undefined): string | null {
-  if (!domain || domain === "all") return null;
-  if (domain === "oss") return "code";
-  return domain;
-}
 
 const DOMAIN_CONNECTORS: Record<ValueDomain, string[]> = {
   code: ["github"],
@@ -101,7 +98,7 @@ export async function buildLiveEvents(input: {
   if (input.status) authWhere.status = input.status;
   if (connectorFilter?.length) authWhere.connectorId = { in: connectorFilter };
 
-  const [authRows, timelineRows, programMeta] = await Promise.all([
+  const [authRows, timelineRows] = await Promise.all([
     prisma.paymentAuthorization
       .findMany({
         where: authWhere,
@@ -139,14 +136,45 @@ export async function buildLiveEvents(input: {
             },
           })
           .catch(() => [])
-      : Promise.resolve([]),
-    missionIds?.length
-      ? prisma.resolveProgram.findMany({
-          where: { missionId: { in: missionIds } },
-          select: { missionId: true, install: { select: { communitySlug: true } } },
-        })
-      : Promise.resolve([]),
+      : scope === "network"
+        ? prisma.resolveTimelineEvent
+            .findMany({
+              orderBy: { createdAt: "desc" },
+              take: Math.min(limit, 12),
+              select: {
+                id: true,
+                eventType: true,
+                title: true,
+                detail: true,
+                missionId: true,
+                severity: true,
+                createdAt: true,
+              },
+            })
+            .catch(() => [])
+        : Promise.resolve([]),
   ]);
+
+  const metaMissionIds = new Set<string>();
+  for (const r of authRows) {
+    if (r.missionId) metaMissionIds.add(r.missionId);
+  }
+  for (const t of timelineRows) {
+    if (t.missionId) metaMissionIds.add(t.missionId);
+  }
+  if (missionIds?.length) {
+    for (const id of missionIds) metaMissionIds.add(id);
+  }
+
+  const programMeta =
+    metaMissionIds.size > 0
+      ? await prisma.resolveProgram
+          .findMany({
+            where: { missionId: { in: [...metaMissionIds] } },
+            select: { missionId: true, install: { select: { communitySlug: true } } },
+          })
+          .catch(() => [])
+      : [];
 
   const missionToCommunity = new Map<string, string>();
   for (const p of programMeta) {
@@ -164,10 +192,16 @@ export async function buildLiveEvents(input: {
     events.push({
       id: `auth-${r.id}`,
       kind: "authorization",
-      title: eventTypeLabel(r.eventType),
+      title: liveFeedEventLabel({
+        kind: "authorization",
+        title: "",
+        status: r.status,
+        eventType: r.eventType,
+      }),
       detail: context,
       amountUsd: r.amountUsd,
       status: r.status,
+      eventType: r.eventType,
       connectorId: r.connectorId,
       domain,
       missionId: r.missionId,
@@ -193,10 +227,18 @@ export async function buildLiveEvents(input: {
     events.push({
       id: `tl-${t.id}`,
       kind: "timeline",
-      title: t.title,
+      title: liveFeedEventLabel({
+        kind: "timeline",
+        title: t.title,
+        eventType: t.eventType,
+      }),
       detail: t.detail ?? t.eventType,
+      eventType: t.eventType,
       missionId: t.missionId ?? undefined,
-      communitySlug: input.communitySlug ?? undefined,
+      communitySlug:
+        input.communitySlug ??
+        (t.missionId ? missionToCommunity.get(t.missionId) : undefined) ??
+        undefined,
       at: t.createdAt.toISOString(),
       evidence: `Community event · ${t.eventType}${t.severity !== "info" ? ` · ${t.severity}` : ""}`,
     });

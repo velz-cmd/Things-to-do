@@ -66,6 +66,20 @@ export async function ensureAppWalletForUser(user: DbUser): Promise<DbUser> {
   const meta = readMeta(user.taskMemoryJson);
 
   if (user.embeddedWallet && user.walletAddress) {
+    const provider = appWalletProvider(user);
+    if (provider === "circle") return user;
+    if (user.walletAddress.toLowerCase() !== deterministic) {
+      return prisma.user.update({
+        where: { id: user.id },
+        data: {
+          walletAddress: deterministic,
+          taskMemoryJson: writeMeta(user.taskMemoryJson, {
+            provider: "embedded",
+            circleWalletId: meta?.circleWalletId,
+          }),
+        },
+      });
+    }
     return user;
   }
 

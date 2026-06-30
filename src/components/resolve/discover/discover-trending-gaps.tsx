@@ -7,6 +7,8 @@ import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-p
 import { DiscoverTrendingSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import type { DiscoverIntent } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
+import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
+import { filterGapsByNeedType } from "@/lib/discover/need-types";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import {
   DiscoverDegradedHint,
@@ -19,6 +21,7 @@ type DiscoverTrendingGapsProps = {
   query?: string;
   intent?: DiscoverIntent;
   role?: DiscoverRole;
+  needType?: DiscoverNeedTypeFilter;
   className?: string;
 };
 
@@ -27,21 +30,23 @@ export function DiscoverTrendingGaps({
   query = "",
   intent = "all",
   role = "all",
+  needType = "all",
   className,
 }: DiscoverTrendingGapsProps) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
 
   const filtered = useMemo(() => {
-    const gaps = feed?.gaps ?? [];
+    const gaps = filterGapsByNeedType(feed?.gaps ?? [], needType);
     const q = query.trim().toLowerCase();
     if (!q) return gaps;
     return gaps.filter(
       (g) =>
         g.headline.toLowerCase().includes(q) ||
         g.domain.includes(q) ||
-        g.why.toLowerCase().includes(q),
+        g.why.toLowerCase().includes(q) ||
+        (g.needType?.includes(q) ?? false),
     );
-  }, [feed?.gaps, query]);
+  }, [feed?.gaps, query, needType]);
 
   const subtitle =
     feed?.realSignalCount != null
@@ -76,7 +81,9 @@ export function DiscoverTrendingGaps({
       ) : !filtered.length ? (
         <DiscoverStatePanel variant="empty">
           <p className="text-sm text-resolve-muted">
-            No verified value gaps yet. Connect a GitHub or music sensor to populate trending.
+            {needType !== "all"
+              ? `No ${needType} opportunities match — try another need type or connect a sensor.`
+              : "No verified value gaps yet. Connect a GitHub or music sensor to populate trending."}
           </p>
           <a
             href="#communities"

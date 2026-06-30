@@ -14,6 +14,7 @@ import {
   isVerifiedGap,
 } from "@/lib/discover/gap-rules";
 import type { TrendingValueGap } from "@/lib/discover/types";
+import { enrichGapWithNeedType } from "@/lib/discover/need-types";
 
 type AuthRow = {
   id: string;
@@ -253,7 +254,7 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildM
   function push(gap: TrendingValueGap) {
     if (seenIds.has(gap.id)) return;
     seenIds.add(gap.id);
-    gaps.push(gap);
+    gaps.push(enrichGapWithNeedType(gap));
   }
 
   for (const o of ossOpportunities.slice(0, 8)) {

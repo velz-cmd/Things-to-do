@@ -19,6 +19,7 @@ import {
   MissionExecuteBar,
 } from "@/components/resolve/mission-control/mission-planning-bar";
 import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
+import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
@@ -197,6 +198,11 @@ export function MissionWorkspace({
         </div>
 
         <div className="shrink-0 border-t border-white/[0.06] bg-[#070b14]/60 px-4 py-3 backdrop-blur-md lg:px-8">
+          <div className="mx-auto mb-3 max-w-2xl">
+            <MissionSignalRailsPanel
+              onMissionPrompt={(prompt) => onInputChange(prompt)}
+            />
+          </div>
           {onOperatingModeChange && (
             <div className="mx-auto mb-3 max-w-2xl">
               <MissionOperatingMode

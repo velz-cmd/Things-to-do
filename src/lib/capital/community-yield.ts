@@ -151,7 +151,7 @@ export function templateLabel(templateId: string): string {
     "docs-bounty": "Documentation bounties",
     "security-fund": "Security fund",
     "citation-toll": "Research citations",
-    "quadratic-funding": "Quadratic funding (RFB #6)",
+    "quadratic-funding": "Quadratic funding",
   };
   return map[templateId] ?? templateId.replace(/-/g, " ");
 }
@@ -171,7 +171,7 @@ export function whyFundCopy(input: {
 
     return {
       whyFund:
-        `RFB #6 quadratic round for ${input.communityName}. ${gap} Funders fulfill the match pool; small donors get amplified.`,
+        `Quadratic funding round for ${input.communityName}. ${gap} Funders fulfill the match pool; small donors get amplified.`,
       whoBenefits:
         "Hosted projects and maintainers on Open Collective — contributors keep using OC as normal.",
     };

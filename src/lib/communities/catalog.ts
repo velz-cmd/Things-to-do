@@ -72,7 +72,7 @@ export const COMMUNITY_CATALOG: CommunityCatalogEntry[] = [
     connectors: ["github", "opencollective"],
     keywords: ["react", "next.js", "maintainer", "frontend"],
     accent: "blue",
-    featured: false,
+    featured: true,
     installCta: "Install on React",
     healthSignals: [
       { label: "Repos", key: "github" },
@@ -91,7 +91,7 @@ export const COMMUNITY_CATALOG: CommunityCatalogEntry[] = [
     connectors: ["github"],
     keywords: ["linux", "kernel", "gnome", "fedora", "maintainer"],
     accent: "orange",
-    featured: false,
+    featured: true,
     installCta: "Install on Linux",
     healthSignals: [
       { label: "Maintainers", key: "github" },
@@ -110,7 +110,7 @@ export const COMMUNITY_CATALOG: CommunityCatalogEntry[] = [
     connectors: ["openalex", "crossref"],
     keywords: ["research", "citation", "paper", "openalex", "grant"],
     accent: "violet",
-    featured: false,
+    featured: true,
     installCta: "Install on Open Research",
     healthSignals: [
       { label: "Citations", key: "crossref" },
@@ -139,15 +139,35 @@ export const COMMUNITY_CATALOG: CommunityCatalogEntry[] = [
       { label: "Settlement", key: "arc" },
     ],
   },
+  {
+    slug: "open-writers",
+    name: "Open Writers",
+    tagline: "Technical writers and docs contributors — pay when guides ship",
+    kind: "education",
+    attachShape: "index",
+    upstream: "GitHub · ActivityPub · Discord",
+    doctrine:
+      "Fund documentation PRs, tutorials, and writer credits. GitHub merges and fediverse signals become authorizations.",
+    connectors: ["github", "activitypub", "discord"],
+    keywords: ["writer", "docs", "tutorial", "technical writing", "documentation", "fediverse"],
+    accent: "blue",
+    featured: true,
+    installCta: "Install on Open Writers",
+    healthSignals: [
+      { label: "Docs PRs", key: "github" },
+      { label: "Fediverse", key: "activitypub" },
+      { label: "Community", key: "discord" },
+    ],
+  },
 ];
 
-/** RFB primitive templates — founders operate programs, not chat */
+/** Program templates — founders operate programs, not chat */
 export const PROGRAM_TEMPLATES = {
   "user-centric-royalties": {
     id: "user-centric-royalties",
     name: "User-centric royalties",
     description:
-      "RFB #7 — Pay artists per verified play. MusicBrainz splits credits; Arc batches settlement.",
+      "Pay artists per verified play. MusicBrainz splits credits; Arc batches settlement.",
     defaultBudgetUsd: 500,
     defaultRules: {
       perPlayUsd: 0.0004,
@@ -161,7 +181,7 @@ export const PROGRAM_TEMPLATES = {
   "docs-bounty": {
     id: "docs-bounty",
     name: "Documentation bounty",
-    description: "RFB #3 — Reward merged documentation PRs and tutorial authors.",
+    description: "Reward merged documentation PRs and tutorial authors.",
     defaultBudgetUsd: 2000,
     defaultRules: {
       perMergeUsd: 25,
@@ -175,7 +195,7 @@ export const PROGRAM_TEMPLATES = {
   "security-fund": {
     id: "security-fund",
     name: "Security response fund",
-    description: "RFB #4 — CVE triage, patch review, and security maintainer retainers.",
+    description: "CVE triage, patch review, and security maintainer retainers.",
     defaultBudgetUsd: 5000,
     defaultRules: {
       perCveUsd: 150,
@@ -189,7 +209,7 @@ export const PROGRAM_TEMPLATES = {
   "quadratic-funding": {
     id: "quadratic-funding",
     name: "Quadratic funding round",
-    description: "RFB #6 — Match community contributions with QF amplification on Arc.",
+    description: "Match community contributions with QF amplification on Arc.",
     defaultBudgetUsd: 10000,
     defaultRules: {
       matchPoolUsd: 10000,
@@ -203,7 +223,7 @@ export const PROGRAM_TEMPLATES = {
   "citation-toll": {
     id: "citation-toll",
     name: "Citation toll",
-    description: "RFB #2 — Micropayment per verified citation. Open science economic memory.",
+    description: "Micropayment per verified citation. Open science economic memory.",
     defaultBudgetUsd: 1000,
     defaultRules: {
       perCitationUsd: 0.05,
@@ -216,7 +236,7 @@ export const PROGRAM_TEMPLATES = {
   "video-royalties": {
     id: "video-royalties",
     name: "Video watch royalties",
-    description: "RFB #7 variant — Pay creators per verified watch on self-hosted Jellyfin.",
+    description: "Pay creators per verified watch on self-hosted Jellyfin.",
     defaultBudgetUsd: 750,
     defaultRules: {
       perWatchUsd: 0.001,

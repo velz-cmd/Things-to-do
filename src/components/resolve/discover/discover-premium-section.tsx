@@ -15,7 +15,7 @@ export function DiscoverPremiumSection({
 }: {
   id?: string;
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -35,7 +35,7 @@ export function DiscoverPremiumSection({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold tracking-tight text-white sm:text-base">{title}</h2>
           {subtitle && (
-            <p className="mt-1 text-[11px] leading-relaxed text-white/60">{subtitle}</p>
+            <div className="mt-1 text-[11px] leading-relaxed text-white/60">{subtitle}</div>
           )}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}

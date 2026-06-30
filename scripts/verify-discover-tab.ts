@@ -126,7 +126,8 @@ async function hygieneChecks() {
     assert(!html.includes(token), `discover HTML excludes "${token}"`);
   }
   assert(html.includes("Connect communities"), "discover HTML includes communities section");
-  assert(html.includes("Global value radar"), "discover HTML includes radar header");
+  assert(html.includes("What do you want to do?"), "discover HTML includes job-first hero");
+  assert(html.includes("Earn from my work"), "discover HTML includes primary jobs");
 }
 
 async function warmLoadPerf() {

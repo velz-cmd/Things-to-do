@@ -1,5 +1,6 @@
 "use client";
 
+import clsx from "clsx";
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { CommandProvider } from "@/components/resolve/command/command-context";
@@ -18,16 +19,21 @@ function MissionScopeBarGate() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isDiscover = pathname === "/discover" || pathname.startsWith("/discover/");
+
   return (
     <CommandProvider>
       <MissionModalProvider>
         <Suspense fallback={null}>
           <MissionScopeProvider>
-            <div className="relative min-h-screen text-white">
-              <ResolveBackground variant="app" />
+            <div className={clsx("relative min-h-screen", isDiscover ? "text-slate-800" : "text-white")}>
+              {!isDiscover && <ResolveBackground variant="app" />}
               <AppTopNav />
               <MissionScopeBarGate />
-              <main className="relative overflow-auto">{children}</main>
+              <main className={clsx("relative overflow-auto", isDiscover && "discover-canvas")}>
+                {children}
+              </main>
             </div>
             <NewMissionModal />
             <CommandPaletteHost />

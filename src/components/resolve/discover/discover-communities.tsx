@@ -15,12 +15,14 @@ type CommunitySummary = {
   installed: boolean;
 };
 
-const KINDS = ["all", "music", "oss", "research", "protocol"] as const;
+const KINDS = ["all", "music", "media", "oss", "research", "education", "protocol"] as const;
 
 const DOMAIN_FILTERS: { label: string; kind: (typeof KINDS)[number] }[] = [
   { label: "All", kind: "all" },
   { label: "Music", kind: "music" },
+  { label: "Video", kind: "media" },
   { label: "OSS", kind: "oss" },
+  { label: "Writers", kind: "education" },
   { label: "Research", kind: "research" },
 ];
 

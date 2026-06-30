@@ -156,7 +156,7 @@ export function CommunitiesHub() {
         </p>
         <h2 className="mt-2 text-lg font-semibold text-white">Attach to existing communities</h2>
         <p className="mt-1 max-w-2xl text-sm text-resolve-muted">
-          Not a marketplace — install doctrine, RFB programs, and settlement beside upstream tools.
+          Not a marketplace — install programs and settlement beside upstream tools.
           {gatedCount > 0 && (
             <span className="mt-1 block text-resolve-muted-dim">
               {gatedCount} OSS/research community{gatedCount > 1 ? "ies" : ""} hidden until sensors

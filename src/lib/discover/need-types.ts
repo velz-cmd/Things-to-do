@@ -20,13 +20,13 @@ export const DISCOVER_NEED_TYPES: {
   hint: string;
 }[] = [
   { id: "funding", label: "Funding", hint: "Capital gaps and fulfillment queues" },
-  { id: "docs", label: "Docs", hint: "Documentation bounties · RFB #3" },
-  { id: "reviewers", label: "Reviewers", hint: "Security review and CVE response · RFB #4" },
+  { id: "docs", label: "Docs", hint: "Documentation bounties and tutorial rewards" },
+  { id: "reviewers", label: "Reviewers", hint: "Security review and CVE response" },
   { id: "translators", label: "Translators", hint: "i18n and localization contributors" },
   { id: "moderators", label: "Moderators", hint: "Community ops and governance" },
-  { id: "artists", label: "Artists", hint: "Royalties and listen-proof · RFB #7" },
-  { id: "researchers", label: "Researchers", hint: "Citations and OpenAlex · RFB #2" },
-  { id: "grants", label: "Grants", hint: "Quadratic funding pools · RFB #6" },
+  { id: "artists", label: "Artists", hint: "Royalties and listen-proof" },
+  { id: "researchers", label: "Researchers", hint: "Citations and OpenAlex" },
+  { id: "grants", label: "Grants", hint: "Quadratic funding pools" },
   { id: "automation", label: "Automation", hint: "Agent signals and x402 rails" },
 ];
 
@@ -195,11 +195,11 @@ function refineCopyForNeedType(gap: TrendingValueGap, needType: DiscoverNeedType
       headline: `${baseHeadline} — needs documentation`,
       why: gap.amountVerified
         ? gap.why
-        : "Merged docs PRs unlock maintainer value · RFB #3 docs bounty",
+        : "Merged docs PRs unlock maintainer value — docs bounty pool",
     },
     reviewers: {
       headline: `${baseHeadline} — needs security reviewers`,
-      why: "CVE triage and patch review retainers · RFB #4 security fund",
+      why: "CVE triage and patch review retainers — security fund",
     },
     translators: {
       headline: `${baseHeadline} — needs translators`,
@@ -211,19 +211,19 @@ function refineCopyForNeedType(gap: TrendingValueGap, needType: DiscoverNeedType
     },
     artists: {
       headline: gap.domain === "music" ? gap.headline : `${baseHeadline} — artist royalties`,
-      why: gap.why.includes("authorization") ? gap.why : "Verified plays and credits · RFB #7 royalty pool",
+      why: gap.why.includes("authorization") ? gap.why : "Verified plays and credits — royalty pool",
     },
     researchers: {
       headline: gap.domain === "research" ? gap.headline : `${baseHeadline} — research citations`,
       why: gap.why.includes("Citation") || gap.why.includes("citation")
         ? gap.why
-        : "OpenAlex / Crossref signals · RFB #2 citation toll",
+        : "OpenAlex / Crossref signals — citation toll pool",
     },
     grants: {
       headline: gap.headline.includes("grant") ? gap.headline : `${baseHeadline} — grant pool`,
       why: gap.why.includes("quadratic") || gap.why.includes("QF")
         ? gap.why
-        : "Quadratic funding amplifies small donors · RFB #6",
+        : "Quadratic funding amplifies small donors",
     },
     automation: {
       headline: `${baseHeadline} — agent automation`,

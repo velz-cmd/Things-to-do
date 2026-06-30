@@ -113,7 +113,7 @@ export function DiscoverActionsProvider({
       }
 
       if (req.amountUsd < 5) {
-        throw new Error("Minimum fund amount is $5 — enter at least $5 in the fund form");
+        throw new Error("Amount can't be less than $5");
       }
 
       if (wallet.loaded && wallet.spendableUsd < req.amountUsd) {

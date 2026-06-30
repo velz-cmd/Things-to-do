@@ -205,11 +205,11 @@ export function EcosystemBenefitsProgram({
 
       {variant === "full" && (
         <>
-          {/* RFB programs grid */}
+          {/* Program tracks grid */}
           <div>
             <p className="text-sm font-semibold text-white">Programs — who benefits per track</p>
             <p className="mt-1 text-xs text-resolve-muted">
-              Each RFB primitive attaches beside upstream tools. Every row has a winner for creators,
+              Each program attaches beside upstream tools. Every row has a winner for creators,
               funders, founders, and audience.
             </p>
             <ul className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -220,7 +220,7 @@ export function EcosystemBenefitsProgram({
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-violet-300">
-                      {p.rfb}
+                      {p.trackLabel}
                     </span>
                     <p className="text-sm font-medium text-white">{p.name}</p>
                   </div>

@@ -34,7 +34,7 @@ export const CAPITAL_YIELD_COPY = {
   yieldExplainer: {
     title: "What 2× means (honest)",
     body:
-      "For bounties and royalties: 2× fulfillment = every $1 you fund clears $2+ in settled + claimable authorizations. For QF (RFB #6): 2× match leverage = every $1 in the match pool unlocked $2+ in community contributions + matched payouts.",
+      "For bounties and royalties: 2× fulfillment = every $1 you fund clears $2+ in settled + claimable authorizations. For quadratic funding: 2× match leverage = every $1 in the match pool unlocked $2+ in community contributions + matched payouts.",
     formula: "Value exists → authorization → funder fulfills → creator claims",
   },
 

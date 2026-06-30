@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";
 
+export const maxDuration = 60;
+
 const bodySchema = z.object({
   programId: z.string().min(1),
   amountUsd: z.number().positive(),
@@ -10,26 +12,39 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const ready = await requireReadyUser();
-  if ("error" in ready) {
-    return NextResponse.json({ error: ready.error }, { status: ready.status });
+  try {
+    const ready = await requireReadyUser();
+    if ("error" in ready) {
+      return NextResponse.json({ error: ready.error }, { status: ready.status });
+    }
+
+    const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid fund request" }, { status: 400 });
+    }
+
+    if (parsed.data.amountUsd < 5) {
+      return NextResponse.json(
+        { error: "Amount can't be less than $5" },
+        { status: 400 },
+      );
+    }
+
+    const result = await fundCommunityProgram({
+      userId: ready.profile.id,
+      programId: parsed.data.programId,
+      amountUsd: parsed.data.amountUsd,
+      targetYieldMultiplier: parsed.data.targetYieldMultiplier,
+    });
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json(result);
+  } catch (e) {
+    console.error("[capital/fund]", e);
+    const msg = e instanceof Error ? e.message : "Fund failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid fund request" }, { status: 400 });
-  }
-
-  const result = await fundCommunityProgram({
-    userId: ready.profile.id,
-    programId: parsed.data.programId,
-    amountUsd: parsed.data.amountUsd,
-    targetYieldMultiplier: parsed.data.targetYieldMultiplier,
-  });
-
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 400 });
-  }
-
-  return NextResponse.json(result);
 }

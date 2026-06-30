@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { Loader2, Wallet } from "lucide-react";
+import { toast } from "sonner";
 import type { FundSheetRequest, WalletSnapshot } from "@/lib/discover/discover-action-engine";
 import { Button } from "@/components/resolve/ui/button";
 
@@ -44,18 +46,26 @@ export function DiscoverFundSheet({
               : "Resolve program and fund"}
         </p>
 
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-resolve-muted">
-          <Wallet className="h-3.5 w-3.5 text-resolve-accent" />
-          {wallet.loaded ? (
-            <span>
-              Spendable:{" "}
-              <span className="font-medium tabular-nums text-white">
-                ${wallet.spendableUsd.toFixed(2)}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-resolve-muted">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-3.5 w-3.5 text-resolve-accent" />
+            {wallet.loaded ? (
+              <span>
+                Spendable:{" "}
+                <span className="font-medium tabular-nums text-white">
+                  ${wallet.spendableUsd.toFixed(2)}
+                </span>
               </span>
-            </span>
-          ) : (
-            <span>Loading wallet…</span>
-          )}
+            ) : (
+              <span>Loading wallet…</span>
+            )}
+          </div>
+          <Link
+            href="/capital"
+            className="text-[11px] font-medium text-resolve-accent hover:underline"
+          >
+            Add funds / sync wallet →
+          </Link>
         </div>
 
         <form
@@ -64,12 +74,17 @@ export function DiscoverFundSheet({
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
             const amountUsd = Number(fd.get("amountUsd"));
+            if (!Number.isFinite(amountUsd) || amountUsd < 5) {
+              toast.error("Amount can't be less than $5");
+              return;
+            }
             onConfirm(amountUsd);
           }}
         >
           <label className="text-[11px] text-resolve-muted" htmlFor="fund-amount">
             Amount (USD)
           </label>
+          <p className="mt-0.5 text-[10px] text-resolve-muted-dim">Minimum fund is $5 USDC</p>
           <div className="mt-1 flex items-center gap-2">
             <span className="text-sm text-resolve-muted">$</span>
             <input

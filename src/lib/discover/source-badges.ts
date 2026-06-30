@@ -1,7 +1,7 @@
 import type { DiscoverDataSource } from "@/lib/discover/types";
 
 export const SOURCE_BADGE_LABELS: Record<DiscoverDataSource, string> = {
-  github: "GitHub",
+  github: "GitHub scan",
   musicbrainz: "MusicBrainz",
   openalex: "OpenAlex",
   arc: "Arc",

@@ -1,6 +1,6 @@
-import type { DiscoverAction, DiscoverDataSource } from "@/lib/discover/types";
-import type { DiscoverGraphEdge, DiscoverGraphNode } from "@/lib/discover/radar";
+import type { DiscoverGraphEdge, DiscoverGraphNode } from "./radar";
 import { hasFundingGapEdge } from "./graph-domain";
+import type { DiscoverAction, DiscoverDataSource, DiscoverIntent } from "./types";
 
 export function bubblePopoverActions(
   node: DiscoverGraphNode,
@@ -8,15 +8,15 @@ export function bubblePopoverActions(
 ): DiscoverAction[] {
   const actions: DiscoverAction[] = [];
 
-  if (node.entityPath) {
+  if (node.entityPath && !node.synthetic) {
     actions.push({ id: "open", label: "Open", kind: "open", entityPath: node.entityPath });
   }
 
   const gapEdge = hasFundingGapEdge(node.id, edges);
   const canFund =
-    gapEdge ||
-    ((node.moneyGapUsd ?? 0) > 0 &&
-      (node.type === "repository" || node.type === "treasury" || node.type === "person"));
+    (gapEdge || ((node.moneyGapUsd ?? 0) > 0 && node.type === "repository")) &&
+    !node.synthetic &&
+    Boolean(node.programId || node.communitySlug);
 
   if (canFund) {
     actions.push({
@@ -34,10 +34,19 @@ export function bubblePopoverActions(
     });
   }
 
-  if (node.type === "community" && node.communitySlug) {
+  if (node.type === "community" && node.communitySlug && !node.synthetic) {
     actions.push({
       id: "install",
       label: "Install",
+      kind: "install",
+      communitySlug: node.communitySlug,
+    });
+  }
+
+  if (node.synthetic && node.communitySlug) {
+    actions.push({
+      id: "install",
+      label: "Install community",
       kind: "install",
       communitySlug: node.communitySlug,
     });
@@ -54,10 +63,11 @@ export function defaultActionsForGraphNode(input: {
   templateId?: string;
   missionId?: string;
   receiptId?: string;
+  synthetic?: boolean;
 }): DiscoverAction[] {
   const actions: DiscoverAction[] = [];
 
-  if (input.entityPath) {
+  if (input.entityPath && !input.synthetic) {
     actions.push({ id: "open", label: "Open", kind: "open", entityPath: input.entityPath });
     actions.push({
       id: "analyze",
@@ -67,7 +77,7 @@ export function defaultActionsForGraphNode(input: {
     });
   }
 
-  if (input.programId || input.communitySlug || input.missionId) {
+  if ((input.programId || input.communitySlug || input.missionId) && !input.synthetic) {
     actions.push({
       id: "fund",
       label: "Fund",
@@ -78,36 +88,10 @@ export function defaultActionsForGraphNode(input: {
       missionId: input.missionId,
     });
     actions.push({
-      id: "sponsor",
-      label: "Sponsor",
-      kind: "sponsor",
-      programId: input.programId,
-      communitySlug: input.communitySlug,
-      templateId: input.templateId,
-      missionId: input.missionId,
-    });
-  }
-
-  if (input.communitySlug && !input.programId) {
-    actions.push({
       id: "install",
       label: "Install",
       kind: "install",
       communitySlug: input.communitySlug,
-    });
-    actions.push({
-      id: "program",
-      label: "Create program",
-      kind: "create_program",
-      communitySlug: input.communitySlug,
-      templateId: input.templateId,
-    });
-    actions.push({
-      id: "sensor",
-      label: "Connect sensor",
-      kind: "connect_sensor",
-      communitySlug: input.communitySlug,
-      href: `/communities/${input.communitySlug}`,
     });
   }
 
@@ -120,17 +104,63 @@ export function defaultActionsForGraphNode(input: {
     });
   }
 
-  if (input.type === "creator") {
-    actions.push({ id: "claim", label: "Claim", kind: "claim", href: "/claim" });
-  }
-
   return actions;
 }
 
-export function dataSourceForNodeType(type: string, fromLedger: boolean): DiscoverDataSource {
-  if (fromLedger) return "supabase_ledger";
+export function dataSourceForNodeType(type: string): DiscoverDataSource {
   if (type === "repository" || type === "person") return "github";
+  if (type === "creator") return "musicbrainz";
   if (type === "community") return "catalog_preview";
-  if (type === "connector") return "local_seed";
-  return "catalog_preview";
+  return "supabase_ledger";
+}
+
+export function filterGraphByIntent(
+  nodes: DiscoverGraphNode[],
+  edges: DiscoverGraphEdge[],
+  intent: DiscoverIntent,
+): { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] } {
+  if (intent === "all") return { nodes, edges };
+
+  const ids = new Set<string>();
+
+  for (const node of nodes) {
+    if (intent === "fund" || intent === "sponsor") {
+      if (
+        hasFundingGapEdge(node.id, edges) ||
+        (node.moneyGapUsd ?? 0) > 0 ||
+        node.type === "treasury" ||
+        node.programId
+      ) {
+        ids.add(node.id);
+      }
+    } else if (intent === "earn") {
+      if (
+        node.type === "creator" ||
+        node.authorizationStatus === "claimable" ||
+        (node.amountVerified && node.type === "person")
+      ) {
+        ids.add(node.id);
+      }
+    } else if (intent === "operate") {
+      if (node.type === "community" || node.type === "connector" || node.communitySlug) {
+        ids.add(node.id);
+      }
+    } else if (intent === "build") {
+      if (
+        node.type === "repository" ||
+        node.type === "community" ||
+        node.type === "mission" ||
+        node.entityPath
+      ) {
+        ids.add(node.id);
+      }
+    }
+  }
+
+  if (!ids.size) return { nodes: [], edges: [] };
+
+  return {
+    nodes: nodes.filter((n) => ids.has(n.id)),
+    edges: edges.filter((e) => ids.has(e.from) && ids.has(e.to)),
+  };
 }

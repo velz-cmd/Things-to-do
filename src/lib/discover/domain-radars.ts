@@ -93,7 +93,8 @@ export async function buildDomainRadars(): Promise<{
         fallback: `GitHub · grade ${o.health.grade}`,
       }),
       dataSource: "github",
-      amountVerified: true,
+      amountVerified: false,
+      amountKind: "estimate",
       proofConnectorId: "github",
       proofGithubScanAt: scanAt ?? undefined,
       amountNeededUsd: o.health.fundingGapUsd,
@@ -293,6 +294,7 @@ export async function buildDomainRadars(): Promise<{
       entityPath: featuredOss?.entityPath,
       communitySlug: featuredOss?.communitySlug ?? "react",
       programId: featuredOss?.programId,
+      hasLiveData: ossCards.some(isVerifiedGap),
     }),
   };
 

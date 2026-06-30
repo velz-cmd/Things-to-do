@@ -35,6 +35,7 @@ export function DiscoverCommunities({
 }: DiscoverCommunitiesProps = {}) {
   const [installed, setInstalled] = useState<Record<string, boolean>>({});
   const [sensorStatuses, setSensorStatuses] = useState<CommunitySensorStatus[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [internalKind, setInternalKind] = useState<(typeof KINDS)[number]>("all");
   const kind = kindFilter ?? internalKind;
@@ -45,12 +46,13 @@ export function DiscoverCommunities({
   }
 
   useEffect(() => {
+    setLoadError(null);
     void Promise.all([
       fetch("/api/communities", { credentials: "include" }).then((r) =>
-        r.ok ? r.json() : { communities: [], sensorStatuses: [] },
+        r.ok ? r.json() : Promise.reject(new Error("communities")),
       ),
       fetch("/api/communities/sensor-status").then((r) =>
-        r.ok ? r.json() : { statuses: [] },
+        r.ok ? r.json() : Promise.reject(new Error("sensor-status")),
       ),
     ])
       .then(([commRes, statusRes]) => {
@@ -59,7 +61,7 @@ export function DiscoverCommunities({
         setInstalled(map);
         setSensorStatuses(commRes.sensorStatuses ?? statusRes.statuses ?? []);
       })
-      .catch(() => undefined);
+      .catch(() => setLoadError("Could not load community install status"));
   }, []);
 
   const filtered = useMemo(() => {
@@ -118,6 +120,19 @@ export function DiscoverCommunities({
           })}
         </div>
       </div>
+
+      {loadError && (
+        <div className="mt-4 rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-4 text-center">
+          <p className="text-sm text-resolve-muted">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-2 text-xs font-medium text-resolve-accent hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {filtered.map((c) => {

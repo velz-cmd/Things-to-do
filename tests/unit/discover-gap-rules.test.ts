@@ -44,9 +44,9 @@ describe("gap-rules", () => {
     expect(formatProofSource({ githubScanAt: at, fallback: "x" })).toContain("GitHub scan");
   });
 
-  it("isVerifiedGap requires proof fields", () => {
+  it("isVerifiedGap requires ledger proof fields", () => {
     expect(isVerifiedGap(gap({ id: "a", proofAuthorizationId: "x" }))).toBe(true);
-    expect(isVerifiedGap(gap({ id: "b", proofGithubScanAt: "t" }))).toBe(true);
+    expect(isVerifiedGap(gap({ id: "b", proofGithubScanAt: "t" }))).toBe(false);
     expect(isVerifiedGap(gap({ id: "c", amountVerified: false }))).toBe(false);
     expect(isVerifiedGap(gap({ id: "seed-1", dataSource: "catalog_preview" }))).toBe(false);
   });
@@ -58,7 +58,7 @@ describe("gap-rules", () => {
   });
 
   it("capSeedGaps limits seed cards", () => {
-    const verified = gap({ id: "oss-1", proofGithubScanAt: "t" });
+    const verified = gap({ id: "oss-1", proofAuthorizationId: "auth-1", proofConnectorId: "github" });
     const seeds = [
       gap({ id: "seed-a", dataSource: "catalog_preview", amountVerified: false }),
       gap({ id: "seed-b", dataSource: "catalog_preview", amountVerified: false }),

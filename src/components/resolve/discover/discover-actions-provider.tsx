@@ -116,9 +116,11 @@ export function DiscoverActionsProvider({
         throw new Error("Minimum fund amount is $5 — enter at least $5 in the fund form");
       }
 
-      if (wallet.loaded && wallet.spendableUsd > 0 && req.amountUsd > wallet.spendableUsd) {
+      if (wallet.loaded && wallet.spendableUsd < req.amountUsd) {
         throw new Error(
-          `Insufficient wallet balance: $${wallet.spendableUsd.toFixed(2)} spendable, need $${req.amountUsd.toFixed(2)} — add USDC in Capital`,
+          wallet.spendableUsd <= 0
+            ? "No spendable USDC — add funds in Capital before funding programs"
+            : `Insufficient wallet balance: $${wallet.spendableUsd.toFixed(2)} spendable, need $${req.amountUsd.toFixed(2)} — add USDC in Capital`,
         );
       }
 
@@ -170,13 +172,20 @@ export function DiscoverActionsProvider({
     [signedIn, router, wallet, ensureProgram, refreshWallet, reportActionStatus],
   );
 
-  const openFundSheet = useCallback((req: FundSheetRequest) => {
-    if (!signedIn) {
-      router.push("/login?next=/discover");
-      return;
-    }
-    setFundSheet(req);
-  }, [signedIn, router]);
+  const openFundSheet = useCallback(
+    (req: FundSheetRequest) => {
+      if (!signedIn) {
+        router.push("/login?next=/discover");
+        return;
+      }
+      if (wallet.loaded && wallet.spendableUsd <= 0) {
+        toast.error("No spendable USDC — add funds in Capital before funding");
+        return;
+      }
+      setFundSheet(req);
+    },
+    [signedIn, router, wallet.loaded, wallet.spendableUsd],
+  );
 
   const runAction = useCallback(
     async (action: DiscoverAction, surface = "discover") => {

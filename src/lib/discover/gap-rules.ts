@@ -6,7 +6,6 @@ const MUSIC_PAYEE_TYPES = new Set(["listen_artist"]);
 export function isVerifiedGap(gap: TrendingValueGap): boolean {
   return Boolean(
     gap.proofAuthorizationId ||
-      gap.proofGithubScanAt ||
       (gap.amountVerified && gap.proofConnectorId),
   );
 }

@@ -6,9 +6,11 @@ import { SOURCE_BADGE_LABELS, SOURCE_BADGE_STYLES, isPreviewSource } from "@/lib
 
 export function DiscoverSourceBadge({
   source,
+  estimate = false,
   className,
 }: {
   source: DiscoverDataSource;
+  estimate?: boolean;
   className?: string;
 }) {
   const preview = isPreviewSource(source);
@@ -19,10 +21,16 @@ export function DiscoverSourceBadge({
         SOURCE_BADGE_STYLES[source],
         className,
       )}
-      title={preview ? "Preview data — not verified from live source" : SOURCE_BADGE_LABELS[source]}
+      title={
+        estimate
+          ? "Estimated from GitHub repo health — not ledger-verified"
+          : preview
+            ? "Preview data — not verified from live source"
+            : SOURCE_BADGE_LABELS[source]
+      }
     >
       {SOURCE_BADGE_LABELS[source]}
-      {preview ? " · demo" : ""}
+      {estimate ? " · est." : preview ? " · demo" : ""}
     </span>
   );
 }

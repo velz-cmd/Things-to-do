@@ -66,7 +66,7 @@ async function buildRepoResult(
       opts?.headline ??
       (gap != null ? `GitHub scan · ~$${gap.toFixed(0)} funding gap` : `Attach via ${communitySlug} community`),
     dataSource: "github",
-    amountVerified: gap != null,
+    amountVerified: false,
     amountUsd: gap,
     entityPath: path,
     communitySlug,
@@ -385,8 +385,9 @@ function scoreResult(r: DiscoverSearchResult, q: string, queueFilter: string | n
   if (r.kind === "repository" && label.includes("/")) score += 80;
   if (r.kind === "entity" && r.entityPath?.includes("/maintainer/")) score += 70;
   if (r.kind === "program" && queueFilter && r.communitySlug?.includes(queueFilter)) score += 90;
-  if (r.dataSource === "supabase_ledger") score += 20;
-  if (r.dataSource === "github" && r.amountVerified) score += 15;
+  if (r.dataSource === "supabase_ledger") score += 25;
+  if (r.dataSource === "github" && r.amountUsd != null) score += 8;
+  if (r.dataSource === "github" && r.amountVerified) score += 5;
   if (r.dataSource === "musicbrainz") score += 10;
   return score;
 }

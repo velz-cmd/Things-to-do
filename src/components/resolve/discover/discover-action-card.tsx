@@ -2,16 +2,16 @@
 
 import clsx from "clsx";
 import type { DiscoverAction, TrendingValueGap } from "@/lib/discover/types";
-import { useDiscoverActions } from "@/components/resolve/discover/use-discover-actions";
+import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 
 const ACTION_STYLES: Record<string, string> = {
   fund: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
   install: "border-resolve-accent/30 bg-resolve-accent/10 text-resolve-accent hover:bg-resolve-accent/20",
   claim: "border-violet-500/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20",
   create_program: "border-blue-500/30 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20",
+  sponsor: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
   default: "border-white/10 bg-white/[0.04] text-resolve-muted hover:text-white hover:bg-white/[0.08]",
 };
-
 type DiscoverActionCardProps = {
   gap: TrendingValueGap;
   signedIn: boolean;
@@ -20,7 +20,7 @@ type DiscoverActionCardProps = {
 };
 
 export function DiscoverActionCard({ gap, signedIn, rank, compact }: DiscoverActionCardProps) {
-  const { runAction } = useDiscoverActions(signedIn);
+  const { runAction } = useDiscoverActions();
 
   return (
     <article
@@ -107,14 +107,14 @@ function ActionChip({ action, onClick }: { action: DiscoverAction; onClick: () =
 
 export function DiscoverActionChip({
   action,
-  signedIn,
+  signedIn: _signedIn,
   primary,
 }: {
   action: DiscoverAction;
   signedIn: boolean;
   primary?: boolean;
 }) {
-  const { runAction } = useDiscoverActions(signedIn);
+  const { runAction } = useDiscoverActions();
   const style = primary
     ? ACTION_STYLES[action.kind] ?? ACTION_STYLES.fund
     : ACTION_STYLES.default;

@@ -4,6 +4,8 @@ import { listFundableOpportunities, listCommunitiesNeedingFirstFunder } from "@/
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { EntityIds } from "@/lib/domain/entities";
 import { entityIdToPath } from "@/lib/entity/paths";
+import { resolveFundTarget } from "@/lib/discover/fund-target";
+import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import type { TrendingValueGap } from "@/lib/discover/types";
 
 function repoPath(owner: string, repo: string) {
@@ -42,7 +44,10 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingValueG
 
   for (const o of ossOpportunities.slice(0, 8)) {
     const path = repoPath(o.owner, o.repo);
+    const { communitySlug, templateId } = resolveCommunityForRepo(o.owner, o.repo);
+    const publicTarget = await resolveFundTarget({ communitySlug, templateId }).catch(() => null);
     const priorityBoost = o.priority === "critical" ? 3 : o.priority === "high" ? 2 : 1;
+
     gaps.push({
       id: `oss-${o.fullName}`,
       domain: "oss",
@@ -55,24 +60,33 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingValueG
       peopleImpacted: o.unfundedMaintainers,
       trendScore: o.health.fundingGapUsd * priorityBoost + o.stars * 0.01,
       entityPath: path,
-      communitySlug: "react",
-      templateId: "docs-bounty",
+      communitySlug,
+      templateId,
+      programId: publicTarget?.programId ?? undefined,
       actions: [
         { id: "open", label: "Open", kind: "open", entityPath: path },
-        { id: "fund", label: "Fund gap", kind: "fund", href: "#opportunities" },
+        {
+          id: "fund",
+          label: publicTarget?.programId ? "Fund" : "Fund gap",
+          kind: "fund",
+          programId: publicTarget?.programId ?? undefined,
+          communitySlug,
+          templateId,
+          amountUsd: Math.max(25, Math.min(o.health.fundingGapUsd, 100)),
+        },
         {
           id: "bounty",
           label: "Docs bounty",
           kind: "create_program",
-          communitySlug: "react",
-          templateId: "docs-bounty",
+          communitySlug,
+          templateId,
         },
         {
           id: "sensor",
           label: "GitHub sensor",
           kind: "connect_sensor",
-          communitySlug: "react",
-          href: "/communities/react",
+          communitySlug,
+          href: `/communities/${communitySlug}`,
         },
         { id: "analyze", label: "Maintainer graph", kind: "analyze", entityPath: path },
       ],
@@ -100,18 +114,19 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingValueG
           label: o.templateId === "quadratic-funding" ? "Fund pool" : "Fulfill",
           kind: "fund",
           programId: o.programId,
-        },
-        {
-          id: "open",
-          label: "Open community",
-          kind: "open",
-          href: `/communities/${o.communitySlug}`,
+          amountUsd: Math.max(25, Math.min(o.fundingGapUsd || 25, 250)),
         },
         {
           id: "sponsor",
           label: "Sponsor",
           kind: "sponsor",
           programId: o.programId,
+        },
+        {
+          id: "open",
+          label: "Open community",
+          kind: "open",
+          href: `/communities/${o.communitySlug}`,
         },
       ],
     });
@@ -202,6 +217,10 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingValueG
           ? `creator:${r.payeeKey.toLowerCase()}`
           : `payee:${r.payeeKeyType}:${r.payeeKey}`,
     );
+    const fundTarget = r.missionId
+      ? await resolveFundTarget({ missionId: r.missionId }).catch(() => null)
+      : null;
+
     gaps.push({
       id: `pending-${r.id}`,
       domain: r.connectorId === "github" ? "oss" : r.connectorId.includes("music") ? "music" : "community",
@@ -214,12 +233,25 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingValueG
       peopleImpacted: 1,
       trendScore: r.amountUsd * 10 + 100,
       entityPath: entityPath ?? undefined,
+      missionId: r.missionId,
+      programId: fundTarget?.programId ?? undefined,
+      communitySlug: fundTarget?.communitySlug,
+      templateId: fundTarget?.templateId,
       actions: [
-        { id: "fund", label: "Fund", kind: "fund", href: "#opportunities", amountUsd: r.amountUsd },
+        {
+          id: "fund",
+          label: "Fund",
+          kind: "fund",
+          programId: fundTarget?.programId ?? undefined,
+          missionId: r.missionId,
+          communitySlug: fundTarget?.communitySlug,
+          templateId: fundTarget?.templateId,
+          amountUsd: r.amountUsd,
+        },
         ...(entityPath
           ? [{ id: "open", label: "Open", kind: "open" as const, entityPath }]
           : []),
-        { id: "share", label: "Share receipt", kind: "share", href: `/ledger/${r.id}` },
+        { id: "share", label: "Share receipt", kind: "share", href: `/receipt/${r.id}` },
       ],
     });
   }

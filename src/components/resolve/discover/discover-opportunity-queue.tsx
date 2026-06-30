@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Loader2, TrendingUp } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
 import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
+import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 
 type DiscoverOpportunityQueueProps = {
@@ -15,12 +15,13 @@ type DiscoverOpportunityQueueProps = {
   className?: string;
 };
 
-/** Discover-native fulfillment queue — inline fund without Capital tab duplication. */
+/** Discover-native fulfillment queue — inline fund via unified action router. */
 export function DiscoverOpportunityQueue({
   signedIn,
   query = "",
   className,
 }: DiscoverOpportunityQueueProps) {
+  const { executeFund, wallet, busy } = useDiscoverActions();
   const [opportunities, setOpportunities] = useState<FundableOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [fundingId, setFundingId] = useState<string | null>(null);
@@ -53,27 +54,22 @@ export function DiscoverOpportunityQueue({
     );
   }, [opportunities, query]);
 
-  async function fund(programId: string) {
-    const raw = amountByProgram[programId] ?? "25";
+  async function fundRow(o: FundableOpportunity) {
+    const raw = amountByProgram[o.programId] ?? "25";
     const amountUsd = Number(raw);
-    if (!Number.isFinite(amountUsd) || amountUsd < 5) {
-      toast.error("Enter at least $5");
-      return;
-    }
-    setFundingId(programId);
+    if (!Number.isFinite(amountUsd) || amountUsd < 5) return;
+    setFundingId(o.programId);
     try {
-      const res = await fetch("/api/capital/fund", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ programId, amountUsd }),
+      await executeFund({
+        programId: o.programId,
+        amountUsd,
+        label: o.programName,
+        communitySlug: o.communitySlug,
+        templateId: o.templateId,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Fund failed");
-      toast.success(`Funded $${amountUsd.toFixed(2)} — obligations clearing toward 2× leverage`);
       void load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not fund program");
+    } catch {
+      /* toast handled in provider */
     } finally {
       setFundingId(null);
     }
@@ -93,6 +89,11 @@ export function DiscoverOpportunityQueue({
           <p className="mt-1 max-w-2xl text-sm text-resolve-muted">
             Ranked by pending obligations — fulfill in place. Portfolio and wallet live in Capital.
           </p>
+          {signedIn && wallet.loaded && (
+            <p className="mt-1 text-[11px] text-resolve-muted-dim">
+              Wallet spendable: ${wallet.spendableUsd.toFixed(2)}
+            </p>
+          )}
         </div>
         <Link
           href="/capital?tab=programs"
@@ -184,10 +185,10 @@ export function DiscoverOpportunityQueue({
                     </div>
                     <Button
                       size="sm"
-                      disabled={fundingId === o.programId}
-                      onClick={() => void fund(o.programId)}
+                      disabled={fundingId === o.programId || busy}
+                      onClick={() => void fundRow(o)}
                     >
-                      {fundingId === o.programId ? (
+                      {fundingId === o.programId || busy ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : o.templateId === "quadratic-funding" ? (
                         CAPITAL_YIELD_COPY.discover.fundCta

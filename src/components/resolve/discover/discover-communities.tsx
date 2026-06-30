@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { listBrowsableCommunities, type CommunitySensorStatus } from "@/lib/sensors/catalog-visibility";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
+import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { communityStripActions } from "@/lib/discover/community-strip-actions";
+import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 type CommunitySummary = {
   slug: string;
@@ -25,6 +27,7 @@ type DiscoverCommunitiesProps = {
   kindFilter?: (typeof KINDS)[number];
   onKindFilterChange?: (kind: (typeof KINDS)[number]) => void;
   signedIn?: boolean;
+  role?: DiscoverRole;
 };
 
 /** Discover bottom strip — install + quick actions without duplicating the Communities hub. */
@@ -32,10 +35,12 @@ export function DiscoverCommunities({
   kindFilter,
   onKindFilterChange,
   signedIn = false,
+  role: _role = "all",
 }: DiscoverCommunitiesProps = {}) {
   const [installed, setInstalled] = useState<Record<string, boolean>>({});
   const [sensorStatuses, setSensorStatuses] = useState<CommunitySensorStatus[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [lastLoaded, setLastLoaded] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [internalKind, setInternalKind] = useState<(typeof KINDS)[number]>("all");
   const kind = kindFilter ?? internalKind;
@@ -45,9 +50,9 @@ export function DiscoverCommunities({
     else setInternalKind(next);
   }
 
-  useEffect(() => {
+  const loadCommunities = useCallback(() => {
     setLoadError(null);
-    void Promise.all([
+    return Promise.all([
       fetch("/api/communities", { credentials: "include" }).then((r) =>
         r.ok ? r.json() : Promise.reject(new Error("communities")),
       ),
@@ -60,9 +65,14 @@ export function DiscoverCommunities({
         for (const c of commRes.communities ?? []) map[c.slug] = c.installed;
         setInstalled(map);
         setSensorStatuses(commRes.sensorStatuses ?? statusRes.statuses ?? []);
+        setLastLoaded(new Date().toISOString());
       })
       .catch(() => setLoadError("Could not load community install status"));
   }, []);
+
+  useEffect(() => {
+    void loadCommunities();
+  }, [loadCommunities]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -81,12 +91,18 @@ export function DiscoverCommunities({
   return (
     <section id="communities" className="mb-12 scroll-mt-24">
       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-        Communities strip
+        Connect communities
       </p>
-      <h2 className="mt-2 text-lg font-semibold text-white">Install where value already lives</h2>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-white">GitHub, Jellyfin, music & more</h2>
+        <DiscoverSectionRefresh
+          sectionId="communities-strip"
+          onRefresh={loadCommunities}
+          lastUpdated={lastLoaded}
+        />
+      </div>
       <p className="mt-1 max-w-2xl text-sm text-resolve-muted">
-        One-click install from Discover — open the community page for sensors and programs. Full
-        community management lives on the Communities tab.
+        Connect sensors where value already lives — open the community page for programs and health.
       </p>
 
       <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">

@@ -203,6 +203,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
   const metricEdges: MetricEdge[] = [];
   const labels = new Map<string, string>();
   const payeeAmounts: number[] = [];
+  let ledgerTotalUsd = 0;
 
   function addNode(
     id: string,
@@ -252,6 +253,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
   }
 
   for (const r of authRows) {
+    ledgerTotalUsd += r.amountUsd;
     const payeeId = payeeNodeId(r.payeeKey, r.payeeKeyType);
     const missionId = r.missionId ? `mission:${r.missionId}` : "mission:unscoped";
     const connectorId = `connector:${r.connectorId}`;
@@ -309,37 +311,41 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
     payeeAmounts.push(r.amountUsd);
   }
 
-  for (const opp of opportunities.slice(0, 6)) {
+  for (const opp of opportunities.slice(0, 4)) {
     const repoId = EntityIds.repository(opp.owner, opp.repo);
     const repoPath = entityIdToPath(repoId) ?? undefined;
     const { communitySlug, templateId } = resolveCommunityForRepo(opp.owner, opp.repo);
-    addNode(repoId, opp.fullName, "repository", opp.health.fundingGapUsd, {
+    const gapUsd = Math.min(opp.health.fundingGapUsd, 25_000);
+    addNode(repoId, opp.fullName, "ecosystem", gapUsd * 0.35, {
       dataSource: "github",
       amountVerified: false,
-      moneyGapUsd: opp.health.fundingGapUsd,
-      whyItMatters: `${opp.headline} · est. gap from repo health`,
+      moneyGapUsd: gapUsd,
+      whyItMatters: `Ecosystem · ${opp.headline} · est. gap (not a person node)`,
       entityPath: repoPath,
       graphDomain: "oss",
       communitySlug,
       templateId,
+      synthetic: true,
     });
-    if (opp.health.fundingGapUsd > 0) {
-      addNode("pool:treasury", "Treasury gap", "treasury", opp.health.fundingGapUsd, {
-        dataSource: "github",
-        amountVerified: false,
-        synthetic: true,
-        whyItMatters: "Estimated funding gap — fund via community program",
-        communitySlug,
-        templateId,
-      });
+    if (gapUsd > 0) {
       addEdge(
         repoId,
-        "pool:treasury",
+        "pool:ledger",
         "funding_gap",
-        opp.health.fundingGapUsd,
-        `Est. gap $${opp.health.fundingGapUsd.toLocaleString()} · ${opp.priority} priority`,
+        gapUsd * 0.2,
+        `Est. ecosystem gap $${gapUsd.toLocaleString()} · ${opp.priority} priority`,
       );
     }
+  }
+
+  if (ledgerTotalUsd > 0 || authRows.length > 0) {
+    addNode("pool:ledger", "Ledger value", "treasury", Math.max(ledgerTotalUsd, 1), {
+      dataSource: "supabase_ledger",
+      amountVerified: ledgerTotalUsd > 0,
+      moneyGapUsd: ledgerTotalUsd,
+      whyItMatters: "Verified authorizations from live sensors — people & creators orbit here",
+      synthetic: false,
+    });
   }
 
   const sortedNodes = [...nodeMap.values()]

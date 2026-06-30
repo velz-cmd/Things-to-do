@@ -246,11 +246,22 @@ export async function buildLiveEvents(input: {
 
   events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
+  const deduped: LiveEventItem[] = [];
+  const seenTimeline = new Set<string>();
+  for (const e of events) {
+    if (e.kind === "timeline" && e.eventType === "mission_created") {
+      const key = `${e.title}::${e.detail ?? ""}`;
+      if (seenTimeline.has(key)) continue;
+      seenTimeline.add(key);
+    }
+    deduped.push(e);
+  }
+
   return {
     ok: true,
-    live: events.length > 0,
-    total: events.length,
-    events: events.slice(0, limit),
+    live: deduped.length > 0,
+    total: deduped.length,
+    events: deduped.slice(0, limit),
     filters: {
       domain: domain ?? null,
       community: input.communitySlug ?? null,

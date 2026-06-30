@@ -15,6 +15,7 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverFeedSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
+import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
 type LiveEventsResponse = {
   ok: boolean;
@@ -88,8 +89,6 @@ export function DiscoverLiveFeed({
 
   useEffect(() => {
     void loadFeed();
-    const t = setInterval(() => void loadFeed(), 20_000);
-    return () => clearInterval(t);
   }, [loadFeed]);
 
   const events = useMemo(() => data?.events ?? [], [data?.events]);
@@ -115,6 +114,11 @@ export function DiscoverLiveFeed({
             Live · {formatRelative(data.updatedAt)}
           </span>
         )}
+        <DiscoverSectionRefresh
+          sectionId="live-feed"
+          onRefresh={loadFeed}
+          lastUpdated={data?.updatedAt}
+        />
       </div>
 
       <div className="mb-3 flex flex-wrap gap-1.5">
@@ -154,7 +158,7 @@ export function DiscoverLiveFeed({
           <p className="mt-3 text-sm text-resolve-muted">
             {domainFilter !== "all"
               ? `No ${domainFilter} events yet — connect a sensor for this domain.`
-              : "No events yet. Install a community and connect sensors — value appears here automatically."}
+              : "No events yet. Connect GitHub, Jellyfin, or ListenBrainz — value appears here when sensors authorize."}
           </p>
         </div>
       ) : (

@@ -380,8 +380,8 @@ export function bundleMeta(id: DomainRadarId): { title: string; tagline: string 
     };
   }
   return {
-    title: "DAO / community radar",
-    tagline: "Grant pools, contributor payroll, and treasury connectors",
+    title: "DAO / research radar",
+    tagline: "Grant pools, citation tolls, contributor payroll, and treasury connectors",
   };
 }
 

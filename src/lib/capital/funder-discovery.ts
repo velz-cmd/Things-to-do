@@ -10,6 +10,7 @@ import {
   whyFundCopy,
   type FundableOpportunity,
 } from "@/lib/capital/community-yield";
+import { classifyBoardNeedType } from "@/lib/discover/need-types";
 import { computeProgramYield, programDiscoveryMetrics } from "@/lib/capital/yield-service";
 
 /** Programs any funder can discover — no need to know the community beforehand */
@@ -73,6 +74,13 @@ export async function listFundableOpportunities(limit = 24): Promise<FundableOpp
       whoBenefits,
       score: 0,
       metricKind: yieldSnap?.metricKind ?? "fulfillment",
+      needType: classifyBoardNeedType({
+        templateId: p.templateId,
+        communitySlug: slug,
+        boardKind: "program",
+        whyFund,
+        programName: p.name,
+      }),
     });
   }
 

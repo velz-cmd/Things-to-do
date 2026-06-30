@@ -9,6 +9,8 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import type { DiscoverIntent, DomainRadarBundle, RadarEmptyState } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
+import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
+import { filterGapsByNeedType } from "@/lib/discover/need-types";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
@@ -23,6 +25,7 @@ type DiscoverDomainRadarsProps = {
   query?: string;
   intent?: DiscoverIntent;
   role?: DiscoverRole;
+  needType?: DiscoverNeedTypeFilter;
   className?: string;
 };
 
@@ -31,6 +34,7 @@ export function DiscoverDomainRadars({
   query = "",
   intent = "all",
   role = "all",
+  needType = "all",
   className,
 }: DiscoverDomainRadarsProps) {
   const { feed, loading, refresh } = useDiscoverRadarFeed();
@@ -43,12 +47,13 @@ export function DiscoverDomainRadars({
     return (["oss", "music", "dao"] as const).map((id) => {
       const bundle = dr[id];
       const cards = bundle.cards.filter((g) => {
+        if (needType !== "all" && g.needType !== needType) return false;
         if (!q) return true;
         return g.headline.toLowerCase().includes(q) || g.why.toLowerCase().includes(q);
       });
       return { ...bundle, cards };
     });
-  }, [feed?.domainRadars, q]);
+  }, [feed?.domainRadars, q, needType]);
 
   return (
     <DiscoverPremiumSection

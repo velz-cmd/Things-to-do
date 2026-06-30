@@ -31,10 +31,16 @@ export type DiscoverAction = {
   templateId?: string;
   entityPath?: string;
   amountUsd?: number;
+  /** Agent signal catalog id when CTA routes to Mission rails */
+  serviceId?: string;
 };
+
+export type { DiscoverNeedType, DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 
 export type TrendingValueGap = {
   id: string;
+  /** Primary need this opportunity addresses */
+  needType?: import("@/lib/discover/need-types").DiscoverNeedType;
   domain: "oss" | "music" | "research" | "dao" | "community" | "protocol";
   headline: string;
   why: string;

@@ -20,6 +20,7 @@ import {
 } from "@/components/resolve/mission-control/mission-planning-bar";
 import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
+import { MissionAiProvidersPanel } from "@/components/resolve/mission-control/mission-ai-providers-panel";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
@@ -198,7 +199,15 @@ export function MissionWorkspace({
         </div>
 
         <div className="shrink-0 border-t border-white/[0.06] bg-[#070b14]/60 px-4 py-3 backdrop-blur-md lg:px-8">
-          <div className="mx-auto mb-3 max-w-2xl">
+          <div className="mx-auto mb-3 max-w-2xl space-y-3">
+            <details className="group rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">
+              <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
+                Mission AI — Gemini, Llama, OpenRouter
+              </summary>
+              <div className="px-2">
+                <MissionAiProvidersPanel className="border-0 bg-transparent px-2 py-2" />
+              </div>
+            </details>
             <MissionSignalRailsPanel
               onMissionPrompt={(prompt) => onInputChange(prompt)}
             />

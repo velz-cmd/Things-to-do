@@ -47,6 +47,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html.discover-route,
+html.discover-route body {
+  background: #eef1f6;
+}
+
 * {
   box-sizing: border-box;
 }

@@ -444,14 +444,17 @@ export function ResolveBanking({
                 </Button>
                 {onRefresh && (
                   <Button
-                    variant="secondary"
+                    variant="ghost"
+                    size="sm"
                     onClick={onRefresh}
                     disabled={refreshing}
-                    className="gap-2"
+                    className="h-8 gap-1.5 px-2 text-xs text-resolve-muted"
                     title={BANKING_UI.refreshHint}
                   >
-                    <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                    {refreshing ? BANKING_UI.refreshing : BANKING_UI.refresh}
+                    <RefreshCw
+                      className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`}
+                    />
+                    {!refreshing && BANKING_UI.refresh}
                   </Button>
                 )}
                 <Link
@@ -463,9 +466,9 @@ export function ResolveBanking({
               </div>
               <p className="mt-3 text-[10px] text-resolve-muted-dim">
                 {refreshing ?
-                  BANKING_UI.refreshing
+                  BANKING_UI.syncingBalance
                 : lastRefreshedAt ?
-                  `${BANKING_UI.lastUpdated} ${lastRefreshedAt.toLocaleTimeString()} · auto every 15s`
+                  `${BANKING_UI.lastUpdated} ${lastRefreshedAt.toLocaleTimeString()} · ${BANKING_UI.autoRefresh}`
                 : BANKING_UI.autoRefresh}
               </p>
             </BlueGlowCard>

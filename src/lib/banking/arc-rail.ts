@@ -12,6 +12,7 @@ import {
   appWalletProvider,
   circleWalletIdForUser,
 } from "@/lib/wallet/app-wallet-service";
+import { resolveIdentityWalletAddress } from "@/lib/wallet/identity-address";
 import type { User } from "@prisma/client";
 import type { BankingArcRail, BankingMemoActivity } from "@/lib/banking/types";
 
@@ -115,9 +116,10 @@ export async function getBankingArcRail(
     opts?.light ? null : await getArcReadiness();
 
   let identityOnChainUsd: number | null = opts?.identityOnChainUsd ?? null;
-  if (identityOnChainUsd === null && profile?.walletAddress && !opts?.light) {
+  if (identityOnChainUsd === null && profile && !opts?.light) {
     try {
-      const bal = await getArcUsdcBalance(profile.walletAddress);
+      const addr = resolveIdentityWalletAddress(profile.id, profile);
+      const bal = await getArcUsdcBalance(addr);
       identityOnChainUsd = round(bal.balanceUsd);
     } catch {
       identityOnChainUsd = null;
@@ -131,6 +133,8 @@ export async function getBankingArcRail(
         .catch(() => 0);
 
   const memoActivity = opts?.light ? [] : await getRecentMemoActivity(profile?.id ?? null, 8);
+  const depositAddress =
+    profile ? resolveIdentityWalletAddress(profile.id, profile) : null;
 
   return {
     chain: "Arc Testnet",
@@ -162,13 +166,13 @@ export async function getBankingArcRail(
       recentMemoCount: memoActivity.length,
     },
     identityWallet:
-      profile?.walletAddress ?
+      depositAddress ?
         {
-          address: profile.walletAddress,
-          label: `${profile.walletAddress.slice(0, 6)}…${profile.walletAddress.slice(-4)}`,
-          provider: appWalletProvider(profile),
-          circleWalletId: circleWalletIdForUser(profile),
-          depositAddress: profile.walletAddress,
+          address: depositAddress,
+          label: `${depositAddress.slice(0, 6)}…${depositAddress.slice(-4)}`,
+          provider: profile ? appWalletProvider(profile) : "embedded",
+          circleWalletId: profile ? circleWalletIdForUser(profile) : null,
+          depositAddress,
           onChainUsdcUsd: identityOnChainUsd,
         }
       : null,

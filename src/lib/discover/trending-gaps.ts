@@ -1,12 +1,11 @@
 import { prisma } from "@/lib/db";
-import { listFundableOpportunities, listCommunitiesNeedingFirstFunder } from "@/lib/capital/funder-discovery";
+import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { EntityIds } from "@/lib/domain/entities";
 import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
 import { resolveFundTarget } from "@/lib/discover/fund-target";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import {
-  capSeedGaps,
   formatProofSource,
   isMusicAuthorization,
   isResearchAuthorization,
@@ -223,10 +222,9 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildM
   const hasDb = Boolean(process.env.DATABASE_URL);
   const githubScanAt = skipGithub ? null : new Date().toISOString();
 
-  const [ossOpportunities, fundable, seedCommunities, ledgerRows] = await Promise.all([
+  const [ossOpportunities, fundable, ledgerRows] = await Promise.all([
     skipGithub ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
     listFundableOpportunities(24),
-    listCommunitiesNeedingFirstFunder(),
     hasDb
       ? prisma.paymentAuthorization
           .findMany({
@@ -268,7 +266,7 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildM
       id: `oss-${o.fullName}`,
       domain: "oss",
       headline: `${o.fullName} — ${o.headline}`,
-      why: `Maintainers shipping ${o.highImpactPrs} high-impact PRs with ~$${o.health.fundingGapUsd.toFixed(0)} funding gap`,
+      why: `GitHub scan · est. $${o.health.fundingGapUsd.toFixed(0)} gap from repo health (stars, forks, maintainers)`,
       whoBenefits: `${o.unfundedMaintainers} maintainers · ${o.stars.toLocaleString()} star ecosystem`,
       proofSource: formatProofSource({
         connectorId: "github",
@@ -276,7 +274,8 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildM
         fallback: `GitHub scan · grade ${o.health.grade}`,
       }),
       dataSource: "github",
-      amountVerified: true,
+      amountVerified: false,
+      amountKind: "estimate",
       proofConnectorId: "github",
       proofGithubScanAt: scanAt,
       amountNeededUsd: o.health.fundingGapUsd,
@@ -392,55 +391,13 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildM
   }
 
   const verifiedCount = gaps.filter(isVerifiedGap).length;
-  const maxSeeds = verifiedCount === 0 ? 3 : 3;
-
-  for (const c of seedCommunities.slice(0, maxSeeds)) {
-    const domain: TrendingValueGap["domain"] =
-      c.kind === "research" ? "research"
-      : c.kind === "oss" ? "oss"
-      : c.kind === "music" ? "music"
-      : "community";
-
-    push({
-      id: `seed-${c.slug}`,
-      domain,
-      headline: `${c.name} — no active program yet`,
-      why: c.doctrine,
-      whoBenefits: `Operators and creators in ${c.upstream}`,
-      proofSource: "Community catalog · featured attach point (install to populate ledger)",
-      dataSource: "catalog_preview",
-      amountVerified: false,
-      amountNeededUsd: 0,
-      moneyCanMoveUsd: 0,
-      peopleImpacted: 0,
-      trendScore: c.featured ? 15 : 5,
-      communitySlug: c.slug,
-      actions: [
-        { id: "install", label: "Install", kind: "install", communitySlug: c.slug },
-        {
-          id: "program",
-          label: "Create program",
-          kind: "create_program",
-          communitySlug: c.slug,
-        },
-        {
-          id: "sensor",
-          label: "Connect sensor",
-          kind: "connect_sensor",
-          href: `/communities/${c.slug}`,
-          communitySlug: c.slug,
-        },
-      ],
-    });
-  }
 
   const sorted = gaps.sort((a, b) => b.trendScore - a.trendScore);
-  const capped = capSeedGaps(sorted, maxSeeds);
 
   return {
-    gaps: capped.slice(0, limit),
+    gaps: sorted.slice(0, limit),
     githubScanAt,
-    realSignalCount: capped.filter(isVerifiedGap).length,
+    realSignalCount: verifiedCount,
   };
 }
 

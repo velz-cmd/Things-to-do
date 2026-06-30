@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/db";
-import { getSessionUser, ensureProfileForUser } from "@/lib/auth/session";
 import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { buildNetworkIntelligence } from "@/lib/workspace/intelligence";
 import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
-import { getProfileEarningsSummary } from "@/lib/earn/summary";
+import { getTreasurySnapshot } from "@/lib/treasury/engine";
 import { buildTrendingValueGaps } from "@/lib/discover/trending-gaps";
 import { buildDomainRadars } from "@/lib/discover/domain-radars";
 import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
@@ -20,9 +19,8 @@ function startOfToday() {
 export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarFeedPayload> {
   const sinceToday = startOfToday();
   const skipGithub = process.env.CI === "true";
-  const sessionUser = await getSessionUser();
 
-  const [trending, domainRadars, ledger, connectors, ossOpportunities, fundable, eventsToday] =
+  const [trending, domainRadars, ledger, connectors, ossOpportunities, fundable, eventsToday, treasury] =
     await Promise.all([
       buildTrendingValueGaps(Math.min(Math.max(limit, 1), 24)),
       buildDomainRadars(),
@@ -35,6 +33,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
             .count({ where: { createdAt: { gte: sinceToday } } })
             .catch(() => 0)
         : Promise.resolve(0),
+      getTreasurySnapshot().catch(() => null),
     ]);
 
   const sensorsOnline = connectors.filter(
@@ -43,27 +42,14 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 
   const intelligence = buildNetworkIntelligence({
     ledger,
-    treasuryBalanceUsd: 0,
-    obligationsUsd: ledger?.pendingFundingUsd ?? 0,
+    treasuryBalanceUsd: treasury?.balanceUsd ?? 0,
+    obligationsUsd: treasury?.obligationsUsd ?? ledger?.pendingFundingUsd ?? 0,
+    treasuryConfigured: treasury != null,
     domainIntelligence: [],
     opportunities: ossOpportunities,
     sensorsOnline,
     eventsToday,
   });
-
-  let claimHint: DiscoverRadarFeedPayload["claimHint"] = null;
-  if (sessionUser) {
-    const profile = await ensureProfileForUser(sessionUser);
-    const earnings = await getProfileEarningsSummary({ profile });
-    if (earnings.claimableUsd > 0) {
-      claimHint = {
-        claimableUsd: earnings.claimableUsd,
-        claimableCount: earnings.identities.filter((i) => i.claimableUsd > 0).length,
-        href: "/claim",
-        payeeLabel: profile.displayName ?? sessionUser.email ?? "your account",
-      };
-    }
-  }
 
   const gaps = trending.gaps;
   const radars = {
@@ -89,7 +75,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
     ossSignalCount: ossOpportunities.length,
     realSignalCount: trending.realSignalCount,
     githubScanAt: trending.githubScanAt,
-    claimHint,
+    claimHint: null,
     updatedAt: new Date().toISOString(),
   };
 }

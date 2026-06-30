@@ -13,12 +13,14 @@ import {
   tintForDomain,
   type GraphDomainFilter,
 } from "@/lib/discover/graph-domain";
-import { bubblePopoverActions } from "@/lib/discover/graph-node-actions";
+import { bubblePopoverActions, filterGraphByIntent } from "@/lib/discover/graph-node-actions";
 import {
   DiscoverBubbleNodePopover,
   type BubblePopoverAnchor,
 } from "@/components/resolve/discover/discover-bubble-node-popover";
 import { DiscoverBubblemapMetrics } from "@/components/resolve/discover/discover-bubblemap-metrics";
+import { DiscoverBubblemapSkeleton } from "@/components/resolve/discover/discover-skeletons";
+import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -113,7 +115,7 @@ function useMediaQuery(query: string) {
 
 export function DiscoverValueBubblemap({
   className,
-  intent: _intent = "all",
+  intent = "all",
 }: {
   className?: string;
   intent?: DiscoverIntent;
@@ -122,6 +124,9 @@ export function DiscoverValueBubblemap({
   const [visible, setVisible] = useState(false);
   const [data, setData] = useState<RadarPayload | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dataRef = useRef<RadarPayload | null>(null);
+  dataRef.current = data;
   const [hovered, setHovered] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [domainFilter, setDomainFilter] = useState<GraphDomainFilter>("all");
@@ -141,12 +146,20 @@ export function DiscoverValueBubblemap({
 
   const loadRadar = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/discover/radar");
+      if (!res.ok) throw new Error("Radar unavailable");
       const d = (await res.json()) as RadarPayload;
       setData(d);
     } catch {
-      setData(null);
+      setError("Could not load value graph");
+      discoverFetchErrorToast(
+        "discover-bubblemap",
+        "Value graph unavailable",
+        () => void loadRadar(),
+        Boolean(dataRef.current),
+      );
     } finally {
       setLoading(false);
     }
@@ -159,15 +172,14 @@ export function DiscoverValueBubblemap({
     return () => clearInterval(t);
   }, [visible, loadRadar]);
 
-  const filteredGraph = useMemo(
-    () =>
-      filterGraphByDomain(
-        data?.graph.nodes ?? [],
-        data?.graph.edges ?? [],
-        domainFilter,
-      ),
-    [data?.graph.nodes, data?.graph.edges, domainFilter],
-  );
+  const filteredGraph = useMemo(() => {
+    const byDomain = filterGraphByDomain(
+      data?.graph.nodes ?? [],
+      data?.graph.edges ?? [],
+      domainFilter,
+    );
+    return filterGraphByIntent(byDomain.nodes, byDomain.edges, intent);
+  }, [data?.graph.nodes, data?.graph.edges, domainFilter, intent]);
 
   const bubbles = useMemo(
     () => layoutBubblemap(filteredGraph.nodes),
@@ -188,8 +200,8 @@ export function DiscoverValueBubblemap({
 
   const modeLabel = data?.live
     ? `Live ledger · ${data.ledgerEventCount ?? 0} authorization${(data.ledgerEventCount ?? 0) === 1 ? "" : "s"}`
-    : data?.hasCatalogPreview
-      ? "Catalog preview — install a community for live ledger"
+    : hasGraph
+      ? "GitHub scan preview — estimated gaps from repo health, not ledger"
       : "Waiting for ledger events";
 
   const popoverActions = useMemo(() => {
@@ -229,7 +241,7 @@ export function DiscoverValueBubblemap({
                 : "border-amber-500/30 bg-amber-500/10 text-amber-200",
             )}
           >
-            {data?.live ? "Live ledger" : "Catalog preview"}
+            {data?.live ? "Live ledger" : hasGraph ? "Scan preview" : "Awaiting data"}
           </span>
           <button
             type="button"
@@ -267,7 +279,18 @@ export function DiscoverValueBubblemap({
       </div>
 
       {loading && !data ? (
-        <p className="px-6 py-12 text-center text-xs text-resolve-muted">Loading value graph…</p>
+        <DiscoverBubblemapSkeleton />
+      ) : error && !hasGraph ? (
+        <div className="px-6 py-16 text-center">
+          <p className="text-sm text-resolve-muted">{error}</p>
+          <button
+            type="button"
+            onClick={() => void loadRadar()}
+            className="mt-3 text-xs font-medium text-resolve-accent hover:underline"
+          >
+            Retry
+          </button>
+        </div>
       ) : !hasGraph ? (
         <div className="relative px-6 py-16 text-center">
           <p className="text-sm text-resolve-muted">
@@ -292,10 +315,19 @@ export function DiscoverValueBubblemap({
                 const fill = domainTint ?? NODE_COLORS[b.type] ?? "#94a3b8";
                 const dimmed =
                   domainFilter !== "all" && !nodeMatchesDomainFilter(b, domainFilter);
+                const synthetic = b.synthetic;
                 return (
                   <radialGradient key={`g-${b.id}`} id={`bubble-${b.id}`} cx="35%" cy="30%">
-                    <stop offset="0%" stopColor={fill} stopOpacity={dimmed ? 0.25 : 0.95} />
-                    <stop offset="100%" stopColor={fill} stopOpacity={dimmed ? 0.1 : 0.35} />
+                    <stop
+                      offset="0%"
+                      stopColor={fill}
+                      stopOpacity={dimmed || synthetic ? 0.2 : 0.95}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor={fill}
+                      stopOpacity={dimmed || synthetic ? 0.08 : 0.35}
+                    />
                   </radialGradient>
                 );
               })}
@@ -325,6 +357,7 @@ export function DiscoverValueBubblemap({
               const active = hovered === b.id || popover?.node.id === b.id;
               const fill = NODE_COLORS[b.type] ?? "#94a3b8";
               const pending = b.pendingFunding;
+              const synthetic = b.synthetic;
               const r = (b.r + (active ? 4 : 0)) * Math.min(scaleX, scaleY);
 
               return (
@@ -335,6 +368,17 @@ export function DiscoverValueBubblemap({
                   onMouseLeave={() => setHovered(null)}
                   onClick={(e) => handleNodeClick(b, e)}
                 >
+                  {synthetic && (
+                    <circle
+                      cx={b.cx * scaleX}
+                      cy={b.cy * scaleY}
+                      r={r + 3}
+                      fill="none"
+                      stroke="rgba(148,163,184,0.35)"
+                      strokeWidth={1}
+                      strokeDasharray="3 2"
+                    />
+                  )}
                   {pending && (
                     <circle
                       cx={b.cx * scaleX}

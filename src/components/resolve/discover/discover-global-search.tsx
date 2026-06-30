@@ -6,6 +6,7 @@ import type { DiscoverAction, DiscoverSearchResult } from "@/lib/discover/types"
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
+import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 
 type SearchMeta = {
   topPrimaryAction: DiscoverAction | null;
@@ -29,6 +30,7 @@ export function DiscoverGlobalSearch({
   const [results, setResults] = useState<DiscoverSearchResult[]>([]);
   const [meta, setMeta] = useState<SearchMeta>({ topPrimaryAction: null, queueFilter: null });
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const metaRef = useRef(meta);
   metaRef.current = meta;
 
@@ -41,24 +43,33 @@ export function DiscoverGlobalSearch({
       return;
     }
     const t = setTimeout(() => {
-      setLoading(true);
-      void fetch(`/api/discover/search?q=${encodeURIComponent(q)}`)
-        .then((r) => r.json())
-        .then((d) => {
-          setResults(d.results ?? []);
-          const nextMeta = {
-            topPrimaryAction: d.topPrimaryAction ?? null,
-            queueFilter: d.queueFilter ?? null,
-          };
-          setMeta(nextMeta);
-          onQueueFilter?.(nextMeta.queueFilter);
-        })
-        .catch(() => {
-          setResults([]);
-          setMeta({ topPrimaryAction: null, queueFilter: null });
-          onQueueFilter?.(null);
-        })
-        .finally(() => setLoading(false));
+      const runSearch = () => {
+        setLoading(true);
+        setSearchError(null);
+        return fetch(`/api/discover/search?q=${encodeURIComponent(q)}`)
+          .then((r) => {
+            if (!r.ok) throw new Error("Search failed");
+            return r.json();
+          })
+          .then((d) => {
+            setResults(d.results ?? []);
+            const nextMeta = {
+              topPrimaryAction: d.topPrimaryAction ?? null,
+              queueFilter: d.queueFilter ?? null,
+            };
+            setMeta(nextMeta);
+            onQueueFilter?.(nextMeta.queueFilter);
+          })
+          .catch(() => {
+            setSearchError("Search unavailable");
+            setResults([]);
+            setMeta({ topPrimaryAction: null, queueFilter: null });
+            onQueueFilter?.(null);
+            discoverFetchErrorToast("discover-search", "Search unavailable", runSearch, false);
+          })
+          .finally(() => setLoading(false));
+      };
+      void runSearch();
     }, 280);
     return () => clearTimeout(t);
   }, [query, onQueueFilter]);

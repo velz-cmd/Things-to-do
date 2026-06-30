@@ -13,6 +13,7 @@
     "test:browser": "PLAYWRIGHT_ENABLED=true tsx scripts/test-browser-executor.ts",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
+    "verify:discover": "tsx scripts/verify-discover-tab.ts",
     "deploy:escrow": "tsx scripts/deploy-escrow.ts",
     "test:integrations": "tsx scripts/test-integrations.ts",
     "test:github-integrations": "tsx scripts/test-github-integrations.ts",

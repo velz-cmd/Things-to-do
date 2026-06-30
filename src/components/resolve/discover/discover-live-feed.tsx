@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { Activity, Radio } from "lucide-react";
@@ -13,6 +13,8 @@ import {
 } from "@/lib/discover/live-feed-actions";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
+import { DiscoverFeedSkeleton } from "@/components/resolve/discover/discover-skeletons";
+import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 
 type LiveEventsResponse = {
   ok: boolean;
@@ -51,28 +53,44 @@ export function DiscoverLiveFeed({
   const { runAction } = useDiscoverActions();
   const [data, setData] = useState<LiveEventsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [domainFilter, setDomainFilter] = useState<FeedDomainFilter>("all");
+  const dataRef = useRef<LiveEventsResponse | null>(null);
+  dataRef.current = data;
 
-  useEffect(() => {
+  const loadFeed = useCallback(async () => {
     const params = new URLSearchParams();
     params.set("limit", "20");
     params.set("scope", "network");
     const apiDomain = normalizeLiveEventDomain(domainFilter === "all" ? null : domainFilter);
     if (apiDomain) params.set("domain", apiDomain);
 
-    const load = () => {
-      setLoading(true);
-      return fetch(`/api/events/live?${params}`)
-        .then((r) => r.json())
-        .then((d: LiveEventsResponse) => setData(d))
-        .catch(() => setData(null))
-        .finally(() => setLoading(false));
-    };
-
-    void load();
-    const t = setInterval(() => void load(), 20_000);
-    return () => clearInterval(t);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/live?${params}`);
+      if (!res.ok) throw new Error("Live feed unavailable");
+      const d = (await res.json()) as LiveEventsResponse;
+      if (!d.ok) throw new Error("Live feed unavailable");
+      setData(d);
+    } catch {
+      setError("Could not load live feed");
+      discoverFetchErrorToast(
+        "discover-live-feed",
+        "Live feed unavailable",
+        () => void loadFeed(),
+        Boolean(dataRef.current),
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [domainFilter]);
+
+  useEffect(() => {
+    void loadFeed();
+    const t = setInterval(() => void loadFeed(), 20_000);
+    return () => clearInterval(t);
+  }, [loadFeed]);
 
   const events = useMemo(() => data?.events ?? [], [data?.events]);
 
@@ -118,7 +136,18 @@ export function DiscoverLiveFeed({
       </div>
 
       {loading && !data ? (
-        <p className="text-sm text-resolve-muted">Loading ledger events…</p>
+        <DiscoverFeedSkeleton />
+      ) : error && !events.length ? (
+        <div className="rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-8 text-center">
+          <p className="text-sm text-resolve-muted">{error}</p>
+          <button
+            type="button"
+            onClick={() => void loadFeed()}
+            className="mt-3 text-xs font-medium text-resolve-accent hover:underline"
+          >
+            Retry
+          </button>
+        </div>
       ) : !events.length ? (
         <div className="rounded-xl border border-dashed border-resolve-border/80 bg-resolve-bg-deep/20 px-5 py-8 text-center">
           <Activity className="mx-auto h-8 w-8 text-resolve-muted-dim" strokeWidth={1.25} />
@@ -136,7 +165,7 @@ export function DiscoverLiveFeed({
             const receipt = receiptHrefForEvent(item);
 
             return (
-              <li key={item.id} className="px-4 py-3.5 sm:px-5">
+              <li key={item.id} className="min-w-0 px-4 py-3.5 sm:px-5">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">

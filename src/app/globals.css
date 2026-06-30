@@ -250,85 +250,192 @@ body {
     box-shadow: 0 6px 24px rgba(0, 40, 90, 0.15);
   }
 
-  .resolve-signal-rail-card {
+  /* Premium signal service cards — Capital-style gradient + silver strip */
+  .resolve-premium-signal-card {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(
-      155deg,
-      rgba(204, 194, 209, 0.045) 0%,
-      rgba(10, 28, 56, 0.65) 55%,
-      rgba(7, 20, 40, 0.82) 100%
-    );
-    border: 1px solid rgba(141, 161, 209, 0.09);
-    transition:
-      transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-      border-color 0.35s ease,
-      box-shadow 0.35s ease;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 8px 32px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
-  .resolve-signal-rail-card::before {
+  .resolve-premium-signal-card::before {
     content: "";
     position: absolute;
-    inset: 0;
+    inset: -30% -10% -10%;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.4s ease;
+    z-index: 0;
   }
 
-  .resolve-signal-rail-card:hover {
-    transform: translateY(-2px);
-  }
-
-  .resolve-signal-rail-card--agent::before {
-    background: radial-gradient(
-      ellipse 90% 70% at 50% -10%,
-      rgba(59, 158, 255, 0.14),
-      transparent 68%
+  .resolve-premium-signal-card::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 8%;
+    right: 8%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(204, 194, 209, 0.5),
+      rgba(255, 255, 255, 0.35),
+      rgba(204, 194, 209, 0.5),
+      transparent
     );
+    box-shadow: 0 0 24px 3px rgba(141, 161, 209, 0.15);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 2;
   }
 
-  .resolve-signal-rail-card--agent:hover {
-    border-color: rgba(30, 129, 192, 0.28);
-    box-shadow:
-      0 0 0 1px rgba(59, 158, 255, 0.06),
-      0 10px 36px rgba(0, 50, 120, 0.22),
-      0 0 56px rgba(59, 158, 255, 0.07);
-  }
-
-  .resolve-signal-rail-card--creator::before {
-    background: radial-gradient(
-      ellipse 90% 70% at 50% -10%,
-      rgba(222, 116, 153, 0.11),
-      transparent 68%
-    );
-  }
-
-  .resolve-signal-rail-card--creator:hover {
-    border-color: rgba(222, 116, 153, 0.22);
-    box-shadow:
-      0 0 0 1px rgba(222, 116, 153, 0.05),
-      0 10px 36px rgba(80, 20, 50, 0.18),
-      0 0 56px rgba(222, 116, 153, 0.06);
-  }
-
-  .resolve-signal-rail-card--maintainer::before {
-    background: radial-gradient(
-      ellipse 90% 70% at 50% -10%,
-      rgba(188, 197, 188, 0.1),
-      transparent 68%
-    );
-  }
-
-  .resolve-signal-rail-card--maintainer:hover {
-    border-color: rgba(188, 197, 188, 0.22);
-    box-shadow:
-      0 0 0 1px rgba(188, 197, 188, 0.05),
-      0 10px 36px rgba(20, 40, 30, 0.18),
-      0 0 56px rgba(188, 197, 188, 0.05);
-  }
-
-  .resolve-signal-rail-card:hover::before {
+  .resolve-premium-signal-card:hover::before {
     opacity: 1;
+  }
+
+  .resolve-premium-signal-card--agent {
+    background: linear-gradient(
+      148deg,
+      #0f3d5c 0%,
+      #1e81c0 38%,
+      #3b9eff 72%,
+      #8da1d1 100%
+    );
+  }
+
+  .resolve-premium-signal-card--agent::before {
+    background: radial-gradient(
+      ellipse 100% 80% at 50% 110%,
+      rgba(59, 158, 255, 0.35),
+      transparent 65%
+    );
+  }
+
+  .resolve-premium-signal-card--agent.resolve-card-hover:hover {
+    border-color: rgba(59, 158, 255, 0.35);
+    box-shadow:
+      0 0 0 1px rgba(59, 158, 255, 0.12),
+      0 14px 48px rgba(0, 50, 120, 0.35),
+      0 0 64px rgba(59, 158, 255, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .resolve-premium-signal-card--agent.resolve-premium-signal-card--featured {
+    background: linear-gradient(
+      148deg,
+      #c45a20 0%,
+      #e87830 32%,
+      #ff9a4d 68%,
+      #ffc08a 100%
+    );
+  }
+
+  .resolve-premium-signal-card--agent.resolve-premium-signal-card--featured::before {
+    background: radial-gradient(
+      ellipse 100% 80% at 50% 110%,
+      rgba(255, 154, 77, 0.4),
+      transparent 65%
+    );
+  }
+
+  .resolve-premium-signal-card--agent.resolve-premium-signal-card--featured.resolve-card-hover:hover {
+    border-color: rgba(255, 154, 77, 0.4);
+    box-shadow:
+      0 0 0 1px rgba(255, 154, 77, 0.15),
+      0 14px 48px rgba(120, 40, 0, 0.3),
+      0 0 64px rgba(255, 154, 77, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+
+  .resolve-premium-signal-card--creator {
+    background: linear-gradient(
+      148deg,
+      #120a18 0%,
+      #4a2a42 35%,
+      #a685b3 65%,
+      #de7499 100%
+    );
+  }
+
+  .resolve-premium-signal-card--creator::before {
+    background: radial-gradient(
+      ellipse 100% 80% at 50% 110%,
+      rgba(222, 116, 153, 0.3),
+      transparent 65%
+    );
+  }
+
+  .resolve-premium-signal-card--creator.resolve-card-hover:hover {
+    border-color: rgba(222, 116, 153, 0.32);
+    box-shadow:
+      0 0 0 1px rgba(222, 116, 153, 0.1),
+      0 14px 48px rgba(80, 20, 50, 0.28),
+      0 0 64px rgba(222, 116, 153, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .resolve-premium-signal-card--creator.resolve-premium-signal-card--featured {
+    background: linear-gradient(
+      148deg,
+      #1a0e22 0%,
+      #5c3a55 40%,
+      #de7499 75%,
+      #f0a0b8 100%
+    );
+  }
+
+  .resolve-premium-signal-card--maintainer {
+    background: linear-gradient(
+      148deg,
+      #060e0c 0%,
+      #1a2820 38%,
+      #3d5248 68%,
+      #bcc5bc 100%
+    );
+  }
+
+  .resolve-premium-signal-card--maintainer::before {
+    background: radial-gradient(
+      ellipse 100% 80% at 50% 110%,
+      rgba(188, 197, 188, 0.28),
+      transparent 65%
+    );
+  }
+
+  .resolve-premium-signal-card--maintainer.resolve-card-hover:hover {
+    border-color: rgba(188, 197, 188, 0.3);
+    box-shadow:
+      0 0 0 1px rgba(188, 197, 188, 0.08),
+      0 14px 48px rgba(10, 30, 20, 0.32),
+      0 0 64px rgba(188, 197, 188, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .resolve-premium-signal-card--maintainer.resolve-premium-signal-card--featured {
+    background: linear-gradient(
+      148deg,
+      #0a1210 0%,
+      #2a3530 42%,
+      #6b7d6e 78%,
+      #d4ddd4 100%
+    );
+  }
+
+  .resolve-silver-strip {
+    background: linear-gradient(
+      90deg,
+      rgba(204, 194, 209, 0.24) 0%,
+      rgba(255, 255, 255, 0.16) 45%,
+      rgba(204, 194, 209, 0.2) 100%
+    );
+    backdrop-filter: blur(12px) saturate(1.25);
+    -webkit-backdrop-filter: blur(12px) saturate(1.25);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
 
   .resolve-signal-lane {

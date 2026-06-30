@@ -9,9 +9,9 @@ import {
   ChevronDown,
   Loader2,
   Radio,
-  ShieldCheck,
 } from "lucide-react";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import { PremiumSignalCard } from "@/components/resolve/signal-rails/premium-signal-card";
 
 export type AgentServiceCard = {
   id: string;
@@ -57,7 +57,7 @@ const LANE_ORDER = ["agent", "creator", "maintainer"] as const;
 
 const LANE_META: Record<
   (typeof LANE_ORDER)[number],
-  { title: string; subtitle: string; accent: string; rail: string; laneClass: string; cardClass: string }
+  { title: string; subtitle: string; accent: string; rail: string; laneClass: string }
 > = {
   agent: {
     title: "Agent intelligence",
@@ -65,7 +65,6 @@ const LANE_META: Record<
     accent: "text-resolve-calm-blue",
     rail: "border-l-resolve-calm-blue/50",
     laneClass: "resolve-signal-lane--agent",
-    cardClass: "resolve-signal-rail-card--agent",
   },
   creator: {
     title: "Creator attribution",
@@ -73,7 +72,6 @@ const LANE_META: Record<
     accent: "text-resolve-calm-rose",
     rail: "border-l-resolve-calm-rose/45",
     laneClass: "resolve-signal-lane--creator",
-    cardClass: "resolve-signal-rail-card--creator",
   },
   maintainer: {
     title: "Maintainer value",
@@ -81,7 +79,6 @@ const LANE_META: Record<
     accent: "text-resolve-calm-sage",
     rail: "border-l-resolve-calm-sage/50",
     laneClass: "resolve-signal-lane--maintainer",
-    cardClass: "resolve-signal-rail-card--maintainer",
   },
 };
 
@@ -301,64 +298,25 @@ export function SignalAuthorizationRails({
                       </p>
                       <p className="mt-0.5 text-xs text-resolve-muted-dim">{meta.subtitle}</p>
                     </div>
-                    <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {services.map((s) => (
-                        <li
-                          key={s.id}
-                          className={clsx(
-                            "resolve-signal-rail-card relative flex flex-col rounded-xl p-4",
-                            meta.cardClass,
-                          )}
-                        >
-                          <div className="relative z-[1] flex flex-1 flex-col">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <p className="text-sm font-medium text-white">{s.name}</p>
-                                  {s.rfbProgram && (
-                                    <span className="resolve-calm-chip rounded-md px-1.5 py-0.5 text-[9px] font-medium uppercase">
-                                      {s.rfbProgram}
-                                    </span>
-                                  )}
-                                  <span className="resolve-calm-chip rounded-md px-1.5 py-0.5 text-[9px] font-medium uppercase">
-                                    {s.x402 ? "x402" : "sensor"}
-                                  </span>
-                                </div>
-                                <p className="mt-2 text-xs leading-relaxed text-resolve-muted">
-                                  {s.description}
-                                </p>
-                              </div>
-                              <div className="shrink-0 text-right">
-                                <p className="text-sm font-semibold tabular-nums text-[#E8E4ED]">
-                                  {formatUnitPrice(s.priceUsd)}
-                                </p>
-                                <p className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">
-                                  per {s.billingUnit}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-resolve-calm-periwinkle/10 pt-3">
-                              <p className="flex items-center gap-1.5 text-[10px] text-resolve-muted-dim">
-                                <ShieldCheck className="h-3 w-3 text-resolve-calm-periwinkle/70" />
-                                {s.eventType}
-                                <span className="opacity-40">·</span>
-                                {s.connectorId}
-                              </p>
-                              {isMission && onMissionPrompt && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
+                    <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+                      {services.map((s, idx) => (
+                        <li key={s.id}>
+                          <PremiumSignalCard
+                            service={s}
+                            lane={lane}
+                            featured={idx === 0}
+                            isMission={isMission}
+                            missionHref={missionHref}
+                            onUseInMission={
+                              isMission && onMissionPrompt
+                                ? () => {
                                     setSelectedServiceId(s.id);
                                     setDemoText(s.examplePrompt);
                                     onMissionPrompt(s.examplePrompt, s.id);
-                                  }}
-                                  className="resolve-signal-cta rounded-lg px-2.5 py-1 text-[10px] font-medium text-[#E8E4ED]"
-                                >
-                                  Use in mission
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                                  }
+                                : undefined
+                            }
+                          />
                         </li>
                       ))}
                     </ul>

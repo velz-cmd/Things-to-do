@@ -23,6 +23,14 @@
   --resolve-danger: #f87171;
   --resolve-muted: #8ba3c7;
   --resolve-muted-dim: #5a7399;
+  --resolve-calm-canvas: #f2e8e5;
+  --resolve-calm-card: #ccc2d1;
+  --resolve-calm-periwinkle: #8da1d1;
+  --resolve-calm-blue: #1e81c0;
+  --resolve-calm-rose: #de7499;
+  --resolve-calm-sage: #bcc5bc;
+  --resolve-calm-lilac: #a685b3;
+  --resolve-calm-alert: #cd4c4c;
   --resolve-glass: rgba(10, 30, 62, 0.55);
   --resolve-radius: 18px;
   --resolve-radius-lg: 24px;
@@ -191,6 +199,22 @@ body {
 
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+
+  .resolve-calm-surface {
+    background: linear-gradient(
+      165deg,
+      rgba(204, 194, 209, 0.07) 0%,
+      rgba(141, 161, 209, 0.04) 45%,
+      rgba(7, 20, 40, 0.55) 100%
+    );
+    border: 1px solid rgba(141, 161, 209, 0.16);
+  }
+
+  .resolve-calm-chip {
+    border: 1px solid rgba(141, 161, 209, 0.22);
+    background: rgba(141, 161, 209, 0.08);
+    color: var(--resolve-calm-periwinkle);
   }
 }
 

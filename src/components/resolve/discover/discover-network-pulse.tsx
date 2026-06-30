@@ -5,38 +5,39 @@ import clsx from "clsx";
 import { Activity, ArrowRight, Radio } from "lucide-react";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import {
+  DiscoverDegradedHint,
+  DiscoverRetryButton,
+  DiscoverStatePanel,
+} from "@/components/resolve/discover/discover-state-panel";
 
 export function DiscoverNetworkPulse({ className }: { className?: string }) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
 
   if (loading && !feed) {
     return (
-      <div className={clsx("rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 px-5 py-4", className)}>
+      <DiscoverStatePanel variant="loading" className={clsx("px-5 py-4 text-left", className)}>
         <p className="text-xs text-resolve-muted">Loading network pulse…</p>
-      </div>
+      </DiscoverStatePanel>
     );
   }
 
   if (error && !feed?.intelligence) {
     return (
-      <div className={clsx("rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-4", className)}>
+      <DiscoverStatePanel variant="error" className={clsx("px-5 py-4 text-left", className)}>
         <p className="text-xs text-resolve-muted">{error}</p>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          className="mt-2 text-xs font-medium text-resolve-accent hover:underline"
-        >
-          Retry
-        </button>
-      </div>
+        <DiscoverRetryButton onClick={() => void refresh()} />
+      </DiscoverStatePanel>
     );
   }
 
   if (!feed?.intelligence) {
     return (
-      <div className={clsx("rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 px-5 py-4", className)}>
-        <p className="text-xs text-resolve-muted">Network pulse unavailable — connect sensors to populate ledger.</p>
-      </div>
+      <DiscoverStatePanel variant="empty" className={clsx("px-5 py-4 text-left", className)}>
+        <p className="text-xs text-resolve-muted">
+          Network pulse unavailable — connect sensors to populate ledger.
+        </p>
+      </DiscoverStatePanel>
     );
   }
 
@@ -94,6 +95,10 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
           )}
         </div>
       </div>
+
+      {feed.degraded && (
+        <DiscoverDegradedHint onRefresh={() => void refresh()} className="mt-3" />
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         <PulseStat label="Recognized" value={`$${i.recognizedUsd.toFixed(0)}`} />

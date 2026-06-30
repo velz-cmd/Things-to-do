@@ -92,6 +92,9 @@ export type DomainRadarBundle = {
 export type DiscoverRadarFeedPayload = {
   ok: boolean;
   error?: string;
+  /** True when one or more upstream sources failed but payload is still usable */
+  degraded?: boolean;
+  degradedParts?: string[];
   gaps: TrendingValueGap[];
   radars: {
     oss: TrendingValueGap[];

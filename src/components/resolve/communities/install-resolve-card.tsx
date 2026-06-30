@@ -51,7 +51,7 @@ export function InstallResolveCard({
           : `Connected to ${community.name} in seconds`,
       );
       onInstalled?.();
-      router.push(`/communities/${community.slug}`);
+      router.push(`/communities/${community.slug}#health`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not install RESOLVE");
     } finally {

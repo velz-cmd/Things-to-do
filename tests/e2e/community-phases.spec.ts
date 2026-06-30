@@ -231,8 +231,9 @@ test.describe("Community phases — surfaces", () => {
   test("discover shows community directory", async ({ page, request }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     const communities = page.locator("#communities");
-    await expect(communities.getByText("Community directory")).toBeVisible();
+    await expect(communities.getByText("Communities strip")).toBeVisible();
     await expect(communities.getByText("Install on Independent Music")).toBeVisible();
+    await expect(communities.getByRole("button", { name: "Open" }).first()).toBeVisible();
 
     const statusRes = await request.get("/api/communities/sensor-status");
     const body = await statusRes.json();

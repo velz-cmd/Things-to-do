@@ -19,6 +19,8 @@ import {
   type BubblePopoverAnchor,
 } from "@/components/resolve/discover/discover-bubble-node-popover";
 import { DiscoverBubblemapMetrics } from "@/components/resolve/discover/discover-bubblemap-metrics";
+import { DiscoverBubblemapSkeleton } from "@/components/resolve/discover/discover-skeletons";
+import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -122,6 +124,9 @@ export function DiscoverValueBubblemap({
   const [visible, setVisible] = useState(false);
   const [data, setData] = useState<RadarPayload | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dataRef = useRef<RadarPayload | null>(null);
+  dataRef.current = data;
   const [hovered, setHovered] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [domainFilter, setDomainFilter] = useState<GraphDomainFilter>("all");
@@ -141,12 +146,20 @@ export function DiscoverValueBubblemap({
 
   const loadRadar = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/discover/radar");
+      if (!res.ok) throw new Error("Radar unavailable");
       const d = (await res.json()) as RadarPayload;
       setData(d);
     } catch {
-      setData(null);
+      setError("Could not load value graph");
+      discoverFetchErrorToast(
+        "discover-bubblemap",
+        "Value graph unavailable",
+        () => void loadRadar(),
+        Boolean(dataRef.current),
+      );
     } finally {
       setLoading(false);
     }
@@ -267,7 +280,18 @@ export function DiscoverValueBubblemap({
       </div>
 
       {loading && !data ? (
-        <p className="px-6 py-12 text-center text-xs text-resolve-muted">Loading value graph…</p>
+        <DiscoverBubblemapSkeleton />
+      ) : error && !hasGraph ? (
+        <div className="px-6 py-16 text-center">
+          <p className="text-sm text-resolve-muted">{error}</p>
+          <button
+            type="button"
+            onClick={() => void loadRadar()}
+            className="mt-3 text-xs font-medium text-resolve-accent hover:underline"
+          >
+            Retry
+          </button>
+        </div>
       ) : !hasGraph ? (
         <div className="relative px-6 py-16 text-center">
           <p className="text-sm text-resolve-muted">

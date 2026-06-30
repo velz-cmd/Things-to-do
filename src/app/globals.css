@@ -259,10 +259,17 @@ body {
 
   .resolve-signal-card-body {
     background:
-      radial-gradient(ellipse 90% 55% at 50% 0%, rgba(125, 140, 196, 0.1), transparent 62%),
-      radial-gradient(ellipse 50% 40% at 0% 80%, rgba(0, 119, 179, 0.07), transparent 55%),
-      linear-gradient(180deg, rgba(20, 48, 82, 0.35) 0%, rgba(14, 36, 64, 0.12) 100%);
-    border-top: 1px solid rgba(125, 140, 196, 0.1);
+      radial-gradient(ellipse 100% 65% at 50% -5%, rgba(125, 140, 196, 0.16), transparent 58%),
+      radial-gradient(ellipse 50% 50% at 100% 55%, rgba(92, 96, 159, 0.11), transparent 52%),
+      radial-gradient(ellipse 45% 40% at 0% 75%, rgba(0, 119, 179, 0.09), transparent 50%),
+      linear-gradient(
+        175deg,
+        rgba(30, 80, 125, 0.32) 0%,
+        rgba(22, 60, 100, 0.24) 40%,
+        rgba(18, 48, 82, 0.18) 70%,
+        rgba(14, 38, 68, 0.14) 100%
+      );
+    border-top: 1px solid rgba(125, 140, 196, 0.12);
   }
 
   .resolve-signal-inner-panel {

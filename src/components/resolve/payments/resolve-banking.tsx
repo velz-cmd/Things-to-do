@@ -17,6 +17,7 @@ import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
 import { CapitalCommunityPrograms } from "@/components/resolve/capital/capital-community-programs";
+import { RoleInfrastructureHub } from "@/components/resolve/infrastructure/role-infrastructure-hub";
 import { FunderDiscoveryPanel } from "@/components/resolve/capital/funder-discovery-panel";
 import { EcosystemBenefitsProgram } from "@/components/resolve/capital/ecosystem-benefits-program";
 import { MoneyFlowExplainer } from "@/components/resolve/capital/money-flow-explainer";
@@ -649,6 +650,7 @@ export function ResolveBanking({
 
       {tab === "programs" && (
         <section className="space-y-8 py-2">
+          <RoleInfrastructureHub variant="compact" defaultRole="funder" signedIn={signedIn} />
           <EcosystemBenefitsProgram variant="compact" defaultRole="funder" />
           {signedIn && <PendingAuthorizationsPanel signedIn={signedIn} variant="programs" />}
           {signedIn && <FunderYieldPortfolio />}

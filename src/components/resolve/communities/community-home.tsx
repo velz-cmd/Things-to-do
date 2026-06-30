@@ -25,6 +25,7 @@ import { CommunitySensorPanel } from "@/components/resolve/communities/community
 import { CommunityBridgePanel } from "@/components/resolve/communities/community-bridge-panel";
 import { CommunityLiveAuthorizations } from "@/components/resolve/communities/community-live-authorizations";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
+import { OperatorWorkbench } from "@/components/resolve/infrastructure/operator-workbench";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
 import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
@@ -288,6 +289,7 @@ export function CommunityHome({ slug }: { slug: string }) {
         </div>
       ) : (
         <div className="space-y-8">
+          <OperatorWorkbench role="founder" />
           <section id="treasury" className="grid gap-4 md:grid-cols-3 scroll-mt-24">
             <BlueGlowCard variant="subtle" className="space-y-2">
               <div className="flex items-center gap-2 text-resolve-muted">

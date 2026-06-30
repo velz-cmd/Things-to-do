@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
+import { EconomicInfrastructureSection } from "@/components/resolve/stack/economic-infrastructure-section";
 
 function Badge({
   children,
@@ -165,6 +166,8 @@ export function ProductionStack() {
         </header>
 
         <div className="space-y-12">
+          <EconomicInfrastructureSection />
+
           {/* AI Layer */}
           <section>
             <SectionTitle

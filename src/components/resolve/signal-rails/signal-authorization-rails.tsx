@@ -112,6 +112,7 @@ export function SignalAuthorizationRails({
 
   const isMission = variant === "mission";
   const missionHref = "/mission#signal-rails";
+  const showExpanded = isMission ? expanded : true;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -184,38 +185,56 @@ export function SignalAuthorizationRails({
       )}
     >
       <div className="resolve-silver-strip resolve-silver-strip--headline">
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="flex w-full flex-wrap items-start justify-between gap-3 px-4 py-3.5 text-left sm:px-5"
-          aria-expanded={expanded}
-        >
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.08]">
-              <Radio className="h-4 w-4 text-white/90" strokeWidth={1.75} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">
-                Signal authorization rails
-              </p>
-              <h2 className="mt-1 text-base font-semibold tracking-tight text-white sm:text-lg">
-                Pay-per-signal infrastructure for missions and agents
-              </h2>
-              {!expanded && (
-                <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-white/55">
-                  {catalog?.doctrine ??
-                    "Micropay on Arc, authorize on ledger, mission continues."}
+        {isMission ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex w-full flex-wrap items-start justify-between gap-3 px-4 py-3.5 text-left sm:px-5"
+            aria-expanded={showExpanded}
+          >
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.08]">
+                <Radio className="h-4 w-4 text-white/90" strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">
+                  Signal authorization rails
                 </p>
-              )}
+                <h2 className="mt-1 text-base font-semibold tracking-tight text-white sm:text-lg">
+                  Pay-per-signal infrastructure for missions and agents
+                </h2>
+                {!showExpanded && (
+                  <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-white/55">
+                    {catalog?.doctrine ??
+                      "Micropay on Arc, authorize on ledger, mission continues."}
+                  </p>
+                )}
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[11px] text-white/60">
+              {showExpanded ? "Collapse" : "Expand"}
+              <ChevronDown
+                className={clsx("h-3.5 w-3.5 transition-transform", showExpanded && "rotate-180")}
+              />
+            </span>
+          </button>
+        ) : (
+          <div className="flex w-full flex-wrap items-start justify-between gap-3 px-4 py-3.5 sm:px-5">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.08]">
+                <Radio className="h-4 w-4 text-white/90" strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">
+                  Signal authorization rails
+                </p>
+                <h2 className="mt-1 text-base font-semibold tracking-tight text-white sm:text-lg">
+                  Pay-per-signal infrastructure for missions and agents
+                </h2>
+              </div>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1 text-[11px] text-white/60">
-            {expanded ? "Collapse" : "Expand"}
-            <ChevronDown
-              className={clsx("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
-            />
-          </span>
-        </button>
+        )}
 
         <div
           className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] px-4 py-2 sm:px-5"
@@ -245,7 +264,7 @@ export function SignalAuthorizationRails({
               <ArrowRight className="h-3 w-3" />
             </Link>
           )}
-          {expanded && (
+          {showExpanded && (
             <DiscoverSectionRefresh
               sectionId={isMission ? "mission-signal-rails" : "agent-signals"}
               onRefresh={load}
@@ -255,7 +274,7 @@ export function SignalAuthorizationRails({
         </div>
       </div>
 
-      {expanded && (
+      {showExpanded && (
         <div className="resolve-signal-card-body relative z-[1] px-4 pb-5 pt-4 sm:px-5">
           <p className="max-w-3xl text-sm leading-relaxed text-white/65">
             {catalog?.doctrine ??

@@ -11,7 +11,7 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     await expect(
-      page.getByRole("heading", { level: 1, name: /Where is value being created/i }),
+      page.getByRole("heading", { level: 1, name: /What do you want to do/i }),
     ).toBeVisible();
 
     await page.goto("/mission", { waitUntil: "domcontentloaded" });

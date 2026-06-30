@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { TrendingUp } from "lucide-react";
 import { DiscoverActionCard } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
+import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverTrendingSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import type { DiscoverIntent } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
@@ -43,30 +43,25 @@ export function DiscoverTrendingGaps({
     );
   }, [feed?.gaps, query]);
 
+  const subtitle =
+    feed?.realSignalCount != null
+      ? `Ledger authorizations and live scans · ${feed.realSignalCount} verified signals`
+      : "Ledger authorizations, funded programs, and live GitHub scans";
+
   return (
-    <section id="trending" className={className}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-resolve-calm-periwinkle" />
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-calm-periwinkle">
-              Trending value gaps
-            </p>
-            <p className="text-xs text-resolve-muted">
-              Ledger authorizations, funded programs, and live GitHub scans — estimates labeled
-              {feed?.realSignalCount != null && (
-                <span className="text-resolve-muted-dim"> · {feed.realSignalCount} verified signals</span>
-              )}
-            </p>
-          </div>
-        </div>
+    <DiscoverPremiumSection
+      id="trending"
+      title="Trending value gaps"
+      subtitle={subtitle}
+      className={className}
+      actions={
         <DiscoverSectionRefresh
           sectionId="trending-gaps"
           onRefresh={refresh}
           lastUpdated={feed?.updatedAt}
         />
-      </div>
-
+      }
+    >
       {feed?.degraded && !error && (
         <DiscoverDegradedHint onRefresh={() => void refresh()} className="mb-3" />
       )}
@@ -105,6 +100,6 @@ export function DiscoverTrendingGaps({
           ))}
         </div>
       )}
-    </section>
+    </DiscoverPremiumSection>
   );
 }

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import { domainLabel, domainForConnector } from "@/lib/workspace/domains";
 import { eventTypeLabel, explainRecognition } from "@/lib/workspace/events";
 import { EntityIds } from "@/lib/domain/entities";
@@ -54,6 +54,7 @@ export type DiscoverGraphNode = {
   actions?: DiscoverAction[];
   /** OSS / music / research tint for bubblemap filters */
   graphDomain?: "oss" | "music" | "research" | "other";
+  synthetic?: boolean;
   pendingFunding?: boolean;
   authorizationStatus?: string;
 };
@@ -219,6 +220,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       if (meta?.pendingFunding) existing.pendingFunding = true;
       if (meta?.graphDomain) existing.graphDomain = meta.graphDomain;
       if (meta?.authorizationStatus) existing.authorizationStatus = meta.authorizationStatus;
+      if (meta?.synthetic) existing.synthetic = meta.synthetic;
       return;
     }
     nodeMap.set(id, {
@@ -227,7 +229,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       type,
       weight,
       entityPath,
-      dataSource: meta?.dataSource ?? dataSourceForNodeType(type, false),
+      dataSource: meta?.dataSource ?? dataSourceForNodeType(type),
       amountVerified: meta?.amountVerified ?? false,
       moneyGapUsd: meta?.moneyGapUsd ?? null,
       whyItMatters: meta?.whyItMatters,
@@ -237,6 +239,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       programId: meta?.programId,
       templateId: meta?.templateId,
       missionId: meta?.missionId,
+      synthetic: meta?.synthetic,
     });
     labels.set(id, label);
   }
@@ -309,25 +312,26 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
   for (const opp of opportunities.slice(0, 6)) {
     const repoId = EntityIds.repository(opp.owner, opp.repo);
     const repoPath = entityIdToPath(repoId) ?? undefined;
+    const { communitySlug, templateId } = resolveCommunityForRepo(opp.owner, opp.repo);
     addNode(repoId, opp.fullName, "repository", opp.health.fundingGapUsd, {
       dataSource: "github",
-      amountVerified: true,
+      amountVerified: false,
       moneyGapUsd: opp.health.fundingGapUsd,
-      whyItMatters: opp.headline,
+      whyItMatters: `${opp.headline} · est. gap from repo health`,
       entityPath: repoPath,
       graphDomain: "oss",
+      communitySlug,
+      templateId,
     });
-    const maintId = EntityIds.personGitHub(`${opp.owner}-core`);
-    addNode(maintId, `${opp.repo} maintainers`, "person", opp.health.maintainerCount, {
-      dataSource: "github",
-      amountVerified: true,
-      whyItMatters: `${opp.unfundedMaintainers} maintainers need funding`,
-      entityPath: entityIdToPath(maintId) ?? undefined,
-      graphDomain: "oss",
-    });
-    addEdge(repoId, maintId, "maintained_by", opp.health.maintainerCount, opp.headline);
     if (opp.health.fundingGapUsd > 0) {
-      addNode("pool:treasury", "Treasury gap", "treasury", opp.health.fundingGapUsd);
+      addNode("pool:treasury", "Treasury gap", "treasury", opp.health.fundingGapUsd, {
+        dataSource: "github",
+        amountVerified: false,
+        synthetic: true,
+        whyItMatters: "Estimated funding gap — fund via community program",
+        communitySlug,
+        templateId,
+      });
       addEdge(
         repoId,
         "pool:treasury",
@@ -335,22 +339,6 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
         opp.health.fundingGapUsd,
         `Est. gap $${opp.health.fundingGapUsd.toLocaleString()} · ${opp.priority} priority`,
       );
-    }
-  }
-
-  for (const c of COMMUNITY_CATALOG.filter((x) => x.featured)) {
-    const commId = EntityIds.community(c.slug);
-    addNode(commId, c.name, "community", 1, {
-      dataSource: "catalog_preview",
-      amountVerified: false,
-      communitySlug: c.slug,
-      whyItMatters: c.doctrine,
-      entityPath: `/communities/${c.slug}`,
-    });
-    for (const conn of c.connectors) {
-      const connId = `connector:${conn}`;
-      addNode(connId, domainLabel(conn), "connector", 1);
-      addEdge(commId, connId, "uses_sensor", 1, c.doctrine.slice(0, 80));
     }
   }
 
@@ -367,6 +355,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
           templateId: n.templateId,
           missionId: n.missionId,
           receiptId: n.proofHref?.match(/\/receipt\/([^/?#]+)/)?.[1],
+          synthetic: n.synthetic,
         }),
     }))
     .sort((a, b) => b.weight - a.weight)
@@ -390,7 +379,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
 
   const ledgerEventCount = authRows.length;
   const live = ledgerEventCount > 0;
-  const hasCatalogPreview = laidOut.length > ledgerEventCount;
+  const hasCatalogPreview = laidOut.length > ledgerEventCount && !live;
   const emptyReason =
     live
       ? null

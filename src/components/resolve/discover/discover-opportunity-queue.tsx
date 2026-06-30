@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/resolve/ui/button";
@@ -9,6 +9,7 @@ import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { dedupeQueueWithTrending } from "@/lib/discover/queue-dedupe";
+import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import type { DiscoverIntent } from "@/lib/discover/types";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
@@ -39,17 +40,30 @@ export function DiscoverOpportunityQueue({
   const [opportunities, setOpportunities] = useState<FundableOpportunity[]>([]);
   const [walletUsd, setWalletUsd] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [fundingId, setFundingId] = useState<string | null>(null);
   const [amountByProgram, setAmountByProgram] = useState<Record<string, string>>({});
+  const opportunitiesRef = useRef(opportunities);
+  opportunitiesRef.current = opportunities;
 
   const showQueue = intent === "all" || intent === "fund" || intent === "sponsor";
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/capital/discover");
+      if (!res.ok) throw new Error("Queue unavailable");
       const data = await res.json();
       setOpportunities(data.opportunities ?? []);
+    } catch {
+      setError("Could not load fulfillment queue");
+      discoverFetchErrorToast(
+        "discover-queue",
+        "Fulfillment queue unavailable",
+        () => void loadQueue(),
+        Boolean(opportunitiesRef.current.length),
+      );
     } finally {
       setLoading(false);
     }
@@ -144,10 +158,21 @@ export function DiscoverOpportunityQueue({
         </div>
       </div>
 
-      {loading ? (
+      {loading && !opportunities.length ? (
         <div className="flex items-center gap-2 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/25 px-5 py-8 text-sm text-resolve-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading programs…
+        </div>
+      ) : error && !filtered.length ? (
+        <div className="rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-8 text-center">
+          <p className="text-sm text-resolve-muted">{error}</p>
+          <button
+            type="button"
+            onClick={() => void loadQueue()}
+            className="mt-3 text-xs font-medium text-resolve-accent hover:underline"
+          >
+            Retry
+          </button>
         </div>
       ) : !filtered.length ? (
         <div className="rounded-xl border border-dashed border-resolve-border/80 bg-resolve-bg-deep/20 px-5 py-8 text-center">

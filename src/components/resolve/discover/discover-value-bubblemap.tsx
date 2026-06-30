@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Orbit, ZoomIn } from "lucide-react";
 import type { DiscoverGraphEdge, DiscoverGraphNode } from "@/lib/discover/radar";
+import type { DiscoverIntent } from "@/lib/discover/types";
+import { DiscoverValueGraphPanel } from "@/components/resolve/discover/discover-value-graph-panel";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -66,11 +67,17 @@ function layoutBubblemap(nodes: DiscoverGraphNode[]): BubbleNode[] {
   return placed;
 }
 
-export function DiscoverValueBubblemap({ className }: { className?: string }) {
-  const router = useRouter();
+export function DiscoverValueBubblemap({
+  className,
+  intent = "all",
+}: {
+  className?: string;
+  intent?: DiscoverIntent;
+}) {
   const [data, setData] = useState<RadarPayload | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [selected, setSelected] = useState<DiscoverGraphNode | null>(null);
 
   useEffect(() => {
     void fetch("/api/discover/radar")
@@ -96,6 +103,11 @@ export function DiscoverValueBubblemap({ className }: { className?: string }) {
   const scaleX = viewW / VIEW_W;
   const scaleY = viewH / VIEW_H;
 
+  const selectedNode = useMemo(
+    () => (selected ? bubbles.find((b) => b.id === selected.id) ?? selected : null),
+    [bubbles, selected],
+  );
+
   return (
     <section
       className={clsx(
@@ -120,7 +132,7 @@ export function DiscoverValueBubblemap({ className }: { className?: string }) {
               Value command center
             </p>
             <p className="text-[11px] text-resolve-muted">
-              Bubblemap of live authorizations — click any node to open
+              Bubblemap of live authorizations — click any node for actions
             </p>
           </div>
         </div>
@@ -194,9 +206,7 @@ export function DiscoverValueBubblemap({ className }: { className?: string }) {
                   className="cursor-pointer"
                   onMouseEnter={() => setHovered(b.id)}
                   onMouseLeave={() => setHovered(null)}
-                  onClick={() => {
-                    if (b.entityPath) router.push(b.entityPath);
-                  }}
+                  onClick={() => setSelected(b)}
                 >
                   <circle
                     cx={b.cx * scaleX}
@@ -253,6 +263,12 @@ export function DiscoverValueBubblemap({ className }: { className?: string }) {
           )}
         </div>
       )}
+
+      <DiscoverValueGraphPanel
+        node={selectedNode}
+        intent={intent}
+        onClose={() => setSelected(null)}
+      />
     </section>
   );
 }

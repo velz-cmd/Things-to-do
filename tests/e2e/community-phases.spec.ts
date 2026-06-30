@@ -74,6 +74,28 @@ test.describe("Community phases — APIs", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("discover search returns repo and maintainer shapes", async ({ request }) => {
+    const repoRes = await request.get("/api/discover/search?q=navidrome%2Fnavidrome");
+    expect(repoRes.ok()).toBeTruthy();
+    const repoBody = await repoRes.json();
+    expect(repoBody.ok).toBe(true);
+    expect(repoBody.results.length).toBeGreaterThan(0);
+    const repo = repoBody.results.find((r: { kind: string }) => r.kind === "repository");
+    expect(repo?.entityPath).toContain("/e/repo/navidrome/navidrome");
+    expect(repo?.communitySlug).toBe("navidrome");
+    expect(repo?.actions?.length).toBeGreaterThanOrEqual(2);
+    expect(repoBody.topPrimaryAction).toBeTruthy();
+
+    const userRes = await request.get("/api/discover/search?q=%40octocat");
+    const userBody = await userRes.json();
+    const maintainer = userBody.results.find((r: { label: string }) => r.label === "@octocat");
+    expect(maintainer?.entityPath).toBe("/e/maintainer/github/octocat");
+
+    const fundRes = await request.get("/api/discover/search?q=fund%20react");
+    const fundBody = await fundRes.json();
+    expect(fundBody.queueFilter).toBe("react");
+  });
+
   test("discover radar-feed API returns unified feed shape", async ({ request }) => {
     const res = await request.get("/api/discover/radar-feed?limit=12");
     expect(res.ok()).toBeTruthy();

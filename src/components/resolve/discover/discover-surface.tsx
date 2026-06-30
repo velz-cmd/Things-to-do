@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverClaimHint } from "@/components/resolve/discover/discover-claim-hint";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
@@ -46,58 +45,18 @@ export function DiscoverSurface() {
 }
 
 function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["user"] }) {
-  const router = useRouter();
   const [query, setQuery] = useState("");
+  const [queueFilter, setQueueFilter] = useState<string | null>(null);
   const [intent, setIntent] = useState<DiscoverIntent>("all");
   const [communityKind, setCommunityKind] = useState<
     "all" | "music" | "oss" | "research" | "protocol"
   >("all");
 
+  const effectiveQuery = queueFilter ?? query;
+
   function scrollToCommunities(kind: typeof communityKind) {
     setCommunityKind(kind);
     document.getElementById("communities")?.scrollIntoView({ behavior: "smooth" });
-  }
-
-  function handleSearchSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const raw = query.trim();
-    if (!raw) return;
-
-    const slash = raw.indexOf("/");
-    if (slash > 0 && slash < raw.length - 1) {
-      const owner = raw.slice(0, slash).trim();
-      const repo = raw.slice(slash + 1).trim();
-      if (owner && repo && !owner.includes(" ")) {
-        router.push(
-          `/e/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
-        );
-        return;
-      }
-    }
-
-    const lower = raw.toLowerCase();
-    if (lower.includes("claim") || lower.includes("earn")) {
-      router.push(user ? "/claim" : "/login?next=/claim");
-      return;
-    }
-    if (lower.includes("fund") || lower.includes("program")) {
-      document.getElementById("opportunities")?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
-    if (lower.includes("music") || lower.includes("artist")) {
-      document.getElementById("radar-music")?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
-    if (lower.includes("dao")) {
-      document.getElementById("radar-dao")?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
-    if (lower.includes("oss") || lower.includes("github")) {
-      document.getElementById("radar-oss")?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
-
-    document.getElementById("trending")?.scrollIntoView({ behavior: "smooth" });
   }
 
   return (
@@ -119,7 +78,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         signedIn={Boolean(user)}
         query={query}
         onQueryChange={setQuery}
-        onSubmit={handleSearchSubmit}
+        onQueueFilter={setQueueFilter}
       />
 
       <DiscoverIntentFilters value={intent} onChange={setIntent} className="mb-6 mt-6" />
@@ -157,14 +116,14 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
       <DiscoverTrendingGaps
         signedIn={Boolean(user)}
-        query={query}
+        query={effectiveQuery}
         intent={intent}
         className="mb-12 scroll-mt-24"
       />
 
       <DiscoverDomainRadars
         signedIn={Boolean(user)}
-        query={query}
+        query={effectiveQuery}
         intent={intent}
         className="mb-12"
       />
@@ -183,7 +142,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
       <DiscoverOpportunityQueue
         signedIn={Boolean(user)}
-        query={query}
+        query={effectiveQuery}
         intent={intent}
         className="mb-12 scroll-mt-24"
       />

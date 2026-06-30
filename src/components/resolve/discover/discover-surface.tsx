@@ -18,7 +18,9 @@ import {
   DiscoverActionAuditPanel,
   DiscoverActionAuditProvider,
 } from "@/components/resolve/discover/discover-action-audit-panel";
-import { DiscoverIntentFilters } from "@/components/resolve/discover/discover-intent-filters";
+import { DiscoverRoleFilters } from "@/components/resolve/discover/discover-role-filters";
+import type { DiscoverRole } from "@/lib/discover/role-filters";
+import { sectionVisibleForRole } from "@/lib/discover/role-filters";
 import type { DiscoverIntent } from "@/lib/discover/types";
 
 const DOMAIN_CHIPS = [
@@ -44,10 +46,23 @@ export function DiscoverSurface() {
   );
 }
 
+function roleToIntent(role: DiscoverRole): DiscoverIntent {
+  const map: Record<DiscoverRole, DiscoverIntent> = {
+    community: "earn",
+    funder: "fund",
+    founder: "build",
+    operator: "operate",
+    dao: "sponsor",
+    all: "all",
+  };
+  return map[role];
+}
+
 function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["user"] }) {
   const [query, setQuery] = useState("");
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
-  const [intent, setIntent] = useState<DiscoverIntent>("all");
+  const [role, setRole] = useState<DiscoverRole>("all");
+  const intent = roleToIntent(role);
   const [communityKind, setCommunityKind] = useState<
     "all" | "music" | "oss" | "research" | "protocol"
   >("all");
@@ -81,13 +96,15 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         onQueueFilter={setQueueFilter}
       />
 
-      <DiscoverIntentFilters value={intent} onChange={setIntent} className="mb-6 mt-6" />
+      <DiscoverRoleFilters value={role} onChange={setRole} className="mb-6 mt-6" />
 
-      <DiscoverNetworkPulse className="mb-6 mt-2" />
+      {sectionVisibleForRole("pulse", role) && <DiscoverNetworkPulse className="mb-6 mt-2" />}
 
-      {user && <DiscoverClaimHint />}
+      {user && sectionVisibleForRole("claim", role) && <DiscoverClaimHint />}
 
-      <DiscoverValueBubblemap className="mb-10 mt-8" intent={intent} />
+      {sectionVisibleForRole("bubblemap", role) && (
+        <DiscoverValueBubblemap className="mb-10 mt-8" intent={intent} role={role} />
+      )}
 
       <div className="mb-8 flex flex-wrap gap-2">
         {DOMAIN_CHIPS.map((d) => (
@@ -114,34 +131,48 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         ))}
       </div>
 
-      <DiscoverTrendingGaps
-        signedIn={Boolean(user)}
-        query={effectiveQuery}
-        intent={intent}
-        className="mb-12 scroll-mt-24"
-      />
+      {sectionVisibleForRole("trending", role) && (
+        <DiscoverTrendingGaps
+          signedIn={Boolean(user)}
+          query={effectiveQuery}
+          intent={intent}
+          role={role}
+          className="mb-12 scroll-mt-24"
+        />
+      )}
 
-      <DiscoverDomainRadars
-        signedIn={Boolean(user)}
-        query={effectiveQuery}
-        intent={intent}
-        className="mb-12"
-      />
+      {sectionVisibleForRole("radars", role) && (
+        <DiscoverDomainRadars
+          signedIn={Boolean(user)}
+          query={effectiveQuery}
+          intent={intent}
+          role={role}
+          className="mb-12"
+        />
+      )}
 
-      <DiscoverLiveFeed signedIn={Boolean(user)} className="mb-12" />
+      {sectionVisibleForRole("liveFeed", role) && (
+        <DiscoverLiveFeed signedIn={Boolean(user)} className="mb-12" />
+      )}
 
-      <DiscoverOpportunityQueue
-        signedIn={Boolean(user)}
-        query={effectiveQuery}
-        intent={intent}
-        className="mb-12 scroll-mt-24"
-      />
+      {sectionVisibleForRole("opportunities", role) && (
+        <DiscoverOpportunityQueue
+          signedIn={Boolean(user)}
+          query={effectiveQuery}
+          intent={intent}
+          role={role}
+          className="mb-12 scroll-mt-24"
+        />
+      )}
 
-      <DiscoverCommunities
-        kindFilter={communityKind}
-        onKindFilterChange={setCommunityKind}
-        signedIn={Boolean(user)}
-      />
+      {sectionVisibleForRole("communities", role) && (
+        <DiscoverCommunities
+          kindFilter={communityKind}
+          onKindFilterChange={setCommunityKind}
+          signedIn={Boolean(user)}
+          role={role}
+        />
+      )}
 
       <footer className="mt-12 border-t border-resolve-border/40 pt-8">
         <nav

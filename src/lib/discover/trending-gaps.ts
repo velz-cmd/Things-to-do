@@ -5,6 +5,7 @@ import { EntityIds } from "@/lib/domain/entities";
 import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
 import { resolveFundTarget } from "@/lib/discover/fund-target";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
+import { estimateOssFundingGap } from "@/lib/discover/valuation-eligibility";
 import {
   formatProofSource,
   isMusicAuthorization,
@@ -262,11 +263,18 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildM
     const priorityBoost = o.priority === "critical" ? 3 : o.priority === "high" ? 2 : 1;
     const scanAt = githubScanAt ?? new Date().toISOString();
 
+    const valuation = estimateOssFundingGap({
+      stars: o.stars,
+      forks: o.forks ?? 0,
+      mergedPrCount: o.health.mergedPrCount ?? o.highImpactPrs,
+      maintainerCount: o.unfundedMaintainers || o.health.maintainerCount,
+    });
+
     push({
       id: `oss-${o.fullName}`,
       domain: "oss",
-      headline: `${o.fullName} — ${o.headline}`,
-      why: `GitHub scan · est. $${o.health.fundingGapUsd.toFixed(0)} gap from repo health (stars, forks, maintainers)`,
+      headline: `${o.fullName} — ecosystem gap`,
+      why: `GitHub scan · est. $${valuation.usd.toFixed(0)} · ${valuation.eligibility}`,
       whoBenefits: `${o.unfundedMaintainers} maintainers · ${o.stars.toLocaleString()} star ecosystem`,
       proofSource: formatProofSource({
         connectorId: "github",
@@ -276,12 +284,13 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildM
       dataSource: "github",
       amountVerified: false,
       amountKind: "estimate",
+      eligibilityCriteria: valuation.eligibility,
       proofConnectorId: "github",
       proofGithubScanAt: scanAt,
-      amountNeededUsd: o.health.fundingGapUsd,
-      moneyCanMoveUsd: o.health.fundingGapUsd,
+      amountNeededUsd: valuation.usd,
+      moneyCanMoveUsd: valuation.usd,
       peopleImpacted: o.unfundedMaintainers,
-      trendScore: o.health.fundingGapUsd * priorityBoost + o.stars * 0.01,
+      trendScore: valuation.usd * priorityBoost + o.stars * 0.01,
       entityPath: path,
       communitySlug,
       templateId,
@@ -296,7 +305,7 @@ export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildM
           programId: publicTarget?.programId ?? undefined,
           communitySlug,
           templateId,
-          amountUsd: Math.max(25, Math.min(o.health.fundingGapUsd, 100)),
+          amountUsd: Math.max(25, Math.min(valuation.usd, 100)),
         },
         {
           id: "bounty",

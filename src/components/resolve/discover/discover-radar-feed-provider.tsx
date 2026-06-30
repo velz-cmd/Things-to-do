@@ -35,10 +35,13 @@ export function DiscoverRadarFeedProvider({ children }: { children: ReactNode })
     try {
       const res = await fetch("/api/discover/radar-feed?limit=24", { credentials: "include" });
       const data = (await res.json()) as DiscoverRadarFeedPayload;
-      if (!res.ok || !data.ok) {
+      if (data.gaps !== undefined) {
+        setFeed(data);
+      }
+      if (!res.ok || data.ok === false) {
         throw new Error("Radar feed unavailable");
       }
-      setFeed(data);
+      setError(null);
     } catch {
       setError("Could not load trending radar");
       discoverFetchErrorToast(
@@ -54,8 +57,6 @@ export function DiscoverRadarFeedProvider({ children }: { children: ReactNode })
 
   useEffect(() => {
     void refresh();
-    const t = setInterval(() => void refresh(), 20_000);
-    return () => clearInterval(t);
   }, [refresh]);
 
   const value = useMemo(

@@ -256,8 +256,8 @@ export function SignalAuthorizationRails({
       </div>
 
       {expanded && (
-        <div className="relative z-[1] px-4 pb-5 pt-4 sm:px-5">
-          <p className="max-w-3xl text-sm leading-relaxed text-white/55">
+        <div className="resolve-signal-card-body relative z-[1] px-4 pb-5 pt-4 sm:px-5">
+          <p className="max-w-3xl text-sm leading-relaxed text-white/65">
             {catalog?.doctrine ??
               "Micropay on Arc, authorize on ledger, mission continues — agents and operators share one proof rail."}
           </p>
@@ -269,7 +269,7 @@ export function SignalAuthorizationRails({
                   Step {i + 1}
                 </p>
                 <p className="mt-1.5 text-sm font-medium text-white/95">{step.label}</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-resolve-muted-dim">
+                <p className="mt-1 text-[11px] leading-relaxed text-white/50">
                   {step.detail}
                 </p>
               </div>
@@ -303,7 +303,7 @@ export function SignalAuthorizationRails({
               })}
 
               {isMission && x402Services.length > 0 && (
-                <div className="rounded-xl border border-white/[0.08] bg-black/15 p-5">
+                <div className="resolve-signal-inner-panel rounded-xl p-5">
                   <p className="text-sm font-medium text-white">Authorize signal</p>
                   <p className="mt-1 max-w-xl text-xs leading-relaxed text-resolve-muted">
                     Settles on Arc and writes{" "}

@@ -236,11 +236,13 @@ body {
     position: relative;
     overflow: hidden;
     background: linear-gradient(
-      160deg,
-      rgba(204, 194, 209, 0.04) 0%,
-      rgba(12, 35, 72, 0.35) 100%
+      155deg,
+      rgba(125, 140, 196, 0.1) 0%,
+      rgba(0, 119, 179, 0.08) 45%,
+      rgba(92, 96, 159, 0.06) 100%
     );
-    border: 1px solid rgba(141, 161, 209, 0.08);
+    border: 1px solid rgba(125, 140, 196, 0.16);
+    box-shadow: inset 0 1px 0 rgba(204, 194, 209, 0.08);
     transition:
       border-color 0.3s ease,
       box-shadow 0.3s ease,
@@ -249,8 +251,85 @@ body {
 
   .resolve-signal-step:hover {
     transform: translateY(-1px);
-    border-color: rgba(141, 161, 209, 0.18);
-    box-shadow: 0 6px 24px rgba(0, 40, 90, 0.15);
+    border-color: rgba(125, 140, 196, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(204, 194, 209, 0.12),
+      0 6px 24px rgba(92, 96, 159, 0.12);
+  }
+
+  .resolve-signal-card-body {
+    background:
+      radial-gradient(ellipse 90% 55% at 50% 0%, rgba(125, 140, 196, 0.1), transparent 62%),
+      radial-gradient(ellipse 50% 40% at 0% 80%, rgba(0, 119, 179, 0.07), transparent 55%),
+      linear-gradient(180deg, rgba(20, 48, 82, 0.35) 0%, rgba(14, 36, 64, 0.12) 100%);
+    border-top: 1px solid rgba(125, 140, 196, 0.1);
+  }
+
+  .resolve-signal-inner-panel {
+    border: 1px solid rgba(125, 140, 196, 0.18);
+    background: linear-gradient(
+      155deg,
+      rgba(125, 140, 196, 0.1) 0%,
+      rgba(0, 119, 179, 0.06) 50%,
+      rgba(92, 96, 159, 0.05) 100%
+    );
+    box-shadow: inset 0 1px 0 rgba(204, 194, 209, 0.1);
+  }
+
+  .resolve-signal-pill {
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.125rem 0.5rem;
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .resolve-signal-row-icon {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(125, 140, 196, 0.08) 100%
+    );
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .resolve-signal-lane-section {
+    padding: 0.5rem 0;
+  }
+
+  .resolve-signal-lane-heading {
+    border-left: 2px solid rgba(125, 140, 196, 0.45);
+    padding-left: 0.75rem;
+  }
+
+  .resolve-signal-lane-section + .resolve-signal-lane-section {
+    margin-top: 0.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(125, 140, 196, 0.12);
+  }
+
+  .resolve-signal-service-row {
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.5rem;
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+    transition:
+      background 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .resolve-signal-service-row:hover {
+    background: linear-gradient(
+      90deg,
+      rgba(125, 140, 196, 0.1) 0%,
+      rgba(0, 119, 179, 0.06) 100%
+    );
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
   /* Signal service cards — one gradient for every rail (navy shell → iris lift) */
@@ -350,23 +429,6 @@ body {
     border-top: none;
     border-bottom: 1px solid rgba(125, 140, 196, 0.22);
     box-shadow: inset 0 -1px 0 rgba(204, 194, 209, 0.1);
-  }
-
-  .resolve-signal-service-row {
-    padding: 0.75rem 0;
-  }
-
-  .resolve-signal-service-row:first-child {
-    padding-top: 0;
-  }
-
-  .resolve-signal-service-row:last-child {
-    padding-bottom: 0;
-  }
-
-  .resolve-signal-lane-section + .resolve-signal-lane-section {
-    padding-top: 0.25rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   .resolve-signal-cta {

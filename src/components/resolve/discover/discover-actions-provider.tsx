@@ -24,18 +24,34 @@ import {
   type WalletSnapshot,
 } from "@/lib/discover/discover-action-engine";
 import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-sheet";
+import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
   wallet: WalletSnapshot;
   busy: boolean;
-  runAction: (action: DiscoverAction) => Promise<void>;
+  runAction: (action: DiscoverAction, surface?: string) => Promise<void>;
   openFundSheet: (req: FundSheetRequest) => void;
   refreshWallet: () => Promise<void>;
   executeFund: (req: FundSheetRequest & { amountUsd: number }) => Promise<void>;
 };
 
 const DiscoverActionsContext = createContext<DiscoverActionsContextValue | null>(null);
+
+function missingFields(action: DiscoverAction): string[] {
+  const missing: string[] = [];
+  if (action.kind === "fund" || action.kind === "sponsor") {
+    if (!action.programId && !action.communitySlug && !action.missionId) {
+      missing.push("programId, communitySlug, or missionId");
+    }
+  }
+  if (action.kind === "install" || action.kind === "create_program") {
+    if (!action.communitySlug) missing.push("communitySlug");
+  }
+  if (action.kind === "share" && !action.href) missing.push("receipt href");
+  if (action.kind === "open" && !action.entityPath && !action.href) missing.push("entityPath or href");
+  return missing;
+}
 
 export function DiscoverActionsProvider({
   signedIn,
@@ -45,6 +61,7 @@ export function DiscoverActionsProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const { reportActionStatus } = useDiscoverActionAudit();
   const [wallet, setWallet] = useState<WalletSnapshot>({
     spendableUsd: 0,
     totalUsdc: "0",
@@ -82,30 +99,42 @@ export function DiscoverActionsProvider({
 
       toast.loading(`Creating ${target.templateId} program…`, { id: "discover-chain" });
       const created = await apiCreateProgram(target.communitySlug, target.templateId);
-      if (!created.program?.id) throw new Error("Program was not created");
+      if (!created.program?.id) throw new Error("Program was not created — POST /api/communities/{slug}/programs returned no id");
       return created.program.id;
     },
     [],
   );
 
   const executeFund = useCallback(
-    async (req: FundSheetRequest & { amountUsd: number }) => {
+    async (req: FundSheetRequest & { amountUsd: number }, surface = "fund-sheet") => {
       if (!signedIn) {
         router.push("/login?next=/discover");
         return;
       }
 
       if (req.amountUsd < 5) {
-        throw new Error("Enter at least $5");
+        throw new Error("Minimum fund amount is $5 — enter at least $5 in the fund form");
       }
 
       if (wallet.loaded && wallet.spendableUsd > 0 && req.amountUsd > wallet.spendableUsd) {
         throw new Error(
-          `Insufficient wallet balance ($${wallet.spendableUsd.toFixed(2)} spendable)`,
+          `Insufficient wallet balance: $${wallet.spendableUsd.toFixed(2)} spendable, need $${req.amountUsd.toFixed(2)} — add USDC in Capital`,
         );
       }
 
       setBusy(true);
+      const auditAction: DiscoverAction = {
+        id: "fund-exec",
+        label: req.label ?? "Fund",
+        kind: "fund",
+        programId: req.programId,
+        communitySlug: req.communitySlug,
+        templateId: req.templateId,
+        missionId: req.missionId,
+        amountUsd: req.amountUsd,
+      };
+      reportActionStatus(surface, auditAction, "pending");
+
       try {
         let programId = req.programId;
 
@@ -119,21 +148,26 @@ export function DiscoverActionsProvider({
           programId = await ensureProgram(target);
         }
 
-        toast.loading(`Funding $${req.amountUsd.toFixed(2)}…`, { id: "discover-chain" });
+        toast.loading(`Funding $${req.amountUsd.toFixed(2)} via POST /api/capital/fund…`, {
+          id: "discover-chain",
+        });
         await apiFundProgram(programId, req.amountUsd);
         toast.success(`Funded $${req.amountUsd.toFixed(2)} — obligations clearing`, {
           id: "discover-chain",
         });
+        reportActionStatus(surface, auditAction, "success");
         await refreshWallet();
         setFundSheet(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Fund failed", { id: "discover-chain" });
+        const msg = e instanceof Error ? e.message : "Fund failed";
+        reportActionStatus(surface, auditAction, "error", msg);
+        toast.error(msg, { id: "discover-chain" });
         throw e;
       } finally {
         setBusy(false);
       }
     },
-    [signedIn, router, wallet, ensureProgram, refreshWallet],
+    [signedIn, router, wallet, ensureProgram, refreshWallet, reportActionStatus],
   );
 
   const openFundSheet = useCallback((req: FundSheetRequest) => {
@@ -145,7 +179,7 @@ export function DiscoverActionsProvider({
   }, [signedIn, router]);
 
   const runAction = useCallback(
-    async (action: DiscoverAction) => {
+    async (action: DiscoverAction, surface = "discover") => {
       const authRequired = [
         "fund",
         "install",
@@ -153,65 +187,104 @@ export function DiscoverActionsProvider({
         "claim",
         "connect_sensor",
         "sponsor",
+        "share",
       ];
+
+      const missing = missingFields(action);
+      if (missing.length) {
+        const blocker = `Missing: ${missing.join(", ")}`;
+        reportActionStatus(surface, action, "blocked", blocker);
+        toast.error(blocker, { description: `Action "${action.label}" cannot run without required data` });
+        return;
+      }
+
       if (!signedIn && authRequired.includes(action.kind)) {
+        reportActionStatus(surface, action, "blocked", "Sign in required");
         router.push("/login?next=/discover");
         return;
       }
 
+      reportActionStatus(surface, action, "pending");
+
       try {
         switch (action.kind) {
           case "open":
-            if (action.entityPath) router.push(action.entityPath);
-            else if (action.href) {
+            if (action.entityPath) {
+              router.push(action.entityPath);
+              reportActionStatus(surface, action, "success");
+            } else if (action.href) {
               if (action.href.startsWith("#")) {
-                document.getElementById(action.href.slice(1))?.scrollIntoView({ behavior: "smooth" });
-              } else router.push(action.href);
+                const el = document.getElementById(action.href.slice(1));
+                if (!el) {
+                  const blocker = `Anchor ${action.href} not found on page`;
+                  reportActionStatus(surface, action, "blocked", blocker);
+                  toast.error(blocker);
+                  return;
+                }
+                el.scrollIntoView({ behavior: "smooth" });
+                reportActionStatus(surface, action, "success");
+              } else {
+                router.push(action.href);
+                reportActionStatus(surface, action, "success");
+              }
             }
             break;
 
           case "fund":
           case "sponsor":
-            if (action.programId || action.communitySlug || action.missionId) {
-              if (action.amountUsd && action.amountUsd >= 5 && action.programId) {
-                await executeFund({
+            if (action.amountUsd && action.amountUsd >= 5 && action.programId) {
+              await executeFund(
+                {
                   programId: action.programId,
                   amountUsd: action.amountUsd,
                   label: action.label,
-                });
-              } else {
-                openFundSheet(fundParamsFromAction(action));
-              }
+                },
+                surface,
+              );
             } else {
-              toast.error("No program linked — create a community program first");
+              openFundSheet(fundParamsFromAction(action));
+              reportActionStatus(surface, action, "success", "Opened fund form");
             }
             break;
 
           case "install":
-            if (!action.communitySlug) break;
             setBusy(true);
             try {
-              await apiInstallCommunity(action.communitySlug);
-              toast.success(`Connected to ${action.communitySlug}`);
+              await apiInstallCommunity(action.communitySlug!);
+              toast.success(`Installed ${action.communitySlug} — community record created`);
+              reportActionStatus(surface, action, "success");
               router.push(`/communities/${action.communitySlug}`);
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : "Install failed";
+              reportActionStatus(surface, action, "error", msg);
+              toast.error(msg);
+              throw e;
             } finally {
               setBusy(false);
             }
             break;
 
           case "create_program": {
-            if (!action.communitySlug) break;
             setBusy(true);
             try {
               try {
-                await apiInstallCommunity(action.communitySlug);
+                await apiInstallCommunity(action.communitySlug!);
               } catch (e) {
                 const msg = e instanceof Error ? e.message : "";
                 if (!msg.toLowerCase().includes("already")) throw e;
               }
-              const created = await apiCreateProgram(action.communitySlug, action.templateId);
-              toast.success(`Program created — ${created.program?.name ?? "active"}`);
+              const created = await apiCreateProgram(action.communitySlug!, action.templateId);
+              if (!created.program?.id) {
+                throw new Error("Program not created — check community install and templateId");
+              }
+              toast.success(`Program created: ${created.program.name}`);
+              reportActionStatus(surface, action, "success");
               router.push(`/communities/${action.communitySlug}`);
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : "Create program failed";
+              reportActionStatus(surface, action, "error", msg);
+              toast.error(msg);
+              throw e;
             } finally {
               setBusy(false);
             }
@@ -220,10 +293,12 @@ export function DiscoverActionsProvider({
 
           case "connect_sensor":
             router.push(action.href ?? `/communities/${action.communitySlug ?? "react"}`);
+            reportActionStatus(surface, action, "success");
             break;
 
           case "claim":
             router.push(action.href ?? "/claim");
+            reportActionStatus(surface, action, "success");
             break;
 
           case "share":
@@ -232,6 +307,14 @@ export function DiscoverActionsProvider({
               try {
                 const url = await apiVerifyAndShareReceipt(action.href, window.location.origin);
                 toast.success("Receipt link copied", { description: url });
+                reportActionStatus(surface, action, "success");
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : "Receipt not found";
+                reportActionStatus(surface, action, "blocked", msg);
+                toast.error(msg, {
+                  description: "GET /api/receipt/{id} failed — authorization may still be pending",
+                });
+                throw e;
               } finally {
                 setBusy(false);
               }
@@ -239,19 +322,28 @@ export function DiscoverActionsProvider({
             break;
 
           case "analyze":
-            if (action.entityPath) router.push(action.entityPath);
+            if (action.entityPath) {
+              router.push(action.entityPath);
+              reportActionStatus(surface, action, "success");
+            }
             break;
 
           default:
-            if (action.href) router.push(action.href);
+            if (action.href) {
+              router.push(action.href);
+              reportActionStatus(surface, action, "success");
+            } else {
+              reportActionStatus(surface, action, "blocked", "No handler for action kind");
+            }
         }
       } catch (e) {
         if (action.kind !== "fund" && action.kind !== "sponsor") {
-          toast.error(e instanceof Error ? e.message : "Action failed");
+          const msg = e instanceof Error ? e.message : "Action failed";
+          reportActionStatus(surface, action, "error", msg);
         }
       }
     },
-    [signedIn, router, executeFund, openFundSheet],
+    [signedIn, router, executeFund, openFundSheet, reportActionStatus],
   );
 
   const value = useMemo(

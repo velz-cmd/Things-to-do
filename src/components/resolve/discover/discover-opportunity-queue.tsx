@@ -9,9 +9,13 @@ import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 
+import type { DiscoverIntent } from "@/lib/discover/types";
+import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
+
 type DiscoverOpportunityQueueProps = {
   signedIn: boolean;
   query?: string;
+  intent?: DiscoverIntent;
   className?: string;
 };
 
@@ -19,6 +23,7 @@ type DiscoverOpportunityQueueProps = {
 export function DiscoverOpportunityQueue({
   signedIn,
   query = "",
+  intent = "all",
   className,
 }: DiscoverOpportunityQueueProps) {
   const { executeFund, wallet, busy } = useDiscoverActions();
@@ -26,6 +31,8 @@ export function DiscoverOpportunityQueue({
   const [loading, setLoading] = useState(true);
   const [fundingId, setFundingId] = useState<string | null>(null);
   const [amountByProgram, setAmountByProgram] = useState<Record<string, string>>({});
+
+  const showQueue = intent === "all" || intent === "fund" || intent === "sponsor";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,7 +83,7 @@ export function DiscoverOpportunityQueue({
   }
 
   return (
-    <section id="opportunities" className={className}>
+    <section id="opportunities" className={className} hidden={!showQueue}>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -138,6 +145,7 @@ export function DiscoverOpportunityQueue({
                     <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-violet-300">
                       {o.templateLabel}
                     </span>
+                    <DiscoverSourceBadge source="supabase_ledger" />
                     {o.yieldMultiplier >= o.targetMultiplier && (
                       <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-emerald-300">
                         {CAPITAL_YIELD_COPY.discover.targetBadge}

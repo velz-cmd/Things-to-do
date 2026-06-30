@@ -135,6 +135,9 @@ test.describe("Community phases — APIs", () => {
     expect(body).toHaveProperty("graph");
     expect(body.graph).toHaveProperty("nodes");
     expect(body.graph).toHaveProperty("edges");
+    expect(body.graph.nodes.length).toBeLessThanOrEqual(24);
+    expect(body).toHaveProperty("live");
+    expect(body).toHaveProperty("hasCatalogPreview");
     expect(body).toHaveProperty("metrics");
     expect(body.metrics).toHaveProperty("fundingEntropy");
     expect(body.metrics.fundingEntropy).toHaveProperty("evidence");
@@ -240,6 +243,10 @@ test.describe("Community phases — surfaces", () => {
     ).toBeVisible();
     await expect(page.getByRole("main").getByText("Live value feed")).toBeVisible();
     await expect(page.getByRole("main").getByText("Value command center")).toBeVisible();
+    await expect(page.getByRole("main").getByText(/Live ledger|Catalog preview/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "OSS" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Music" }).first()).toBeVisible();
+    await expect(page.getByRole("main").getByText("Funding entropy")).toBeVisible();
     await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
     await expect(page.getByRole("main").getByText("Fulfillment queue")).toBeVisible();
   });

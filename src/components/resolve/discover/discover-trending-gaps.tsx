@@ -43,7 +43,7 @@ export function DiscoverTrendingGaps({
             Trending value gaps
           </p>
           <p className="text-xs text-resolve-muted">
-            Live GitHub scans, ledger authorizations, and funded programs only
+            Ledger authorizations, funded programs, and live GitHub scans — estimates labeled
             {feed?.realSignalCount != null && (
               <span className="text-resolve-muted-dim"> · {feed.realSignalCount} verified signals</span>
             )}

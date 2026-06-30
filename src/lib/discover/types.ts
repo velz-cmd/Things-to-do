@@ -42,8 +42,10 @@ export type TrendingValueGap = {
   proofSource: string;
   /** Primary data provenance for this card */
   dataSource: DiscoverDataSource;
-  /** True when amountUsd comes from a live API/ledger, not catalog preview */
+  /** True when amountUsd comes from ledger/API proof — not heuristic estimates */
   amountVerified: boolean;
+  /** Ledger vs modeled estimate — defaults from amountVerified when omitted */
+  amountKind?: "ledger" | "estimate";
   /** Ledger connector that produced this gap, when applicable */
   proofConnectorId?: string;
   /** Supabase authorization row id, when applicable */
@@ -86,7 +88,8 @@ export type DomainRadarBundle = {
 };
 
 export type DiscoverRadarFeedPayload = {
-  ok: true;
+  ok: boolean;
+  error?: string;
   gaps: TrendingValueGap[];
   radars: {
     oss: TrendingValueGap[];
@@ -99,7 +102,7 @@ export type DiscoverRadarFeedPayload = {
     dao: DomainRadarBundle;
   };
   emptyStates: RadarEmptyState[];
-  intelligence: import("@/lib/workspace/intelligence").NetworkIntelligence;
+  intelligence: import("@/lib/workspace/intelligence").NetworkIntelligence | null;
   fundableCount: number;
   ossSignalCount: number;
   realSignalCount: number;

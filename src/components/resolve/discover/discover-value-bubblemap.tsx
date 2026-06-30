@@ -171,6 +171,10 @@ export function DiscoverValueBubblemap({
   }, []);
 
   useEffect(() => {
+    void loadRadar();
+  }, [loadRadar]);
+
+  useEffect(() => {
     if (!visible) return;
     void loadRadar();
   }, [visible, loadRadar]);
@@ -458,7 +462,7 @@ export function DiscoverValueBubblemap({
         <div ref={sectionRef}>
           <DiscoverPremiumSection
             title="Value command center"
-            subtitle={modeLabel}
+            subtitle={`${modeLabel} · Click any bubble for operator console`}
             className={className}
             actions={bubblemapActions}
           >
@@ -476,7 +480,7 @@ export function DiscoverValueBubblemap({
                   <Orbit className="h-4 w-4 text-resolve-accent" />
                   <div>
                     <p className="text-sm font-semibold text-white">Value command center</p>
-                    <p className="text-[11px] text-resolve-muted">{modeLabel}</p>
+                    <p className="text-[11px] text-resolve-muted">{modeLabel} · Click any bubble for operator console</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">{bubblemapActions}</div>

@@ -4,6 +4,7 @@ import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { dedupeDiscoverBoard, dedupeFundablePrograms } from "@/lib/discover/board-dedupe";
+import { classifyBoardNeedType } from "@/lib/discover/need-types";
 
 export type DiscoverBoardItem =
   | (FundableOpportunity & { boardKind: "program" })
@@ -23,6 +24,7 @@ export type DiscoverBoardItem =
       metricKind: "connect" | "install";
       connectCta: string;
       connectHref: string;
+      needType: import("@/lib/discover/need-types").DiscoverNeedType;
     };
 
 /** All real opportunities — programs plus catalog communities without duplicating trending caps. */
@@ -36,6 +38,13 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
   const items: DiscoverBoardItem[] = dedupeFundablePrograms(programs).map((p) => ({
     ...p,
     boardKind: "program" as const,
+    needType: classifyBoardNeedType({
+      templateId: p.templateId,
+      communitySlug: p.communitySlug,
+      boardKind: "program",
+      whyFund: p.whyFund,
+      programName: p.programName,
+    }),
   }));
   const seenSlugs = new Set(programs.map((p) => p.communitySlug));
 
@@ -45,7 +54,16 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
       const { communitySlug } = resolveCommunityForRepo(o.owner, o.repo);
       return communitySlug === c.slug;
     });
-    const gapUsd = ossMatch?.health.fundingGapUsd ?? (c.kind === "music" ? 120 : 85);
+    const gapUsd = ossMatch?.health.fundingGapUsd ?? 0;
+    const templateId = c.kind === "music" ? "user-centric-royalties" : "docs-bounty";
+    const needType = classifyBoardNeedType({
+      templateId,
+      communitySlug: c.slug,
+      boardKind: "community",
+      metricKind: c.attachShape === "sidecar" ? "install" : "connect",
+      whyFund: c.tagline,
+      programName: c.name,
+    });
     const connectCta =
       c.connectors.includes("github")
         ? "Connect GitHub"
@@ -62,15 +80,18 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
       communitySlug: c.slug,
       communityName: c.name,
       communityTagline: c.tagline,
-      templateId: c.kind === "music" ? "user-centric-royalties" : "docs-bounty",
+      templateId,
       templateLabel: c.attachShape === "index" ? "Ecosystem index" : "Sidecar",
       fundingGapUsd: gapUsd,
-      whyFund: `${c.tagline} · via ${c.upstream}`,
+      whyFund: ossMatch
+        ? `${c.tagline} · GitHub scan · est. $${gapUsd.toFixed(0)} maintainer gap`
+        : `${c.tagline} · connect a sensor to surface verified needs (no estimate until live)`,
       whoBenefits: c.doctrine.slice(0, 120),
-      score: gapUsd * 0.5 + (c.featured ? 40 : 0),
+      score: gapUsd * 0.5 + (c.featured ? 40 : 0) + (ossMatch ? 20 : 0),
       metricKind: c.attachShape === "sidecar" ? "install" : "connect",
       connectCta,
       connectHref: `/communities/${c.slug}`,
+      needType,
     });
     seenSlugs.add(c.slug);
   }

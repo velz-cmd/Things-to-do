@@ -10,6 +10,16 @@ import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-a
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import { filterActionsByIntent } from "@/lib/discover/intent-filters";
+import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
+
+const DOMAIN_BADGE_CLASS: Record<string, string> = {
+  oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
+  music: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100",
+  research: "border-indigo-500/25 bg-indigo-500/10 text-indigo-100",
+  dao: "border-fuchsia-500/25 bg-fuchsia-500/10 text-fuchsia-100",
+  community: "border-violet-500/25 bg-violet-500/10 text-violet-100",
+  protocol: "border-cyan-500/25 bg-cyan-500/10 text-cyan-100",
+};
 
 const ACTION_STYLES: Record<string, string> = {
   fund: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
@@ -17,6 +27,7 @@ const ACTION_STYLES: Record<string, string> = {
   claim: "border-violet-500/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20",
   create_program: "border-blue-500/30 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20",
   sponsor: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
+  analyze: "border-resolve-calm-periwinkle/30 bg-resolve-calm-periwinkle/10 text-resolve-calm-periwinkle hover:bg-resolve-calm-periwinkle/20",
   default: "border-white/10 bg-white/[0.04] text-resolve-muted hover:text-white hover:bg-white/[0.08]",
 };
 
@@ -77,9 +88,24 @@ export function DiscoverActionCard({
                 #{rank}
               </span>
             )}
-            <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase text-resolve-muted">
+            <span
+              className={clsx(
+                "rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase",
+                DOMAIN_BADGE_CLASS[gap.domain] ?? "border-white/10 bg-white/[0.06] text-resolve-muted",
+              )}
+            >
               {gap.domain}
             </span>
+            {gap.needType && (
+              <span
+                className={clsx(
+                  "rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase",
+                  needTypeBadgeClass(gap.needType),
+                )}
+              >
+                {needTypeLabel(gap.needType)}
+              </span>
+            )}
             <DiscoverSourceBadge
               source={gap.dataSource}
               estimate={!gap.amountVerified && Boolean(gap.proofGithubScanAt)}
@@ -151,10 +177,11 @@ export function DiscoverActionCard({
       )}
 
       <div className={clsx("flex flex-wrap gap-2", compact ? "mt-2" : "mt-4")}>
-        {actions.map((action) => (
+        {actions.map((action, index) => (
           <ActionChip
             key={action.id}
             action={action}
+            primary={index === 0}
             onClick={() => void runAction(action, surface)}
           />
         ))}
@@ -163,7 +190,15 @@ export function DiscoverActionCard({
   );
 }
 
-function ActionChip({ action, onClick }: { action: DiscoverAction; onClick: () => void }) {
+function ActionChip({
+  action,
+  primary,
+  onClick,
+}: {
+  action: DiscoverAction;
+  primary?: boolean;
+  onClick: () => void;
+}) {
   const style = ACTION_STYLES[action.kind] ?? ACTION_STYLES.default;
   return (
     <button
@@ -172,6 +207,7 @@ function ActionChip({ action, onClick }: { action: DiscoverAction; onClick: () =
       className={clsx(
         "rounded-lg border px-2.5 py-1 text-[11px] font-medium transition",
         style,
+        primary && "ring-1 ring-white/20",
       )}
     >
       {action.label}

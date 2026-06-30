@@ -106,6 +106,16 @@ test.describe("Community phases — APIs", () => {
     expect(body.radars).toHaveProperty("oss");
     expect(body.radars).toHaveProperty("music");
     expect(body.radars).toHaveProperty("dao");
+    expect(body).toHaveProperty("domainRadars");
+    expect(body.domainRadars.oss).toHaveProperty("toolbar");
+    expect(body.domainRadars.oss).toHaveProperty("hasLiveData");
+    expect(body.domainRadars.music).toHaveProperty("cards");
+    expect(body.domainRadars.dao).toHaveProperty("emptyState");
+    expect(Array.isArray(body.domainRadars.oss.toolbar)).toBe(true);
+    if (body.domainRadars.oss.toolbar.length > 0) {
+      expect(body.domainRadars.oss.toolbar[0]).toHaveProperty("kind");
+      expect(body.domainRadars.oss.toolbar[0]).toHaveProperty("label");
+    }
     expect(body).toHaveProperty("emptyStates");
     expect(body).toHaveProperty("intelligence");
     expect(body).toHaveProperty("realSignalCount");

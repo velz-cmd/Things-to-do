@@ -22,6 +22,11 @@ type DiscoverRadarFeedContextValue = {
 
 const DiscoverRadarFeedContext = createContext<DiscoverRadarFeedContextValue | null>(null);
 
+function isUsableFeed(data: DiscoverRadarFeedPayload | null | undefined): boolean {
+  if (!data) return false;
+  return Boolean(data.intelligence && data.domainRadars && Array.isArray(data.gaps));
+}
+
 export function DiscoverRadarFeedProvider({ children }: { children: ReactNode }) {
   const [feed, setFeed] = useState<DiscoverRadarFeedPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,22 +39,31 @@ export function DiscoverRadarFeedProvider({ children }: { children: ReactNode })
     setError(null);
     try {
       const res = await fetch("/api/discover/radar-feed?limit=24", { credentials: "include" });
-      const data = (await res.json()) as DiscoverRadarFeedPayload;
-      if (data.gaps !== undefined) {
+      let data: DiscoverRadarFeedPayload | null = null;
+      try {
+        data = (await res.json()) as DiscoverRadarFeedPayload;
+      } catch {
+        data = null;
+      }
+
+      if (isUsableFeed(data)) {
         setFeed(data);
-      }
-      if (!res.ok || data.ok === false) {
+        setError(null);
+      } else if (!res.ok) {
         throw new Error("Radar feed unavailable");
+      } else {
+        throw new Error("Invalid radar feed payload");
       }
-      setError(null);
     } catch {
-      setError("Could not load trending radar");
-      discoverFetchErrorToast(
-        "discover-radar-feed",
-        "Trending radar unavailable",
-        refresh,
-        Boolean(feedRef.current),
-      );
+      if (!isUsableFeed(feedRef.current)) {
+        setError("Could not load trending radar");
+        discoverFetchErrorToast(
+          "discover-radar-feed",
+          "Trending radar unavailable",
+          refresh,
+          Boolean(feedRef.current),
+        );
+      }
     } finally {
       setLoading(false);
     }

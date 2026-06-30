@@ -2,6 +2,7 @@
 
 import { type FormEvent } from "react";
 import { Loader2, Send } from "lucide-react";
+import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 
 const PRESETS = [
   {
@@ -87,6 +88,10 @@ export function MissionEmptyState({
               </li>
             ))}
           </ul>
+        </div>
+
+        <div className="mt-10">
+          <MissionSignalRailsPanel onMissionPrompt={(prompt) => onInputChange(prompt)} />
         </div>
       </div>
     </div>

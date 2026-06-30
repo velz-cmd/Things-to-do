@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { Activity, Radio } from "lucide-react";
 import type { LiveEventItem } from "@/lib/events/live";
+import { normalizeLiveEventDomain } from "@/lib/events/live-feed-labels";
+import {
+  liveEventActions,
+  primaryLiveEventAction,
+  receiptHrefForEvent,
+} from "@/lib/discover/live-feed-actions";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
-import type { DiscoverAction } from "@/lib/discover/types";
+import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 
 type LiveEventsResponse = {
   ok: boolean;
@@ -15,6 +21,15 @@ type LiveEventsResponse = {
   events: LiveEventItem[];
   updatedAt: string;
 };
+
+type FeedDomainFilter = "all" | "oss" | "music" | "research";
+
+const FEED_DOMAIN_CHIPS: { id: FeedDomainFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "oss", label: "OSS" },
+  { id: "music", label: "Music" },
+  { id: "research", label: "Research" },
+];
 
 function formatRelative(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -26,69 +41,40 @@ function formatRelative(iso: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function eventActions(item: LiveEventItem): DiscoverAction[] {
-  const actions: DiscoverAction[] = [];
-  const authId = item.id.startsWith("auth-") ? item.id.slice(5) : null;
-
-  if (item.entityPath) {
-    actions.push({ id: "open", label: "Open", kind: "open", entityPath: item.entityPath });
-  }
-  if (item.status === "claimable") {
-    actions.push({ id: "claim", label: "Claim", kind: "claim", href: "/claim" });
-  }
-  if (item.status === "pending_funding" || item.status === "authorized") {
-    actions.push({
-      id: "fund",
-      label: "Fund",
-      kind: "fund",
-      missionId: item.missionId,
-      communitySlug: item.communitySlug,
-      amountUsd: item.amountUsd,
-    });
-  }
-  if (authId) {
-    actions.push({ id: "share", label: "Share receipt", kind: "share", href: `/receipt/${authId}` });
-  }
-  if (item.communitySlug) {
-    actions.push({
-      id: "community",
-      label: "Community",
-      kind: "open",
-      href: `/communities/${item.communitySlug}`,
-    });
-  }
-  return actions;
-}
-
 export function DiscoverLiveFeed({
   className,
-  domain,
   signedIn,
 }: {
   className?: string;
-  domain?: string | null;
   signedIn: boolean;
 }) {
+  const { runAction } = useDiscoverActions();
   const [data, setData] = useState<LiveEventsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [domainFilter, setDomainFilter] = useState<FeedDomainFilter>("all");
 
   useEffect(() => {
     const params = new URLSearchParams();
     params.set("limit", "20");
     params.set("scope", "network");
-    if (domain) params.set("domain", domain);
+    const apiDomain = normalizeLiveEventDomain(domainFilter === "all" ? null : domainFilter);
+    if (apiDomain) params.set("domain", apiDomain);
 
-    const load = () =>
-      fetch(`/api/events/live?${params}`)
+    const load = () => {
+      setLoading(true);
+      return fetch(`/api/events/live?${params}`)
         .then((r) => r.json())
         .then((d: LiveEventsResponse) => setData(d))
         .catch(() => setData(null))
         .finally(() => setLoading(false));
+    };
 
     void load();
     const t = setInterval(() => void load(), 20_000);
     return () => clearInterval(t);
-  }, [domain]);
+  }, [domainFilter]);
+
+  const events = useMemo(() => data?.events ?? [], [data?.events]);
 
   return (
     <section className={clsx("mb-12", className)}>
@@ -102,7 +88,7 @@ export function DiscoverLiveFeed({
               Live value feed
             </p>
             <p className="text-xs text-resolve-muted">
-              Real ledger events — PR merges, funding, claims, settlements, sensor connects
+              PR merges, program funds, claims, Arc settlements, identity links, sensor connects
             </p>
           </div>
         </div>
@@ -113,25 +99,54 @@ export function DiscoverLiveFeed({
         )}
       </div>
 
-      {loading ? (
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {FEED_DOMAIN_CHIPS.map((chip) => (
+          <button
+            key={chip.id}
+            type="button"
+            onClick={() => setDomainFilter(chip.id)}
+            className={clsx(
+              "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition",
+              domainFilter === chip.id
+                ? "border-resolve-accent/40 bg-resolve-accent/15 text-resolve-accent"
+                : "border-white/10 text-resolve-muted hover:text-white",
+            )}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
+      {loading && !data ? (
         <p className="text-sm text-resolve-muted">Loading ledger events…</p>
-      ) : !data?.events.length ? (
+      ) : !events.length ? (
         <div className="rounded-xl border border-dashed border-resolve-border/80 bg-resolve-bg-deep/20 px-5 py-8 text-center">
           <Activity className="mx-auto h-8 w-8 text-resolve-muted-dim" strokeWidth={1.25} />
           <p className="mt-3 text-sm text-resolve-muted">
-            No events yet. Install a community and connect sensors — value appears here automatically.
+            {domainFilter !== "all"
+              ? `No ${domainFilter} events yet — connect a sensor for this domain.`
+              : "No events yet. Install a community and connect sensors — value appears here automatically."}
           </p>
         </div>
       ) : (
         <ul className="divide-y divide-resolve-border/50 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/25">
-          {data.events.map((item) => {
-            const actions = eventActions(item);
+          {events.map((item) => {
+            const primary = primaryLiveEventAction(item);
+            const secondary = liveEventActions(item).filter((a) => a.id !== primary.id);
+            const receipt = receiptHrefForEvent(item);
+
             return (
               <li key={item.id} className="px-4 py-3.5 sm:px-5">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-white">{item.title}</p>
+                      <button
+                        type="button"
+                        onClick={() => void runAction(primary, "live-feed-row")}
+                        className="text-left text-sm font-medium text-white hover:text-resolve-accent"
+                      >
+                        {item.title}
+                      </button>
                       {item.domain && (
                         <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] text-resolve-muted">
                           {item.domain}
@@ -155,13 +170,29 @@ export function DiscoverLiveFeed({
                     <p className="mt-1 text-[11px] leading-relaxed text-resolve-muted-dim">
                       {item.evidence}
                     </p>
-                    {actions.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {actions.map((a) => (
-                          <DiscoverActionChip key={a.id} action={a} signedIn={signedIn} />
-                        ))}
-                      </div>
-                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <DiscoverActionChip
+                        action={primary}
+                        signedIn={signedIn}
+                        surface="live-feed-primary"
+                      />
+                      {receipt && (
+                        <Link
+                          href={receipt}
+                          className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-resolve-accent hover:bg-white/[0.08]"
+                        >
+                          Receipt →
+                        </Link>
+                      )}
+                      {secondary.slice(0, 2).map((a) => (
+                        <DiscoverActionChip
+                          key={a.id}
+                          action={a}
+                          signedIn={signedIn}
+                          surface="live-feed-secondary"
+                        />
+                      ))}
+                    </div>
                   </div>
                   <div className="shrink-0 text-right">
                     {item.amountUsd != null && item.amountUsd > 0 && (

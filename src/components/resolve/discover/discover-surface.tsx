@@ -128,17 +128,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         className="mb-12"
       />
 
-      <DiscoverLiveFeed
-        signedIn={Boolean(user)}
-        className="mb-12"
-        domain={
-          communityKind === "all"
-            ? null
-            : communityKind === "oss"
-              ? "code"
-              : communityKind
-        }
-      />
+      <DiscoverLiveFeed signedIn={Boolean(user)} className="mb-12" />
 
       <DiscoverOpportunityQueue
         signedIn={Boolean(user)}

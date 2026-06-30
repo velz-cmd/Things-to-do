@@ -8,6 +8,11 @@ import { DiscoverTrendingSkeleton } from "@/components/resolve/discover/discover
 import type { DiscoverIntent } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import {
+  DiscoverDegradedHint,
+  DiscoverRetryButton,
+  DiscoverStatePanel,
+} from "@/components/resolve/discover/discover-state-panel";
 
 type DiscoverTrendingGapsProps = {
   signedIn: boolean;
@@ -42,9 +47,9 @@ export function DiscoverTrendingGaps({
     <section id="trending" className={className}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-amber-300" />
+          <TrendingUp className="h-4 w-4 text-resolve-calm-periwinkle" />
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-calm-periwinkle">
               Trending value gaps
             </p>
             <p className="text-xs text-resolve-muted">
@@ -62,31 +67,29 @@ export function DiscoverTrendingGaps({
         />
       </div>
 
+      {feed?.degraded && !error && (
+        <DiscoverDegradedHint onRefresh={() => void refresh()} className="mb-3" />
+      )}
+
       {loading && !feed ? (
         <DiscoverTrendingSkeleton />
       ) : error && !filtered.length ? (
-        <div className="rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-8 text-center">
+        <DiscoverStatePanel variant="error">
           <p className="text-sm text-resolve-muted">{error}</p>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="mt-3 text-xs font-medium text-resolve-accent hover:underline"
-          >
-            Retry
-          </button>
-        </div>
+          <DiscoverRetryButton onClick={() => void refresh()} />
+        </DiscoverStatePanel>
       ) : !filtered.length ? (
-        <div className="rounded-xl border border-dashed border-resolve-border/80 bg-resolve-bg-deep/20 px-5 py-8 text-center">
+        <DiscoverStatePanel variant="empty">
           <p className="text-sm text-resolve-muted">
             No verified value gaps yet. Connect a GitHub or music sensor to populate trending.
           </p>
           <a
             href="#communities"
-            className="mt-3 inline-block text-xs font-medium text-resolve-accent hover:underline"
+            className="mt-3 inline-block text-xs font-medium text-resolve-calm-blue hover:text-resolve-accent"
           >
             Connect sensors →
           </a>
-        </div>
+        </DiscoverStatePanel>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {filtered.map((gap, i) => (

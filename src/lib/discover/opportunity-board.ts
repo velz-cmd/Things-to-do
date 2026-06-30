@@ -3,6 +3,7 @@ import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
+import { dedupeDiscoverBoard, dedupeFundablePrograms } from "@/lib/discover/board-dedupe";
 
 export type DiscoverBoardItem =
   | (FundableOpportunity & { boardKind: "program" })
@@ -32,7 +33,10 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
     skipGithub ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
   ]);
 
-  const items: DiscoverBoardItem[] = programs.map((p) => ({ ...p, boardKind: "program" as const }));
+  const items: DiscoverBoardItem[] = dedupeFundablePrograms(programs).map((p) => ({
+    ...p,
+    boardKind: "program" as const,
+  }));
   const seenSlugs = new Set(programs.map((p) => p.communitySlug));
 
   for (const c of COMMUNITY_CATALOG.filter((x) => x.featured)) {
@@ -71,9 +75,11 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
     seenSlugs.add(c.slug);
   }
 
-  return items.sort((a, b) => {
-    const scoreA = "score" in a ? a.score : 0;
-    const scoreB = "score" in b ? b.score : 0;
-    return scoreB - scoreA;
-  });
+  return dedupeDiscoverBoard(
+    items.sort((a, b) => {
+      const scoreA = "score" in a ? a.score : 0;
+      const scoreB = "score" in b ? b.score : 0;
+      return scoreB - scoreA;
+    }),
+  );
 }

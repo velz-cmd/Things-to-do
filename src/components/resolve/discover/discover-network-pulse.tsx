@@ -1,39 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { Activity, ArrowRight, Radio, Wallet } from "lucide-react";
-import type { NetworkIntelligence } from "@/lib/workspace/intelligence";
-
-type DiscoverOverview = {
-  intelligence: NetworkIntelligence;
-  fundableCount: number;
-  ossSignalCount: number;
-  claimHint: {
-    claimableUsd: number;
-    claimableCount: number;
-    href: string;
-    payeeLabel: string;
-  } | null;
-};
+import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 
 export function DiscoverNetworkPulse({ className }: { className?: string }) {
-  const [data, setData] = useState<DiscoverOverview | null>(null);
+  const { feed, loading } = useDiscoverRadarFeed();
 
-  useEffect(() => {
-    const load = () =>
-      fetch("/api/discover/overview")
-        .then((r) => r.json())
-        .then((d) => setData(d))
-        .catch(() => setData(null));
-
-    void load();
-    const t = setInterval(() => void load(), 20_000);
-    return () => clearInterval(t);
-  }, []);
-
-  if (!data?.intelligence) {
+  if (loading || !feed?.intelligence) {
     return (
       <div className={clsx("rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 px-5 py-4", className)}>
         <p className="text-xs text-resolve-muted">Loading network pulse…</p>
@@ -41,7 +16,7 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
     );
   }
 
-  const { intelligence: i, fundableCount, ossSignalCount, claimHint } = data;
+  const { intelligence: i, fundableCount, ossSignalCount, claimHint, realSignalCount } = feed;
   const hasActivity =
     i.recognizedUsd > 0 || i.settledUsd > 0 || i.leakingUsd > 0 || i.sensorsOnline > 0;
 
@@ -62,6 +37,11 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
             <p className="mt-0.5 text-sm text-white">
               {hasActivity ? i.headline : "Connect ecosystems — value discovery starts with sensors"}
             </p>
+            {realSignalCount > 0 && (
+              <p className="mt-0.5 text-[10px] text-resolve-muted-dim">
+                {realSignalCount} verified gap{realSignalCount === 1 ? "" : "s"} from live sources
+              </p>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

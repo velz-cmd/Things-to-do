@@ -3,6 +3,8 @@ import { domainLabel, type ValueDomain } from "@/lib/workspace/domains";
 import { explainRecognition } from "@/lib/workspace/events";
 import { liveFeedEventLabel, normalizeLiveEventDomain } from "@/lib/events/live-feed-labels";
 
+import { dedupeLiveFeedEvents } from "@/lib/events/live-feed-dedupe";
+
 export { normalizeLiveEventDomain };
 import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
 
@@ -246,16 +248,7 @@ export async function buildLiveEvents(input: {
 
   events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
-  const deduped: LiveEventItem[] = [];
-  const seenTimeline = new Set<string>();
-  for (const e of events) {
-    if (e.kind === "timeline" && e.eventType === "mission_created") {
-      const key = `${e.title}::${e.detail ?? ""}`;
-      if (seenTimeline.has(key)) continue;
-      seenTimeline.add(key);
-    }
-    deduped.push(e);
-  }
+  const deduped = dedupeLiveFeedEvents(events);
 
   return {
     ok: true,

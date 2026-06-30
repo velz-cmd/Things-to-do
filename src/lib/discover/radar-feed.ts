@@ -7,6 +7,12 @@ import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
 import { getTreasurySnapshot } from "@/lib/treasury/engine";
 import { buildTrendingValueGaps } from "@/lib/discover/trending-gaps";
 import { buildDomainRadars } from "@/lib/discover/domain-radars";
+import { emptyBundle } from "@/lib/discover/domain-radar-actions";
+import {
+  emptyNetworkIntelligence,
+  emptyRadarFeedPayload,
+  safeFeedPart,
+} from "@/lib/discover/radar-feed-fallback";
 import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
 
 function startOfToday() {
@@ -15,41 +21,107 @@ function startOfToday() {
   return d;
 }
 
-/** Single Discover data source — gaps, pulse, radars, claim hint. */
+const GITHUB_TIMEOUT_MS = 12_000;
+const TREASURY_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+/** Single Discover data source — gaps, pulse, radars, claim hint. Never throws. */
 export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarFeedPayload> {
   const sinceToday = startOfToday();
   const skipGithub = process.env.CI === "true";
+  const degraded: string[] = [];
 
-  const [trending, domainRadars, ledger, connectors, ossOpportunities, fundable, eventsToday, treasury] =
-    await Promise.all([
-      buildTrendingValueGaps(Math.min(Math.max(limit, 1), 48)),
-      buildDomainRadars(),
-      getGlobalAuthorizationSummary().catch(() => null),
-      getConnectorLiveStatuses().catch(() => []),
-      skipGithub ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
-      listFundableOpportunities(48),
-      process.env.DATABASE_URL
-        ? prisma.paymentAuthorization
+  const defaultDomainRadars = {
+    oss: emptyBundle("oss"),
+    music: emptyBundle("music"),
+    dao: emptyBundle("dao"),
+  };
+
+  const trending = await safeFeedPart(
+    "trending",
+    () => buildTrendingValueGaps(Math.min(Math.max(limit, 1), 48)),
+    { gaps: [], githubScanAt: null, realSignalCount: 0 },
+  );
+  if (!trending.gaps.length && !trending.realSignalCount) {
+    degraded.push("trending");
+  }
+
+  const domainRadars = await safeFeedPart("domainRadars", () => buildDomainRadars(), defaultDomainRadars);
+
+  const ledger = await safeFeedPart(
+    "ledger",
+    () => getGlobalAuthorizationSummary(),
+    null,
+  );
+
+  const connectors = await safeFeedPart(
+    "connectors",
+    () => getConnectorLiveStatuses(),
+    [],
+  );
+
+  const ossOpportunities = skipGithub
+    ? []
+    : await safeFeedPart(
+        "github",
+        () =>
+          withTimeout(scanAllOpportunities(), GITHUB_TIMEOUT_MS, []).catch(() => []),
+        [],
+      );
+  if (!skipGithub && ossOpportunities.length === 0) {
+    degraded.push("github");
+  }
+
+  const fundable = await safeFeedPart(
+    "fundable",
+    () => listFundableOpportunities(48),
+    [],
+  );
+
+  const eventsToday = process.env.DATABASE_URL
+    ? await safeFeedPart(
+        "eventsToday",
+        () =>
+          prisma.paymentAuthorization
             .count({ where: { createdAt: { gte: sinceToday } } })
-            .catch(() => 0)
-        : Promise.resolve(0),
-      getTreasurySnapshot().catch(() => null),
-    ]);
+            .catch(() => 0),
+        0,
+      )
+    : 0;
+
+  const treasury = await safeFeedPart(
+    "treasury",
+    () =>
+      withTimeout(getTreasurySnapshot(), TREASURY_TIMEOUT_MS, null).catch(() => null),
+    null,
+  );
 
   const sensorsOnline = connectors.filter(
     (c) => c.health === "healthy" || c.health === "syncing",
   ).length;
 
-  const intelligence = buildNetworkIntelligence({
-    ledger,
-    treasuryBalanceUsd: treasury?.balanceUsd ?? 0,
-    obligationsUsd: treasury?.obligationsUsd ?? ledger?.pendingFundingUsd ?? 0,
-    treasuryConfigured: treasury != null,
-    domainIntelligence: [],
-    opportunities: ossOpportunities,
-    sensorsOnline,
-    eventsToday,
-  });
+  let intelligence = emptyNetworkIntelligence();
+  try {
+    intelligence = buildNetworkIntelligence({
+      ledger,
+      treasuryBalanceUsd: treasury?.balanceUsd ?? 0,
+      obligationsUsd: treasury?.obligationsUsd ?? ledger?.pendingFundingUsd ?? 0,
+      treasuryConfigured: treasury != null,
+      domainIntelligence: [],
+      opportunities: ossOpportunities,
+      sensorsOnline,
+      eventsToday,
+    });
+  } catch (e) {
+    console.warn("[discover/radar-feed] intelligence build failed:", e);
+    degraded.push("intelligence");
+  }
 
   const gaps = trending.gaps;
   const radars = {
@@ -66,6 +138,8 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 
   return {
     ok: true,
+    degraded: degraded.length > 0,
+    degradedParts: degraded,
     gaps,
     radars,
     domainRadars,
@@ -78,4 +152,18 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
     claimHint: null,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Safe wrapper for API route — returns empty payload only on total failure. */
+export async function buildDiscoverRadarFeedSafe(limit = 24): Promise<DiscoverRadarFeedPayload> {
+  try {
+    return await buildDiscoverRadarFeed(limit);
+  } catch (e) {
+    console.error("[discover/radar-feed] catastrophic:", e);
+    return emptyRadarFeedPayload({
+      ok: true,
+      degraded: true,
+      degradedParts: ["fatal"],
+    });
+  }
 }

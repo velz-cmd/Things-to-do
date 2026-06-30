@@ -15,6 +15,10 @@ import type { DiscoverIntent } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { sectionVisibleForRole } from "@/lib/discover/role-filters";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import {
+  DiscoverRetryButton,
+  DiscoverStatePanel,
+} from "@/components/resolve/discover/discover-state-panel";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import type { DiscoverBoardItem } from "@/lib/discover/opportunity-board";
 
@@ -180,23 +184,19 @@ export function DiscoverOpportunityQueue({
       </div>
 
       {loading && !board.length ? (
-        <div className="flex items-center gap-2 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/25 px-5 py-8 text-sm text-resolve-muted">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading programs…
-        </div>
+        <DiscoverStatePanel variant="loading">
+          <div className="flex items-center justify-center gap-2 text-sm text-resolve-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading programs…
+          </div>
+        </DiscoverStatePanel>
       ) : error && !filtered.length ? (
-        <div className="rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-8 text-center">
+        <DiscoverStatePanel variant="error">
           <p className="text-sm text-resolve-muted">{error}</p>
-          <button
-            type="button"
-            onClick={() => void loadQueue()}
-            className="mt-3 text-xs font-medium text-resolve-accent hover:underline"
-          >
-            Retry
-          </button>
-        </div>
+          <DiscoverRetryButton onClick={() => void loadQueue()} />
+        </DiscoverStatePanel>
       ) : !filtered.length ? (
-        <div className="rounded-xl border border-dashed border-resolve-border/80 bg-resolve-bg-deep/20 px-5 py-8 text-center">
+        <DiscoverStatePanel variant="empty">
           <p className="text-sm text-resolve-muted">
             {query.trim()
               ? "No programs match your search."
@@ -206,12 +206,12 @@ export function DiscoverOpportunityQueue({
             <button
               type="button"
               onClick={scrollToCommunities}
-              className="mt-4 inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-4 py-2 text-sm font-medium text-resolve-accent hover:bg-resolve-accent/15"
+              className="mt-4 inline-flex rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
             >
               Connect a community
             </button>
           )}
-        </div>
+        </DiscoverStatePanel>
       ) : (
         <ul className="space-y-3">
           {filtered.map((o) => {

@@ -16,6 +16,10 @@ import { useDiscoverActions } from "@/components/resolve/discover/discover-actio
 import { DiscoverFeedSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import {
+  DiscoverRetryButton,
+  DiscoverStatePanel,
+} from "@/components/resolve/discover/discover-state-panel";
 
 type LiveEventsResponse = {
   ok: boolean;
@@ -142,25 +146,19 @@ export function DiscoverLiveFeed({
       {loading && !data ? (
         <DiscoverFeedSkeleton />
       ) : error && !events.length ? (
-        <div className="rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-8 text-center">
+        <DiscoverStatePanel variant="error">
           <p className="text-sm text-resolve-muted">{error}</p>
-          <button
-            type="button"
-            onClick={() => void loadFeed()}
-            className="mt-3 text-xs font-medium text-resolve-accent hover:underline"
-          >
-            Retry
-          </button>
-        </div>
+          <DiscoverRetryButton onClick={() => void loadFeed()} />
+        </DiscoverStatePanel>
       ) : !events.length ? (
-        <div className="rounded-xl border border-dashed border-resolve-border/80 bg-resolve-bg-deep/20 px-5 py-8 text-center">
-          <Activity className="mx-auto h-8 w-8 text-resolve-muted-dim" strokeWidth={1.25} />
+        <DiscoverStatePanel variant="empty">
+          <Activity className="mx-auto h-8 w-8 text-resolve-calm-periwinkle/60" strokeWidth={1.25} />
           <p className="mt-3 text-sm text-resolve-muted">
             {domainFilter !== "all"
               ? `No ${domainFilter} events yet — connect a sensor for this domain.`
               : "No events yet. Connect GitHub, Jellyfin, or ListenBrainz — value appears here when sensors authorize."}
           </p>
-        </div>
+        </DiscoverStatePanel>
       ) : (
         <ul className="divide-y divide-resolve-border/50 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/25">
           {events.map((item) => {

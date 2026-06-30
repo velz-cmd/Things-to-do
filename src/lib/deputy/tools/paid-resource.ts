@@ -32,6 +32,20 @@ function toToolResult(
   };
 }
 
+/** Pay for x402 sentiment classify (~$0.001 USDC). */
+export async function paidSentimentClassify(input: {
+  taskId: string;
+  text: string;
+}): Promise<ToolResult<PaidResourceData>> {
+  const { invokeAgentService } = await import("@/lib/agent/commerce");
+  const result = await invokeAgentService({
+    serviceId: "sentiment-per-request",
+    taskId: input.taskId,
+    query: { text: input.text },
+  });
+  return toToolResult(result, "agent.paySentiment");
+}
+
 /** Pay for x402 premium research (Circle Agent Stack demo endpoint). */
 export async function paidPremiumResearch(
   taskId: string

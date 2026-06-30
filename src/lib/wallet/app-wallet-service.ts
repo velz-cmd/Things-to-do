@@ -41,12 +41,17 @@ async function createCircleAppWallet(userId: string): Promise<{
   if (!circle || !walletSetId) return null;
 
   try {
-    const res = await circle.createWallets({
-      walletSetId,
-      blockchains: ["ARC-TESTNET"],
-      count: 1,
-      idempotencyKey: `resolve-app-wallet-${userId}`,
-    });
+    const res = await Promise.race([
+      circle.createWallets({
+        walletSetId,
+        blockchains: ["ARC-TESTNET"],
+        count: 1,
+        idempotencyKey: `resolve-app-wallet-${userId}`,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Circle wallet create timeout")), 4_000),
+      ),
+    ]);
     const wallet = res.data?.wallets?.[0];
     const address = wallet?.address as `0x${string}` | undefined;
     const id = wallet?.id;

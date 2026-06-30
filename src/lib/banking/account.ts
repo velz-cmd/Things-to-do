@@ -165,6 +165,7 @@ async function buildStatement(userId: string, availableUsd: number): Promise<Sta
 export async function getBankingAccountSnapshot(input: {
   authUser: SupabaseUser | null;
   profile: User | null;
+  light?: boolean;
 }): Promise<BankingAccountSnapshot> {
   const ledger =
     input.authUser && input.profile
@@ -229,9 +230,10 @@ export async function getBankingAccountSnapshot(input: {
   }
 
   const { authUser, profile } = input;
+  const light = input.light ?? false;
 
   const [realBalance, freshProfile, ghIdentity] = await Promise.all([
-    getRealSpendableUsd(profile.id).catch(() => null),
+    light ? Promise.resolve(null) : getRealSpendableUsd(profile.id).catch(() => null),
     prisma.user.findUnique({ where: { id: profile.id } }).then((u) => u ?? profile),
     Promise.resolve(extractGithubIdentity(authUser)),
   ]);
@@ -258,7 +260,7 @@ export async function getBankingAccountSnapshot(input: {
       ? Promise.resolve(reservedUsdFromChain)
       : getReservedForPrograms(freshProfile.id).catch(() => 0),
     buildProgramWallets(freshProfile.id).catch(() => []),
-    buildStatement(freshProfile.id, availableUsd).catch(() => []),
+    light ? Promise.resolve([]) : buildStatement(freshProfile.id, availableUsd).catch(() => []),
     getProfileEarningsSummary({ profile: freshProfile }).catch(() => ({
       claimableUsd: 0,
       authorizedUsd: 0,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -16,7 +16,8 @@ import type {
   WalletSyncState,
 } from "@/lib/capital/wallet-types";
 
-const REFRESH_INTERVAL_MS = 15_000;
+const WALLET_REFRESH_MS = 30_000;
+const CLIENT_TIMEOUT_MS = 25_000;
 const ARC_CHAIN_ID = 5042002;
 
 type Overview = {
@@ -42,10 +43,10 @@ type Overview = {
 async function fetchCapitalWallet(): Promise<CapitalWalletResponse> {
   const res = await fetch("/api/capital/wallet", {
     credentials: "include",
-    signal: AbortSignal.timeout(12_000),
+    cache: "no-store",
+    signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
   });
-  const data = (await res.json()) as CapitalWalletResponse;
-  return data;
+  return (await res.json()) as CapitalWalletResponse;
 }
 
 function snapshotFromCapitalWallet(
@@ -160,7 +161,7 @@ function healthFromResponse(
 }
 
 export function PaymentsOS() {
-  const { user, refreshBalance } = useAuth();
+  const { user } = useAuth();
   const { openSignIn } = useSignInModal();
   const account = useResolveAccount();
 
@@ -173,103 +174,82 @@ export function PaymentsOS() {
   const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [metaLoaded, setMetaLoaded] = useState(false);
 
-  const payoutWallet =
-    walletHealth?.address ??
-    account.appWalletAddress ??
-    account.walletAddress ??
-    account.externalWalletAddress ??
-    null;
+  const walletSyncRef = useRef(walletSync);
+  walletSyncRef.current = walletSync;
 
-  const loadWallet = useCallback(
-    async (opts?: { silent?: boolean }) => {
-      if (!user) {
-        setBanking(null);
-        setWalletSync("no_wallet");
-        setWalletHealth(null);
-        setSyncError(null);
-        return;
-      }
+  const fallbackWallet = account.appWalletAddress ?? account.walletAddress ?? null;
 
-      if (!opts?.silent) setRefreshing(true);
-      if (!opts?.silent) setWalletSync("loading");
+  const payoutWallet = walletHealth?.address ?? fallbackWallet;
 
-      try {
-        const capital = await fetchCapitalWallet();
+  const loadWallet = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!user) {
+      setBanking(null);
+      setWalletSync("no_wallet");
+      setWalletHealth(null);
+      setSyncError(null);
+      return;
+    }
 
-        if (capital.ok) {
-          const snap = snapshotFromCapitalWallet(capital, user.id);
-          setBanking(snap);
-          setWalletHealth(healthFromResponse(capital, false));
-          setWalletSync("synced");
-          setSyncError(null);
-          setWalletWarnings(capital.warnings);
-          setLastRefreshedAt(new Date(capital.balance.syncedAt));
-          void refreshBalance();
-        } else if (capital.code === "WALLET_NOT_FOUND") {
-          setWalletSync("no_wallet");
-          setSyncError(capital.message);
-          setWalletHealth(null);
-        } else {
-          setWalletSync("error");
-          setSyncError(capital.message);
-          setWalletHealth(healthFromResponse(capital, false));
-          if (capital.wallet) {
-            setBanking((prev) =>
-              prev ?
-                {
-                  ...prev,
-                  walletAddress: capital.wallet!.address,
-                  arc: {
-                    ...prev.arc,
-                    identityWallet: {
-                      address: capital.wallet!.address,
-                      label: capital.wallet!.shortAddress,
-                      provider: "embedded",
-                      circleWalletId: null,
-                      depositAddress: capital.wallet!.address,
-                      onChainUsdcUsd: null,
-                    },
-                  },
-                  balances: {
-                    ...prev.balances,
-                    onChainUsdcUsd: null,
-                  },
-                }
-              : null,
-            );
-          }
-        }
-      } catch {
-        setWalletSync("error");
-        setSyncError("Could not sync Arc balance. Try again.");
-        if (payoutWallet) {
-          setWalletHealth({
-            address: payoutWallet,
-            shortAddress: `${payoutWallet.slice(0, 6)}…${payoutWallet.slice(-4)}`,
-            source: "server_wallet",
-            chainId: ARC_CHAIN_ID,
-            blockNumber: null,
-            syncedAt: null,
-            rpcStatus: "error",
-            nativeUsdc: null,
-            erc20Usdc: null,
-          });
-        }
-      } finally {
-        setRefreshing(false);
-      }
-    },
-    [payoutWallet, refreshBalance, user],
-  );
-
-  const loadBankingMeta = useCallback(async () => {
-    if (!user) return;
+    if (!opts?.silent) {
+      setRefreshing(true);
+      setWalletSync("loading");
+    }
 
     try {
-      const bankRes = await fetch("/api/banking/account", {
+      const capital = await fetchCapitalWallet();
+
+      if (capital.ok) {
+        const snap = snapshotFromCapitalWallet(capital, user.id);
+        setBanking(snap);
+        setWalletHealth(healthFromResponse(capital, false));
+        setWalletSync("synced");
+        setSyncError(null);
+        setWalletWarnings(capital.warnings);
+        setLastRefreshedAt(new Date(capital.balance.syncedAt));
+      } else if (capital.code === "WALLET_NOT_FOUND") {
+        setWalletSync("no_wallet");
+        setSyncError(capital.message);
+        setWalletHealth(null);
+      } else {
+        setWalletSync("error");
+        setSyncError(capital.message);
+        setWalletHealth(healthFromResponse(capital, false));
+      }
+    } catch (e) {
+      const aborted = e instanceof DOMException && e.name === "AbortError";
+      setWalletSync("error");
+      setSyncError(
+        aborted ?
+          "Balance sync timed out. Tap Retry — Arc RPC can be slow on first load."
+        : "Could not sync Arc balance. Try again.",
+      );
+      if (fallbackWallet) {
+        setWalletHealth({
+          address: fallbackWallet,
+          shortAddress: `${fallbackWallet.slice(0, 6)}…${fallbackWallet.slice(-4)}`,
+          source: "server_wallet",
+          chainId: ARC_CHAIN_ID,
+          blockNumber: null,
+          syncedAt: null,
+          rpcStatus: "error",
+          nativeUsdc: null,
+          erc20Usdc: null,
+        });
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fallbackWallet, user]);
+
+  const loadBankingMeta = useCallback(async () => {
+    if (!user || metaLoaded) return;
+
+    try {
+      const bankRes = await fetch("/api/banking/account?light=1", {
         credentials: "include",
-        signal: AbortSignal.timeout(18_000),
+        signal: AbortSignal.timeout(20_000),
       });
       if (!bankRes.ok) {
         setWalletWarnings((w) =>
@@ -282,7 +262,7 @@ export function PaymentsOS() {
       if (!snapshot) return;
 
       setBanking((prev) => {
-        if (!prev || walletSync !== "synced") return snapshot;
+        if (!prev || walletSyncRef.current !== "synced") return snapshot;
         return {
           ...snapshot,
           balances: {
@@ -298,19 +278,20 @@ export function PaymentsOS() {
           },
         };
       });
+      setMetaLoaded(true);
     } catch {
       setWalletWarnings((w) =>
         w.includes("Account metadata unavailable") ? w : [...w, "Account metadata unavailable"],
       );
     }
-  }, [user, walletSync]);
+  }, [metaLoaded, user]);
 
   const loadOverview = useCallback(async () => {
-    if (!user) return;
+    if (!user || overview) return;
     try {
       const ovRes = await fetch("/api/payments/overview", {
         credentials: "include",
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(12_000),
       });
       if (ovRes.ok) {
         const ov = await ovRes.json();
@@ -322,23 +303,20 @@ export function PaymentsOS() {
     } catch {
       /* optional */
     }
-  }, [user]);
-
-  const load = useCallback(
-    async (opts?: { silent?: boolean }) => {
-      await loadWallet(opts);
-      void loadBankingMeta();
-      void loadOverview();
-    },
-    [loadWallet, loadBankingMeta, loadOverview],
-  );
+  }, [overview, user]);
 
   useEffect(() => {
     if (!user) return;
-    void load({ silent: false });
-    const t = setInterval(() => void load({ silent: true }), REFRESH_INTERVAL_MS);
+    void loadWallet({ silent: false });
+    const t = setInterval(() => void loadWallet({ silent: true }), WALLET_REFRESH_MS);
     return () => clearInterval(t);
-  }, [load, user]);
+  }, [loadWallet, user]);
+
+  useEffect(() => {
+    if (!user || walletSync !== "synced") return;
+    const t = setTimeout(() => void loadBankingMeta(), 2_000);
+    return () => clearTimeout(t);
+  }, [loadBankingMeta, user, walletSync]);
 
   async function handleClaim() {
     if (!payoutWallet) {
@@ -368,7 +346,7 @@ export function PaymentsOS() {
         return;
       }
       toast.success(`${BANKING_UI.claimSuccess} — $${total.toFixed(2)}`);
-      void load({ silent: true });
+      void loadWallet({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Claim failed");
     } finally {
@@ -418,8 +396,9 @@ export function PaymentsOS() {
       walletHealth={walletHealth}
       walletWarnings={walletWarnings}
       onClaim={() => void handleClaim()}
-      onRefresh={() => void load({ silent: false })}
+      onRefresh={() => void loadWallet({ silent: false })}
       onSignIn={openSignIn}
+      onActivityOpen={() => void loadOverview()}
     />
   );
 }

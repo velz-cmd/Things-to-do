@@ -1,26 +1,61 @@
 import { NextResponse } from "next/server";
-import { getSessionUser, ensureProfileForUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/session";
 import { getBankingAccountSnapshot } from "@/lib/banking/account";
 import { bankingSnapshotFromWalletBalance } from "@/lib/banking/fallback-snapshot";
 import { buildFallbackArcRail } from "@/lib/banking/arc-rail";
-import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
 import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 
+export const maxDuration = 30;
+
+async function loadProfileLight(userId: string) {
+  return prisma.user.findUnique({ where: { id: userId } });
+}
+
 /** RESOLVE Banking — unified account snapshot (custody, no interest). */
-export async function GET() {
+export async function GET(req: Request) {
+  const light = new URL(req.url).searchParams.get("light") === "1";
+
   try {
     const authUser = await getSessionUser();
-    const profile = authUser ? await ensureProfileForUser(authUser) : null;
-    const snapshot = await getBankingAccountSnapshot({ authUser, profile });
+    if (!authUser) {
+      const snapshot = await getBankingAccountSnapshot({
+        authUser: null,
+        profile: null,
+        light,
+      });
+      return NextResponse.json(snapshot);
+    }
+
+    const profile = await Promise.race([
+      loadProfileLight(authUser.id),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), light ? 3_000 : 8_000)),
+    ]);
+
+    if (!profile) {
+      const address = resolveUserWallet(authUser.id, null).address;
+      const snapshot = bankingSnapshotFromWalletBalance({
+        userId: authUser.id,
+        email: authUser.email,
+        displayName:
+          (authUser.user_metadata?.full_name as string | undefined) ??
+          authUser.email?.split("@")[0] ??
+          null,
+        walletAddress: address,
+        availableUsd: 0,
+        onChainUsd: null,
+      });
+      return NextResponse.json(snapshot);
+    }
+
+    const snapshot = await getBankingAccountSnapshot({ authUser, profile, light });
     return NextResponse.json(snapshot);
   } catch (e) {
     console.error("[banking/account]", e);
     const authUser = await getSessionUser().catch(() => null);
     if (authUser) {
       try {
-        const profile = await ensureProfileForUser(authUser);
-        const address = resolveUserWallet(profile.id, profile).address;
-        const realBalance = await getRealSpendableUsd(profile.id).catch(() => null);
+        const address = resolveUserWallet(authUser.id, null).address;
         const arc = buildFallbackArcRail();
         arc.identityWallet = {
           address,
@@ -28,38 +63,27 @@ export async function GET() {
           provider: "embedded",
           circleWalletId: null,
           depositAddress: address,
-          onChainUsdcUsd: realBalance?.onChainUsd ?? null,
+          onChainUsdcUsd: null,
         };
 
         const snapshot = bankingSnapshotFromWalletBalance({
-          userId: profile.id,
+          userId: authUser.id,
           email: authUser.email,
           displayName:
-            profile.displayName ??
             (authUser.user_metadata?.full_name as string | undefined) ??
             authUser.email?.split("@")[0] ??
             null,
           walletAddress: address,
-          availableUsd: realBalance?.availableUsd ?? profile.availableUsd,
-          onChainUsd: realBalance?.onChainUsd ?? null,
-          reservedUsd: realBalance?.reservedUsd ?? 0,
+          availableUsd: 0,
+          onChainUsd: null,
         });
 
-        return NextResponse.json({
-          ...snapshot,
-          arc,
-          memberSince: profile.createdAt.toISOString(),
-        });
+        return NextResponse.json({ ...snapshot, arc });
       } catch (inner) {
         console.error("[banking/account] wallet fallback", inner);
       }
     }
 
-    const snapshot = await getBankingAccountSnapshot({
-      authUser: null,
-      profile: null,
-    }).catch(() => null);
-    if (snapshot) return NextResponse.json(snapshot);
     return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
   }
 }

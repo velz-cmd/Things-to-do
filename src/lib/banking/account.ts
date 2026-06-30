@@ -5,6 +5,7 @@ import { getUserAuthorizationSummary } from "@/lib/authorization/ledger";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
 import { getBankingArcRail, buildFallbackArcRail } from "@/lib/banking/arc-rail";
 import { getRealSpendableUsd, resolveSpendableUsd } from "@/lib/wallet/sync-identity-balance";
+import { resolveIdentityWalletAddress } from "@/lib/wallet/identity-address";
 import type { User } from "@prisma/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -250,7 +251,7 @@ export async function getBankingAccountSnapshot(input: {
 
   const gh = ghIdentity;
   const github = gh.login ?? freshProfile.githubUsername ?? null;
-  const walletAddress = freshProfile.walletAddress ?? freshProfile.scanWalletAddress ?? null;
+  const walletAddress = resolveIdentityWalletAddress(freshProfile.id, freshProfile);
 
   const [reservedUsd, programs, statement, earnings] = await Promise.all([
     reservedUsdFromChain !== undefined

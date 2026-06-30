@@ -6,11 +6,14 @@ import { DiscoverActionCard } from "@/components/resolve/discover/discover-actio
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverTrendingSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import type { DiscoverIntent } from "@/lib/discover/types";
+import type { DiscoverRole } from "@/lib/discover/role-filters";
+import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
 type DiscoverTrendingGapsProps = {
   signedIn: boolean;
   query?: string;
   intent?: DiscoverIntent;
+  role?: DiscoverRole;
   className?: string;
 };
 
@@ -18,6 +21,7 @@ export function DiscoverTrendingGaps({
   signedIn,
   query = "",
   intent = "all",
+  role = "all",
   className,
 }: DiscoverTrendingGapsProps) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
@@ -36,19 +40,26 @@ export function DiscoverTrendingGaps({
 
   return (
     <section id="trending" className={className}>
-      <div className="mb-4 flex items-center gap-2">
-        <TrendingUp className="h-4 w-4 text-amber-300" />
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">
-            Trending value gaps
-          </p>
-          <p className="text-xs text-resolve-muted">
-            Ledger authorizations, funded programs, and live GitHub scans — estimates labeled
-            {feed?.realSignalCount != null && (
-              <span className="text-resolve-muted-dim"> · {feed.realSignalCount} verified signals</span>
-            )}
-          </p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-amber-300" />
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">
+              Trending value gaps
+            </p>
+            <p className="text-xs text-resolve-muted">
+              Ledger authorizations, funded programs, and live GitHub scans — estimates labeled
+              {feed?.realSignalCount != null && (
+                <span className="text-resolve-muted-dim"> · {feed.realSignalCount} verified signals</span>
+              )}
+            </p>
+          </div>
         </div>
+        <DiscoverSectionRefresh
+          sectionId="trending-gaps"
+          onRefresh={refresh}
+          lastUpdated={feed?.updatedAt}
+        />
       </div>
 
       {loading && !feed ? (
@@ -78,12 +89,13 @@ export function DiscoverTrendingGaps({
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
-          {filtered.slice(0, 8).map((gap, i) => (
+          {filtered.map((gap, i) => (
             <DiscoverActionCard
               key={gap.id}
               gap={gap}
               signedIn={signedIn}
               intent={intent}
+              role={role}
               rank={i + 1}
               surface="trending-gaps"
             />

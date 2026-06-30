@@ -8,6 +8,8 @@ import { DiscoverActionCard } from "@/components/resolve/discover/discover-actio
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import type { DiscoverIntent, DomainRadarBundle, RadarEmptyState } from "@/lib/discover/types";
+import type { DiscoverRole } from "@/lib/discover/role-filters";
+import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
 const RADAR_ICONS = {
   oss: GitBranch,
@@ -19,6 +21,7 @@ type DiscoverDomainRadarsProps = {
   signedIn: boolean;
   query?: string;
   intent?: DiscoverIntent;
+  role?: DiscoverRole;
   className?: string;
 };
 
@@ -26,9 +29,11 @@ export function DiscoverDomainRadars({
   signedIn,
   query = "",
   intent = "all",
+  role = "all",
   className,
 }: DiscoverDomainRadarsProps) {
-  const { feed, loading } = useDiscoverRadarFeed();
+  const { feed, loading, refresh } = useDiscoverRadarFeed();
+  const feedLoading = loading && !feed;
   const q = query.trim().toLowerCase();
 
   const bundles = useMemo(() => {
@@ -46,9 +51,16 @@ export function DiscoverDomainRadars({
 
   return (
     <section className={className}>
-      <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-muted-dim">
-        Domain radars
-      </p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-muted-dim">
+          Opportunity radars
+        </p>
+        <DiscoverSectionRefresh
+          sectionId="domain-radars"
+          onRefresh={refresh}
+          lastUpdated={feed?.updatedAt}
+        />
+      </div>
       <div className="grid gap-6 lg:grid-cols-3">
         {(["oss", "music", "dao"] as const).map((radarId) => {
           const bundle = bundles?.find((b) => b.id === radarId);
@@ -58,9 +70,10 @@ export function DiscoverDomainRadars({
               key={radarId}
               radarId={radarId}
               bundle={bundle}
-              loading={loading}
+              loading={feedLoading}
               signedIn={signedIn}
               intent={intent}
+              role={role}
               icon={Icon}
             />
           );
@@ -76,6 +89,7 @@ function DomainRadarColumn({
   loading,
   signedIn,
   intent,
+  role,
   icon: Icon,
 }: {
   radarId: "oss" | "music" | "dao";
@@ -83,6 +97,7 @@ function DomainRadarColumn({
   loading: boolean;
   signedIn: boolean;
   intent: DiscoverIntent;
+  role: DiscoverRole;
   icon: typeof GitBranch;
 }) {
   const title = bundle?.title ?? radarId;
@@ -142,6 +157,7 @@ function DomainRadarColumn({
               gap={gap}
               signedIn={signedIn}
               intent={intent}
+              role={role}
               compact
               surface={`radar-${radarId}`}
             />

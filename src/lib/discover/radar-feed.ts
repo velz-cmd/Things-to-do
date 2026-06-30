@@ -22,12 +22,12 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 
   const [trending, domainRadars, ledger, connectors, ossOpportunities, fundable, eventsToday, treasury] =
     await Promise.all([
-      buildTrendingValueGaps(Math.min(Math.max(limit, 1), 24)),
+      buildTrendingValueGaps(Math.min(Math.max(limit, 1), 48)),
       buildDomainRadars(),
       getGlobalAuthorizationSummary().catch(() => null),
       getConnectorLiveStatuses().catch(() => []),
       skipGithub ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
-      listFundableOpportunities(8),
+      listFundableOpportunities(48),
       process.env.DATABASE_URL
         ? prisma.paymentAuthorization
             .count({ where: { createdAt: { gte: sinceToday } } })

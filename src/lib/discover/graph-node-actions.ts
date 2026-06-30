@@ -14,7 +14,7 @@ export function bubblePopoverActions(
 
   const gapEdge = hasFundingGapEdge(node.id, edges);
   const canFund =
-    (gapEdge || ((node.moneyGapUsd ?? 0) > 0 && node.type === "repository")) &&
+    (gapEdge || ((node.moneyGapUsd ?? 0) > 0 && (node.type === "repository" || node.type === "ecosystem"))) &&
     !node.synthetic &&
     Boolean(node.programId || node.communitySlug);
 
@@ -108,7 +108,7 @@ export function defaultActionsForGraphNode(input: {
 }
 
 export function dataSourceForNodeType(type: string): DiscoverDataSource {
-  if (type === "repository" || type === "person") return "github";
+  if (type === "repository" || type === "ecosystem" || type === "person") return "github";
   if (type === "creator") return "musicbrainz";
   if (type === "community") return "catalog_preview";
   return "supabase_ledger";
@@ -148,6 +148,7 @@ export function filterGraphByIntent(
     } else if (intent === "build") {
       if (
         node.type === "repository" ||
+        node.type === "ecosystem" ||
         node.type === "community" ||
         node.type === "mission" ||
         node.entityPath

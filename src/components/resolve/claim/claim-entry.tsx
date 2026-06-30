@@ -43,6 +43,8 @@ type ClaimPreview = {
 export function ClaimEntry({ embedded = false }: { embedded?: boolean }) {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const payeeHintKey = searchParams.get("payeeKey");
+  const payeeHintType = searchParams.get("payeeKeyType");
   const { user, signInWithGitHub, githubEnabled } = useAuth();
   const { openSignIn } = useSignInModal();
   const capabilities = useAuthCapabilities();
@@ -160,6 +162,14 @@ export function ClaimEntry({ embedded = false }: { embedded?: boolean }) {
           Open the link from your earn notification, or sign in to see claimable value from the
           ledger.
         </p>
+        {payeeHintKey && (
+          <p className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200">
+            Identity hint: claim as{" "}
+            <span className="font-medium text-white">{payeeHintKey}</span>
+            {payeeHintType ? ` (${payeeHintType.replace(/_/g, " ")})` : ""}. Sign in and connect
+            this identity on your profile.
+          </p>
+        )}
         <button
           type="button"
           onClick={() => openSignIn()}

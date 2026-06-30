@@ -10,7 +10,9 @@ test.describe("RESOLVE product surfaces", () => {
     ).toBeVisible();
 
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Where does value already exist?" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Where is value being created/i }),
+    ).toBeVisible();
 
     await page.goto("/mission", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Mission" })).toBeVisible();
@@ -27,7 +29,9 @@ test.describe("RESOLVE product surfaces", () => {
     await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
     await expect(page.getByText("Your money, one simple account")).toBeVisible();
     await page.getByRole("button", { name: "Programs" }).click();
-    await expect(page.getByText("Community programs")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Fulfill a community program" }),
+    ).toBeVisible();
 
     await page.goto("/network", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/discover/);

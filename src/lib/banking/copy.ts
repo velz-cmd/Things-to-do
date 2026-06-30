@@ -28,6 +28,11 @@ export const BANKING_UI = {
   pendingFunding:
     "Some payouts are recognized but waiting for the program owner to add money first.",
   claimWorking: "Sending to your wallet…",
+  refresh: "Refresh",
+  refreshing: "Updating…",
+  refreshHint: "Sync Arc wallet and reload balance",
+  lastUpdated: "Updated",
+  autoRefresh: "Balance auto-refreshes every 15 seconds",
   activityEmpty: "No activity yet — add money or join a program to get started.",
   technicalDetails: "Payment infrastructure",
   technicalHint: "How your USDC moves on Arc — deposits, programs, and verified payouts",

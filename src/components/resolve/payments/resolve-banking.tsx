@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Copy,
   Landmark,
+  RefreshCw,
   Sparkles,
   Wallet,
 } from "lucide-react";
@@ -47,7 +48,9 @@ type ResolveBankingProps = {
   signedIn: boolean;
   payoutWallet: string | null;
   claiming: boolean;
+  lastRefreshedAt?: Date | null;
   onClaim: () => void;
+  onRefresh?: () => void;
   onSignIn: () => void;
 };
 
@@ -283,7 +286,7 @@ function TechnicalDetails({
           </div>
         )}
 
-        {arc.recentMemos.length > 0 && (
+        {arc.recentMemos?.length ? (
           <div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
               Your program payouts
@@ -304,11 +307,11 @@ function TechnicalDetails({
             ))}
           </ul>
           </div>
-        )}
+        ) : null}
 
-        {arc.blockers.length > 0 && (
+        {arc.blockers?.length ? (
           <p className="text-amber-200/90">{arc.blockers[0]}</p>
-        )}
+        ) : null}
       </div>
     </details>
   );
@@ -323,7 +326,9 @@ export function ResolveBanking({
   signedIn,
   payoutWallet,
   claiming,
+  lastRefreshedAt,
   onClaim,
+  onRefresh,
   onSignIn,
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
@@ -437,6 +442,18 @@ export function ResolveBanking({
                 >
                   {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}
                 </Button>
+                {onRefresh && (
+                  <Button
+                    variant="secondary"
+                    onClick={onRefresh}
+                    disabled={refreshing}
+                    className="gap-2"
+                    title={BANKING_UI.refreshHint}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                    {refreshing ? BANKING_UI.refreshing : BANKING_UI.refresh}
+                  </Button>
+                )}
                 <Link
                   href="/settings"
                   className="inline-flex items-center justify-center gap-2 rounded-resolve px-5 py-2.5 text-sm font-semibold text-resolve-muted transition hover:bg-white/[0.06] hover:text-white"
@@ -444,9 +461,13 @@ export function ResolveBanking({
                   {BANKING_UI.connections}
                 </Link>
               </div>
-              {refreshing && (
-                <p className="mt-3 text-[10px] text-resolve-muted-dim">Updating…</p>
-              )}
+              <p className="mt-3 text-[10px] text-resolve-muted-dim">
+                {refreshing ?
+                  BANKING_UI.refreshing
+                : lastRefreshedAt ?
+                  `${BANKING_UI.lastUpdated} ${lastRefreshedAt.toLocaleTimeString()} · auto every 15s`
+                : BANKING_UI.autoRefresh}
+              </p>
             </BlueGlowCard>
           )}
 

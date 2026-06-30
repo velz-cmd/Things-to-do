@@ -6,6 +6,12 @@ import { eventTypeLabel, explainRecognition } from "@/lib/workspace/events";
 import { EntityIds } from "@/lib/domain/entities";
 import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
 import {
+  dataSourceForNodeType,
+  defaultActionsForGraphNode,
+} from "@/lib/discover/graph-node-actions";
+import type { DiscoverAction, DiscoverDataSource } from "@/lib/discover/types";
+
+import {
   fundingEntropy,
   rankGraphNodes,
   type MetricEdge,
@@ -34,6 +40,17 @@ export type DiscoverGraphNode = {
   x?: number;
   y?: number;
   weight: number;
+  dataSource?: DiscoverDataSource;
+  amountVerified?: boolean;
+  moneyGapUsd?: number | null;
+  whyItMatters?: string;
+  updatedAt?: string;
+  proofHref?: string;
+  communitySlug?: string;
+  programId?: string;
+  templateId?: string;
+  missionId?: string;
+  actions?: DiscoverAction[];
 };
 
 export type DiscoverGraphEdge = {
@@ -181,14 +198,38 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
   const labels = new Map<string, string>();
   const payeeAmounts: number[] = [];
 
-  function addNode(id: string, label: string, type: string, weight = 1) {
+  function addNode(
+    id: string,
+    label: string,
+    type: string,
+    weight = 1,
+    meta?: Partial<DiscoverGraphNode>,
+  ) {
     const existing = nodeMap.get(id);
-    const entityPath = entityIdToPath(id) ?? undefined;
+    const entityPath = meta?.entityPath ?? entityIdToPath(id) ?? undefined;
     if (existing) {
       existing.weight += weight;
+      if (meta?.moneyGapUsd != null) existing.moneyGapUsd = meta.moneyGapUsd;
+      if (meta?.updatedAt) existing.updatedAt = meta.updatedAt;
       return;
     }
-    nodeMap.set(id, { id, label, type, weight, entityPath });
+    nodeMap.set(id, {
+      id,
+      label,
+      type,
+      weight,
+      entityPath,
+      dataSource: meta?.dataSource ?? dataSourceForNodeType(type, false),
+      amountVerified: meta?.amountVerified ?? false,
+      moneyGapUsd: meta?.moneyGapUsd ?? null,
+      whyItMatters: meta?.whyItMatters,
+      updatedAt: meta?.updatedAt,
+      proofHref: meta?.proofHref,
+      communitySlug: meta?.communitySlug,
+      programId: meta?.programId,
+      templateId: meta?.templateId,
+      missionId: meta?.missionId,
+    });
     labels.set(id, label);
   }
 
@@ -203,10 +244,30 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
     const payeeId = payeeNodeId(r.payeeKey, r.payeeKeyType);
     const missionId = r.missionId ? `mission:${r.missionId}` : "mission:unscoped";
     const connectorId = `connector:${r.connectorId}`;
+    const entityPath = entityIdToPath(payeeToEntityId(r.payeeKey, r.payeeKeyType)) ?? undefined;
 
-    addNode(payeeId, r.payeeKey, "creator", r.amountUsd);
-    addNode(missionId, r.missionId ? `Mission ${r.missionId.slice(0, 12)}…` : "Unscoped", "mission", 1);
-    addNode(connectorId, domainLabel(r.connectorId), "connector", 1);
+    addNode(payeeId, r.payeeKey, "creator", r.amountUsd, {
+      dataSource: "supabase_ledger",
+      amountVerified: true,
+      moneyGapUsd: r.amountUsd,
+      whyItMatters: `Authorization from ${domainLabel(r.connectorId)} sensor — ${r.status}`,
+      updatedAt: r.updatedAt.toISOString(),
+      proofHref: `/receipt/${r.id}`,
+      entityPath,
+      missionId: r.missionId ?? undefined,
+    });
+    addNode(missionId, r.missionId ? `Mission ${r.missionId.slice(0, 12)}…` : "Unscoped", "mission", 1, {
+      dataSource: "supabase_ledger",
+      amountVerified: true,
+      missionId: r.missionId ?? undefined,
+      whyItMatters: "Mission scope for authorized payments",
+      updatedAt: r.updatedAt.toISOString(),
+    });
+    addNode(connectorId, domainLabel(r.connectorId), "connector", 1, {
+      dataSource: "local_seed",
+      amountVerified: false,
+      whyItMatters: `${domainForConnector(r.connectorId)} connector observing value`,
+    });
 
     addEdge(
       connectorId,
@@ -228,9 +289,21 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
 
   for (const opp of opportunities.slice(0, 6)) {
     const repoId = EntityIds.repository(opp.owner, opp.repo);
-    addNode(repoId, opp.fullName, "repository", opp.health.fundingGapUsd);
+    const repoPath = entityIdToPath(repoId) ?? undefined;
+    addNode(repoId, opp.fullName, "repository", opp.health.fundingGapUsd, {
+      dataSource: "github",
+      amountVerified: true,
+      moneyGapUsd: opp.health.fundingGapUsd,
+      whyItMatters: opp.headline,
+      entityPath: repoPath,
+    });
     const maintId = EntityIds.personGitHub(`${opp.owner}-core`);
-    addNode(maintId, `${opp.repo} maintainers`, "person", opp.health.maintainerCount);
+    addNode(maintId, `${opp.repo} maintainers`, "person", opp.health.maintainerCount, {
+      dataSource: "github",
+      amountVerified: true,
+      whyItMatters: `${opp.unfundedMaintainers} maintainers need funding`,
+      entityPath: entityIdToPath(maintId) ?? undefined,
+    });
     addEdge(repoId, maintId, "maintained_by", opp.health.maintainerCount, opp.headline);
     if (opp.health.fundingGapUsd > 0) {
       addNode("pool:treasury", "Treasury gap", "treasury", opp.health.fundingGapUsd);
@@ -246,7 +319,13 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
 
   for (const c of COMMUNITY_CATALOG.filter((x) => x.featured)) {
     const commId = EntityIds.community(c.slug);
-    addNode(commId, c.name, "community", 1);
+    addNode(commId, c.name, "community", 1, {
+      dataSource: "catalog_preview",
+      amountVerified: false,
+      communitySlug: c.slug,
+      whyItMatters: c.doctrine,
+      entityPath: `/communities/${c.slug}`,
+    });
     for (const conn of c.connectors) {
       const connId = `connector:${conn}`;
       addNode(connId, domainLabel(conn), "connector", 1);
@@ -255,6 +334,20 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
   }
 
   const sortedNodes = [...nodeMap.values()]
+    .map((n) => ({
+      ...n,
+      actions:
+        n.actions ??
+        defaultActionsForGraphNode({
+          type: n.type,
+          entityPath: n.entityPath,
+          communitySlug: n.communitySlug,
+          programId: n.programId,
+          templateId: n.templateId,
+          missionId: n.missionId,
+          receiptId: n.proofHref?.match(/\/receipt\/([^/?#]+)/)?.[1],
+        }),
+    }))
     .sort((a, b) => b.weight - a.weight)
     .slice(0, MAX_GRAPH_NODES);
 

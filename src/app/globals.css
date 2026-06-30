@@ -221,16 +221,15 @@ body {
   }
 
   .resolve-signal-rails {
-    background:
-      radial-gradient(ellipse 120% 80% at 0% -20%, rgba(92, 96, 159, 0.12), transparent 52%),
-      radial-gradient(ellipse 90% 60% at 100% 0%, rgba(0, 119, 179, 0.1), transparent 48%),
-      radial-gradient(ellipse 70% 50% at 50% 100%, rgba(125, 140, 196, 0.06), transparent 55%),
-      linear-gradient(168deg, rgba(12, 28, 52, 0.92) 0%, rgba(7, 20, 40, 0.98) 100%);
-    border: 1px solid rgba(125, 140, 196, 0.14);
+    background: linear-gradient(
+      168deg,
+      rgba(14, 34, 64, 0.72) 0%,
+      rgba(7, 20, 40, 0.9) 100%
+    );
+    border: 1px solid rgba(125, 140, 196, 0.1);
     box-shadow:
-      inset 0 1px 0 rgba(204, 194, 209, 0.06),
-      inset 0 -1px 0 rgba(7, 20, 40, 0.5),
-      0 16px 48px rgba(5, 10, 20, 0.4);
+      inset 0 1px 0 rgba(125, 140, 196, 0.06),
+      0 12px 40px rgba(5, 10, 20, 0.3);
   }
 
   .resolve-signal-step {
@@ -254,215 +253,97 @@ body {
     box-shadow: 0 6px 24px rgba(0, 40, 90, 0.15);
   }
 
-  /* Premium signal service cards — theme-anchored gradients (iris / aster / periwinkle) */
-  .resolve-premium-signal-card {
+  /* Signal service cards — one gradient for every rail (navy shell → iris lift) */
+  .resolve-signal-service-card {
     position: relative;
     overflow: hidden;
     border-radius: 1rem;
-    border: 1px solid rgba(125, 140, 196, 0.14);
+    border: 1px solid rgba(125, 140, 196, 0.16);
+    background:
+      radial-gradient(ellipse 75% 55% at 100% 0%, rgba(125, 140, 196, 0.14), transparent 58%),
+      radial-gradient(ellipse 60% 45% at 0% 100%, rgba(0, 119, 179, 0.1), transparent 55%),
+      linear-gradient(
+        152deg,
+        #0c1e38 0%,
+        #102848 16%,
+        #143a5c 34%,
+        #1a4878 54%,
+        #2a5088 72%,
+        #3d5d90 86%,
+        #5c609f 100%
+      );
     box-shadow:
-      0 0 0 1px rgba(7, 20, 40, 0.5),
-      0 8px 32px rgba(5, 10, 20, 0.35),
-      inset 0 1px 0 rgba(125, 140, 196, 0.12);
+      inset 0 1px 0 rgba(125, 140, 196, 0.14),
+      0 8px 28px rgba(5, 10, 25, 0.32);
   }
 
-  .resolve-premium-signal-card::before {
+  .resolve-signal-service-card::before {
     content: "";
     position: absolute;
-    inset: -30% -10% -10%;
+    inset: 0;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.4s ease;
-    z-index: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(
+      ellipse 100% 75% at 50% 110%,
+      rgba(125, 140, 196, 0.2),
+      transparent 68%
+    );
   }
 
-  .resolve-premium-signal-card::after {
+  .resolve-signal-service-card::after {
     content: "";
     position: absolute;
     bottom: 0;
-    left: 8%;
-    right: 8%;
+    left: 10%;
+    right: 10%;
     height: 1px;
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(204, 194, 209, 0.5),
-      rgba(255, 255, 255, 0.35),
-      rgba(204, 194, 209, 0.5),
+      rgba(125, 140, 196, 0.45),
+      rgba(204, 194, 209, 0.3),
+      rgba(125, 140, 196, 0.45),
       transparent
     );
-    box-shadow: 0 0 24px 3px rgba(141, 161, 209, 0.15);
+    box-shadow: 0 0 20px 2px rgba(92, 96, 159, 0.12);
     border-radius: 50%;
     pointer-events: none;
-    z-index: 2;
   }
 
-  .resolve-premium-signal-card:hover::before {
+  .resolve-signal-service-card.resolve-card-hover:hover {
+    border-color: rgba(125, 140, 196, 0.3);
+    box-shadow:
+      inset 0 1px 0 rgba(125, 140, 196, 0.2),
+      0 12px 40px rgba(5, 10, 30, 0.42),
+      0 0 48px rgba(92, 96, 159, 0.14);
+  }
+
+  .resolve-signal-service-card.resolve-card-hover:hover::before {
     opacity: 1;
-  }
-
-  .resolve-premium-signal-card--agent {
-    background: linear-gradient(
-      148deg,
-      #071428 0%,
-      #0c1e38 28%,
-      #0d3558 52%,
-      #0077b3 78%,
-      #5c609f 100%
-    );
-  }
-
-  .resolve-premium-signal-card--agent::before {
-    background: radial-gradient(
-      ellipse 100% 80% at 50% 110%,
-      rgba(0, 119, 179, 0.28),
-      transparent 65%
-    );
-  }
-
-  .resolve-premium-signal-card--agent.resolve-card-hover:hover {
-    border-color: rgba(0, 119, 179, 0.32);
-    box-shadow:
-      0 0 0 1px rgba(0, 119, 179, 0.1),
-      0 14px 48px rgba(5, 10, 30, 0.4),
-      0 0 56px rgba(92, 96, 159, 0.16),
-      inset 0 1px 0 rgba(125, 140, 196, 0.14);
-  }
-
-  .resolve-premium-signal-card--agent.resolve-premium-signal-card--featured {
-    background: linear-gradient(
-      148deg,
-      #071428 0%,
-      #0a2848 20%,
-      #0077b3 48%,
-      #5c609f 72%,
-      #7d8cc4 100%
-    );
-  }
-
-  .resolve-premium-signal-card--agent.resolve-premium-signal-card--featured::before {
-    background: radial-gradient(
-      ellipse 100% 80% at 50% 110%,
-      rgba(125, 140, 196, 0.32),
-      transparent 65%
-    );
-  }
-
-  .resolve-premium-signal-card--agent.resolve-premium-signal-card--featured.resolve-card-hover:hover {
-    border-color: rgba(125, 140, 196, 0.35);
-    box-shadow:
-      0 0 0 1px rgba(125, 140, 196, 0.12),
-      0 14px 48px rgba(5, 10, 30, 0.42),
-      0 0 64px rgba(0, 119, 179, 0.14),
-      inset 0 1px 0 rgba(125, 140, 196, 0.16);
-  }
-
-  .resolve-premium-signal-card--creator {
-    background: linear-gradient(
-      148deg,
-      #071428 0%,
-      #1a1838 26%,
-      #3d3a68 50%,
-      #5c609f 74%,
-      #7d8cc4 100%
-    );
-  }
-
-  .resolve-premium-signal-card--creator::before {
-    background: radial-gradient(
-      ellipse 100% 80% at 50% 110%,
-      rgba(92, 96, 159, 0.3),
-      transparent 65%
-    );
-  }
-
-  .resolve-premium-signal-card--creator.resolve-card-hover:hover {
-    border-color: rgba(92, 96, 159, 0.34);
-    box-shadow:
-      0 0 0 1px rgba(92, 96, 159, 0.1),
-      0 14px 48px rgba(10, 8, 28, 0.38),
-      0 0 56px rgba(125, 140, 196, 0.14),
-      inset 0 1px 0 rgba(125, 140, 196, 0.12);
-  }
-
-  .resolve-premium-signal-card--creator.resolve-premium-signal-card--featured {
-    background: linear-gradient(
-      148deg,
-      #071428 0%,
-      #2a2548 24%,
-      #5c609f 50%,
-      #7d8cc4 76%,
-      #b8a0c8 100%
-    );
-  }
-
-  .resolve-premium-signal-card--maintainer {
-    background: linear-gradient(
-      148deg,
-      #071428 0%,
-      #0f1a28 30%,
-      #1e2a3c 54%,
-      #3a4a5c 76%,
-      #7d8cc4 100%
-    );
-  }
-
-  .resolve-premium-signal-card--maintainer::before {
-    background: radial-gradient(
-      ellipse 100% 80% at 50% 110%,
-      rgba(125, 140, 196, 0.22),
-      transparent 65%
-    );
-  }
-
-  .resolve-premium-signal-card--maintainer.resolve-card-hover:hover {
-    border-color: rgba(125, 140, 196, 0.28);
-    box-shadow:
-      0 0 0 1px rgba(125, 140, 196, 0.08),
-      0 14px 48px rgba(5, 10, 20, 0.38),
-      0 0 56px rgba(92, 96, 159, 0.12),
-      inset 0 1px 0 rgba(125, 140, 196, 0.12);
-  }
-
-  .resolve-premium-signal-card--maintainer.resolve-premium-signal-card--featured {
-    background: linear-gradient(
-      148deg,
-      #071428 0%,
-      #152030 28%,
-      #2a3848 52%,
-      #5c609f 76%,
-      #9aa8c8 100%
-    );
   }
 
   .resolve-silver-strip {
     background: linear-gradient(
       90deg,
-      rgba(92, 96, 159, 0.22) 0%,
-      rgba(125, 140, 196, 0.28) 45%,
+      rgba(92, 96, 159, 0.18) 0%,
+      rgba(125, 140, 196, 0.26) 48%,
+      rgba(204, 194, 209, 0.14) 100%
+    );
+    backdrop-filter: blur(10px) saturate(1.2);
+    -webkit-backdrop-filter: blur(10px) saturate(1.2);
+    border-top: 1px solid rgba(125, 140, 196, 0.22);
+    box-shadow: inset 0 1px 0 rgba(204, 194, 209, 0.14);
+    transition: background 0.25s ease;
+  }
+
+  .resolve-silver-strip:hover {
+    background: linear-gradient(
+      90deg,
+      rgba(92, 96, 159, 0.24) 0%,
+      rgba(125, 140, 196, 0.32) 48%,
       rgba(204, 194, 209, 0.18) 100%
     );
-    backdrop-filter: blur(12px) saturate(1.25);
-    -webkit-backdrop-filter: blur(12px) saturate(1.25);
-    border-top: 1px solid rgba(125, 140, 196, 0.28);
-    box-shadow: inset 0 1px 0 rgba(204, 194, 209, 0.16);
-  }
-
-  .resolve-signal-lane {
-    border-radius: 1rem;
-    padding: 0.25rem 0 0.5rem;
-  }
-
-  .resolve-signal-lane--agent {
-    background: linear-gradient(90deg, rgba(0, 119, 179, 0.06), transparent 55%);
-  }
-
-  .resolve-signal-lane--creator {
-    background: linear-gradient(90deg, rgba(92, 96, 159, 0.06), transparent 55%);
-  }
-
-  .resolve-signal-lane--maintainer {
-    background: linear-gradient(90deg, rgba(125, 140, 196, 0.05), transparent 55%);
   }
 
   .resolve-signal-cta {

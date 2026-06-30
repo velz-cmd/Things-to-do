@@ -7,12 +7,12 @@ import {
   ARC_USDC_CONTRACT,
 } from "@/lib/settlement/arc-config";
 import { getArcReadiness } from "@/lib/treasury/arc-readiness";
-import { getArcUsdcBalance } from "@/lib/wallet/alchemy";
+import { getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 import {
   appWalletProvider,
   circleWalletIdForUser,
 } from "@/lib/wallet/app-wallet-service";
-import { resolveIdentityWalletAddress } from "@/lib/wallet/identity-address";
+import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 import type { User } from "@prisma/client";
 import type { BankingArcRail, BankingMemoActivity } from "@/lib/banking/types";
 
@@ -118,9 +118,9 @@ export async function getBankingArcRail(
   let identityOnChainUsd: number | null = opts?.identityOnChainUsd ?? null;
   if (identityOnChainUsd === null && profile && !opts?.light) {
     try {
-      const addr = resolveIdentityWalletAddress(profile.id, profile);
+      const addr = resolveUserWallet(profile.id, profile).address;
       const bal = await getArcUsdcBalance(addr);
-      identityOnChainUsd = round(bal.balanceUsd);
+      identityOnChainUsd = round(Number(bal.totalUsdc));
     } catch {
       identityOnChainUsd = null;
     }
@@ -134,7 +134,7 @@ export async function getBankingArcRail(
 
   const memoActivity = opts?.light ? [] : await getRecentMemoActivity(profile?.id ?? null, 8);
   const depositAddress =
-    profile ? resolveIdentityWalletAddress(profile.id, profile) : null;
+    profile ? resolveUserWallet(profile.id, profile).address : null;
 
   return {
     chain: "Arc Testnet",

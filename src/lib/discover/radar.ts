@@ -9,6 +9,7 @@ import {
   dataSourceForNodeType,
   defaultActionsForGraphNode,
 } from "@/lib/discover/graph-node-actions";
+import { graphDomainForConnector } from "@/lib/discover/graph-domain";
 import type { DiscoverAction, DiscoverDataSource } from "@/lib/discover/types";
 
 import {
@@ -51,6 +52,10 @@ export type DiscoverGraphNode = {
   templateId?: string;
   missionId?: string;
   actions?: DiscoverAction[];
+  /** OSS / music / research tint for bubblemap filters */
+  graphDomain?: "oss" | "music" | "research" | "other";
+  pendingFunding?: boolean;
+  authorizationStatus?: string;
 };
 
 export type DiscoverGraphEdge = {
@@ -83,7 +88,7 @@ export type DiscoverRadarPayload = {
 };
 
 const MAX_ACTIVITY = 24;
-const MAX_GRAPH_NODES = 48;
+const MAX_GRAPH_NODES = 24;
 
 function payeeNodeId(payeeKey: string, payeeKeyType: string) {
   if (payeeKeyType === "listen_artist") return `creator:${payeeKey.toLowerCase()}`;
@@ -211,6 +216,9 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       existing.weight += weight;
       if (meta?.moneyGapUsd != null) existing.moneyGapUsd = meta.moneyGapUsd;
       if (meta?.updatedAt) existing.updatedAt = meta.updatedAt;
+      if (meta?.pendingFunding) existing.pendingFunding = true;
+      if (meta?.graphDomain) existing.graphDomain = meta.graphDomain;
+      if (meta?.authorizationStatus) existing.authorizationStatus = meta.authorizationStatus;
       return;
     }
     nodeMap.set(id, {
@@ -246,7 +254,13 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
     const connectorId = `connector:${r.connectorId}`;
     const entityPath = entityIdToPath(payeeToEntityId(r.payeeKey, r.payeeKeyType)) ?? undefined;
 
-    addNode(payeeId, r.payeeKey, "creator", r.amountUsd, {
+    const payeeDomain = graphDomainForConnector(r.connectorId);
+    const nodeType =
+      r.payeeKeyType === "listen_artist" ? "creator"
+      : r.payeeKeyType === "github_username" ? "person"
+      : "creator";
+
+    addNode(payeeId, r.payeeKey, nodeType, r.amountUsd, {
       dataSource: "supabase_ledger",
       amountVerified: true,
       moneyGapUsd: r.amountUsd,
@@ -255,6 +269,9 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       proofHref: `/receipt/${r.id}`,
       entityPath,
       missionId: r.missionId ?? undefined,
+      graphDomain: payeeDomain,
+      pendingFunding: r.status === "pending_funding",
+      authorizationStatus: r.status,
     });
     addNode(missionId, r.missionId ? `Mission ${r.missionId.slice(0, 12)}…` : "Unscoped", "mission", 1, {
       dataSource: "supabase_ledger",
@@ -263,10 +280,12 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       whyItMatters: "Mission scope for authorized payments",
       updatedAt: r.updatedAt.toISOString(),
     });
+    const connDomain = graphDomainForConnector(r.connectorId);
     addNode(connectorId, domainLabel(r.connectorId), "connector", 1, {
       dataSource: "local_seed",
       amountVerified: false,
       whyItMatters: `${domainForConnector(r.connectorId)} connector observing value`,
+      graphDomain: connDomain,
     });
 
     addEdge(
@@ -296,6 +315,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       moneyGapUsd: opp.health.fundingGapUsd,
       whyItMatters: opp.headline,
       entityPath: repoPath,
+      graphDomain: "oss",
     });
     const maintId = EntityIds.personGitHub(`${opp.owner}-core`);
     addNode(maintId, `${opp.repo} maintainers`, "person", opp.health.maintainerCount, {
@@ -303,6 +323,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
       amountVerified: true,
       whyItMatters: `${opp.unfundedMaintainers} maintainers need funding`,
       entityPath: entityIdToPath(maintId) ?? undefined,
+      graphDomain: "oss",
     });
     addEdge(repoId, maintId, "maintained_by", opp.health.maintainerCount, opp.headline);
     if (opp.health.fundingGapUsd > 0) {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { emptyBundle } from "@/lib/discover/domain-radar-actions";
 import { buildDiscoverRadarFeed } from "@/lib/discover/radar-feed";
 
 /** Unified Discover feed — gaps, pulse metrics, domain radars, claim hint. */
@@ -14,6 +15,11 @@ export async function GET(req: Request) {
         ok: true,
         gaps: [],
         radars: { oss: [], music: [], dao: [] },
+        domainRadars: {
+          oss: emptyBundle("oss"),
+          music: emptyBundle("music"),
+          dao: emptyBundle("dao"),
+        },
         emptyStates: [],
         intelligence: null,
         fundableCount: 0,

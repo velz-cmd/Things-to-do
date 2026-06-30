@@ -199,7 +199,12 @@ export function DiscoverActionsProvider({
       }
 
       if (!signedIn && authRequired.includes(action.kind)) {
-        reportActionStatus(surface, action, "blocked", "Sign in required");
+        const blocker = `Sign in to ${action.label.toLowerCase()}`;
+        reportActionStatus(surface, action, "blocked", blocker);
+        toast.error(blocker, {
+          description:
+            "Install, fund, and claim actions write to your account — sign in to continue",
+        });
         router.push("/login?next=/discover");
         return;
       }
@@ -208,27 +213,13 @@ export function DiscoverActionsProvider({
 
       try {
         switch (action.kind) {
-          case "open":
-            if (action.entityPath) {
-              router.push(action.entityPath);
-              reportActionStatus(surface, action, "success");
-            } else if (action.href) {
-              if (action.href.startsWith("#")) {
-                const el = document.getElementById(action.href.slice(1));
-                if (!el) {
-                  const blocker = `Anchor ${action.href} not found on page`;
-                  reportActionStatus(surface, action, "blocked", blocker);
-                  toast.error(blocker);
-                  return;
-                }
-                el.scrollIntoView({ behavior: "smooth" });
-                reportActionStatus(surface, action, "success");
-              } else {
-                router.push(action.href);
-                reportActionStatus(surface, action, "success");
-              }
-            }
+          case "open": {
+            const target = action.entityPath ?? action.href;
+            if (!target) break;
+            router.push(target);
+            reportActionStatus(surface, action, "success");
             break;
+          }
 
           case "fund":
           case "sponsor":

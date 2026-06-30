@@ -276,7 +276,7 @@ export async function searchDiscover(rawQuery: string): Promise<DiscoverSearchPa
           kind: "community",
           label: c.name,
           subtitle: c.tagline,
-          dataSource: "catalog_preview",
+          dataSource: "community_catalog",
           amountVerified: false,
           communitySlug: c.slug,
           actions: [

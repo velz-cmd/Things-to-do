@@ -15,14 +15,14 @@ export function DiscoverJobHero({
   className?: string;
 }) {
   return (
-    <div className={clsx("mb-8", className)}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-resolve-calm-periwinkle">
+    <div className={clsx("discover-on-canvas mb-8", className)}>
+      <p className="discover-eyebrow text-[10px] font-semibold uppercase tracking-[0.22em]">
         Discover
       </p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
         What do you want to do?
       </h1>
-      <p className="mt-2 max-w-2xl text-sm text-white/55">
+      <p className="discover-subtitle mt-2 max-w-2xl text-sm">
         Pick a job — we surface the right proof, actions, and rails. No essays required.
       </p>
 

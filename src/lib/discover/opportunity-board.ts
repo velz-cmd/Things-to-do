@@ -5,6 +5,9 @@ import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { dedupeDiscoverBoard, dedupeFundablePrograms } from "@/lib/discover/board-dedupe";
 import { classifyBoardNeedType } from "@/lib/discover/need-types";
+import { withTimeout } from "@/lib/discover/fetch-timeout";
+
+const GITHUB_BOARD_SCAN_MS = 8_000;
 
 export type DiscoverBoardItem =
   | (FundableOpportunity & { boardKind: "program" })
@@ -27,12 +30,61 @@ export type DiscoverBoardItem =
       needType: import("@/lib/discover/need-types").DiscoverNeedType;
     };
 
+/** Featured catalog communities — instant fallback when program metrics time out. */
+export function listDiscoverCommunityBoardFallback(): DiscoverBoardItem[] {
+  return COMMUNITY_CATALOG.filter((x) => x.featured).map((c) => {
+    const templateId =
+      c.kind === "music"
+        ? "user-centric-royalties"
+        : c.kind === "media"
+          ? "video-royalties"
+          : "docs-bounty";
+    const needType = classifyBoardNeedType({
+      templateId,
+      communitySlug: c.slug,
+      boardKind: "community",
+      metricKind: c.attachShape === "sidecar" ? "install" : "connect",
+      whyFund: c.tagline,
+      programName: c.name,
+    });
+    const connectCta =
+      c.connectors.includes("github")
+        ? "Connect GitHub"
+        : c.connectors.includes("jellyfin")
+          ? "Connect Jellyfin"
+          : c.connectors.includes("navidrome")
+            ? "Connect Navidrome"
+            : c.installCta;
+
+    return {
+      boardKind: "community" as const,
+      programId: `community-${c.slug}`,
+      programName: c.name,
+      communitySlug: c.slug,
+      communityName: c.name,
+      communityTagline: c.tagline,
+      templateId,
+      templateLabel: c.attachShape === "index" ? "Ecosystem index" : "Sidecar",
+      fundingGapUsd: 0,
+      whyFund: `${c.tagline} · connect a sensor to surface verified needs`,
+      whoBenefits: c.doctrine.slice(0, 120),
+      score: c.featured ? 40 : 0,
+      metricKind: c.attachShape === "sidecar" ? ("install" as const) : ("connect" as const),
+      connectCta,
+      connectHref: `/communities/${c.slug}`,
+      needType,
+    };
+  });
+}
+
 /** All real opportunities — programs plus catalog communities without duplicating trending caps. */
 export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[]> {
   const skipGithub = process.env.CI === "true";
   const [programs, ossScans] = await Promise.all([
-    listFundableOpportunities(64),
-    skipGithub ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
+    withTimeout(listFundableOpportunities(32), 18_000, []),
+    skipGithub
+      ? Promise.resolve([])
+      : withTimeout(scanAllOpportunities().catch(() => []), GITHUB_BOARD_SCAN_MS, []),
   ]);
 
   const items: DiscoverBoardItem[] = dedupeFundablePrograms(programs).map((p) => ({
@@ -55,7 +107,12 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
       return communitySlug === c.slug;
     });
     const gapUsd = ossMatch?.health.fundingGapUsd ?? 0;
-    const templateId = c.kind === "music" ? "user-centric-royalties" : "docs-bounty";
+    const templateId =
+      c.kind === "music"
+        ? "user-centric-royalties"
+        : c.kind === "media"
+          ? "video-royalties"
+          : "docs-bounty";
     const needType = classifyBoardNeedType({
       templateId,
       communitySlug: c.slug,

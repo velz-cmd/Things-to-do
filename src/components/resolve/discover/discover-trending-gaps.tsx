@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { TrendingUp } from "lucide-react";
 import { DiscoverActionCard } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
+import { DiscoverTrendingSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import type { DiscoverIntent } from "@/lib/discover/types";
 
 type DiscoverTrendingGapsProps = {
@@ -19,7 +20,7 @@ export function DiscoverTrendingGaps({
   intent = "all",
   className,
 }: DiscoverTrendingGapsProps) {
-  const { feed, loading } = useDiscoverRadarFeed();
+  const { feed, loading, error, refresh } = useDiscoverRadarFeed();
 
   const filtered = useMemo(() => {
     const gaps = feed?.gaps ?? [];
@@ -50,8 +51,19 @@ export function DiscoverTrendingGaps({
         </div>
       </div>
 
-      {loading ? (
-        <p className="text-sm text-resolve-muted">Loading verified gaps from sensors and ledger…</p>
+      {loading && !feed ? (
+        <DiscoverTrendingSkeleton />
+      ) : error && !filtered.length ? (
+        <div className="rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-8 text-center">
+          <p className="text-sm text-resolve-muted">{error}</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="mt-3 text-xs font-medium text-resolve-accent hover:underline"
+          >
+            Retry
+          </button>
+        </div>
       ) : !filtered.length ? (
         <div className="rounded-xl border border-dashed border-resolve-border/80 bg-resolve-bg-deep/20 px-5 py-8 text-center">
           <p className="text-sm text-resolve-muted">

@@ -60,7 +60,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-8 pb-12 lg:px-8">
       <header className="mb-6">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
           Global value radar

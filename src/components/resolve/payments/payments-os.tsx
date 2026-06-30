@@ -11,6 +11,7 @@ import { bankingSnapshotFromWalletBalance } from "@/lib/banking/fallback-snapsho
 import {
   mergeWalletBalanceIntoSnapshot,
   normalizeBankingSnapshot,
+  boostSnapshotBalances,
 } from "@/lib/banking/normalize-snapshot";
 import { BANKING_UI } from "@/lib/banking/copy";
 
@@ -40,11 +41,12 @@ type WalletBalanceResponse = {
   availableUsd: number;
   onChainUsd?: number | null;
   reservedUsd?: number;
+  walletAddress?: string;
 };
 
-async function fetchWalletBalance(): Promise<WalletBalanceResponse | null> {
+async function fetchWalletBalance(sync = false): Promise<WalletBalanceResponse | null> {
   try {
-    const res = await fetch("/api/wallet/balance", {
+    const res = await fetch(`/api/wallet/balance${sync ? "?sync=1" : ""}`, {
       credentials: "include",
       signal: AbortSignal.timeout(12_000),
     });
@@ -80,7 +82,7 @@ export function PaymentsOS() {
           (user.user_metadata?.full_name as string | undefined) ??
           user.email?.split("@")[0] ??
           null,
-        walletAddress: payoutWallet ?? undefined,
+        walletAddress: wallet.walletAddress ?? payoutWallet ?? undefined,
         availableUsd: wallet.availableUsd,
         onChainUsd: wallet.onChainUsd ?? null,
         reservedUsd: wallet.reservedUsd ?? 0,
@@ -98,56 +100,42 @@ export function PaymentsOS() {
         return;
       }
       if (!opts?.silent) setRefreshing(true);
-      let loaded = false;
+      let walletLoaded = false;
 
       try {
-        if (opts?.syncOnChain) {
-          try {
-            await fetch("/api/wallet/sync", {
-              method: "POST",
-              credentials: "include",
-              signal: AbortSignal.timeout(15_000),
-            });
-          } catch {
-            /* sync is best-effort */
+        const wallet = await fetchWalletBalance(Boolean(opts?.syncOnChain));
+        if (wallet) {
+          const snap = buildWalletOnlySnapshot(wallet);
+          if (snap) {
+            setBanking(boostSnapshotBalances(snap, balance?.availableUsd));
+            walletLoaded = true;
+            setInitialLoading(false);
           }
         }
 
-        const [bankResult, walletResult] = await Promise.allSettled([
+        const bankResult = await Promise.race([
           fetch("/api/banking/account", {
             credentials: "include",
-            signal: AbortSignal.timeout(25_000),
+            signal: AbortSignal.timeout(18_000),
           }),
-          fetchWalletBalance(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 18_000)),
         ]);
 
-        const wallet =
-          walletResult.status === "fulfilled" ? walletResult.value : null;
-
-        if (bankResult.status === "fulfilled" && bankResult.value.ok) {
-          const raw = await bankResult.value.json();
+        if (bankResult && "ok" in bankResult && bankResult.ok) {
+          const raw = await bankResult.json();
           let snapshot = normalizeBankingSnapshot(raw);
-          if (snapshot && wallet) {
-            snapshot = mergeWalletBalanceIntoSnapshot(snapshot, wallet);
-          }
           if (snapshot) {
+            if (wallet) snapshot = mergeWalletBalanceIntoSnapshot(snapshot, wallet);
+            snapshot = boostSnapshotBalances(snapshot, balance?.availableUsd);
             setBanking(snapshot);
-            loaded = true;
-          }
-        }
-
-        if (!loaded && wallet) {
-          const fallback = buildWalletOnlySnapshot(wallet);
-          if (fallback) {
-            setBanking(fallback);
-            loaded = true;
+            walletLoaded = true;
           }
         }
 
         try {
           const ovRes = await fetch("/api/payments/overview", {
             credentials: "include",
-            signal: AbortSignal.timeout(12_000),
+            signal: AbortSignal.timeout(10_000),
           });
           if (ovRes.ok) {
             const ov = await ovRes.json();
@@ -163,7 +151,7 @@ export function PaymentsOS() {
         void refreshBalance();
         setLastRefreshedAt(new Date());
 
-        if (!loaded && !opts?.silent) {
+        if (!walletLoaded && !opts?.silent) {
           toast.error("Could not load your account");
         }
       } finally {
@@ -171,7 +159,7 @@ export function PaymentsOS() {
         setRefreshing(false);
       }
     },
-    [buildWalletOnlySnapshot, refreshBalance, user],
+    [balance?.availableUsd, buildWalletOnlySnapshot, refreshBalance, user],
   );
 
   useEffect(() => {
@@ -193,18 +181,23 @@ export function PaymentsOS() {
   }, [balance, banking, buildWalletOnlySnapshot, initialLoading, user]);
 
   const displayAccount = useMemo(() => {
-    if (banking) return banking;
+    if (banking) {
+      return boostSnapshotBalances(banking, balance?.availableUsd);
+    }
     if (!balance || !user) return null;
-    return bankingSnapshotFromWalletBalance({
-      userId: user.id,
-      email: user.email,
-      displayName:
-        (user.user_metadata?.full_name as string | undefined) ??
-        user.email?.split("@")[0] ??
-        null,
-      walletAddress: payoutWallet ?? undefined,
-      availableUsd: balance.availableUsd,
-    });
+    return boostSnapshotBalances(
+      bankingSnapshotFromWalletBalance({
+        userId: user.id,
+        email: user.email,
+        displayName:
+          (user.user_metadata?.full_name as string | undefined) ??
+          user.email?.split("@")[0] ??
+          null,
+        walletAddress: payoutWallet ?? undefined,
+        availableUsd: balance.availableUsd,
+      }),
+      balance.availableUsd,
+    );
   }, [balance, banking, payoutWallet, user]);
 
   async function handleClaim() {

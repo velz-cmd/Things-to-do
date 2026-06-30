@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getArcUsdcBalance } from "@/lib/wallet/alchemy";
+import { resolveIdentityWalletAddress } from "@/lib/wallet/identity-address";
 
 const MIN_SYNC_USD = 0.01;
 
@@ -36,21 +37,22 @@ export type IdentityBalanceSyncResult = {
  */
 export async function syncIdentityBalance(userId: string): Promise<IdentityBalanceSyncResult> {
   const profile = await prisma.user.findUnique({ where: { id: userId } });
-  if (!profile?.walletAddress) {
+  if (!profile) {
     return {
       synced: false,
       adjustedUsd: 0,
       onChainUsd: null,
       reservedUsd: 0,
-      availableUsd: profile?.availableUsd ?? 0,
+      availableUsd: 0,
     };
   }
 
+  const walletAddress = resolveIdentityWalletAddress(userId, profile);
   const reservedUsd = await getReservedForPrograms(userId);
 
   let onChainUsd: number;
   try {
-    const bal = await getArcUsdcBalance(profile.walletAddress);
+    const bal = await getArcUsdcBalance(walletAddress);
     onChainUsd = round(bal.balanceUsd);
   } catch {
     return {
@@ -132,18 +134,11 @@ export async function readIdentityBalance(userId: string): Promise<{
     return { availableUsd: 0, onChainUsd: null, reservedUsd: 0 };
   }
 
+  const walletAddress = resolveIdentityWalletAddress(userId, profile);
   const reservedUsd = await getReservedForPrograms(userId).catch(() => 0);
 
-  if (!profile.walletAddress) {
-    return {
-      availableUsd: profile.availableUsd,
-      onChainUsd: null,
-      reservedUsd,
-    };
-  }
-
   try {
-    const bal = await getArcUsdcBalance(profile.walletAddress);
+    const bal = await getArcUsdcBalance(walletAddress);
     const onChainUsd = round(bal.balanceUsd);
     return {
       availableUsd: resolveSpendableUsd({

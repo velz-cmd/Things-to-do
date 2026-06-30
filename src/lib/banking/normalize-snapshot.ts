@@ -89,6 +89,38 @@ export function normalizeBankingSnapshot(
   };
 }
 
+/** Bank-style hero balance — trust on-chain Arc USDC over stale DB zeros. */
+export function boostSnapshotBalances(
+  snapshot: BankingAccountSnapshot,
+  authAvailableUsd?: number,
+): BankingAccountSnapshot {
+  const b = snapshot.balances;
+  const fromChain =
+    b.onChainUsdcUsd != null ? Math.max(0, b.onChainUsdcUsd - b.reservedUsd) : 0;
+  const availableUsd = Math.max(b.availableUsd, fromChain, authAvailableUsd ?? 0);
+  const onChainUsdcUsd = b.onChainUsdcUsd ?? snapshot.arc.identityWallet?.onChainUsdcUsd ?? null;
+
+  return {
+    ...snapshot,
+    balances: {
+      ...b,
+      availableUsd,
+      onChainUsdcUsd,
+      totalDepositedUsd: Math.max(b.totalDepositedUsd, onChainUsdcUsd ?? availableUsd),
+    },
+    arc: {
+      ...snapshot.arc,
+      identityWallet:
+        snapshot.arc.identityWallet ?
+          {
+            ...snapshot.arc.identityWallet,
+            onChainUsdcUsd: snapshot.arc.identityWallet.onChainUsdcUsd ?? onChainUsdcUsd,
+          }
+        : snapshot.arc.identityWallet,
+    },
+  };
+}
+
 export function mergeWalletBalanceIntoSnapshot(
   snapshot: BankingAccountSnapshot,
   wallet: {

@@ -38,11 +38,17 @@ export function DiscoverActionCard({
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const actions = filterActionsByIntent(gap.actions, intent);
-  const needed = formatDiscoverMoney(gap.amountNeededUsd, gap.amountVerified, gap.dataSource);
+  const needed = formatDiscoverMoney(
+    gap.amountNeededUsd,
+    gap.amountVerified,
+    gap.dataSource,
+    gap.amountKind,
+  );
   const movable = formatDiscoverMoney(
     gap.moneyCanMoveUsd,
     gap.amountVerified && gap.moneyCanMoveUsd > 0,
     gap.dataSource,
+    gap.amountKind,
   );
 
   useEffect(() => {
@@ -69,7 +75,10 @@ export function DiscoverActionCard({
             <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase text-resolve-muted">
               {gap.domain}
             </span>
-            <DiscoverSourceBadge source={gap.dataSource} />
+            <DiscoverSourceBadge
+              source={gap.dataSource}
+              estimate={!gap.amountVerified && Boolean(gap.proofGithubScanAt)}
+            />
           </div>
           <h3 className={clsx("mt-1 font-medium text-white", compact ? "text-sm" : "text-base")}>
             {gap.headline}
@@ -85,7 +94,11 @@ export function DiscoverActionCard({
           <p
             className={clsx(
               "text-lg font-semibold tabular-nums",
-              needed.tone === "verified" ? "text-amber-200" : "text-resolve-muted",
+              needed.tone === "verified"
+                ? "text-amber-200"
+                : needed.tone === "estimate"
+                  ? "text-amber-200/70"
+                  : "text-resolve-muted",
             )}
           >
             {needed.label}

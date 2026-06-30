@@ -181,8 +181,27 @@ export function ossToolbar(ctx: {
   entityPath?: string;
   communitySlug: string;
   programId?: string;
+  hasLiveData?: boolean;
 }): DiscoverAction[] {
-  const path = ctx.entityPath ?? `/e/repo/facebook/react`;
+  if (!ctx.hasLiveData && !ctx.entityPath) {
+    return trimToolbar([
+      {
+        id: "tb-install",
+        label: "Install community",
+        kind: "install",
+        communitySlug: ctx.communitySlug,
+      },
+      {
+        id: "tb-sensor",
+        label: "GitHub sensor",
+        kind: "connect_sensor",
+        communitySlug: ctx.communitySlug,
+        href: `/communities/${ctx.communitySlug}#health`,
+      },
+    ]);
+  }
+
+  const path = ctx.entityPath ?? `/communities/${ctx.communitySlug}`;
   return trimToolbar([
     {
       id: "tb-graph",
@@ -316,7 +335,7 @@ export function enrichOssCard(card: TrendingValueGap): TrendingValueGap {
       communitySlug: card.communitySlug,
       programId: card.programId,
       templateId: card.templateId,
-      fundingGapUsd: card.amountVerified ? card.amountNeededUsd : undefined,
+      fundingGapUsd: card.amountNeededUsd > 0 ? card.amountNeededUsd : undefined,
     }),
   };
 }

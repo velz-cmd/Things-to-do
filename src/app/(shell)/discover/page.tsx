@@ -9,7 +9,13 @@ export const metadata: Metadata = {
 
 export default function DiscoverPage() {
   return (
-    <Suspense fallback={<p className="p-6 text-sm text-resolve-muted">Loading…</p>}>
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-6xl px-4 py-8">
+          <p className="text-sm text-resolve-muted">Loading Discover…</p>
+        </div>
+      }
+    >
       <DiscoverSurface />
     </Suspense>
   );

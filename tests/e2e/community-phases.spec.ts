@@ -231,8 +231,9 @@ test.describe("Community phases — surfaces", () => {
   test("discover shows community directory", async ({ page, request }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     const communities = page.locator("#communities");
-    await expect(communities.getByText("Community directory")).toBeVisible();
+    await expect(communities.getByText("Communities strip")).toBeVisible();
     await expect(communities.getByText("Install on Independent Music")).toBeVisible();
+    await expect(communities.getByRole("button", { name: "Open" }).first()).toBeVisible();
 
     const statusRes = await request.get("/api/communities/sensor-status");
     const body = await statusRes.json();
@@ -253,10 +254,12 @@ test.describe("Community phases — surfaces", () => {
     ).toBeVisible();
     await expect(page.getByRole("main").getByText("Live value feed")).toBeVisible();
     await expect(page.getByRole("main").getByText("Value command center")).toBeVisible();
-    await expect(page.getByRole("main").getByText(/Live ledger|Catalog preview/)).toBeVisible();
+    await expect(page.getByRole("main").getByText(/Live ledger|Scan preview|Waiting for ledger events|Awaiting data/)).toBeVisible();
     await expect(page.getByRole("button", { name: "OSS" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Music" }).first()).toBeVisible();
-    await expect(page.getByRole("main").getByText("Funding entropy")).toBeVisible();
+    await expect(
+      page.getByRole("main").getByText(/Funding entropy|Waiting for ledger events/),
+    ).toBeVisible();
     await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
     await page.locator("#opportunities").scrollIntoViewIfNeeded();
     await expect(page.locator("#opportunities").getByText("Fulfillment queue", { exact: true })).toBeVisible();

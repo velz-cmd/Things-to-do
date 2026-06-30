@@ -32,6 +32,23 @@ jobs:
         env:
           PLAYWRIGHT_ENABLED: "true"
 
+      - name: Verify Discover tab smoke
+        run: |
+          npm run start &
+          echo $! > /tmp/next.pid
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health/live > /dev/null; then
+              echo "Server ready"
+              break
+            fi
+            sleep 2
+          done
+          npx tsx scripts/verify-discover-tab.ts http://localhost:3000
+          kill $(cat /tmp/next.pid) 2>/dev/null || true
+          sleep 2
+        env:
+          PLAYWRIGHT_ENABLED: "true"
+
       - name: Run Playwright tests
         run: npm run test:e2e
         env:

@@ -54,6 +54,16 @@ export function DiscoverBubbleNodePopover({
         </p>
         <p className="mt-0.5 text-sm font-medium text-white">{anchor.node.label}</p>
         <p className="text-[10px] capitalize text-resolve-muted">{anchor.node.type}</p>
+        {anchor.node.synthetic && (
+          <p className="mt-1 text-[10px] text-resolve-muted-dim">
+            Structural preview — install a community for live ledger data
+          </p>
+        )}
+        {!anchor.node.amountVerified && anchor.node.dataSource === "github" && (
+          <p className="mt-1 text-[10px] text-amber-200/80">
+            Estimated gap from GitHub repo health — not ledger-verified
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
         {actions.length ? (

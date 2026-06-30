@@ -4,6 +4,7 @@ export type DiscoverDataSource =
   | "openalex"
   | "arc"
   | "supabase_ledger"
+  | "community_catalog"
   | "catalog_preview"
   | "local_seed";
 

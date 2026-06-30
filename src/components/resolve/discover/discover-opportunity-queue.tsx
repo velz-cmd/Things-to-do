@@ -69,20 +69,27 @@ export function DiscoverOpportunityQueue({
   const loadQueue = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 28_000);
     try {
-      const res = await fetch("/api/capital/discover");
+      const res = await fetch("/api/capital/discover", { signal: controller.signal });
       if (!res.ok) throw new Error("Queue unavailable");
       const data = await res.json();
       setBoard(data.board ?? data.opportunities ?? []);
-    } catch {
-      setError("Could not load fulfillment queue");
+      if (data.degraded && !(data.board ?? data.opportunities ?? []).length) {
+        setError("Board timed out — connect GitHub or refresh in a moment");
+      }
+    } catch (e) {
+      const aborted = e instanceof Error && e.name === "AbortError";
+      setError(aborted ? "Opportunity board timed out — try Refresh" : "Could not load fulfillment queue");
       discoverFetchErrorToast(
         "discover-queue",
-        "Fulfillment queue unavailable",
+        aborted ? "Opportunity board timed out" : "Fulfillment queue unavailable",
         () => void loadQueue(),
         Boolean(opportunitiesRef.current.length),
       );
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }, []);

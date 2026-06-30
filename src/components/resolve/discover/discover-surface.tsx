@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverClaimHint } from "@/components/resolve/discover/discover-claim-hint";
-import { DiscoverAgentSignalMarket } from "@/components/resolve/discover/discover-agent-signal-market";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
@@ -107,15 +106,15 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         />
       </div>
 
-      <details className="group mb-6 mt-6 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-        <summary className="cursor-pointer list-none text-[11px] font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
-          <span className="text-resolve-calm-periwinkle group-open:text-white">I am a…</span>
-          <span className="ml-2 text-resolve-muted-dim">(optional — auto-set when you pick a job)</span>
+      <details className="discover-filter-panel discover-on-canvas group mb-6 mt-6 rounded-xl border px-4 py-3">
+        <summary className="cursor-pointer list-none text-[11px] font-medium marker:content-none [&::-webkit-details-marker]:hidden">
+          <span>I am a…</span>
+          <span className="ml-2">(optional — auto-set when you pick a job)</span>
         </summary>
         <DiscoverRoleFilters value={role} onChange={setRole} className="mt-3" />
       </details>
 
-      <DiscoverNeedTypeFilters value={needType} onChange={setNeedType} className="mb-8" />
+      <DiscoverNeedTypeFilters value={needType} onChange={setNeedType} className="discover-on-canvas mb-8" />
 
       {sectionVisibleForRole("pulse", role) && <DiscoverNetworkPulse className="mb-6" />}
 
@@ -143,7 +142,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
                 });
               }
             }}
-            className="rounded-full border border-resolve-calm-periwinkle/20 bg-white/[0.03] px-3 py-1 text-[11px] text-resolve-muted transition hover:border-resolve-calm-periwinkle/35 hover:text-white"
+            className="discover-domain-chip rounded-full border px-3 py-1 text-[11px] transition"
           >
             {d.label}
           </button>
@@ -187,10 +186,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         />
       )}
 
-      {sectionVisibleForRole("agentSignals", role) && (
-        <DiscoverAgentSignalMarket signedIn={Boolean(user)} className="mb-12" />
-      )}
-
       {sectionVisibleForRole("communities", role) && (
         <DiscoverCommunities
           kindFilter={communityKind}
@@ -200,21 +195,21 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         />
       )}
 
-      <footer className="mt-12 border-t border-resolve-border/40 pt-8">
+      <footer className="discover-on-canvas mt-12 border-t pt-8">
         <nav
-          className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-resolve-muted-dim"
+          className="discover-muted flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs"
           aria-label="Discover navigation"
         >
-          <Link href="/capital" className="hover:text-resolve-muted">
+          <Link href="/capital" className="hover:text-slate-700">
             Capital
           </Link>
-          <Link href="/communities" className="hover:text-resolve-muted">
+          <Link href="/communities" className="hover:text-slate-700">
             Communities
           </Link>
-          <Link href="/program" className="hover:text-resolve-muted">
+          <Link href="/program" className="hover:text-slate-700">
             Program guide
           </Link>
-          <Link href="/claim" className="hover:text-resolve-muted">
+          <Link href="/claim" className="hover:text-slate-700">
             Claim
           </Link>
         </nav>

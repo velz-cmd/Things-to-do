@@ -11,8 +11,8 @@ export default function DiscoverPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-6xl px-4 py-8">
-          <p className="text-sm text-resolve-muted">Loading Discover…</p>
+        <div className="discover-on-canvas mx-auto max-w-6xl px-4 py-8">
+          <p className="discover-muted text-sm">Loading Discover…</p>
         </div>
       }
     >

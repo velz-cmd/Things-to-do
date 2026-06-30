@@ -47,6 +47,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html.discover-route,
+html.discover-route body {
+  background: #eef1f6;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -621,5 +626,76 @@ body {
 
   .animate-resolve-flow-line {
     animation: resolve-flow-line 7s ease-in-out infinite;
+  }
+
+  /* Discover tab — soft off-white canvas; premium cards keep dark gradient + white text */
+  .discover-canvas {
+    background: linear-gradient(180deg, #f5f7fa 0%, #eef1f6 42%, #e9edf3 100%);
+    color: #334155;
+  }
+
+  .discover-canvas .discover-on-canvas h1,
+  .discover-canvas .discover-on-canvas h2 {
+    color: #0f172a;
+  }
+
+  .discover-canvas .discover-on-canvas .discover-eyebrow {
+    color: #5c609f;
+  }
+
+  .discover-canvas .discover-on-canvas .discover-subtitle {
+    color: #475569;
+  }
+
+  .discover-canvas .discover-on-canvas .discover-muted {
+    color: #64748b;
+  }
+
+  .discover-canvas .discover-filter-panel {
+    border-color: rgba(148, 163, 184, 0.4);
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .discover-canvas .discover-filter-panel summary span:first-child {
+    color: #5c609f;
+  }
+
+  .discover-canvas .discover-filter-panel summary span:last-child {
+    color: #94a3b8;
+  }
+
+  .discover-canvas .discover-domain-chip {
+    border-color: rgba(125, 140, 196, 0.35);
+    background: rgba(255, 255, 255, 0.8);
+    color: #475569;
+  }
+
+  .discover-canvas .discover-domain-chip:hover {
+    border-color: rgba(92, 96, 159, 0.45);
+    color: #1e293b;
+  }
+
+  .discover-canvas footer.discover-on-canvas {
+    border-color: rgba(148, 163, 184, 0.35);
+  }
+
+  .discover-canvas footer.discover-on-canvas a {
+    color: #64748b;
+  }
+
+  .discover-canvas .discover-filter-panel button {
+    border-color: rgba(148, 163, 184, 0.45);
+    color: #475569;
+  }
+
+  .discover-canvas .discover-filter-panel button[class*="border-resolve-accent"] {
+    border-color: rgba(59, 158, 255, 0.45);
+    background: rgba(59, 158, 255, 0.1);
+    color: #0077b3;
+  }
+
+  .discover-canvas .discover-filter-panel .discover-muted,
+  .discover-canvas .discover-filter-panel p {
+    color: #64748b;
   }
 }

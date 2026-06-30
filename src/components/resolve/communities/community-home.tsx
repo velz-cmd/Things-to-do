@@ -19,6 +19,7 @@ import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
 import { CapitalFlowImpact } from "@/components/resolve/communities/capital-flow-impact";
 import { CommunityObservatory } from "@/components/resolve/communities/community-observatory";
+import { CommunityGraphObservatory } from "@/components/resolve/communities/community-graph-observatory";
 import { EconomicMemoryTimeline } from "@/components/resolve/communities/economic-memory-timeline";
 import { MeasureLearnPanel } from "@/components/resolve/communities/measure-learn-panel";
 import { CommunitySensorPanel } from "@/components/resolve/communities/community-sensor-panel";
@@ -267,6 +268,7 @@ export function CommunityHome({ slug }: { slug: string }) {
         { label: "Treasury", href: "#treasury" },
         { label: "Events", href: "#events" },
         { label: "Programs", href: "#programs" },
+        { label: "Observatory", href: "#observatory" },
       ]}
       width="wide"
       accent="emerald"
@@ -335,6 +337,8 @@ export function CommunityHome({ slug }: { slug: string }) {
           {surface?.observatory && surface.observatory.length > 0 && (
             <CommunityObservatory alerts={surface.observatory} />
           )}
+
+          <CommunityGraphObservatory slug={slug} />
 
           {surface?.impact && <CapitalFlowImpact impact={surface.impact} />}
 

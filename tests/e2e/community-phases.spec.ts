@@ -260,7 +260,7 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByRole("button", { name: "OSS" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Music" }).first()).toBeVisible();
     await expect(
-      page.getByRole("main").getByText(/Funding entropy|Waiting for ledger events/).first(),
+      page.getByRole("main").getByText(/click for console|click a bubble for operator console/).first(),
     ).toBeVisible();
     await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
     await page.locator("#opportunities").scrollIntoViewIfNeeded();

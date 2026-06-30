@@ -8,7 +8,13 @@ import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { ResolveBanking } from "@/components/resolve/payments/resolve-banking";
 import type { BankingAccountSnapshot } from "@/lib/banking/types";
 import { bankingSnapshotFromWalletBalance } from "@/lib/banking/fallback-snapshot";
+import {
+  mergeWalletBalanceIntoSnapshot,
+  normalizeBankingSnapshot,
+} from "@/lib/banking/normalize-snapshot";
 import { BANKING_UI } from "@/lib/banking/copy";
+
+const REFRESH_INTERVAL_MS = 15_000;
 
 type Overview = {
   recentAuthorizations: {
@@ -36,6 +42,19 @@ type WalletBalanceResponse = {
   reservedUsd?: number;
 };
 
+async function fetchWalletBalance(): Promise<WalletBalanceResponse | null> {
+  try {
+    const res = await fetch("/api/wallet/balance", {
+      credentials: "include",
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as WalletBalanceResponse;
+  } catch {
+    return null;
+  }
+}
+
 export function PaymentsOS() {
   const { user, refreshBalance, balance } = useAuth();
   const { openSignIn } = useSignInModal();
@@ -46,41 +65,32 @@ export function PaymentsOS() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
   const payoutWallet =
     account.appWalletAddress ?? account.walletAddress ?? account.externalWalletAddress;
 
-  const applyWalletFallback = useCallback(async (): Promise<boolean> => {
-    try {
-      const res = await fetch("/api/wallet/balance", {
-        credentials: "include",
-        signal: AbortSignal.timeout(12_000),
+  const buildWalletOnlySnapshot = useCallback(
+    (wallet: WalletBalanceResponse): BankingAccountSnapshot | null => {
+      if (!user) return null;
+      return bankingSnapshotFromWalletBalance({
+        userId: user.id,
+        email: user.email,
+        displayName:
+          (user.user_metadata?.full_name as string | undefined) ??
+          user.email?.split("@")[0] ??
+          null,
+        walletAddress: payoutWallet ?? undefined,
+        availableUsd: wallet.availableUsd,
+        onChainUsd: wallet.onChainUsd ?? null,
+        reservedUsd: wallet.reservedUsd ?? 0,
       });
-      if (!res.ok) return false;
-      const data = (await res.json()) as WalletBalanceResponse;
-      if (!user) return false;
-      setBanking(
-        bankingSnapshotFromWalletBalance({
-          userId: user.id,
-          email: user.email,
-          displayName:
-            (user.user_metadata?.full_name as string | undefined) ??
-            user.email?.split("@")[0] ??
-            null,
-          walletAddress: payoutWallet ?? undefined,
-          availableUsd: data.availableUsd,
-          onChainUsd: data.onChainUsd ?? null,
-          reservedUsd: data.reservedUsd ?? 0,
-        }),
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }, [payoutWallet, user]);
+    },
+    [payoutWallet, user],
+  );
 
   const load = useCallback(
-    async (opts?: { silent?: boolean }) => {
+    async (opts?: { silent?: boolean; syncOnChain?: boolean }) => {
       if (!user) {
         setBanking(null);
         setInitialLoading(false);
@@ -91,23 +101,47 @@ export function PaymentsOS() {
       let loaded = false;
 
       try {
-        try {
-          const bankRes = await fetch("/api/banking/account", {
-            credentials: "include",
-            signal: AbortSignal.timeout(25_000),
-          });
-
-          if (bankRes.ok) {
-            const next = await bankRes.json();
-            setBanking(next);
-            loaded = true;
+        if (opts?.syncOnChain) {
+          try {
+            await fetch("/api/wallet/sync", {
+              method: "POST",
+              credentials: "include",
+              signal: AbortSignal.timeout(15_000),
+            });
+          } catch {
+            /* sync is best-effort */
           }
-        } catch {
-          /* fall through to wallet balance */
         }
 
-        if (!loaded) {
-          loaded = await applyWalletFallback();
+        const [bankResult, walletResult] = await Promise.allSettled([
+          fetch("/api/banking/account", {
+            credentials: "include",
+            signal: AbortSignal.timeout(25_000),
+          }),
+          fetchWalletBalance(),
+        ]);
+
+        const wallet =
+          walletResult.status === "fulfilled" ? walletResult.value : null;
+
+        if (bankResult.status === "fulfilled" && bankResult.value.ok) {
+          const raw = await bankResult.value.json();
+          let snapshot = normalizeBankingSnapshot(raw);
+          if (snapshot && wallet) {
+            snapshot = mergeWalletBalanceIntoSnapshot(snapshot, wallet);
+          }
+          if (snapshot) {
+            setBanking(snapshot);
+            loaded = true;
+          }
+        }
+
+        if (!loaded && wallet) {
+          const fallback = buildWalletOnlySnapshot(wallet);
+          if (fallback) {
+            setBanking(fallback);
+            loaded = true;
+          }
         }
 
         try {
@@ -127,6 +161,7 @@ export function PaymentsOS() {
         }
 
         void refreshBalance();
+        setLastRefreshedAt(new Date());
 
         if (!loaded && !opts?.silent) {
           toast.error("Could not load your account");
@@ -136,7 +171,7 @@ export function PaymentsOS() {
         setRefreshing(false);
       }
     },
-    [applyWalletFallback, refreshBalance, user],
+    [buildWalletOnlySnapshot, refreshBalance, user],
   );
 
   useEffect(() => {
@@ -144,15 +179,18 @@ export function PaymentsOS() {
       setInitialLoading(false);
       return;
     }
-    void load();
-    const t = setInterval(() => void load({ silent: true }), 30_000);
+    void load({ syncOnChain: true });
+    const t = setInterval(() => void load({ silent: true }), REFRESH_INTERVAL_MS);
     return () => clearInterval(t);
   }, [load, user]);
 
   useEffect(() => {
     if (!balance || !user || banking || initialLoading) return;
-    void applyWalletFallback();
-  }, [applyWalletFallback, balance, banking, initialLoading, user]);
+    void fetchWalletBalance().then((wallet) => {
+      if (!wallet) return;
+      setBanking(buildWalletOnlySnapshot(wallet));
+    });
+  }, [balance, banking, buildWalletOnlySnapshot, initialLoading, user]);
 
   const displayAccount = useMemo(() => {
     if (banking) return banking;
@@ -174,11 +212,11 @@ export function PaymentsOS() {
       toast.error("No wallet on your account — sign in again or contact support");
       return;
     }
-  const claimable = displayAccount?.balances?.earnedClaimableUsd ?? 0;
-  if (claimable <= 0) {
-    toast.message(BANKING_UI.claimNothing);
-    return;
-  }
+    const claimable = displayAccount?.balances?.earnedClaimableUsd ?? 0;
+    if (claimable <= 0) {
+      toast.message(BANKING_UI.claimNothing);
+      return;
+    }
     setClaiming(true);
     try {
       const res = await fetch("/api/rewards/claim", {
@@ -197,12 +235,16 @@ export function PaymentsOS() {
         return;
       }
       toast.success(`${BANKING_UI.claimSuccess} — $${total.toFixed(2)}`);
-      void load({ silent: true });
+      void load({ silent: true, syncOnChain: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Claim failed");
     } finally {
       setClaiming(false);
     }
+  }
+
+  function handleRefresh() {
+    void load({ silent: false, syncOnChain: true });
   }
 
   function handleSignIn() {
@@ -242,7 +284,9 @@ export function PaymentsOS() {
       signedIn={Boolean(user)}
       payoutWallet={payoutWallet ?? null}
       claiming={claiming}
+      lastRefreshedAt={lastRefreshedAt}
       onClaim={() => void handleClaim()}
+      onRefresh={handleRefresh}
       onSignIn={handleSignIn}
     />
   );

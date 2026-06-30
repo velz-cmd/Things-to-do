@@ -14,7 +14,10 @@ export default defineConfig({
     timeout: isCI ? 20_000 : 10_000,
   },
   use: {
-    baseURL: process.env.APP_URL ?? "http://localhost:3000",
+    baseURL:
+      process.env.CI || !process.env.APP_URL
+        ? "http://localhost:3000"
+        : process.env.APP_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     navigationTimeout: isCI ? 45_000 : 30_000,

@@ -163,23 +163,33 @@ test.describe("Community phases — surfaces", () => {
     }
   });
 
-  test("discover shows community directory", async ({ page }) => {
+  test("discover shows community directory", async ({ page, request }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await expect(
-      page.getByRole("main").getByText("Community directory"),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("main").getByText("Install on Independent Music"),
-    ).toBeVisible();
-    // React/linux/open-research appear only when sensorLive — hidden in CI without ledger.
-    const reactInstall = page.getByRole("main").getByText("Install on React");
-    await expect(reactInstall).toHaveCount(0);
+    const communities = page.locator("#communities");
+    await expect(communities.getByText("Community directory")).toBeVisible();
+    await expect(communities.getByText("Install on Independent Music")).toBeVisible();
+
+    const statusRes = await request.get("/api/communities/sensor-status");
+    const body = await statusRes.json();
+    const react = (body.statuses ?? []).find((s: { slug: string }) => s.slug === "react");
+    const reactInstall = communities.getByText("Install on React");
+    if (react?.sensorGated && !react?.sensorLive) {
+      await expect(reactInstall).toHaveCount(0);
+    }
   });
 
-  test("discover shows live radar sections", async ({ page }) => {
+  test("discover shows value radar surfaces", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("main").getByText("Live activity")).toBeVisible();
-    await expect(page.getByRole("main").getByText("Global value graph")).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: /Where is value being created/i,
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole("main").getByText("Live value feed")).toBeVisible();
+    await expect(page.getByRole("main").getByText("Value command center")).toBeVisible();
+    await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
+    await expect(page.getByRole("main").getByText("Fulfillment queue")).toBeVisible();
   });
 
   test("network redirects to discover", async ({ page }) => {
@@ -193,7 +203,9 @@ test.describe("Community phases — surfaces", () => {
       page.getByRole("heading", { level: 1, name: "Where should money move?" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Programs" }).click();
-    await expect(page.getByText("Community programs")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Fulfill a community program" }),
+    ).toBeVisible();
   });
 
   test("communities hub loads and nav highlights Communities", async ({ page }) => {

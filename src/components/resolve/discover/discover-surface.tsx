@@ -1,125 +1,114 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
-import { useMissionScope } from "@/lib/mission/mission-context";
-import { FunderDiscoveryPanel } from "@/components/resolve/capital/funder-discovery-panel";
-import { EcosystemBenefitsProgram } from "@/components/resolve/capital/ecosystem-benefits-program";
-import { MoneyFlowExplainer } from "@/components/resolve/capital/money-flow-explainer";
-import { IntelligenceBriefing } from "@/components/resolve/intelligence/intelligence-briefing";
+import { DiscoverClaimHint } from "@/components/resolve/discover/discover-claim-hint";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
+import { DiscoverEcosystemRail } from "@/components/resolve/discover/discover-ecosystem-rail";
 import { DiscoverLiveFeed } from "@/components/resolve/discover/discover-live-feed";
+import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
+import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
+import { DiscoverOssSignals } from "@/components/resolve/discover/discover-oss-signals";
 import { ValueGraph } from "@/components/resolve/discover/value-graph";
-import type { FundingOpportunity } from "@/lib/github/types";
 
 const DOMAIN_CHIPS = [
   { label: "Music", kind: "music" as const },
   { label: "OSS", kind: "oss" as const },
   { label: "Research", kind: "research" as const },
-  { label: "All communities", kind: "all" as const },
+  { label: "All", kind: "all" as const },
 ];
 
-/** Observe — where value already exists. Mission entry, not connector admin. */
+/** Observe — where value exists. Act here: fund, install, view entities, claim. */
 export function DiscoverSurface() {
   const { user } = useAuth();
-  const { enterMission } = useMissionScope();
+  const router = useRouter();
   const [query, setQuery] = useState("");
-  const [opportunities, setOpportunities] = useState<FundingOpportunity[]>([]);
-  const [loading, setLoading] = useState(true);
   const [communityKind, setCommunityKind] = useState<
     "all" | "music" | "oss" | "research" | "protocol"
   >("all");
-
-  useEffect(() => {
-    void fetch("/api/github/opportunities")
-      .then((r) => r.json())
-      .then((d) => setOpportunities(d.opportunities ?? []))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const filtered = opportunities.filter((o) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return o.fullName.toLowerCase().includes(q) || o.headline.toLowerCase().includes(q);
-  });
 
   function scrollToCommunities(kind: typeof communityKind) {
     setCommunityKind(kind);
     document.getElementById("communities")?.scrollIntoView({ behavior: "smooth" });
   }
 
+  function handleSearchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const raw = query.trim();
+    if (!raw) return;
+
+    const slash = raw.indexOf("/");
+    if (slash > 0 && slash < raw.length - 1) {
+      const owner = raw.slice(0, slash).trim();
+      const repo = raw.slice(slash + 1).trim();
+      if (owner && repo && !owner.includes(" ")) {
+        router.push(
+          `/e/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+        );
+        return;
+      }
+    }
+
+    const lower = raw.toLowerCase();
+    if (lower.includes("music") || lower.includes("artist")) {
+      scrollToCommunities("music");
+      return;
+    }
+    if (lower.includes("oss") || lower.includes("github") || lower.includes("repo")) {
+      document.getElementById("oss-signals")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    if (lower.includes("research") || lower.includes("citation")) {
+      scrollToCommunities("research");
+      return;
+    }
+    if (lower.includes("fund") || lower.includes("program")) {
+      document.getElementById("opportunities")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    if (lower.includes("claim") || lower.includes("earn")) {
+      router.push(user ? "/claim" : "/login?next=/claim");
+      return;
+    }
+
+    document.getElementById("oss-signals")?.scrollIntoView({ behavior: "smooth" });
+  }
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-8 lg:px-8">
       <header className="mb-8">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-          Observe
+          Discover
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">Where does value already exist?</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
+          Where does value already exist?
+        </h1>
         <p className="mt-2 max-w-2xl text-sm text-resolve-muted">
-          Communities, projects, creators — pick a mission and everything else follows that context.
-        </p>
-        <p className="mt-3">
-          <Link href="/program" className="text-xs font-medium text-resolve-accent hover:underline">
-            New here? See how everyone benefits →
-          </Link>
+          Observe live authorizations, fund programs inline, install communities, and open entity
+          surfaces — without leaving this tab.
         </p>
       </header>
 
-      <div className="mb-10">
-        <EcosystemBenefitsProgram variant="compact" />
-      </div>
+      <DiscoverNetworkPulse className="mb-6" />
 
-      <IntelligenceBriefing className="mb-10 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 p-6" />
+      {user && <DiscoverClaimHint />}
 
-      <DiscoverLiveFeed
-        domain={
-          communityKind === "all"
-            ? null
-            : communityKind === "oss"
-              ? "code"
-              : communityKind
-        }
-      />
-
-      <ValueGraph variant="full" />
-
-      <DiscoverCommunities kindFilter={communityKind} onKindFilterChange={setCommunityKind} />
-
-      <section className="mb-10 space-y-6 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 p-6">
-        <MoneyFlowExplainer />
-        <FunderDiscoveryPanel signedIn={Boolean(user)} />
-        <p className="text-center text-xs text-resolve-muted">
-          <Link href="/capital?tab=programs" className="text-resolve-accent hover:underline">
-            Open Capital — full portfolio & programs →
-          </Link>
-        </p>
-      </section>
-
-      <p className="mb-8 text-center">
-        <Link
-          href="/communities"
-          className="text-xs font-medium text-resolve-accent hover:underline"
-        >
-          Open Communities hub →
-        </Link>
-      </p>
-
-      <form
-        className="relative mb-8"
-        onSubmit={(e) => {
-          e.preventDefault();
-          enterMission(query);
-        }}
-      >
+      <form className="relative mb-8 mt-6" onSubmit={handleSearchSubmit}>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-resolve-muted" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search repository, community, creator, or ask a question…"
+          placeholder="Search owner/repo, community, program, or domain…"
           className="w-full rounded-xl border border-resolve-border bg-resolve-bg-deep/40 py-3 pl-10 pr-4 text-sm text-white placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
         />
+        <p className="mt-2 text-[11px] text-resolve-muted-dim">
+          Try <code className="text-resolve-muted">facebook/react</code> to open an entity ·{" "}
+          <code className="text-resolve-muted">oss</code> for signals ·{" "}
+          <code className="text-resolve-muted">fund</code> for the queue
+        </p>
       </form>
 
       <div className="mb-8 flex flex-wrap gap-2">
@@ -139,41 +128,46 @@ export function DiscoverSurface() {
         ))}
       </div>
 
-      <section>
-        <p className="text-sm font-semibold text-white">Funding opportunities</p>
-        <p className="mt-1 text-xs text-resolve-muted">
-          Underfunded maintainers — enter any as a mission. Scanned from live GitHub signals.
-        </p>
-        {loading ? (
-          <p className="mt-6 text-sm text-resolve-muted">Scanning open ecosystems…</p>
-        ) : filtered.length === 0 ? (
-          <p className="mt-6 text-sm text-resolve-muted">No opportunities match your search.</p>
-        ) : (
-          <ul className="mt-4 divide-y divide-resolve-border/60">
-            {filtered.slice(0, 12).map((o) => (
-              <li key={o.fullName} className="flex items-center justify-between gap-4 py-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-white">{o.fullName}</p>
-                  <p className="mt-0.5 truncate text-xs text-resolve-muted">{o.headline}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => enterMission(o.fullName)}
-                  className="shrink-0 rounded-lg border border-resolve-accent/30 px-3 py-1.5 text-xs font-medium text-resolve-accent hover:bg-resolve-accent/10"
-                >
-                  Enter mission
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <DiscoverEcosystemRail className="mb-10" />
 
-      <p className="mt-8 text-center text-xs text-resolve-muted-dim">
-        <Link href="/mission" className="text-resolve-accent hover:underline">
-          Open Mission →
+      <DiscoverLiveFeed
+        className="mb-10"
+        domain={
+          communityKind === "all"
+            ? null
+            : communityKind === "oss"
+              ? "code"
+              : communityKind
+        }
+      />
+
+      <ValueGraph variant="full" />
+
+      <DiscoverOpportunityQueue
+        signedIn={Boolean(user)}
+        query={query}
+        className="mb-12 scroll-mt-24"
+      />
+
+      <DiscoverOssSignals
+        query={query}
+        onInstallOss={() => setCommunityKind("oss")}
+        className="mb-12 scroll-mt-24"
+      />
+
+      <DiscoverCommunities kindFilter={communityKind} onKindFilterChange={setCommunityKind} />
+
+      <footer className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-resolve-border/40 pt-8 text-xs text-resolve-muted">
+        <Link href="/capital" className="text-resolve-accent hover:underline">
+          Capital — wallet & portfolio
         </Link>
-      </p>
+        <Link href="/communities" className="text-resolve-accent hover:underline">
+          Communities — deploy & sensors
+        </Link>
+        <Link href="/program" className="text-resolve-accent hover:underline">
+          Program — role guide
+        </Link>
+      </footer>
     </div>
   );
 }

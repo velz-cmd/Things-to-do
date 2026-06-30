@@ -5,7 +5,7 @@ import {
   hasFundingGapEdge,
   nodeMatchesDomainFilter,
 } from "../../src/lib/discover/graph-domain";
-import { bubblePopoverActions } from "../../src/lib/discover/graph-node-actions";
+import { bubbleOperatorActions } from "../../src/lib/discover/graph-node-actions";
 import type { DiscoverGraphEdge, DiscoverGraphNode } from "../../src/lib/discover/radar";
 
 function node(partial: Partial<DiscoverGraphNode> & Pick<DiscoverGraphNode, "id" | "label" | "type">): DiscoverGraphNode {
@@ -47,8 +47,8 @@ describe("graph domain filters", () => {
   });
 });
 
-describe("bubble popover actions", () => {
-  it("returns Open, Fund for gap edge, Install for community", () => {
+describe("bubble operator actions", () => {
+  it("returns fund and community actions for ecosystem nodes", () => {
     const repo = node({
       id: "repo:fb/react",
       label: "react",
@@ -56,21 +56,27 @@ describe("bubble popover actions", () => {
       entityPath: "/e/repo/fb/react",
       moneyGapUsd: 50,
       communitySlug: "react",
+      templateId: "docs-bounty",
     });
     const edges: DiscoverGraphEdge[] = [
       { id: "g", from: repo.id, to: "pool", kind: "funding_gap", weight: 50, evidence: "gap" },
     ];
-    const repoActions = bubblePopoverActions(repo, edges);
-    expect(repoActions.map((a) => a.label)).toEqual(expect.arrayContaining(["Open", "Fund gap"]));
+    const repoActions = bubbleOperatorActions(repo, edges);
+    expect(repoActions.map((a) => a.label)).toEqual(
+      expect.arrayContaining(["Fund", "Start bounty", "Sponsor", "Observe", "Automate"]),
+    );
 
     const comm = node({
       id: "community:react",
       label: "React",
-      type: "community",
+      type: "ecosystem",
       communitySlug: "react",
+      templateId: "docs-bounty",
       entityPath: "/communities/react",
     });
-    const commActions = bubblePopoverActions(comm, []);
-    expect(commActions.map((a) => a.label)).toEqual(expect.arrayContaining(["Open", "Install"]));
+    const commActions = bubbleOperatorActions(comm, []);
+    expect(commActions.map((a) => a.label)).toEqual(
+      expect.arrayContaining(["Start bounty", "Observe", "Automate"]),
+    );
   });
 });

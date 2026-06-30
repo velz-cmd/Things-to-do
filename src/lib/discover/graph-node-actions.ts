@@ -2,30 +2,37 @@ import type { DiscoverGraphEdge, DiscoverGraphNode } from "./radar";
 import { hasFundingGapEdge } from "./graph-domain";
 import type { DiscoverAction, DiscoverDataSource, DiscoverIntent } from "./types";
 
-export function bubblePopoverActions(
+function defaultTemplateForNode(node: DiscoverGraphNode): string {
+  if (node.templateId) return node.templateId;
+  if (node.graphDomain === "music") return "user-centric-royalties";
+  if (node.graphDomain === "research") return "citation-toll";
+  if (node.type === "ecosystem" || node.type === "repository") return "docs-bounty";
+  return "docs-bounty";
+}
+
+/** Phase 3 operator console — Fund, bounty, sponsor, observe, automate (no generic Open-first). */
+export function bubbleOperatorActions(
   node: DiscoverGraphNode,
   edges: DiscoverGraphEdge[],
 ): DiscoverAction[] {
   const actions: DiscoverAction[] = [];
-
-  if (node.entityPath && !node.synthetic) {
-    actions.push({ id: "open", label: "Open", kind: "open", entityPath: node.entityPath });
-  }
-
+  const slug = node.communitySlug;
+  const templateId = defaultTemplateForNode(node);
   const gapEdge = hasFundingGapEdge(node.id, edges);
   const canFund =
-    (gapEdge || ((node.moneyGapUsd ?? 0) > 0 && (node.type === "repository" || node.type === "ecosystem"))) &&
-    !node.synthetic &&
-    Boolean(node.programId || node.communitySlug);
+    gapEdge ||
+    ((node.moneyGapUsd ?? 0) > 0 &&
+      (node.type === "repository" || node.type === "ecosystem" || node.programId)) ||
+    node.pendingFunding;
 
-  if (canFund) {
+  if (canFund && (node.programId || slug)) {
     actions.push({
       id: "fund",
-      label: gapEdge ? "Fund gap" : "Fund",
+      label: gapEdge || node.pendingFunding ? "Fund" : "Fund program",
       kind: "fund",
       programId: node.programId,
-      communitySlug: node.communitySlug,
-      templateId: node.templateId,
+      communitySlug: slug,
+      templateId,
       missionId: node.missionId,
       amountUsd:
         node.moneyGapUsd != null && node.moneyGapUsd > 0
@@ -34,25 +41,77 @@ export function bubblePopoverActions(
     });
   }
 
-  if (node.type === "community" && node.communitySlug && !node.synthetic) {
+  if (slug) {
     actions.push({
-      id: "install",
-      label: "Install",
-      kind: "install",
-      communitySlug: node.communitySlug,
+      id: "bounty",
+      label: "Start bounty",
+      kind: "create_program",
+      communitySlug: slug,
+      templateId,
     });
+    actions.push({
+      id: "sponsor",
+      label: "Sponsor",
+      kind: "sponsor",
+      communitySlug: slug,
+      templateId,
+      programId: node.programId,
+      missionId: node.missionId,
+    });
+    actions.push({
+      id: "observe",
+      label: "Observe",
+      kind: "open",
+      href: `/communities/${slug}#health`,
+    });
+    actions.push({
+      id: "automate",
+      label: "Automate",
+      kind: "open",
+      href: `/mission?community=${encodeURIComponent(slug)}`,
+    });
+  } else if (node.entityPath) {
+    actions.push({
+      id: "observe",
+      label: "Observe",
+      kind: "analyze",
+      entityPath: node.entityPath,
+    });
+    actions.push({
+      id: "automate",
+      label: "Automate",
+      kind: "open",
+      href: `/mission?prompt=${encodeURIComponent(`Observe and fund opportunities for ${node.label}`)}`,
+    });
+    if (canFund) {
+      actions.push({
+        id: "sponsor",
+        label: "Sponsor",
+        kind: "sponsor",
+        programId: node.programId,
+        templateId,
+        missionId: node.missionId,
+      });
+    }
   }
 
-  if (node.synthetic && node.communitySlug) {
+  if (node.synthetic && slug) {
     actions.push({
       id: "install",
-      label: "Install community",
+      label: "Connect community",
       kind: "install",
-      communitySlug: node.communitySlug,
+      communitySlug: slug,
     });
   }
 
   return actions;
+}
+
+export function bubblePopoverActions(
+  node: DiscoverGraphNode,
+  edges: DiscoverGraphEdge[],
+): DiscoverAction[] {
+  return bubbleOperatorActions(node, edges);
 }
 
 export function defaultActionsForGraphNode(input: {
@@ -110,7 +169,7 @@ export function defaultActionsForGraphNode(input: {
 export function dataSourceForNodeType(type: string): DiscoverDataSource {
   if (type === "repository" || type === "ecosystem" || type === "person") return "github";
   if (type === "creator") return "musicbrainz";
-  if (type === "community") return "catalog_preview";
+  if (type === "community" || type === "ecosystem") return "community_catalog";
   return "supabase_ledger";
 }
 

@@ -9,6 +9,7 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import type { DiscoverIntent, DomainRadarBundle, RadarEmptyState } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
+import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
 const RADAR_ICONS = {
@@ -50,17 +51,18 @@ export function DiscoverDomainRadars({
   }, [feed?.domainRadars, q]);
 
   return (
-    <section className={className}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-muted-dim">
-          Opportunity radars
-        </p>
+    <DiscoverPremiumSection
+      title="Opportunity radars"
+      subtitle="OSS, music, and DAO — verified gaps with toolbar actions"
+      className={className}
+      actions={
         <DiscoverSectionRefresh
           sectionId="domain-radars"
           onRefresh={refresh}
           lastUpdated={feed?.updatedAt}
         />
-      </div>
+      }
+    >
       <div className="grid gap-6 lg:grid-cols-3">
         {(["oss", "music", "dao"] as const).map((radarId) => {
           const bundle = bundles?.find((b) => b.id === radarId);
@@ -79,7 +81,7 @@ export function DiscoverDomainRadars({
           );
         })}
       </div>
-    </section>
+    </DiscoverPremiumSection>
   );
 }
 
@@ -110,7 +112,7 @@ function DomainRadarColumn({
   return (
     <div
       id={`radar-${radarId}`}
-      className="scroll-mt-24 rounded-xl border border-resolve-border/60 bg-gradient-to-b from-resolve-bg-deep/30 to-[#060a12]/40 p-4"
+      className="scroll-mt-24 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4"
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">

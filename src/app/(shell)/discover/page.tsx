@@ -4,7 +4,7 @@ import { DiscoverSurface } from "@/components/resolve/discover/discover-surface"
 
 export const metadata: Metadata = {
   title: "Discover — RESOLVE",
-  description: "Where does value already exist?",
+  description: "What do you want to do? Pick a job — claim, fund, connect, or observe.",
 };
 
 export default function DiscoverPage() {

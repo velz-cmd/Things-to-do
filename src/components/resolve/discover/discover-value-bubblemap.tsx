@@ -20,6 +20,7 @@ import {
 } from "@/components/resolve/discover/discover-bubble-node-popover";
 import { DiscoverBubblemapMetrics } from "@/components/resolve/discover/discover-bubblemap-metrics";
 import { DiscoverBubblemapSkeleton } from "@/components/resolve/discover/discover-skeletons";
+import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
@@ -125,7 +126,7 @@ export function DiscoverValueBubblemap({
   intent?: DiscoverIntent;
   role?: DiscoverRole;
 }) {
-  const sectionRef = useRef<HTMLElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [data, setData] = useState<RadarPayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -225,44 +226,7 @@ export function DiscoverValueBubblemap({
 
   const sectionBody = (
     <>
-      <div className="relative flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Orbit className="h-4 w-4 text-resolve-accent" />
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-              Value command center
-            </p>
-            <p className="text-[11px] text-resolve-muted">{modeLabel}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={clsx(
-              "rounded-full border px-2 py-0.5 text-[10px]",
-              data?.live
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                : "border-amber-500/30 bg-amber-500/10 text-amber-200",
-            )}
-          >
-            {data?.live ? "Live ledger" : hasGraph ? "Scan preview" : "Awaiting data"}
-          </span>
-          <DiscoverSectionRefresh
-            sectionId="value-bubblemap"
-            onRefresh={loadRadar}
-            lastUpdated={data?.updatedAt}
-          />
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[10px] text-resolve-muted hover:text-white"
-          >
-            {expanded ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-            {expanded ? "Compact" : "Expand"}
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5 border-b border-white/[0.04] px-4 py-2.5">
+      <div className="flex flex-wrap gap-1.5 border-b border-white/[0.04] px-0 pb-2.5">
         {GRAPH_DOMAIN_CHIPS.map((chip) => (
           <button
             key={chip.id}
@@ -472,35 +436,68 @@ export function DiscoverValueBubblemap({
     </>
   );
 
+  const bubblemapActions = (
+    <>
+      <span
+        className={clsx(
+          "rounded-full border px-2 py-0.5 text-[10px]",
+          data?.live
+            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+            : "border-amber-500/30 bg-amber-500/10 text-amber-200",
+        )}
+      >
+        {data?.live ? "Live ledger" : hasGraph ? "Scan preview" : "Awaiting data"}
+      </span>
+      <DiscoverSectionRefresh
+        sectionId="value-bubblemap"
+        onRefresh={loadRadar}
+        lastUpdated={data?.updatedAt}
+      />
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[10px] text-resolve-muted hover:text-white"
+      >
+        {expanded ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+        {expanded ? "Compact" : "Expand"}
+      </button>
+    </>
+  );
+
   const showFullscreen = expanded && isMobile;
 
   return (
     <>
       {!showFullscreen && (
-        <section
-          ref={sectionRef}
-          className={clsx(
-            "relative overflow-hidden rounded-2xl border border-resolve-accent/20 bg-[#04070d]",
-            className,
-          )}
-        >
-          <div
-            className="pointer-events-none absolute inset-0 opacity-40"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 50% 50%, rgba(96,165,250,0.12), transparent 55%), linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)",
-              backgroundSize: "auto, 40px 40px, 40px 40px",
-            }}
-          />
-          <div className="relative">{sectionBody}</div>
-        </section>
+        <div ref={sectionRef}>
+          <DiscoverPremiumSection
+            title="Value command center"
+            subtitle={modeLabel}
+            className={className}
+            actions={bubblemapActions}
+          >
+            {sectionBody}
+          </DiscoverPremiumSection>
+        </div>
       )}
 
       {showFullscreen && (
         <div className="fixed inset-0 z-40 flex flex-col bg-[#04070d]">
-          <section ref={sectionRef} className="relative flex-1 overflow-y-auto">
-            <div className="relative min-h-full">{sectionBody}</div>
-          </section>
+          <div ref={sectionRef} className="relative flex-1 overflow-y-auto">
+            <div className="relative border-b border-white/[0.06] px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Orbit className="h-4 w-4 text-resolve-accent" />
+                  <div>
+                    <p className="text-sm font-semibold text-white">Value command center</p>
+                    <p className="text-[11px] text-resolve-muted">{modeLabel}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">{bubblemapActions}</div>
+              </div>
+            </div>
+            <div className="relative min-h-full px-4 py-4">{sectionBody}</div>
+          </div>
         </div>
       )}
 

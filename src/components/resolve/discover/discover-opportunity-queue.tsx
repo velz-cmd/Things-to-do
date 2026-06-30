@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, TrendingUp } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
 import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
@@ -14,6 +14,7 @@ import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import type { DiscoverIntent } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { sectionVisibleForRole } from "@/lib/discover/role-filters";
+import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import {
   DiscoverRetryButton,
@@ -159,30 +160,20 @@ export function DiscoverOpportunityQueue({
     document.getElementById("communities")?.scrollIntoView({ behavior: "smooth" });
   }
 
-  return (
-    <section id="opportunities" className={className} hidden={!showQueue}>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-resolve-accent" />
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-              Opportunity board
-            </p>
-          </div>
-          <h2 className="mt-2 text-lg font-semibold text-white">Every community opportunity</h2>
-          <p className="mt-1 max-w-2xl text-sm text-resolve-muted">
-            Funded programs plus connect/install paths — refresh when you want updated gaps.
-          </p>
-          {signedIn && walletUsd != null && (
-            <p className="mt-1 text-[11px] text-resolve-muted-dim">
-              Funder wallet:{" "}
-              <span className="font-medium text-emerald-300">${walletUsd.toFixed(2)}</span> spendable
-            </p>
-          )}
-        </div>
-        <DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />
-      </div>
+  const subtitle =
+    signedIn && walletUsd != null
+      ? `Funded programs and connect paths · $${walletUsd.toFixed(2)} spendable in wallet`
+      : "Funded programs plus connect/install paths — refresh when you want updated gaps";
 
+  return (
+    <DiscoverPremiumSection
+      id="opportunities"
+      title="Opportunity board"
+      subtitle={subtitle}
+      className={className}
+      hidden={!showQueue}
+      actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}
+    >
       {loading && !board.length ? (
         <DiscoverStatePanel variant="loading">
           <div className="flex items-center justify-center gap-2 text-sm text-resolve-muted">
@@ -213,13 +204,13 @@ export function DiscoverOpportunityQueue({
           )}
         </DiscoverStatePanel>
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-white/[0.06]">
           {filtered.map((o) => {
             if (o.boardKind === "community") {
               return (
                 <li
                   key={o.programId}
-                  className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 p-4"
+                  className="resolve-signal-service-row px-1 py-3 first:pt-0 last:pb-0"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -252,7 +243,7 @@ export function DiscoverOpportunityQueue({
             return (
             <li
               key={program.programId}
-              className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 p-4"
+              className="resolve-signal-service-row px-1 py-3 first:pt-0 last:pb-0"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -346,6 +337,6 @@ export function DiscoverOpportunityQueue({
           })}
         </ul>
       )}
-    </section>
+    </DiscoverPremiumSection>
   );
 }

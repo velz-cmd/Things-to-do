@@ -72,6 +72,19 @@ export type RadarEmptyState = {
   actionHref: string;
 };
 
+export type DomainRadarId = "oss" | "music" | "dao";
+
+/** Vertical mini-product — cards + always-on toolbar actions */
+export type DomainRadarBundle = {
+  id: DomainRadarId;
+  title: string;
+  tagline: string;
+  cards: TrendingValueGap[];
+  toolbar: DiscoverAction[];
+  emptyState: RadarEmptyState;
+  hasLiveData: boolean;
+};
+
 export type DiscoverRadarFeedPayload = {
   ok: true;
   gaps: TrendingValueGap[];
@@ -79,6 +92,11 @@ export type DiscoverRadarFeedPayload = {
     oss: TrendingValueGap[];
     music: TrendingValueGap[];
     dao: TrendingValueGap[];
+  };
+  domainRadars: {
+    oss: DomainRadarBundle;
+    music: DomainRadarBundle;
+    dao: DomainRadarBundle;
   };
   emptyStates: RadarEmptyState[];
   intelligence: import("@/lib/workspace/intelligence").NetworkIntelligence;

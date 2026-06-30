@@ -7,10 +7,7 @@ import { buildNetworkIntelligence } from "@/lib/workspace/intelligence";
 import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
 import { getProfileEarningsSummary } from "@/lib/earn/summary";
 import { buildTrendingValueGaps } from "@/lib/discover/trending-gaps";
-import {
-  gapMatchesRadar,
-  RADAR_EMPTY_STATES,
-} from "@/lib/discover/gap-rules";
+import { buildDomainRadars } from "@/lib/discover/domain-radars";
 import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
 
 function startOfToday() {
@@ -25,9 +22,10 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
   const skipGithub = process.env.CI === "true";
   const sessionUser = await getSessionUser();
 
-  const [trending, ledger, connectors, ossOpportunities, fundable, eventsToday] =
+  const [trending, domainRadars, ledger, connectors, ossOpportunities, fundable, eventsToday] =
     await Promise.all([
       buildTrendingValueGaps(Math.min(Math.max(limit, 1), 24)),
+      buildDomainRadars(),
       getGlobalAuthorizationSummary().catch(() => null),
       getConnectorLiveStatuses().catch(() => []),
       skipGithub ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
@@ -69,21 +67,22 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 
   const gaps = trending.gaps;
   const radars = {
-    oss: gaps.filter((g) => gapMatchesRadar(g, "oss")).slice(0, 4),
-    music: gaps.filter((g) => gapMatchesRadar(g, "music")).slice(0, 4),
-    dao: gaps.filter((g) => gapMatchesRadar(g, "dao")).slice(0, 4),
+    oss: domainRadars.oss.cards.slice(0, 4),
+    music: domainRadars.music.cards.slice(0, 4),
+    dao: domainRadars.dao.cards.slice(0, 4),
   };
 
   const emptyStates = [
-    radars.oss.length ? null : RADAR_EMPTY_STATES.oss,
-    radars.music.length ? null : RADAR_EMPTY_STATES.music,
-    radars.dao.length ? null : RADAR_EMPTY_STATES.dao,
+    domainRadars.oss.hasLiveData ? null : domainRadars.oss.emptyState,
+    domainRadars.music.hasLiveData ? null : domainRadars.music.emptyState,
+    domainRadars.dao.hasLiveData ? null : domainRadars.dao.emptyState,
   ].filter((s): s is NonNullable<typeof s> => s !== null);
 
   return {
     ok: true,
     gaps,
     radars,
+    domainRadars,
     emptyStates,
     intelligence,
     fundableCount: fundable.filter((f) => f.fundingGapUsd > 0).length,

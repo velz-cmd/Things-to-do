@@ -33,6 +33,8 @@ export type EcosystemRole = {
 export type RfbProgram = {
   id: RfbProgramId;
   rfb: string;
+  /** User-facing badge — no internal RFB numbers in UI */
+  trackLabel: string;
   name: string;
   upstream: string;
   whoBenefits: string;
@@ -185,6 +187,7 @@ export const RFB_PROGRAMS: RfbProgram[] = [
   {
     id: "user-centric-royalties",
     rfb: "RFB #7",
+    trackLabel: "Royalties",
     name: "User-centric royalties",
     upstream: "ListenBrainz · Navidrome · MusicBrainz",
     whoBenefits: "Artists, composers, producers — credited per verified play",
@@ -196,6 +199,7 @@ export const RFB_PROGRAMS: RfbProgram[] = [
   {
     id: "video-royalties",
     rfb: "RFB #7",
+    trackLabel: "Video",
     name: "Video watch royalties",
     upstream: "Jellyfin sessions API",
     whoBenefits: "Video creators and hosts — per verified watch",
@@ -207,17 +211,19 @@ export const RFB_PROGRAMS: RfbProgram[] = [
   {
     id: "docs-bounty",
     rfb: "RFB #3",
+    trackLabel: "Docs",
     name: "Documentation bounty",
     upstream: "GitHub merged docs PRs",
     whoBenefits: "Maintainers and doc authors — merged PRs authorize pay",
     funderGets: "Clear docs authorizations in the queue",
     founderGets: "OSS program operator — GitHub sensor ingests automatically",
     audienceNote: "Developers keep using GitHub",
-    communities: ["react", "linux"],
+    communities: ["react", "linux", "open-writers"],
   },
   {
     id: "security-fund",
     rfb: "RFB #4",
+    trackLabel: "Security",
     name: "Security response fund",
     upstream: "GitHub security advisories",
     whoBenefits: "Security maintainers — CVE triage and patch review",
@@ -229,6 +235,7 @@ export const RFB_PROGRAMS: RfbProgram[] = [
   {
     id: "citation-toll",
     rfb: "RFB #2",
+    trackLabel: "Research",
     name: "Citation toll",
     upstream: "OpenAlex verified citations",
     whoBenefits: "Researchers and authors — micropayment per citation",
@@ -240,6 +247,7 @@ export const RFB_PROGRAMS: RfbProgram[] = [
   {
     id: "quadratic-funding",
     rfb: "RFB #6",
+    trackLabel: "Grants",
     name: "Quadratic funding round",
     upstream: "Open Collective contributions",
     whoBenefits: "Hosted projects — small donors amplified by match pool",

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Loader2 } from "lucide-react";
+import { Loader2, Wallet } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
 import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
@@ -160,7 +161,10 @@ export function DiscoverOpportunityQueue({
   async function fundRow(o: FundableOpportunity) {
     const raw = amountByProgram[o.programId] ?? "25";
     const amountUsd = Number(raw);
-    if (!Number.isFinite(amountUsd) || amountUsd < 5) return;
+    if (!Number.isFinite(amountUsd) || amountUsd < 5) {
+      toast.error("Amount can't be less than $5");
+      return;
+    }
     setFundingId(o.programId);
     try {
       await executeFund({
@@ -183,9 +187,20 @@ export function DiscoverOpportunityQueue({
   }
 
   const subtitle =
-    signedIn && walletUsd != null
-      ? `Funded programs and connect paths · $${walletUsd.toFixed(2)} spendable in wallet`
-      : "Funded programs plus connect/install paths — refresh when you want updated gaps";
+    signedIn && walletUsd != null ? (
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span>Funded programs and connect paths</span>
+        <Link
+          href="/capital"
+          className="inline-flex items-center gap-1 rounded-md border border-resolve-accent/25 bg-resolve-accent/10 px-2 py-0.5 text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15"
+        >
+          <Wallet className="h-3 w-3" />
+          ${walletUsd.toFixed(2)} spendable · Manage wallet
+        </Link>
+      </span>
+    ) : (
+      "Funded programs plus connect/install paths — refresh when you want updated gaps"
+    );
 
   return (
     <DiscoverPremiumSection
@@ -342,6 +357,13 @@ export function DiscoverOpportunityQueue({
                             [program.programId]: e.target.value,
                           }))
                         }
+                        onBlur={() => {
+                          const raw = amountByProgram[program.programId] ?? "25";
+                          const n = Number(raw);
+                          if (raw !== "" && Number.isFinite(n) && n < 5) {
+                            toast.error("Amount can't be less than $5");
+                          }
+                        }}
                         className="w-20 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
                       />
                     </div>

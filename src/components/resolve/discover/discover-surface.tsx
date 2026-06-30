@@ -29,7 +29,9 @@ import type { DiscoverIntent } from "@/lib/discover/types";
 
 const DOMAIN_CHIPS = [
   { label: "Music", kind: "music" as const },
+  { label: "Video", kind: "media" as const },
   { label: "OSS", kind: "oss" as const },
+  { label: "Writers", kind: "education" as const },
   { label: "Research", kind: "research" as const },
   { label: "DAO", kind: "protocol" as const },
   { label: "All", kind: "all" as const },
@@ -70,7 +72,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
   const intent = roleToIntent(role);
   const [communityKind, setCommunityKind] = useState<
-    "all" | "music" | "oss" | "research" | "protocol"
+    "all" | "music" | "media" | "oss" | "research" | "education" | "protocol"
   >("all");
 
   const effectiveQuery = queueFilter ?? query;

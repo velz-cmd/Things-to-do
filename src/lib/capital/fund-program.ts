@@ -3,6 +3,7 @@ import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { refreshProgramYieldCache } from "@/lib/capital/yield-service";
 import { runQfMatchAllocation } from "@/lib/capital/qf-allocator";
 import { DEFAULT_TARGET_YIELD_MULTIPLIER } from "@/lib/capital/community-yield";
+import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
 import type { ProgramRules } from "@/lib/communities/types";
 
 const MIN_FUND_USD = 5;
@@ -27,7 +28,7 @@ export async function fundCommunityProgram(input: {
 }): Promise<FundProgramResult> {
   const amount = Math.round(input.amountUsd * 100) / 100;
   if (amount < MIN_FUND_USD) {
-    return { ok: false, error: `Minimum fund is $${MIN_FUND_USD}` };
+    return { ok: false, error: "Amount can't be less than $5" };
   }
 
   const program = await prisma.resolveProgram.findUnique({
@@ -40,12 +41,26 @@ export async function fundCommunityProgram(input: {
     return { ok: false, error: "Program is not accepting funds" };
   }
 
+  const spendable = await getRealSpendableUsd(input.userId, { sync: true });
+  if (spendable.availableUsd < amount) {
+    return {
+      ok: false,
+      error:
+        spendable.availableUsd <= 0
+          ? "No spendable USDC — open Capital to sync your wallet and add funds"
+          : `Insufficient balance: $${spendable.availableUsd.toFixed(2)} spendable, need $${amount.toFixed(2)}`,
+    };
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: input.userId },
     select: { availableUsd: true },
   });
   if (!user || user.availableUsd < amount) {
-    return { ok: false, error: "Insufficient balance — add money first" };
+    return {
+      ok: false,
+      error: "Wallet sync in progress — refresh Capital and try again",
+    };
   }
 
   const target = input.targetYieldMultiplier ?? DEFAULT_TARGET_YIELD_MULTIPLIER;

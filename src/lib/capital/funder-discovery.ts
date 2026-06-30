@@ -24,65 +24,72 @@ export async function listFundableOpportunities(limit = 24): Promise<FundableOpp
     take: 48,
   });
 
-  const opportunities: FundableOpportunity[] = [];
+  const opportunities = (
+    await Promise.all(
+      programs.map(async (p) => {
+        try {
+          const slug = p.install?.communitySlug ?? "unknown";
+          const community = getCommunityBySlug(slug);
+          const { measure, yield: yieldSnap, signalCount, contributorCount } =
+            await programDiscoveryMetrics(p.id, p.userId);
 
-  for (const p of programs) {
-    const slug = p.install?.communitySlug ?? "unknown";
-    const community = getCommunityBySlug(slug);
-    const { measure, yield: yieldSnap, signalCount, contributorCount } =
-      await programDiscoveryMetrics(p.id, p.userId);
+          const impactValueUsd = yieldSnap?.impactValueUsd ?? 0;
+          const principalFundedUsd = yieldSnap?.principalFundedUsd ?? p.budgetUsd;
+          const targetMultiplier = DEFAULT_TARGET_YIELD_MULTIPLIER;
+          const yieldMultiplier = computeYieldMultiplier(impactValueUsd, principalFundedUsd);
+          const fundingGapUsd =
+            yieldSnap?.fundingGapUsd ??
+            fundingGapForTarget(impactValueUsd, principalFundedUsd, targetMultiplier);
+          const settlementRate = measure?.metrics.settlementRate ?? 0;
+          const pendingFundingUsd = yieldSnap?.missionId
+            ? (await getAuthorizationSummary({ missionId: yieldSnap.missionId })).pendingFundingUsd
+            : 0;
+          const { whyFund, whoBenefits } = whyFundCopy({
+            templateId: p.templateId,
+            communityName: community?.name ?? slug,
+            fundingGapUsd,
+            settlementRate,
+            pendingFundingUsd,
+          });
 
-    const impactValueUsd = yieldSnap?.impactValueUsd ?? 0;
-    const principalFundedUsd = yieldSnap?.principalFundedUsd ?? p.budgetUsd;
-    const targetMultiplier = DEFAULT_TARGET_YIELD_MULTIPLIER;
-    const yieldMultiplier = computeYieldMultiplier(impactValueUsd, principalFundedUsd);
-    const fundingGapUsd =
-      yieldSnap?.fundingGapUsd ??
-      fundingGapForTarget(impactValueUsd, principalFundedUsd, targetMultiplier);
-    const settlementRate = measure?.metrics.settlementRate ?? 0;
-    const pendingFundingUsd = yieldSnap?.missionId ?
-      (await getAuthorizationSummary({ missionId: yieldSnap.missionId })).pendingFundingUsd
-    : 0;
-    const { whyFund, whoBenefits } = whyFundCopy({
-      templateId: p.templateId,
-      communityName: community?.name ?? slug,
-      fundingGapUsd,
-      settlementRate,
-      pendingFundingUsd,
-    });
-
-    opportunities.push({
-      programId: p.id,
-      programName: p.name,
-      communitySlug: slug,
-      communityName: community?.name ?? slug,
-      communityTagline: community?.tagline ?? "",
-      templateId: p.templateId,
-      templateLabel: templateLabel(p.templateId),
-      status: p.status,
-      budgetUsd: p.budgetUsd,
-      principalFundedUsd,
-      fundingGapUsd,
-      impactValueUsd,
-      projectedYieldAt2x: round(principalFundedUsd * targetMultiplier),
-      yieldMultiplier,
-      targetMultiplier,
-      settlementRate,
-      contributorCount,
-      signalCount,
-      whyFund,
-      whoBenefits,
-      score: 0,
-      metricKind: yieldSnap?.metricKind ?? "fulfillment",
-      needType: classifyBoardNeedType({
-        templateId: p.templateId,
-        communitySlug: slug,
-        boardKind: "program",
-        whyFund,
-        programName: p.name,
+          return {
+            programId: p.id,
+            programName: p.name,
+            communitySlug: slug,
+            communityName: community?.name ?? slug,
+            communityTagline: community?.tagline ?? "",
+            templateId: p.templateId,
+            templateLabel: templateLabel(p.templateId),
+            status: p.status,
+            budgetUsd: p.budgetUsd,
+            principalFundedUsd,
+            fundingGapUsd,
+            impactValueUsd,
+            projectedYieldAt2x: round(principalFundedUsd * targetMultiplier),
+            yieldMultiplier,
+            targetMultiplier,
+            settlementRate,
+            contributorCount,
+            signalCount,
+            whyFund,
+            whoBenefits,
+            score: 0,
+            metricKind: yieldSnap?.metricKind ?? "fulfillment",
+            needType: classifyBoardNeedType({
+              templateId: p.templateId,
+              communitySlug: slug,
+              boardKind: "program",
+              whyFund,
+              programName: p.name,
+            }),
+          } satisfies FundableOpportunity & { needType: import("@/lib/discover/need-types").DiscoverNeedType };
+        } catch (e) {
+          console.warn("[funder-discovery] program metrics failed:", p.id, e);
+          return null;
+        }
       }),
-    });
-  }
+    )
+  ).filter((o) => o !== null) as FundableOpportunity[];
 
   for (const o of opportunities) {
     o.score = opportunityScore({

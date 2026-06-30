@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import clsx from "clsx";
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
@@ -22,18 +23,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isDiscover = pathname === "/discover" || pathname.startsWith("/discover/");
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("discover-route", isDiscover);
+    document.body.classList.toggle("discover-route", isDiscover);
+    return () => {
+      document.documentElement.classList.remove("discover-route");
+      document.body.classList.remove("discover-route");
+    };
+  }, [isDiscover]);
+
   return (
     <CommandProvider>
       <MissionModalProvider>
         <Suspense fallback={null}>
           <MissionScopeProvider>
-            <div className={clsx("relative min-h-screen", isDiscover ? "text-slate-800" : "text-white")}>
+            <div
+              className={clsx(
+                "relative min-h-screen",
+                isDiscover && "discover-canvas",
+                isDiscover ? "text-slate-800" : "text-white",
+              )}
+            >
               {!isDiscover && <ResolveBackground variant="app" />}
               <AppTopNav />
               <MissionScopeBarGate />
-              <main className={clsx("relative overflow-auto", isDiscover && "discover-canvas")}>
-                {children}
-              </main>
+              <main className="relative flex-1 overflow-auto">{children}</main>
             </div>
             <NewMissionModal />
             <CommandPaletteHost />

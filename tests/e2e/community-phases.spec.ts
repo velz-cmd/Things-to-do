@@ -74,6 +74,26 @@ test.describe("Community phases — APIs", () => {
     expect(res.status()).toBe(401);
   });
 
+  test("discover radar-feed API returns unified feed shape", async ({ request }) => {
+    const res = await request.get("/api/discover/radar-feed?limit=12");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body).toHaveProperty("gaps");
+    expect(body).toHaveProperty("radars");
+    expect(body.radars).toHaveProperty("oss");
+    expect(body.radars).toHaveProperty("music");
+    expect(body.radars).toHaveProperty("dao");
+    expect(body).toHaveProperty("emptyStates");
+    expect(body).toHaveProperty("intelligence");
+    expect(body).toHaveProperty("realSignalCount");
+    expect(body).toHaveProperty("updatedAt");
+    for (const gap of body.gaps as { proofSource?: string; dataSource?: string }[]) {
+      expect(gap.proofSource).toBeTruthy();
+      expect(gap.dataSource).toBeTruthy();
+    }
+  });
+
   test("discover radar API returns real shape", async ({ request }) => {
     const res = await request.get("/api/discover/radar");
     expect(res.ok()).toBeTruthy();

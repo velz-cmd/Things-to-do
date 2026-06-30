@@ -22,12 +22,16 @@ export function discoverAgentServices() {
     id: s.id,
     name: s.name,
     tagline: s.tagline,
+    description: s.description,
     priceUsd: s.priceUsd,
     billingUnit: s.billingUnit,
     domain: s.domain,
+    eventType: s.eventType,
+    connectorId: s.connectorId,
     rfbProgram: s.rfbProgram,
     examplePrompt: s.examplePrompt,
     x402: s.urlPath.startsWith("/api/x402/"),
+    ingest: !s.urlPath.startsWith("/api/x402/"),
     url: resolveServiceUrl(s, getAppBaseUrl()),
   }));
 }

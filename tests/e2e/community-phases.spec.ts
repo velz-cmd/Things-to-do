@@ -231,7 +231,7 @@ test.describe("Community phases — surfaces", () => {
   test("discover shows community directory", async ({ page, request }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     const communities = page.locator("#communities");
-    await expect(communities.getByText("Communities strip")).toBeVisible();
+    await expect(communities.getByText("Connect communities")).toBeVisible();
     await expect(communities.getByText("Install on Independent Music")).toBeVisible();
     await expect(communities.getByRole("button", { name: "Open" }).first()).toBeVisible();
 
@@ -254,15 +254,17 @@ test.describe("Community phases — surfaces", () => {
     ).toBeVisible();
     await expect(page.getByRole("main").getByText("Live value feed")).toBeVisible();
     await expect(page.getByRole("main").getByText("Value command center")).toBeVisible();
-    await expect(page.getByRole("main").getByText(/Live ledger|Scan preview|Waiting for ledger events|Awaiting data/)).toBeVisible();
+    await expect(
+      page.getByRole("main").getByText(/Live ledger|Scan preview|Waiting for ledger events|Awaiting data/).first(),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "OSS" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Music" }).first()).toBeVisible();
     await expect(
-      page.getByRole("main").getByText(/Funding entropy|Waiting for ledger events/),
+      page.getByRole("main").getByText(/Funding entropy|Waiting for ledger events/).first(),
     ).toBeVisible();
     await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
     await page.locator("#opportunities").scrollIntoViewIfNeeded();
-    await expect(page.locator("#opportunities").getByText("Fulfillment queue", { exact: true })).toBeVisible();
+    await expect(page.locator("#opportunities").getByText("Opportunity board", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
   });
 

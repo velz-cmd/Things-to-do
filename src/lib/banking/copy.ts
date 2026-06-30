@@ -33,7 +33,7 @@ export const BANKING_UI = {
   syncingBalance: "Syncing Arc wallet…",
   refreshHint: "Sync faucet deposits from Arc testnet",
   lastUpdated: "Updated",
-  autoRefresh: "Auto-refresh every 15s",
+  autoRefresh: "Auto-refresh every 30s",
   activityEmpty: "No activity yet — add money or join a program to get started.",
   technicalDetails: "Payment infrastructure",
   technicalHint: "How your USDC moves on Arc — deposits, programs, and verified payouts",

@@ -59,6 +59,7 @@ type ResolveBankingProps = {
   onClaim: () => void;
   onRefresh?: () => void;
   onSignIn: () => void;
+  onActivityOpen?: () => void;
 };
 
 function formatDate(iso: string) {
@@ -352,6 +353,7 @@ export function ResolveBanking({
   onClaim,
   onRefresh,
   onSignIn,
+  onActivityOpen,
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
   const { openSendFunds } = useSendFunds();
@@ -409,7 +411,7 @@ export function ResolveBanking({
         <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>
           {BANKING_UI.overview}
         </TabButton>
-        <TabButton active={tab === "activity"} onClick={() => setTab("activity")}>
+        <TabButton active={tab === "activity"} onClick={() => { setTab("activity"); onActivityOpen?.(); }}>
           {BANKING_UI.activity}
         </TabButton>
         <TabButton active={tab === "programs"} onClick={() => setTab("programs")}>

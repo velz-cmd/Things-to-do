@@ -124,7 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/capital/wallet", {
         credentials: "include",
-        signal: AbortSignal.timeout(15_000),
+        cache: "no-store",
+        signal: AbortSignal.timeout(25_000),
       });
       const data = await res.json();
       if (data.ok && data.balance) {

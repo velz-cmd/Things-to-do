@@ -137,18 +137,30 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         className="mb-12 scroll-mt-24"
       />
 
-      <DiscoverCommunities kindFilter={communityKind} onKindFilterChange={setCommunityKind} />
+      <DiscoverCommunities
+        kindFilter={communityKind}
+        onKindFilterChange={setCommunityKind}
+        signedIn={Boolean(user)}
+      />
 
-      <footer className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-resolve-border/40 pt-8 text-xs text-resolve-muted">
-        <Link href="/capital" className="text-resolve-accent hover:underline">
-          Capital — wallet & portfolio
-        </Link>
-        <Link href="/communities" className="text-resolve-accent hover:underline">
-          Communities — deploy & sensors
-        </Link>
-        <Link href="/program" className="text-resolve-accent hover:underline">
-          Program — role guide
-        </Link>
+      <footer className="mt-12 border-t border-resolve-border/40 pt-8">
+        <nav
+          className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-resolve-muted-dim"
+          aria-label="Discover navigation"
+        >
+          <Link href="/capital" className="hover:text-resolve-muted">
+            Capital
+          </Link>
+          <Link href="/communities" className="hover:text-resolve-muted">
+            Communities
+          </Link>
+          <Link href="/program" className="hover:text-resolve-muted">
+            Program guide
+          </Link>
+          <Link href="/claim" className="hover:text-resolve-muted">
+            Claim
+          </Link>
+        </nav>
       </footer>
     </div>
   );

@@ -22,6 +22,8 @@ import { EcosystemBenefitsProgram } from "@/components/resolve/capital/ecosystem
 import { MoneyFlowExplainer } from "@/components/resolve/capital/money-flow-explainer";
 import { FunderYieldPortfolio } from "@/components/resolve/capital/funder-yield-portfolio";
 import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-truth";
+import { WalletHealthRow } from "@/components/resolve/capital/wallet-health-row";
+import type { WalletHealth, WalletSyncState } from "@/lib/capital/wallet-types";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
 import { PendingAuthorizationsPanel } from "@/components/resolve/payments/pending-authorizations-panel";
@@ -49,6 +51,11 @@ type ResolveBankingProps = {
   payoutWallet: string | null;
   claiming: boolean;
   lastRefreshedAt?: Date | null;
+  walletSync?: WalletSyncState;
+  balanceKnown?: boolean;
+  syncError?: string | null;
+  walletHealth?: WalletHealth | null;
+  walletWarnings?: string[];
   onClaim: () => void;
   onRefresh?: () => void;
   onSignIn: () => void;
@@ -62,12 +69,22 @@ function formatDate(iso: string) {
   });
 }
 
-function Stat({ label, amount }: { label: string; amount: number }) {
+function Stat({
+  label,
+  amount,
+  unknown,
+}: {
+  label: string;
+  amount: number;
+  unknown?: boolean;
+}) {
   return (
     <div>
       <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">{label}</p>
       <p className="mt-1 text-sm font-medium text-white">
-        <Money amount={amount} size="sm" className="inline" />
+        {unknown ?
+          <span className="text-resolve-muted">—</span>
+        : <Money amount={amount} size="sm" className="inline" />}
       </p>
     </div>
   );
@@ -327,6 +344,11 @@ export function ResolveBanking({
   payoutWallet,
   claiming,
   lastRefreshedAt,
+  walletSync = "loading",
+  balanceKnown = false,
+  syncError,
+  walletHealth,
+  walletWarnings = [],
   onClaim,
   onRefresh,
   onSignIn,
@@ -341,6 +363,11 @@ export function ResolveBanking({
   const yourClaimable = balances?.earnedClaimableUsd ?? 0;
   const yourDeposits = balances?.availableUsd ?? 0;
   const reserved = balances?.reservedUsd ?? 0;
+  const onChainUsd = balances?.onChainUsdcUsd ?? null;
+
+  const showBalanceAmount = balanceKnown && walletSync === "synced";
+  const showSyncError = walletSync === "error" || (!balanceKnown && walletSync !== "loading");
+  const showNoWallet = walletSync === "no_wallet";
 
   const statementLines: StatementLine[] = account?.statement ?? [];
   const activityItems = [
@@ -394,6 +421,22 @@ export function ResolveBanking({
 
       {tab === "overview" && (
         <>
+          {signedIn && walletHealth && (
+            <WalletHealthRow
+              health={walletHealth}
+              onRetry={onRefresh}
+              retrying={refreshing}
+            />
+          )}
+
+          {signedIn && walletWarnings.length > 0 && (
+            <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-100/90">
+              {walletWarnings.map((w) => (
+                <p key={w}>{w}</p>
+              ))}
+            </div>
+          )}
+
           {signedIn && (
             <BlueGlowCard className="mb-6">
               <div className="flex items-start justify-between gap-4">
@@ -401,14 +444,34 @@ export function ResolveBanking({
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
                     {BANKING_UI.balanceLabel}
                   </p>
-                  {initialLoading && !balances ?
-                    <p className="mt-2 text-sm text-resolve-muted">Loading…</p>
-                  : <>
+                  {initialLoading ?
+                    <p className="mt-2 text-sm text-resolve-muted">{BANKING_UI.syncingBalance}</p>
+                  : showNoWallet ?
+                    <p className="mt-2 text-sm text-amber-200">Create or connect wallet</p>
+                  : showSyncError ?
+                    <div className="mt-2">
+                      <p className="text-sm text-amber-200">
+                        {syncError ?? "Could not sync Arc. Retry"}
+                      </p>
+                      {onRefresh && (
+                        <button
+                          type="button"
+                          onClick={onRefresh}
+                          disabled={refreshing}
+                          className="mt-2 text-xs text-resolve-accent hover:underline"
+                        >
+                          Retry sync
+                        </button>
+                      )}
+                    </div>
+                  : showBalanceAmount ?
+                    <>
                       <p className="mt-2 text-4xl font-semibold tabular-nums text-white">
                         <Money amount={yourDeposits} size="lg" />
                       </p>
                       <p className="mt-1 text-xs text-resolve-muted">{BANKING_UI.balanceHint}</p>
                     </>
+                  : <p className="mt-2 text-sm text-resolve-muted">{BANKING_UI.syncingBalance}</p>
                   }
                 </div>
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
@@ -417,12 +480,13 @@ export function ResolveBanking({
               </div>
 
               <div className="mt-5 grid grid-cols-3 gap-3 border-t border-white/[0.06] pt-5">
-                <Stat label={BANKING_UI.reserved} amount={reserved} />
+                <Stat label={BANKING_UI.reserved} amount={showBalanceAmount ? reserved : 0} unknown={!showBalanceAmount} />
                 <Stat
                   label={BANKING_UI.totalIn}
-                  amount={balances?.onChainUsdcUsd ?? balances?.totalDepositedUsd ?? 0}
+                  amount={showBalanceAmount ? (onChainUsd ?? yourDeposits) : 0}
+                  unknown={!showBalanceAmount}
                 />
-                <Stat label={BANKING_UI.readyToClaim} amount={yourClaimable} />
+                <Stat label={BANKING_UI.readyToClaim} amount={showBalanceAmount ? yourClaimable : 0} unknown={!showBalanceAmount} />
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">

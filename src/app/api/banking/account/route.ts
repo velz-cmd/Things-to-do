@@ -4,7 +4,7 @@ import { getBankingAccountSnapshot } from "@/lib/banking/account";
 import { bankingSnapshotFromWalletBalance } from "@/lib/banking/fallback-snapshot";
 import { buildFallbackArcRail } from "@/lib/banking/arc-rail";
 import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
-import { resolveIdentityWalletAddress } from "@/lib/wallet/identity-address";
+import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 
 /** RESOLVE Banking — unified account snapshot (custody, no interest). */
 export async function GET() {
@@ -19,7 +19,7 @@ export async function GET() {
     if (authUser) {
       try {
         const profile = await ensureProfileForUser(authUser);
-        const address = resolveIdentityWalletAddress(profile.id, profile);
+        const address = resolveUserWallet(profile.id, profile).address;
         const realBalance = await getRealSpendableUsd(profile.id).catch(() => null);
         const arc = buildFallbackArcRail();
         arc.identityWallet = {

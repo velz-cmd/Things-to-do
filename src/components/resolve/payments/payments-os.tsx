@@ -7,15 +7,17 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { ResolveBanking } from "@/components/resolve/payments/resolve-banking";
 import type { BankingAccountSnapshot } from "@/lib/banking/types";
-import { bankingSnapshotFromWalletBalance } from "@/lib/banking/fallback-snapshot";
-import {
-  mergeWalletBalanceIntoSnapshot,
-  normalizeBankingSnapshot,
-  boostSnapshotBalances,
-} from "@/lib/banking/normalize-snapshot";
+import { normalizeBankingSnapshot } from "@/lib/banking/normalize-snapshot";
 import { BANKING_UI } from "@/lib/banking/copy";
+import { BANKING_POLICY } from "@/lib/banking/types";
+import type {
+  CapitalWalletResponse,
+  WalletHealth,
+  WalletSyncState,
+} from "@/lib/capital/wallet-types";
 
 const REFRESH_INTERVAL_MS = 15_000;
+const ARC_CHAIN_ID = 5042002;
 
 type Overview = {
   recentAuthorizations: {
@@ -37,175 +39,313 @@ type Overview = {
   }[];
 };
 
-type WalletBalanceResponse = {
-  availableUsd: number;
-  onChainUsd?: number | null;
-  reservedUsd?: number;
-  walletAddress?: string;
-};
+async function fetchCapitalWallet(): Promise<CapitalWalletResponse> {
+  const res = await fetch("/api/capital/wallet", {
+    credentials: "include",
+    signal: AbortSignal.timeout(12_000),
+  });
+  const data = (await res.json()) as CapitalWalletResponse;
+  return data;
+}
 
-async function fetchWalletBalance(sync = false): Promise<WalletBalanceResponse | null> {
-  try {
-    const res = await fetch(`/api/wallet/balance${sync ? "?sync=1" : ""}`, {
-      credentials: "include",
-      signal: AbortSignal.timeout(12_000),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as WalletBalanceResponse;
-  } catch {
-    return null;
+function snapshotFromCapitalWallet(
+  data: Extract<CapitalWalletResponse, { ok: true }>,
+  userId: string,
+): BankingAccountSnapshot {
+  const spendable = Number(data.balance.spendableUsd);
+  const total = Number(data.balance.totalUsdc);
+  const wallet = data.wallet.address;
+
+  return {
+    ok: true,
+    signedIn: true,
+    accountId: userId,
+    displayName: data.account?.displayName ?? null,
+    email: data.account?.email ?? null,
+    memberSince: new Date().toISOString(),
+    walletAddress: wallet,
+    walletLabel: data.wallet.shortAddress,
+    policy: BANKING_POLICY,
+    balances: {
+      availableUsd: spendable,
+      reservedUsd: data.balance.reservedUsd,
+      earnedClaimableUsd: 0,
+      earnedAuthorizedUsd: 0,
+      earnedSettledUsd: 0,
+      totalDepositedUsd: total,
+      onChainUsdcUsd: total,
+    },
+    programs: [],
+    statement: [],
+    network: {
+      authorizedUsd: 0,
+      claimableUsd: 0,
+      settledUsd: 0,
+      pendingFundingUsd: 0,
+    },
+    arc: {
+      chain: "Arc Testnet",
+      chainId: data.balance.chainId,
+      currency: "USDC",
+      usdcGas: true,
+      live: true,
+      canDistribute: false,
+      blockers: [],
+      message: "Wallet synced from Arc RPC",
+      contracts: { usdc: "", memo: "" },
+      agentWallet: null,
+      settlementWallet: null,
+      settlementBalanceUsd: null,
+      explorerUrl: "https://testnet.arcscan.app",
+      capabilities: {
+        identityWallet: true,
+        depositArcUsdc: true,
+        batchMemoPayouts: true,
+        agentNanoPayments: true,
+        erc8183Escrow: true,
+        cctpBridge: true,
+      },
+      stats: { nanoPaymentsSettled: 0, recentMemoCount: 0 },
+      identityWallet: {
+        address: wallet,
+        label: data.wallet.shortAddress,
+        provider: data.wallet.source === "circle_embedded" ? "circle" : "embedded",
+        circleWalletId: null,
+        depositAddress: wallet,
+        onChainUsdcUsd: total,
+      },
+      recentMemos: [],
+    },
+    identities: {
+      github: null,
+      emailVerified: Boolean(data.account?.email),
+      gmailConnected: false,
+      gmailOperatorLive: false,
+    },
+    updatedAt: data.balance.syncedAt,
+  };
+}
+
+function healthFromResponse(
+  data: CapitalWalletResponse,
+  syncing: boolean,
+): WalletHealth | null {
+  if (!data.ok && !data.wallet) return null;
+  const wallet = data.ok ? data.wallet : data.wallet!;
+  if (data.ok) {
+    return {
+      address: wallet.address,
+      shortAddress: wallet.shortAddress,
+      source: wallet.source,
+      chainId: data.balance.chainId,
+      blockNumber: data.balance.blockNumber,
+      syncedAt: data.balance.syncedAt,
+      rpcStatus: syncing ? "syncing" : "live",
+      nativeUsdc: data.balance.nativeUsdc,
+      erc20Usdc: data.balance.erc20Usdc,
+      externalAddress: data.wallet.externalAddress,
+    };
   }
+  return {
+    address: wallet.address,
+    shortAddress: wallet.shortAddress,
+    source: wallet.source,
+    chainId: ARC_CHAIN_ID,
+    blockNumber: null,
+    syncedAt: null,
+    rpcStatus: syncing ? "syncing" : "error",
+    nativeUsdc: null,
+    erc20Usdc: null,
+  };
 }
 
 export function PaymentsOS() {
-  const { user, refreshBalance, balance } = useAuth();
+  const { user, refreshBalance } = useAuth();
   const { openSignIn } = useSignInModal();
   const account = useResolveAccount();
 
   const [banking, setBanking] = useState<BankingAccountSnapshot | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [walletSync, setWalletSync] = useState<WalletSyncState>("loading");
+  const [walletHealth, setWalletHealth] = useState<WalletHealth | null>(null);
+  const [walletWarnings, setWalletWarnings] = useState<string[]>([]);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
   const payoutWallet =
-    account.appWalletAddress ?? account.walletAddress ?? account.externalWalletAddress;
+    walletHealth?.address ??
+    account.appWalletAddress ??
+    account.walletAddress ??
+    account.externalWalletAddress ??
+    null;
 
-  const buildWalletOnlySnapshot = useCallback(
-    (wallet: WalletBalanceResponse): BankingAccountSnapshot | null => {
-      if (!user) return null;
-      return bankingSnapshotFromWalletBalance({
-        userId: user.id,
-        email: user.email,
-        displayName:
-          (user.user_metadata?.full_name as string | undefined) ??
-          user.email?.split("@")[0] ??
-          null,
-        walletAddress: wallet.walletAddress ?? payoutWallet ?? undefined,
-        availableUsd: wallet.availableUsd,
-        onChainUsd: wallet.onChainUsd ?? null,
-        reservedUsd: wallet.reservedUsd ?? 0,
-      });
-    },
-    [payoutWallet, user],
-  );
-
-  const load = useCallback(
-    async (opts?: { silent?: boolean; syncOnChain?: boolean }) => {
+  const loadWallet = useCallback(
+    async (opts?: { silent?: boolean }) => {
       if (!user) {
         setBanking(null);
-        setInitialLoading(false);
-        setRefreshing(false);
+        setWalletSync("no_wallet");
+        setWalletHealth(null);
+        setSyncError(null);
         return;
       }
+
       if (!opts?.silent) setRefreshing(true);
-      let walletLoaded = false;
+      if (!opts?.silent) setWalletSync("loading");
 
       try {
-        const wallet = await fetchWalletBalance(Boolean(opts?.syncOnChain));
-        if (wallet) {
-          const snap = buildWalletOnlySnapshot(wallet);
-          if (snap) {
-            setBanking(boostSnapshotBalances(snap, balance?.availableUsd));
-            walletLoaded = true;
-            setInitialLoading(false);
+        const capital = await fetchCapitalWallet();
+
+        if (capital.ok) {
+          const snap = snapshotFromCapitalWallet(capital, user.id);
+          setBanking(snap);
+          setWalletHealth(healthFromResponse(capital, false));
+          setWalletSync("synced");
+          setSyncError(null);
+          setWalletWarnings(capital.warnings);
+          setLastRefreshedAt(new Date(capital.balance.syncedAt));
+          void refreshBalance();
+        } else if (capital.code === "WALLET_NOT_FOUND") {
+          setWalletSync("no_wallet");
+          setSyncError(capital.message);
+          setWalletHealth(null);
+        } else {
+          setWalletSync("error");
+          setSyncError(capital.message);
+          setWalletHealth(healthFromResponse(capital, false));
+          if (capital.wallet) {
+            setBanking((prev) =>
+              prev ?
+                {
+                  ...prev,
+                  walletAddress: capital.wallet!.address,
+                  arc: {
+                    ...prev.arc,
+                    identityWallet: {
+                      address: capital.wallet!.address,
+                      label: capital.wallet!.shortAddress,
+                      provider: "embedded",
+                      circleWalletId: null,
+                      depositAddress: capital.wallet!.address,
+                      onChainUsdcUsd: null,
+                    },
+                  },
+                  balances: {
+                    ...prev.balances,
+                    onChainUsdcUsd: null,
+                  },
+                }
+              : null,
+            );
           }
         }
-
-        const bankResult = await Promise.race([
-          fetch("/api/banking/account", {
-            credentials: "include",
-            signal: AbortSignal.timeout(18_000),
-          }),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 18_000)),
-        ]);
-
-        if (bankResult && "ok" in bankResult && bankResult.ok) {
-          const raw = await bankResult.json();
-          let snapshot = normalizeBankingSnapshot(raw);
-          if (snapshot) {
-            if (wallet) snapshot = mergeWalletBalanceIntoSnapshot(snapshot, wallet);
-            snapshot = boostSnapshotBalances(snapshot, balance?.availableUsd);
-            setBanking(snapshot);
-            walletLoaded = true;
-          }
-        }
-
-        try {
-          const ovRes = await fetch("/api/payments/overview", {
-            credentials: "include",
-            signal: AbortSignal.timeout(10_000),
+      } catch {
+        setWalletSync("error");
+        setSyncError("Could not sync Arc balance. Try again.");
+        if (payoutWallet) {
+          setWalletHealth({
+            address: payoutWallet,
+            shortAddress: `${payoutWallet.slice(0, 6)}…${payoutWallet.slice(-4)}`,
+            source: "server_wallet",
+            chainId: ARC_CHAIN_ID,
+            blockNumber: null,
+            syncedAt: null,
+            rpcStatus: "error",
+            nativeUsdc: null,
+            erc20Usdc: null,
           });
-          if (ovRes.ok) {
-            const ov = await ovRes.json();
-            setOverview({
-              settlements: ov.settlements ?? [],
-              recentAuthorizations: ov.recentAuthorizations ?? [],
-            });
-          }
-        } catch {
-          /* overview is optional */
-        }
-
-        void refreshBalance();
-        setLastRefreshedAt(new Date());
-
-        if (!walletLoaded && !opts?.silent) {
-          toast.error("Could not load your account");
         }
       } finally {
-        setInitialLoading(false);
         setRefreshing(false);
       }
     },
-    [balance?.availableUsd, buildWalletOnlySnapshot, refreshBalance, user],
+    [payoutWallet, refreshBalance, user],
+  );
+
+  const loadBankingMeta = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const bankRes = await fetch("/api/banking/account", {
+        credentials: "include",
+        signal: AbortSignal.timeout(18_000),
+      });
+      if (!bankRes.ok) {
+        setWalletWarnings((w) =>
+          w.includes("Account metadata unavailable") ? w : [...w, "Account metadata unavailable"],
+        );
+        return;
+      }
+      const raw = await bankRes.json();
+      const snapshot = normalizeBankingSnapshot(raw);
+      if (!snapshot) return;
+
+      setBanking((prev) => {
+        if (!prev || walletSync !== "synced") return snapshot;
+        return {
+          ...snapshot,
+          balances: {
+            ...snapshot.balances,
+            availableUsd: prev.balances.availableUsd,
+            onChainUsdcUsd: prev.balances.onChainUsdcUsd,
+            reservedUsd: Math.max(snapshot.balances.reservedUsd, prev.balances.reservedUsd),
+          },
+          walletAddress: prev.walletAddress ?? snapshot.walletAddress,
+          arc: {
+            ...snapshot.arc,
+            identityWallet: prev.arc.identityWallet ?? snapshot.arc.identityWallet,
+          },
+        };
+      });
+    } catch {
+      setWalletWarnings((w) =>
+        w.includes("Account metadata unavailable") ? w : [...w, "Account metadata unavailable"],
+      );
+    }
+  }, [user, walletSync]);
+
+  const loadOverview = useCallback(async () => {
+    if (!user) return;
+    try {
+      const ovRes = await fetch("/api/payments/overview", {
+        credentials: "include",
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (ovRes.ok) {
+        const ov = await ovRes.json();
+        setOverview({
+          settlements: ov.settlements ?? [],
+          recentAuthorizations: ov.recentAuthorizations ?? [],
+        });
+      }
+    } catch {
+      /* optional */
+    }
+  }, [user]);
+
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      await loadWallet(opts);
+      void loadBankingMeta();
+      void loadOverview();
+    },
+    [loadWallet, loadBankingMeta, loadOverview],
   );
 
   useEffect(() => {
-    if (!user) {
-      setInitialLoading(false);
-      return;
-    }
-    void load({ syncOnChain: true });
+    if (!user) return;
+    void load({ silent: false });
     const t = setInterval(() => void load({ silent: true }), REFRESH_INTERVAL_MS);
     return () => clearInterval(t);
   }, [load, user]);
-
-  useEffect(() => {
-    if (!balance || !user || banking || initialLoading) return;
-    void fetchWalletBalance().then((wallet) => {
-      if (!wallet) return;
-      setBanking(buildWalletOnlySnapshot(wallet));
-    });
-  }, [balance, banking, buildWalletOnlySnapshot, initialLoading, user]);
-
-  const displayAccount = useMemo(() => {
-    if (banking) {
-      return boostSnapshotBalances(banking, balance?.availableUsd);
-    }
-    if (!balance || !user) return null;
-    return boostSnapshotBalances(
-      bankingSnapshotFromWalletBalance({
-        userId: user.id,
-        email: user.email,
-        displayName:
-          (user.user_metadata?.full_name as string | undefined) ??
-          user.email?.split("@")[0] ??
-          null,
-        walletAddress: payoutWallet ?? undefined,
-        availableUsd: balance.availableUsd,
-      }),
-      balance.availableUsd,
-    );
-  }, [balance, banking, payoutWallet, user]);
 
   async function handleClaim() {
     if (!payoutWallet) {
       toast.error("No wallet on your account — sign in again or contact support");
       return;
     }
-    const claimable = displayAccount?.balances?.earnedClaimableUsd ?? 0;
+    const claimable = banking?.balances?.earnedClaimableUsd ?? 0;
     if (claimable <= 0) {
       toast.message(BANKING_UI.claimNothing);
       return;
@@ -228,20 +368,12 @@ export function PaymentsOS() {
         return;
       }
       toast.success(`${BANKING_UI.claimSuccess} — $${total.toFixed(2)}`);
-      void load({ silent: true, syncOnChain: true });
+      void load({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Claim failed");
     } finally {
       setClaiming(false);
     }
-  }
-
-  function handleRefresh() {
-    void load({ silent: false, syncOnChain: true });
-  }
-
-  function handleSignIn() {
-    openSignIn();
   }
 
   const settlements = useMemo(() => {
@@ -268,19 +400,26 @@ export function PaymentsOS() {
     return rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [overview]);
 
+  const balanceKnown = walletSync === "synced";
+
   return (
     <ResolveBanking
-      account={displayAccount}
+      account={banking}
       settlements={settlements}
-      initialLoading={initialLoading && !displayAccount}
+      initialLoading={walletSync === "loading"}
       refreshing={refreshing}
       signedIn={Boolean(user)}
-      payoutWallet={payoutWallet ?? null}
+      payoutWallet={payoutWallet}
       claiming={claiming}
       lastRefreshedAt={lastRefreshedAt}
+      walletSync={walletSync}
+      balanceKnown={balanceKnown}
+      syncError={syncError}
+      walletHealth={walletHealth}
+      walletWarnings={walletWarnings}
       onClaim={() => void handleClaim()}
-      onRefresh={handleRefresh}
-      onSignIn={handleSignIn}
+      onRefresh={() => void load({ silent: false })}
+      onSignIn={openSignIn}
     />
   );
 }

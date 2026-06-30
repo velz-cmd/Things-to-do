@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Activity, Radio } from "lucide-react";
+import { Activity } from "lucide-react";
 import type { LiveEventItem } from "@/lib/events/live";
 import { normalizeLiveEventDomain } from "@/lib/events/live-feed-labels";
 import {
@@ -15,6 +15,7 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverFeedSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
+import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import {
   DiscoverRetryButton,
@@ -97,34 +98,29 @@ export function DiscoverLiveFeed({
 
   const events = useMemo(() => data?.events ?? [], [data?.events]);
 
-  return (
-    <section className={clsx("mb-12", className)}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Radio
-            className={clsx("h-4 w-4", data?.live ? "text-emerald-400" : "text-resolve-muted-dim")}
-          />
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-              Live value feed
-            </p>
-            <p className="text-xs text-resolve-muted">
-              PR merges, program funds, claims, Arc settlements, identity links, sensor connects
-            </p>
-          </div>
-        </div>
-        {data?.live && (
-          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">
-            Live · {formatRelative(data.updatedAt)}
-          </span>
-        )}
-        <DiscoverSectionRefresh
-          sectionId="live-feed"
-          onRefresh={loadFeed}
-          lastUpdated={data?.updatedAt}
-        />
-      </div>
+  const actions = (
+    <>
+      {data?.live && (
+        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300">
+          Live · {formatRelative(data.updatedAt)}
+        </span>
+      )}
+      <DiscoverSectionRefresh
+        sectionId="live-feed"
+        onRefresh={loadFeed}
+        lastUpdated={data?.updatedAt}
+      />
+    </>
+  );
 
+  return (
+    <DiscoverPremiumSection
+      id="live-feed"
+      title="Live value feed"
+      subtitle="PR merges, program funds, claims, Arc settlements, identity links, sensor connects"
+      className={className}
+      actions={actions}
+    >
       <div className="mb-3 flex flex-wrap gap-1.5">
         {FEED_DOMAIN_CHIPS.map((chip) => (
           <button
@@ -160,7 +156,7 @@ export function DiscoverLiveFeed({
           </p>
         </DiscoverStatePanel>
       ) : (
-        <ul className="divide-y divide-resolve-border/50 rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/25">
+        <ul className="divide-y divide-white/[0.06] rounded-xl border border-white/[0.06] bg-white/[0.02]">
           {events.map((item) => {
             const primary = primaryLiveEventAction(item);
             const secondary = liveEventActions(item).filter((a) => a.id !== primary.id);
@@ -239,6 +235,6 @@ export function DiscoverLiveFeed({
           })}
         </ul>
       )}
-    </section>
+    </DiscoverPremiumSection>
   );
 }

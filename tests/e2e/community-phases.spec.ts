@@ -249,7 +249,7 @@ test.describe("Community phases — surfaces", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: /Where is value being created/i,
+        name: /What do you want to do/i,
       }),
     ).toBeVisible();
     await expect(page.getByRole("main").getByText("Live value feed")).toBeVisible();
@@ -264,7 +264,7 @@ test.describe("Community phases — surfaces", () => {
     ).toBeVisible();
     await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
     await page.locator("#opportunities").scrollIntoViewIfNeeded();
-    await expect(page.locator("#opportunities").getByText("Opportunity board", { exact: true })).toBeVisible();
+    await expect(page.locator("#opportunities").getByRole("heading", { name: "Opportunity board" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
   });
 

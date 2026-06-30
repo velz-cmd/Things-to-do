@@ -2,7 +2,7 @@
 
 import { SignalAuthorizationRails } from "@/components/resolve/signal-rails/signal-authorization-rails";
 
-/** Discover — collapsed catalog teaser; actions live in Mission control. */
+/** Discover — full catalog; always expanded (no collapse). */
 export function DiscoverAgentSignalMarket({
   signedIn,
   className,
@@ -14,7 +14,7 @@ export function DiscoverAgentSignalMarket({
     <SignalAuthorizationRails
       signedIn={signedIn}
       variant="discover"
-      defaultExpanded={false}
+      defaultExpanded
       className={className}
     />
   );

@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { listBrowsableCommunities, type CommunitySensorStatus } from "@/lib/sensors/catalog-visibility";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
+import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { communityStripActions } from "@/lib/discover/community-strip-actions";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
@@ -89,23 +90,20 @@ export function DiscoverCommunities({
   }, [query, kind, sensorStatuses]);
 
   return (
-    <section id="communities" className="mb-12 scroll-mt-24">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-        Connect communities
-      </p>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-white">GitHub, Jellyfin, music & more</h2>
+    <DiscoverPremiumSection
+      id="communities"
+      title="Connect communities"
+      subtitle="GitHub, Jellyfin, music & more — connect sensors where value already lives"
+      className="mb-12"
+      actions={
         <DiscoverSectionRefresh
           sectionId="communities-strip"
           onRefresh={loadCommunities}
           lastUpdated={lastLoaded}
         />
-      </div>
-      <p className="mt-1 max-w-2xl text-sm text-resolve-muted">
-        Connect sensors where value already lives — open the community page for programs and health.
-      </p>
-
-      <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+      }
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-resolve-muted" />
           <input
@@ -179,6 +177,6 @@ export function DiscoverCommunities({
       {filtered.length === 0 && (
         <p className="mt-6 text-sm text-resolve-muted">No communities match your filter.</p>
       )}
-    </section>
+    </DiscoverPremiumSection>
   );
 }

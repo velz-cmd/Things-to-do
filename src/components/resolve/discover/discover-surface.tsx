@@ -8,6 +8,7 @@ import { DiscoverAgentSignalMarket } from "@/components/resolve/discover/discove
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
+import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
 import { DiscoverLiveFeed } from "@/components/resolve/discover/discover-live-feed";
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
@@ -20,6 +21,7 @@ import {
   DiscoverActionAuditProvider,
 } from "@/components/resolve/discover/discover-action-audit-panel";
 import { DiscoverRoleFilters } from "@/components/resolve/discover/discover-role-filters";
+import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { sectionVisibleForRole } from "@/lib/discover/role-filters";
 import type { DiscoverIntent } from "@/lib/discover/types";
@@ -32,7 +34,7 @@ const DOMAIN_CHIPS = [
   { label: "All", kind: "all" as const },
 ];
 
-/** Global value radar — observe and act: fund, install, claim, open entities. */
+/** Job-first Discover — pick what to do, then proof and actions. */
 export function DiscoverSurface() {
   const { user } = useAuth();
   return (
@@ -63,6 +65,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   const [query, setQuery] = useState("");
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
   const [role, setRole] = useState<DiscoverRole>("all");
+  const [activeJob, setActiveJob] = useState<DiscoverJobId | null>(null);
   const intent = roleToIntent(role);
   const [communityKind, setCommunityKind] = useState<
     "all" | "music" | "oss" | "research" | "protocol"
@@ -75,36 +78,46 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
     document.getElementById("communities")?.scrollIntoView({ behavior: "smooth" });
   }
 
+  function handleJobSelect(jobId: DiscoverJobId, nextRole: DiscoverRole, scrollTo: string) {
+    setActiveJob(jobId);
+    setRole(nextRole);
+    window.requestAnimationFrame(() => {
+      if (scrollTo === "discover-search") {
+        document.getElementById("discover-search")?.scrollIntoView({ behavior: "smooth" });
+        document.querySelector<HTMLInputElement>("#discover-search input")?.focus();
+        return;
+      }
+      document.getElementById(scrollTo)?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-8 pb-12 lg:px-8">
-      <header className="mb-6">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-          Global value radar
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
-          Where is value being created — and what can you do right now?
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-resolve-muted">
-          Open source, communities, creators, protocols, research, music, public goods. Every card
-          has proof and actions — fund, install, claim, create programs, connect sensors.
-        </p>
-      </header>
+      <DiscoverJobHero activeJob={activeJob} onSelectJob={handleJobSelect} />
 
-      <DiscoverGlobalSearch
-        signedIn={Boolean(user)}
-        query={query}
-        onQueryChange={setQuery}
-        onQueueFilter={setQueueFilter}
-      />
+      <div id="discover-search" className="scroll-mt-24">
+        <DiscoverGlobalSearch
+          signedIn={Boolean(user)}
+          query={query}
+          onQueryChange={setQuery}
+          onQueueFilter={setQueueFilter}
+        />
+      </div>
 
-      <DiscoverRoleFilters value={role} onChange={setRole} className="mb-6 mt-6" />
+      <details className="group mb-6 mt-6 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+        <summary className="cursor-pointer list-none text-[11px] font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="text-resolve-calm-periwinkle group-open:text-white">I am a…</span>
+          <span className="ml-2 text-resolve-muted-dim">(optional — auto-set when you pick a job)</span>
+        </summary>
+        <DiscoverRoleFilters value={role} onChange={setRole} className="mt-3" />
+      </details>
 
-      {sectionVisibleForRole("pulse", role) && <DiscoverNetworkPulse className="mb-6 mt-2" />}
+      {sectionVisibleForRole("pulse", role) && <DiscoverNetworkPulse className="mb-6" />}
 
       {user && sectionVisibleForRole("claim", role) && <DiscoverClaimHint />}
 
       {sectionVisibleForRole("bubblemap", role) && (
-        <DiscoverValueBubblemap className="mb-10 mt-8" intent={intent} role={role} />
+        <DiscoverValueBubblemap className="mb-10" intent={intent} role={role} />
       )}
 
       <div className="mb-8 flex flex-wrap gap-2">
@@ -125,7 +138,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
                 });
               }
             }}
-            className="rounded-full border border-resolve-border/60 px-3 py-1 text-[11px] text-resolve-muted transition hover:text-white"
+            className="rounded-full border border-resolve-calm-periwinkle/20 bg-white/[0.03] px-3 py-1 text-[11px] text-resolve-muted transition hover:border-resolve-calm-periwinkle/35 hover:text-white"
           >
             {d.label}
           </button>
@@ -138,7 +151,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           query={effectiveQuery}
           intent={intent}
           role={role}
-          className="mb-12 scroll-mt-24"
+          className="mb-12"
         />
       )}
 
@@ -162,7 +175,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           query={effectiveQuery}
           intent={intent}
           role={role}
-          className="mb-12 scroll-mt-24"
+          className="mb-12"
         />
       )}
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverClaimHint } from "@/components/resolve/discover/discover-claim-hint";
+import { DiscoverAgentSignalMarket } from "@/components/resolve/discover/discover-agent-signal-market";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
@@ -163,6 +164,10 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           role={role}
           className="mb-12 scroll-mt-24"
         />
+      )}
+
+      {sectionVisibleForRole("agentSignals", role) && (
+        <DiscoverAgentSignalMarket signedIn={Boolean(user)} className="mb-12" />
       )}
 
       {sectionVisibleForRole("communities", role) && (

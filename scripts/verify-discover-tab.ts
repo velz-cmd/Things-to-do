@@ -125,7 +125,7 @@ async function hygieneChecks() {
   for (const token of forbiddenInDiscover) {
     assert(!html.includes(token), `discover HTML excludes "${token}"`);
   }
-  assert(html.includes("Communities strip"), "discover HTML includes communities strip");
+  assert(html.includes("Connect communities"), "discover HTML includes communities section");
   assert(html.includes("Global value radar"), "discover HTML includes radar header");
 }
 

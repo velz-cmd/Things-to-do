@@ -8,7 +8,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     doctrine:
-      "Find service → pay per request in USDC (x402 on Arc) → authorization recorded → agent continues",
+      "Micropay on Arc, authorize on ledger, mission continues — agents and operators share one proof rail.",
     gatewayEnabled: isAgentGatewayEnabled(),
     services,
     updatedAt: new Date().toISOString(),

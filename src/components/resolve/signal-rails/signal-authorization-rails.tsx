@@ -57,28 +57,19 @@ const LANE_ORDER = ["agent", "creator", "maintainer"] as const;
 
 const LANE_META: Record<
   (typeof LANE_ORDER)[number],
-  { title: string; subtitle: string; accent: string; rail: string; laneClass: string }
+  { title: string; subtitle: string }
 > = {
   agent: {
     title: "Agent intelligence",
     subtitle: "x402 APIs — structured signal per request",
-    accent: "text-resolve-calm-blue",
-    rail: "border-l-resolve-calm-blue/50",
-    laneClass: "resolve-signal-lane--agent",
   },
   creator: {
     title: "Creator attribution",
     subtitle: "Verified plays and watches on royalty rails",
-    accent: "text-resolve-calm-rose",
-    rail: "border-l-resolve-calm-rose/45",
-    laneClass: "resolve-signal-lane--creator",
   },
   maintainer: {
     title: "Maintainer value",
     subtitle: "Citations, merges, and OSS program events",
-    accent: "text-resolve-calm-sage",
-    rail: "border-l-resolve-calm-sage/50",
-    laneClass: "resolve-signal-lane--maintainer",
   },
 };
 
@@ -286,25 +277,19 @@ export function SignalAuthorizationRails({
               {lanes.map(({ lane, services }) => {
                 const meta = LANE_META[lane];
                 return (
-                  <div key={lane} className={clsx("resolve-signal-lane", meta.laneClass)}>
-                    <div className={clsx("border-l-2 pl-3", meta.rail)}>
-                      <p
-                        className={clsx(
-                          "text-[10px] font-semibold uppercase tracking-[0.18em]",
-                          meta.accent,
-                        )}
-                      >
+                  <div key={lane}>
+                    <div className="border-l-2 border-resolve-calm-periwinkle/25 pl-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-calm-periwinkle">
                         {meta.title}
                       </p>
                       <p className="mt-0.5 text-xs text-resolve-muted-dim">{meta.subtitle}</p>
                     </div>
                     <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-                      {services.map((s, idx) => (
+                      {services.map((s) => (
                         <li key={s.id}>
                           <PremiumSignalCard
                             service={s}
                             lane={lane}
-                            featured={idx === 0}
                             isMission={isMission}
                             missionHref={missionHref}
                             onUseInMission={

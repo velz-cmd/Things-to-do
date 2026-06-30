@@ -10,6 +10,8 @@ export type NetworkIntelligence = {
   claimableUsd: number;
   settledUsd: number;
   leakingUsd: number;
+  /** Human label for the leaking/pending chip — avoids "leaking" when treasury unknown */
+  flowGapLabel: "Leaking" | "Pending funding";
   treasuryBalanceUsd: number;
   obligationsUsd: number;
   topRisks: { label: string; level: "critical" | "high" | "medium" | "low"; detail: string }[];
@@ -34,6 +36,7 @@ export function buildNetworkIntelligence(input: {
   ledger: LedgerSummary | null;
   treasuryBalanceUsd: number;
   obligationsUsd: number;
+  treasuryConfigured?: boolean;
   domainIntelligence: DomainIntelligence[];
   opportunities: FundingOpportunity[];
   sensorsOnline: number;
@@ -44,8 +47,13 @@ export function buildNetworkIntelligence(input: {
   const claimableUsd = input.ledger?.claimableUsd ?? 0;
   const settledUsd = input.ledger?.settledUsd ?? 0;
 
-  const treasuryGap = Math.max(0, input.obligationsUsd - input.treasuryBalanceUsd);
+  const treasuryConfigured = input.treasuryConfigured ?? false;
+  const treasuryGap = treasuryConfigured
+    ? Math.max(0, input.obligationsUsd - input.treasuryBalanceUsd)
+    : 0;
   const leakingUsd = pendingFundingUsd + treasuryGap;
+  const flowGapLabel =
+    treasuryConfigured && treasuryGap > 0 ? "Leaking" : "Pending funding";
 
   const opportunityRisks = input.opportunities
     .filter((o) => o.priority === "critical" || o.priority === "high")
@@ -70,7 +78,7 @@ export function buildNetworkIntelligence(input: {
 
   const headline =
     recognizedUsd > 0
-      ? `$${recognizedUsd.toFixed(0)} recognized · $${leakingUsd.toFixed(0)} still leaking`
+      ? `$${recognizedUsd.toFixed(0)} recognized · $${leakingUsd.toFixed(0)} ${flowGapLabel.toLowerCase()}`
       : input.sensorsOnline > 0
         ? `${input.sensorsOnline} sensor${input.sensorsOnline === 1 ? "" : "s"} online — value discovery active`
         : "Connect ecosystems where work already happens";
@@ -81,6 +89,7 @@ export function buildNetworkIntelligence(input: {
     claimableUsd,
     settledUsd,
     leakingUsd,
+    flowGapLabel,
     treasuryBalanceUsd: input.treasuryBalanceUsd,
     obligationsUsd: input.obligationsUsd,
     topRisks,

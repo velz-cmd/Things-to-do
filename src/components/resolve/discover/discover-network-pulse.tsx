@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import clsx from "clsx";
-import { Activity, ArrowRight, Radio, Wallet } from "lucide-react";
+import { Activity, ArrowRight, Radio } from "lucide-react";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 
 export function DiscoverNetworkPulse({ className }: { className?: string }) {
-  const { feed, loading } = useDiscoverRadarFeed();
+  const { feed, loading, error, refresh } = useDiscoverRadarFeed();
 
-  if (loading || !feed?.intelligence) {
+  if (loading && !feed) {
     return (
       <div className={clsx("rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 px-5 py-4", className)}>
         <p className="text-xs text-resolve-muted">Loading network pulse…</p>
@@ -16,7 +16,30 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
     );
   }
 
-  const { intelligence: i, fundableCount, ossSignalCount, claimHint, realSignalCount } = feed;
+  if (error && !feed?.intelligence) {
+    return (
+      <div className={clsx("rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-5 py-4", className)}>
+        <p className="text-xs text-resolve-muted">{error}</p>
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          className="mt-2 text-xs font-medium text-resolve-accent hover:underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!feed?.intelligence) {
+    return (
+      <div className={clsx("rounded-xl border border-resolve-border/60 bg-resolve-bg-deep/30 px-5 py-4", className)}>
+        <p className="text-xs text-resolve-muted">Network pulse unavailable — connect sensors to populate ledger.</p>
+      </div>
+    );
+  }
+
+  const { intelligence: i, fundableCount, ossSignalCount, realSignalCount } = feed;
   const hasActivity =
     i.recognizedUsd > 0 || i.settledUsd > 0 || i.leakingUsd > 0 || i.sensorsOnline > 0;
 
@@ -39,27 +62,18 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
             </p>
             {realSignalCount > 0 && (
               <p className="mt-0.5 text-[10px] text-resolve-muted-dim">
-                {realSignalCount} verified gap{realSignalCount === 1 ? "" : "s"} from live sources
+                {realSignalCount} ledger-verified gap{realSignalCount === 1 ? "" : "s"}
               </p>
             )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {claimHint && claimHint.claimableUsd > 0 && (
-            <Link
-              href={claimHint.href}
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/15"
-            >
-              <Wallet className="h-3 w-3" />
-              ${claimHint.claimableUsd.toFixed(2)} ready to claim
-            </Link>
-          )}
           {i.leakingUsd > 0 && (
             <a
               href="#opportunities"
               className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] text-amber-200 hover:bg-amber-500/15"
             >
-              ${i.leakingUsd.toFixed(0)} leaking
+              ${i.leakingUsd.toFixed(0)} {i.flowGapLabel.toLowerCase()}
               <ArrowRight className="h-3 w-3" />
             </a>
           )}
@@ -80,7 +94,7 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
         <PulseStat label="Pending" value={`$${i.pendingFundingUsd.toFixed(0)}`} />
         <PulseStat label="Settled" value={`$${i.settledUsd.toFixed(0)}`} />
         <PulseStat
-          label="Leaking"
+          label={i.flowGapLabel}
           value={`$${i.leakingUsd.toFixed(0)}`}
           tone={i.leakingUsd > 0 ? "warning" : undefined}
         />

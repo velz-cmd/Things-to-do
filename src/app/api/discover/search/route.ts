@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
+import { resolveFundTarget } from "@/lib/discover/fund-target";
 import type { DiscoverSearchResult } from "@/lib/discover/types";
 
 function repoPath(owner: string, repo: string) {
@@ -25,28 +27,40 @@ export async function GET(req: Request) {
   if (q.includes("/")) {
     const [owner, repo] = q.split("/");
     if (owner && repo) {
+      const { communitySlug, templateId } = resolveCommunityForRepo(owner, repo);
+      const path = repoPath(owner, repo);
+      const target = await resolveFundTarget({ communitySlug, templateId }).catch(() => null);
       results.push({
         id: `repo-${owner}/${repo}`,
         kind: "repository",
         label: `${owner}/${repo}`,
-        subtitle: "Open repository entity surface",
-        entityPath: repoPath(owner, repo),
-        communitySlug: "react",
+        subtitle: `Attach via ${communitySlug} community`,
+        entityPath: path,
+        communitySlug,
+        programId: target?.programId ?? undefined,
+        templateId,
         actions: [
-          { id: "open", label: "Open entity", kind: "open", entityPath: repoPath(owner, repo) },
-          { id: "fund", label: "Fund gap", kind: "fund", href: "#opportunities" },
+          { id: "open", label: "Open entity", kind: "open", entityPath: path },
+          {
+            id: "fund",
+            label: "Fund gap",
+            kind: "fund",
+            programId: target?.programId ?? undefined,
+            communitySlug,
+            templateId,
+          },
           {
             id: "install",
-            label: "Install OSS",
+            label: "Install",
             kind: "install",
-            communitySlug: "react",
+            communitySlug,
           },
           {
             id: "bounty",
-            label: "Create docs bounty",
+            label: "Create program",
             kind: "create_program",
-            communitySlug: "react",
-            templateId: "docs-bounty",
+            communitySlug,
+            templateId,
           },
         ],
       });
@@ -119,20 +133,32 @@ export async function GET(req: Request) {
 
   for (const o of oss) {
     if (o.fullName.toLowerCase().includes(q) || o.headline.toLowerCase().includes(q)) {
+      const { communitySlug, templateId } = resolveCommunityForRepo(o.owner, o.repo);
+      const path = repoPath(o.owner, o.repo);
+      const target = await resolveFundTarget({ communitySlug, templateId }).catch(() => null);
       results.push({
         id: `oss-${o.fullName}`,
         kind: "repository",
         label: o.fullName,
         subtitle: o.headline,
-        entityPath: repoPath(o.owner, o.repo),
+        entityPath: path,
+        communitySlug,
+        templateId,
         actions: [
-          { id: "open", label: "Open", kind: "open", entityPath: repoPath(o.owner, o.repo) },
-          { id: "fund", label: "Fund gap", kind: "fund", href: "#opportunities" },
+          { id: "open", label: "Open", kind: "open", entityPath: path },
+          {
+            id: "fund",
+            label: "Fund gap",
+            kind: "fund",
+            programId: target?.programId ?? undefined,
+            communitySlug,
+            templateId,
+          },
           {
             id: "analyze",
             label: "Run analysis",
             kind: "analyze",
-            entityPath: repoPath(o.owner, o.repo),
+            entityPath: path,
           },
         ],
       });
@@ -144,10 +170,9 @@ export async function GET(req: Request) {
     artist: { label: "Creator radar", href: "#radar-music" },
     oss: { label: "OSS radar", href: "#radar-oss" },
     github: { label: "OSS radar", href: "#radar-oss" },
-    research: { label: "Research radar", href: "#radar-research" },
+    research: { label: "Research radar", href: "#radar-dao" },
     dao: { label: "DAO radar", href: "#radar-dao" },
     claim: { label: "Claim earnings", href: "/claim" },
-    fund: { label: "Fulfillment queue", href: "#opportunities" },
   };
 
   for (const [key, hint] of Object.entries(domainHints)) {

@@ -13,6 +13,7 @@ import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-net
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverValueBubblemap } from "@/components/resolve/discover/discover-value-bubblemap";
+import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
 
 const DOMAIN_CHIPS = [
   { label: "Music", kind: "music" as const },
@@ -25,6 +26,14 @@ const DOMAIN_CHIPS = [
 /** Global value radar — observe and act: fund, install, claim, open entities. */
 export function DiscoverSurface() {
   const { user } = useAuth();
+  return (
+    <DiscoverActionsProvider signedIn={Boolean(user)}>
+      <DiscoverSurfaceContent user={user} />
+    </DiscoverActionsProvider>
+  );
+}
+
+function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["user"] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [communityKind, setCommunityKind] = useState<

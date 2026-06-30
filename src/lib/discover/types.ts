@@ -7,8 +7,7 @@ export type DiscoverActionKind =
   | "connect_sensor"
   | "sponsor"
   | "share"
-  | "analyze"
-  | "follow";
+  | "analyze";
 
 export type DiscoverAction = {
   id: string;
@@ -16,6 +15,7 @@ export type DiscoverAction = {
   kind: DiscoverActionKind;
   href?: string;
   programId?: string;
+  missionId?: string;
   communitySlug?: string;
   templateId?: string;
   entityPath?: string;
@@ -37,6 +37,7 @@ export type TrendingValueGap = {
   communitySlug?: string;
   programId?: string;
   templateId?: string;
+  missionId?: string;
   actions: DiscoverAction[];
 };
 
@@ -48,5 +49,6 @@ export type DiscoverSearchResult = {
   entityPath?: string;
   communitySlug?: string;
   programId?: string;
+  templateId?: string;
   actions: DiscoverAction[];
 };

@@ -37,10 +37,17 @@ function eventActions(item: LiveEventItem): DiscoverAction[] {
     actions.push({ id: "claim", label: "Claim", kind: "claim", href: "/claim" });
   }
   if (item.status === "pending_funding" || item.status === "authorized") {
-    actions.push({ id: "fund", label: "Fund", kind: "fund", href: "#opportunities" });
+    actions.push({
+      id: "fund",
+      label: "Fund",
+      kind: "fund",
+      missionId: item.missionId,
+      communitySlug: item.communitySlug,
+      amountUsd: item.amountUsd,
+    });
   }
   if (authId) {
-    actions.push({ id: "share", label: "Share receipt", kind: "share", href: `/ledger/${authId}` });
+    actions.push({ id: "share", label: "Share receipt", kind: "share", href: `/receipt/${authId}` });
   }
   if (item.communitySlug) {
     actions.push({

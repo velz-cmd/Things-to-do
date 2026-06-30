@@ -35,6 +35,9 @@ export async function GET(req: Request) {
         kind: "repository",
         label: `${owner}/${repo}`,
         subtitle: `Attach via ${communitySlug} community`,
+        dataSource: "github",
+        amountVerified: true,
+        amountUsd: undefined,
         entityPath: path,
         communitySlug,
         programId: target?.programId ?? undefined,
@@ -79,6 +82,8 @@ export async function GET(req: Request) {
         kind: "community",
         label: c.name,
         subtitle: c.tagline,
+        dataSource: "catalog_preview",
+        amountVerified: false,
         communitySlug: c.slug,
         actions: [
           { id: "install", label: "Install", kind: "install", communitySlug: c.slug },
@@ -116,6 +121,9 @@ export async function GET(req: Request) {
         kind: "program",
         label: o.programName,
         subtitle: `${o.communityName} · $${o.fundingGapUsd.toFixed(0)} gap`,
+        dataSource: "supabase_ledger",
+        amountVerified: true,
+        amountUsd: o.fundingGapUsd,
         communitySlug: o.communitySlug,
         programId: o.programId,
         actions: [
@@ -141,6 +149,9 @@ export async function GET(req: Request) {
         kind: "repository",
         label: o.fullName,
         subtitle: o.headline,
+        dataSource: "github",
+        amountVerified: true,
+        amountUsd: o.health.fundingGapUsd,
         entityPath: path,
         communitySlug,
         templateId,
@@ -182,6 +193,8 @@ export async function GET(req: Request) {
         kind: "domain",
         label: hint.label,
         subtitle: `Jump to ${key} actions in Discover`,
+        dataSource: "local_seed",
+        amountVerified: false,
         actions: [{ id: "jump", label: "Go", kind: "open", href: hint.href }],
       });
     }

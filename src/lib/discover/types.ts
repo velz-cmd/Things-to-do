@@ -1,3 +1,14 @@
+export type DiscoverDataSource =
+  | "github"
+  | "musicbrainz"
+  | "openalex"
+  | "arc"
+  | "supabase_ledger"
+  | "catalog_preview"
+  | "local_seed";
+
+export type DiscoverIntent = "earn" | "fund" | "operate" | "build" | "sponsor" | "all";
+
 export type DiscoverActionKind =
   | "fund"
   | "install"
@@ -29,6 +40,10 @@ export type TrendingValueGap = {
   why: string;
   whoBenefits: string;
   proofSource: string;
+  /** Primary data provenance for this card */
+  dataSource: DiscoverDataSource;
+  /** True when amountUsd comes from a live API/ledger, not catalog preview */
+  amountVerified: boolean;
   amountNeededUsd: number;
   moneyCanMoveUsd: number;
   peopleImpacted: number;
@@ -38,6 +53,8 @@ export type TrendingValueGap = {
   programId?: string;
   templateId?: string;
   missionId?: string;
+  updatedAt?: string;
+  proofHref?: string;
   actions: DiscoverAction[];
 };
 
@@ -46,9 +63,27 @@ export type DiscoverSearchResult = {
   kind: "community" | "repository" | "program" | "entity" | "domain";
   label: string;
   subtitle: string;
+  dataSource: DiscoverDataSource;
+  amountVerified?: boolean;
+  amountUsd?: number;
   entityPath?: string;
   communitySlug?: string;
   programId?: string;
   templateId?: string;
   actions: DiscoverAction[];
+};
+
+export type ActionAuditStatus = "idle" | "pending" | "success" | "blocked" | "error";
+
+export type ActionAuditEntry = {
+  id: string;
+  surface: string;
+  label: string;
+  actionType: DiscoverActionKind;
+  requiredAuth: boolean;
+  requiredData: string[];
+  apiEndpoint: string | null;
+  currentStatus: ActionAuditStatus;
+  blocker?: string;
+  timestamp: string;
 };

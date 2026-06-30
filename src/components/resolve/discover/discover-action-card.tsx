@@ -1,8 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import clsx from "clsx";
-import type { DiscoverAction, TrendingValueGap } from "@/lib/discover/types";
+import type { DiscoverAction, DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
+import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
+import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
+import { formatDiscoverMoney } from "@/lib/discover/money-display";
+import { filterActionsByIntent } from "@/lib/discover/intent-filters";
 
 const ACTION_STYLES: Record<string, string> = {
   fund: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
@@ -12,15 +17,39 @@ const ACTION_STYLES: Record<string, string> = {
   sponsor: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
   default: "border-white/10 bg-white/[0.04] text-resolve-muted hover:text-white hover:bg-white/[0.08]",
 };
+
 type DiscoverActionCardProps = {
   gap: TrendingValueGap;
   signedIn: boolean;
+  intent?: DiscoverIntent;
   rank?: number;
   compact?: boolean;
+  surface?: string;
 };
 
-export function DiscoverActionCard({ gap, signedIn, rank, compact }: DiscoverActionCardProps) {
+export function DiscoverActionCard({
+  gap,
+  signedIn: _signedIn,
+  intent = "all",
+  rank,
+  compact,
+  surface = "action-card",
+}: DiscoverActionCardProps) {
   const { runAction } = useDiscoverActions();
+  const { registerVisibleAction } = useDiscoverActionAudit();
+  const actions = filterActionsByIntent(gap.actions, intent);
+  const needed = formatDiscoverMoney(gap.amountNeededUsd, gap.amountVerified, gap.dataSource);
+  const movable = formatDiscoverMoney(
+    gap.moneyCanMoveUsd,
+    gap.amountVerified && gap.moneyCanMoveUsd > 0,
+    gap.dataSource,
+  );
+
+  useEffect(() => {
+    for (const action of actions) {
+      registerVisibleAction(surface, action);
+    }
+  }, [actions, registerVisibleAction, surface]);
 
   return (
     <article
@@ -40,6 +69,7 @@ export function DiscoverActionCard({ gap, signedIn, rank, compact }: DiscoverAct
             <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase text-resolve-muted">
               {gap.domain}
             </span>
+            <DiscoverSourceBadge source={gap.dataSource} />
           </div>
           <h3 className={clsx("mt-1 font-medium text-white", compact ? "text-sm" : "text-base")}>
             {gap.headline}
@@ -52,16 +82,26 @@ export function DiscoverActionCard({ gap, signedIn, rank, compact }: DiscoverAct
           )}
         </div>
         <div className="shrink-0 text-right">
-          {gap.amountNeededUsd > 0 && (
-            <p className="text-lg font-semibold tabular-nums text-amber-200">
-              ${gap.amountNeededUsd.toFixed(0)}
-            </p>
-          )}
-          {gap.moneyCanMoveUsd > 0 && gap.moneyCanMoveUsd !== gap.amountNeededUsd && (
-            <p className="text-[10px] text-emerald-300/80">
-              ${gap.moneyCanMoveUsd.toFixed(0)} can move
-            </p>
-          )}
+          <p
+            className={clsx(
+              "text-lg font-semibold tabular-nums",
+              needed.tone === "verified" ? "text-amber-200" : "text-resolve-muted",
+            )}
+          >
+            {needed.label}
+          </p>
+          {gap.amountVerified &&
+            gap.moneyCanMoveUsd > 0 &&
+            gap.moneyCanMoveUsd !== gap.amountNeededUsd && (
+              <p
+                className={clsx(
+                  "text-[10px]",
+                  movable.tone === "verified" ? "text-emerald-300/80" : "text-resolve-muted",
+                )}
+              >
+                {movable.label} can move
+              </p>
+            )}
           {gap.peopleImpacted > 0 && (
             <p className="mt-1 text-[10px] text-resolve-muted">
               {gap.peopleImpacted} impacted
@@ -73,15 +113,24 @@ export function DiscoverActionCard({ gap, signedIn, rank, compact }: DiscoverAct
       {!compact && (
         <p className="mt-3 text-[10px] text-resolve-muted-dim">
           Proof: {gap.proofSource}
+          {gap.proofHref ? (
+            <>
+              {" "}
+              ·{" "}
+              <a href={gap.proofHref} className="text-resolve-accent hover:underline">
+                View proof
+              </a>
+            </>
+          ) : null}
         </p>
       )}
 
       <div className={clsx("flex flex-wrap gap-2", compact ? "mt-2" : "mt-4")}>
-        {gap.actions.map((action) => (
+        {actions.map((action) => (
           <ActionChip
             key={action.id}
             action={action}
-            onClick={() => void runAction(action)}
+            onClick={() => void runAction(action, surface)}
           />
         ))}
       </div>
@@ -109,12 +158,20 @@ export function DiscoverActionChip({
   action,
   signedIn: _signedIn,
   primary,
+  surface = "action-chip",
 }: {
   action: DiscoverAction;
   signedIn: boolean;
   primary?: boolean;
+  surface?: string;
 }) {
   const { runAction } = useDiscoverActions();
+  const { registerVisibleAction } = useDiscoverActionAudit();
+
+  useEffect(() => {
+    registerVisibleAction(surface, action);
+  }, [action, registerVisibleAction, surface]);
+
   const style = primary
     ? ACTION_STYLES[action.kind] ?? ACTION_STYLES.fund
     : ACTION_STYLES.default;
@@ -122,7 +179,7 @@ export function DiscoverActionChip({
   return (
     <button
       type="button"
-      onClick={() => void runAction(action)}
+      onClick={() => void runAction(action, surface)}
       className={clsx(
         "rounded-lg border px-2.5 py-1 text-[11px] font-medium transition",
         style,

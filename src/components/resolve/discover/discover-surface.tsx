@@ -14,6 +14,12 @@ import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverValueBubblemap } from "@/components/resolve/discover/discover-value-bubblemap";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
+import {
+  DiscoverActionAuditPanel,
+  DiscoverActionAuditProvider,
+} from "@/components/resolve/discover/discover-action-audit-panel";
+import { DiscoverIntentFilters } from "@/components/resolve/discover/discover-intent-filters";
+import type { DiscoverIntent } from "@/lib/discover/types";
 
 const DOMAIN_CHIPS = [
   { label: "Music", kind: "music" as const },
@@ -27,15 +33,19 @@ const DOMAIN_CHIPS = [
 export function DiscoverSurface() {
   const { user } = useAuth();
   return (
-    <DiscoverActionsProvider signedIn={Boolean(user)}>
-      <DiscoverSurfaceContent user={user} />
-    </DiscoverActionsProvider>
+    <DiscoverActionAuditProvider>
+      <DiscoverActionsProvider signedIn={Boolean(user)}>
+        <DiscoverSurfaceContent user={user} />
+        <DiscoverActionAuditPanel />
+      </DiscoverActionsProvider>
+    </DiscoverActionAuditProvider>
   );
 }
 
 function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["user"] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [intent, setIntent] = useState<DiscoverIntent>("all");
   const [communityKind, setCommunityKind] = useState<
     "all" | "music" | "oss" | "research" | "protocol"
   >("all");
@@ -109,11 +119,13 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         onSubmit={handleSearchSubmit}
       />
 
-      <DiscoverNetworkPulse className="mb-6 mt-8" />
+      <DiscoverIntentFilters value={intent} onChange={setIntent} className="mb-6 mt-6" />
+
+      <DiscoverNetworkPulse className="mb-6 mt-2" />
 
       {user && <DiscoverClaimHint />}
 
-      <DiscoverValueBubblemap className="mb-10 mt-8" />
+      <DiscoverValueBubblemap className="mb-10 mt-8" intent={intent} />
 
       <div className="mb-8 flex flex-wrap gap-2">
         {DOMAIN_CHIPS.map((d) => (
@@ -143,6 +155,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
       <DiscoverTrendingGaps
         signedIn={Boolean(user)}
         query={query}
+        intent={intent}
         className="mb-12 scroll-mt-24"
       />
 
@@ -167,6 +180,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
       <DiscoverOpportunityQueue
         signedIn={Boolean(user)}
         query={query}
+        intent={intent}
         className="mb-12 scroll-mt-24"
       />
 

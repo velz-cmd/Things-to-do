@@ -59,14 +59,15 @@ export type DiscoverSectionId =
   | "radars"
   | "liveFeed"
   | "opportunities"
-  | "communities";
+  | "communities"
+  | "agentSignals";
 
 const ROLE_SECTIONS: Record<DiscoverRole, DiscoverSectionId[] | "all"> = {
   community: ["pulse", "claim", "trending", "radars", "liveFeed", "communities"],
   funder: ["pulse", "bubblemap", "trending", "opportunities", "liveFeed"],
-  founder: ["pulse", "bubblemap", "trending", "radars", "opportunities", "communities"],
-  operator: ["pulse", "radars", "liveFeed", "communities"],
-  dao: ["pulse", "bubblemap", "trending", "radars", "opportunities", "liveFeed"],
+  founder: ["pulse", "bubblemap", "trending", "radars", "opportunities", "agentSignals", "communities"],
+  operator: ["pulse", "radars", "liveFeed", "agentSignals", "communities"],
+  dao: ["pulse", "bubblemap", "trending", "radars", "opportunities", "agentSignals", "liveFeed"],
   all: "all",
 };
 
@@ -99,4 +100,5 @@ export const SECTION_REFRESH_COOLDOWN_MS: Record<string, number> = {
   "live-feed": 90_000,
   "opportunity-board": 180_000,
   "communities-strip": 180_000,
+  "agent-signals": 120_000,
 };

@@ -28,6 +28,14 @@ export function getAgentX402PremiumUrl(): string | null {
   return `${app}/api/x402/premium-research`;
 }
 
+export function getAgentSentimentUrl(): string | null {
+  const explicit = process.env.AGENT_X402_SENTIMENT_URL?.trim();
+  if (explicit) return explicit;
+  const app = getAppBaseUrl();
+  if (!app || app === "http://localhost:3000") return null;
+  return `${app}/api/x402/sentiment`;
+}
+
 export function getX402SellerAddress(): string | null {
   return (
     process.env.ARC_AGENT_GATEWAY_SELLER_ADDRESS?.trim() ||
@@ -39,4 +47,17 @@ export function getX402SellerAddress(): string | null {
 export function getDefaultPaidSourcePriceUsd(): number {
   const raw = Number(process.env.AGENT_X402_DEFAULT_PRICE_USD ?? "0.007");
   return Number.isFinite(raw) && raw > 0 ? raw : 0.007;
+}
+
+export function getAppBaseUrl(): string {
+  return (
+    process.env.APP_URL?.replace(/\/$/, "") ||
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    "http://localhost:3000"
+  );
+}
+
+export function getSentimentPriceUsd(): number {
+  const raw = Number(process.env.AGENT_X402_SENTIMENT_PRICE_USD ?? "0.001");
+  return Number.isFinite(raw) && raw > 0 ? raw : 0.001;
 }

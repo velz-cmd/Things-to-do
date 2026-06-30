@@ -8,8 +8,10 @@ import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
 import { isWalletLabelsConfigured } from "@/lib/wallet/wallet-labels";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
 import {
+  getAgentSentimentUrl,
   getAgentX402PremiumUrl,
   getDefaultPaidSourcePriceUsd,
+  getSentimentPriceUsd,
   isAgentGatewayEnabled,
 } from "@/lib/agent/gateway-config";
 import { ARC_MEMO_CONTRACT } from "@/lib/arc/memo-abi";
@@ -69,8 +71,12 @@ export async function GET() {
       x402: true,
       chain: "arcTestnet",
       premiumUrl: getAgentX402PremiumUrl(),
+      sentimentUrl: getAgentSentimentUrl(),
       defaultPriceUsd: getDefaultPaidSourcePriceUsd(),
-      flow: "402 → GatewayClient.pay() → mission continues",
+      sentimentPriceUsd: getSentimentPriceUsd(),
+      serviceCatalog: "/api/agent/services",
+      invoke: "/api/agent/invoke",
+      flow: "discover → 402 → GatewayClient.pay() → ledger mcp.invocation → agent continues",
       docs: "https://agents.circle.com",
     },
     impactWeight: {

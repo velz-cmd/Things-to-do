@@ -9,6 +9,7 @@ import { DiscoverCommunities } from "@/components/resolve/discover/discover-comm
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
+import { DiscoverNeedTypeFilters } from "@/components/resolve/discover/discover-need-type-filters";
 import { DiscoverLiveFeed } from "@/components/resolve/discover/discover-live-feed";
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
@@ -22,6 +23,7 @@ import {
 } from "@/components/resolve/discover/discover-action-audit-panel";
 import { DiscoverRoleFilters } from "@/components/resolve/discover/discover-role-filters";
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
+import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { sectionVisibleForRole } from "@/lib/discover/role-filters";
 import type { DiscoverIntent } from "@/lib/discover/types";
@@ -66,6 +68,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
   const [role, setRole] = useState<DiscoverRole>("all");
   const [activeJob, setActiveJob] = useState<DiscoverJobId | null>(null);
+  const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
   const intent = roleToIntent(role);
   const [communityKind, setCommunityKind] = useState<
     "all" | "music" | "oss" | "research" | "protocol"
@@ -112,6 +115,8 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         <DiscoverRoleFilters value={role} onChange={setRole} className="mt-3" />
       </details>
 
+      <DiscoverNeedTypeFilters value={needType} onChange={setNeedType} className="mb-8" />
+
       {sectionVisibleForRole("pulse", role) && <DiscoverNetworkPulse className="mb-6" />}
 
       {user && sectionVisibleForRole("claim", role) && <DiscoverClaimHint />}
@@ -151,6 +156,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           query={effectiveQuery}
           intent={intent}
           role={role}
+          needType={needType}
           className="mb-12"
         />
       )}
@@ -161,6 +167,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           query={effectiveQuery}
           intent={intent}
           role={role}
+          needType={needType}
           className="mb-12"
         />
       )}
@@ -175,6 +182,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           query={effectiveQuery}
           intent={intent}
           role={role}
+          needType={needType}
           className="mb-12"
         />
       )}

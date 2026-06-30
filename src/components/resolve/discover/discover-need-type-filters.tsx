@@ -1,0 +1,63 @@
+"use client";
+
+import clsx from "clsx";
+import {
+  DISCOVER_NEED_TYPES,
+  type DiscoverNeedTypeFilter,
+} from "@/lib/discover/need-types";
+
+export function DiscoverNeedTypeFilters({
+  value,
+  onChange,
+  className,
+}: {
+  value: DiscoverNeedTypeFilter;
+  onChange: (needType: DiscoverNeedTypeFilter) => void;
+  className?: string;
+}) {
+  return (
+    <div className={clsx("space-y-2", className)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-muted-dim">
+          Need type
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange("all")}
+          className={clsx(
+            "rounded-full border px-3 py-1 text-[11px] font-medium transition",
+            value === "all"
+              ? "border-resolve-calm-periwinkle/50 bg-resolve-calm-periwinkle/15 text-white"
+              : "border-resolve-border/60 text-resolve-muted hover:text-white",
+          )}
+        >
+          All
+        </button>
+        {DISCOVER_NEED_TYPES.map((need) => {
+          const active = value === need.id;
+          return (
+            <button
+              key={need.id}
+              type="button"
+              title={need.hint}
+              onClick={() => onChange(need.id)}
+              className={clsx(
+                "rounded-full border px-3 py-1 text-[11px] font-medium transition",
+                active
+                  ? "border-resolve-calm-blue/50 bg-resolve-calm-blue/15 text-resolve-calm-periwinkle"
+                  : "border-resolve-border/60 text-resolve-muted hover:text-white",
+              )}
+            >
+              {need.label}
+            </button>
+          );
+        })}
+      </div>
+      {value !== "all" && (
+        <p className="text-[11px] text-resolve-muted-dim">
+          {DISCOVER_NEED_TYPES.find((n) => n.id === value)?.hint}
+        </p>
+      )}
+    </div>
+  );
+}

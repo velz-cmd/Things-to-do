@@ -20,6 +20,7 @@ import {
   ossToolbar,
 } from "@/lib/discover/domain-radar-actions";
 import type { DomainRadarBundle, TrendingValueGap } from "@/lib/discover/types";
+import { enrichGapWithNeedType } from "@/lib/discover/need-types";
 
 type AuthRow = {
   id: string;
@@ -108,7 +109,7 @@ export async function buildDomainRadars(): Promise<{
       updatedAt: scanAt ?? undefined,
       actions: [],
     };
-    ossCards.push(enrichOssCard(card));
+    ossCards.push(enrichGapWithNeedType(enrichOssCard(card)));
   }
 
   const githubAuths = ledgerRows.filter((r) => r.connectorId === "github");
@@ -144,7 +145,7 @@ export async function buildDomainRadars(): Promise<{
       proofHref: `/receipt/${r.id}`,
       actions: [],
     };
-    ossCards.push(enrichOssCard(card));
+    ossCards.push(enrichGapWithNeedType(enrichOssCard(card)));
   }
 
   const musicRows = ledgerRows.filter(isMusicAuthorization);
@@ -191,7 +192,7 @@ export async function buildDomainRadars(): Promise<{
       proofHref: `/receipt/${latest.id}`,
       actions: [],
     };
-    musicCards.push(enrichMusicCard(card));
+    musicCards.push(enrichGapWithNeedType(enrichMusicCard(card)));
   }
 
   const daoPrograms = fundable.filter(
@@ -227,7 +228,7 @@ export async function buildDomainRadars(): Promise<{
       templateId: o.templateId,
       actions: [],
     };
-    daoCards.push(enrichDaoCard(card));
+    daoCards.push(enrichGapWithNeedType(enrichDaoCard(card)));
   }
 
   for (const r of ledgerRows.filter(isResearchAuthorization).slice(0, 2)) {
@@ -257,27 +258,29 @@ export async function buildDomainRadars(): Promise<{
       proofHref: `/receipt/${r.id}`,
       actions: [],
     };
-    daoCards.push({
-      ...card,
-      actions: [
-        {
-          id: "fund",
-          label: "Fund citations",
-          kind: "fund",
-          communitySlug: "open-research",
-          templateId: "citation-toll",
-          amountUsd: r.amountUsd,
-        },
-        {
-          id: "sensor",
-          label: "OpenAlex sensor",
-          kind: "connect_sensor",
-          href: "/communities/open-research#health",
-          communitySlug: "open-research",
-        },
-        { id: "share", label: "Share receipt", kind: "share", href: `/receipt/${r.id}` },
-      ],
-    });
+    daoCards.push(
+      enrichGapWithNeedType({
+        ...card,
+        actions: [
+          {
+            id: "fund",
+            label: "Fund citations",
+            kind: "fund",
+            communitySlug: "open-research",
+            templateId: "citation-toll",
+            amountUsd: r.amountUsd,
+          },
+          {
+            id: "sensor",
+            label: "OpenAlex sensor",
+            kind: "connect_sensor",
+            href: "/communities/open-research#health",
+            communitySlug: "open-research",
+          },
+          { id: "share", label: "Share receipt", kind: "share", href: `/receipt/${r.id}` },
+        ],
+      }),
+    );
   }
 
   const featuredOss = ossCards[0];

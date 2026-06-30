@@ -113,6 +113,10 @@ export function DiscoverActionCard({
       {!compact && (
         <p className="mt-3 text-[10px] text-resolve-muted-dim">
           Proof: {gap.proofSource}
+          {gap.proofAuthorizationId ? ` · auth ${gap.proofAuthorizationId.slice(0, 8)}` : ""}
+          {gap.proofGithubScanAt && !gap.proofAuthorizationId
+            ? ` · scanned ${new Date(gap.proofGithubScanAt).toLocaleString()}`
+            : ""}
           {gap.proofHref ? (
             <>
               {" "}

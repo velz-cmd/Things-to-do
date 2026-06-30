@@ -218,36 +218,157 @@ body {
   }
 
   .resolve-signal-rails {
-    background: linear-gradient(
-      165deg,
-      rgba(141, 161, 209, 0.06) 0%,
-      rgba(12, 35, 72, 0.55) 38%,
-      rgba(7, 20, 40, 0.94) 100%
-    );
-    border: 1px solid rgba(141, 161, 209, 0.14);
+    background:
+      radial-gradient(ellipse 120% 80% at 0% -20%, rgba(166, 133, 179, 0.07), transparent 50%),
+      radial-gradient(ellipse 90% 60% at 100% 0%, rgba(30, 129, 192, 0.06), transparent 45%),
+      linear-gradient(168deg, rgba(12, 35, 72, 0.88) 0%, rgba(7, 20, 40, 0.97) 100%);
+    border: 1px solid rgba(141, 161, 209, 0.1);
     box-shadow:
-      inset 0 1px 0 rgba(204, 194, 209, 0.08),
-      0 12px 40px rgba(0, 16, 40, 0.28);
-  }
-
-  .resolve-signal-rail-card {
-    background: linear-gradient(
-      145deg,
-      rgba(204, 194, 209, 0.055) 0%,
-      rgba(7, 20, 40, 0.72) 100%
-    );
-    border: 1px solid rgba(141, 161, 209, 0.12);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .resolve-signal-rail-card:hover {
-    border-color: rgba(59, 158, 255, 0.22);
-    box-shadow: 0 4px 20px rgba(0, 40, 90, 0.18);
+      inset 0 1px 0 rgba(204, 194, 209, 0.06),
+      inset 0 -1px 0 rgba(7, 20, 40, 0.5),
+      0 16px 48px rgba(0, 12, 32, 0.35);
   }
 
   .resolve-signal-step {
-    background: rgba(12, 35, 72, 0.45);
-    border: 1px solid rgba(141, 161, 209, 0.1);
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(
+      160deg,
+      rgba(204, 194, 209, 0.04) 0%,
+      rgba(12, 35, 72, 0.35) 100%
+    );
+    border: 1px solid rgba(141, 161, 209, 0.08);
+    transition:
+      border-color 0.3s ease,
+      box-shadow 0.3s ease,
+      transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .resolve-signal-step:hover {
+    transform: translateY(-1px);
+    border-color: rgba(141, 161, 209, 0.18);
+    box-shadow: 0 6px 24px rgba(0, 40, 90, 0.15);
+  }
+
+  .resolve-signal-rail-card {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(
+      155deg,
+      rgba(204, 194, 209, 0.045) 0%,
+      rgba(10, 28, 56, 0.65) 55%,
+      rgba(7, 20, 40, 0.82) 100%
+    );
+    border: 1px solid rgba(141, 161, 209, 0.09);
+    transition:
+      transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 0.35s ease,
+      box-shadow 0.35s ease;
+  }
+
+  .resolve-signal-rail-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+
+  .resolve-signal-rail-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .resolve-signal-rail-card--agent::before {
+    background: radial-gradient(
+      ellipse 90% 70% at 50% -10%,
+      rgba(59, 158, 255, 0.14),
+      transparent 68%
+    );
+  }
+
+  .resolve-signal-rail-card--agent:hover {
+    border-color: rgba(30, 129, 192, 0.28);
+    box-shadow:
+      0 0 0 1px rgba(59, 158, 255, 0.06),
+      0 10px 36px rgba(0, 50, 120, 0.22),
+      0 0 56px rgba(59, 158, 255, 0.07);
+  }
+
+  .resolve-signal-rail-card--creator::before {
+    background: radial-gradient(
+      ellipse 90% 70% at 50% -10%,
+      rgba(222, 116, 153, 0.11),
+      transparent 68%
+    );
+  }
+
+  .resolve-signal-rail-card--creator:hover {
+    border-color: rgba(222, 116, 153, 0.22);
+    box-shadow:
+      0 0 0 1px rgba(222, 116, 153, 0.05),
+      0 10px 36px rgba(80, 20, 50, 0.18),
+      0 0 56px rgba(222, 116, 153, 0.06);
+  }
+
+  .resolve-signal-rail-card--maintainer::before {
+    background: radial-gradient(
+      ellipse 90% 70% at 50% -10%,
+      rgba(188, 197, 188, 0.1),
+      transparent 68%
+    );
+  }
+
+  .resolve-signal-rail-card--maintainer:hover {
+    border-color: rgba(188, 197, 188, 0.22);
+    box-shadow:
+      0 0 0 1px rgba(188, 197, 188, 0.05),
+      0 10px 36px rgba(20, 40, 30, 0.18),
+      0 0 56px rgba(188, 197, 188, 0.05);
+  }
+
+  .resolve-signal-rail-card:hover::before {
+    opacity: 1;
+  }
+
+  .resolve-signal-lane {
+    border-radius: 1rem;
+    padding: 0.25rem 0 0.5rem;
+  }
+
+  .resolve-signal-lane--agent {
+    background: linear-gradient(90deg, rgba(30, 129, 192, 0.05), transparent 55%);
+  }
+
+  .resolve-signal-lane--creator {
+    background: linear-gradient(90deg, rgba(222, 116, 153, 0.04), transparent 55%);
+  }
+
+  .resolve-signal-lane--maintainer {
+    background: linear-gradient(90deg, rgba(188, 197, 188, 0.04), transparent 55%);
+  }
+
+  .resolve-signal-cta {
+    background: linear-gradient(
+      135deg,
+      rgba(30, 129, 192, 0.22) 0%,
+      rgba(59, 158, 255, 0.12) 100%
+    );
+    border: 1px solid rgba(59, 158, 255, 0.22);
+    transition:
+      background 0.25s ease,
+      box-shadow 0.25s ease,
+      transform 0.2s ease;
+  }
+
+  .resolve-signal-cta:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(30, 129, 192, 0.32) 0%,
+      rgba(59, 158, 255, 0.18) 100%
+    );
+    box-shadow: 0 4px 20px rgba(59, 158, 255, 0.15);
+    transform: translateY(-1px);
   }
 }
 

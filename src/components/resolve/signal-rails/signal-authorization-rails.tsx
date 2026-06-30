@@ -57,25 +57,31 @@ const LANE_ORDER = ["agent", "creator", "maintainer"] as const;
 
 const LANE_META: Record<
   (typeof LANE_ORDER)[number],
-  { title: string; subtitle: string; accent: string; rail: string }
+  { title: string; subtitle: string; accent: string; rail: string; laneClass: string; cardClass: string }
 > = {
   agent: {
     title: "Agent intelligence",
     subtitle: "x402 APIs — structured signal per request",
     accent: "text-resolve-calm-blue",
-    rail: "border-l-resolve-calm-blue/45",
+    rail: "border-l-resolve-calm-blue/50",
+    laneClass: "resolve-signal-lane--agent",
+    cardClass: "resolve-signal-rail-card--agent",
   },
   creator: {
     title: "Creator attribution",
     subtitle: "Verified plays and watches on royalty rails",
     accent: "text-resolve-calm-rose",
-    rail: "border-l-resolve-calm-rose/40",
+    rail: "border-l-resolve-calm-rose/45",
+    laneClass: "resolve-signal-lane--creator",
+    cardClass: "resolve-signal-rail-card--creator",
   },
   maintainer: {
     title: "Maintainer value",
     subtitle: "Citations, merges, and OSS program events",
     accent: "text-resolve-calm-sage",
-    rail: "border-l-resolve-calm-sage/45",
+    rail: "border-l-resolve-calm-sage/50",
+    laneClass: "resolve-signal-lane--maintainer",
+    cardClass: "resolve-signal-rail-card--maintainer",
   },
 };
 
@@ -193,14 +199,14 @@ export function SignalAuthorizationRails({
         aria-expanded={expanded}
       >
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-resolve-calm-periwinkle/20 bg-resolve-calm-card/[0.08]">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-resolve-calm-periwinkle/15 bg-gradient-to-br from-resolve-calm-card/10 to-resolve-calm-lilac/5 shadow-[inset_0_1px_0_rgba(204,194,209,0.12)]">
             <Radio className="h-4 w-4 text-resolve-calm-periwinkle" strokeWidth={1.75} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-resolve-calm-periwinkle">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-resolve-calm-periwinkle/90">
               Signal authorization rails
             </p>
-            <h2 className="mt-1 text-base font-semibold tracking-tight text-white sm:text-lg">
+            <h2 className="mt-1 bg-gradient-to-r from-white via-[#E8E4ED] to-resolve-calm-periwinkle/80 bg-clip-text text-base font-semibold tracking-tight text-transparent sm:text-lg">
               Pay-per-signal infrastructure for missions and agents
             </h2>
             {!expanded && (
@@ -233,7 +239,7 @@ export function SignalAuthorizationRails({
           {!isMission && (
             <Link
               href={missionHref}
-              className="inline-flex items-center gap-1 rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-2.5 py-1.5 text-[11px] font-medium text-resolve-calm-blue transition hover:bg-resolve-calm-blue/15"
+              className="resolve-signal-cta inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-[#E8E4ED]"
             >
               Run in Mission
               <ArrowRight className="h-3 w-3" />
@@ -283,7 +289,7 @@ export function SignalAuthorizationRails({
               {lanes.map(({ lane, services }) => {
                 const meta = LANE_META[lane];
                 return (
-                  <div key={lane}>
+                  <div key={lane} className={clsx("resolve-signal-lane", meta.laneClass)}>
                     <div className={clsx("border-l-2 pl-3", meta.rail)}>
                       <p
                         className={clsx(
@@ -299,54 +305,59 @@ export function SignalAuthorizationRails({
                       {services.map((s) => (
                         <li
                           key={s.id}
-                          className="resolve-signal-rail-card flex flex-col rounded-xl p-4"
+                          className={clsx(
+                            "resolve-signal-rail-card relative flex flex-col rounded-xl p-4",
+                            meta.cardClass,
+                          )}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <p className="text-sm font-medium text-white">{s.name}</p>
-                                {s.rfbProgram && (
+                          <div className="relative z-[1] flex flex-1 flex-col">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <p className="text-sm font-medium text-white">{s.name}</p>
+                                  {s.rfbProgram && (
+                                    <span className="resolve-calm-chip rounded-md px-1.5 py-0.5 text-[9px] font-medium uppercase">
+                                      {s.rfbProgram}
+                                    </span>
+                                  )}
                                   <span className="resolve-calm-chip rounded-md px-1.5 py-0.5 text-[9px] font-medium uppercase">
-                                    {s.rfbProgram}
+                                    {s.x402 ? "x402" : "sensor"}
                                   </span>
-                                )}
-                                <span className="resolve-calm-chip rounded-md px-1.5 py-0.5 text-[9px] font-medium uppercase">
-                                  {s.x402 ? "x402" : "sensor"}
-                                </span>
+                                </div>
+                                <p className="mt-2 text-xs leading-relaxed text-resolve-muted">
+                                  {s.description}
+                                </p>
                               </div>
-                              <p className="mt-2 text-xs leading-relaxed text-resolve-muted">
-                                {s.description}
-                              </p>
+                              <div className="shrink-0 text-right">
+                                <p className="text-sm font-semibold tabular-nums text-[#E8E4ED]">
+                                  {formatUnitPrice(s.priceUsd)}
+                                </p>
+                                <p className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">
+                                  per {s.billingUnit}
+                                </p>
+                              </div>
                             </div>
-                            <div className="shrink-0 text-right">
-                              <p className="text-sm font-semibold tabular-nums text-resolve-calm-periwinkle">
-                                {formatUnitPrice(s.priceUsd)}
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-resolve-calm-periwinkle/10 pt-3">
+                              <p className="flex items-center gap-1.5 text-[10px] text-resolve-muted-dim">
+                                <ShieldCheck className="h-3 w-3 text-resolve-calm-periwinkle/70" />
+                                {s.eventType}
+                                <span className="opacity-40">·</span>
+                                {s.connectorId}
                               </p>
-                              <p className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">
-                                per {s.billingUnit}
-                              </p>
+                              {isMission && onMissionPrompt && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedServiceId(s.id);
+                                    setDemoText(s.examplePrompt);
+                                    onMissionPrompt(s.examplePrompt, s.id);
+                                  }}
+                                  className="resolve-signal-cta rounded-lg px-2.5 py-1 text-[10px] font-medium text-[#E8E4ED]"
+                                >
+                                  Use in mission
+                                </button>
+                              )}
                             </div>
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-resolve-calm-periwinkle/10 pt-3">
-                            <p className="flex items-center gap-1.5 text-[10px] text-resolve-muted-dim">
-                              <ShieldCheck className="h-3 w-3 text-resolve-calm-periwinkle/70" />
-                              {s.eventType}
-                              <span className="opacity-40">·</span>
-                              {s.connectorId}
-                            </p>
-                            {isMission && onMissionPrompt && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedServiceId(s.id);
-                                  setDemoText(s.examplePrompt);
-                                  onMissionPrompt(s.examplePrompt, s.id);
-                                }}
-                                className="rounded-lg border border-resolve-calm-blue/25 bg-resolve-calm-blue/10 px-2.5 py-1 text-[10px] font-medium text-resolve-calm-blue transition hover:bg-resolve-calm-blue/15"
-                              >
-                                Use in mission
-                              </button>
-                            )}
                           </div>
                         </li>
                       ))}
@@ -382,7 +393,7 @@ export function SignalAuthorizationRails({
                       type="button"
                       disabled={invoking || !demoText.trim()}
                       onClick={() => void runInvoke()}
-                      className="mt-4 inline-flex items-center gap-2 rounded-xl border border-resolve-calm-blue/30 bg-resolve-calm-blue/12 px-4 py-2.5 text-xs font-medium text-white transition hover:bg-resolve-calm-blue/20 disabled:opacity-50"
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl resolve-signal-cta px-4 py-2.5 text-xs font-medium text-[#E8E4ED] disabled:opacity-50"
                     >
                       {invoking ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Loader2, TrendingUp } from "lucide-react";
+import { Loader2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
 import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
+import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
+import { dedupeQueueWithTrending } from "@/lib/discover/queue-dedupe";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
-
 import type { DiscoverIntent } from "@/lib/discover/types";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
+
+type WalletResponse = {
+  ok?: boolean;
+  balance?: { spendableUsd?: string };
+};
 
 type DiscoverOpportunityQueueProps = {
   signedIn: boolean;
@@ -19,22 +25,26 @@ type DiscoverOpportunityQueueProps = {
   className?: string;
 };
 
-/** Discover-native fulfillment queue — inline fund via unified action router. */
+const RETURN_URL = "/discover#opportunities";
+
+/** Discover-native fulfillment queue — deduped from trending, inline fund refreshes gaps. */
 export function DiscoverOpportunityQueue({
   signedIn,
   query = "",
   intent = "all",
   className,
 }: DiscoverOpportunityQueueProps) {
-  const { executeFund, wallet, busy } = useDiscoverActions();
+  const { executeFund, refreshWallet, busy } = useDiscoverActions();
+  const { feed, refresh: refreshTrending } = useDiscoverRadarFeed();
   const [opportunities, setOpportunities] = useState<FundableOpportunity[]>([]);
+  const [walletUsd, setWalletUsd] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [fundingId, setFundingId] = useState<string | null>(null);
   const [amountByProgram, setAmountByProgram] = useState<Record<string, string>>({});
 
   const showQueue = intent === "all" || intent === "fund" || intent === "sponsor";
 
-  const load = useCallback(async () => {
+  const loadQueue = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/capital/discover");
@@ -45,21 +55,46 @@ export function DiscoverOpportunityQueue({
     }
   }, []);
 
+  const loadWallet = useCallback(async () => {
+    if (!signedIn) {
+      setWalletUsd(null);
+      return;
+    }
+    try {
+      const res = await fetch("/api/capital/wallet", { credentials: "include" });
+      const data = (await res.json()) as WalletResponse;
+      if (data.ok !== false && data.balance?.spendableUsd != null) {
+        setWalletUsd(Number(data.balance.spendableUsd));
+      }
+    } catch {
+      setWalletUsd(null);
+    }
+  }, [signedIn]);
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadQueue();
+  }, [loadQueue]);
+
+  useEffect(() => {
+    void loadWallet();
+  }, [loadWallet]);
+
+  const deduped = useMemo(
+    () => dedupeQueueWithTrending(opportunities, feed?.gaps ?? []),
+    [opportunities, feed?.gaps],
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return opportunities;
-    return opportunities.filter(
+    if (!q) return deduped;
+    return deduped.filter(
       (o) =>
         o.programName.toLowerCase().includes(q) ||
         o.communityName.toLowerCase().includes(q) ||
         o.communitySlug.toLowerCase().includes(q) ||
         o.whyFund.toLowerCase().includes(q),
     );
-  }, [opportunities, query]);
+  }, [deduped, query]);
 
   async function fundRow(o: FundableOpportunity) {
     const raw = amountByProgram[o.programId] ?? "25";
@@ -74,12 +109,16 @@ export function DiscoverOpportunityQueue({
         communitySlug: o.communitySlug,
         templateId: o.templateId,
       });
-      void load();
+      await Promise.all([loadQueue(), loadWallet(), refreshWallet(), refreshTrending()]);
     } catch {
       /* toast handled in provider */
     } finally {
       setFundingId(null);
     }
+  }
+
+  function scrollToCommunities() {
+    document.getElementById("communities")?.scrollIntoView({ behavior: "smooth" });
   }
 
   return (
@@ -94,20 +133,15 @@ export function DiscoverOpportunityQueue({
           </div>
           <h2 className="mt-2 text-lg font-semibold text-white">Fund where capital unlocks value</h2>
           <p className="mt-1 max-w-2xl text-sm text-resolve-muted">
-            Ranked by pending obligations — fulfill in place. Portfolio and wallet live in Capital.
+            Programs with pending obligations not already in trending — fulfill in place.
           </p>
-          {signedIn && wallet.loaded && (
+          {signedIn && walletUsd != null && (
             <p className="mt-1 text-[11px] text-resolve-muted-dim">
-              Wallet spendable: ${wallet.spendableUsd.toFixed(2)}
+              Funder wallet:{" "}
+              <span className="font-medium text-emerald-300">${walletUsd.toFixed(2)}</span> spendable
             </p>
           )}
         </div>
-        <Link
-          href="/capital?tab=programs"
-          className="text-xs text-resolve-accent hover:underline"
-        >
-          Your portfolio →
-        </Link>
       </div>
 
       {loading ? (
@@ -120,15 +154,16 @@ export function DiscoverOpportunityQueue({
           <p className="text-sm text-resolve-muted">
             {query.trim()
               ? "No programs match your search."
-              : "No active programs yet — install a community below to seed the first obligation queue."}
+              : "No programs in the fulfillment queue — install a community to seed the first obligation."}
           </p>
           {!query.trim() && (
-            <a
-              href="#communities"
-              className="mt-3 inline-block text-xs font-medium text-resolve-accent hover:underline"
+            <button
+              type="button"
+              onClick={scrollToCommunities}
+              className="mt-4 inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-4 py-2 text-sm font-medium text-resolve-accent hover:bg-resolve-accent/15"
             >
-              Browse communities →
-            </a>
+              Install community
+            </button>
           )}
         </div>
       ) : (
@@ -167,7 +202,7 @@ export function DiscoverOpportunityQueue({
                     {o.yieldMultiplier > 0 ? `${o.yieldMultiplier.toFixed(2)}×` : "—"}
                   </p>
                   <p className="mt-1 text-resolve-muted">
-                    <Money amount={o.impactValueUsd} size="sm" className="inline" /> impact
+                    <Money amount={o.fundingGapUsd} size="sm" className="inline" /> gap
                   </p>
                 </div>
               </div>
@@ -206,19 +241,23 @@ export function DiscoverOpportunityQueue({
                     </Button>
                   </>
                 ) : (
-                  <Link
-                    href="/login?next=/discover"
-                    className="text-[11px] font-medium text-resolve-accent hover:underline"
-                  >
-                    Sign in to fund
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold tabular-nums text-amber-200">
+                      ${o.fundingGapUsd.toFixed(0)} gap
+                    </span>
+                    <Link
+                      href={`/login?next=${encodeURIComponent(RETURN_URL)}`}
+                      className="rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5 text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15"
+                    >
+                      Sign in to fund
+                    </Link>
+                  </div>
                 )}
                 <Link
                   href={`/communities/${o.communitySlug}`}
-                  className="inline-flex items-center gap-1 text-[11px] text-resolve-muted hover:text-resolve-accent"
+                  className="text-[11px] text-resolve-muted hover:text-resolve-accent"
                 >
-                  {CAPITAL_YIELD_COPY.discover.viewCta}
-                  <ArrowUpRight className="h-3 w-3" />
+                  {CAPITAL_YIELD_COPY.discover.viewCta} →
                 </Link>
               </div>
             </li>

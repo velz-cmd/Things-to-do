@@ -1,57 +1,105 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
-import type { DiscoverSearchResult } from "@/lib/discover/types";
+import type { DiscoverAction, DiscoverSearchResult } from "@/lib/discover/types";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
+import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
+import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
+
+type SearchMeta = {
+  topPrimaryAction: DiscoverAction | null;
+  queueFilter: string | null;
+};
 
 type DiscoverGlobalSearchProps = {
   signedIn: boolean;
   query: string;
   onQueryChange: (q: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
+  onQueueFilter?: (filter: string | null) => void;
 };
 
 export function DiscoverGlobalSearch({
   signedIn,
   query,
   onQueryChange,
-  onSubmit,
+  onQueueFilter,
 }: DiscoverGlobalSearchProps) {
+  const { runAction } = useDiscoverActions();
   const [results, setResults] = useState<DiscoverSearchResult[]>([]);
+  const [meta, setMeta] = useState<SearchMeta>({ topPrimaryAction: null, queueFilter: null });
   const [loading, setLoading] = useState(false);
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
 
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
+      setMeta({ topPrimaryAction: null, queueFilter: null });
+      onQueueFilter?.(null);
       return;
     }
     const t = setTimeout(() => {
       setLoading(true);
       void fetch(`/api/discover/search?q=${encodeURIComponent(q)}`)
         .then((r) => r.json())
-        .then((d) => setResults(d.results ?? []))
-        .catch(() => setResults([]))
+        .then((d) => {
+          setResults(d.results ?? []);
+          const nextMeta = {
+            topPrimaryAction: d.topPrimaryAction ?? null,
+            queueFilter: d.queueFilter ?? null,
+          };
+          setMeta(nextMeta);
+          onQueueFilter?.(nextMeta.queueFilter);
+        })
+        .catch(() => {
+          setResults([]);
+          setMeta({ topPrimaryAction: null, queueFilter: null });
+          onQueueFilter?.(null);
+        })
         .finally(() => setLoading(false));
     }, 280);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, onQueueFilter]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+
+    const { topPrimaryAction, queueFilter } = metaRef.current;
+
+    if (queueFilter) {
+      onQueueFilter?.(queueFilter);
+      document.getElementById("opportunities")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+
+    if (topPrimaryAction) {
+      await runAction(topPrimaryAction, "global-search");
+      return;
+    }
+
+    if (results[0]?.actions[0]) {
+      await runAction(results[0].actions[0], "global-search");
+    }
+  }
 
   return (
     <section className="relative">
-      <form onSubmit={onSubmit} className="relative">
+      <form onSubmit={(e) => void handleSubmit(e)} className="relative">
         <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-resolve-accent" />
         <input
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="GitHub repo, DAO, artist, research, community, creator…"
+          placeholder="owner/repo · @maintainer · artist · fund react · 0x…"
           className="w-full rounded-2xl border border-resolve-accent/25 bg-[#060a12]/80 py-4 pl-12 pr-4 text-sm text-white shadow-[0_0_40px_rgba(96,165,250,0.08)] placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
         />
       </form>
 
       <p className="mt-2 text-[11px] text-resolve-muted-dim">
-        Actions: open entity · install sensor · create program · fund gap · claim identity
+        Enter runs the top result action — fund, open entity, install, or claim
       </p>
 
       {query.trim().length >= 2 && (
@@ -60,7 +108,7 @@ export function DiscoverGlobalSearch({
             <p className="px-4 py-3 text-xs text-resolve-muted">Searching network…</p>
           ) : !results.length ? (
             <p className="px-4 py-3 text-xs text-resolve-muted">
-              No matches — press Enter to scan radars
+              No matches — try owner/repo, @username, or an artist name
             </p>
           ) : (
             <ul className="max-h-80 divide-y divide-resolve-border/40 overflow-y-auto">
@@ -71,17 +119,21 @@ export function DiscoverGlobalSearch({
                       <p className="text-sm font-medium text-white">{r.label}</p>
                       <p className="text-[11px] text-resolve-muted">{r.subtitle}</p>
                     </div>
-                    <span className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[9px] uppercase text-resolve-muted-dim">
-                      {r.kind}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <DiscoverSourceBadge source={r.dataSource} />
+                      <span className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[9px] uppercase text-resolve-muted-dim">
+                        {r.kind}
+                      </span>
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {r.actions.slice(0, 5).map((a) => (
+                    {r.actions.map((a) => (
                       <DiscoverActionChip
                         key={a.id}
                         action={a}
                         signedIn={signedIn}
                         primary={a.kind === "fund" || a.kind === "open"}
+                        surface="global-search"
                       />
                     ))}
                   </div>

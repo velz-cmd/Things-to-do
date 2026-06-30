@@ -65,7 +65,7 @@ const ROLE_SECTIONS: Record<DiscoverRole, DiscoverSectionId[] | "all"> = {
   community: ["pulse", "claim", "trending", "radars", "liveFeed", "communities"],
   funder: ["pulse", "bubblemap", "trending", "opportunities", "liveFeed"],
   founder: ["pulse", "bubblemap", "trending", "radars", "opportunities", "communities"],
-  operator: ["pulse", "radars", "liveFeed", "communities"],
+  operator: ["pulse", "bubblemap", "radars", "liveFeed", "communities"],
   dao: ["pulse", "bubblemap", "trending", "radars", "opportunities", "liveFeed"],
   all: "all",
 };

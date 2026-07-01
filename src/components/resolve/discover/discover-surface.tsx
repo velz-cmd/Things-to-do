@@ -28,7 +28,6 @@ import {
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
-import { sectionVisibleForRole } from "@/lib/discover/role-filters";
 import type { DiscoverIntent } from "@/lib/discover/types";
 
 /** Job-first Discover — compact landing, value graph, tabbed workspace lanes. */
@@ -114,28 +113,20 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           />
         </div>
 
-        {sectionVisibleForRole("bubblemap", role) && (
-          <div className="discover-section-stack">
-            <DiscoverValueBubblemap intent={intent} role={role} signedIn={Boolean(user)} />
-          </div>
-        )}
+        <div className="discover-section-stack">
+          <DiscoverValueBubblemap intent={intent} role={role} signedIn={Boolean(user)} />
+        </div>
 
-        {sectionVisibleForRole("pulse", role) && (
-          <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />
-        )}
+        <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />
 
         <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-3">
-          <DiscoverWorkspaceNav lane={lane} role={role} onLaneChange={setLane} />
+          <DiscoverWorkspaceNav lane={lane} onLaneChange={setLane} />
 
-          {lane === "earn" && sectionVisibleForRole("earn", role) && (
-            <DiscoverEarnCompact signedIn={Boolean(user)} />
-          )}
+          {lane === "earn" && <DiscoverEarnCompact signedIn={Boolean(user)} />}
 
-          {lane === "signals" && sectionVisibleForRole("agentMarket", role) && (
-            <DiscoverAgentSignalMarket signedIn={Boolean(user)} />
-          )}
+          {lane === "signals" && <DiscoverAgentSignalMarket signedIn={Boolean(user)} />}
 
-          {lane === "gaps" && sectionVisibleForRole("trending", role) && (
+          {lane === "gaps" && (
             <DiscoverTrendingGaps
               signedIn={Boolean(user)}
               query={effectiveQuery}
@@ -146,7 +137,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
             />
           )}
 
-          {lane === "radars" && sectionVisibleForRole("radars", role) && (
+          {lane === "radars" && (
             <DiscoverDomainRadars
               signedIn={Boolean(user)}
               query={effectiveQuery}
@@ -156,7 +147,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
             />
           )}
 
-          {lane === "board" && sectionVisibleForRole("opportunities", role) && (
+          {lane === "board" && (
             <DiscoverOpportunityQueue
               signedIn={Boolean(user)}
               query={effectiveQuery}

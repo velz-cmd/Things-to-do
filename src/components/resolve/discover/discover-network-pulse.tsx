@@ -4,6 +4,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Activity, ArrowRight, Radio } from "lucide-react";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
+import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import {
@@ -106,58 +107,72 @@ export function DiscoverNetworkPulse({
 
   if (variant === "strip") {
     const i = feed?.intelligence;
+    const showSkeleton = loading && !feed;
     return (
-      <div
+      <DiscoverCapitalCard
         id="network-pulse"
-        className={clsx(
-          "scroll-mt-24 rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2.5",
-          className,
-        )}
+        className={clsx("discover-pulse-strip scroll-mt-24", className)}
+        padding={false}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <Activity className="h-3.5 w-3.5 shrink-0 text-resolve-calm-periwinkle" />
-            <p className="truncate text-[11px] text-white">
-              {loading && !feed ? (
-                <span className="text-resolve-muted">Loading pulse…</span>
-              ) : i ? (
-                i.headline
+        <div className="px-3.5 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <Activity className="h-3.5 w-3.5 shrink-0 text-resolve-calm-periwinkle" />
+              {showSkeleton ? (
+                <div className="discover-pulse-skeleton min-w-[12rem] flex-1">
+                  <span className="discover-pulse-skeleton__line w-3/4" />
+                  <span className="discover-pulse-skeleton__line mt-1.5 w-1/2 opacity-60" />
+                </div>
               ) : (
-                <span className="text-resolve-muted">Connect sensors to populate ledger</span>
+                <p className="truncate text-[11px] text-white">
+                  {i ? (
+                    i.headline
+                  ) : error ? (
+                    <span className="text-amber-200/90">{error}</span>
+                  ) : (
+                    <span className="text-resolve-muted">Connect sensors to populate ledger</span>
+                  )}
+                </p>
               )}
-            </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <DiscoverSectionRefresh
+                sectionId="network-pulse"
+                onRefresh={refresh}
+                lastUpdated={feed?.updatedAt}
+              />
+              {i && i.leakingUsd > 0 && (
+                <a
+                  href="#discover-workspace"
+                  className="discover-action-btn discover-action-btn--primary discover-action-btn--fund rounded-full px-2.5 py-0.5 text-[10px]"
+                >
+                  ${i.leakingUsd.toFixed(0)} leaking
+                </a>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <DiscoverSectionRefresh
-              sectionId="network-pulse"
-              onRefresh={refresh}
-              lastUpdated={feed?.updatedAt}
-            />
-            {i && i.leakingUsd > 0 && (
-              <a
-                href="#discover-workspace"
-                className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200"
-              >
-                ${i.leakingUsd.toFixed(0)} leaking
-              </a>
-            )}
-          </div>
+          {showSkeleton ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <span key={idx} className="discover-pulse-skeleton__chip h-5 w-14 rounded-md" />
+              ))}
+            </div>
+          ) : i ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <StripStat label="Rec" value={`$${i.recognizedUsd.toFixed(0)}`} />
+              <StripStat label="Pend" value={`$${i.pendingFundingUsd.toFixed(0)}`} />
+              <StripStat label="Settled" value={`$${i.settledUsd.toFixed(0)}`} />
+              <StripStat
+                label="Leak"
+                value={`$${i.leakingUsd.toFixed(0)}`}
+                warn={i.leakingUsd > 0}
+              />
+              <StripStat label="Prog" value={String(feed?.fundableCount ?? 0)} />
+              <StripStat label="OSS" value={String(feed?.ossSignalCount ?? 0)} />
+            </div>
+          ) : null}
         </div>
-        {i && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <StripStat label="Rec" value={`$${i.recognizedUsd.toFixed(0)}`} />
-            <StripStat label="Pend" value={`$${i.pendingFundingUsd.toFixed(0)}`} />
-            <StripStat label="Settled" value={`$${i.settledUsd.toFixed(0)}`} />
-            <StripStat
-              label="Leak"
-              value={`$${i.leakingUsd.toFixed(0)}`}
-              warn={i.leakingUsd > 0}
-            />
-            <StripStat label="Prog" value={String(feed?.fundableCount ?? 0)} />
-            <StripStat label="OSS" value={String(feed?.ossSignalCount ?? 0)} />
-          </div>
-        )}
-      </div>
+      </DiscoverCapitalCard>
     );
   }
 

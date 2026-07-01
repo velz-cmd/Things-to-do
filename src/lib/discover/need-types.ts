@@ -44,9 +44,10 @@ const TEMPLATE_NEED: Record<string, DiscoverNeedType> = {
 };
 
 const AGENT_SERVICE_BY_NEED: Partial<Record<DiscoverNeedType, string>> = {
-  docs: "docs-merge",
-  researchers: "citation-toll",
-  artists: "play-attribution",
+  docs: "docs-review",
+  researchers: "citation-verify",
+  artists: "attribution-signal",
+  reviewers: "security-signal",
   automation: "sentiment-per-request",
 };
 
@@ -120,7 +121,7 @@ function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): st
     artists: { claim: "Claim artist royalties", fund: "Fund royalty pool" },
     researchers: { fund: "Fund citations", connect_sensor: "Connect OpenAlex" },
     grants: { fund: "Fund grant pool", create_program: "Launch QF round" },
-    automation: { analyze: "Authorize agent signal", connect_sensor: "Connect sensor rail" },
+    automation: { analyze: "Run agent", connect_sensor: "Connect sensor rail" },
   };
   return map[needType]?.[action.kind] ?? action.label;
 }
@@ -128,11 +129,15 @@ function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): st
 function automationAction(needType: DiscoverNeedType, gap: TrendingValueGap): DiscoverAction | null {
   const serviceId = AGENT_SERVICE_BY_NEED[needType];
   if (!serviceId) return null;
+  const prompt =
+    gap.headline.length > 12
+      ? `Run intel on ${gap.headline}`
+      : "Run agent signal on this opportunity";
   return {
     id: `agent-${serviceId}`,
-    label: needType === "automation" ? "Authorize signal" : "Run agent rail",
+    label: needType === "automation" ? "Run agent" : "Automate",
     kind: "analyze",
-    href: `/mission#signal-rails`,
+    href: `/discover#agent-market?service=${encodeURIComponent(serviceId)}&prompt=${encodeURIComponent(prompt)}`,
     communitySlug: gap.communitySlug,
     templateId: gap.templateId,
     serviceId,

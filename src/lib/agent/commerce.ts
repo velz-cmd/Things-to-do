@@ -4,9 +4,17 @@ import {
   resolveServiceUrl,
   type AgentSignalService,
 } from "@/lib/agent/service-registry";
-import { payForResource, type AgentPayResult } from "@/lib/agent/agent-pay";
+import { payForResource, recordAgentSpend, type AgentPayResult } from "@/lib/agent/agent-pay";
 import { recordAgentInvocation } from "@/lib/agent/invocation-ledger";
-import { getAppBaseUrl } from "@/lib/agent/gateway-config";
+import { getAppBaseUrl, isAgentGatewayEnabled } from "@/lib/agent/gateway-config";
+import {
+  runX402MicroService,
+  x402MicroSlugFromServiceId,
+  type X402MicroResult,
+} from "@/lib/agent/x402-micro";
+import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
+
+export { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 
 export type AgentCommerceInvokeResult<T = unknown> = AgentPayResult<T> & {
   serviceId: string;
@@ -78,15 +86,40 @@ export async function invokeAgentService<T = unknown>(input: {
   }
 
   const url = resolveServiceUrl(service, getAppBaseUrl(), input.query);
-  const pay = await payForResource<T>({
-    taskId: input.taskId,
-    url,
-    maxSpendUsd: input.maxSpendUsd ?? service.priceUsd * 2,
-    purpose: `x402:${service.id}`,
-  });
+  const microSlug = x402MicroSlugFromServiceId(service.id);
+  let pay: AgentPayResult<X402MicroResult | { sentiment?: string; score?: number }>;
+
+  if (!isAgentGatewayEnabled() && microSlug) {
+    const text = input.query?.text ?? "";
+    const direct = runX402MicroService(microSlug, text);
+    if (direct) {
+      await recordAgentSpend({
+        taskId: input.taskId,
+        purpose: `x402:${service.id} (metered)`,
+        amountUsd: service.priceUsd,
+        meteringMode: "offchain_metered",
+      });
+    }
+    pay = {
+      ok: Boolean(direct),
+      data: direct ?? undefined,
+      amountUsd: service.priceUsd,
+      txRef: null,
+      meteringMode: "offchain_metered",
+      error: direct ? undefined : "Micro-service unavailable",
+      url,
+    };
+  } else {
+    pay = await payForResource({
+      taskId: input.taskId,
+      url,
+      maxSpendUsd: input.maxSpendUsd ?? service.priceUsd * 2,
+      purpose: `x402:${service.id}`,
+    });
+  }
 
   let authorizationId: string | undefined;
-  if (pay.ok && pay.amountUsd > 0) {
+  if (pay.amountUsd > 0 && (pay.ok || pay.meteringMode === "offchain_metered")) {
     const recorded = await recordAgentInvocation({
       service,
       taskId: input.taskId,
@@ -102,28 +135,11 @@ export async function invokeAgentService<T = unknown>(input: {
   }
 
   return {
-    ...pay,
+    ...(pay as AgentPayResult<T>),
     serviceId: service.id,
     serviceName: service.name,
     authorizationId,
-    continue: pay.ok,
+    continue: pay.ok || Boolean(authorizationId),
     rfbProgram: service.rfbProgram,
   };
-}
-
-export function matchServiceForPrompt(prompt: string): AgentSignalService | null {
-  const lower = prompt.toLowerCase();
-  if (lower.includes("sentiment") || lower.includes("feedback") || lower.includes("classify")) {
-    return getAgentSignalService("sentiment-per-request") ?? null;
-  }
-  if (lower.includes("research") || lower.includes("premium") || lower.includes("policy")) {
-    return getAgentSignalService("premium-research") ?? null;
-  }
-  if (lower.includes("play") || lower.includes("listen") || lower.includes("artist")) {
-    return getAgentSignalService("play-attribution") ?? null;
-  }
-  if (lower.includes("citation") || lower.includes("article") || lower.includes("paper")) {
-    return getAgentSignalService("citation-toll") ?? null;
-  }
-  return null;
 }

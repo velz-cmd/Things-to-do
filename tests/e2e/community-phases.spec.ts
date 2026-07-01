@@ -223,6 +223,19 @@ test.describe("Community phases — APIs", () => {
     expect(body.program).toContain("RFB #2");
   });
 
+  test("GET /api/agent/services returns micro-services catalog", async ({ request }) => {
+    const res = await request.get("/api/agent/services");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.services?.length).toBeGreaterThanOrEqual(5);
+    expect(body.feePath).toHaveProperty("platformFeeBps");
+    const sentiment = body.services.find((s: { id: string }) => s.id === "sentiment-per-request");
+    expect(sentiment?.priceUsd).toBe(0.001);
+    const security = body.services.find((s: { id: string }) => s.id === "security-signal");
+    expect(security?.priceUsd).toBe(0.1);
+  });
+
   test("GET /api/earn/discover returns eligibility for anonymous", async ({ request }) => {
     const res = await request.get("/api/earn/discover");
     expect(res.ok()).toBeTruthy();
@@ -232,6 +245,19 @@ test.describe("Community phases — APIs", () => {
     expect(body.eligibility?.length).toBeGreaterThanOrEqual(4);
     const oss = body.eligibility.find((r: { id: string }) => r.id === "oss");
     expect(oss.threshold).toContain("5+");
+  });
+
+  test("POST /api/agent/invoke requires sign-in", async ({ request }) => {
+    const res = await request.post("/api/agent/invoke", {
+      data: {
+        serviceId: "docs-review",
+        prompt: "Run intel on React maintainers",
+        maxSpendUsd: 0.05,
+      },
+    });
+    expect(res.status()).toBe(401);
+    const body = await res.json();
+    expect(body.error).toContain("Sign in");
   });
 });
 
@@ -245,6 +271,19 @@ test.describe("Community phases — surfaces", () => {
         page.getByRole("heading", { level: 1 }).first(),
       ).toBeVisible({ timeout: 30_000 });
     }
+  });
+
+  test("discover founder role shows agent signal market", async ({ page }) => {
+    await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Run my community" }).click();
+    const market = page.locator("#agent-market");
+    await market.scrollIntoViewIfNeeded();
+    await expect(market.getByRole("heading", { name: "Agent Signal Market" })).toBeVisible();
+    await expect(market.getByText("Micro-services registry")).toBeVisible({ timeout: 30_000 });
+    await expect(market.locator("li").filter({ hasText: "Sentiment" }).first()).toBeVisible();
+    await expect(market.getByText("RESOLVE fee path")).toBeVisible();
+    await expect(market.getByRole("button", { name: /Run agent/ })).toBeVisible();
+    await expect(market.getByText("Price preview:")).toBeVisible();
   });
 
   test("discover community role shows earn surface above the fold", async ({ page }) => {

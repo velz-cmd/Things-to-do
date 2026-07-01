@@ -67,8 +67,12 @@ export function bubbleOperatorActions(
     actions.push({
       id: "automate",
       label: "Automate",
-      kind: "open",
-      href: `/mission?community=${encodeURIComponent(slug)}`,
+      kind: "analyze",
+      href: `/discover#agent-market?service=docs-review&prompt=${encodeURIComponent(
+        `Run intel on ${node.label} maintainers`,
+      )}`,
+      communitySlug: slug,
+      serviceId: "docs-review",
     });
   } else if (node.entityPath) {
     actions.push({

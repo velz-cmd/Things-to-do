@@ -26,6 +26,11 @@ import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-sour
 import type { DiscoverBoardItem } from "@/lib/discover/opportunity-board";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { needTypeBadgeClass, needTypeLabel, primaryBoardCtaLabel } from "@/lib/discover/need-types";
+import {
+  sortByOpportunityScore,
+  type OpportunitySortKey,
+} from "@/lib/discover/opportunity-score";
+import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 
 type WalletResponse = {
   ok?: boolean;
@@ -60,6 +65,7 @@ export function DiscoverOpportunityQueue({
   const [error, setError] = useState<string | null>(null);
   const [fundingId, setFundingId] = useState<string | null>(null);
   const [amountByProgram, setAmountByProgram] = useState<Record<string, string>>({});
+  const [sortKey, setSortKey] = useState<OpportunitySortKey>("composite");
   const opportunitiesRef = useRef(board);
   opportunitiesRef.current = board;
 
@@ -148,15 +154,17 @@ export function DiscoverOpportunityQueue({
         return nt === needType;
       });
     }
-    if (!q) return rows;
-    return rows.filter(
-      (o) =>
-        o.programName.toLowerCase().includes(q) ||
-        o.communityName.toLowerCase().includes(q) ||
-        o.communitySlug.toLowerCase().includes(q) ||
-        o.whyFund.toLowerCase().includes(q),
-    );
-  }, [combined, query, needType]);
+    if (q) {
+      rows = rows.filter(
+        (o) =>
+          o.programName.toLowerCase().includes(q) ||
+          o.communityName.toLowerCase().includes(q) ||
+          o.communitySlug.toLowerCase().includes(q) ||
+          o.whyFund.toLowerCase().includes(q),
+      );
+    }
+    return sortByOpportunityScore(rows, sortKey);
+  }, [combined, query, needType, sortKey]);
 
   async function fundRow(o: FundableOpportunity) {
     const raw = amountByProgram[o.programId] ?? "25";
@@ -211,6 +219,37 @@ export function DiscoverOpportunityQueue({
       hidden={!showQueue}
       actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}
     >
+      {filtered.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
+            Sort by
+          </span>
+          {(
+            [
+              ["composite", "Score"],
+              ["reward", "Reward"],
+              ["urgency", "Urgency"],
+              ["confidence", "Confidence"],
+              ["impact", "Impact"],
+              ["difficulty", "Ease"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSortKey(key)}
+              className={clsx(
+                "rounded-lg border px-2.5 py-1 text-[10px] font-medium transition",
+                sortKey === key
+                  ? "border-resolve-accent/40 bg-resolve-accent/15 text-white"
+                  : "border-white/10 text-resolve-muted hover:text-white",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {loading && !board.length ? (
         <DiscoverStatePanel variant="loading">
           <div className="flex items-center justify-center gap-2 text-sm text-resolve-muted">
@@ -269,12 +308,27 @@ export function DiscoverOpportunityQueue({
                       </div>
                       <p className="mt-0.5 text-[11px] text-resolve-muted">{o.communityTagline}</p>
                       <p className="mt-2 text-xs leading-relaxed text-resolve-muted-dim">{o.whyFund}</p>
+                      {o.opportunityScorecard && (
+                        <DiscoverOpportunityScoreChips
+                          chips={o.opportunityScorecard.chips}
+                          composite={o.opportunityScorecard.composite}
+                          compact
+                          className="mt-3"
+                        />
+                      )}
                     </div>
+                    <div className="shrink-0 text-right">
+                      {o.opportunityScorecard && (
+                        <p className="text-2xl font-semibold tabular-nums text-resolve-accent">
+                          {o.opportunityScorecard.composite}
+                        </p>
+                      )}
                     {o.fundingGapUsd > 0 && (
                       <p className="text-sm font-semibold tabular-nums text-amber-200/80">
                         Est. ${o.fundingGapUsd.toFixed(0)}
                       </p>
                     )}
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
                     <Link
@@ -325,8 +379,21 @@ export function DiscoverOpportunityQueue({
                     {program.communityName} — {program.communityTagline}
                   </p>
                   <p className="mt-2 text-xs leading-relaxed text-resolve-muted-dim">{program.whyFund}</p>
+                  {program.opportunityScorecard && (
+                    <DiscoverOpportunityScoreChips
+                      chips={program.opportunityScorecard.chips}
+                      composite={program.opportunityScorecard.composite}
+                      compact
+                      className="mt-3"
+                    />
+                  )}
                 </div>
                 <div className="shrink-0 text-right text-xs">
+                  {program.opportunityScorecard && (
+                    <p className="mb-1 text-2xl font-semibold tabular-nums text-resolve-accent">
+                      {program.opportunityScorecard.composite}
+                    </p>
+                  )}
                   <p className="text-[10px] uppercase text-resolve-muted-dim">
                     {program.metricKind === "match_leverage"
                       ? CAPITAL_YIELD_COPY.discover.qfLabel

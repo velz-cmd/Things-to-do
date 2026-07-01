@@ -80,6 +80,7 @@ export type FundableOpportunity = {
   score: number;
   metricKind: "fulfillment" | "match_leverage";
   needType?: import("@/lib/discover/need-types").DiscoverNeedType;
+  opportunityScorecard?: import("@/lib/discover/opportunity-score").OpportunityScorecard;
 };
 
 /** Verified economic value — fulfillment ratio for standard programs, match leverage for QF. */

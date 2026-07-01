@@ -29,12 +29,7 @@ import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-p
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
-import {
-  VALUE_GRAPH_FOOTER,
-  VALUE_GRAPH_MAP_HINT,
-  VALUE_GRAPH_SUBTITLE,
-} from "@/lib/discover/resolve-value-copy";
-import { VALUE_GRAPH_AUDIENCES } from "@/lib/discover/discover-action-truth";
+import { VALUE_GRAPH_FOOTER, VALUE_GRAPH_MAP_HINT, VALUE_GRAPH_SUBTITLE } from "@/lib/discover/resolve-value-copy";
 import { DiscoverValueNodeStrip } from "@/components/resolve/discover/discover-value-node-strip";
 
 type RadarPayload = {
@@ -141,7 +136,7 @@ function useMediaQuery(query: string) {
 export function DiscoverValueBubblemap({
   className,
   intent = "all",
-  role: _role = "all",
+  role = "all",
   signedIn = false,
 }: {
   className?: string;
@@ -205,13 +200,24 @@ export function DiscoverValueBubblemap({
   }, [visible, loadRadar]);
 
   const filteredGraph = useMemo(() => {
-    const byDomain = filterGraphByDomain(
-      data?.graph.nodes ?? [],
-      data?.graph.edges ?? [],
-      domainFilter,
-    );
+    let nodes = data?.graph.nodes ?? [];
+    let edges = data?.graph.edges ?? [];
+
+    if (!data?.live) {
+      const real = nodes.filter((n) => !n.synthetic);
+      if (real.length > 0) {
+        const ids = new Set(real.map((n) => n.id));
+        nodes = real;
+        edges = edges.filter((e) => ids.has(e.from) && ids.has(e.to));
+      } else {
+        nodes = [];
+        edges = [];
+      }
+    }
+
+    const byDomain = filterGraphByDomain(nodes, edges, domainFilter);
     return filterGraphByIntent(byDomain.nodes, byDomain.edges, intent);
-  }, [data?.graph.nodes, data?.graph.edges, domainFilter, intent]);
+  }, [data?.graph.nodes, data?.graph.edges, data?.live, domainFilter, intent]);
 
   const bubbles = useMemo(
     () => layoutBubblemap(filteredGraph.nodes),
@@ -233,8 +239,8 @@ export function DiscoverValueBubblemap({
   const modeLabel = data?.live
     ? `Live ledger · ${data.ledgerEventCount ?? 0} authorization${(data.ledgerEventCount ?? 0) === 1 ? "" : "s"}`
     : hasGraph
-      ? "GitHub scan preview — estimated gaps from repo health, not ledger"
-      : "Waiting for ledger events";
+      ? "Ledger nodes only — attach communities on Board to grow the graph"
+      : "No ledger nodes yet — fund or attach a program on Board";
 
   const panelActions = useMemo(() => {
     if (!panel) return [];
@@ -281,14 +287,15 @@ export function DiscoverValueBubblemap({
 
   const sectionBody = (
     <>
-      <div className="discover-audience-legend mb-3">
-        {VALUE_GRAPH_AUDIENCES.map((a) => (
-          <div key={a.id} className="discover-audience-legend__item">
-            <p className="discover-audience-legend__label">{a.label}</p>
-            <p className="discover-audience-legend__hint">{a.hint}</p>
-          </div>
-        ))}
-      </div>
+      <p className="mb-3 text-[11px] leading-relaxed text-resolve-muted-dim">
+        {role === "community"
+          ? "Creators: open person/artist nodes to view proof — claim on Capital."
+          : role === "funder" || role === "dao"
+            ? "Fund & Sponsor move Arc USDC on testnet when you confirm."
+            : role === "founder" || role === "operator"
+              ? "Install community nodes — sensors sync verified events to the ledger."
+              : "Pick a job above — graph actions match your role."}
+      </p>
 
       {hasGraph && (
         <DiscoverValueNodeStrip
@@ -343,7 +350,7 @@ export function DiscoverValueBubblemap({
           <p className="text-sm text-resolve-muted">
             {domainFilter !== "all"
               ? `No ${domainFilter} nodes in the current graph — try another filter or explore a community below.`
-              : data?.emptyReason ?? "Graph fills as programs rank — explore communities in the workspace lanes"}
+              : data?.emptyReason ?? "Ledger graph is empty — attach a community on Board, then refresh"}
           </p>
         </div>
       ) : (

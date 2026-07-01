@@ -177,8 +177,8 @@ export function radarSubtitleForRole(role: DiscoverRole): string {
     founder: "Launch programs and attach sensors for this vertical",
     operator: "Connect sources — cards appear when ledger rows rank up",
     dao: "Grant pools, citations, and treasury signals",
-    community: "Artist and creator value — claim on Earn, not here",
-    all: "Live ledger gaps when available — attach a community to unlock more",
+    community: "Attach communities on Board — earnings aggregate on the Earnings tab.",
+    all: "Live ledger gaps when available — attach any catalog community to unlock more",
   };
   return byRole[role] ?? byRole.all!;
 }

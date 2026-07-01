@@ -59,8 +59,8 @@ export function DiscoverTrendingGaps({
 
   const subtitle =
     feed?.realSignalCount != null
-      ? `Funder lane — ${feed.realSignalCount} ledger-verified signals ranked by opportunity score`
-      : "Funder lane — ranked unfunded work from ledger authorizations and live scans";
+      ? `${feed.realSignalCount} ledger-verified signals across communities — ranked by opportunity score`
+      : "Ranked unfunded work from ledger authorizations and live scans — all communities";
 
   return (
     <DiscoverPremiumSection

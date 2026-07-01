@@ -11,7 +11,7 @@ import type { DiscoverIntent, DomainRadarBundle, RadarEmptyState } from "@/lib/d
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { filterActionsByRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
-import { defaultRadarForRole, radarSubtitleForRole } from "@/lib/discover/board-actions-for-role";
+import { defaultRadarForRole } from "@/lib/discover/board-actions-for-role";
 import { gapMatchesRadar } from "@/lib/discover/gap-rules";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
@@ -85,8 +85,8 @@ export function DiscoverDomainRadars({
 
   return (
     <DiscoverPremiumSection
-      title="Opportunity radars"
-      subtitle={radarSubtitleForRole(role)}
+      title="Domain radars"
+      subtitle="OSS, creators, and DAO/research — ranked gaps across every community when ledger data exists"
       className={className}
       actions={
         <DiscoverSectionRefresh
@@ -217,37 +217,19 @@ function DomainRadarPanel({
   );
 }
 
-function RadarEmpty({
-  empty,
-  role,
-}: {
-  empty: RadarEmptyState;
-  role: DiscoverRole;
-}) {
+function RadarEmpty({ empty }: { empty: RadarEmptyState; role: DiscoverRole }) {
   return (
     <div className="space-y-3">
       <p className="text-xs leading-relaxed text-resolve-muted">{empty.message}</p>
-      {role === "community" ? (
-        <Link
-          href="/capital"
-          className={clsx(
-            "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
-            "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
-          )}
-        >
-          View earnings on Capital →
-        </Link>
-      ) : (
-        <Link
-          href={empty.actionHref}
-          className={clsx(
-            "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
-            "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
-          )}
-        >
-          {empty.actionLabel} →
-        </Link>
-      )}
+      <Link
+        href={empty.actionHref}
+        className={clsx(
+          "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
+          "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
+        )}
+      >
+        {empty.actionLabel} →
+      </Link>
     </div>
   );
 }

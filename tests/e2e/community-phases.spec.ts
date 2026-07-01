@@ -246,6 +246,19 @@ test.describe("Community phases — APIs", () => {
     const oss = body.eligibility.find((r: { id: string }) => r.id === "oss");
     expect(oss.threshold).toContain("5+");
   });
+
+  test("POST /api/agent/invoke requires sign-in", async ({ request }) => {
+    const res = await request.post("/api/agent/invoke", {
+      data: {
+        serviceId: "docs-review",
+        prompt: "Run intel on React maintainers",
+        maxSpendUsd: 0.05,
+      },
+    });
+    expect(res.status()).toBe(401);
+    const body = await res.json();
+    expect(body.error).toContain("Sign in");
+  });
 });
 
 test.describe("Community phases — surfaces", () => {
@@ -269,6 +282,8 @@ test.describe("Community phases — surfaces", () => {
     await expect(market.getByText("Micro-services registry")).toBeVisible({ timeout: 30_000 });
     await expect(market.locator("li").filter({ hasText: "Sentiment" }).first()).toBeVisible();
     await expect(market.getByText("RESOLVE fee path")).toBeVisible();
+    await expect(market.getByRole("button", { name: /Run agent/ })).toBeVisible();
+    await expect(market.getByText("Price preview:")).toBeVisible();
   });
 
   test("discover community role shows earn surface above the fold", async ({ page }) => {

@@ -5,7 +5,8 @@ import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { gapsPrimaryActions, gapsRoleIntro } from "@/lib/discover/gaps-empty-state";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { DiscoverStatePanel } from "@/components/resolve/discover/discover-state-panel";
-
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { platformConnected } from "@/lib/profile/connection-state-types";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
 export function DiscoverGapsEmpty({
@@ -21,11 +22,25 @@ export function DiscoverGapsEmpty({
   degraded?: boolean;
   onSwitchLane?: (lane: DiscoverWorkspaceLane) => void;
 }) {
-  const actions = gapsPrimaryActions({ needType, role });
+  const { state: connections } = useUserConnections();
+  const actions = gapsPrimaryActions({
+    needType,
+    role,
+    installedSlugs: connections.installedCommunitySlugs,
+  });
 
   return (
     <DiscoverStatePanel variant="empty">
       <p className="text-sm leading-relaxed text-resolve-muted">{gapsRoleIntro(role)}</p>
+      {connections.hasAnyConnector && (
+        <p className="mt-2 text-[11px] text-resolve-muted-dim">
+          Profile connectors are linked
+          {connections.githubUsername ? ` (GitHub @${connections.githubUsername})` : ""}
+          {platformConnected(connections, "listenbrainz") ? " · ListenBrainz" : ""}
+          {platformConnected(connections, "jellyfin") ? " · Jellyfin" : ""}
+          — community attach below unlocks ledger-ranked gaps for OSS, research, and music programs.
+        </p>
+      )}
 
       {actions.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">

@@ -23,6 +23,7 @@ export function ProfileWorkView({
         </p>
         <p className="mt-1 text-xs text-resolve-muted">
           RESOLVE reads activity from your linked sources and maps it to earn eligibility.
+          Thresholds are goals — not balances. Dollar amounts below are ledger authorizations, not money in your wallet.
         </p>
         {degraded && (
           <p className="mt-1 text-[10px] text-amber-200/90">Ledger sync delayed — showing connection status.</p>
@@ -66,7 +67,13 @@ export function ProfileWorkView({
                   <li key={`${stream.id}-${i}`} className="text-[10px] text-resolve-muted">
                     {item.label}
                     {item.amountUsd != null && item.amountUsd > 0 && (
-                      <span className="ml-1 text-emerald-300/90">${item.amountUsd.toFixed(2)}</span>
+                      <span className="ml-1 text-amber-200/80">
+                        ·{" "}
+                        {item.status === "claimable" || item.status === "settled"
+                          ? "Claimable"
+                          : "Authorized"}{" "}
+                        ${item.amountUsd.toFixed(2)}
+                      </span>
                     )}
                   </li>
                 ))}

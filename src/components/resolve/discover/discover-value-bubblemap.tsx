@@ -33,6 +33,7 @@ import { VALUE_GRAPH_FOOTER, VALUE_GRAPH_MAP_HINT, VALUE_GRAPH_SUBTITLE } from "
 import { DiscoverValueNodeStrip } from "@/components/resolve/discover/discover-value-node-strip";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { gapsPrimaryActions } from "@/lib/discover/gaps-empty-state";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -148,6 +149,7 @@ export function DiscoverValueBubblemap({
   signedIn?: boolean;
   onOpenBoard?: () => void;
 }) {
+  const { state: connections } = useUserConnections();
   const sectionRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<RadarPayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -219,8 +221,13 @@ export function DiscoverValueBubblemap({
   const scaleY = viewH / VIEW_H;
 
   const emptyAttachActions = useMemo(
-    () => gapsPrimaryActions({ needType: "all", role }),
-    [role],
+    () =>
+      gapsPrimaryActions({
+        needType: "all",
+        role,
+        installedSlugs: connections.installedCommunitySlugs,
+      }),
+    [role, connections.installedCommunitySlugs],
   );
 
   const modeLabel = loading && !data

@@ -15,7 +15,6 @@ import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import type { DiscoverIntent } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
-import { sectionVisibleForRole } from "@/lib/discover/role-filters";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import {
@@ -71,10 +70,6 @@ export function DiscoverOpportunityQueue({
   const [sortKey, setSortKey] = useState<OpportunitySortKey>("composite");
   const opportunitiesRef = useRef(board);
   opportunitiesRef.current = board;
-
-  const showQueue =
-    sectionVisibleForRole("opportunities", role) &&
-    (role === "all" || role === "funder" || role === "founder" || role === "dao" || intent === "fund" || intent === "sponsor");
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
@@ -208,7 +203,6 @@ export function DiscoverOpportunityQueue({
       title="Opportunity board"
       subtitle={subtitle}
       className={className}
-      hidden={!showQueue}
       actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}
     >
       <p className="mb-4 text-[11px] leading-relaxed text-resolve-muted-dim">{boardUseCaseLine(role)}</p>

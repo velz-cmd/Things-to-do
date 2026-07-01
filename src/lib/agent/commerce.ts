@@ -7,6 +7,7 @@ import {
 import { payForResource, recordAgentSpend, type AgentPayResult } from "@/lib/agent/agent-pay";
 import { recordAgentInvocation } from "@/lib/agent/invocation-ledger";
 import { getAppBaseUrl, isAgentGatewayEnabled } from "@/lib/agent/gateway-config";
+import { isProductionDeploy } from "@/lib/config/demo-mode";
 import {
   runX402MicroService,
   x402MicroSlugFromServiceId,
@@ -89,6 +90,22 @@ export async function invokeAgentService<T = unknown>(input: {
   const microSlug = x402MicroSlugFromServiceId(service.id);
   let pay: AgentPayResult<X402MicroResult | { sentiment?: string; score?: number }>;
 
+  if (!isAgentGatewayEnabled() && isProductionDeploy()) {
+    return {
+      ok: false,
+      serviceId: service.id,
+      serviceName: service.name,
+      amountUsd: 0,
+      txRef: null,
+      meteringMode: "skipped",
+      error:
+        "Live agent payments require x402 gateway (ARC_AGENT_GATEWAY_PRIVATE_KEY) and a funded Arc wallet. Configure gateway env vars or use dev preview for metered invoke.",
+      url,
+      continue: false,
+      rfbProgram: service.rfbProgram,
+    };
+  }
+
   if (!isAgentGatewayEnabled() && microSlug) {
     const text = input.query?.text ?? "";
     const direct = runX402MicroService(microSlug, text);
@@ -119,7 +136,12 @@ export async function invokeAgentService<T = unknown>(input: {
   }
 
   let authorizationId: string | undefined;
-  if (pay.amountUsd > 0 && (pay.ok || pay.meteringMode === "offchain_metered")) {
+  const ledgerEligible =
+    pay.amountUsd > 0 &&
+    (pay.meteringMode === "gateway_live" ||
+      (pay.ok && Boolean(pay.txRef)) ||
+      (!isProductionDeploy() && pay.meteringMode === "offchain_metered" && pay.ok));
+  if (ledgerEligible) {
     const recorded = await recordAgentInvocation({
       service,
       taskId: input.taskId,

@@ -253,10 +253,13 @@ export function DiscoverActionsProvider({
             setBusy(true);
             try {
               await apiInstallCommunity(action.communitySlug!);
-              toast.success(`Installed ${action.communitySlug} — community record created`);
+              const slug = action.communitySlug!;
+              toast.success(`${slug} ready — RESOLVE syncs sources in the background`);
               reportActionStatus(surface, action, "success");
-              if (surface !== "community-console" && surface !== "bubble-operator-panel") {
-                router.push(`/communities/${action.communitySlug}`);
+              if (communityConsole && surface !== "community-console" && surface !== "bubble-operator-panel") {
+                communityConsole.open({ communitySlug: slug, tab: "console" });
+              } else if (surface !== "community-console" && surface !== "bubble-operator-panel") {
+                router.push(`/communities/${slug}`);
               }
             } catch (e) {
               const msg = e instanceof Error ? e.message : "Install failed";
@@ -298,8 +301,29 @@ export function DiscoverActionsProvider({
           }
 
           case "connect_sensor":
-            router.push(action.href ?? `/communities/${action.communitySlug ?? "react"}`);
-            reportActionStatus(surface, action, "success");
+            setBusy(true);
+            try {
+              const slug = action.communitySlug ?? action.href?.match(/\/communities\/([^/#?]+)/)?.[1];
+              if (slug) {
+                await apiInstallCommunity(slug);
+                toast.success(`${slug} ready — syncing value automatically`);
+                reportActionStatus(surface, action, "success");
+                if (communityConsole) {
+                  communityConsole.open({ communitySlug: slug, tab: "console" });
+                } else {
+                  router.push(`/communities/${slug}`);
+                }
+              } else if (action.href) {
+                router.push(action.href);
+                reportActionStatus(surface, action, "success");
+              }
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : "Could not open community";
+              reportActionStatus(surface, action, "error", msg);
+              toast.error(msg);
+            } finally {
+              setBusy(false);
+            }
             break;
 
           case "claim":

@@ -38,13 +38,13 @@ export function DiscoverNetworkPulse({
           <ArrowRight className="h-3 w-3" />
         </a>
       )}
-      {feed?.intelligence?.sensorsOnline === 0 && (
+      {feed?.intelligence?.sensorsOnline === 0 && feed?.intelligence?.recognizedUsd === 0 && (
         <Link
-          href="/communities"
+          href="#discover-workspace"
           className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1 text-[11px] text-white/65 hover:text-white"
         >
           <Radio className="h-3 w-3" />
-          Connect sensors
+          Explore programs
         </Link>
       )}
     </>
@@ -63,7 +63,7 @@ export function DiscoverNetworkPulse({
   } else if (!feed?.intelligence) {
     body = (
       <p className="text-xs text-resolve-muted">
-        Network pulse unavailable — connect sensors to populate ledger.
+        Network pulse warming up — public programs and ledger rows appear as they rank.
       </p>
     );
   } else {
@@ -77,7 +77,7 @@ export function DiscoverNetworkPulse({
           <Activity className="mt-0.5 h-4 w-4 text-resolve-calm-periwinkle" />
           <div>
             <p className="text-sm text-white">
-              {hasActivity ? i.headline : "Connect ecosystems — value discovery starts with sensors"}
+              {hasActivity ? i.headline : "Value discovery is live — explore community programs in the workspace below"}
             </p>
             {realSignalCount > 0 && (
               <p className="mt-0.5 text-[10px] text-white/45">
@@ -130,7 +130,7 @@ export function DiscoverNetworkPulse({
                   ) : error ? (
                     <span className="text-amber-200/90">{error}</span>
                   ) : (
-                    <span className="text-resolve-muted">Connect sensors to populate ledger</span>
+                    <span className="text-resolve-muted">Ranking opportunities across communities…</span>
                   )}
                 </p>
               )}

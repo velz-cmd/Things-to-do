@@ -31,6 +31,7 @@ import {
   type OpportunitySortKey,
 } from "@/lib/discover/opportunity-score";
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
+import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 
 type WalletResponse = {
   ok?: boolean;
@@ -84,7 +85,7 @@ export function DiscoverOpportunityQueue({
       const data = await res.json();
       setBoard(data.board ?? data.opportunities ?? []);
       if (data.degraded && !(data.board ?? data.opportunities ?? []).length) {
-        setError("Board timed out — connect GitHub or refresh in a moment");
+        setError("Board is still loading — try Refresh in a moment");
       }
     } catch (e) {
       const aborted = e instanceof Error && e.name === "AbortError";
@@ -267,15 +268,17 @@ export function DiscoverOpportunityQueue({
           <p className="text-sm text-resolve-muted">
             {query.trim()
               ? "No programs match your search."
-              : "No opportunities yet — connect GitHub, Jellyfin, or ListenBrainz to seed real value."}
+              : "Fulfillment queue fills as community programs deploy. Explore ecosystems in Gaps or Radars to fund real opportunities."}
           </p>
           {!query.trim() && (
             <button
               type="button"
-              onClick={scrollToCommunities}
+              onClick={() => {
+                document.getElementById("discover-workspace")?.scrollIntoView({ behavior: "smooth" });
+              }}
               className="mt-4 inline-flex rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
             >
-              Connect a community
+              Explore programs
             </button>
           )}
         </DiscoverStatePanel>
@@ -331,12 +334,17 @@ export function DiscoverOpportunityQueue({
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
-                    <Link
-                      href={o.connectHref}
-                      className="rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5 text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15"
-                    >
-                      {ctaLabel}
-                    </Link>
+                    <DiscoverActionChip
+                      action={{
+                        id: `install-${o.communitySlug}`,
+                        label: ctaLabel,
+                        kind: "install",
+                        communitySlug: o.communitySlug,
+                      }}
+                      signedIn={signedIn}
+                      primary
+                      surface="opportunity-board"
+                    />
                   </div>
                 </li>
               );

@@ -76,7 +76,7 @@ export async function GET() {
           id: "musicbrainz",
           label: "MusicBrainz",
           connected: false,
-          authorizeUrl: "/profile",
+          authorizeUrl: "/communities/navidrome",
           hint: "Link your artist name for play attribution",
         },
       ],
@@ -131,8 +131,8 @@ export async function GET() {
       label: "MusicBrainz",
       connected: mbLink.connected,
       displayValue: mbLink.displayValue,
-      authorizeUrl: "/profile",
-      hint: mbLink.connected ? undefined : "Link your artist name for play attribution",
+      authorizeUrl: "/communities/navidrome",
+      hint: mbLink.connected ? undefined : "Link your artist identity for play attribution",
     },
   ];
 

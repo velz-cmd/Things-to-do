@@ -74,10 +74,9 @@ export function ossCardActions(input: {
     },
     {
       id: "sensor",
-      label: "GitHub sensor",
-      kind: "connect_sensor",
+      label: "Explore ecosystem",
+      kind: "install",
       communitySlug: input.communitySlug,
-      href: `/communities/${input.communitySlug}#health`,
     },
   ];
 }
@@ -129,9 +128,9 @@ export function musicCardActions(input: {
     },
     {
       id: "musicbrainz",
-      label: "Connect MusicBrainz",
-      kind: "connect_sensor",
-      href: "/profile",
+      label: "Explore royalties",
+      kind: "install",
+      communitySlug: input.communitySlug,
     },
     ...(input.proofHref
       ? [{ id: "share", label: "Share receipt", kind: "share" as const, href: input.proofHref }]
@@ -163,9 +162,8 @@ export function daoCardActions(input: {
     },
     {
       id: "treasury",
-      label: "Connect treasury",
-      kind: "connect_sensor",
-      communitySlug: input.communitySlug,
+      label: "Open treasury",
+      kind: "open",
       href: `/communities/${input.communitySlug}#treasury`,
     },
     {
@@ -193,10 +191,9 @@ export function ossToolbar(ctx: {
       },
       {
         id: "tb-sensor",
-        label: "GitHub sensor",
-        kind: "connect_sensor",
+        label: "Explore ecosystem",
+        kind: "install",
         communitySlug: ctx.communitySlug,
-        href: `/communities/${ctx.communitySlug}#health`,
       },
     ]);
   }
@@ -233,10 +230,9 @@ export function ossToolbar(ctx: {
     },
     {
       id: "tb-sensor",
-      label: "GitHub sensor",
-      kind: "connect_sensor",
+      label: "Explore ecosystem",
+      kind: "install",
       communitySlug: ctx.communitySlug,
-      href: `/communities/${ctx.communitySlug}#health`,
     },
   ]);
 }
@@ -249,9 +245,9 @@ export function musicToolbar(ctx: {
   return trimToolbar([
     {
       id: "tb-mb",
-      label: "Connect MusicBrainz",
-      kind: "connect_sensor",
-      href: "/profile",
+      label: "Explore music",
+      kind: "install",
+      communitySlug: ctx.communitySlug,
     },
     {
       id: "tb-royalty",
@@ -312,9 +308,8 @@ export function daoToolbar(ctx: {
     },
     {
       id: "tb-treasury",
-      label: "Connect treasury",
-      kind: "connect_sensor",
-      communitySlug: ctx.communitySlug,
+      label: "Open treasury",
+      kind: "open",
       href: `/communities/${ctx.communitySlug}#treasury`,
     },
     {

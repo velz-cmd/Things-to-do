@@ -26,7 +26,7 @@ export const DISCOVER_ROLES: {
   {
     id: "community",
     label: "Community",
-    hint: "Earn, claim receipts, connect GitHub & ListenBrainz",
+    hint: "Earn, claim receipts, and track royalties from your communities",
   },
   {
     id: "funder",
@@ -41,7 +41,7 @@ export const DISCOVER_ROLES: {
   {
     id: "operator",
     label: "Operator",
-    hint: "Connect GitHub, Jellyfin, ListenBrainz — keep sensors healthy",
+    hint: "Install communities and keep value rails syncing in the background",
   },
   {
     id: "dao",

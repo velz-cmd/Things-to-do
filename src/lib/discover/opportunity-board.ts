@@ -40,14 +40,8 @@ function templateForCommunity(c: CommunityCatalogEntry): string {
   return "docs-bounty";
 }
 
-function connectCtaForCommunity(c: CommunityCatalogEntry): string {
-  if (c.connectors.includes("github")) return "Connect GitHub";
-  if (c.connectors.includes("jellyfin")) return "Connect Jellyfin";
-  if (c.connectors.includes("navidrome")) return "Connect Navidrome";
-  if (c.connectors.includes("discord")) return "Connect Discord";
-  if (c.connectors.includes("openalex")) return "Connect OpenAlex";
-  if (c.connectors.includes("listenbrainz")) return "Connect ListenBrainz";
-  return c.installCta;
+function exploreCtaForCommunity(c: CommunityCatalogEntry): string {
+  return `Explore ${c.name}`;
 }
 
 function communityBoardRow(
@@ -90,12 +84,12 @@ function communityBoardRow(
     fundingGapUsd: gapUsd,
     whyFund: opts?.ossMatch
       ? `${c.tagline} · GitHub scan · est. $${gapUsd.toFixed(0)} maintainer gap`
-      : `${c.tagline} · connect a sensor to surface verified needs (no estimate until live)`,
+      : `${c.tagline} · install to surface verified needs as activity syncs`,
     whoBenefits: c.doctrine.slice(0, 120),
     score: opportunityScorecard.composite,
     opportunityScorecard,
     metricKind: c.attachShape === "sidecar" ? "install" : "connect",
-    connectCta: connectCtaForCommunity(c),
+    connectCta: exploreCtaForCommunity(c),
     connectHref: `/communities/${c.slug}`,
     needType,
   };

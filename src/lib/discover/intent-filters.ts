@@ -12,7 +12,7 @@ const INTENT_ACTIONS: Record<DiscoverIntent, DiscoverActionKind[] | "all"> = {
 export const DISCOVER_INTENTS: { id: DiscoverIntent; label: string; hint: string }[] = [
   { id: "earn", label: "Earn", hint: "Claim royalties and share receipts" },
   { id: "fund", label: "Fund", hint: "Fulfill gaps and move capital" },
-  { id: "operate", label: "Operate", hint: "Install communities and connect sensors" },
+  { id: "operate", label: "Operate", hint: "Install communities and run programs in-tab" },
   { id: "build", label: "Build", hint: "Create programs and open entities" },
   { id: "sponsor", label: "Sponsor", hint: "Back programs with capital" },
   { id: "all", label: "All", hint: "Every action surface" },

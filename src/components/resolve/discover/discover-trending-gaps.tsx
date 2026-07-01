@@ -88,7 +88,7 @@ export function DiscoverTrendingGaps({
           <DiscoverRetryButton onClick={() => void refresh()} />
         </DiscoverStatePanel>
       ) : !filtered.length ? (
-        <DiscoverGapsEmpty needType={needType} role={role} degraded={feed?.degraded} />
+        <DiscoverGapsEmpty needType={needType} role={role} signedIn={signedIn} degraded={feed?.degraded} />
       ) : (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">

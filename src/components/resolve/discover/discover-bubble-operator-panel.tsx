@@ -292,7 +292,7 @@ export function DiscoverBubbleOperatorPanel({
                 );
               })
             ) : (
-              <p className="text-xs text-resolve-muted">Connect a community sensor to unlock actions.</p>
+              <p className="text-xs text-resolve-muted">Select a bubble to fund, claim, or explore a program.</p>
             )}
           </div>
         </footer>

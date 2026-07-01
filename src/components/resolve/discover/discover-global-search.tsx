@@ -7,6 +7,7 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
+import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 
 type SearchMeta = {
   topPrimaryAction: DiscoverAction | null;
@@ -98,7 +99,8 @@ export function DiscoverGlobalSearch({
   }
 
   return (
-    <section className="relative">
+    <DiscoverCapitalCard className="discover-search-card" padding={false}>
+      <div className="relative p-3.5">
       <form onSubmit={(e) => void handleSubmit(e)} className="relative">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-resolve-accent" />
         <input
@@ -154,6 +156,7 @@ export function DiscoverGlobalSearch({
           )}
         </div>
       )}
-    </section>
+      </div>
+    </DiscoverCapitalCard>
   );
 }

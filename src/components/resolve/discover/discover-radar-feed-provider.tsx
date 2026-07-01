@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
+import { emptyRadarFeedPayload } from "@/lib/discover/radar-feed-fallback";
 
 type DiscoverRadarFeedContextValue = {
   feed: DiscoverRadarFeedPayload | null;
@@ -37,8 +38,13 @@ export function DiscoverRadarFeedProvider({ children }: { children: ReactNode })
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 18_000);
     try {
-      const res = await fetch("/api/discover/radar-feed?limit=24", { credentials: "include" });
+      const res = await fetch("/api/discover/radar-feed?limit=24", {
+        credentials: "include",
+        signal: controller.signal,
+      });
       let data: DiscoverRadarFeedPayload | null = null;
       try {
         data = (await res.json()) as DiscoverRadarFeedPayload;
@@ -54,17 +60,22 @@ export function DiscoverRadarFeedProvider({ children }: { children: ReactNode })
       } else {
         throw new Error("Invalid radar feed payload");
       }
-    } catch {
+    } catch (err) {
+      const aborted = err instanceof DOMException && err.name === "AbortError";
       if (!isUsableFeed(feedRef.current)) {
-        setError("Could not load trending radar");
+        if (aborted) {
+          setFeed(emptyRadarFeedPayload({ degraded: true, degradedParts: ["timeout"] }));
+        }
+        setError(aborted ? "Pulse timed out — showing defaults" : "Could not load trending radar");
         discoverFetchErrorToast(
           "discover-radar-feed",
-          "Trending radar unavailable",
+          aborted ? "Network pulse slow — retry" : "Trending radar unavailable",
           refresh,
           Boolean(feedRef.current),
         );
       }
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }, []);

@@ -12,6 +12,7 @@ import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import { filterActionsByIntent } from "@/lib/discover/intent-filters";
 import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
+import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -65,12 +66,15 @@ export function DiscoverActionCard({
   }, [actions, registerVisibleAction, surface]);
 
   return (
-    <article
+    <DiscoverCapitalCard
+      as="article"
       className={clsx(
         "discover-action-card",
         compact ? "discover-action-card--compact" : "discover-action-card--full",
       )}
+      padding={false}
     >
+      <div className={compact ? "p-3" : "p-4"}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -190,7 +194,8 @@ export function DiscoverActionCard({
           />
         ))}
       </div>
-    </article>
+      </div>
+    </DiscoverCapitalCard>
   );
 }
 

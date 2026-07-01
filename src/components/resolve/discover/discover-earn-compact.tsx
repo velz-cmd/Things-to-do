@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { Money } from "@/components/resolve/ui/money";
 import type { ProfileEarningsSummary } from "@/lib/earn/summary";
+import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 
 type EarnPayload = {
   signedIn: boolean;
@@ -34,10 +35,13 @@ export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
   const earned = earnings?.youEarnedUsd ?? 0;
 
   return (
-    <div
+    <DiscoverCapitalCard
       id="earn"
-      className="discover-earn-strip scroll-mt-24 rounded-xl border border-white/[0.1] bg-gradient-to-r from-emerald-500/[0.06] via-black/30 to-resolve-accent/[0.04] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      accent="emerald"
+      className="discover-earn-strip scroll-mt-24"
+      padding={false}
     >
+      <div className="px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-muted-dim">
@@ -87,6 +91,7 @@ export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
           </Link>
         </div>
       </div>
-    </div>
+      </div>
+    </DiscoverCapitalCard>
   );
 }

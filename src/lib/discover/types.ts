@@ -76,6 +76,8 @@ export type TrendingValueGap = {
   updatedAt?: string;
   proofHref?: string;
   actions: DiscoverAction[];
+  /** Phase 8 — investor-grade comparable scores */
+  opportunityScorecard?: import("@/lib/discover/opportunity-score").OpportunityScorecard;
 };
 
 export type RadarEmptyState = {

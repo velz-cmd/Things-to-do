@@ -9,7 +9,7 @@ export type ValuationResult = {
   tier: "minimum" | "growing" | "established";
 };
 
-const OSS_CAP_USD = 25_000;
+export const OSS_CAP_USD = 25_000;
 const MUSIC_CAP_USD = 15_000;
 const VIDEO_CAP_USD = 12_000;
 

@@ -5,13 +5,13 @@ import {
   computeYieldMultiplier,
   DEFAULT_TARGET_YIELD_MULTIPLIER,
   fundingGapForTarget,
-  opportunityScore,
   templateLabel,
   whyFundCopy,
   type FundableOpportunity,
 } from "@/lib/capital/community-yield";
 import { classifyBoardNeedType } from "@/lib/discover/need-types";
 import { computeProgramYield, programDiscoveryMetrics } from "@/lib/capital/yield-service";
+import { scorecardFromFundable } from "@/lib/discover/opportunity-score";
 
 /** Programs any funder can discover — no need to know the community beforehand */
 export async function listFundableOpportunities(limit = 24): Promise<FundableOpportunity[]> {
@@ -92,14 +92,8 @@ export async function listFundableOpportunities(limit = 24): Promise<FundableOpp
   ).filter((o) => o !== null) as FundableOpportunity[];
 
   for (const o of opportunities) {
-    o.score = opportunityScore({
-      fundingGapUsd: o.fundingGapUsd,
-      settlementRate: o.settlementRate,
-      signalCount: o.signalCount,
-      yieldMultiplier: o.yieldMultiplier,
-      targetMultiplier: o.targetMultiplier,
-      pendingFundingUsd: o.fundingGapUsd,
-    });
+    o.opportunityScorecard = scorecardFromFundable(o);
+    o.score = o.opportunityScorecard.composite;
   }
 
   return opportunities.sort((a, b) => b.score - a.score).slice(0, limit);

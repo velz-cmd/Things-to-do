@@ -19,8 +19,10 @@ import {
   DiscoverActionAuditPanel,
   DiscoverActionAuditProvider,
 } from "@/components/resolve/discover/discover-action-audit-panel";
+import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import {
   DiscoverWorkspaceNav,
+  defaultLaneForRole,
   laneForJob,
   type DiscoverWorkspaceLane,
 } from "@/components/resolve/discover/discover-workspace-nav";
@@ -76,25 +78,46 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
   useEffect(() => {
     const saved = loadPersistedDiscoverRole();
-    if (saved) setRole(saved);
+    if (saved) {
+      setRole(saved);
+      setLane(defaultLaneForRole(saved));
+    }
   }, []);
 
   const effectiveQuery = queueFilter ?? query;
+
+  function scrollToDiscoverAnchor(scrollTo: string) {
+    window.requestAnimationFrame(() => {
+      const anchorId =
+        scrollTo === "discover-search"
+          ? "discover-search"
+          : scrollTo === "earn"
+            ? "earn"
+            : scrollTo === "opportunities"
+              ? "opportunities"
+              : scrollTo === "value-bubblemap"
+                ? "value-bubblemap"
+                : "discover-workspace";
+      document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth" });
+      if (scrollTo === "discover-search") {
+        document.querySelector<HTMLInputElement>("#discover-search input")?.focus();
+      }
+    });
+  }
+
+  function switchLane(next: DiscoverWorkspaceLane) {
+    setLane(next);
+    window.requestAnimationFrame(() => {
+      document.getElementById("discover-workspace")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
 
   function handleJobSelect(jobId: DiscoverJobId, nextRole: DiscoverRole, scrollTo: string) {
     setActiveJob(jobId);
     setRole(nextRole);
     persistDiscoverRole(nextRole);
     setLane(laneForJob(jobId));
-
-    window.requestAnimationFrame(() => {
-      if (scrollTo === "discover-search") {
-        document.getElementById("discover-search")?.scrollIntoView({ behavior: "smooth" });
-        document.querySelector<HTMLInputElement>("#discover-search input")?.focus();
-        return;
-      }
-      document.getElementById("discover-workspace")?.scrollIntoView({ behavior: "smooth" });
-    });
+    scrollToDiscoverAnchor(scrollTo);
   }
 
   return (
@@ -114,9 +137,9 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
 
         <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-4">
-          <DiscoverWorkspaceNav lane={lane} onLaneChange={setLane} />
+          <DiscoverWorkspaceNav lane={lane} onLaneChange={switchLane} />
 
-          <div key={lane} className="min-h-[280px]">
+          <div key={lane} className="min-h-[200px]">
             {lane === "gaps" && (
               <DiscoverTrendingGaps
                 signedIn={Boolean(user)}
@@ -124,7 +147,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
                 intent={intent}
                 role={role}
                 needType={needType}
-                limit={6}
+                onSwitchLane={switchLane}
               />
             )}
 
@@ -135,6 +158,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
                 intent={intent}
                 role={role}
                 needType={needType}
+                onSwitchLane={switchLane}
               />
             )}
 
@@ -145,6 +169,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
                 intent={intent}
                 role={role}
                 needType={needType}
+                onSwitchLane={switchLane}
               />
             )}
 
@@ -152,8 +177,17 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           </div>
         </section>
 
+        <div className="discover-section-stack scroll-mt-24">
+          <DiscoverCommunities signedIn={Boolean(user)} role={role} />
+        </div>
+
         <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">
-          <DiscoverValueBubblemap intent={intent} role={role} signedIn={Boolean(user)} />
+          <DiscoverValueBubblemap
+            intent={intent}
+            role={role}
+            signedIn={Boolean(user)}
+            onOpenBoard={() => switchLane("board")}
+          />
         </div>
 
         <footer className="discover-on-canvas mt-10 border-t border-resolve-border/30 pt-6">

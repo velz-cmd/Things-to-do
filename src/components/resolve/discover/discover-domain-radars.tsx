@@ -15,6 +15,7 @@ import { gapMatchesRadar } from "@/lib/discover/gap-rules";
 import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
 const RADAR_ICONS = {
   oss: GitBranch,
@@ -35,6 +36,7 @@ type DiscoverDomainRadarsProps = {
   role?: DiscoverRole;
   needType?: DiscoverNeedTypeFilter;
   className?: string;
+  onSwitchLane?: (lane: DiscoverWorkspaceLane) => void;
 };
 
 export function DiscoverDomainRadars({
@@ -44,6 +46,7 @@ export function DiscoverDomainRadars({
   role = "all",
   needType = "all",
   className,
+  onSwitchLane,
 }: DiscoverDomainRadarsProps) {
   const { feed, loading, refresh } = useDiscoverRadarFeed();
   const [activeRadar, setActiveRadar] = useState<"oss" | "music" | "dao">(() =>
@@ -123,6 +126,7 @@ export function DiscoverDomainRadars({
         intent={intent}
         role={role}
         icon={Icon}
+        onSwitchLane={onSwitchLane}
       />
     </DiscoverPremiumSection>
   );
@@ -137,6 +141,7 @@ function DomainRadarPanel({
   intent,
   role,
   icon: Icon,
+  onSwitchLane,
 }: {
   radarId: "oss" | "music" | "dao";
   bundle?: DomainRadarBundle & { cards: DomainRadarBundle["cards"] };
@@ -146,6 +151,7 @@ function DomainRadarPanel({
   intent: DiscoverIntent;
   role: DiscoverRole;
   icon: typeof GitBranch;
+  onSwitchLane?: (lane: DiscoverWorkspaceLane) => void;
 }) {
   const title = bundle?.title ?? radarId;
   const tagline = bundle?.tagline ?? "";
@@ -211,7 +217,7 @@ function DomainRadarPanel({
           ))}
         </ul>
       ) : empty ? (
-        <RadarEmpty empty={empty} role={role} />
+        <RadarEmpty empty={empty} role={role} onSwitchLane={onSwitchLane} />
       ) : (
         <p className="text-xs text-resolve-muted">No cards match your filters.</p>
       )}
@@ -219,19 +225,37 @@ function DomainRadarPanel({
   );
 }
 
-function RadarEmpty({ empty }: { empty: RadarEmptyState; role: DiscoverRole }) {
+function RadarEmpty({
+  empty,
+  onSwitchLane,
+}: {
+  empty: RadarEmptyState;
+  role: DiscoverRole;
+  onSwitchLane?: (lane: DiscoverWorkspaceLane) => void;
+}) {
   return (
     <div className="space-y-3">
       <p className="text-xs leading-relaxed text-resolve-muted">{empty.message}</p>
-      <Link
-        href={empty.actionHref}
-        className={clsx(
-          "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
-          "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={empty.actionHref}
+          className={clsx(
+            "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
+            "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
+          )}
+        >
+          {empty.actionLabel} →
+        </Link>
+        {onSwitchLane && (
+          <button
+            type="button"
+            onClick={() => onSwitchLane("board")}
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] font-medium text-resolve-muted hover:text-white"
+          >
+            Open Board
+          </button>
         )}
-      >
-        {empty.actionLabel} →
-      </Link>
+      </div>
     </div>
   );
 }

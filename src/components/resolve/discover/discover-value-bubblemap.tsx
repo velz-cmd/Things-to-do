@@ -62,9 +62,9 @@ type BubbleNode = DiscoverGraphNode & {
 
 const MAX_BUBBLES = 24;
 const VIEW_W = 720;
-const VIEW_H = 168;
-const PAD_X = 40;
-const PAD_Y = 32;
+const VIEW_H = 220;
+const PAD_X = 28;
+const PAD_Y = 22;
 
 const NODE_COLORS: Record<string, string> = {
   creator: "#34d399",
@@ -89,7 +89,7 @@ function layoutBubblemap(nodes: DiscoverGraphNode[]): BubbleNode[] {
 
   const sorted = [...nodes].sort((a, b) => b.weight - a.weight).slice(0, MAX_BUBBLES);
   const hub = sorted[0];
-  const hubR = Math.min(46, 20 + Math.sqrt(Math.max(hub.weight, 1)) * 4);
+  const hubR = Math.min(56, 22 + Math.sqrt(Math.max(hub.weight, 1)) * 5);
   const hubPos = clampBubble(VIEW_W / 2, VIEW_H / 2, hubR);
 
   const placed: BubbleNode[] = [
@@ -102,12 +102,12 @@ function layoutBubblemap(nodes: DiscoverGraphNode[]): BubbleNode[] {
   ];
 
   const orbit = sorted.slice(1);
-  const baseOrbit = Math.min(VIEW_W, VIEW_H) * 0.2;
+  const baseOrbit = Math.min(VIEW_W, VIEW_H) * 0.36;
 
   orbit.forEach((node, i) => {
     const angle = (2 * Math.PI * i) / Math.max(orbit.length, 1) - Math.PI / 2;
-    const r = Math.min(30, 11 + Math.sqrt(Math.max(node.weight, 0.5)) * 3);
-    const dist = baseOrbit + (i % 2) * 18 + r * 0.6;
+    const r = Math.min(36, 14 + Math.sqrt(Math.max(node.weight, 0.5)) * 3.5);
+    const dist = baseOrbit + (i % 2) * 24 + r * 0.5;
     const rawCx = VIEW_W / 2 + dist * Math.cos(angle);
     const rawCy = VIEW_H / 2 + dist * Math.sin(angle);
     const { cx, cy } = clampBubble(rawCx, rawCy, r);
@@ -319,7 +319,7 @@ export function DiscoverValueBubblemap({
             viewBox={`0 0 ${viewW} ${viewH}`}
             className={clsx(
               "discover-bubblemap-svg mx-auto w-full max-w-full touch-manipulation",
-              expanded ? "h-auto" : "h-[168px] max-h-[168px]",
+              expanded ? "h-auto" : "aspect-[720/220] max-h-[220px]",
             )}
             role="img"
             aria-label="Value bubblemap"
@@ -447,7 +447,7 @@ export function DiscoverValueBubblemap({
                       {b.id === "pool:ledger" ? "LEDGER" : "VALUE"}
                     </text>
                   )}
-                  {!isHub && (active || b.r > 22) && r > 14 && (
+                  {!isHub && (active || b.r > 18) && r > 12 && (
                     <text
                       x={b.cx * scaleX}
                       y={b.cy * scaleY}
@@ -457,7 +457,7 @@ export function DiscoverValueBubblemap({
                         "pointer-events-none font-medium",
                         isEcosystem ? "fill-slate-300/90" : "fill-white/90",
                       )}
-                      style={{ fontSize: Math.min(8, r * 0.38) * Math.min(scaleX, scaleY) }}
+                      style={{ fontSize: Math.min(9, r * 0.42) * Math.min(scaleX, scaleY) }}
                     >
                       {isEcosystem ? "⬡ " : ""}
                       {shortLabel}

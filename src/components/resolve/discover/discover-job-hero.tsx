@@ -3,6 +3,16 @@
 import clsx from "clsx";
 import { DISCOVER_JOBS, type DiscoverJobId } from "@/lib/discover/discover-jobs";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
+import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
+
+const JOB_ACCENT: Record<DiscoverJobId, "emerald" | "blue" | "violet" | "teal" | "amber" | "cyan"> = {
+  earn: "emerald",
+  fund: "blue",
+  run: "violet",
+  observe: "teal",
+  grants: "amber",
+  find: "cyan",
+};
 
 export function DiscoverJobHero({
   activeJob,
@@ -35,28 +45,34 @@ export function DiscoverJobHero({
           const selected = activeJob === job.id;
           return (
             <li key={job.id}>
-              <button
+              <DiscoverCapitalCard
+                as="button"
                 type="button"
-                title={`${job.surfaces}`}
-                onClick={() => onSelectJob(job.id, job.role, job.scrollTo)}
+                accent={JOB_ACCENT[job.id]}
+                padding={false}
+                hover
                 className={clsx(
-                  "discover-job-pill group flex w-full flex-col items-start gap-1 rounded-xl border px-2.5 py-2 text-left transition",
+                  "discover-job-pill group w-full text-left",
                   `discover-job-pill--${job.id}`,
                   selected && "discover-job-pill--selected",
                 )}
+                title={job.surfaces}
+                onClick={() => onSelectJob(job.id, job.role, job.scrollTo)}
               >
-                <div className="flex w-full items-center gap-2">
-                  <span className="discover-job-pill__icon flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05]">
-                    <Icon className="h-3.5 w-3.5 text-white/85" strokeWidth={1.75} />
+                <span className="flex w-full flex-col items-start gap-1 px-2.5 py-2">
+                  <span className="flex w-full items-center gap-2">
+                    <span className="discover-job-pill__icon flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05]">
+                      <Icon className="h-3.5 w-3.5 text-white/85" strokeWidth={1.75} />
+                    </span>
+                    <span className="min-w-0 flex-1 text-[11px] font-semibold leading-tight text-white sm:text-xs">
+                      {job.title}
+                    </span>
                   </span>
-                  <span className="min-w-0 flex-1 text-[11px] font-semibold leading-tight text-white sm:text-xs">
-                    {job.title}
+                  <span className="pl-9 text-[9px] font-medium uppercase tracking-wide text-resolve-calm-periwinkle/90">
+                    {job.who}
                   </span>
-                </div>
-                <span className="pl-9 text-[9px] font-medium uppercase tracking-wide text-resolve-calm-periwinkle/90">
-                  {job.who}
                 </span>
-              </button>
+              </DiscoverCapitalCard>
             </li>
           );
         })}

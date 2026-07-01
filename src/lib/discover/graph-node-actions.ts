@@ -1,3 +1,6 @@
+import type { AutomationTrigger } from "@/lib/automation/types";
+import { defaultTriggerForCommunityKind } from "@/lib/automation/simulate";
+import { getCommunityBySlug } from "@/lib/communities/catalog";
 import type { DiscoverGraphEdge, DiscoverGraphNode } from "./radar";
 import { hasFundingGapEdge } from "./graph-domain";
 import type { DiscoverAction, DiscoverDataSource, DiscoverIntent } from "./types";
@@ -10,7 +13,16 @@ function defaultTemplateForNode(node: DiscoverGraphNode): string {
   return "docs-bounty";
 }
 
-/** Phase 3 operator console — Fund, bounty, sponsor, observe, automate (no generic Open-first). */
+export function defaultAutomationTriggerForNode(node: DiscoverGraphNode): AutomationTrigger {
+  if (node.graphDomain === "music") return "play";
+  if (node.graphDomain === "research") return "citation";
+  const community = node.communitySlug ? getCommunityBySlug(node.communitySlug) : null;
+  if (community?.kind === "media") return "view";
+  if (community) return defaultTriggerForCommunityKind(community.kind);
+  return "docs_merge";
+}
+
+/** Phase 7 — Fund, bounty, sponsor, observe, automate (one-click rules). */
 export function bubbleOperatorActions(
   node: DiscoverGraphNode,
   edges: DiscoverGraphEdge[],
@@ -62,17 +74,15 @@ export function bubbleOperatorActions(
       id: "observe",
       label: "Observe",
       kind: "open",
-      href: `/communities/${slug}#health`,
+      href: `/discover#value-bubblemap`,
+      communitySlug: slug,
     });
     actions.push({
       id: "automate",
       label: "Automate",
-      kind: "analyze",
-      href: `/discover#agent-market?service=docs-review&prompt=${encodeURIComponent(
-        `Run intel on ${node.label} maintainers`,
-      )}`,
+      kind: "automate",
       communitySlug: slug,
-      serviceId: "docs-review",
+      automationTrigger: defaultAutomationTriggerForNode(node),
     });
   } else if (node.entityPath) {
     actions.push({

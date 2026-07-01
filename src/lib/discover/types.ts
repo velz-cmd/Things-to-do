@@ -19,7 +19,8 @@ export type DiscoverActionKind =
   | "connect_sensor"
   | "sponsor"
   | "share"
-  | "analyze";
+  | "analyze"
+  | "automate";
 
 export type DiscoverAction = {
   id: string;
@@ -34,6 +35,8 @@ export type DiscoverAction = {
   amountUsd?: number;
   /** Agent signal catalog id when CTA routes to Mission rails */
   serviceId?: string;
+  /** Phase 7 — prefill automation rule builder */
+  automationTrigger?: import("@/lib/automation/types").AutomationTrigger;
 };
 
 export type { DiscoverNeedType, DiscoverNeedTypeFilter } from "@/lib/discover/need-types";

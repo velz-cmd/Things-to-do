@@ -3,6 +3,7 @@ import { ENTRY_DOORS } from "./entry-modes";
 import { CAPITAL_MODES } from "./capital-modes";
 import { ECONOMY_PROGRAM_TEMPLATES } from "./program-templates";
 import { PLATFORM_REVENUE_STREAMS, getPlatformFeeWallet } from "./platform-revenue";
+import { PLATFORM_LOOP_TAGLINE, describePlatformRevenueLoop } from "./platform-loop";
 import { NETWORK_ARTIFACTS } from "./network-artifacts";
 import {
   INFRASTRUCTURE_PHASES,
@@ -64,6 +65,8 @@ export function buildInfrastructureSummary() {
       total: PLATFORM_REVENUE_STREAMS.length,
       shipped: PLATFORM_REVENUE_STREAMS.filter((s) => s.shipped).length,
       feeWallet: getPlatformFeeWallet(),
+      tagline: PLATFORM_LOOP_TAGLINE,
+      loop: describePlatformRevenueLoop(0.02),
     },
     phases: {
       complete: phases.filter((p) => p.status === "complete").length,

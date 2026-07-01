@@ -14,6 +14,11 @@ import { Panel } from "@/components/resolve/ui/panel";
 import { ENTRY_DOORS } from "@/lib/economy/entry-modes";
 import { PROFIT_ENGINES } from "@/lib/economy/engines";
 import { ECONOMIC_THESIS } from "@/lib/economy/manifest";
+import {
+  PLATFORM_LOOP_TAGLINE,
+  describePlatformRevenueLoop,
+} from "@/lib/economy/platform-loop";
+import { getActiveRevenueStreams } from "@/lib/economy/platform-revenue";
 
 const DOOR_ICONS = {
   earn: Wallet,
@@ -54,6 +59,9 @@ function EngineCard({
 }
 
 export function EconomicInfrastructureSection() {
+  const platformLoop = describePlatformRevenueLoop(0.02);
+  const liveStreams = getActiveRevenueStreams();
+
   return (
     <section id="economic-infrastructure">
       <div className="mb-4">
@@ -86,6 +94,57 @@ export function EconomicInfrastructureSection() {
           </div>
         </div>
       </Panel>
+
+      <section id="platform-revenue" className="mb-6 scroll-mt-24">
+        <div className="mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-white">Platform revenue loop</h2>
+            <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-300">
+              Live on Discover
+            </span>
+          </div>
+          <p className="mt-2 text-sm font-medium text-violet-100/90">{PLATFORM_LOOP_TAGLINE}</p>
+          <p className="mt-2 max-w-3xl text-sm text-resolve-muted">
+            RESOLVE earns on settlement volume (bps) and coordinates agent signal commerce — not
+            cosmetic badges. Fees are computed in the payment layer and shown on invoke receipts.
+          </p>
+        </div>
+
+        <Panel className="mb-4 border-emerald-500/20 bg-emerald-500/5 p-4">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-300/90">
+            How money moves today
+          </p>
+          <ul className="mt-3 space-y-2">
+            {platformLoop.loops.map((loop) => (
+              <li key={loop.actor} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <span className="font-medium text-white">{loop.actor}</span>
+                <span className="text-resolve-muted">{loop.action}</span>
+                <span className="text-[11px] text-resolve-muted-dim">· {loop.rail}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-[11px] text-resolve-muted-dim">
+            Sample agent invoke: signal {platformLoop.sampleAgentInvoke.grossUsd.toFixed(3)} USDC ·
+            platform fee {platformLoop.sampleAgentInvoke.platformFeeUsd.toFixed(4)} USDC (
+            {platformLoop.sampleAgentInvoke.platformFeeBps / 100}%)
+          </p>
+        </Panel>
+
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-resolve-muted-dim">
+          Shipped revenue streams
+        </p>
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {liveStreams.map((stream) => (
+            <Panel key={stream.id} className="p-4">
+              <p className="text-xs font-medium text-white">{stream.label}</p>
+              <p className="mt-2 text-[11px] leading-relaxed text-resolve-muted">{stream.model}</p>
+              {stream.defaultRate && (
+                <p className="mt-2 text-[10px] text-emerald-300">{stream.defaultRate}</p>
+              )}
+            </Panel>
+          ))}
+        </div>
+      </section>
 
       <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-resolve-muted-dim">
         Six profit engines

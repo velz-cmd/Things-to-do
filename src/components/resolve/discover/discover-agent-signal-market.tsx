@@ -18,6 +18,7 @@ import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-p
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { Button } from "@/components/resolve/ui/button";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { PLATFORM_LOOP_TAGLINE } from "@/lib/economy/platform-loop";
 
 type AgentServiceCard = {
   id: string;
@@ -37,6 +38,7 @@ type ServicesPayload = {
   gatewayEnabled: boolean;
   services: AgentServiceCard[];
   doctrine: string;
+  tagline?: string;
   feePath?: {
     flow: string[];
     platformFeeBps: number;
@@ -155,7 +157,7 @@ export function DiscoverAgentSignalMarket({
     <DiscoverPremiumSection
       id="agent-market"
       title="Agent Signal Market"
-      subtitle="Hire agents to gather intel — Circle find → pay x402 → mcp.invocation on ledger"
+      subtitle="Hire agents to gather intel — pay-per-signal on Arc with ledger proof"
       className={clsx("mb-10 scroll-mt-24", className)}
       actions={
         <DiscoverSectionRefresh
@@ -173,6 +175,10 @@ export function DiscoverAgentSignalMarket({
         </div>
       ) : (
         <div className="space-y-6">
+          <p className="rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-4 py-3 text-center text-sm font-medium leading-relaxed text-violet-100/95">
+            {catalog?.tagline ?? PLATFORM_LOOP_TAGLINE}
+          </p>
+
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/70 p-5">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-accent">
@@ -284,20 +290,29 @@ export function DiscoverAgentSignalMarket({
                 )}
               </div>
               {result.ok && (
-                <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-resolve-muted">
-                  <span>
-                    {result.serviceName} · {formatPrice(result.amountUsd ?? 0)} ·{" "}
-                    {result.meteringMode ?? "metered"}
-                  </span>
-                  {result.receiptHref && (
-                    <Link
-                      href={result.receiptHref}
-                      className="inline-flex items-center gap-1 text-resolve-accent hover:underline"
-                    >
-                      <Receipt className="h-3.5 w-3.5" />
-                      View receipt
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
+                <div className="mt-4 space-y-2">
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-resolve-muted">
+                    <span>
+                      {result.serviceName} · {formatPrice(result.amountUsd ?? 0)} ·{" "}
+                      {result.meteringMode ?? "metered"}
+                    </span>
+                    {result.receiptHref && (
+                      <Link
+                        href={result.receiptHref}
+                        className="inline-flex items-center gap-1 text-resolve-accent hover:underline"
+                      >
+                        <Receipt className="h-3.5 w-3.5" />
+                        View receipt
+                        <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </div>
+                  {result.feePath && (
+                    <p className="text-[11px] text-resolve-muted-dim">
+                      Signal {formatPrice(result.amountUsd ?? 0)} · RESOLVE platform fee{" "}
+                      {formatPrice(result.feePath.platformFeeUsd)} (
+                      {result.feePath.platformFeeBps / 100}% on settlements) · fee on receipt
+                    </p>
                   )}
                 </div>
               )}

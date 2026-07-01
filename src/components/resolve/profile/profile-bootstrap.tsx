@@ -4,13 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
-  useState,
+  useMemo,
   type ReactNode,
 } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { ProfileIdentityState } from "@/app/api/profile/identities/route";
 import { embeddedWalletFor } from "@/lib/wallet/embedded";
+import { useProfileBootstrapQuery } from "@/lib/query/hooks";
 
 type CommunitySummary = { slug: string; name: string; installed: boolean };
 
@@ -75,77 +75,63 @@ const ProfileBootstrapContext = createContext<{
 
 export function ProfileBootstrapProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [data, setData] = useState<BootstrapData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const query = useProfileBootstrapQuery(Boolean(user));
 
-  const load = useCallback(() => {
+  const data = useMemo((): BootstrapData | null => {
     if (!user) {
-      setData({ signedIn: false, email: null, emailVerified: false, identities: [], earnings: null, communities: [], wallet: null });
-      setLoading(false);
-      return;
+      return {
+        signedIn: false,
+        email: null,
+        emailVerified: false,
+        identities: [],
+        earnings: null,
+        communities: [],
+        wallet: null,
+      };
     }
-    setLoading(true);
-    void fetch("/api/profile/bootstrap", { credentials: "include" })
-      .then((r) => r.json())
-      .then((body) => {
-        const wallet = body.wallet ?? offlineWalletForUser(user.id);
-        if (!body.ok) {
-          setData({
-            signedIn: true,
-            email: user.email ?? null,
-            emailVerified: Boolean(user.email_confirmed_at ?? user.email),
-            identities: body.identities?.length ? body.identities : offlineIdentitiesForUser(user.id),
-            earnings: body.earnings ?? null,
-            communities: body.communities ?? [],
-            wallet,
-            dbDegraded: true,
-            error: body.error,
-          });
-          return;
-        }
-        setData({
-          signedIn: true,
-          email: body.email ?? user.email ?? null,
-          emailVerified: Boolean(body.emailVerified ?? user.email),
-          identities: body.identities ?? [],
-          earnings: body.earnings ?? null,
-          communities: body.communities ?? [],
-          wallet,
-          dbDegraded: Boolean(body.dbDegraded),
-        });
-      })
-      .catch(() => {
-        setData({
-          signedIn: true,
-          email: user.email ?? null,
-          emailVerified: Boolean(user.email_confirmed_at ?? user.email),
-          identities: offlineIdentitiesForUser(user.id),
-          earnings: {
-            signedIn: true,
-            youEarnedUsd: 0,
-            claimableUsd: 0,
-            authorizedUsd: 0,
-            settledUsd: 0,
-            stalestClaimableAt: null,
-            notifyUrgency: 0,
-            githubLinked: false,
-            identities: [],
-          },
-          communities: [],
-          wallet: offlineWalletForUser(user.id),
-          dbDegraded: true,
-          error: "load_failed",
-        });
-      })
-      .finally(() => setLoading(false));
-  }, [user]);
+    const body = query.data as Record<string, unknown> | undefined;
+    if (!body) return null;
 
-  useEffect(() => {
-    load();
-  }, [load]);
+    const wallet =
+      (body.wallet as BootstrapData["wallet"]) ?? offlineWalletForUser(user.id);
+
+    if (!body.ok) {
+      return {
+        signedIn: true,
+        email: user.email ?? null,
+        emailVerified: Boolean(user.email_confirmed_at ?? user.email),
+        identities:
+          Array.isArray(body.identities) && body.identities.length
+            ? (body.identities as ProfileIdentityState[])
+            : offlineIdentitiesForUser(user.id),
+        earnings: (body.earnings as Record<string, unknown>) ?? null,
+        communities: (body.communities as CommunitySummary[]) ?? [],
+        wallet,
+        dbDegraded: true,
+        error: body.error as string | undefined,
+      };
+    }
+
+    return {
+      signedIn: true,
+      email: (body.email as string) ?? user.email ?? null,
+      emailVerified: Boolean(body.emailVerified ?? user.email),
+      identities: (body.identities as ProfileIdentityState[]) ?? [],
+      earnings: (body.earnings as Record<string, unknown>) ?? null,
+      communities: (body.communities as CommunitySummary[]) ?? [],
+      wallet,
+      dbDegraded: Boolean(body.dbDegraded),
+    };
+  }, [user, query.data]);
+
+  const reload = useCallback(() => {
+    void query.refetch();
+  }, [query]);
 
   return (
-    <ProfileBootstrapContext.Provider value={{ data, loading, reload: load }}>
+    <ProfileBootstrapContext.Provider
+      value={{ data, loading: query.isLoading && Boolean(user), reload }}
+    >
       {children}
     </ProfileBootstrapContext.Provider>
   );

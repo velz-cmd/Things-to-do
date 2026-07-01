@@ -124,6 +124,7 @@ model User {
   resolvePrograms   ResolveProgram[]
   communityFundStakes CommunityFundStake[]
   automationRules   ResolveAutomationRule[]
+  earningsSnapshot  UserEarningsSnapshot?
 }
 
 model WalletTransaction {
@@ -625,4 +626,48 @@ model ResolveTimelineEvent {
   @@index([userId, createdAt])
   @@index([ecosystemId, createdAt])
   @@index([missionId])
+}
+
+/// Background GitHub OSS scan — written by cron, read by Discover APIs.
+model GithubOssScan {
+  id            String   @id @default(cuid())
+  owner         String
+  repo          String
+  fullName      String
+  payloadJson   String   @db.Text
+  stars         Int      @default(0)
+  fundingGapUsd Float    @default(0)
+  priority      String   @default("medium")
+  scannedAt     DateTime @default(now())
+
+  @@unique([owner, repo])
+  @@index([scannedAt])
+}
+
+/// Per-user earnings aggregate — refreshed on cron and after ledger writes.
+model UserEarningsSnapshot {
+  userId             String   @id
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  youEarnedUsd       Float    @default(0)
+  claimableUsd       Float    @default(0)
+  authorizedUsd      Float    @default(0)
+  settledUsd         Float    @default(0)
+  pendingUsd         Float    @default(0)
+  authorizationCount Int      @default(0)
+  identitiesJson     String   @db.Text @default("[]")
+  stalestClaimableAt DateTime?
+  notifyUrgency      Float    @default(0)
+  githubLinked       Boolean  @default(false)
+  computedAt         DateTime @default(now())
+
+  @@index([computedAt])
+}
+
+/// Community vitals aggregate — one row per catalog slug.
+model CommunityVitalsSnapshot {
+  slug         String   @id
+  payloadJson  String   @db.Text
+  computedAt   DateTime @default(now())
+
+  @@index([computedAt])
 }

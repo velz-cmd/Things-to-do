@@ -62,7 +62,9 @@ type BubbleNode = DiscoverGraphNode & {
 
 const MAX_BUBBLES = 24;
 const VIEW_W = 720;
-const VIEW_H = 300;
+const VIEW_H = 168;
+const PAD_X = 40;
+const PAD_Y = 32;
 
 const NODE_COLORS: Record<string, string> = {
   creator: "#34d399",
@@ -75,34 +77,45 @@ const NODE_COLORS: Record<string, string> = {
   treasury: "#f87171",
 };
 
+function clampBubble(cx: number, cy: number, r: number) {
+  return {
+    cx: Math.min(VIEW_W - PAD_X - r, Math.max(PAD_X + r, cx)),
+    cy: Math.min(VIEW_H - PAD_Y - r, Math.max(PAD_Y + r, cy)),
+  };
+}
+
 function layoutBubblemap(nodes: DiscoverGraphNode[]): BubbleNode[] {
   if (!nodes.length) return [];
 
   const sorted = [...nodes].sort((a, b) => b.weight - a.weight).slice(0, MAX_BUBBLES);
   const hub = sorted[0];
-  const hubR = Math.min(72, 28 + Math.sqrt(Math.max(hub.weight, 1)) * 6);
+  const hubR = Math.min(46, 20 + Math.sqrt(Math.max(hub.weight, 1)) * 4);
+  const hubPos = clampBubble(VIEW_W / 2, VIEW_H / 2, hubR);
 
   const placed: BubbleNode[] = [
     {
       ...hub,
       r: hubR,
-      cx: VIEW_W / 2,
-      cy: VIEW_H / 2,
+      cx: hubPos.cx,
+      cy: hubPos.cy,
     },
   ];
 
   const orbit = sorted.slice(1);
-  const baseOrbit = Math.min(VIEW_W, VIEW_H) * 0.28;
+  const baseOrbit = Math.min(VIEW_W, VIEW_H) * 0.2;
 
   orbit.forEach((node, i) => {
     const angle = (2 * Math.PI * i) / Math.max(orbit.length, 1) - Math.PI / 2;
-    const r = Math.min(44, 14 + Math.sqrt(Math.max(node.weight, 0.5)) * 4);
-    const dist = baseOrbit + (i % 2) * 36 + r;
+    const r = Math.min(30, 11 + Math.sqrt(Math.max(node.weight, 0.5)) * 3);
+    const dist = baseOrbit + (i % 2) * 18 + r * 0.6;
+    const rawCx = VIEW_W / 2 + dist * Math.cos(angle);
+    const rawCy = VIEW_H / 2 + dist * Math.sin(angle);
+    const { cx, cy } = clampBubble(rawCx, rawCy, r);
     placed.push({
       ...node,
       r,
-      cx: VIEW_W / 2 + dist * Math.cos(angle),
-      cy: VIEW_H / 2 + dist * Math.sin(angle),
+      cx,
+      cy,
     });
   });
 
@@ -211,7 +224,7 @@ export function DiscoverValueBubblemap({
 
   const hasGraph = bubbles.length > 0;
   const viewW = expanded ? (isMobile ? VIEW_W : 960) : VIEW_W;
-  const viewH = expanded ? (isMobile ? 520 : 560) : VIEW_H;
+  const viewH = expanded ? (isMobile ? 420 : 480) : VIEW_H;
   const scaleX = viewW / VIEW_W;
   const scaleY = viewH / VIEW_H;
 
@@ -255,23 +268,23 @@ export function DiscoverValueBubblemap({
 
   const sectionBody = (
     <>
-      <div className="flex flex-wrap gap-1.5 border-b border-white/[0.04] px-0 pb-2.5">
+      <div className="flex flex-wrap gap-1.5 border-b border-white/[0.04] px-0 pb-2">
         {GRAPH_DOMAIN_CHIPS.map((chip) => (
           <button
             key={chip.id}
             type="button"
             onClick={() => setDomainFilter(chip.id)}
             className={clsx(
-              "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition",
+              "discover-chip-pill",
               domainFilter === chip.id
                 ? chip.id === "oss"
-                  ? "border-amber-500/40 bg-amber-500/15 text-amber-100"
+                  ? "discover-chip-pill--oss-active"
                   : chip.id === "music"
-                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-100"
+                    ? "discover-chip-pill--music-active"
                     : chip.id === "research"
-                      ? "border-violet-500/40 bg-violet-500/15 text-violet-100"
-                      : "border-resolve-accent/40 bg-resolve-accent/15 text-resolve-accent"
-                : "border-white/10 text-resolve-muted hover:text-white",
+                      ? "discover-chip-pill--research-active"
+                      : "discover-chip-pill--active"
+                : "discover-chip-pill--idle",
             )}
           >
             {chip.label}
@@ -301,14 +314,32 @@ export function DiscoverValueBubblemap({
           </p>
         </div>
       ) : (
-        <div className="relative p-2">
+        <div className="discover-bubblemap-stage relative overflow-hidden rounded-xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-black/20 p-1.5">
           <svg
             viewBox={`0 0 ${viewW} ${viewH}`}
-            className="mx-auto h-auto w-full max-w-full touch-manipulation"
+            className={clsx(
+              "discover-bubblemap-svg mx-auto w-full max-w-full touch-manipulation",
+              expanded ? "h-auto" : "h-[168px] max-h-[168px]",
+            )}
             role="img"
             aria-label="Value bubblemap"
+            preserveAspectRatio="xMidYMid meet"
           >
             <defs>
+              <filter id="bubble-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="bubble-glow-strong" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
               {bubbles.map((b) => {
                 const domain = graphDomainForNode(b);
                 const domainTint =
@@ -353,19 +384,22 @@ export function DiscoverValueBubblemap({
               );
             })}
 
-            {bubbles.map((b) => {
+            {bubbles.map((b, bubbleIndex) => {
               const isHub = b.id === "pool:ledger" || b.id === bubbles[0]?.id;
               const isEcosystem = b.type === "ecosystem" || b.type === "repository";
               const active = hovered === b.id || panel?.node.id === b.id;
               const fill = NODE_COLORS[b.type] ?? "#94a3b8";
               const pending = b.pendingFunding;
               const synthetic = b.synthetic;
-              const r = (b.r + (active ? 4 : 0)) * Math.min(scaleX, scaleY);
+              const r = (b.r + (active ? 3 : 0)) * Math.min(scaleX, scaleY);
+              const shortLabel =
+                b.label.length > 10 ? `${b.label.slice(0, 8)}…` : b.label;
 
               return (
                 <g
                   key={b.id}
-                  className="cursor-pointer"
+                  className="discover-bubble-node cursor-pointer"
+                  style={{ animationDelay: `${(bubbleIndex % 8) * 0.35}s` }}
                   onMouseEnter={() => setHovered(b.id)}
                   onMouseLeave={() => setHovered(null)}
                   onClick={() => handleNodeClick(b)}
@@ -399,6 +433,7 @@ export function DiscoverValueBubblemap({
                     fill={`url(#bubble-${b.id})`}
                     stroke={active ? fill : pending ? "rgba(251,191,36,0.6)" : "rgba(255,255,255,0.15)"}
                     strokeWidth={active || pending ? 2 : 1}
+                    filter={active || isHub ? "url(#bubble-glow-strong)" : "url(#bubble-glow)"}
                   />
                   {isHub && (
                     <text
@@ -406,22 +441,26 @@ export function DiscoverValueBubblemap({
                       y={b.cy * scaleY}
                       textAnchor="middle"
                       dominantBaseline="middle"
-                      className="fill-white text-[10px] font-semibold"
-                      style={{ fontSize: 10 * Math.min(scaleX, scaleY) }}
+                      className="fill-white font-semibold"
+                      style={{ fontSize: 9 * Math.min(scaleX, scaleY) }}
                     >
                       {b.id === "pool:ledger" ? "LEDGER" : "VALUE"}
                     </text>
                   )}
-                  {(active || b.r > 30) && !isHub && (
+                  {!isHub && (active || b.r > 22) && r > 14 && (
                     <text
                       x={b.cx * scaleX}
-                      y={b.cy * scaleY + b.r * scaleY + 12}
+                      y={b.cy * scaleY}
                       textAnchor="middle"
-                      className={clsx(isEcosystem ? "fill-slate-400" : "fill-resolve-muted")}
-                      style={{ fontSize: 9 * Math.min(scaleX, scaleY) }}
+                      dominantBaseline="middle"
+                      className={clsx(
+                        "pointer-events-none font-medium",
+                        isEcosystem ? "fill-slate-300/90" : "fill-white/90",
+                      )}
+                      style={{ fontSize: Math.min(8, r * 0.38) * Math.min(scaleX, scaleY) }}
                     >
                       {isEcosystem ? "⬡ " : ""}
-                      {b.label.length > 18 ? `${b.label.slice(0, 16)}…` : b.label}
+                      {shortLabel}
                     </text>
                   )}
                 </g>
@@ -430,7 +469,7 @@ export function DiscoverValueBubblemap({
           </svg>
 
           {hovered && !panel && (
-            <div className="absolute bottom-3 left-3 rounded-lg border border-white/10 bg-black/70 px-3 py-2 text-[11px] text-resolve-muted backdrop-blur">
+            <div className="discover-bubble-tooltip absolute bottom-2 left-2 max-w-[min(240px,70%)] rounded-lg border border-white/12 bg-black/75 px-2.5 py-1.5 text-[10px] text-resolve-muted backdrop-blur-md">
               {(() => {
                 const b = bubbles.find((n) => n.id === hovered);
                 if (!b) return null;
@@ -451,9 +490,8 @@ export function DiscoverValueBubblemap({
       )}
 
       {data?.updatedAt && (
-        <p className="border-t border-white/[0.04] px-4 py-2 text-[9px] text-resolve-muted-dim">
-          Manual refresh · click a bubble for operator console · Advanced metrics inside panel · ⬡ =
-          ecosystem
+        <p className="border-t border-white/[0.04] px-0 py-1.5 text-[9px] text-resolve-muted-dim">
+          Click a bubble for operator console · ⬡ = ecosystem
         </p>
       )}
     </>
@@ -463,10 +501,8 @@ export function DiscoverValueBubblemap({
     <>
       <span
         className={clsx(
-          "rounded-full border px-2 py-0.5 text-[10px]",
-          data?.live
-            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-            : "border-amber-500/30 bg-amber-500/10 text-amber-200",
+          "discover-status-badge",
+          data?.live ? "discover-status-badge--live" : "discover-status-badge--preview",
         )}
       >
         {data?.live ? "Live ledger" : hasGraph ? "Scan preview" : "Awaiting data"}
@@ -479,7 +515,7 @@ export function DiscoverValueBubblemap({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[10px] text-resolve-muted hover:text-white"
+        className="discover-toolbar-btn"
       >
         {expanded ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
         {expanded ? "Compact" : "Expand"}
@@ -498,6 +534,7 @@ export function DiscoverValueBubblemap({
             title="Value graph"
             subtitle={`${modeLabel} · Click a bubble for operator console`}
             className={className}
+            variant="compact"
             actions={bubblemapActions}
           >
             {sectionBody}

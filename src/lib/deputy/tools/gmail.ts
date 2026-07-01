@@ -1,5 +1,6 @@
 import type { ToolResult } from "./index";
 import { getGmailAccessToken } from "@/lib/google/gmail-token";
+import { parseUsdFromReceiptText } from "@/lib/deputy/tools/parse-receipt-amount";
 
 export async function gmailSearchReceipts(
   query: string,
@@ -25,11 +26,22 @@ export async function gmailSearchReceipts(
             snippet?: string;
             payload?: { headers?: { name: string; value: string }[] };
           };
-          const refMatch = meta.snippet?.match(/[A-Z]{2,}-\d{3,}/);
+          const snippet = meta.snippet ?? "";
+          const refMatch = snippet.match(/[A-Z]{2,}-\d{3,}/);
           const fromHeader = meta.payload?.headers?.find((h) => h.name === "From")?.value ?? "";
           const merchant =
             fromHeader.replace(/<.*>/, "").trim() ||
-            (query.includes("stream") ? "StreamDemo" : "SkyDemo Airlines");
+            (query.includes("stream") ? "StreamDemo" : "Merchant");
+          const amountUsd = parseUsdFromReceiptText(snippet);
+          if (amountUsd == null) {
+            return {
+              ok: false,
+              tool: "gmail.searchReceipts",
+              costUsd: 0,
+              error:
+                "Receipt found but amount could not be parsed — connect Gmail with read scope or paste amount manually",
+            };
+          }
           return {
             ok: true,
             tool: "gmail.searchReceipts",
@@ -37,7 +49,7 @@ export async function gmailSearchReceipts(
             data: {
               bookingRef: refMatch?.[0] ?? `BK-${query.slice(0, 4).toUpperCase()}`,
               merchant,
-              amountUsd: 43,
+              amountUsd,
             },
           };
         }

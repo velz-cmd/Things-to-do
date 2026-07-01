@@ -1,5 +1,6 @@
 import type { ToolResult } from "./index";
 import { runBrowserWorkflowForTask } from "@/lib/browser/browser-workflow";
+import { isProductionDeploy } from "@/lib/config/demo-mode";
 
 export async function browserSubmitClaim(
   portalUrl: string,
@@ -25,6 +26,14 @@ export async function browserSubmitClaim(
   });
 
   if (!result || (!result.success && result.proofs.length === 0)) {
+    if (isProductionDeploy()) {
+      return {
+        ok: false,
+        tool: "browser.submitClaim",
+        costUsd: 0,
+        error: "Browser claim executor failed — no fabricated ticket in production",
+      };
+    }
     await delay(200);
     const ticketId = `TKT-${portalUrl.slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
     return {

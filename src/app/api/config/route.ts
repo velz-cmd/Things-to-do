@@ -64,7 +64,7 @@ export async function GET() {
         enabled: isCardOnRampEnabled(),
         productionPath: "Use Add funds → Arc tab (USDC on Arc testnet)",
       },
-      hackathonMerchants: ["SkyDemo Airlines", "StreamDemo"],
+      hackathonMerchants: isDeputyDemoMode() ? ["SkyDemo Airlines", "StreamDemo"] : [],
     },
     agentStack: {
       enabled: isAgentGatewayEnabled(),

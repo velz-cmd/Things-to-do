@@ -15,6 +15,7 @@ export { paidPremiumResearch, paidFetchResource } from "./paid-resource";
 export { browserSubmitClaim } from "./browser";
 
 import { sendClaimEmail } from "./resend";
+import { isProductionDeploy } from "@/lib/config/demo-mode";
 
 export async function resendSendClaim(params: {
   to: string;
@@ -40,6 +41,14 @@ export async function resendSendClaim(params: {
       };
     }
   }
+  if (isProductionDeploy()) {
+    return {
+      ok: false,
+      tool: "resend.sendClaim",
+      costUsd: 0,
+      error: "RESEND_API_KEY not configured",
+    };
+  }
   await delay(150);
   return {
     ok: true,
@@ -52,6 +61,14 @@ export async function resendSendClaim(params: {
 export async function plaidFindRecurring(
   merchantHint: string
 ): Promise<ToolResult<{ charges: Array<{ amount: number; cadence: string }> }>> {
+  if (isProductionDeploy()) {
+    return {
+      ok: false,
+      tool: "plaid.findRecurring",
+      costUsd: 0,
+      error: "Plaid is not integrated — recurring charge discovery is Mission-only and not yet live",
+    };
+  }
   await delay(100);
   return {
     ok: true,

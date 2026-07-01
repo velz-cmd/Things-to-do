@@ -13,7 +13,6 @@ export async function GET() {
     gapsWeSolve: PROTOCOL_GAPS,
     endpoints: {
       discover: "/api/discover/builders",
-      agentLog: "/api/discover/agent-log",
       weight: "/api/weight/evaluate",
       challenge: "/api/weight/challenge",
       settle: "/api/payment/execute-batch",

@@ -8,11 +8,13 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { communityStripActions } from "@/lib/discover/community-strip-actions";
+import type { CommunityVitalsSummary } from "@/lib/communities/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 type CommunitySummary = {
   slug: string;
   installed: boolean;
+  vitals?: CommunityVitalsSummary;
 };
 
 const KINDS = ["all", "music", "media", "oss", "research", "education", "protocol"] as const;
@@ -41,6 +43,7 @@ export function DiscoverCommunities({
   role: _role = "all",
 }: DiscoverCommunitiesProps = {}) {
   const [installed, setInstalled] = useState<Record<string, boolean>>({});
+  const [vitalsBySlug, setVitalsBySlug] = useState<Record<string, CommunityVitalsSummary>>({});
   const [sensorStatuses, setSensorStatuses] = useState<CommunitySensorStatus[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [lastLoaded, setLastLoaded] = useState<string | null>(null);
@@ -65,8 +68,13 @@ export function DiscoverCommunities({
     ])
       .then(([commRes, statusRes]) => {
         const map: Record<string, boolean> = {};
-        for (const c of commRes.communities ?? []) map[c.slug] = c.installed;
+        const vitals: Record<string, CommunityVitalsSummary> = {};
+        for (const c of commRes.communities ?? []) {
+          map[c.slug] = c.installed;
+          if (c.vitals) vitals[c.slug] = c.vitals;
+        }
         setInstalled(map);
+        setVitalsBySlug(vitals);
         setSensorStatuses(commRes.sensorStatuses ?? statusRes.statuses ?? []);
         setLastLoaded(new Date().toISOString());
       })
@@ -159,6 +167,7 @@ export function DiscoverCommunities({
               <InstallResolveCard
                 community={c}
                 installed={isInstalled}
+                vitals={vitalsBySlug[c.slug] ?? null}
                 onInstalled={() => setInstalled((prev) => ({ ...prev, [c.slug]: true }))}
               />
               <div className="flex flex-wrap gap-1.5 px-1">

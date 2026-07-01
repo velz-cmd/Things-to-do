@@ -2,9 +2,12 @@ import { prisma } from "@/lib/db";
 import type { User } from "@prisma/client";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { RESOLVE_PLATFORM_WALLET } from "@/lib/payment/platform-fee";
-import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
+import { getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
+import { upgradeUserToCircleWallet } from "@/lib/wallet/app-wallet-service";
+import { getRealSpendableUsd, syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 import {
   ARC_GAS_RESERVE_USD,
+  sendUsdcFromTreasuryCircleWallet,
   sendUsdcFromUserCircleWallet,
 } from "@/lib/wallet/circle-arc-transfer";
 import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
@@ -49,7 +52,40 @@ export async function chargeAgentSignalOnArc(input: {
     return { ok: false, error: "Invalid signal price", balanceUsd: 0, onChainUsd: null };
   }
 
-  const spendable = await getRealSpendableUsd(input.user.id, { sync: true });
+  let user = input.user;
+  try {
+    user = await upgradeUserToCircleWallet(user);
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Could not provision Circle wallet",
+      balanceUsd: user.availableUsd,
+      onChainUsd: null,
+    };
+  }
+
+  if (user.walletAddress) {
+    const onChain = await getArcUsdcBalance(user.walletAddress).catch(() => null);
+    const onChainUsd = onChain ? round(Number(onChain.totalUsdc)) : 0;
+    const ledgerUsd = round(user.availableUsd);
+    const targetUsd = round(Math.max(ledgerUsd, amount + ARC_GAS_RESERVE_USD));
+    if (onChainUsd + 0.000001 < targetUsd && ledgerUsd >= amount) {
+      const topUp = round(Math.min(ledgerUsd, targetUsd - onChainUsd));
+      if (topUp >= 0.01) {
+        try {
+          await sendUsdcFromTreasuryCircleWallet({
+            destinationAddress: user.walletAddress,
+            amountUsd: topUp,
+            idempotencyKey: `agent-fund-${user.id}-${Math.floor(topUp * 100)}`,
+          });
+        } catch {
+          /* treasury top-up optional — user may already have on-chain USDC */
+        }
+      }
+    }
+  }
+
+  const spendable = await getRealSpendableUsd(user.id, { sync: true });
   const previousBalanceUsd = spendable.availableUsd;
   const maxCharge = round(Math.max(0, spendable.availableUsd - ARC_GAS_RESERVE_USD));
 
@@ -76,20 +112,20 @@ export async function chargeAgentSignalOnArc(input: {
 
   try {
     const { txHash } = await sendUsdcFromUserCircleWallet({
-      user: input.user,
+      user,
       destinationAddress: RESOLVE_PLATFORM_WALLET,
       amountUsd: amount,
       idempotencyKey: `agent-signal-${input.taskId}-${input.serviceId}`,
     });
 
-    const updated = await prisma.user.update({
-      where: { id: input.user.id },
+    await prisma.user.update({
+      where: { id: user.id },
       data: { availableUsd: { decrement: amount } },
     });
 
     await prisma.walletTransaction.create({
       data: {
-        userId: input.user.id,
+        userId: user.id,
         type: "agent_signal",
         method: "arc_usdc",
         amountUsd: -amount,
@@ -98,7 +134,8 @@ export async function chargeAgentSignalOnArc(input: {
       },
     });
 
-    const after = await getRealSpendableUsd(input.user.id, { sync: true });
+    await syncIdentityBalance(user.id);
+    const after = await getRealSpendableUsd(user.id, { sync: true });
 
     return {
       ok: true,
@@ -111,7 +148,7 @@ export async function chargeAgentSignalOnArc(input: {
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Arc payment failed";
-    const bal = await getRealSpendableUsd(input.user.id);
+    const bal = await getRealSpendableUsd(user.id);
     return {
       ok: false,
       error: message,

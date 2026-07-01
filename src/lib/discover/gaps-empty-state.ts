@@ -20,7 +20,7 @@ export function gapsRoleIntro(role: DiscoverRole): string {
     dao: "No grant or citation gaps yet. Launch a QF round or attach Open Research.",
     community:
       "Creators collect on Earnings, not Gaps. Switch to the Earnings tab or connect ListenBrainz on Profile.",
-    all: "Pick a job above (Fund, Earn, Run…) so actions match who you are — then attach one community to unlock ranked gaps.",
+    all: "No ledger gaps ranked yet — attach a community on Board to unlock ranked opportunities.",
   };
   return copy[role] ?? copy.all!;
 }
@@ -70,7 +70,8 @@ export function gapsPrimaryActions(input: {
 }): DiscoverAction[] {
   const entries = catalogForContext(input);
   const actions: DiscoverAction[] = [];
-  for (const entry of entries.slice(0, 2)) {
+  const seen = new Set<string>();
+  for (const entry of entries.slice(0, 3)) {
     const templateId =
       entry.kind === "music"
         ? "user-centric-royalties"
@@ -92,7 +93,12 @@ export function gapsPrimaryActions(input: {
       needType,
       communityName: entry.name,
     });
-    actions.push(...rowActions.slice(0, 1));
+    for (const action of rowActions.slice(0, 1)) {
+      const key = `${action.kind}:${action.communitySlug}:${action.label}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      actions.push(action);
+    }
   }
   return actions.slice(0, 2);
 }

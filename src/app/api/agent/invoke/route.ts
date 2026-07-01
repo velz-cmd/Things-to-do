@@ -77,7 +77,7 @@ export async function POST(req: Request) {
         userWallet: ready.profile.walletAddress,
         status: "created",
         currentAgent: "AgentCommerce",
-        isDemo: true,
+        isDemo: false,
       },
     });
     taskId = task.id;

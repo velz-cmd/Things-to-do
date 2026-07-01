@@ -1,26 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { gapsConnectLinks } from "@/lib/discover/gaps-empty-state";
+import { gapsExploreActions, gapsExploreCommunities } from "@/lib/discover/gaps-empty-state";
 
-describe("gapsConnectLinks", () => {
+describe("gapsExploreCommunities", () => {
   it("suggests music communities for artists need type", () => {
-    const links = gapsConnectLinks({ needType: "artists", role: "all" });
-    expect(links.some((l) => l.href.includes("independent-music"))).toBe(true);
-    expect(links.some((l) => l.href.includes("navidrome"))).toBe(true);
-    expect(links.every((l) => !l.label.toLowerCase().includes("github only"))).toBe(true);
+    const entries = gapsExploreCommunities({ needType: "artists", role: "all" });
+    expect(entries.some((e) => e.slug === "independent-music")).toBe(true);
+    expect(entries.some((e) => e.slug === "navidrome")).toBe(true);
   });
 
   it("suggests research community for researchers", () => {
-    const links = gapsConnectLinks({ needType: "researchers", role: "all" });
-    expect(links[0]?.href).toContain("open-research");
+    const entries = gapsExploreCommunities({ needType: "researchers", role: "all" });
+    expect(entries.some((e) => e.slug === "open-research")).toBe(true);
   });
 
   it("suggests OSS communities for docs need type", () => {
-    const links = gapsConnectLinks({ needType: "docs", role: "all" });
-    expect(links.some((l) => l.href.includes("/communities/react"))).toBe(true);
+    const entries = gapsExploreCommunities({ needType: "docs", role: "all" });
+    expect(entries.some((e) => e.slug === "react")).toBe(true);
   });
 
-  it("offers multiple ecosystems for funder role", () => {
-    const links = gapsConnectLinks({ needType: "all", role: "funder" });
-    expect(links.length).toBeGreaterThanOrEqual(3);
+  it("returns install actions without connect_sensor kind", () => {
+    const actions = gapsExploreActions({ needType: "all", role: "funder" });
+    expect(actions.length).toBeGreaterThanOrEqual(3);
+    expect(actions.every((a) => a.kind === "install")).toBe(true);
   });
 });

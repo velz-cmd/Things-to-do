@@ -56,23 +56,26 @@ export const RADAR_EMPTY_STATES = {
   oss: {
     id: "oss" as const,
     title: "Open source radar",
-    message: "No OSS value gaps yet. Connect a GitHub sensor to scan maintainer graphs and funding gaps.",
-    actionLabel: "Connect GitHub sensor",
-    actionHref: "/communities/react",
+    message:
+      "Maintainer programs, docs bounties, and security pools appear here as public scans and ledger rows rank up.",
+    actionLabel: "Explore React ecosystem",
+    actionHref: "/discover#discover-workspace",
   },
   music: {
     id: "music" as const,
     title: "Creator / artist radar",
-    message: "No artist authorizations in the ledger yet. Connect Navidrome or ListenBrainz to recognize plays.",
-    actionLabel: "Connect music sensor",
-    actionHref: "/communities/navidrome",
+    message:
+      "Royalty programs and play-proof authorizations surface here — Independent Music and Navidrome lead the catalog.",
+    actionLabel: "Explore music programs",
+    actionHref: "/discover#discover-workspace",
   },
   dao: {
     id: "dao" as const,
     title: "DAO / community radar",
-    message: "No programs or research citations yet. Install a community and connect OpenAlex or launch a grant pool.",
-    actionLabel: "Install community",
-    actionHref: "#communities",
+    message:
+      "Grant pools, citation tolls, and community programs rank here as treasury and research signals arrive.",
+    actionLabel: "Browse grant communities",
+    actionHref: "/communities",
   },
 };
 

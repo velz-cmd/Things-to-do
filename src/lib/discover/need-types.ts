@@ -118,11 +118,11 @@ function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): st
     docs: { create_program: "Launch docs bounty", fund: "Fund docs program" },
     reviewers: { create_program: "Fund security reviewers", fund: "Fund security pool" },
     translators: { create_program: "Launch translation bounty", open: "Open locale board" },
-    moderators: { connect_sensor: "Connect community", create_program: "Launch steward pool" },
+    moderators: { connect_sensor: "Explore community", create_program: "Launch steward pool" },
     artists: { claim: "Claim artist royalties", fund: "Fund royalty pool" },
-    researchers: { fund: "Fund citations", connect_sensor: "Connect OpenAlex" },
+    researchers: { fund: "Fund citations", connect_sensor: "Explore research" },
     grants: { fund: "Fund grant pool", create_program: "Launch QF round" },
-    automation: { automate: "Automate", analyze: "Run agent", connect_sensor: "Connect sensor rail" },
+    automation: { automate: "Automate", analyze: "Run agent", connect_sensor: "Explore program" },
   };
   return map[needType]?.[action.kind] ?? action.label;
 }
@@ -233,7 +233,7 @@ function refineCopyForNeedType(gap: TrendingValueGap, needType: DiscoverNeedType
     },
     moderators: {
       headline: `${baseHeadline} — needs community stewards`,
-      why: "Governance and moderation capacity — connect sensors and programs",
+      why: "Governance and moderation capacity — programs and live community rails",
     },
     artists: {
       headline: gap.domain === "music" ? gap.headline : `${baseHeadline} — artist royalties`,
@@ -328,15 +328,15 @@ export function primaryBoardCtaLabel(
   },
 ): string {
   if (item.boardKind === "community") {
-    const connect: Partial<Record<DiscoverNeedType, string>> = {
-      artists: "Connect music sensor",
-      researchers: "Connect research sensor",
-      docs: "Connect GitHub for docs",
-      moderators: "Connect community ops",
-      grants: "Connect treasury",
-      automation: "Connect agent rail",
+    const explore: Partial<Record<DiscoverNeedType, string>> = {
+      artists: "Explore music program",
+      researchers: "Explore research program",
+      docs: "Explore docs program",
+      moderators: "Explore community",
+      grants: "Explore grant pool",
+      automation: "Run agent signal",
     };
-    return connect[needType] ?? item.connectCta ?? "Connect sensor";
+    return explore[needType] ?? item.connectCta ?? "Explore program";
   }
 
   const fund: Partial<Record<DiscoverNeedType, string>> = {

@@ -272,9 +272,8 @@ export async function buildDomainRadars(): Promise<{
           },
           {
             id: "sensor",
-            label: "OpenAlex sensor",
-            kind: "connect_sensor",
-            href: "/communities/open-research#health",
+            label: "Explore research",
+            kind: "install",
             communitySlug: "open-research",
           },
           { id: "share", label: "Share receipt", kind: "share", href: `/receipt/${r.id}` },

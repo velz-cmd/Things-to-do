@@ -787,12 +787,18 @@ html.discover-route body {
   }
 
   .discover-section-stack > * + * {
-    margin-top: 1.5rem;
+    margin-top: 0.875rem;
   }
 
   @media (min-width: 1024px) {
     .discover-section-stack > * + * {
-      margin-top: 2rem;
+      margin-top: 1rem;
     }
+  }
+
+  .discover-job-pill--selected {
+    border-color: rgba(59, 158, 255, 0.4);
+    background: rgba(59, 158, 255, 0.1);
+    box-shadow: 0 0 24px rgba(0, 122, 255, 0.1);
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import clsx from "clsx";
 import { DiscoverActionCard } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
@@ -25,6 +26,7 @@ type DiscoverTrendingGapsProps = {
   role?: DiscoverRole;
   needType?: DiscoverNeedTypeFilter;
   className?: string;
+  limit?: number;
 };
 
 export function DiscoverTrendingGaps({
@@ -34,6 +36,7 @@ export function DiscoverTrendingGaps({
   role = "all",
   needType = "all",
   className,
+  limit,
 }: DiscoverTrendingGapsProps) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
   const [sortKey, setSortKey] = useState<OpportunitySortKey>("composite");
@@ -91,12 +94,12 @@ export function DiscoverTrendingGaps({
               ? `No ${needType} opportunities match — try another need type or connect a sensor.`
               : "No verified value gaps yet. Connect a GitHub or music sensor to populate trending."}
           </p>
-          <a
-            href="#communities"
+          <Link
+            href="/communities"
             className="mt-3 inline-block text-xs font-medium text-resolve-calm-blue hover:text-resolve-accent"
           >
             Connect sensors →
-          </a>
+          </Link>
         </DiscoverStatePanel>
       ) : (
         <>
@@ -128,7 +131,7 @@ export function DiscoverTrendingGaps({
             ))}
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
-            {filtered.map((gap, i) => (
+            {(limit ? filtered.slice(0, limit) : filtered).map((gap, i) => (
               <DiscoverActionCard
                 key={gap.id}
                 gap={gap}

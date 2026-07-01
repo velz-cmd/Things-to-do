@@ -37,7 +37,17 @@ export async function fundCommunityProgram(input: {
   });
   if (!program) return { ok: false, error: "Program not found" };
   if (!program.missionId) return { ok: false, error: "Program is not deployed yet" };
-  if (!["active", "deployed"].includes(program.status)) {
+
+  let programStatus = program.status;
+  if (programStatus === "draft") {
+    await prisma.resolveProgram.update({
+      where: { id: program.id },
+      data: { status: "active" },
+    });
+    programStatus = "active";
+  }
+
+  if (!["active", "deployed"].includes(programStatus)) {
     return { ok: false, error: "Program is not accepting funds" };
   }
 

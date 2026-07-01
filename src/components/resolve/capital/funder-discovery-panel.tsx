@@ -135,7 +135,7 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
                       <input
                         type="number"
                         min={5}
-                        step={5}
+                        step="0.01"
                         value={amountByProgram[o.programId] ?? "25"}
                         onChange={(e) =>
                           setAmountByProgram((prev) => ({

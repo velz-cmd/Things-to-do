@@ -112,6 +112,11 @@ export function classifyNeedType(input: ClassifyInput): DiscoverNeedType {
   return "funding";
 }
 
+/** Trending gaps are funder-facing — creators claim on Earn, not here. */
+export function stripCreatorClaimActions(actions: DiscoverAction[]): DiscoverAction[] {
+  return actions.filter((a) => a.kind !== "claim");
+}
+
 function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): string {
   const map: Partial<Record<DiscoverNeedType, Partial<Record<DiscoverAction["kind"], string>>>> = {
     funding: { fund: "Fund gap", sponsor: "Sponsor program" },
@@ -119,7 +124,7 @@ function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): st
     reviewers: { create_program: "Fund security reviewers", fund: "Fund security pool" },
     translators: { create_program: "Launch translation bounty", open: "Open locale board" },
     moderators: { connect_sensor: "Explore community", create_program: "Launch steward pool" },
-    artists: { claim: "Claim artist royalties", fund: "Fund royalty pool" },
+    artists: { fund: "Fund royalty pool", create_program: "Launch royalty pool" },
     researchers: { fund: "Fund citations", connect_sensor: "Explore research" },
     grants: { fund: "Fund grant pool", create_program: "Launch QF round" },
     automation: { automate: "Auto-pay rule", analyze: "Run agent", connect_sensor: "Explore program" },
@@ -176,7 +181,7 @@ function reorderActionsForNeedType(
     reviewers: ["create_program", "fund", "connect_sensor"],
     translators: ["create_program", "open", "fund"],
     moderators: ["connect_sensor", "create_program", "open"],
-    artists: ["claim", "fund", "create_program"],
+    artists: ["fund", "create_program", "open"],
     researchers: ["fund", "connect_sensor", "open"],
     grants: ["fund", "create_program", "sponsor"],
     automation: ["automate", "analyze", "connect_sensor", "fund"],
@@ -236,8 +241,8 @@ function refineCopyForNeedType(gap: TrendingValueGap, needType: DiscoverNeedType
       why: "Governance and moderation capacity — programs and live community rails",
     },
     artists: {
-      headline: gap.domain === "music" ? gap.headline : `${baseHeadline} — artist royalties`,
-      why: gap.why.includes("authorization") ? gap.why : "Verified plays and credits — royalty pool",
+      headline: gap.domain === "music" ? gap.headline : `${baseHeadline} — artist royalty pool`,
+      why: gap.why.includes("authorization") ? gap.why : "Verified plays and credits — fund the royalty pool",
     },
     researchers: {
       headline: gap.domain === "research" ? gap.headline : `${baseHeadline} — research citations`,
@@ -277,10 +282,13 @@ export function enrichGapWithNeedType(gap: TrendingValueGap): TrendingValueGap {
   });
 
   const withCopy = refineCopyForNeedType(gap, needType);
+  const actions = stripCreatorClaimActions(
+    reorderActionsForNeedType(needType, withCopy.actions, withCopy),
+  );
   return {
     ...withCopy,
     needType,
-    actions: reorderActionsForNeedType(needType, withCopy.actions, withCopy),
+    actions,
   };
 }
 

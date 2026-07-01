@@ -39,7 +39,7 @@ describe("domain radar actions", () => {
     expect(fund?.amountUsd).toBe(120);
   });
 
-  it("music card actions wire royalty pool, claim hint, and listen proof", () => {
+  it("music card actions wire royalty pool and listen proof", () => {
     const actions = musicCardActions({
       entityPath: "/e/artist/mbid-abc",
       communitySlug: "navidrome",
@@ -47,9 +47,7 @@ describe("domain radar actions", () => {
       amountUsd: 42,
       proofHref: "/receipt/auth-1",
     });
-    const claim = actions.find((a) => a.id === "claim");
-    expect(claim?.href).toContain("payeeKey=mbid-abc");
-    expect(claim?.href).toContain("payeeKeyType=listen_artist");
+    expect(actions.find((a) => a.kind === "claim")).toBeUndefined();
 
     const proof = actions.find((a) => a.id === "proof");
     expect(proof?.entityPath).toBe("/e/artist/mbid-abc#timeline");

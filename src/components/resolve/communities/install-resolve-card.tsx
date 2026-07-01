@@ -3,12 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Plug, Sparkles } from "lucide-react";
+import { CheckCircle2, Loader2, Plug, Terminal } from "lucide-react";
 import clsx from "clsx";
 import { toast } from "sonner";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Button } from "@/components/resolve/ui/button";
+import { CommunityVitalsRow } from "@/components/resolve/communities/community-vitals-row";
 import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
+import type { CommunityVitalsSummary } from "@/lib/communities/types";
 
 type InstallResolveCardProps = {
   community: Pick<
@@ -16,8 +18,9 @@ type InstallResolveCardProps = {
     "slug" | "name" | "tagline" | "installCta" | "accent" | "attachShape" | "upstream"
   >;
   installed?: boolean;
+  vitals?: CommunityVitalsSummary | null;
   compact?: boolean;
-  onInstalled?: () => void;
+  onInstalled?: (observeNarrative?: string) => void;
 };
 
 const accentRing: Record<string, string> = {
@@ -27,14 +30,19 @@ const accentRing: Record<string, string> = {
   orange: "from-orange-500/20 to-amber-500/10",
 };
 
+const consoleHref = (slug: string) => `/communities/${slug}#health`;
+
 export function InstallResolveCard({
   community,
   installed = false,
+  vitals = null,
   compact = false,
   onInstalled,
 }: InstallResolveCardProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [observeNarrative, setObserveNarrative] = useState<string | null>(null);
+  const showInstalled = installed || Boolean(observeNarrative);
 
   async function install() {
     setBusy(true);
@@ -45,13 +53,21 @@ export function InstallResolveCard({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Install failed");
+
+      const narrative =
+        data.observeNarrative ??
+        vitals?.observeNarrative ??
+        `RESOLVE will now observe upstream signals for ${community.name}.`;
+
+      setObserveNarrative(narrative);
       toast.success(
         data.alreadyInstalled
           ? `Already connected to ${community.name}`
-          : `Connected to ${community.name} in seconds`,
+          : `Connected to ${community.name}`,
+        { description: narrative },
       );
-      onInstalled?.();
-      router.push(`/communities/${community.slug}#health`);
+      onInstalled?.(narrative);
+      router.push(consoleHref(community.slug));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not install RESOLVE");
     } finally {
@@ -61,24 +77,27 @@ export function InstallResolveCard({
 
   if (compact) {
     return (
-      <div className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-white">{community.name}</p>
-          <p className="truncate text-xs text-resolve-muted">{community.tagline}</p>
+      <div className="space-y-2 rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white">{community.name}</p>
+            <p className="truncate text-xs text-resolve-muted">{community.tagline}</p>
+          </div>
+          {showInstalled ? (
+            <Link
+              href={consoleHref(community.slug)}
+              className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-400"
+            >
+              <Terminal className="h-3.5 w-3.5" />
+              Open console
+            </Link>
+          ) : (
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => void install()}>
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Install"}
+            </Button>
+          )}
         </div>
-        {installed ? (
-          <Link
-            href={`/communities/${community.slug}`}
-            className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-400"
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Connected
-          </Link>
-        ) : (
-          <Button size="sm" variant="secondary" disabled={busy} onClick={() => void install()}>
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Install"}
-          </Button>
-        )}
+        {vitals && <CommunityVitalsRow vitals={vitals} compact />}
       </div>
     );
   }
@@ -95,7 +114,7 @@ export function InstallResolveCard({
       <div className="relative space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow">
-            {installed ? (
+            {showInstalled ? (
               <CheckCircle2 className="h-5 w-5 text-white" />
             ) : (
               <Plug className="h-5 w-5 text-white" />
@@ -112,20 +131,29 @@ export function InstallResolveCard({
           <p className="mt-2 text-[11px] text-resolve-muted-dim">via {community.upstream}</p>
         </div>
 
-        {installed ? (
+        {vitals && <CommunityVitalsRow vitals={vitals} />}
+
+        {showInstalled && (observeNarrative ?? vitals?.observeNarrative) && (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
+              Observing
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-emerald-100/80">
+              {observeNarrative ?? vitals?.observeNarrative}
+            </p>
+          </div>
+        )}
+
+        {showInstalled ? (
           <Link
-            href={`/communities/${community.slug}`}
+            href={consoleHref(community.slug)}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/15"
           >
-            <Sparkles className="h-4 w-4" />
-            Enter community
+            <Terminal className="h-4 w-4" />
+            Open console
           </Link>
         ) : (
-          <Button
-            className="w-full"
-            disabled={busy}
-            onClick={() => void install()}
-          >
+          <Button className="w-full" disabled={busy} onClick={() => void install()}>
             {busy ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />

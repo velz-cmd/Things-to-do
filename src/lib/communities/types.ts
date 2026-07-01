@@ -77,6 +77,29 @@ export type AuthorizationPreview = {
   createdAt: string;
 };
 
+export type CommunityBuilderVital = {
+  label: string;
+  amountUsd: number;
+};
+
+export type CommunityVitalsSummary = {
+  healthPct: number | null;
+  healthLabel: string;
+  fundingTotalUsd: number;
+  fundingLabel: string;
+  openWorkCount: number;
+  programCount: number;
+  topBuilders: CommunityBuilderVital[];
+  sensor: {
+    gated: boolean;
+    live: boolean;
+    ready: boolean;
+    label: string;
+  };
+  observeNarrative: string;
+  hasLiveData: boolean;
+};
+
 export type CommunitySurface = {
   slug: string;
   name: string;

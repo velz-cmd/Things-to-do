@@ -11,6 +11,14 @@ test.describe("Community phases — APIs", () => {
     const slugs = body.communities.map((c: { slug: string }) => c.slug);
     expect(slugs).toContain("independent-music");
     expect(slugs).toContain("navidrome");
+    const navidrome = body.communities.find((c: { slug: string }) => c.slug === "navidrome");
+    expect(navidrome.vitals).toHaveProperty("healthLabel");
+    expect(navidrome.vitals).toHaveProperty("fundingLabel");
+    expect(navidrome.vitals).toHaveProperty("openWorkCount");
+    expect(navidrome.vitals).toHaveProperty("programCount");
+    expect(navidrome.vitals).toHaveProperty("topBuilders");
+    expect(navidrome.vitals).toHaveProperty("sensor");
+    expect(navidrome.vitals).toHaveProperty("observeNarrative");
   });
 
   test("GET /api/communities/[slug] returns surface without auth", async ({ request }) => {
@@ -234,7 +242,10 @@ test.describe("Community phases — surfaces", () => {
     await communities.scrollIntoViewIfNeeded();
     await expect(communities.getByRole("heading", { name: "Connect communities" })).toBeVisible();
     await expect(communities.getByText("Install on Independent Music")).toBeVisible();
-    await expect(communities.getByRole("button", { name: "Open" }).first()).toBeVisible();
+    await expect(communities.getByRole("button", { name: "Open console" }).first()).toBeVisible();
+    await expect(communities.getByText("Health").first()).toBeVisible();
+    await expect(communities.getByText("Funding").first()).toBeVisible();
+    await expect(communities.getByText("Open work").first()).toBeVisible();
 
     const statusRes = await request.get("/api/communities/sensor-status");
     const body = await statusRes.json();

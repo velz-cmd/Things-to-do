@@ -5,15 +5,15 @@ import {
 } from "../../src/lib/discover/community-strip-actions";
 
 describe("community strip actions", () => {
-  it("always includes Open", () => {
+  it("always includes Open console", () => {
     const actions = communityStripActions({ slug: "navidrome", installed: false });
-    expect(actions.map((a) => a.label)).toEqual(["Open"]);
-    expect(actions[0].href).toBe("/communities/navidrome");
+    expect(actions.map((a) => a.label)).toEqual(["Open console"]);
+    expect(actions[0].href).toBe("/communities/navidrome#health");
   });
 
   it("adds Create program when installed", () => {
     const actions = communityStripActions({ slug: "react", installed: true });
-    expect(actions.map((a) => a.label)).toContain("Open");
+    expect(actions.map((a) => a.label)).toContain("Open console");
     expect(actions.map((a) => a.label)).toContain("Create program");
     const create = actions.find((a) => a.id === "program");
     expect(create?.communitySlug).toBe("react");

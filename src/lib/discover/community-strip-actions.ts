@@ -13,10 +13,10 @@ export function communityStripActions(input: {
 }): DiscoverAction[] {
   const actions: DiscoverAction[] = [
     {
-      id: "open",
-      label: "Open",
+      id: "open-console",
+      label: "Open console",
       kind: "open",
-      href: `/communities/${input.slug}`,
+      href: `/communities/${input.slug}#health`,
     },
   ];
 

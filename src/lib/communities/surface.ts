@@ -281,12 +281,22 @@ export async function buildCommunitySurface(
   };
 }
 
-export async function listCommunitySummaries(userId: string | null) {
+export async function listCommunitySummaries(
+  userId: string | null,
+  options?: { sensorStatuses?: import("@/lib/sensors/catalog-visibility").CommunitySensorStatus[] },
+) {
   const { COMMUNITY_CATALOG } = await import("@/lib/communities/catalog");
+  const { listCommunityVitals } = await import("@/lib/communities/vitals");
+  const { getCommunitySensorStatuses } = await import("@/lib/sensors/status");
+
   const installs = userId
     ? await prisma.resolveCommunityInstall.findMany({ where: { userId } })
     : [];
   const installSet = new Set(installs.map((i) => i.communitySlug));
+
+  const sensorStatuses =
+    options?.sensorStatuses ?? (await getCommunitySensorStatuses().catch(() => []));
+  const vitalsBySlug = await listCommunityVitals(sensorStatuses);
 
   return COMMUNITY_CATALOG.map((c) => ({
     slug: c.slug,
@@ -296,6 +306,9 @@ export async function listCommunitySummaries(userId: string | null) {
     accent: c.accent,
     featured: c.featured,
     installCta: c.installCta,
+    attachShape: c.attachShape,
+    upstream: c.upstream,
     installed: installSet.has(c.slug),
+    vitals: vitalsBySlug[c.slug],
   }));
 }

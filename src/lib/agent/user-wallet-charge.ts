@@ -81,8 +81,9 @@ export async function chargeUserForAgentSignal(input: {
 export async function assertAgentWalletBalance(
   userId: string,
   amountUsd: number,
+  opts?: { sync?: boolean },
 ): Promise<AgentWalletChargeResult | { ok: true; balanceUsd: number }> {
-  const spendable = await getRealSpendableUsd(userId, { sync: true });
+  const spendable = await getRealSpendableUsd(userId, { sync: opts?.sync ?? false });
   if (spendable.availableUsd < amountUsd) {
     return {
       ok: false,

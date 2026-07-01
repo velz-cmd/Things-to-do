@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { Bot, Eye, Radio, Sparkles, Wallet, X } from "lucide-react";
 import type { DiscoverGraphNode } from "@/lib/discover/radar";
 import type { DiscoverAction } from "@/lib/discover/types";
+import type { AutomationTrigger } from "@/lib/automation/types";
 import {
   buildBubbleOperatorSurface,
   type BubbleOperatorMetrics,
@@ -13,6 +14,10 @@ import {
 import { DiscoverBubblemapMetrics } from "@/components/resolve/discover/discover-bubblemap-metrics";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
+import { DiscoverAutomationRuleBuilder } from "@/components/resolve/discover/discover-automation-rule-builder";
+import { DiscoverCommunityConsoleActions } from "@/components/resolve/discover/discover-community-console-actions";
+import { useSignInModal } from "@/components/auth/sign-in-context";
+import type { CommunityConsoleTab } from "@/components/resolve/discover/discover-community-console-provider";
 
 export type BubbleOperatorAnchor = {
   node: DiscoverGraphNode;
@@ -24,6 +29,9 @@ type DiscoverBubbleOperatorPanelProps = {
   nodes: DiscoverGraphNode[];
   edges: import("@/lib/discover/radar").DiscoverGraphEdge[];
   metrics: BubbleOperatorMetrics | null;
+  signedIn: boolean;
+  initialTab?: CommunityConsoleTab;
+  automationTrigger?: AutomationTrigger;
   onClose: () => void;
 };
 
@@ -32,6 +40,7 @@ const ACTION_ICONS: Partial<Record<DiscoverAction["kind"], typeof Wallet>> = {
   sponsor: Sparkles,
   create_program: Bot,
   analyze: Eye,
+  automate: Eye,
   open: Radio,
   install: Radio,
 };
@@ -42,20 +51,24 @@ export function DiscoverBubbleOperatorPanel({
   nodes,
   edges,
   metrics,
+  signedIn,
+  initialTab = "console",
+  automationTrigger,
   onClose,
 }: DiscoverBubbleOperatorPanelProps) {
   const { runAction } = useDiscoverActions();
-  const [tab, setTab] = useState<"console" | "advanced">("console");
+  const { openSignIn } = useSignInModal();
+  const [tab, setTab] = useState<CommunityConsoleTab>(initialTab);
 
   useEffect(() => {
     if (!anchor) return;
-    setTab("console");
+    setTab(initialTab);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [anchor, onClose]);
+  }, [anchor, onClose, initialTab]);
 
   const surface = useMemo(() => {
     if (!anchor) return null;
@@ -71,6 +84,7 @@ export function DiscoverBubbleOperatorPanel({
 
   const { node } = anchor;
   const isEcosystem = node.type === "ecosystem" || node.type === "repository";
+  const slug = node.communitySlug;
 
   return (
     <>
@@ -123,14 +137,10 @@ export function DiscoverBubbleOperatorPanel({
                 Sensor preview
               </span>
             )}
-            {surface.observatoryHref && (
-              <Link
-                href={surface.observatoryHref}
-                className="text-[10px] font-medium text-resolve-accent hover:underline"
-                onClick={onClose}
-              >
-                Community observatory →
-              </Link>
+            {slug && (
+              <span className="text-[10px] text-resolve-muted">
+                {slug} · stays on Discover
+              </span>
             )}
           </div>
         </header>
@@ -138,6 +148,9 @@ export function DiscoverBubbleOperatorPanel({
         <div className="flex border-b border-white/[0.06] px-5">
           <TabButton active={tab === "console"} onClick={() => setTab("console")}>
             Console
+          </TabButton>
+          <TabButton active={tab === "automate"} onClick={() => setTab("automate")}>
+            Automate
           </TabButton>
           <TabButton active={tab === "advanced"} onClick={() => setTab("advanced")}>
             Advanced
@@ -147,6 +160,15 @@ export function DiscoverBubbleOperatorPanel({
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {tab === "console" ? (
             <div className="space-y-5">
+              {slug && (
+                <DiscoverCommunityConsoleActions
+                  node={node}
+                  signedIn={signedIn}
+                  onObserve={() => setTab("advanced")}
+                  onSimulate={() => setTab("automate")}
+                />
+              )}
+
               {surface.sections.map((section) => (
                 <section key={section.id}>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
@@ -177,6 +199,19 @@ export function DiscoverBubbleOperatorPanel({
                 </section>
               ))}
             </div>
+          ) : tab === "automate" ? (
+            slug ? (
+              <DiscoverAutomationRuleBuilder
+                communitySlug={slug}
+                signedIn={signedIn}
+                initialTrigger={automationTrigger}
+                onSignIn={openSignIn}
+              />
+            ) : (
+              <p className="text-xs text-resolve-muted">
+                Install a community to create automation rules tied to authorization ingest.
+              </p>
+            )
           ) : (
             <div className="space-y-4">
               {surface.nodeMetrics ? (
@@ -192,9 +227,17 @@ export function DiscoverBubbleOperatorPanel({
                 </div>
               ) : (
                 <p className="text-xs text-resolve-muted">
-                  This node is not in the current top PageRank slice — metrics update as ledger
-                  authorizations grow.
+                  Metrics update as ledger authorizations grow.
                 </p>
+              )}
+              {surface.observatoryHref && (
+                <Link
+                  href={surface.observatoryHref}
+                  className="inline-flex text-xs text-resolve-accent hover:underline"
+                  onClick={onClose}
+                >
+                  Full observatory (optional) →
+                </Link>
               )}
               {metrics && (
                 <DiscoverBubblemapMetrics
@@ -209,7 +252,7 @@ export function DiscoverBubbleOperatorPanel({
 
         <footer className="border-t border-white/[0.06] px-5 py-4">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-            Actions
+            Quick actions
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {actions.length ? (
@@ -221,7 +264,7 @@ export function DiscoverBubbleOperatorPanel({
                     type="button"
                     onClick={() => {
                       void runAction(action, "bubble-operator-panel");
-                      onClose();
+                      if (action.kind !== "automate") onClose();
                     }}
                     className={clsx(
                       "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-medium transition",
@@ -229,7 +272,9 @@ export function DiscoverBubbleOperatorPanel({
                         ? "border-amber-500/35 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
                         : action.kind === "create_program"
                           ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
-                          : "border-white/10 bg-white/[0.04] text-resolve-muted hover:text-white",
+                          : action.kind === "automate"
+                            ? "border-resolve-accent/35 bg-resolve-accent/10 text-white hover:bg-resolve-accent/15"
+                            : "border-white/10 bg-white/[0.04] text-resolve-muted hover:text-white",
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" />

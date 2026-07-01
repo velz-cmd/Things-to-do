@@ -25,6 +25,7 @@ import {
 } from "@/lib/discover/discover-action-engine";
 import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-sheet";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
+import { useCommunityConsoleOptional } from "@/components/resolve/discover/discover-community-console-provider";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -61,6 +62,7 @@ export function DiscoverActionsProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const communityConsole = useCommunityConsoleOptional();
   const { reportActionStatus } = useDiscoverActionAudit();
   const [wallet, setWallet] = useState<WalletSnapshot>({
     spendableUsd: 0,
@@ -253,7 +255,9 @@ export function DiscoverActionsProvider({
               await apiInstallCommunity(action.communitySlug!);
               toast.success(`Installed ${action.communitySlug} — community record created`);
               reportActionStatus(surface, action, "success");
-              router.push(`/communities/${action.communitySlug}`);
+              if (surface !== "community-console" && surface !== "bubble-operator-panel") {
+                router.push(`/communities/${action.communitySlug}`);
+              }
             } catch (e) {
               const msg = e instanceof Error ? e.message : "Install failed";
               reportActionStatus(surface, action, "error", msg);
@@ -279,7 +283,9 @@ export function DiscoverActionsProvider({
               }
               toast.success(`Program created: ${created.program.name}`);
               reportActionStatus(surface, action, "success");
-              router.push(`/communities/${action.communitySlug}`);
+              if (surface !== "community-console" && surface !== "bubble-operator-panel") {
+                router.push(`/communities/${action.communitySlug}`);
+              }
             } catch (e) {
               const msg = e instanceof Error ? e.message : "Create program failed";
               reportActionStatus(surface, action, "error", msg);
@@ -336,6 +342,23 @@ export function DiscoverActionsProvider({
             }
             break;
 
+          case "automate":
+            if (action.communitySlug && communityConsole) {
+              communityConsole.open({
+                communitySlug: action.communitySlug,
+                tab: "automate",
+                automationTrigger: action.automationTrigger,
+              });
+              reportActionStatus(surface, action, "success");
+            } else if (action.href) {
+              router.push(action.href);
+              reportActionStatus(surface, action, "success");
+            } else {
+              reportActionStatus(surface, action, "blocked", "Community required for automation");
+              toast.error("Install a community to automate");
+            }
+            break;
+
           default:
             if (action.href) {
               router.push(action.href);
@@ -351,7 +374,7 @@ export function DiscoverActionsProvider({
         }
       }
     },
-    [signedIn, router, executeFund, openFundSheet, reportActionStatus],
+    [signedIn, router, executeFund, openFundSheet, reportActionStatus, communityConsole],
   );
 
   const value = useMemo(

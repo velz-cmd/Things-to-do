@@ -5,6 +5,7 @@ import { getProfileEarningsSummary } from "@/lib/earn/summary";
 import { resolveClaimIdentities } from "@/lib/identity/claim-identities";
 import { listRecentEarnReceipts } from "@/lib/earn/recent-receipts";
 import { EARN_ELIGIBILITY_RULES } from "@/lib/earn/eligibility-copy";
+import { buildUserEligibleWork } from "@/lib/earn/user-eligible-work";
 import { createClaimToken, claimUrlForToken } from "@/lib/claim/tokens";
 import { getClaimableItemsForGithub } from "@/lib/identity/pending-rewards";
 import { extractGithubIdentity } from "@/lib/identity/contributors";
@@ -24,21 +25,25 @@ async function musicbrainzLinked(walletAddress: string | null): Promise<{
   if (!walletAddress || !process.env.DATABASE_URL) {
     return { connected: false };
   }
-  const rows = await prisma.contributorRegistry.findMany({
-    where: {
-      walletAddress: walletAddress.toLowerCase(),
-      exifArtist: { not: null },
-      status: { in: ["linked", "verified"] },
-    },
-    take: 3,
-    select: { exifArtist: true },
-  });
-  if (rows.length === 0) return { connected: false };
-  const names = rows.map((r) => r.exifArtist).filter(Boolean) as string[];
-  return {
-    connected: true,
-    displayValue: names.length === 1 ? names[0] : `${names.length} artist names`,
-  };
+  try {
+    const rows = await prisma.contributorRegistry.findMany({
+      where: {
+        walletAddress: walletAddress.toLowerCase(),
+        exifArtist: { not: null },
+        status: { in: ["linked", "verified"] },
+      },
+      take: 3,
+      select: { exifArtist: true },
+    });
+    if (rows.length === 0) return { connected: false };
+    const names = rows.map((r) => r.exifArtist).filter(Boolean) as string[];
+    return {
+      connected: true,
+      displayValue: names.length === 1 ? names[0] : `${names.length} artist names`,
+    };
+  } catch {
+    return { connected: false };
+  }
 }
 
 /** Discover earn surface — ledger earnings, connectors, receipts, eligibility. */
@@ -50,6 +55,7 @@ export async function GET() {
       ok: true,
       signedIn: false,
       eligibility: EARN_ELIGIBILITY_RULES,
+      workStreams: [],
       connectors: [
         {
           id: "github",
@@ -83,6 +89,7 @@ export async function GET() {
     });
   }
 
+  try {
   let profile = await ensureProfileForUser(authUser);
   profile = await sanitizeConnectorIdentities(authUser.id, profile);
 
@@ -92,13 +99,17 @@ export async function GET() {
   const walletAddress =
     profile.walletAddress?.toLowerCase() ?? profile.scanWalletAddress?.toLowerCase() ?? null;
 
-  const [earnings, identities, mbLink] = await Promise.all([
-    getProfileEarningsSummary({ profile }),
-    resolveClaimIdentities({ profile }),
+  const [earnings, identities, mbLink, workStreams] = await Promise.all([
+    getProfileEarningsSummary({ profile }).catch(() => null),
+    resolveClaimIdentities({ profile }).catch(() => []),
     musicbrainzLinked(walletAddress),
+    buildUserEligibleWork({ userId: authUser.id, profile }),
   ]);
 
-  const recentReceipts = await listRecentEarnReceipts(identities, 5);
+  const recentReceipts =
+    identities.length > 0
+      ? await listRecentEarnReceipts(identities, 5).catch(() => [])
+      : [];
 
   const connectors: DiscoverEarnConnector[] = [
     {
@@ -137,7 +148,7 @@ export async function GET() {
   ];
 
   let claimUrl: string | null = null;
-  if (earnings.claimableUsd > 0) {
+  if (earnings && earnings.claimableUsd > 0) {
     const { login } = extractGithubIdentity(authUser);
     const gh = login?.toLowerCase() ?? githubUsername;
     const primary =
@@ -161,11 +172,26 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     signedIn: true,
-    earnings,
+    earnings: earnings ?? undefined,
     connectors,
     recentReceipts,
     claimUrl,
     eligibility: EARN_ELIGIBILITY_RULES,
+    workStreams,
     identityCount: identities.length,
   });
+  } catch (e) {
+    console.error("[earn/discover]", e);
+    return NextResponse.json({
+      ok: true,
+      signedIn: true,
+      earnings: undefined,
+      connectors: [],
+      recentReceipts: [],
+      claimUrl: null,
+      eligibility: EARN_ELIGIBILITY_RULES,
+      workStreams: [],
+      degraded: true,
+    });
+  }
 }

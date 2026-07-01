@@ -171,23 +171,25 @@ export async function getProfileEarningsSummary(input: {
   const verifiedUsd = round(identityEarnings.reduce((s, i) => s + i.verifiedUsd, 0));
   const authorizationCount = identityEarnings.reduce((s, i) => s + i.authorizationCount, 0);
 
-  const claimableRows = await prisma.paymentAuthorization.findMany({
-    where: {
-      status: "claimable",
-      OR: identities.map((i) => ({
-        payeeKeyType: i.payeeKeyType,
-        payeeKey: i.payeeKey,
-      })),
-    },
-    select: {
-      amountUsd: true,
-      confidence: true,
-      fulfilledAt: true,
-      updatedAt: true,
-      createdAt: true,
-    },
-    take: 200,
-  });
+  const claimableRows = await prisma.paymentAuthorization
+    .findMany({
+      where: {
+        status: "claimable",
+        OR: identities.map((i) => ({
+          payeeKeyType: i.payeeKeyType,
+          payeeKey: i.payeeKey,
+        })),
+      },
+      select: {
+        amountUsd: true,
+        confidence: true,
+        fulfilledAt: true,
+        updatedAt: true,
+        createdAt: true,
+      },
+      take: 200,
+    })
+    .catch(() => []);
 
   let stalestClaimableAt: Date | null = null;
   const notifyRows: NotifyCandidate[] = [];

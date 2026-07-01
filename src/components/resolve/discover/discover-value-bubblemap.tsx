@@ -30,8 +30,11 @@ import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-s
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import {
   VALUE_GRAPH_FOOTER,
+  VALUE_GRAPH_MAP_HINT,
   VALUE_GRAPH_SUBTITLE,
 } from "@/lib/discover/resolve-value-copy";
+import { VALUE_GRAPH_AUDIENCES } from "@/lib/discover/discover-action-truth";
+import { DiscoverValueNodeStrip } from "@/components/resolve/discover/discover-value-node-strip";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -156,6 +159,7 @@ export function DiscoverValueBubblemap({
   const [expanded, setExpanded] = useState(false);
   const [domainFilter, setDomainFilter] = useState<GraphDomainFilter>("all");
   const [panel, setPanel] = useState<BubbleOperatorAnchor | null>(null);
+  const [stripSelectedId, setStripSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<CommunityConsoleTab>("console");
   const [panelTrigger, setPanelTrigger] = useState<AutomationTrigger | undefined>();
   const consoleBridge = useCommunityConsoleOptional();
@@ -238,7 +242,15 @@ export function DiscoverValueBubblemap({
   const handleNodeClick = (b: BubbleNode) => {
     setPanelTab("console");
     setPanelTrigger(undefined);
+    setStripSelectedId(b.id);
     setPanel({ node: b });
+  };
+
+  const handleStripSelect = (node: DiscoverGraphNode) => {
+    setPanelTab("console");
+    setPanelTrigger(undefined);
+    setStripSelectedId(node.id);
+    setPanel({ node });
   };
 
   useEffect(() => {
@@ -264,7 +276,27 @@ export function DiscoverValueBubblemap({
 
   const sectionBody = (
     <>
-      <div className="flex flex-wrap gap-1.5 border-b border-white/[0.04] px-0 pb-2">
+      <div className="discover-audience-legend mb-3">
+        {VALUE_GRAPH_AUDIENCES.map((a) => (
+          <div key={a.id} className="discover-audience-legend__item">
+            <p className="discover-audience-legend__label">{a.label}</p>
+            <p className="discover-audience-legend__hint">{a.hint}</p>
+          </div>
+        ))}
+      </div>
+
+      {hasGraph && (
+        <DiscoverValueNodeStrip
+          nodes={filteredGraph.nodes}
+          edges={filteredGraph.edges}
+          selectedId={stripSelectedId ?? panel?.node.id ?? null}
+          onSelect={handleStripSelect}
+          signedIn={signedIn}
+          live={Boolean(data?.live)}
+        />
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-1.5 border-b border-white/[0.04] px-0 pb-2">
         {GRAPH_DOMAIN_CHIPS.map((chip) => (
           <button
             key={chip.id}
@@ -310,6 +342,8 @@ export function DiscoverValueBubblemap({
           </p>
         </div>
       ) : (
+        <>
+          <p className="mb-2 text-[10px] text-resolve-muted-dim">{VALUE_GRAPH_MAP_HINT}</p>
         <div className="discover-bubblemap-stage relative overflow-hidden rounded-xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-black/20 p-1.5">
           <svg
             viewBox={`0 0 ${viewW} ${viewH}`}
@@ -483,6 +517,7 @@ export function DiscoverValueBubblemap({
             </div>
           )}
         </div>
+        </>
       )}
 
       {data?.updatedAt && (
@@ -567,7 +602,10 @@ export function DiscoverValueBubblemap({
         signedIn={signedIn}
         initialTab={panelTab}
         automationTrigger={panelTrigger}
-        onClose={() => setPanel(null)}
+        onClose={() => {
+          setPanel(null);
+          setStripSelectedId(null);
+        }}
       />
     </>
   );

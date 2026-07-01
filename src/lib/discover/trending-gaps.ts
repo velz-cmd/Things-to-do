@@ -120,7 +120,7 @@ function buildMusicAggregateGap(
   return {
     id: `music-artist-${artistKey.toLowerCase()}`,
     domain: "music",
-    headline: `${latest.contextLabel ?? artistKey} — claimable artist value`,
+    headline: `${latest.contextLabel ?? artistKey} — unfunded artist pool`,
     why: `${rows.length} ListenBrainz/Navidrome authorization${rows.length === 1 ? "" : "s"} in ledger`,
     whoBenefits: "Artists, composers, session musicians",
     proofSource: formatProofSource({
@@ -142,8 +142,6 @@ function buildMusicAggregateGap(
     updatedAt: latest.updatedAt.toISOString(),
     proofHref: `/receipt/${latest.id}`,
     actions: [
-      { id: "claim", label: "Claim artist", kind: "claim", href: "/claim" },
-      ...(entityPath ? [{ id: "open", label: "Open", kind: "open" as const, entityPath }] : []),
       {
         id: "fund",
         label: "Fund pool",
@@ -151,6 +149,7 @@ function buildMusicAggregateGap(
         communitySlug,
         templateId: "user-centric-royalties",
       },
+      ...(entityPath ? [{ id: "open", label: "Open", kind: "open" as const, entityPath }] : []),
       {
         id: "connect",
         label: "Explore music",

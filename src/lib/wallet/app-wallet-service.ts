@@ -8,26 +8,13 @@ import {
   ensureCircleWalletSet,
   getCircleWalletSetId,
 } from "@/lib/wallet/circle-config";
+import { circleErrorMessage } from "@/lib/wallet/circle-errors";
+import { circleIdempotencyKey } from "@/lib/wallet/circle-idempotency";
 
 type AppWalletMeta = {
   provider: "circle" | "embedded";
   circleWalletId?: string;
 };
-
-function circleErrorMessage(err: unknown): string {
-  if (err instanceof Error && err.message) return err.message;
-  if (!err || typeof err !== "object") return "Circle API request failed";
-  const e = err as {
-    message?: string;
-    code?: number;
-    response?: { data?: { message?: string } };
-  };
-  return (
-    e.response?.data?.message ??
-    e.message ??
-    (e.code ? `Circle error ${e.code}` : "Circle API request failed")
-  );
-}
 
 function readMeta(json: string | null | undefined): AppWalletMeta | null {
   if (!json) return null;
@@ -102,7 +89,7 @@ async function createCircleAppWallet(
           blockchains: ["ARC-TESTNET"],
           count: 1,
           accountType: "EOA",
-          idempotencyKey: `resolve-app-wallet-${userId}`,
+          idempotencyKey: circleIdempotencyKey(userId),
         });
 
         const wallet = res.data?.wallets?.[0];

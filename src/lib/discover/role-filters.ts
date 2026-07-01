@@ -26,7 +26,7 @@ export const DISCOVER_ROLES: {
   {
     id: "community",
     label: "Community",
-    hint: "Claim value, connect sensors, explore creators",
+    hint: "Earn, claim receipts, connect GitHub & ListenBrainz",
   },
   {
     id: "funder",
@@ -52,6 +52,7 @@ export const DISCOVER_ROLES: {
 ];
 
 export type DiscoverSectionId =
+  | "earn"
   | "pulse"
   | "claim"
   | "bubblemap"
@@ -62,7 +63,7 @@ export type DiscoverSectionId =
   | "communities";
 
 const ROLE_SECTIONS: Record<DiscoverRole, DiscoverSectionId[] | "all"> = {
-  community: ["pulse", "claim", "trending", "radars", "liveFeed", "communities"],
+  community: ["earn", "pulse", "trending", "radars", "liveFeed", "communities"],
   funder: ["pulse", "bubblemap", "trending", "opportunities", "liveFeed"],
   founder: ["pulse", "bubblemap", "trending", "radars", "opportunities", "communities"],
   operator: ["pulse", "bubblemap", "radars", "liveFeed", "communities"],
@@ -92,6 +93,7 @@ export function sectionVisibleForRole(section: DiscoverSectionId, role: Discover
 
 /** Default refresh cooldown per surface (ms) — staggered to reduce API pressure. */
 export const SECTION_REFRESH_COOLDOWN_MS: Record<string, number> = {
+  "earn-surface": 60_000,
   "network-pulse": 60_000,
   "trending-gaps": 90_000,
   "domain-radars": 120_000,

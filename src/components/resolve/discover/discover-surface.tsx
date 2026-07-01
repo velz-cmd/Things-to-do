@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
-import { DiscoverClaimHint } from "@/components/resolve/discover/discover-claim-hint";
+import { DiscoverEarnSurface } from "@/components/resolve/discover/discover-earn-surface";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
@@ -99,6 +99,10 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
     <div className="mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-8 pb-12 lg:px-8">
       <DiscoverJobHero activeJob={activeJob} onSelectJob={handleJobSelect} />
 
+      {sectionVisibleForRole("earn", role) && (
+        <DiscoverEarnSurface signedIn={Boolean(user)} />
+      )}
+
       <div id="discover-search" className="scroll-mt-24">
         <DiscoverGlobalSearch
           signedIn={Boolean(user)}
@@ -119,8 +123,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
       <DiscoverNeedTypeFilters value={needType} onChange={setNeedType} className="discover-on-canvas mb-8" />
 
       {sectionVisibleForRole("pulse", role) && <DiscoverNetworkPulse className="mb-6" />}
-
-      {user && sectionVisibleForRole("claim", role) && <DiscoverClaimHint />}
 
       {sectionVisibleForRole("bubblemap", role) && (
         <DiscoverValueBubblemap className="mb-10" intent={intent} role={role} />

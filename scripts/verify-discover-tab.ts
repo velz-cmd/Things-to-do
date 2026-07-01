@@ -125,9 +125,10 @@ async function hygieneChecks() {
   for (const token of forbiddenInDiscover) {
     assert(!html.includes(token), `discover HTML excludes "${token}"`);
   }
-  assert(html.includes("Connect communities"), "discover HTML includes communities section");
   assert(html.includes("What do you want to do?"), "discover HTML includes job-first hero");
   assert(html.includes("Earn from my work"), "discover HTML includes primary jobs");
+  assert(html.includes("Value graph"), "discover HTML includes value graph");
+  assert(html.includes('href="/communities"'), "discover HTML links to Communities tab");
 }
 
 async function warmLoadPerf() {

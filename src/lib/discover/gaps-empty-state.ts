@@ -3,9 +3,9 @@ import type { DiscoverAction } from "@/lib/discover/types";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
-/** What the Gaps lane shows — value first, no connector setup jargon. */
+/** What the Gaps lane shows — funder-facing ranked opportunities. */
 export const GAPS_TAB_INTRO =
-  "Unfunded work the network can recognize — maintainer programs, royalty pools, docs bounties, grant rounds, and citation tolls. RESOLVE surfaces opportunities here; sources sync in the background.";
+  "For funders: verified work the network already recognizes but nobody has paid yet — maintainer pools, royalty programs, docs bounties, grant rounds, and citation tolls. Move Arc USDC here to fulfill authorizations; creators collect on Earn.";
 
 export const GAPS_TAB_EXAMPLES = [
   "Docs bounty on a maintainer repo",

@@ -10,7 +10,7 @@ import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-a
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import { filterActionsByIntent } from "@/lib/discover/intent-filters";
-import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
+import { needTypeBadgeClass, needTypeLabel, stripCreatorClaimActions } from "@/lib/discover/need-types";
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
@@ -49,7 +49,12 @@ export function DiscoverActionCard({
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
   const byIntent = filterActionsByIntent(gap.actions, intent);
-  const filtered = role !== "all" ? filterActionsByRole(byIntent, role) : byIntent;
+  const byRole = role !== "all" ? filterActionsByRole(byIntent, role) : byIntent;
+  const funderSafe =
+    surface === "trending-gaps" || surface === "opportunity-queue"
+      ? stripCreatorClaimActions(byRole)
+      : byRole;
+  const filtered = funderSafe;
   const actions = tailorDiscoverActionsForUser(filtered, connections);
   const needed = formatDiscoverMoney(
     gap.amountNeededUsd,

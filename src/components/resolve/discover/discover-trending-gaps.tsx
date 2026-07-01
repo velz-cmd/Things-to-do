@@ -13,6 +13,7 @@ import { filterGapsByNeedType } from "@/lib/discover/need-types";
 import { sortByOpportunityScore, type OpportunitySortKey } from "@/lib/discover/opportunity-score";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { DiscoverGapsEmpty } from "@/components/resolve/discover/discover-gaps-empty";
+import { GAPS_TAB_INTRO } from "@/lib/discover/gaps-empty-state";
 import {
   DiscoverDegradedHint,
   DiscoverRetryButton,
@@ -59,8 +60,8 @@ export function DiscoverTrendingGaps({
 
   const subtitle =
     feed?.realSignalCount != null
-      ? `Ledger authorizations and live scans · ${feed.realSignalCount} verified signals`
-      : "Ledger authorizations, funded programs, and live GitHub scans";
+      ? `Funder lane — ${feed.realSignalCount} ledger-verified signals ranked by opportunity score`
+      : "Funder lane — ranked unfunded work from ledger authorizations and live scans";
 
   return (
     <DiscoverPremiumSection
@@ -91,6 +92,7 @@ export function DiscoverTrendingGaps({
         <DiscoverGapsEmpty needType={needType} role={role} signedIn={signedIn} degraded={feed?.degraded} />
       ) : (
         <>
+          <p className="mb-3 text-xs leading-relaxed text-resolve-muted">{GAPS_TAB_INTRO}</p>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
               Sort by

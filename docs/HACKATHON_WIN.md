@@ -31,6 +31,18 @@ Confirm **all** of these are set on Vercel → things-to-do → Settings → Env
 
 After adding/changing vars → **Redeploy** (or push to `main`).
 
+### Vercel deploy rate limit (bypass)
+
+If GitHub shows **Deployment rate limited — retry in 24 hours**, production may stay on an old commit. Bypass without waiting:
+
+```bash
+npx vercel deploy --prod --yes --token "$VERCEL_TOKEN"
+```
+
+Confirm: `curl https://resolve-task.vercel.app/api/health/deploy` → `commit` matches latest `main`.
+
+**Backup host:** connect [Render Blueprint](https://render.com/docs/blueprint-spec) from this repo (`render.yaml`) and copy the same env vars from Vercel. `npm run start` binds to `PORT` for Render.
+
 ### 2. Supabase Auth (Google + email)
 
 1. [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Authentication**

@@ -27,6 +27,8 @@ import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-s
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
 import { useCommunityConsoleOptional } from "@/components/resolve/discover/discover-community-console-provider";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -65,6 +67,7 @@ export function DiscoverActionsProvider({
   const router = useRouter();
   const communityConsole = useCommunityConsoleOptional();
   const { balance, balanceLoading, refreshBalance } = useAuth();
+  const { state: connections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
   const [wallet, setWallet] = useState<WalletSnapshot>({
     spendableUsd: 0,
@@ -217,7 +220,8 @@ export function DiscoverActionsProvider({
   );
 
   const runAction = useCallback(
-    async (action: DiscoverAction, surface = "discover") => {
+    async (rawAction: DiscoverAction, surface = "discover") => {
+      const [action = rawAction] = tailorDiscoverActionsForUser([rawAction], connections);
       const authRequired = [
         "fund",
         "install",
@@ -427,7 +431,7 @@ export function DiscoverActionsProvider({
         }
       }
     },
-    [signedIn, router, executeFund, openFundSheet, reportActionStatus, communityConsole],
+    [signedIn, router, executeFund, openFundSheet, reportActionStatus, communityConsole, connections],
   );
 
   const value = useMemo(

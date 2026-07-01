@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isMissingTableError } from "@/lib/db/prisma-errors";
 import type { User } from "@prisma/client";
 import {
   getProfileEarningsSummary,
@@ -47,7 +48,8 @@ export async function refreshUserEarningsSnapshot(
 ): Promise<ProfileEarningsSummary> {
   const summary = await getProfileEarningsSummary({ profile });
 
-  await prisma.userEarningsSnapshot.upsert({
+  try {
+    await prisma.userEarningsSnapshot.upsert({
     where: { userId },
     create: {
       userId,
@@ -80,7 +82,10 @@ export async function refreshUserEarningsSnapshot(
       githubLinked: summary.githubLinked,
       computedAt: new Date(),
     },
-  });
+    });
+  } catch (e) {
+    if (!isMissingTableError(e)) throw e;
+  }
 
   return summary;
 }
@@ -92,12 +97,16 @@ export async function getProfileEarningsSummaryCached(input: {
   maxAgeMs?: number;
 }): Promise<ProfileEarningsSummary> {
   const maxAge = input.maxAgeMs ?? SNAPSHOT_TTL_MS;
-  const row = await prisma.userEarningsSnapshot.findUnique({
-    where: { userId: input.userId },
-  });
+  try {
+    const row = await prisma.userEarningsSnapshot.findUnique({
+      where: { userId: input.userId },
+    });
 
-  if (row && Date.now() - row.computedAt.getTime() < maxAge) {
-    return snapshotToSummary(row);
+    if (row && Date.now() - row.computedAt.getTime() < maxAge) {
+      return snapshotToSummary(row);
+    }
+  } catch (e) {
+    if (!isMissingTableError(e)) throw e;
   }
 
   return refreshUserEarningsSnapshot(input.userId, input.profile);

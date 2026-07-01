@@ -19,6 +19,7 @@ import { Button } from "@/components/resolve/ui/button";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { formatDecayUrgencyLabel } from "@/lib/earn/format";
 import { friendlyReceiptStatus } from "@/lib/receipt/copy";
 import type { ProfileEarningsSummary } from "@/lib/earn/summary";
@@ -79,6 +80,7 @@ type DiscoverEarnSurfaceProps = {
 
 export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
   const { openSignIn } = useSignInModal();
+  const { refreshSync, state: connections } = useUserConnections();
   const [data, setData] = useState<DiscoverEarnPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +152,11 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
                 Sign in to see earnings
               </Button>
             </div>
-            <ConnectorGrid connectors={data.connectors ?? DEFAULT_CONNECTORS} />
+            <ConnectorGrid
+              connectors={data.connectors ?? DEFAULT_CONNECTORS}
+              onRefreshSync={refreshSync}
+              lastSyncedAt={connections.lastSyncedAt}
+            />
           </div>
           <EligibilityPanel rules={data.eligibility} />
         </div>
@@ -206,7 +212,11 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
               )}
             </div>
 
-            <ConnectorGrid connectors={data.connectors ?? []} />
+            <ConnectorGrid
+              connectors={data.connectors ?? []}
+              onRefreshSync={refreshSync}
+              lastSyncedAt={connections.lastSyncedAt}
+            />
           </div>
 
           {(data.recentReceipts?.length ?? 0) > 0 && (
@@ -260,12 +270,36 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
   );
 }
 
-function ConnectorGrid({ connectors }: { connectors: DiscoverEarnConnector[] }) {
+function ConnectorGrid({
+  connectors,
+  onRefreshSync,
+  lastSyncedAt,
+}: {
+  connectors: DiscoverEarnConnector[];
+  onRefreshSync?: () => Promise<void>;
+  lastSyncedAt?: string | null;
+}) {
   return (
     <div className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-        Your sources
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
+          Your sources
+        </p>
+        {onRefreshSync && connectors.some((c) => c.connected) && (
+          <button
+            type="button"
+            onClick={() => void onRefreshSync()}
+            className="text-[10px] font-medium text-resolve-accent hover:underline"
+          >
+            Refresh sync
+          </button>
+        )}
+      </div>
+      {lastSyncedAt && (
+        <p className="mt-1 text-[9px] text-resolve-muted-dim">
+          Last synced {new Date(lastSyncedAt).toLocaleString()}
+        </p>
+      )}
       <ul className="mt-3 space-y-2">
         {connectors.map((c) => {
           const Icon = CONNECTOR_ICONS[c.id];
@@ -290,13 +324,13 @@ function ConnectorGrid({ connectors }: { connectors: DiscoverEarnConnector[] }) 
                 </div>
               </div>
               {c.connected ? (
-                <span className="shrink-0 text-[10px] font-medium text-emerald-400">Live</span>
+                <span className="shrink-0 text-[10px] font-medium text-emerald-400">Synced</span>
               ) : (
                 <Link
                   href={href}
                   className="shrink-0 rounded-md border border-white/10 px-2 py-1 text-[10px] font-medium text-resolve-accent hover:bg-white/5"
                 >
-                  Enable
+                  Connect
                 </Link>
               )}
             </li>

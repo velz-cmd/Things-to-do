@@ -23,18 +23,11 @@ export function DiscoverGapsEmpty({
     <DiscoverStatePanel variant="empty">
       <p className="text-sm leading-relaxed text-resolve-muted">{gapsRoleIntro(role)}</p>
 
-      {role === "community" ? (
-        <p className="mt-3 text-[11px] text-resolve-muted-dim">
-          Gaps is for funders fulfilling authorizations. Your lane is{" "}
-          <span className="text-white">Earnings</span> below.
-        </p>
-      ) : null}
-
-      {actions.length > 0 && role !== "community" && (
+      {actions.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
           {actions.map((action, index) => (
             <DiscoverActionChip
-              key={action.id}
+              key={`${action.id}-${action.communitySlug ?? index}`}
               action={action}
               signedIn={signedIn}
               primary={index === 0}

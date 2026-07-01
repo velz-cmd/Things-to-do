@@ -3,39 +3,97 @@ import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedType } from "@/lib/discover/need-types";
 import { primaryBoardCtaLabel } from "@/lib/discover/need-types";
 
-/** Role-tailored CTAs for catalog explore rows — not one-size "Open". */
+export type BoardCommunityContext = {
+  communitySlug: string;
+  templateId: string;
+  needType: DiscoverNeedType;
+  communityName: string;
+  installed?: boolean;
+};
+
+/** One-line use case — who the Opportunity board is for. */
+export function boardUseCaseLine(role: DiscoverRole): string {
+  const copy: Partial<Record<DiscoverRole, string>> = {
+    funder:
+      "For funders: top rows are ledger programs you can fund now. Below that, attach a community to unlock ranked gaps.",
+    founder:
+      "For founders: attach the community you run, then launch a program beside your existing tools.",
+    operator:
+      "For operators: attach communities to sync sensors — funding is optional.",
+    dao: "For DAOs: attach a grant community, launch a QF round, or fund an existing pool.",
+    community:
+      "For creators: attach communities where you earn — payouts and claims live on Capital.",
+    all: "Fund verified programs at the top when available. Attach a community once to install your console and unlock Gaps.",
+  };
+  return copy[role] ?? copy.all!;
+}
+
+/**
+ * Role-tailored CTAs for catalog "attach first" rows.
+ * Unattached → one action (Attach). Attached → fund / launch program (never duplicate explore + console).
+ */
 export function boardCommunityActions(
   role: DiscoverRole,
-  item: {
-    communitySlug: string;
-    templateId: string;
-    needType: DiscoverNeedType;
-    communityName: string;
-  },
+  item: BoardCommunityContext,
 ): DiscoverAction[] {
   const { communitySlug, templateId, needType, communityName } = item;
-  const fundLabel = primaryBoardCtaLabel(needType, { boardKind: "community", templateId });
+  const installed = item.installed ?? false;
+  const fundLabel = primaryBoardCtaLabel(needType, {
+    boardKind: "program",
+    templateId,
+  });
+
+  if (!installed) {
+    if (role === "community") {
+      return [
+        {
+          id: "install",
+          label: `Attach ${communityName}`,
+          kind: "install",
+          communitySlug,
+          reason: "Installs your community console — earnings sync to Capital",
+        },
+      ];
+    }
+    if (role === "founder") {
+      return [
+        {
+          id: "install",
+          label: `Install on ${communityName}`,
+          kind: "install",
+          communitySlug,
+        },
+      ];
+    }
+    if (role === "operator") {
+      return [
+        {
+          id: "install",
+          label: `Connect ${communityName}`,
+          kind: "install",
+          communitySlug,
+        },
+      ];
+    }
+    return [
+      {
+        id: "install",
+        label: `Attach ${communityName}`,
+        kind: "install",
+        communitySlug,
+        reason: "One step — sensors sync in background; fund after program exists",
+      },
+    ];
+  }
 
   if (role === "community") {
     return [
-      { id: "earn", label: "View earnings", kind: "open", href: "/capital" },
-      {
-        id: "console",
-        label: `Open ${communityName} console`,
-        kind: "console",
-        communitySlug,
-      },
+      { id: "earn", label: "View earnings on Capital", kind: "open", href: "/capital" },
     ];
   }
 
   if (role === "founder") {
     return [
-      {
-        id: "install",
-        label: `Install on ${communityName}`,
-        kind: "install",
-        communitySlug,
-      },
       {
         id: "program",
         label: "Launch program",
@@ -48,12 +106,6 @@ export function boardCommunityActions(
 
   if (role === "operator") {
     return [
-      {
-        id: "install",
-        label: `Connect ${communityName}`,
-        kind: "install",
-        communitySlug,
-      },
       {
         id: "console",
         label: "Open console",
@@ -68,18 +120,18 @@ export function boardCommunityActions(
       templateId === "quadratic-funding" ? templateId : ("quadratic-funding" as const);
     return [
       {
-        id: "fund",
-        label: fundLabel,
-        kind: "fund",
-        communitySlug,
-        templateId,
-      },
-      {
         id: "grant",
         label: "Launch grant round",
         kind: "create_program",
         communitySlug,
         templateId: grantTemplate,
+      },
+      {
+        id: "fund",
+        label: fundLabel,
+        kind: "fund",
+        communitySlug,
+        templateId,
       },
     ];
   }
@@ -93,10 +145,11 @@ export function boardCommunityActions(
       templateId,
     },
     {
-      id: "install",
-      label: `Attach ${communityName}`,
-      kind: "install",
+      id: "program",
+      label: "Launch program",
+      kind: "create_program",
       communitySlug,
+      templateId,
     },
   ];
 }
@@ -109,11 +162,11 @@ export function boardSubtitleForRole(role: DiscoverRole, signedIn: boolean, wall
 
   const byRole: Partial<Record<DiscoverRole, string>> = {
     funder: `Ledger-backed programs you can fund now · ${wallet}`,
-    founder: `Deploy programs beside tools you run — install creates your community console`,
-    operator: `Attach communities and keep sensors syncing — no capital required`,
-    dao: `Grant pools and treasury programs — fund or launch a QF round`,
-    community: `Your earnings and claimable work live on Capital — explore programs that pay creators`,
-    all: `Verified programs first, then communities to attach · ${wallet}`,
+    founder: `Attach your stack, then launch programs · ${wallet}`,
+    operator: `Attach communities — sensors sync without funding`,
+    dao: `Grant pools and treasury programs · ${wallet}`,
+    community: `Attach where you earn — claims on Capital`,
+    all: `Verified programs first, then attach to unlock · ${wallet}`,
   };
   return byRole[role] ?? byRole.all!;
 }
@@ -124,8 +177,8 @@ export function radarSubtitleForRole(role: DiscoverRole): string {
     founder: "Launch programs and attach sensors for this vertical",
     operator: "Connect sources — cards appear when ledger rows rank up",
     dao: "Grant pools, citations, and treasury signals",
-    community: "Artist and creator value — claim on Earn, not here",
-    all: "Live ledger gaps when available — attach a community to unlock more",
+    community: "Attach communities on Board — earnings aggregate on the Earnings tab.",
+    all: "Live ledger gaps when available — attach any catalog community to unlock more",
   };
   return byRole[role] ?? byRole.all!;
 }

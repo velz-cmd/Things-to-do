@@ -800,23 +800,136 @@ html.discover-route body {
     box-shadow: 0 0 24px rgba(0, 122, 255, 0.1);
   }
 
+  /* Capital-style Discover cards */
+  .discover-capital-card {
+    border: 1px solid rgba(100, 180, 255, 0.14);
+    background: linear-gradient(
+      168deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.02) 35%,
+      rgba(8, 28, 58, 0.78) 100%
+    );
+    backdrop-filter: blur(18px) saturate(1.25);
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 32px rgba(0, 0, 0, 0.22),
+      0 16px 48px rgba(0, 80, 180, 0.1);
+  }
+
+  .discover-capital-card--padded {
+    padding: 1rem 1.25rem;
+  }
+
+  .discover-capital-card__grid {
+    background-image:
+      linear-gradient(rgba(59, 158, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 158, 255, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 28%, black 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 28%, black 100%);
+    opacity: 0.65;
+  }
+
+  .discover-capital-card__glow {
+    height: 1px;
+    bottom: 0;
+    left: 10%;
+    right: 10%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(59, 158, 255, 0.75),
+      rgba(0, 122, 255, 0.9),
+      rgba(59, 158, 255, 0.75),
+      transparent
+    );
+    box-shadow: 0 0 20px 4px rgba(0, 122, 255, 0.28);
+    opacity: 0.55;
+    transition: opacity 0.3s ease;
+  }
+
+  .discover-capital-card:hover .discover-capital-card__glow,
+  .discover-capital-card.discover-job-pill--selected .discover-capital-card__glow {
+    opacity: 1;
+  }
+
+  .discover-capital-card--emerald {
+    border-color: rgba(52, 211, 153, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 32px rgba(0, 40, 30, 0.25),
+      0 0 28px rgba(52, 211, 153, 0.08);
+  }
+  .discover-capital-card--blue {
+    border-color: rgba(96, 165, 250, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 32px rgba(0, 40, 80, 0.25),
+      0 0 28px rgba(96, 165, 250, 0.08);
+  }
+  .discover-capital-card--violet {
+    border-color: rgba(167, 139, 250, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 32px rgba(40, 20, 80, 0.25),
+      0 0 28px rgba(167, 139, 250, 0.08);
+  }
+  .discover-capital-card--amber {
+    border-color: rgba(251, 191, 36, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 32px rgba(60, 40, 0, 0.2),
+      0 0 28px rgba(251, 191, 36, 0.08);
+  }
+  .discover-capital-card--teal {
+    border-color: rgba(45, 212, 191, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 32px rgba(0, 40, 40, 0.22),
+      0 0 28px rgba(45, 212, 191, 0.08);
+  }
+  .discover-capital-card--cyan {
+    border-color: rgba(59, 158, 255, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 32px rgba(0, 40, 80, 0.25),
+      0 0 28px rgba(0, 122, 255, 0.1);
+  }
+
+  @keyframes discover-pulse-shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .discover-pulse-skeleton__line,
+  .discover-pulse-skeleton__chip {
+    display: block;
+    height: 0.55rem;
+    border-radius: 0.35rem;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(59, 158, 255, 0.12) 50%,
+      rgba(255, 255, 255, 0.04) 100%
+    );
+    background-size: 200% 100%;
+    animation: discover-pulse-shimmer 1.6s ease-in-out infinite;
+  }
+
+  .discover-pulse-skeleton__chip {
+    height: 1.25rem;
+  }
+
   /* Job pills — per-role accent */
   .discover-job-pill {
-    position: relative;
-    overflow: hidden;
-    border-color: rgba(100, 160, 255, 0.14);
-    background: linear-gradient(
-      155deg,
-      rgba(255, 255, 255, 0.05) 0%,
-      rgba(255, 255, 255, 0.02) 40%,
-      rgba(6, 14, 32, 0.65) 100%
-    );
-    backdrop-filter: blur(12px);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    transition:
-      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 0.3s ease,
-      box-shadow 0.3s ease;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
   }
 
   .discover-job-pill::before {
@@ -826,6 +939,7 @@ html.discover-route body {
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
+    z-index: 0;
   }
 
   .discover-job-pill:hover {
@@ -891,18 +1005,13 @@ html.discover-route body {
 
   /* Workspace lane tabs */
   .discover-workspace-nav {
+    /* inherits discover-capital-card */
+  }
+
+  .discover-workspace-nav > div {
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem;
-    padding: 0.35rem;
-    border-radius: 1rem;
-    border: 1px solid rgba(100, 160, 255, 0.14);
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.04) 0%,
-      rgba(0, 0, 0, 0.28) 100%
-    );
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .discover-workspace-tab {
@@ -971,9 +1080,7 @@ html.discover-route body {
 
   /* Premium section */
   .discover-premium-section {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      0 12px 40px rgba(0, 20, 50, 0.25);
+    /* inherits discover-capital-card */
   }
 
   .discover-premium-section--featured {
@@ -992,35 +1099,14 @@ html.discover-route body {
   /* Action cards */
   .discover-action-card {
     position: relative;
-    overflow: hidden;
-    border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(
-      165deg,
-      rgba(255, 255, 255, 0.04) 0%,
-      rgba(10, 15, 24, 0.85) 55%,
-      rgba(6, 12, 24, 0.92) 100%
-    );
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    transition:
-      border-color 0.3s ease,
-      box-shadow 0.3s ease,
-      transform 0.3s ease;
-  }
-
-  .discover-action-card:hover {
-    border-color: rgba(100, 160, 255, 0.2);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 8px 28px rgba(0, 30, 80, 0.2);
   }
 
   .discover-action-card--compact {
-    padding: 0.75rem;
+    /* padding on inner wrapper */
   }
 
   .discover-action-card--full {
-    padding: 1rem;
+    /* padding on inner wrapper */
   }
 
   .discover-action-card::after {
@@ -1032,6 +1118,7 @@ html.discover-route body {
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(59, 158, 255, 0.35), transparent);
     opacity: 0.5;
+    pointer-events: none;
   }
 
   /* Action + toolbar buttons */
@@ -1198,7 +1285,7 @@ html.discover-route body {
   }
 
   .discover-bubblemap-stage {
-    min-height: 168px;
+    min-height: 220px;
   }
 
   .discover-bubble-tooltip {

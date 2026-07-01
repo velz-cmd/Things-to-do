@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/resolve/ui/button";
+import { ArcTxLink } from "@/components/resolve/ui/arc-tx-link";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { PLATFORM_LOOP_TAGLINE } from "@/lib/economy/platform-loop";
@@ -58,7 +59,6 @@ type ExecutionReport = {
 
 type InvokeResult = {
   ok: boolean;
-  agentCompleted?: boolean;
   serviceName?: string;
   amountUsd?: number;
   authorizationId?: string;
@@ -66,12 +66,19 @@ type InvokeResult = {
   meteringMode?: string;
   summary?: { headline: string; detail: string };
   execution?: ExecutionReport | null;
+  payment?: {
+    txHash: string;
+    explorerUrl: string;
+    chargedUsd: number;
+    balanceUsd: number;
+    previousBalanceUsd: number;
+    onChainUsd: number | null;
+  };
   wallet?: {
     chargedUsd: number;
     balanceUsd: number;
     previousBalanceUsd: number;
   };
-  walletError?: string;
   error?: string;
 };
 
@@ -188,16 +195,12 @@ export function MissionAgentSignalCard({
       }
       if (data.ok) {
         toast.success(data.summary?.headline ?? "Agent signal complete", {
-          description: data.wallet
-            ? `${formatAgentPrice(data.wallet.chargedUsd)} charged · ${formatAgentPrice(data.wallet.balanceUsd)} remaining`
+          description: data.payment
+            ? `${formatAgentPrice(data.payment.chargedUsd)} on Arc · balance $${data.payment.balanceUsd.toFixed(2)}`
             : undefined,
         });
-      } else if (data.agentCompleted && data.execution) {
-        toast.warning("Agent finished — wallet charge retry needed", {
-          description: data.walletError ?? data.error,
-        });
       } else {
-        toast.error(data.walletError ?? data.error ?? "Agent invoke failed");
+        toast.error(data.error ?? "Agent invoke failed");
       }
     } catch {
       toast.error("Could not run agent task");
@@ -284,11 +287,12 @@ export function MissionAgentSignalCard({
                     canAfford ? "text-emerald-300" : "text-amber-200",
                   )}
                 >
-                  ${walletUsd.toFixed(2)} available
+                  ${walletUsd.toFixed(2)} on Arc
                 </span>
                 {" · "}
-                This run charges{" "}
-                <span className="font-medium text-white">{formatAgentPrice(pricePreview)}</span>
+                Run charges{" "}
+                <span className="font-medium text-white">{formatAgentPrice(pricePreview)}</span>{" "}
+                USDC with Arcscan proof
                 {!canAfford && (
                   <span className="ml-1">
                     —{" "}
@@ -323,17 +327,13 @@ export function MissionAgentSignalCard({
         </>
       )}
 
-      {result && (() => {
-        const agentRan = Boolean(result.agentCompleted ?? result.execution);
-        const fullSuccess = result.ok;
-        const partial = agentRan && !fullSuccess;
-        return (
+      {result && (
         <div
           className={clsx(
             "rounded-xl border px-4 py-4",
-            fullSuccess ? "border-emerald-500/20 bg-emerald-500/[0.04]"
-            : partial ? "border-amber-500/20 bg-amber-500/[0.04]"
-            : "border-rose-500/20 bg-rose-500/[0.04]",
+            result.ok
+              ? "border-emerald-500/20 bg-emerald-500/[0.04]"
+              : "border-rose-500/20 bg-rose-500/[0.04]",
           )}
         >
           <div className="flex items-start justify-between gap-3">
@@ -341,41 +341,41 @@ export function MissionAgentSignalCard({
               <p
                 className={clsx(
                   "text-[10px] font-semibold uppercase tracking-wider",
-                  fullSuccess ? "text-emerald-400/90"
-                  : partial ? "text-amber-300/90"
-                  : "text-rose-400/90",
+                  result.ok ? "text-emerald-400/90" : "text-rose-400/90",
                 )}
               >
-                {fullSuccess ? "Agent execution report"
-                  : partial ? "Agent ran — settlement retry needed"
-                  : "Invoke failed"}
+                {result.ok ? "Agent execution report" : "Invoke failed"}
               </p>
               <p className="mt-2 text-base font-medium text-white">
-                {result.summary?.headline ?? result.error ?? "No summary"}
+                {result.ok
+                  ? (result.summary?.headline ?? "Complete")
+                  : (result.error ?? "Could not complete agent signal")}
               </p>
-              {result.summary?.detail && (
+              {result.ok && result.summary?.detail && (
                 <p className="mt-1 text-sm text-resolve-muted">{result.summary.detail}</p>
               )}
             </div>
-            {fullSuccess && <Sparkles className="h-5 w-5 shrink-0 text-emerald-400" />}
+            {result.ok && <Sparkles className="h-5 w-5 shrink-0 text-emerald-400" />}
           </div>
 
-          {fullSuccess && result.wallet && (
-            <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-xs text-emerald-100">
-              <span className="font-semibold tabular-nums">
-                −${result.wallet.chargedUsd.toFixed(3)}
-              </span>{" "}
-              charged · was ${result.wallet.previousBalanceUsd.toFixed(2)} → now{" "}
-              <span className="font-semibold tabular-nums">
-                ${result.wallet.balanceUsd.toFixed(2)}
+          {result.ok && (result.payment ?? result.wallet) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-xs text-emerald-100">
+              <span>
+                <span className="font-semibold tabular-nums">
+                  −${(result.payment?.chargedUsd ?? result.wallet?.chargedUsd ?? 0).toFixed(3)}
+                </span>{" "}
+                USDC on Arc · was $
+                {(result.payment?.previousBalanceUsd ?? result.wallet?.previousBalanceUsd ?? 0).toFixed(2)}{" "}
+                → now{" "}
+                <span className="font-semibold tabular-nums">
+                  ${(result.payment?.balanceUsd ?? result.wallet?.balanceUsd ?? 0).toFixed(2)}
+                </span>
               </span>
+              {result.payment?.txHash && <ArcTxLink txHash={result.payment.txHash} />}
             </div>
           )}
-          {result.walletError && (
-            <p className="mt-2 text-xs text-amber-200">{result.walletError}</p>
-          )}
 
-          {agentRan && result.execution && (
+          {result.ok && result.execution && (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {result.execution.steps.length > 0 && (
                 <div>
@@ -424,10 +424,11 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {(fullSuccess || partial) && (
+          {result.ok && (
             <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3 text-xs text-resolve-muted">
               <span>
                 {result.serviceName} · {formatAgentPrice(result.amountUsd ?? 0)}
+                {result.meteringMode === "user_arc_prepaid" ? " · Arc prepaid" : ""}
               </span>
               {result.receiptHref && (
                 <Link
@@ -435,14 +436,14 @@ export function MissionAgentSignalCard({
                   className="inline-flex items-center gap-1 text-resolve-accent hover:underline"
                 >
                   <Receipt className="h-3.5 w-3.5" />
-                  View receipt
+                  Ledger receipt
                   <ExternalLink className="h-3 w-3" />
                 </Link>
               )}
             </div>
           )}
 
-          {(fullSuccess || partial) && onFollowUp && (
+          {result.ok && onFollowUp && (
             <div className="mt-4 border-t border-white/[0.06] pt-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
                 Continue in Mission
@@ -462,7 +463,17 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {!fullSuccess && (
+          {!result.ok && result.payment?.txHash && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-100">
+              <span>
+                USDC charged on Arc (−${result.payment.chargedUsd.toFixed(3)}) but agent failed — funds
+                settled on-chain
+              </span>
+              <ArcTxLink txHash={result.payment.txHash} label="Arc proof" />
+            </div>
+          )}
+
+          {!result.ok && (
             <Button
               variant="secondary"
               size="sm"
@@ -470,12 +481,11 @@ export function MissionAgentSignalCard({
               disabled={invoking}
               onClick={() => void runAgent()}
             >
-              {partial ? "Retry wallet charge" : "Retry"}
+              Retry
             </Button>
           )}
         </div>
-        );
-      })()}
+      )}
     </div>
   );
 }

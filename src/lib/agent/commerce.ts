@@ -61,6 +61,8 @@ export async function invokeAgentService<T = unknown>(input: {
   missionId?: string | null;
   query?: Record<string, string>;
   maxSpendUsd?: number;
+  /** User already paid on Arc — run intel only, no off-chain metered charge. */
+  prepaidArcTxHash?: string;
 }): Promise<AgentCommerceInvokeResult<T>> {
   const service = getAgentSignalService(input.serviceId);
   if (!service) {
@@ -115,20 +117,41 @@ export async function invokeAgentService<T = unknown>(input: {
   if (!isAgentGatewayEnabled() && microSlug) {
     const text = input.query?.text ?? "";
     const direct = runX402MicroService(microSlug, text);
-    if (direct) {
+    if (direct && input.prepaidArcTxHash) {
+      await recordAgentSpend({
+        taskId: input.taskId,
+        purpose: `x402:${service.id} (arc_prepaid)`,
+        amountUsd: service.priceUsd,
+        meteringMode: "user_arc_prepaid",
+        txHash: input.prepaidArcTxHash,
+      });
+    } else if (direct && !isProductionDeploy()) {
       await recordAgentSpend({
         taskId: input.taskId,
         purpose: `x402:${service.id} (metered)`,
         amountUsd: service.priceUsd,
         meteringMode: "offchain_metered",
       });
+    } else if (direct && isProductionDeploy() && !input.prepaidArcTxHash) {
+      return {
+        ok: false,
+        serviceId: service.id,
+        serviceName: service.name,
+        amountUsd: 0,
+        txRef: null,
+        meteringMode: "skipped",
+        error: "Production agent signals require Arc USDC payment before invoke",
+        url,
+        continue: false,
+        rfbProgram: service.rfbProgram,
+      };
     }
     pay = {
       ok: Boolean(direct),
       data: direct ?? undefined,
       amountUsd: service.priceUsd,
-      txRef: null,
-      meteringMode: "offchain_metered",
+      txRef: input.prepaidArcTxHash ?? null,
+      meteringMode: input.prepaidArcTxHash ? "user_arc_prepaid" : "offchain_metered",
       error: direct ? undefined : "Micro-service unavailable",
       url,
     };
@@ -145,6 +168,7 @@ export async function invokeAgentService<T = unknown>(input: {
   const ledgerEligible =
     pay.amountUsd > 0 &&
     (pay.meteringMode === "gateway_live" ||
+      pay.meteringMode === "user_arc_prepaid" ||
       (pay.ok && Boolean(pay.txRef)) ||
       (!isProductionDeploy() && pay.meteringMode === "offchain_metered" && pay.ok));
   if (ledgerEligible) {

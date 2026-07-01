@@ -18,6 +18,7 @@ import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-p
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { Button } from "@/components/resolve/ui/button";
+import { ArcTxLink } from "@/components/resolve/ui/arc-tx-link";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { apiFetchWallet } from "@/lib/discover/discover-action-engine";
 import { PLATFORM_LOOP_TAGLINE } from "@/lib/economy/platform-loop";
@@ -56,12 +57,19 @@ type InvokeResult = {
   summary?: { headline: string; detail: string };
   execution?: ExecutionReport | null;
   feePath?: ServicesPayload["feePath"];
+  payment?: {
+    txHash: string;
+    explorerUrl: string;
+    chargedUsd: number;
+    balanceUsd: number;
+    previousBalanceUsd: number;
+    onChainUsd: number | null;
+  };
   wallet?: {
     chargedUsd: number;
     balanceUsd: number;
     previousBalanceUsd: number;
   };
-  walletError?: string;
   data?: { summary?: string; payload?: Record<string, unknown> };
   error?: string;
 };
@@ -179,12 +187,12 @@ export function DiscoverAgentSignalMarket({
       }
       if (data.ok) {
         toast.success(data.summary?.headline ?? "Agent task complete", {
-          description: data.wallet
-            ? `$${data.wallet.chargedUsd.toFixed(3)} charged · $${data.wallet.balanceUsd.toFixed(2)} remaining`
+          description: data.payment
+            ? `${formatPrice(data.payment.chargedUsd)} on Arc · balance $${data.payment.balanceUsd.toFixed(2)}`
             : undefined,
         });
       } else {
-        toast.error(data.walletError ?? data.error ?? "Agent invoke failed");
+        toast.error(data.error ?? "Agent invoke failed");
       }
     } catch {
       toast.error("Could not run agent task");
@@ -368,19 +376,21 @@ export function DiscoverAgentSignalMarket({
                 {result.ok && <Sparkles className="h-5 w-5 shrink-0 text-emerald-400" />}
               </div>
 
-              {result.ok && result.wallet && (
-                <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2.5 text-xs text-emerald-100">
-                  <span className="font-semibold tabular-nums">
-                    −${result.wallet.chargedUsd.toFixed(3)}
-                  </span>{" "}
-                  charged from your wallet · was ${result.wallet.previousBalanceUsd.toFixed(2)} → now{" "}
-                  <span className="font-semibold tabular-nums">
-                    ${result.wallet.balanceUsd.toFixed(2)}
+              {result.ok && (result.payment ?? result.wallet) && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2.5 text-xs text-emerald-100">
+                  <span>
+                    <span className="font-semibold tabular-nums">
+                      −${(result.payment?.chargedUsd ?? result.wallet?.chargedUsd ?? 0).toFixed(3)}
+                    </span>{" "}
+                    USDC on Arc · was $
+                    {(result.payment?.previousBalanceUsd ?? result.wallet?.previousBalanceUsd ?? 0).toFixed(2)}{" "}
+                    → now{" "}
+                    <span className="font-semibold tabular-nums">
+                      ${(result.payment?.balanceUsd ?? result.wallet?.balanceUsd ?? 0).toFixed(2)}
+                    </span>
                   </span>
+                  {result.payment?.txHash && <ArcTxLink txHash={result.payment.txHash} />}
                 </div>
-              )}
-              {result.walletError && (
-                <p className="mt-3 text-xs text-amber-200">{result.walletError}</p>
               )}
 
               {result.ok && result.execution && (

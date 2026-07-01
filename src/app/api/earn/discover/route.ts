@@ -1,0 +1,171 @@
+import { NextResponse } from "next/server";
+import { getSessionUser, ensureProfileForUser } from "@/lib/auth/session";
+import { sanitizeConnectorIdentities } from "@/lib/identity/sanitize-profile";
+import { getProfileEarningsSummary } from "@/lib/earn/summary";
+import { resolveClaimIdentities } from "@/lib/identity/claim-identities";
+import { listRecentEarnReceipts } from "@/lib/earn/recent-receipts";
+import { EARN_ELIGIBILITY_RULES } from "@/lib/earn/eligibility-copy";
+import { createClaimToken, claimUrlForToken } from "@/lib/claim/tokens";
+import { getClaimableItemsForGithub } from "@/lib/identity/pending-rewards";
+import { extractGithubIdentity } from "@/lib/identity/contributors";
+import {
+  userListenBrainzConfigured,
+  userJellyfinConfigured,
+} from "@/lib/profile/user-connections";
+import { normalizeGithubLogin } from "@/lib/identity/github-login";
+import { prisma } from "@/lib/db";
+
+import type { DiscoverEarnConnector } from "@/lib/earn/discover-types";
+
+async function musicbrainzLinked(walletAddress: string | null): Promise<{
+  connected: boolean;
+  displayValue?: string;
+}> {
+  if (!walletAddress || !process.env.DATABASE_URL) {
+    return { connected: false };
+  }
+  const rows = await prisma.contributorRegistry.findMany({
+    where: {
+      walletAddress: walletAddress.toLowerCase(),
+      exifArtist: { not: null },
+      status: { in: ["linked", "verified"] },
+    },
+    take: 3,
+    select: { exifArtist: true },
+  });
+  if (rows.length === 0) return { connected: false };
+  const names = rows.map((r) => r.exifArtist).filter(Boolean) as string[];
+  return {
+    connected: true,
+    displayValue: names.length === 1 ? names[0] : `${names.length} artist names`,
+  };
+}
+
+/** Discover earn surface — ledger earnings, connectors, receipts, eligibility. */
+export async function GET() {
+  const authUser = await getSessionUser();
+
+  if (!authUser) {
+    return NextResponse.json({
+      ok: true,
+      signedIn: false,
+      eligibility: EARN_ELIGIBILITY_RULES,
+      connectors: [
+        {
+          id: "github",
+          label: "GitHub",
+          connected: false,
+          authorizeUrl: "/connect/github",
+          hint: "Match OSS contributions to your payee key",
+        },
+        {
+          id: "listenbrainz",
+          label: "ListenBrainz",
+          connected: false,
+          authorizeUrl: "/connect/listenbrainz",
+          hint: "Sync plays from any scrobbling app",
+        },
+        {
+          id: "jellyfin",
+          label: "Jellyfin",
+          connected: false,
+          authorizeUrl: "/connect/jellyfin",
+          hint: "Credit video watches in funded programs",
+        },
+        {
+          id: "musicbrainz",
+          label: "MusicBrainz",
+          connected: false,
+          authorizeUrl: "/profile",
+          hint: "Link your artist name for play attribution",
+        },
+      ],
+    });
+  }
+
+  let profile = await ensureProfileForUser(authUser);
+  profile = await sanitizeConnectorIdentities(authUser.id, profile);
+
+  const githubUsername = normalizeGithubLogin(profile.githubUsername);
+  const listenbrainzConnected = userListenBrainzConfigured(profile);
+  const jellyfinConnected = userJellyfinConfigured(profile);
+  const walletAddress =
+    profile.walletAddress?.toLowerCase() ?? profile.scanWalletAddress?.toLowerCase() ?? null;
+
+  const [earnings, identities, mbLink] = await Promise.all([
+    getProfileEarningsSummary({ profile }),
+    resolveClaimIdentities({ profile }),
+    musicbrainzLinked(walletAddress),
+  ]);
+
+  const recentReceipts = await listRecentEarnReceipts(identities, 5);
+
+  const connectors: DiscoverEarnConnector[] = [
+    {
+      id: "github",
+      label: "GitHub",
+      connected: Boolean(githubUsername),
+      displayValue: githubUsername ? `@${githubUsername}` : undefined,
+      authorizeUrl: "/connect/github",
+      hint: githubUsername ? undefined : "Match OSS contributions to your payee key",
+    },
+    {
+      id: "listenbrainz",
+      label: "ListenBrainz",
+      connected: listenbrainzConnected,
+      displayValue:
+        profile.listenbrainzUsername ? `@${profile.listenbrainzUsername}` : undefined,
+      authorizeUrl: "/connect/listenbrainz",
+      hint: listenbrainzConnected ? undefined : "Sync plays from any scrobbling app",
+    },
+    {
+      id: "jellyfin",
+      label: "Jellyfin",
+      connected: jellyfinConnected,
+      displayValue: profile.jellyfinUsername ? `@${profile.jellyfinUsername}` : undefined,
+      authorizeUrl: "/connect/jellyfin",
+      hint: jellyfinConnected ? undefined : "Credit video watches in funded programs",
+    },
+    {
+      id: "musicbrainz",
+      label: "MusicBrainz",
+      connected: mbLink.connected,
+      displayValue: mbLink.displayValue,
+      authorizeUrl: "/profile",
+      hint: mbLink.connected ? undefined : "Link your artist name for play attribution",
+    },
+  ];
+
+  let claimUrl: string | null = null;
+  if (earnings.claimableUsd > 0) {
+    const { login } = extractGithubIdentity(authUser);
+    const gh = login?.toLowerCase() ?? githubUsername;
+    const primary =
+      earnings.identities.find((i) => i.claimableUsd > 0) ?? earnings.identities[0];
+    if (primary) {
+      let authorizationIds: string[] = [];
+      if (gh && primary.payeeKeyType === "github_username") {
+        const items = await getClaimableItemsForGithub(gh);
+        authorizationIds = items.authorizations.map((a) => a.id);
+      }
+      const token = createClaimToken({
+        payeeKeyType: primary.payeeKeyType,
+        payeeKey: primary.payeeKey,
+        authorizationIds,
+        amountUsd: earnings.claimableUsd,
+      });
+      claimUrl = claimUrlForToken(token);
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    signedIn: true,
+    earnings,
+    connectors,
+    recentReceipts,
+    claimUrl,
+    eligibility: EARN_ELIGIBILITY_RULES,
+    identityCount: identities.length,
+  });
+}

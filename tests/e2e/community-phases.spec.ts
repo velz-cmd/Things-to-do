@@ -222,6 +222,17 @@ test.describe("Community phases — APIs", () => {
     expect(body.ok).toBe(true);
     expect(body.program).toContain("RFB #2");
   });
+
+  test("GET /api/earn/discover returns eligibility for anonymous", async ({ request }) => {
+    const res = await request.get("/api/earn/discover");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.signedIn).toBe(false);
+    expect(body.eligibility?.length).toBeGreaterThanOrEqual(4);
+    const oss = body.eligibility.find((r: { id: string }) => r.id === "oss");
+    expect(oss.threshold).toContain("5+");
+  });
 });
 
 test.describe("Community phases — surfaces", () => {
@@ -234,6 +245,20 @@ test.describe("Community phases — surfaces", () => {
         page.getByRole("heading", { level: 1 }).first(),
       ).toBeVisible({ timeout: 30_000 });
     }
+  });
+
+  test("discover community role shows earn surface above the fold", async ({ page }) => {
+    await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Earn from my work" }).click();
+    const earn = page.locator("#earn");
+    await earn.scrollIntoViewIfNeeded();
+    await expect(earn.getByRole("heading", { name: "How much have I earned?" })).toBeVisible();
+    await expect(earn.getByText("Eligibility thresholds")).toBeVisible();
+    await expect(earn.getByText("Connect sources")).toBeVisible();
+    await expect(earn.getByRole("link", { name: "Connect" }).first()).toBeVisible();
+    await expect(earn.locator('a[href="/connect/github"]')).toBeVisible();
+    await expect(earn.locator('a[href="/connect/listenbrainz"]')).toBeVisible();
+    await expect(earn.locator('a[href="/connect/jellyfin"]')).toBeVisible();
   });
 
   test("discover shows community directory", async ({ page, request }) => {

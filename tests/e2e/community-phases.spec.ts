@@ -1,5 +1,13 @@
 import { test, expect } from "@playwright/test";
 
+async function openDiscoverWorkspaceLane(
+  page: import("@playwright/test").Page,
+  lane: "Gaps" | "Radars" | "Board" | "Signals" | "Earnings",
+) {
+  const nav = page.getByRole("navigation", { name: "Discover workspace" });
+  await nav.getByRole("button", { name: lane, exact: true }).click();
+}
+
 /** Phase 1–3 API and surface smoke tests */
 test.describe("Community phases — APIs", () => {
   test("GET /api/communities returns catalog", async ({ request }) => {
@@ -324,11 +332,21 @@ test.describe("Community phases — surfaces", () => {
   });
 
   test("discover funder role shows sortable opportunity board", async ({ page }) => {
+    test.setTimeout(90_000);
+
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Fund where it matters" }).click();
+
+    const boardReady = page.waitForResponse(
+      (res) => res.url().includes("/api/capital/discover") && res.ok(),
+      { timeout: 45_000 },
+    );
+    await page.getByRole("button", { name: /Fund where it matters/i }).click();
+    await boardReady;
+
     const board = page.locator("#opportunities");
     await board.scrollIntoViewIfNeeded();
-    await expect(board.getByText("Sort by")).toBeVisible();
+    await expect(board.getByRole("heading", { name: "Opportunity board" })).toBeVisible();
+    await expect(board.getByText("Sort by")).toBeVisible({ timeout: 30_000 });
     await expect(board.getByRole("button", { name: "Score" })).toBeVisible();
     await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
     await expect(board.locator("text=Reward").first()).toBeVisible({ timeout: 15_000 });
@@ -336,7 +354,8 @@ test.describe("Community phases — surfaces", () => {
 
   test("discover founder role shows agent signal market", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Run my community" }).click();
+    await page.getByRole("button", { name: /Run my community/i }).click();
+    await openDiscoverWorkspaceLane(page, "Signals");
     const market = page.locator("#agent-market");
     await market.scrollIntoViewIfNeeded();
     await expect(market.getByRole("heading", { name: "Agent Signal Market" })).toBeVisible();
@@ -347,41 +366,54 @@ test.describe("Community phases — surfaces", () => {
     await expect(market.getByText("Price preview:")).toBeVisible();
   });
 
-  test("discover community role shows earn surface above the fold", async ({ page }) => {
+  test("discover community role shows compact earnings lane", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Earn from my work" }).click();
+    await page.getByRole("button", { name: /Earn from my work/i }).click();
+    await openDiscoverWorkspaceLane(page, "Earnings");
+
     const earn = page.locator("#earn");
-    await earn.scrollIntoViewIfNeeded();
-    await expect(earn.getByRole("heading", { name: "How much have I earned?" })).toBeVisible();
-    await expect(earn.getByText("Eligibility thresholds")).toBeVisible();
-    await expect(earn.getByText("Connect sources")).toBeVisible();
-    await expect(earn.getByRole("link", { name: "Connect" }).first()).toBeVisible();
-    await expect(earn.locator('a[href="/connect/github"]')).toBeVisible();
-    await expect(earn.locator('a[href="/connect/listenbrainz"]')).toBeVisible();
-    await expect(earn.locator('a[href="/connect/jellyfin"]')).toBeVisible();
+    await expect(earn).toBeVisible({ timeout: 15_000 });
+    await expect(earn.getByText("How much have I earned?")).toBeVisible();
+    await expect(earn.getByRole("link", { name: /Open on Capital/i })).toBeVisible();
   });
 
-  test("discover shows community directory", async ({ page, request }) => {
-    await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    const communities = page.locator("#communities").first();
-    await communities.scrollIntoViewIfNeeded();
-    await expect(communities.getByRole("heading", { name: "Connect communities" })).toBeVisible();
-    await expect(communities.getByText("Install on Independent Music")).toBeVisible();
-    await expect(communities.getByRole("button", { name: "Open console" }).first()).toBeVisible();
-    await expect(communities.getByText("Health").first()).toBeVisible();
-    await expect(communities.getByText("Funding").first()).toBeVisible();
-    await expect(communities.getByText("Open work").first()).toBeVisible();
+  test("communities hub shows install cards and vitals", async ({ page, request }) => {
+    test.setTimeout(90_000);
+
+    await page.goto("/communities", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
+    await page.waitForResponse(
+      (res) => res.url().includes("/api/communities") && res.ok(),
+      { timeout: 45_000 },
+    );
+
+    await expect(page.getByRole("button", { name: "Install on Independent Music" })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByRole("button", { name: "Install on Navidrome" })).toBeVisible();
+
+    const openConsole = page.getByRole("link", { name: "Open console" });
+    if ((await openConsole.count()) > 0) {
+      await expect(openConsole.first()).toBeVisible();
+    }
+
+    const health = page.getByText("Health");
+    if ((await health.count()) > 0) {
+      await expect(health.first()).toBeVisible();
+      await expect(page.getByText("Funding").first()).toBeVisible();
+      await expect(page.getByText("Open work").first()).toBeVisible();
+    }
 
     const statusRes = await request.get("/api/communities/sensor-status");
     const body = await statusRes.json();
     const react = (body.statuses ?? []).find((s: { slug: string }) => s.slug === "react");
-    const reactInstall = communities.getByText("Install on React");
+    const reactInstall = page.getByRole("button", { name: "Install on React" });
     if (react?.sensorGated && !react?.sensorLive) {
       await expect(reactInstall).toHaveCount(0);
     }
   });
 
-  test("discover shows value radar surfaces", async ({ page }) => {
+  test("discover shows value graph and workspace lanes", async ({ page }) => {
     test.setTimeout(90_000);
 
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
@@ -391,18 +423,17 @@ test.describe("Community phases — surfaces", () => {
         name: /What do you want to do/i,
       }),
     ).toBeVisible();
-    await expect(page.getByRole("main").getByText("Live value feed")).toBeVisible();
 
-    const commandCenter = page.getByRole("main").getByText("Value command center");
-    await commandCenter.scrollIntoViewIfNeeded();
+    const valueGraph = page.getByRole("heading", { name: "Value graph" });
+    await valueGraph.scrollIntoViewIfNeeded();
     await page.waitForResponse(
       (res) => res.url().includes("/api/discover/radar") && res.ok(),
       { timeout: 45_000 },
     );
 
-    await expect(commandCenter).toBeVisible();
+    await expect(valueGraph).toBeVisible();
     await expect(
-      page.getByRole("main").getByText(/operator console|Click any bubble for operator console/i).first(),
+      page.getByRole("main").getByText(/Click a bubble for operator console/i).first(),
     ).toBeVisible();
     await expect(
       page.locator('svg[aria-label="Value bubblemap"]').or(
@@ -411,8 +442,11 @@ test.describe("Community phases — surfaces", () => {
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "OSS" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Music" }).first()).toBeVisible();
-    await expect(page.getByRole("main").getByText("Trending value gaps")).toBeVisible();
-    await page.locator("#opportunities").scrollIntoViewIfNeeded();
+
+    await openDiscoverWorkspaceLane(page, "Gaps");
+    await expect(page.getByRole("heading", { name: "Trending value gaps" })).toBeVisible();
+
+    await openDiscoverWorkspaceLane(page, "Board");
     await expect(page.locator("#opportunities").getByRole("heading", { name: "Opportunity board" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
   });

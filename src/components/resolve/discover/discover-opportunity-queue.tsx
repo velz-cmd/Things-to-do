@@ -33,11 +33,6 @@ import {
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 
-type WalletResponse = {
-  ok?: boolean;
-  balance?: { spendableUsd?: string };
-};
-
 type DiscoverOpportunityQueueProps = {
   signedIn: boolean;
   query?: string;
@@ -58,10 +53,9 @@ export function DiscoverOpportunityQueue({
   needType = "all",
   className,
 }: DiscoverOpportunityQueueProps) {
-  const { executeFund, refreshWallet, busy } = useDiscoverActions();
+  const { executeFund, refreshWallet, busy, wallet } = useDiscoverActions();
   const { feed, refresh: refreshTrending } = useDiscoverRadarFeed();
   const [board, setBoard] = useState<DiscoverBoardItem[]>([]);
-  const [walletUsd, setWalletUsd] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fundingId, setFundingId] = useState<string | null>(null);
@@ -102,29 +96,11 @@ export function DiscoverOpportunityQueue({
     }
   }, []);
 
-  const loadWallet = useCallback(async () => {
-    if (!signedIn) {
-      setWalletUsd(null);
-      return;
-    }
-    try {
-      const res = await fetch("/api/capital/wallet", { credentials: "include" });
-      const data = (await res.json()) as WalletResponse;
-      if (data.ok !== false && data.balance?.spendableUsd != null) {
-        setWalletUsd(Number(data.balance.spendableUsd));
-      }
-    } catch {
-      setWalletUsd(null);
-    }
-  }, [signedIn]);
+  const walletUsd = wallet.loaded ? wallet.spendableUsd : null;
 
   useEffect(() => {
     void loadQueue();
   }, [loadQueue]);
-
-  useEffect(() => {
-    void loadWallet();
-  }, [loadWallet]);
 
   const programItems = useMemo(
     () => board.filter((b): b is FundableOpportunity & { boardKind: "program" } => b.boardKind === "program"),
@@ -183,7 +159,7 @@ export function DiscoverOpportunityQueue({
         communitySlug: o.communitySlug,
         templateId: o.templateId,
       });
-      await Promise.all([loadQueue(), loadWallet(), refreshWallet(), refreshTrending()]);
+      await Promise.all([loadQueue(), refreshWallet(), refreshTrending()]);
     } catch {
       /* toast handled in provider */
     } finally {

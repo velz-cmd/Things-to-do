@@ -28,7 +28,7 @@ export function JellyfinBackgroundSync() {
         return;
       }
 
-      const res = await fetch("/api/profile/bootstrap", { credentials: "include" });
+      const res = await fetch("/api/profile/jellyfin-sync", { credentials: "include" });
       const data = (await res.json()) as {
         signedIn?: boolean;
         jellyfinSync?: JellyfinSyncConfig | null;

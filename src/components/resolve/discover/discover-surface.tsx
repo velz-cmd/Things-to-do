@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
-import { DiscoverAgentSignalMarket } from "@/components/resolve/discover/discover-agent-signal-market";
+import { DiscoverSignalsMissionCta } from "@/components/resolve/discover/discover-signals-mission-cta";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
@@ -124,7 +124,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
           {lane === "earn" && <DiscoverEarnCompact signedIn={Boolean(user)} />}
 
-          {lane === "signals" && <DiscoverAgentSignalMarket signedIn={Boolean(user)} />}
+          {lane === "signals" && <DiscoverSignalsMissionCta signedIn={Boolean(user)} />}
 
           {lane === "gaps" && (
             <DiscoverTrendingGaps

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMissionScope } from "@/lib/mission/mission-context";
 import {
   MissionWorkspace,
@@ -46,6 +47,9 @@ import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import { detectOperatingMode, detectCapitalLoopPhase, detectMissionJob } from "@/lib/mission/capital-os";
 import { resolveMissionTopic } from "@/lib/mission/mission-topic";
 import { resolveMissionActionType } from "@/lib/mission/actions/resolve-type";
+import { detectAgentSignalIntent } from "@/lib/mission/detect-agent-signal-intent";
+import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
+import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 
 type AdvisorPayload = {
   phase?: MissionPhase;
@@ -186,7 +190,20 @@ function missionVisitKey(id: string) {
   return `resolve-mission-visit-${id}`;
 }
 
+const AGENT_SIGNAL_THINKING = [
+  "Matching signal catalog",
+  "Pricing micropay",
+  "Checking wallet path",
+  "Preparing agent run",
+] as const;
+
+function agentSignalIntro(serviceName: string, priceUsd: number, billingUnit: string): string {
+  return `I'll run ${serviceName} for your prompt — ${formatAgentPrice(priceUsd)} per ${billingUnit}. Review what you get below, then authorize the run.`;
+}
+
 export function MissionControl() {
+  const searchParams = useSearchParams();
+  const urlPromptHandled = useRef(false);
   const { scope, setScope } = useMissionScope();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<MissionTurn[]>([]);
@@ -346,10 +363,77 @@ export function MissionControl() {
     [objective, input],
   );
 
+  const runAgentSignalMessage = useCallback(
+    async (trimmed: string, serviceOverride?: string) => {
+      const isFirstTurn = turns.length === 0;
+      if (isFirstTurn) setObjective(trimmed);
+      setLastIntent(trimmed);
+      setInput("");
+      setLoading(true);
+      setThinkingComplete(false);
+      setActiveThinkingSteps([...AGENT_SIGNAL_THINKING]);
+
+      const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+      const nextTurns = [...turns, userTurn];
+      setTurns(nextTurns);
+
+      try {
+        const matched = matchServiceForPrompt(trimmed);
+        const serviceId = serviceOverride ?? matched?.id;
+        const serviceName = matched?.name ?? "Agent signal";
+        const priceUsd = matched?.priceUsd ?? 0.02;
+        const billingUnit = matched?.billingUnit ?? "signal";
+
+        setThinkingComplete(true);
+        const resolveTurn: MissionTurn = {
+          id: `r-${Date.now()}`,
+          role: "resolve",
+          text: agentSignalIntro(serviceName, priceUsd, billingUnit),
+          phase: "discover",
+          agentSignal: {
+            prompt: trimmed,
+            serviceId,
+          },
+        };
+        const finalTurns = [...nextTurns, resolveTurn];
+        setTurns(finalTurns);
+        setLastPhase("discover");
+        setLastCapability("general_inquiry");
+        persistLocalSession(session, finalTurns, {
+          title: (objective ?? trimmed).slice(0, 48),
+          phase: "discover",
+          scope: objective ?? trimmed,
+          ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
+        });
+        setLibraryTick((n) => n + 1);
+      } catch (e) {
+        setThinkingComplete(true);
+        setTurns([
+          ...nextTurns,
+          {
+            id: `r-${Date.now()}`,
+            role: "resolve",
+            text: e instanceof Error ? e.message : "Could not prepare agent signal.",
+            phase: "discover",
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [turns, session, objective, activeWorkspace?.id],
+  );
+
   const sendMessage = useCallback(
     async (text: string, sessionOverride?: MissionSession, policyOverride?: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
+
+      if (detectAgentSignalIntent(trimmed)) {
+        const serviceOverride = searchParams.get("service") ?? undefined;
+        await runAgentSignalMessage(trimmed, serviceOverride ?? undefined);
+        return;
+      }
 
       let activeSession = sessionOverride ?? session;
       const isFirstTurn = turns.length === 0;
@@ -517,6 +601,8 @@ export function MissionControl() {
       objective,
       selectedPolicyId,
       operatingMode,
+      runAgentSignalMessage,
+      searchParams,
     ],
   );
 
@@ -627,6 +713,19 @@ export function MissionControl() {
     void sendMessage(scope.label);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope?.label]);
+
+  useEffect(() => {
+    const prompt = searchParams.get("prompt");
+    if (!prompt || urlPromptHandled.current || objective || turns.length > 0) return;
+    urlPromptHandled.current = true;
+    const service = searchParams.get("service") ?? undefined;
+    if (detectAgentSignalIntent(prompt)) {
+      void runAgentSignalMessage(prompt, service);
+    } else {
+      void sendMessage(prompt);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   async function handleNewMission() {
     setScope(null);

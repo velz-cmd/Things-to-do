@@ -158,7 +158,7 @@ function automationAction(needType: DiscoverNeedType, gap: TrendingValueGap): Di
     id: `agent-${serviceId}`,
     label: needType === "automation" ? "Run agent" : "Automate",
     kind: "analyze",
-    href: `/discover#agent-market?service=${encodeURIComponent(serviceId)}&prompt=${encodeURIComponent(prompt)}`,
+    href: `/mission?service=${encodeURIComponent(serviceId)}&prompt=${encodeURIComponent(prompt)}`,
     communitySlug: gap.communitySlug,
     templateId: gap.templateId,
     serviceId,

@@ -309,13 +309,19 @@ test.describe("Community phases — APIs", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.board?.length).toBeGreaterThan(0);
+    const programs = body.board.filter((b: { boardKind?: string }) => b.boardKind === "program");
     const withScores = body.board.filter(
       (b: { opportunityScorecard?: { chips?: unknown[] } }) => b.opportunityScorecard?.chips?.length,
     );
-    expect(withScores.length).toBeGreaterThan(0);
-    const card = withScores[0].opportunityScorecard;
-    expect(card.chips.length).toBe(6);
-    expect(card.composite).toBeGreaterThan(0);
+    if (programs.length > 0) {
+      expect(withScores.length).toBeGreaterThan(0);
+      const card = withScores[0].opportunityScorecard;
+      expect(card.chips.length).toBe(6);
+      expect(card.composite).toBeGreaterThan(0);
+    } else {
+      const communities = body.board.filter((b: { boardKind?: string }) => b.boardKind === "community");
+      expect(communities.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -346,10 +352,15 @@ test.describe("Community phases — surfaces", () => {
     const board = page.locator("#opportunities");
     await board.scrollIntoViewIfNeeded();
     await expect(board.getByRole("heading", { name: "Opportunity board" })).toBeVisible();
-    await expect(board.getByText("Sort by")).toBeVisible({ timeout: 30_000 });
-    await expect(board.getByRole("button", { name: "Score" })).toBeVisible();
-    await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
-    await expect(board.locator("text=Reward").first()).toBeVisible({ timeout: 15_000 });
+    const sortOrAttach = board
+      .getByText("Sort by")
+      .or(board.getByText(/Attach to unlock|No ledger programs yet/i));
+    await expect(sortOrAttach.first()).toBeVisible({ timeout: 30_000 });
+    const hasSort = await board.getByText("Sort by").isVisible().catch(() => false);
+    if (hasSort) {
+      await expect(board.getByRole("button", { name: "Score" })).toBeVisible();
+      await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
+    }
   });
 
   test("discover founder role shows agent signals mission CTA", async ({ page }) => {

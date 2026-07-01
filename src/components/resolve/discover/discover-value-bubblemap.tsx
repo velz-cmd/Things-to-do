@@ -21,6 +21,7 @@ import {
 import {
   useCommunityConsoleOptional,
   type CommunityConsoleTab,
+  type CommunityConsoleActionContext,
 } from "@/components/resolve/discover/discover-community-console-provider";
 import type { AutomationTrigger } from "@/lib/automation/types";
 import { DiscoverBubblemapSkeleton } from "@/components/resolve/discover/discover-skeletons";
@@ -162,6 +163,7 @@ export function DiscoverValueBubblemap({
   const [stripSelectedId, setStripSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<CommunityConsoleTab>("console");
   const [panelTrigger, setPanelTrigger] = useState<AutomationTrigger | undefined>();
+  const [panelContext, setPanelContext] = useState<CommunityConsoleActionContext | undefined>();
   const consoleBridge = useCommunityConsoleOptional();
   const isMobile = useMediaQuery("(max-width: 640px)");
 
@@ -242,6 +244,7 @@ export function DiscoverValueBubblemap({
   const handleNodeClick = (b: BubbleNode) => {
     setPanelTab("console");
     setPanelTrigger(undefined);
+    setPanelContext(undefined);
     setStripSelectedId(b.id);
     setPanel({ node: b });
   };
@@ -249,6 +252,7 @@ export function DiscoverValueBubblemap({
   const handleStripSelect = (node: DiscoverGraphNode) => {
     setPanelTab("console");
     setPanelTrigger(undefined);
+    setPanelContext(undefined);
     setStripSelectedId(node.id);
     setPanel({ node });
   };
@@ -268,8 +272,9 @@ export function DiscoverValueBubblemap({
         communitySlug: req.communitySlug,
       };
 
-    setPanelTab(req.tab ?? "automate");
+    setPanelTab(req.tab ?? "console");
     setPanelTrigger(req.automationTrigger);
+    setPanelContext(req.actionContext);
     setPanel({ node });
     consoleBridge.clearRequest();
   }, [consoleBridge, consoleBridge?.request, data?.graph.nodes]);
@@ -602,6 +607,7 @@ export function DiscoverValueBubblemap({
         signedIn={signedIn}
         initialTab={panelTab}
         automationTrigger={panelTrigger}
+        actionContext={panelContext}
         onClose={() => {
           setPanel(null);
           setStripSelectedId(null);

@@ -12,3 +12,17 @@ export function isMissingTableError(error: unknown): boolean {
     /column .* does not exist/i.test(message)
   );
 }
+
+/** True when Prisma cannot reach Postgres (CI without DATABASE_URL, pool down, etc.). */
+export function isPrismaUnavailableError(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientInitializationError) return true;
+  if (isMissingTableError(error)) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /nonempty URL/i.test(message) ||
+    /DATABASE_URL/i.test(message) ||
+    /Can't reach database server/i.test(message) ||
+    /Connection refused/i.test(message) ||
+    /ECONNREFUSED/i.test(message)
+  );
+}

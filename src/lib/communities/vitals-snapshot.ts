@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { isMissingTableError } from "@/lib/db/prisma-errors";
+import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { getCommunitySensorStatuses } from "@/lib/sensors/status";
 import { computeCommunityVitalsMap, type CommunityVitals } from "@/lib/communities/vitals";
@@ -28,7 +28,7 @@ export async function refreshAllCommunityVitalsSnapshots(): Promise<number> {
     ),
     );
   } catch (e) {
-    if (!isMissingTableError(e)) throw e;
+    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
   }
 
   return Object.keys(vitals).length;
@@ -67,7 +67,7 @@ export async function loadCommunityVitalsSnapshots(): Promise<{
 
     return { vitals, stale };
   } catch (e) {
-    if (isMissingTableError(e)) {
+    if (isMissingTableError(e) || isPrismaUnavailableError(e)) {
       return { vitals: {}, stale: true };
     }
     throw e;

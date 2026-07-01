@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { isMissingTableError } from "@/lib/db/prisma-errors";
+import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import type { FundingOpportunity } from "@/lib/github/types";
 
@@ -54,7 +54,7 @@ export async function loadStoredOssOpportunities(): Promise<{
       },
     };
   } catch (e) {
-    if (isMissingTableError(e)) {
+    if (isMissingTableError(e) || isPrismaUnavailableError(e)) {
       return {
         opportunities: [],
         meta: { scannedAt: new Date(0).toISOString(), source: "empty", stale: true },
@@ -99,7 +99,7 @@ export async function refreshOssOpportunityStore(): Promise<{
     ),
     );
   } catch (e) {
-    if (!isMissingTableError(e)) throw e;
+    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
   }
 
   return { count: opportunities.length, scannedAt: scannedAt.toISOString() };

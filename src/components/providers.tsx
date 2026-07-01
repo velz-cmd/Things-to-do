@@ -14,6 +14,8 @@ import {
   wagmiConfig,
 } from "@/lib/reown/config";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { UserConnectionsProvider } from "@/components/resolve/profile/user-connections-provider";
+import { SensorBackgroundSync } from "@/components/resolve/connectors/sensor-background-sync";
 import { SignInProvider } from "@/components/auth/sign-in-context";
 import { SignInModal } from "@/components/auth/sign-in-modal";
 import { AuthErrorEffect } from "@/components/auth/auth-error-effect";
@@ -53,11 +55,13 @@ export function Providers({
     <WagmiProvider config={wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <UserConnectionsProvider>
           <SignInProvider>
             <AddFundsProvider>
               <SendFundsProvider>
               <WalletLinkEffect />
               <JellyfinBackgroundSync />
+              <SensorBackgroundSync />
               <GmailAfterAuthEffect />
               <Suspense fallback={null}>
                 <AuthErrorEffect />
@@ -76,6 +80,7 @@ export function Providers({
               </SendFundsProvider>
             </AddFundsProvider>
           </SignInProvider>
+          </UserConnectionsProvider>
         </AuthProvider>
       </QueryClientProvider>
     </WagmiProvider>

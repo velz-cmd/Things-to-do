@@ -426,7 +426,13 @@ test.describe("Community phases — surfaces", () => {
   test("discover shows value graph and workspace lanes", async ({ page }) => {
     test.setTimeout(90_000);
 
+    const radarReady = page.waitForResponse(
+      (res) => res.url().includes("/api/discover/radar") && res.ok(),
+      { timeout: 45_000 },
+    );
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await radarReady;
+
     await expect(
       page.getByRole("heading", {
         level: 1,
@@ -436,20 +442,19 @@ test.describe("Community phases — surfaces", () => {
 
     const valueGraph = page.getByRole("heading", { name: "Value graph" });
     await valueGraph.scrollIntoViewIfNeeded();
-    await page.waitForResponse(
-      (res) => res.url().includes("/api/discover/radar") && res.ok(),
-      { timeout: 45_000 },
-    );
 
     await expect(valueGraph).toBeVisible();
     await expect(
-      page.getByRole("main").getByText(/click a bubble/i).first(),
+      page
+        .getByRole("main")
+        .getByText(/horizontal cards|Pick a node below|Map view shows how value connects/i)
+        .first(),
     ).toBeVisible();
-    await expect(
-      page.locator('svg[aria-label="Value bubblemap"]').or(
-        page.getByRole("main").getByText(/Graph fills as authorizations|community:/i),
-      ).first(),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('svg[aria-label="Value bubblemap"]')).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText("Funders").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /OSS Preview/i }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "OSS" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Music" }).first()).toBeVisible();
 

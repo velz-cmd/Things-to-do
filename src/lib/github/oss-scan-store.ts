@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
 import { scanAllOpportunities } from "@/lib/github/opportunities";
 import type { FundingOpportunity } from "@/lib/github/types";
 
@@ -26,31 +27,41 @@ export async function loadStoredOssOpportunities(): Promise<{
   opportunities: FundingOpportunity[];
   meta: OssScanMeta;
 }> {
-  const rows = await prisma.githubOssScan.findMany({
-    orderBy: { scannedAt: "desc" },
-  });
+  try {
+    const rows = await prisma.githubOssScan.findMany({
+      orderBy: { scannedAt: "desc" },
+    });
 
-  if (!rows.length) {
+    if (!rows.length) {
+      return {
+        opportunities: [],
+        meta: { scannedAt: new Date(0).toISOString(), source: "empty", stale: true },
+      };
+    }
+
+    const newest = rows[0]!.scannedAt;
+    const stale = Date.now() - newest.getTime() > STALE_MS;
+    const opportunities = rows
+      .map(rowToOpportunity)
+      .filter((o): o is FundingOpportunity => o !== null);
+
     return {
-      opportunities: [],
-      meta: { scannedAt: new Date(0).toISOString(), source: "empty", stale: true },
+      opportunities,
+      meta: {
+        scannedAt: newest.toISOString(),
+        source: "database",
+        stale,
+      },
     };
+  } catch (e) {
+    if (isMissingTableError(e) || isPrismaUnavailableError(e)) {
+      return {
+        opportunities: [],
+        meta: { scannedAt: new Date(0).toISOString(), source: "empty", stale: true },
+      };
+    }
+    throw e;
   }
-
-  const newest = rows[0]!.scannedAt;
-  const stale = Date.now() - newest.getTime() > STALE_MS;
-  const opportunities = rows
-    .map(rowToOpportunity)
-    .filter((o): o is FundingOpportunity => o !== null);
-
-  return {
-    opportunities,
-    meta: {
-      scannedAt: newest.toISOString(),
-      source: "database",
-      stale,
-    },
-  };
 }
 
 /** Cron / operator — live GitHub ingest persisted to Postgres. */
@@ -61,9 +72,10 @@ export async function refreshOssOpportunityStore(): Promise<{
   const opportunities = await scanAllOpportunities();
   const scannedAt = new Date();
 
-  await Promise.all(
-    opportunities.map((o) =>
-      prisma.githubOssScan.upsert({
+  try {
+    await Promise.all(
+      opportunities.map((o) =>
+        prisma.githubOssScan.upsert({
         where: { owner_repo: { owner: o.owner, repo: o.repo } },
         create: {
           owner: o.owner,
@@ -85,7 +97,10 @@ export async function refreshOssOpportunityStore(): Promise<{
         },
       }),
     ),
-  );
+    );
+  } catch (e) {
+    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
+  }
 
   return { count: opportunities.length, scannedAt: scannedAt.toISOString() };
 }

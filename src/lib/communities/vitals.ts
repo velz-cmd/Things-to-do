@@ -271,10 +271,14 @@ export async function listCommunityVitals(
   sensorStatuses: CommunitySensorStatus[],
   options?: { mode?: import("@/lib/connectors/ledger-stats").ConnectorHealthMode },
 ): Promise<Record<string, CommunityVitals>> {
-  const { loadCommunityVitalsSnapshots } = await import("@/lib/communities/vitals-snapshot");
-  const { vitals, stale } = await loadCommunityVitalsSnapshots();
-  if (Object.keys(vitals).length > 0 && !stale) {
-    return vitals;
+  try {
+    const { loadCommunityVitalsSnapshots } = await import("@/lib/communities/vitals-snapshot");
+    const { vitals, stale } = await loadCommunityVitalsSnapshots();
+    if (Object.keys(vitals).length > 0 && !stale) {
+      return vitals;
+    }
+  } catch {
+    /* fall through to live compute */
   }
 
   return computeCommunityVitalsMap(sensorStatuses, options);

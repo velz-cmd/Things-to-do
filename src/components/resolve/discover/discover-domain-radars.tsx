@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { GitBranch, Mic2, Users } from "lucide-react";
@@ -10,7 +10,6 @@ import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-rad
 import type { DiscoverIntent, DomainRadarBundle, RadarEmptyState } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
-import { filterGapsByNeedType } from "@/lib/discover/need-types";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
@@ -19,6 +18,12 @@ const RADAR_ICONS = {
   music: Mic2,
   dao: Users,
 } as const;
+
+const RADAR_TABS = [
+  { id: "oss" as const, label: "Open source" },
+  { id: "music" as const, label: "Creators" },
+  { id: "dao" as const, label: "DAO / research" },
+];
 
 type DiscoverDomainRadarsProps = {
   signedIn: boolean;
@@ -38,6 +43,7 @@ export function DiscoverDomainRadars({
   className,
 }: DiscoverDomainRadarsProps) {
   const { feed, loading, refresh } = useDiscoverRadarFeed();
+  const [activeRadar, setActiveRadar] = useState<"oss" | "music" | "dao">("oss");
   const feedLoading = loading && !feed;
   const q = query.trim().toLowerCase();
 
@@ -55,10 +61,13 @@ export function DiscoverDomainRadars({
     });
   }, [feed?.domainRadars, q, needType]);
 
+  const bundle = bundles?.find((b) => b.id === activeRadar);
+  const Icon = RADAR_ICONS[activeRadar];
+
   return (
     <DiscoverPremiumSection
       title="Opportunity radars"
-      subtitle="OSS, music, and DAO — verified gaps with toolbar actions"
+      subtitle="One domain at a time — verified gaps with toolbar actions"
       className={className}
       actions={
         <DiscoverSectionRefresh
@@ -68,29 +77,38 @@ export function DiscoverDomainRadars({
         />
       }
     >
-      <div className="grid gap-6 lg:grid-cols-3">
-        {(["oss", "music", "dao"] as const).map((radarId) => {
-          const bundle = bundles?.find((b) => b.id === radarId);
-          const Icon = RADAR_ICONS[radarId];
-          return (
-            <DomainRadarColumn
-              key={radarId}
-              radarId={radarId}
-              bundle={bundle}
-              loading={feedLoading}
-              signedIn={signedIn}
-              intent={intent}
-              role={role}
-              icon={Icon}
-            />
-          );
-        })}
+      <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-black/20 p-1">
+        {RADAR_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveRadar(tab.id)}
+            className={clsx(
+              "rounded-md px-3 py-1.5 text-[11px] font-medium transition",
+              activeRadar === tab.id
+                ? "bg-resolve-accent/20 text-white ring-1 ring-resolve-accent/25"
+                : "text-resolve-muted hover:text-white",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      <DomainRadarPanel
+        radarId={activeRadar}
+        bundle={bundle}
+        loading={feedLoading}
+        signedIn={signedIn}
+        intent={intent}
+        role={role}
+        icon={Icon}
+      />
     </DiscoverPremiumSection>
   );
 }
 
-function DomainRadarColumn({
+function DomainRadarPanel({
   radarId,
   bundle,
   loading,
@@ -117,7 +135,7 @@ function DomainRadarColumn({
   return (
     <div
       id={`radar-${radarId}`}
-      className="scroll-mt-24 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4"
+      className="scroll-mt-24 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:p-4"
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -134,11 +152,8 @@ function DomainRadarColumn({
         )}
       </div>
 
-      <div className="mb-4 rounded-lg border border-white/[0.06] bg-black/20 p-2.5">
-        <p className="mb-2 text-[9px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-          Radar actions
-        </p>
-        <div className="flex flex-wrap gap-1.5">
+      {toolbar.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
           {toolbar.map((action) => (
             <DiscoverActionChip
               key={action.id}
@@ -148,17 +163,17 @@ function DomainRadarColumn({
             />
           ))}
         </div>
-      </div>
+      )}
 
       {loading ? (
         <p className="text-xs text-resolve-muted">Loading verified radar…</p>
       ) : !cards.length && empty ? (
         <RadarEmpty empty={empty} />
       ) : !cards.length ? (
-        <p className="text-xs text-resolve-muted">No cards match your filter — toolbar actions still work.</p>
+        <p className="text-xs text-resolve-muted">No cards match — toolbar actions still work.</p>
       ) : (
-        <ul className="space-y-3">
-          {cards.map((gap) => (
+        <ul className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+          {cards.slice(0, 6).map((gap) => (
             <DiscoverActionCard
               key={gap.id}
               gap={gap}

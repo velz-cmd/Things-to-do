@@ -12,7 +12,13 @@ import {
   DiscoverStatePanel,
 } from "@/components/resolve/discover/discover-state-panel";
 
-export function DiscoverNetworkPulse({ className }: { className?: string }) {
+export function DiscoverNetworkPulse({
+  className,
+  variant = "card",
+}: {
+  className?: string;
+  variant?: "card" | "strip";
+}) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
 
   const actions = (
@@ -32,13 +38,13 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
         </a>
       )}
       {feed?.intelligence?.sensorsOnline === 0 && (
-        <a
-          href="#communities"
+        <Link
+          href="/communities"
           className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1 text-[11px] text-white/65 hover:text-white"
         >
           <Radio className="h-3 w-3" />
           Connect sensors
-        </a>
+        </Link>
       )}
     </>
   );
@@ -98,6 +104,63 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
     );
   }
 
+  if (variant === "strip") {
+    const i = feed?.intelligence;
+    return (
+      <div
+        id="network-pulse"
+        className={clsx(
+          "scroll-mt-24 rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2.5",
+          className,
+        )}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Activity className="h-3.5 w-3.5 shrink-0 text-resolve-calm-periwinkle" />
+            <p className="truncate text-[11px] text-white">
+              {loading && !feed ? (
+                <span className="text-resolve-muted">Loading pulse…</span>
+              ) : i ? (
+                i.headline
+              ) : (
+                <span className="text-resolve-muted">Connect sensors to populate ledger</span>
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DiscoverSectionRefresh
+              sectionId="network-pulse"
+              onRefresh={refresh}
+              lastUpdated={feed?.updatedAt}
+            />
+            {i && i.leakingUsd > 0 && (
+              <a
+                href="#discover-workspace"
+                className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200"
+              >
+                ${i.leakingUsd.toFixed(0)} leaking
+              </a>
+            )}
+          </div>
+        </div>
+        {i && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <StripStat label="Rec" value={`$${i.recognizedUsd.toFixed(0)}`} />
+            <StripStat label="Pend" value={`$${i.pendingFundingUsd.toFixed(0)}`} />
+            <StripStat label="Settled" value={`$${i.settledUsd.toFixed(0)}`} />
+            <StripStat
+              label="Leak"
+              value={`$${i.leakingUsd.toFixed(0)}`}
+              warn={i.leakingUsd > 0}
+            />
+            <StripStat label="Prog" value={String(feed?.fundableCount ?? 0)} />
+            <StripStat label="OSS" value={String(feed?.ossSignalCount ?? 0)} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <DiscoverPremiumSection
       id="network-pulse"
@@ -108,6 +171,28 @@ export function DiscoverNetworkPulse({ className }: { className?: string }) {
     >
       {body}
     </DiscoverPremiumSection>
+  );
+}
+
+function StripStat({
+  label,
+  value,
+  warn,
+}: {
+  label: string;
+  value: string;
+  warn?: boolean;
+}) {
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.03] px-2 py-0.5 text-[10px] tabular-nums",
+        warn ? "text-amber-200" : "text-white/90",
+      )}
+    >
+      <span className="text-white/40">{label}</span>
+      {value}
+    </span>
   );
 }
 

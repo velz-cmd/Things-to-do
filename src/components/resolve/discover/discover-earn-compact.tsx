@@ -1,0 +1,92 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { Money } from "@/components/resolve/ui/money";
+import type { ProfileEarningsSummary } from "@/lib/earn/summary";
+
+type EarnPayload = {
+  signedIn: boolean;
+  earnings?: ProfileEarningsSummary;
+  claimUrl?: string | null;
+};
+
+/** Capital-style medium strip — full earn console lives on /capital */
+export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
+  const [data, setData] = useState<EarnPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    return fetch("/api/earn/discover", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((body: EarnPayload) => setData(body))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load, signedIn]);
+
+  const earnings = data?.earnings;
+  const claimable = earnings?.claimableUsd ?? 0;
+  const earned = earnings?.youEarnedUsd ?? 0;
+
+  return (
+    <div
+      id="earn"
+      className="scroll-mt-24 rounded-xl border border-white/[0.08] bg-black/25 px-4 py-3"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-muted-dim">
+            How much have I earned?
+          </p>
+          {loading ? (
+            <p className="mt-1 flex items-center gap-2 text-xs text-resolve-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading ledger…
+            </p>
+          ) : !data?.signedIn ? (
+            <p className="mt-1 text-xs text-resolve-muted">
+              Sign in on Capital to see verified earnings and claim on Arc.
+            </p>
+          ) : (
+            <p className="mt-1 text-lg font-semibold text-white">
+              {earned > 0 || claimable > 0 ? (
+                <>
+                  <Money amount={earned} size="md" className="text-emerald-300" />
+                  {claimable > 0 && (
+                    <span className="ml-2 text-xs font-normal text-emerald-200/90">
+                      · <Money amount={claimable} size="sm" className="inline" /> claimable
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-sm text-resolve-muted">$0 verified — connect sources on Capital</span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {claimable > 0 && (
+            <Link
+              href={data?.claimUrl ?? "/claim"}
+              className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-[11px] font-medium text-emerald-200 hover:bg-emerald-500/25"
+            >
+              Claim
+            </Link>
+          )}
+          <Link
+            href="/capital"
+            className="inline-flex items-center gap-1 rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5 text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15"
+          >
+            Open on Capital
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -186,7 +186,7 @@ export function buildBubbleOperatorSurface(input: {
     openItems.push({
       label: "Open work",
       detail: node.synthetic
-        ? "Install community + connect GitHub, Jellyfin, or ListenBrainz to open work items"
+        ? "Install community — RESOLVE syncs sources and opens work items in the background"
         : "No open work items linked to this node",
       tone: "muted",
     });

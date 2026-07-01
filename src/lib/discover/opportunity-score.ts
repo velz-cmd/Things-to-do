@@ -153,7 +153,7 @@ function scoreDifficulty(input: OpportunityScoreInput): OpportunityScoreChip {
     value,
     display: difficultyLabel,
     provenance: input.sensorLive ? "sensor" : signals > 0 ? "program" : "heuristic",
-    source: parts.length ? parts.join(" · ") : "Catalog — connect sensor for maturity",
+    source: parts.length ? parts.join(" · ") : "Catalog — maturity grows as activity syncs",
   };
 }
 

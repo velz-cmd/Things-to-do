@@ -18,7 +18,7 @@ export function emptyNetworkIntelligence(): NetworkIntelligence {
     criticalGaps: 0,
     sensorsOnline: 0,
     eventsToday: 0,
-    headline: "Connect sensors — ledger metrics appear as value is recognized",
+    headline: "Value discovery warming up — public programs and ledger rows appear as they rank",
   };
 }
 

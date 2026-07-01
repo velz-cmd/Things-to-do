@@ -61,8 +61,8 @@ const DEFAULT_CONNECTORS: DiscoverEarnConnector[] = [
     id: "musicbrainz",
     label: "MusicBrainz",
     connected: false,
-    authorizeUrl: "/profile",
-    hint: "Link your artist name for play attribution",
+    authorizeUrl: "/communities/navidrome",
+    hint: "Link your artist identity for play attribution",
   },
 ];
 
@@ -115,7 +115,7 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
     <DiscoverPremiumSection
       id="earn"
       title="How much have I earned?"
-      subtitle="Ledger-backed totals from GitHub, ListenBrainz, Jellyfin, and MusicBrainz — connect once, claim on Arc"
+      subtitle="Ledger-backed totals from your communities — sources sync in the background, claim on Arc"
       className="mb-8 scroll-mt-24"
       actions={
         <DiscoverSectionRefresh
@@ -143,9 +143,8 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
           <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
             <div className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/70 p-5">
               <p className="text-sm text-resolve-muted">
-                Sign in to see verified earnings from connected communities. Connect GitHub for OSS,
-                ListenBrainz for music, or Jellyfin for video — RESOLVE matches ledger payees
-                automatically.
+                Sign in to see verified earnings from your communities. OSS contributions, music plays,
+                and video watches match to your payee key automatically once sources are active.
               </p>
               <Button className="mt-4" onClick={() => openSignIn()}>
                 Sign in to see earnings
@@ -190,7 +189,7 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
                     <Money amount={earnings.settledUsd} size="sm" className="inline" /> settled on Arc
                   </>
                 )}
-                {!hasEarnings && "Connect a source below — earnings appear after recognized activity."}
+                {!hasEarnings && "Activate a source below — earnings appear after recognized activity."}
               </p>
               {urgencyLabel && (
                 <p className="mt-2 text-xs text-amber-200/90">{urgencyLabel}</p>
@@ -254,9 +253,6 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
             <Link href="/claim" className="text-resolve-accent hover:underline">
               Full claim flow →
             </Link>
-            <Link href="/profile" className="text-resolve-muted hover:text-white">
-              Profile connectors
-            </Link>
           </div>
         </div>
       )}
@@ -268,12 +264,12 @@ function ConnectorGrid({ connectors }: { connectors: DiscoverEarnConnector[] }) 
   return (
     <div className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 p-4">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-        Connect sources
+        Your sources
       </p>
       <ul className="mt-3 space-y-2">
         {connectors.map((c) => {
           const Icon = CONNECTOR_ICONS[c.id];
-          const href = c.id === "musicbrainz" ? "/profile" : c.authorizeUrl;
+          const href = c.authorizeUrl;
           return (
             <li
               key={c.id}
@@ -300,7 +296,7 @@ function ConnectorGrid({ connectors }: { connectors: DiscoverEarnConnector[] }) 
                   href={href}
                   className="shrink-0 rounded-md border border-white/10 px-2 py-1 text-[10px] font-medium text-resolve-accent hover:bg-white/5"
                 >
-                  Connect
+                  Enable
                 </Link>
               )}
             </li>

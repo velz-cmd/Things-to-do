@@ -309,8 +309,8 @@ export function DiscoverValueBubblemap({
         <div className="relative px-6 py-16 text-center">
           <p className="text-sm text-resolve-muted">
             {domainFilter !== "all"
-              ? `No ${domainFilter} nodes in the current graph — try another filter or connect a sensor.`
-              : data?.emptyReason ?? "Graph fills as authorizations arrive — connect GitHub or Jellyfin to start"}
+              ? `No ${domainFilter} nodes in the current graph — try another filter or explore a community below.`
+              : data?.emptyReason ?? "Graph fills as programs rank — explore communities in the workspace lanes"}
           </p>
         </div>
       ) : (

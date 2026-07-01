@@ -1,27 +1,30 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight, Radio } from "lucide-react";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import {
   GAPS_TAB_EXAMPLES,
   GAPS_TAB_INTRO,
-  gapsConnectLinks,
   gapsEmptyMessage,
+  gapsExploreActions,
+  gapsExploreCommunities,
 } from "@/lib/discover/gaps-empty-state";
+import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { DiscoverStatePanel } from "@/components/resolve/discover/discover-state-panel";
 
 export function DiscoverGapsEmpty({
   needType,
   role,
+  signedIn,
   degraded,
 }: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
+  signedIn: boolean;
   degraded?: boolean;
 }) {
-  const links = gapsConnectLinks({ needType, role });
+  const communities = gapsExploreCommunities({ needType, role });
+  const actions = gapsExploreActions({ needType, role });
 
   return (
     <DiscoverStatePanel variant="empty">
@@ -40,35 +43,35 @@ export function DiscoverGapsEmpty({
 
       {degraded && (
         <p className="mt-2 text-[11px] text-amber-200/90">
-          Some sources were slow — community links below still work.
+          Some rankings were slow — community previews below are still available.
         </p>
       )}
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        {links.map((link) => (
-          <Link
-            key={link.href + link.label}
-            href={link.href}
-            className="group flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 transition hover:border-resolve-accent/30 hover:bg-resolve-accent/[0.06]"
+        {communities.map((entry) => (
+          <div
+            key={entry.slug}
+            className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5"
           >
-            <span>
-              <span className="flex items-center gap-1.5 text-xs font-medium text-white">
-                <Radio className="h-3 w-3 text-resolve-calm-periwinkle" />
-                {link.label}
-              </span>
-              <span className="mt-0.5 block text-[10px] text-resolve-muted-dim">{link.hint}</span>
-            </span>
-            <ArrowRight className="h-3.5 w-3.5 text-resolve-muted transition group-hover:text-resolve-accent" />
-          </Link>
+            <p className="text-xs font-medium text-white">{entry.name}</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-resolve-muted-dim">
+              {entry.tagline}
+            </p>
+            <p className="mt-1 text-[10px] text-resolve-muted-dim">{entry.upstream}</p>
+          </div>
         ))}
       </div>
 
-      <Link
-        href="/profile"
-        className="mt-4 inline-block text-[11px] font-medium text-resolve-calm-blue hover:text-resolve-accent"
-      >
-        Or connect sensors on Profile →
-      </Link>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {actions.map((action) => (
+          <DiscoverActionChip
+            key={action.id}
+            action={action}
+            signedIn={signedIn}
+            surface="gaps-preview"
+          />
+        ))}
+      </div>
     </DiscoverStatePanel>
   );
 }

@@ -109,7 +109,7 @@ export function DiscoverGlobalSearch({
         />
       </form>
 
-      <p className="discover-on-canvas discover-muted mt-2 text-[11px]">
+      <p className="mt-2 text-[11px] text-resolve-muted-dim">
         Enter runs the top result action — fund, open entity, install, or claim
       </p>
 

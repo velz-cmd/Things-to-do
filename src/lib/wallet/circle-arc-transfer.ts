@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { getAddress, isAddress } from "viem";
 import { getCircleClient } from "@/lib/settlement/circle-client";
+import { ARC_CLIENT_WALLET_ID } from "@/lib/settlement/arc-config";
 import { verifyArcTx } from "@/lib/settlement/arc-verify";
 import {
   appWalletProvider,
@@ -75,6 +76,47 @@ export async function sendUsdcFromUserCircleWallet(input: {
   const res = await circle.createTransaction({
     idempotencyKey: input.idempotencyKey ?? randomUUID(),
     walletId: circleWalletId,
+    tokenAddress: "",
+    blockchain: "ARC-TESTNET",
+    destinationAddress: destination,
+    amount: [amountUsd.toFixed(6)],
+    fee: { type: "level", config: { feeLevel: "MEDIUM" } },
+  } as never);
+
+  const circleTransactionId = res.data?.id;
+  if (!circleTransactionId) throw new Error("Circle did not return a transaction id");
+
+  const { txHash } = await waitForCircleArcTransfer(circle, circleTransactionId);
+  return { txHash, circleTransactionId };
+}
+
+/** Fund a user Circle wallet from the RESOLVE treasury (ARC_CLIENT_WALLET). */
+export async function sendUsdcFromTreasuryCircleWallet(input: {
+  destinationAddress: string;
+  amountUsd: number;
+  idempotencyKey?: string;
+}): Promise<{ txHash: string; circleTransactionId: string }> {
+  if (!ARC_CLIENT_WALLET_ID) {
+    throw new Error("ARC_CLIENT_WALLET_ID not configured");
+  }
+  if (!isAddress(input.destinationAddress)) {
+    throw new Error("Invalid destination address");
+  }
+
+  const destination = getAddress(input.destinationAddress);
+  const amountUsd = Math.round(input.amountUsd * 1_000_000) / 1_000_000;
+  if (amountUsd <= 0) {
+    throw new Error("Amount must be greater than zero");
+  }
+
+  const circle = await getCircleClient();
+  if (!circle) {
+    throw new Error("Circle is not configured for Arc transfers");
+  }
+
+  const res = await circle.createTransaction({
+    idempotencyKey: input.idempotencyKey ?? randomUUID(),
+    walletId: ARC_CLIENT_WALLET_ID,
     tokenAddress: "",
     blockchain: "ARC-TESTNET",
     destinationAddress: destination,

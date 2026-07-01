@@ -49,7 +49,7 @@ body {
 
 html.discover-route,
 html.discover-route body {
-  background: #eef1f6;
+  background: var(--resolve-bg);
 }
 
 * {
@@ -115,6 +115,27 @@ html.discover-route body {
       linear-gradient(rgba(59, 158, 255, 0.04) 1px, transparent 1px),
       linear-gradient(90deg, rgba(59, 158, 255, 0.04) 1px, transparent 1px);
     background-size: 24px 24px;
+  }
+
+  .resolve-grid-bg {
+    position: relative;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 122, 255, 0.12), transparent 55%),
+      radial-gradient(ellipse 45% 35% at 0% 40%, rgba(92, 96, 159, 0.1), transparent 50%),
+      radial-gradient(ellipse 40% 30% at 100% 60%, rgba(0, 119, 179, 0.08), transparent 50%),
+      linear-gradient(180deg, #0c1530 0%, #071428 42%, #050a14 100%);
+  }
+
+  .resolve-grid-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(59, 158, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 158, 255, 0.035) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(180deg, black 0%, black 70%, transparent 100%);
   }
 
   .resolve-card-hover {
@@ -628,74 +649,150 @@ html.discover-route body {
     animation: resolve-flow-line 7s ease-in-out infinite;
   }
 
-  /* Discover tab — soft off-white canvas; premium cards keep dark gradient + white text */
+  /* Discover — unified dark canvas (matches Mission / Stack) */
   .discover-canvas {
-    background: linear-gradient(180deg, #f5f7fa 0%, #eef1f6 42%, #e9edf3 100%);
-    color: #334155;
+    color: var(--foreground);
   }
 
   .discover-canvas .discover-on-canvas h1,
   .discover-canvas .discover-on-canvas h2 {
-    color: #0f172a;
+    color: #f8fafc;
   }
 
   .discover-canvas .discover-on-canvas .discover-eyebrow {
-    color: #5c609f;
+    color: rgba(125, 140, 196, 0.95);
   }
 
   .discover-canvas .discover-on-canvas .discover-subtitle {
-    color: #475569;
+    color: var(--resolve-muted);
   }
 
   .discover-canvas .discover-on-canvas .discover-muted {
-    color: #64748b;
+    color: var(--resolve-muted-dim);
   }
 
-  .discover-canvas .discover-filter-panel {
-    border-color: rgba(148, 163, 184, 0.4);
-    background: rgba(255, 255, 255, 0.72);
+  .discover-canvas .discover-chip {
+    border-color: rgba(100, 160, 255, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--resolve-muted);
   }
 
-  .discover-canvas .discover-filter-panel summary span:first-child {
-    color: #5c609f;
+  .discover-canvas .discover-chip:hover {
+    border-color: rgba(59, 158, 255, 0.35);
+    background: rgba(59, 158, 255, 0.08);
+    color: #e8f1fc;
   }
 
-  .discover-canvas .discover-filter-panel summary span:last-child {
-    color: #94a3b8;
-  }
-
-  .discover-canvas .discover-domain-chip {
-    border-color: rgba(125, 140, 196, 0.35);
-    background: rgba(255, 255, 255, 0.8);
-    color: #475569;
-  }
-
-  .discover-canvas .discover-domain-chip:hover {
-    border-color: rgba(92, 96, 159, 0.45);
-    color: #1e293b;
+  .discover-canvas .discover-chip--active {
+    border-color: rgba(59, 158, 255, 0.45);
+    background: rgba(59, 158, 255, 0.14);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(0, 122, 255, 0.12);
   }
 
   .discover-canvas footer.discover-on-canvas {
-    border-color: rgba(148, 163, 184, 0.35);
+    border-color: rgba(100, 160, 255, 0.12);
   }
 
   .discover-canvas footer.discover-on-canvas a {
-    color: #64748b;
+    color: var(--resolve-muted);
   }
 
-  .discover-canvas .discover-filter-panel button {
-    border-color: rgba(148, 163, 184, 0.45);
-    color: #475569;
+  .discover-canvas footer.discover-on-canvas a:hover {
+    color: #fff;
   }
 
-  .discover-canvas .discover-filter-panel button[class*="border-resolve-accent"] {
-    border-color: rgba(59, 158, 255, 0.45);
-    background: rgba(59, 158, 255, 0.1);
-    color: #0077b3;
+  .discover-refine-panel[open] .discover-refine-chevron {
+    color: var(--resolve-accent);
   }
 
-  .discover-canvas .discover-filter-panel .discover-muted,
-  .discover-canvas .discover-filter-panel p {
-    color: #64748b;
+  .discover-hero-glow {
+    position: absolute;
+    left: 50%;
+    top: -20%;
+    height: 280px;
+    width: min(720px, 90vw);
+    transform: translateX(-50%);
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse 70% 80% at 50% 50%,
+      rgba(0, 122, 255, 0.18) 0%,
+      rgba(92, 96, 159, 0.08) 45%,
+      transparent 72%
+    );
+    filter: blur(2px);
+  }
+
+  .discover-job-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.25rem;
+    border: 1px solid rgba(100, 160, 255, 0.14);
+    background: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.02) 28%,
+      rgba(8, 28, 58, 0.72) 100%
+    );
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 8px 32px rgba(0, 20, 50, 0.35);
+    transition:
+      transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.35s ease,
+      box-shadow 0.35s ease;
+  }
+
+  .discover-job-card::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 12%;
+    right: 12%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(59, 158, 255, 0.5),
+      rgba(0, 122, 255, 0.7),
+      rgba(59, 158, 255, 0.5),
+      transparent
+    );
+    opacity: 0.35;
+    transition: opacity 0.35s ease;
+  }
+
+  .discover-job-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(59, 158, 255, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 16px 48px rgba(0, 40, 100, 0.35),
+      0 0 40px rgba(0, 122, 255, 0.1);
+  }
+
+  .discover-job-card:hover::after {
+    opacity: 1;
+  }
+
+  .discover-job-card--selected {
+    border-color: rgba(59, 158, 255, 0.4);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 0 0 1px rgba(59, 158, 255, 0.15),
+      0 12px 40px rgba(0, 60, 140, 0.3),
+      0 0 48px rgba(0, 122, 255, 0.12);
+  }
+
+  .discover-section-stack > * + * {
+    margin-top: 1.5rem;
+  }
+
+  @media (min-width: 1024px) {
+    .discover-section-stack > * + * {
+      margin-top: 2rem;
+    }
   }
 }

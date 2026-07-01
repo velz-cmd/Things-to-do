@@ -37,14 +37,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MissionModalProvider>
         <Suspense fallback={null}>
           <MissionScopeProvider>
-            <div
-              className={clsx(
-                "relative min-h-screen",
-                isDiscover && "discover-canvas",
-                isDiscover ? "text-slate-800" : "text-white",
-              )}
-            >
-              {!isDiscover && <ResolveBackground variant="app" />}
+            <div className={clsx("relative min-h-screen text-white", isDiscover && "discover-canvas")}>
+              <ResolveBackground variant={isDiscover ? "hero" : "app"} />
               <AppTopNav />
               <MissionScopeBarGate />
               <main className="relative flex-1 overflow-auto">{children}</main>

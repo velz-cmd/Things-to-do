@@ -91,6 +91,5 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/methodology": "/mission",
   "/signals": "/mission",
   "/blueprint": "/mission",
-  "/stack": "/mission",
   "/protocol": "/mission",
 };

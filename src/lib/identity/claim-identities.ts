@@ -52,15 +52,19 @@ export async function resolveClaimIdentities(input: {
   if (wallet) registryOr.push({ walletAddress: wallet });
 
   if (registryOr.length && gh) {
-    const rows = await prisma.contributorRegistry.findMany({
-      where: { OR: registryOr },
-      select: { githubUsername: true },
-    });
+    try {
+      const rows = await prisma.contributorRegistry.findMany({
+        where: { OR: registryOr },
+        select: { githubUsername: true },
+      });
 
-    for (const row of rows) {
-      if (row.githubUsername?.toLowerCase() === gh) {
-        add("github_username", row.githubUsername, `@${row.githubUsername}`);
+      for (const row of rows) {
+        if (row.githubUsername?.toLowerCase() === gh) {
+          add("github_username", row.githubUsername, `@${row.githubUsername}`);
+        }
       }
+    } catch {
+      /* registry unavailable — base identities still valid */
     }
   }
 

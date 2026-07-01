@@ -25,6 +25,7 @@ import { friendlyReceiptStatus } from "@/lib/receipt/copy";
 import type { ProfileEarningsSummary } from "@/lib/earn/summary";
 import type { EarnEligibilityRule } from "@/lib/earn/eligibility-copy";
 import type { EarnReceiptSnippet } from "@/lib/earn/recent-receipts";
+import type { UserWorkStream } from "@/lib/earn/user-eligible-work";
 import type { DiscoverEarnConnector } from "@/lib/earn/discover-types";
 
 type DiscoverEarnPayload = {
@@ -34,6 +35,7 @@ type DiscoverEarnPayload = {
   recentReceipts?: EarnReceiptSnippet[];
   claimUrl?: string | null;
   eligibility: EarnEligibilityRule[];
+  workStreams?: UserWorkStream[];
 };
 
 const DEFAULT_CONNECTORS: DiscoverEarnConnector[] = [
@@ -162,8 +164,14 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
         </div>
       )}
 
-      {!loading && data?.signedIn && earnings && (
+      {!loading && data?.signedIn && (
         <div className="space-y-6">
+          {(data.workStreams?.filter((s) => s.connected).length ?? 0) > 0 && (
+            <WorkStreamsPanel streams={data.workStreams!.filter((s) => s.connected)} />
+          )}
+
+          {earnings ? (
+          <>
           <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-5">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
@@ -264,9 +272,52 @@ export function DiscoverEarnSurface({ signedIn }: DiscoverEarnSurfaceProps) {
               Full claim flow →
             </Link>
           </div>
+          </>
+          ) : (
+            <ConnectorGrid
+              connectors={data.connectors ?? []}
+              onRefreshSync={refreshSync}
+              lastSyncedAt={connections.lastSyncedAt}
+            />
+          )}
+
+          {!earnings && <EligibilityPanel rules={data.eligibility} />}
         </div>
       )}
     </DiscoverPremiumSection>
+  );
+}
+
+function WorkStreamsPanel({ streams }: { streams: UserWorkStream[] }) {
+  return (
+    <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.05] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-200/90">
+        Your connected work
+      </p>
+      <ul className="mt-3 space-y-2">
+        {streams.map((s) => (
+          <li key={s.id} className="flex items-start justify-between gap-3 text-sm">
+            <div>
+              <p className="font-medium text-white">
+                {s.label}
+                {s.displayValue && (
+                  <span className="ml-2 text-xs font-normal text-resolve-muted">{s.displayValue}</span>
+                )}
+              </p>
+              <p className="text-[10px] text-resolve-muted">{s.activityLabel}</p>
+            </div>
+            <span
+              className={clsx(
+                "shrink-0 text-[10px] font-medium",
+                s.meetsEligibility ? "text-emerald-400" : "text-resolve-muted",
+              )}
+            >
+              {s.meetsEligibility ? "Eligible" : "Building"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

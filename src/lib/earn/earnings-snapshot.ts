@@ -3,6 +3,7 @@ import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-e
 import type { User } from "@prisma/client";
 import {
   getProfileEarningsSummary,
+  resolvePayeeIdentities,
   type ProfileEarningsSummary,
   type IdentityEarnings,
 } from "@/lib/earn/summary";
@@ -96,20 +97,56 @@ export async function getProfileEarningsSummaryCached(input: {
   profile: Pick<User, "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress">;
   maxAgeMs?: number;
 }): Promise<ProfileEarningsSummary> {
-  const maxAge = input.maxAgeMs ?? SNAPSHOT_TTL_MS;
   try {
-    const row = await prisma.userEarningsSnapshot.findUnique({
-      where: { userId: input.userId },
-    });
+    const maxAge = input.maxAgeMs ?? SNAPSHOT_TTL_MS;
+    try {
+      const row = await prisma.userEarningsSnapshot.findUnique({
+        where: { userId: input.userId },
+      });
 
-    if (row && Date.now() - row.computedAt.getTime() < maxAge) {
-      return snapshotToSummary(row);
+      if (row && Date.now() - row.computedAt.getTime() < maxAge) {
+        return snapshotToSummary(row);
+      }
+    } catch (e) {
+      if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
     }
-  } catch (e) {
-    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
-  }
 
-  return refreshUserEarningsSnapshot(input.userId, input.profile);
+    return await refreshUserEarningsSnapshot(input.userId, input.profile);
+  } catch (e) {
+    if (isMissingTableError(e) || isPrismaUnavailableError(e)) {
+      return getProfileEarningsSummary({ profile: input.profile }).catch(() =>
+        emptyEarningsSummary(input.profile),
+      );
+    }
+    throw e;
+  }
+}
+
+function emptyEarningsSummary(
+  profile: Pick<
+    User,
+    "githubUsername" | "listenbrainzUsername" | "walletAddress" | "scanWalletAddress"
+  >,
+): ProfileEarningsSummary {
+  return {
+    youEarnedUsd: 0,
+    claimableUsd: 0,
+    authorizedUsd: 0,
+    settledUsd: 0,
+    pendingUsd: 0,
+    authorizationCount: 0,
+    identities: resolvePayeeIdentities(profile).map((i) => ({
+      ...i,
+      claimableUsd: 0,
+      authorizedUsd: 0,
+      settledUsd: 0,
+      verifiedUsd: 0,
+      authorizationCount: 0,
+    })),
+    stalestClaimableAt: null,
+    notifyUrgency: 0,
+    githubLinked: Boolean(profile.githubUsername),
+  };
 }
 
 /** Cron — refresh snapshots for users with recent ledger activity. */

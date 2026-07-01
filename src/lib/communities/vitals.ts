@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { getConnectorLiveStatuses, type ConnectorLiveStatus } from "@/lib/connectors/live-stats";
 import type { CommunitySensorStatus } from "@/lib/sensors/catalog-visibility";
@@ -60,6 +61,7 @@ async function loadSlugAggregates(): Promise<Map<string, SlugAggregate>> {
 
   if (!process.env.DATABASE_URL) return bySlug;
 
+  try {
   const programs = await prisma.resolveProgram.findMany({
     select: {
       missionId: true,
@@ -151,6 +153,10 @@ async function loadSlugAggregates(): Promise<Map<string, SlugAggregate>> {
   }
 
   return bySlug;
+  } catch (e) {
+    if (isMissingTableError(e) || isPrismaUnavailableError(e)) return bySlug;
+    throw e;
+  }
 }
 
 export async function buildCommunityVitals(

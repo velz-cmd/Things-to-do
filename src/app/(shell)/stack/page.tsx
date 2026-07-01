@@ -1,1 +1,5 @@
-export { default } from "@/lib/workspace/legacy-redirect";
+import { ProductionStack } from "@/components/resolve/stack/production-stack";
+
+export default function StackPage() {
+  return <ProductionStack />;
+}

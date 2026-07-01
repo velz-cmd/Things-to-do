@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { discoverAgentServices } from "@/lib/agent/commerce";
 import { isAgentGatewayEnabled } from "@/lib/agent/gateway-config";
 import { describeAgentCommerceFeePath } from "@/lib/agent/fee-path";
+import {
+  PLATFORM_LOOP_TAGLINE,
+  describePlatformRevenueLoop,
+} from "@/lib/economy/platform-loop";
 
 /** Discover pay-per-signal services — agents find, pay, keep moving. */
 export async function GET() {
@@ -9,8 +13,9 @@ export async function GET() {
   const samplePrice = services[0]?.priceUsd ?? 0.001;
   return NextResponse.json({
     ok: true,
-    doctrine:
-      "Find a priced signal → pay USDC on Arc (x402) → mcp.invocation on ledger → mission continues.",
+    tagline: PLATFORM_LOOP_TAGLINE,
+    doctrine: PLATFORM_LOOP_TAGLINE,
+    platformLoop: describePlatformRevenueLoop(samplePrice),
     gatewayEnabled: isAgentGatewayEnabled(),
     services,
     feePath: describeAgentCommerceFeePath(samplePrice),

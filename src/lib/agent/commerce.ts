@@ -11,6 +11,7 @@ import { isProductionDeploy } from "@/lib/config/demo-mode";
 import {
   runX402MicroService,
   x402MicroSlugFromServiceId,
+  X402_MICRO_SERVICES,
   type X402MicroResult,
 } from "@/lib/agent/x402-micro";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
@@ -27,22 +28,27 @@ export type AgentCommerceInvokeResult<T = unknown> = AgentPayResult<T> & {
 
 /** Discover — list pay-per-signal services agents can invoke. */
 export function discoverAgentServices() {
-  return listDiscoverableAgentServices().map((s) => ({
-    id: s.id,
-    name: s.name,
-    tagline: s.tagline,
-    description: s.description,
-    priceUsd: s.priceUsd,
-    billingUnit: s.billingUnit,
-    domain: s.domain,
-    eventType: s.eventType,
-    connectorId: s.connectorId,
-    rfbProgram: s.rfbProgram,
-    examplePrompt: s.examplePrompt,
-    x402: s.urlPath.startsWith("/api/x402/"),
-    ingest: !s.urlPath.startsWith("/api/x402/"),
-    url: resolveServiceUrl(s, getAppBaseUrl()),
-  }));
+  return listDiscoverableAgentServices().map((s) => {
+    const slug = x402MicroSlugFromServiceId(s.id);
+    const micro = slug ? X402_MICRO_SERVICES[slug] : null;
+    return {
+      id: s.id,
+      name: s.name,
+      tagline: s.tagline,
+      description: s.description,
+      priceUsd: s.priceUsd,
+      billingUnit: s.billingUnit,
+      domain: s.domain,
+      eventType: s.eventType,
+      connectorId: s.connectorId,
+      rfbProgram: s.rfbProgram,
+      examplePrompt: s.examplePrompt,
+      deliverables: micro?.deliverables ?? [s.tagline],
+      x402: s.urlPath.startsWith("/api/x402/"),
+      ingest: !s.urlPath.startsWith("/api/x402/"),
+      url: resolveServiceUrl(s, getAppBaseUrl()),
+    };
+  });
 }
 
 /**

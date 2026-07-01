@@ -52,10 +52,23 @@ function eligibilityMet(id: UserWorkStream["id"], count: number, connected: bool
 
 function activityLabel(id: UserWorkStream["id"], count: number): string {
   if (count === 0) return "Synced — waiting for recognized events";
-  if (id === "oss") return `${count} contribution event${count === 1 ? "" : "s"} on ledger`;
+  if (id === "oss") return `${count} verified OSS event${count === 1 ? "" : "s"} on ledger`;
   if (id === "music") return `${count.toLocaleString()} play event${count === 1 ? "" : "s"} recognized`;
   if (id === "video") return `${count.toLocaleString()} watch event${count === 1 ? "" : "s"} recognized`;
   return `${count} citation event${count === 1 ? "" : "s"} recognized`;
+}
+
+/** Hide program-cap authorizations from "your work" — not personal earnings. */
+function isDisplayableRecentItem(row: {
+  amountUsd: number;
+  status: string;
+  eventType: string;
+}): boolean {
+  if (row.amountUsd > 500 && row.status !== "claimable" && row.status !== "settled") {
+    return false;
+  }
+  if (/bootstrap|seed|program_cap|demo/i.test(row.eventType)) return false;
+  return true;
 }
 
 /** Reads connected profile identities + ledger/timeline — surfaces work that maps to earn eligibility. */
@@ -183,7 +196,7 @@ export async function buildUserEligibleWork(input: {
       const domain = domainForEventType(row.eventType);
       if (!domain) continue;
       counts[domain] += 1;
-      if (recent[domain].length < 4) {
+      if (recent[domain].length < 4 && isDisplayableRecentItem(row)) {
         recent[domain].push({
           label: row.contextLabel ?? row.eventType.replace(/_/g, " "),
           amountUsd: row.amountUsd,

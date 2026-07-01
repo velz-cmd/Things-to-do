@@ -4,27 +4,18 @@ import { buildUserEligibleWork } from "@/lib/earn/user-eligible-work";
 
 export const dynamic = "force-dynamic";
 
-/** Connected profile work mapped to earn eligibility — never 500. */
+/** Fast profile work stream for client prefetch — same data as ProfileWorkServer. */
 export async function GET() {
-  const authUser = await getSessionUser();
-  if (!authUser) {
-    return NextResponse.json({ ok: true, signedIn: false, workStreams: [] });
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ ok: true, signedIn: false, streams: [] });
   }
 
   try {
-    const profile = await ensureProfileForUser(authUser);
-    const workStreams = await buildUserEligibleWork({
-      userId: authUser.id,
-      profile,
-    });
-    return NextResponse.json({
-      ok: true,
-      signedIn: true,
-      workStreams,
-      updatedAt: new Date().toISOString(),
-    });
-  } catch (e) {
-    console.error("[profile/work]", e);
-    return NextResponse.json({ ok: true, signedIn: true, workStreams: [], degraded: true });
+    const profile = await ensureProfileForUser(user);
+    const streams = await buildUserEligibleWork({ userId: user.id, profile });
+    return NextResponse.json({ ok: true, signedIn: true, streams });
+  } catch {
+    return NextResponse.json({ ok: true, signedIn: true, streams: [], degraded: true });
   }
 }

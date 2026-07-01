@@ -20,13 +20,25 @@ export type WalletSnapshot = {
 };
 
 export async function apiInstallCommunity(slug: string) {
-  const res = await fetch(`/api/communities/${slug}/install?minimal=1`, {
-    method: "POST",
-    credentials: "include",
-  });
-  const data = await parseJsonResponse<{ error?: string; alreadyInstalled?: boolean }>(res);
-  if (!res.ok) throw new Error(data.error ?? "Install failed");
-  return data;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await fetch(`/api/communities/${slug}/install?minimal=1`, {
+      method: "POST",
+      credentials: "include",
+      signal: controller.signal,
+    });
+    const data = await parseJsonResponse<{ error?: string; alreadyInstalled?: boolean }>(res);
+    if (!res.ok) throw new Error(data.error ?? "Install failed");
+    return data;
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error(`Attach timed out — try again or attach from Communities`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function apiCreateProgram(slug: string, templateId?: string) {

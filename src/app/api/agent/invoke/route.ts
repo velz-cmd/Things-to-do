@@ -6,12 +6,10 @@ import {
   invokeAgentService,
   matchServiceForPrompt,
 } from "@/lib/agent/commerce";
+import { chargeAgentSignalOnArc } from "@/lib/agent/agent-signal-arc-payment";
 import { describeAgentCommerceFeePath } from "@/lib/agent/fee-path";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
-import {
-  assertAgentWalletBalance,
-  chargeUserForAgentSignal,
-} from "@/lib/agent/user-wallet-charge";
+import { isProductionDeploy } from "@/lib/config/demo-mode";
 import type { X402MicroResult } from "@/lib/agent/x402-micro";
 
 type InvokeBody = {
@@ -36,8 +34,7 @@ function buildSummary(
 ): { headline: string; detail: string } {
   const micro = asMicroResult(data);
   if (micro) {
-    const headline =
-      micro.findings?.[0] ?? micro.summary;
+    const headline = micro.findings?.[0] ?? micro.summary;
     const detail =
       micro.recommendations?.[0] ??
       `Service ${micro.service} · ${micro.billingUnit}`;
@@ -74,7 +71,7 @@ function buildExecutionReport(data: unknown) {
   };
 }
 
-/** Invoke a pay-per-signal service — wallet debit + ledger authorization + execution report. */
+/** Invoke a pay-per-signal service — Arc USDC charge first, then intel. No off-chain-only charges in production. */
 export async function POST(req: Request) {
   try {
     return await handleAgentInvoke(req);
@@ -113,18 +110,6 @@ async function handleAgentInvoke(req: Request) {
   const budgetUsd = Math.max(body.maxSpendUsd ?? service.priceUsd ?? 0.05, 0.05);
   const priceUsd = service.priceUsd;
 
-  const balanceCheck = await assertAgentWalletBalance(ready.user.id, priceUsd, { sync: false });
-  if (!balanceCheck.ok) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: balanceCheck.error,
-        wallet: { balanceUsd: balanceCheck.balanceUsd },
-      },
-      { status: 402 },
-    );
-  }
-
   let taskId = body.taskId;
   if (!taskId) {
     const task = await prisma.task.create({
@@ -145,6 +130,49 @@ async function handleAgentInvoke(req: Request) {
     taskId = task.id;
   }
 
+  let payment:
+    | {
+        txHash: string;
+        explorerUrl: string;
+        chargedUsd: number;
+        balanceUsd: number;
+        previousBalanceUsd: number;
+        onChainUsd: number | null;
+      }
+    | undefined;
+
+  if (isProductionDeploy()) {
+    const arcCharge = await chargeAgentSignalOnArc({
+      user: ready.profile,
+      amountUsd: priceUsd,
+      serviceId,
+      taskId,
+    });
+
+    if (!arcCharge.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: arcCharge.error,
+          wallet: {
+            balanceUsd: arcCharge.balanceUsd,
+            onChainUsd: arcCharge.onChainUsd,
+          },
+        },
+        { status: arcCharge.error.includes("Insufficient") ? 402 : 503 },
+      );
+    }
+
+    payment = {
+      txHash: arcCharge.txHash,
+      explorerUrl: arcCharge.explorerUrl,
+      chargedUsd: arcCharge.chargedUsd,
+      balanceUsd: arcCharge.balanceUsd,
+      previousBalanceUsd: arcCharge.previousBalanceUsd,
+      onChainUsd: arcCharge.onChainUsd,
+    };
+  }
+
   const query: Record<string, string> = {};
   const text = body.text ?? body.prompt;
   if (text) query.text = text;
@@ -155,36 +183,22 @@ async function handleAgentInvoke(req: Request) {
     missionId: body.missionId,
     query: Object.keys(query).length ? query : undefined,
     maxSpendUsd: budgetUsd,
+    prepaidArcTxHash: payment?.txHash,
   });
 
-  const succeeded = result.ok || Boolean(result.authorizationId);
-  let wallet:
-    | {
-        chargedUsd: number;
-        balanceUsd: number;
-        previousBalanceUsd: number;
-      }
-    | undefined;
-  let walletError: string | undefined;
+  const succeeded = result.ok && Boolean(result.data);
 
-  if (succeeded && result.amountUsd > 0) {
-    const charge = await chargeUserForAgentSignal({
-      userId: ready.user.id,
-      amountUsd: result.amountUsd,
-      serviceId,
-      serviceName: result.serviceName,
-      taskId,
-      authorizationId: result.authorizationId,
-    });
-    if (charge.ok) {
-      wallet = {
-        chargedUsd: charge.chargedUsd,
-        balanceUsd: charge.balanceUsd,
-        previousBalanceUsd: charge.previousBalanceUsd,
-      };
-    } else {
-      walletError = charge.error;
-    }
+  if (!succeeded) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: result.error ?? "Agent signal failed after payment",
+        payment,
+        taskId,
+        meteringMode: result.meteringMode,
+      },
+      { status: 502 },
+    );
   }
 
   const summary = buildSummary(serviceId, result.data);
@@ -192,12 +206,12 @@ async function handleAgentInvoke(req: Request) {
   const execution = buildExecutionReport(result.data);
 
   return NextResponse.json({
-    ok: succeeded && !walletError,
+    ok: true,
     continue: result.continue,
     serviceId: result.serviceId,
     serviceName: result.serviceName,
     amountUsd: result.amountUsd,
-    txRef: result.txRef,
+    txRef: payment?.txHash ?? result.txRef,
     meteringMode: result.meteringMode,
     authorizationId: result.authorizationId,
     receiptHref: result.authorizationId ? `/receipt/${result.authorizationId}` : null,
@@ -206,9 +220,14 @@ async function handleAgentInvoke(req: Request) {
     summary,
     execution,
     feePath,
-    wallet,
-    walletError,
+    payment,
+    wallet: payment
+      ? {
+          chargedUsd: payment.chargedUsd,
+          balanceUsd: payment.balanceUsd,
+          previousBalanceUsd: payment.previousBalanceUsd,
+        }
+      : undefined,
     taskId,
-    error: walletError ?? result.error,
   });
 }

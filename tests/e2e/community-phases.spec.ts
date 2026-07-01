@@ -259,6 +259,27 @@ test.describe("Community phases — APIs", () => {
     const body = await res.json();
     expect(body.error).toContain("Sign in");
   });
+
+  test("POST /api/communities/react/automations/simulate returns projection", async ({ request }) => {
+    const res = await request.post("/api/communities/react/automations/simulate", {
+      data: {
+        triggerEvent: "docs_merge",
+        authorizeUsd: 25,
+        notifyChannel: "email",
+        sampleEvents: 4,
+      },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.simulation.projectedAuthorizeUsd).toBe(100);
+    expect(body.simulation.eventType).toBe("contribution.merge");
+  });
+
+  test("GET /api/communities/react/automations requires sign-in", async ({ request }) => {
+    const res = await request.get("/api/communities/react/automations");
+    expect(res.status()).toBe(401);
+  });
 });
 
 test.describe("Community phases — surfaces", () => {

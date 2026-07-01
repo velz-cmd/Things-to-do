@@ -1,4 +1,5 @@
 import type { DiscoverAction, TrendingValueGap } from "@/lib/discover/types";
+import type { AutomationTrigger } from "@/lib/automation/types";
 
 /** Cross-cutting opportunity need — orthogonal to domain (oss/music/dao/research). */
 export type DiscoverNeedType =
@@ -121,12 +122,32 @@ function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): st
     artists: { claim: "Claim artist royalties", fund: "Fund royalty pool" },
     researchers: { fund: "Fund citations", connect_sensor: "Connect OpenAlex" },
     grants: { fund: "Fund grant pool", create_program: "Launch QF round" },
-    automation: { analyze: "Run agent", connect_sensor: "Connect sensor rail" },
+    automation: { automate: "Automate", analyze: "Run agent", connect_sensor: "Connect sensor rail" },
   };
   return map[needType]?.[action.kind] ?? action.label;
 }
 
+const TRIGGER_BY_NEED: Partial<Record<DiscoverNeedType, AutomationTrigger>> = {
+  docs: "docs_merge",
+  artists: "play",
+  researchers: "citation",
+  reviewers: "docs_merge",
+  automation: "docs_merge",
+};
+
 function automationAction(needType: DiscoverNeedType, gap: TrendingValueGap): DiscoverAction | null {
+  if (gap.communitySlug) {
+    const trigger = TRIGGER_BY_NEED[needType] ?? "docs_merge";
+    return {
+      id: `automate-${trigger}`,
+      label: "Automate",
+      kind: "automate",
+      communitySlug: gap.communitySlug,
+      templateId: gap.templateId,
+      automationTrigger: trigger,
+    };
+  }
+
   const serviceId = AGENT_SERVICE_BY_NEED[needType];
   if (!serviceId) return null;
   const prompt =
@@ -158,7 +179,7 @@ function reorderActionsForNeedType(
     artists: ["claim", "fund", "create_program"],
     researchers: ["fund", "connect_sensor", "open"],
     grants: ["fund", "create_program", "sponsor"],
-    automation: ["analyze", "connect_sensor", "fund"],
+    automation: ["automate", "analyze", "connect_sensor", "fund"],
   };
 
   const order = priority[needType] ?? ["fund", "create_program", "open"];

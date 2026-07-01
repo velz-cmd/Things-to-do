@@ -16,6 +16,7 @@ import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverValueBubblemap } from "@/components/resolve/discover/discover-value-bubblemap";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
+import { DiscoverCommunityConsoleProvider } from "@/components/resolve/discover/discover-community-console-provider";
 import { DiscoverRadarFeedProvider } from "@/components/resolve/discover/discover-radar-feed-provider";
 import {
   DiscoverActionAuditPanel,
@@ -45,8 +46,10 @@ export function DiscoverSurface() {
     <DiscoverActionAuditProvider>
       <DiscoverRadarFeedProvider>
         <DiscoverActionsProvider signedIn={Boolean(user)}>
-          <DiscoverSurfaceContent user={user} />
-          <DiscoverActionAuditPanel />
+          <DiscoverCommunityConsoleProvider>
+            <DiscoverSurfaceContent user={user} />
+            <DiscoverActionAuditPanel />
+          </DiscoverCommunityConsoleProvider>
         </DiscoverActionsProvider>
       </DiscoverRadarFeedProvider>
     </DiscoverActionAuditProvider>
@@ -130,7 +133,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
       {sectionVisibleForRole("pulse", role) && <DiscoverNetworkPulse className="mb-6" />}
 
       {sectionVisibleForRole("bubblemap", role) && (
-        <DiscoverValueBubblemap className="mb-10" intent={intent} role={role} />
+        <DiscoverValueBubblemap className="mb-10" intent={intent} role={role} signedIn={Boolean(user)} />
       )}
 
       <div className="mb-8 flex flex-wrap gap-2">

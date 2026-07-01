@@ -210,6 +210,39 @@ export function PublicEarnReceipt({ receipt }: { receipt: PublicReceipt }) {
           </div>
         )}
 
+        {receipt.platformFee && (
+          <div className="border-t border-white/[0.06] bg-violet-500/[0.04] px-5 py-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-violet-300/90">
+              {RECEIPT_COPY.platformFee.title}
+            </p>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-resolve-muted">{RECEIPT_COPY.platformFee.signalCost}</dt>
+                <dd>
+                  <Money amount={receipt.platformFee.grossUsd} size="sm" />
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-resolve-muted">
+                  {RECEIPT_COPY.platformFee.resolveFee} ({receipt.platformFee.platformFeeBps / 100}%)
+                </dt>
+                <dd>
+                  <Money amount={receipt.platformFee.platformFeeUsd} size="sm" className="text-violet-300" />
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] pt-2">
+                <dt className="text-resolve-muted">{RECEIPT_COPY.platformFee.netToProvider}</dt>
+                <dd>
+                  <Money amount={receipt.platformFee.netToProviderUsd} size="sm" className="text-emerald-300" />
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-3 text-[11px] leading-relaxed text-resolve-muted-dim">
+              {receipt.platformFee.note}
+            </p>
+          </div>
+        )}
+
         <div className="border-t border-white/[0.06] bg-[#070b12]/60 px-5 py-4">
           <div className="flex items-center gap-2">
             <Receipt className="h-3.5 w-3.5 text-resolve-muted" />

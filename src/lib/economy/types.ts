@@ -106,6 +106,7 @@ export type NetworkArtifactKind =
 
 export type PlatformRevenueStreamId =
   | "settlement_fee"
+  | "x402_agent"
   | "operator_saas"
   | "company_reports"
   | "api_usage"

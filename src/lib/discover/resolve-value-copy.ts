@@ -1,13 +1,29 @@
 /** Human-facing copy — backend stays technical; UI explains why RESOLVE exists. */
 
+import {
+  RESOLVE_DOCTRINE,
+  RESOLVE_EXISTENTIAL_THESIS,
+  RESOLVE_SETTLEMENT_LINE,
+  RESOLVE_WHY_PARAGRAPH,
+} from "@/lib/discover/resolve-doctrine";
+
+export {
+  RESOLVE_DOCTRINE,
+  RESOLVE_EXISTENTIAL_THESIS,
+  RESOLVE_SETTLEMENT_LINE,
+  RESOLVE_WHY_PARAGRAPH,
+  RESOLVE_VALUE_CHAIN,
+  RESOLVE_EMOTIONAL_HOOKS,
+  RESOLVE_ROLE_TRANSFORMATIONS,
+} from "@/lib/discover/resolve-doctrine";
+
 export const VALUE_GRAPH_SUBTITLE =
   "Verified value between communities, creators, and programs — click a bubble to move money or install a rail.";
 
 export const VALUE_GRAPH_FOOTER =
-  "Open source · attaches to communities you already run · Circle settles on Arc";
+  `Open source · attaches to communities you already run · ${RESOLVE_SETTLEMENT_LINE}`;
 
-export const RESOLVE_WHY_ONE_LINER =
-  "We record what is owed when work happens, then route capital from funders to creators — no new platform to join.";
+export const RESOLVE_WHY_ONE_LINER = RESOLVE_EXISTENTIAL_THESIS;
 
 export type ConsoleActionWhy = {
   label: string;
@@ -19,58 +35,58 @@ export const CONSOLE_CREATE_ACTIONS: ConsoleActionWhy[] = [
   {
     label: "Pay maintainers",
     description: "Monthly retainer when merges land",
-    why: "Founders keep builders paid without manual spreadsheets",
+    why: "Millions use your package — merges should automatically become pay",
   },
   {
     label: "Open grant pool",
     description: "Quadratic match for your community",
-    why: "Funders multiply every dollar — DAOs and patrons share leverage",
+    why: "Funders multiply every dollar where proof already exists",
   },
   {
     label: "Docs bounty",
     description: "Reward merged documentation PRs",
-    why: "OSS builders earn when GitHub sensor proves the merge",
+    why: "You merged docs — why shouldn't you automatically get paid?",
   },
   {
     label: "Invite operators",
     description: "Share install link",
-    why: "Grow the community that already uses your upstream tool",
+    why: "Attach beside the tool you already run — no migration",
   },
   {
     label: "Watch health",
     description: "Sensors + live authorizations",
-    why: "Operators see proof before money moves — no blind funding",
+    why: "See proof before capital moves — economic memory compounds",
   },
   {
     label: "Test a rule",
     description: "Simulate spend before going live",
-    why: "Founders preview payroll or bounties without risking capital",
+    why: "Policy executes when proof arrives — preview before going live",
   },
 ];
 
 export const QUICK_ACTION_WHY: Record<string, string> = {
-  fund: "Funder: clear pending obligations where proof already exists",
-  sponsor: "Back this community program — creators earn on verified events",
-  create_program: "Founder: install an RFB rail beside the tool you already run",
-  open: "Operator: connect GitHub, Jellyfin, or ListenBrainz — value starts at the sensor",
-  automate: "Set a rule so authorizations settle without another click",
-  install: "Attach RESOLVE to an existing community — we do not replace your stack",
+  fund: "Fund where the ledger shows a gap — no guessing",
+  sponsor: "Verified events become programmable payments for creators",
+  create_program: "Install a rail beside React or Navidrome — sensors prove work",
+  open: "GitHub, Jellyfin, ListenBrainz already know — connect the payment layer",
+  automate: "Policy runs when proof arrives — no monthly governance debate",
+  install: "Attach to communities you already run — we don't replace your stack",
 };
 
 export function whyForNodeType(type: string): string {
   switch (type) {
     case "repository":
     case "ecosystem":
-      return "OSS · fund docs, security, and maintainer work where GitHub proves impact";
+      return "OSS · millions use your package — merges and docs should automatically earn";
     case "community":
-      return "Existing community · install programs without migrating members";
+      return "Attach RESOLVE beside the community you already run";
     case "creator":
     case "person":
-      return "Creator or maintainer · earn when sensors verify your contribution";
+      return "Your work already creates value upstream — earn when sensors verify it";
     case "mission":
-      return "Program · capital flows here when authorizations clear";
+      return "Signals → proof → capital — Mission decides where money should move";
     case "treasury":
-      return "Treasury · pooled capital waiting to fulfill verified obligations";
+      return "Capital waiting to fulfill verified obligations";
     default:
       return RESOLVE_WHY_ONE_LINER;
   }

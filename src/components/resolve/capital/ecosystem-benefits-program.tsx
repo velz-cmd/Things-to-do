@@ -16,6 +16,7 @@ import { Button } from "@/components/resolve/ui/button";
 import {
   ECOSYSTEM_FAQ,
   ECOSYSTEM_LOOP,
+  ECOSYSTEM_PROGRAM_INTRO,
   ECOSYSTEM_ROLES,
   RFB_PROGRAMS,
   type EcosystemRoleId,
@@ -89,8 +90,7 @@ export function EcosystemBenefitsProgram({
           Everyone benefits — here is your path
         </h2>
         <p className="max-w-3xl text-sm leading-relaxed text-resolve-muted">
-          RESOLVE does not create economies from scratch. It discovers value that already exists
-          upstream, records what is owed, and fulfills when capital arrives. No role is left behind.
+          {ECOSYSTEM_PROGRAM_INTRO}
         </p>
       </div>
 
@@ -99,7 +99,7 @@ export function EcosystemBenefitsProgram({
         <div className="border-b border-white/[0.06] px-5 py-3">
           <p className="text-xs font-medium text-white">The loop — same for every community</p>
         </div>
-        <ol className="grid gap-px bg-white/[0.04] sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="grid gap-px bg-white/[0.04] sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           {ECOSYSTEM_LOOP.map((step) => (
             <li key={step.step} className="bg-[#0a0f18]/80 px-5 py-4">
               <div className="flex items-center gap-2">
@@ -158,6 +158,21 @@ export function EcosystemBenefitsProgram({
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </Link>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
+              Before
+            </p>
+            <p className="mt-1.5 text-sm text-resolve-muted">&ldquo;{role.before}&rdquo;</p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90">
+              After RESOLVE
+            </p>
+            <p className="mt-1.5 text-sm text-white/90">&ldquo;{role.after}&rdquo;</p>
+          </div>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">

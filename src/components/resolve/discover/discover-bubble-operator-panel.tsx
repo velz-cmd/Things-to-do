@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Bot, Eye, Radio, Sparkles, Wallet, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { DiscoverGraphNode } from "@/lib/discover/radar";
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { AutomationTrigger } from "@/lib/automation/types";
@@ -13,11 +13,12 @@ import {
 } from "@/lib/discover/bubble-operator-surface";
 import { DiscoverBubblemapMetrics } from "@/components/resolve/discover/discover-bubblemap-metrics";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
-import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverAutomationRuleBuilder } from "@/components/resolve/discover/discover-automation-rule-builder";
 import { DiscoverCommunityConsoleActions } from "@/components/resolve/discover/discover-community-console-actions";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import type { CommunityConsoleTab } from "@/components/resolve/discover/discover-community-console-provider";
+import { DiscoverInlineActionBar } from "@/components/resolve/discover/discover-inline-action-bar";
+import { actionExecutionTruth, AUTOMATE_TAB } from "@/lib/discover/discover-action-truth";
 import { whyForNodeType } from "@/lib/discover/resolve-value-copy";
 
 export type BubbleOperatorAnchor = {
@@ -36,16 +37,6 @@ type DiscoverBubbleOperatorPanelProps = {
   onClose: () => void;
 };
 
-const ACTION_ICONS: Partial<Record<DiscoverAction["kind"], typeof Wallet>> = {
-  fund: Wallet,
-  sponsor: Sparkles,
-  create_program: Bot,
-  analyze: Eye,
-  automate: Eye,
-  open: Radio,
-  install: Radio,
-};
-
 export function DiscoverBubbleOperatorPanel({
   anchor,
   actions,
@@ -57,7 +48,6 @@ export function DiscoverBubbleOperatorPanel({
   automationTrigger,
   onClose,
 }: DiscoverBubbleOperatorPanelProps) {
-  const { runAction } = useDiscoverActions();
   const { openSignIn } = useSignInModal();
   const [tab, setTab] = useState<CommunityConsoleTab>(initialTab);
 
@@ -137,16 +127,39 @@ export function DiscoverBubbleOperatorPanel({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {node.dataSource && <DiscoverSourceBadge source={node.dataSource} />}
             {node.synthetic && (
-              <span className="rounded border border-white/15 px-1.5 py-0.5 text-[9px] text-resolve-muted">
-                Sensor preview
+              <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-200/90">
+                Preview — not ledger yet
               </span>
             )}
-            {slug && (
-              <span className="text-[10px] text-resolve-muted">
-                {slug} · stays on Discover
+            {!node.synthetic && node.amountVerified && (
+              <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
+                Ledger verified
               </span>
             )}
           </div>
+
+          {actions.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
+                Do this now
+              </p>
+              <DiscoverInlineActionBar
+                actions={actions}
+                signedIn={signedIn}
+                surface="bubble-operator-panel"
+                onAction={(action) => {
+                  if (action.kind === "automate") setTab("automate");
+                  else if (action.kind !== "open") onClose();
+                }}
+                className="mt-2"
+              />
+              {actions[0] && (
+                <p className="mt-2 text-[10px] leading-relaxed text-resolve-muted-dim">
+                  {actionExecutionTruth(actions[0].kind).detail}
+                </p>
+              )}
+            </div>
+          )}
         </header>
 
         <div className="flex border-b border-white/[0.06] px-5">
@@ -154,7 +167,7 @@ export function DiscoverBubbleOperatorPanel({
             Console
           </TabButton>
           <TabButton active={tab === "automate"} onClick={() => setTab("automate")}>
-            Automate
+            {AUTOMATE_TAB.label}
           </TabButton>
           <TabButton active={tab === "advanced"} onClick={() => setTab("advanced")}>
             Advanced
@@ -205,12 +218,17 @@ export function DiscoverBubbleOperatorPanel({
             </div>
           ) : tab === "automate" ? (
             slug ? (
-              <DiscoverAutomationRuleBuilder
+              <div className="space-y-3">
+                <p className="text-xs leading-relaxed text-resolve-muted">
+                  {AUTOMATE_TAB.hint} Arc USDC moves only after a verified sensor event — never on a timer alone.
+                </p>
+                <DiscoverAutomationRuleBuilder
                 communitySlug={slug}
                 signedIn={signedIn}
                 initialTrigger={automationTrigger}
                 onSignIn={openSignIn}
               />
+              </div>
             ) : (
               <p className="text-xs text-resolve-muted">
                 Install a community to create automation rules tied to authorization ingest.
@@ -253,49 +271,6 @@ export function DiscoverBubbleOperatorPanel({
             </div>
           )}
         </div>
-
-        <footer className="border-t border-white/[0.06] px-5 py-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-            Quick actions
-          </p>
-          <div className="mt-2 flex flex-col gap-2">
-            {actions.length ? (
-              actions.map((action) => {
-                const Icon = ACTION_ICONS[action.kind] ?? Sparkles;
-                return (
-                  <button
-                    key={action.id}
-                    type="button"
-                    onClick={() => {
-                      void runAction(action, "bubble-operator-panel");
-                      if (action.kind !== "automate") onClose();
-                    }}
-                    className={clsx(
-                      "flex w-full flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left transition",
-                      action.kind === "fund" || action.kind === "sponsor"
-                        ? "border-amber-500/35 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
-                        : action.kind === "create_program"
-                          ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
-                          : action.kind === "automate"
-                            ? "border-resolve-accent/35 bg-resolve-accent/10 text-white hover:bg-resolve-accent/15"
-                            : "border-white/10 bg-white/[0.04] text-resolve-muted hover:text-white",
-                    )}
-                  >
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium">
-                      <Icon className="h-3.5 w-3.5 shrink-0" />
-                      {action.label}
-                    </span>
-                    {action.reason && (
-                      <span className="text-[10px] leading-snug opacity-80">{action.reason}</span>
-                    )}
-                  </button>
-                );
-              })
-            ) : (
-              <p className="text-xs text-resolve-muted">Select a bubble to fund, claim, or explore a program.</p>
-            )}
-          </div>
-        </footer>
       </aside>
     </>
   );

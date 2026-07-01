@@ -122,7 +122,7 @@ function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): st
     artists: { claim: "Claim artist royalties", fund: "Fund royalty pool" },
     researchers: { fund: "Fund citations", connect_sensor: "Explore research" },
     grants: { fund: "Fund grant pool", create_program: "Launch QF round" },
-    automation: { automate: "Automate", analyze: "Run agent", connect_sensor: "Explore program" },
+    automation: { automate: "Auto-pay rule", analyze: "Run agent", connect_sensor: "Explore program" },
   };
   return map[needType]?.[action.kind] ?? action.label;
 }

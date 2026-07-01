@@ -3,8 +3,8 @@ import type { DiscoverAction, DiscoverActionKind, DiscoverIntent } from "@/lib/d
 const INTENT_ACTIONS: Record<DiscoverIntent, DiscoverActionKind[] | "all"> = {
   earn: ["claim", "share"],
   fund: ["fund", "sponsor"],
-  operate: ["install", "connect_sensor", "create_program"],
-  build: ["create_program", "analyze", "open", "install"],
+  operate: ["install", "connect_sensor", "create_program", "console"],
+  build: ["create_program", "analyze", "open", "install", "console"],
   sponsor: ["sponsor", "fund"],
   all: "all",
 };

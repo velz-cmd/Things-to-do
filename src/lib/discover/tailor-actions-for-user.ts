@@ -31,21 +31,15 @@ export function tailorDiscoverActionsForUser(
     if ((action.kind === "install" || action.kind === "connect_sensor") && installed && slug) {
       return {
         ...action,
-        kind: "open",
-        label: `Open ${communityTitle(slug)}`,
-        href: `/communities/${slug}`,
-        reason: "Already attached — opens your community console",
+        kind: "console",
+        label: `Open ${communityTitle(slug)} console`,
+        href: undefined,
+        reason: "Already attached — opens console on Discover",
       };
     }
 
-    if (action.kind === "install" && state.hasAnyConnector && slug) {
-      return {
-        ...action,
-        kind: "open",
-        label: `Explore ${communityTitle(slug)}`,
-        href: `/communities/${slug}`,
-        reason: "Sources connected — RESOLVE syncs in the background",
-      };
+    if (action.kind === "install" && state.hasAnyConnector && slug && !installed) {
+      return action;
     }
 
     return action;
@@ -59,17 +53,20 @@ export function friendlyDiscoverActionLabelForUser(
   const slug = action.communitySlug;
   if (state?.signedIn && slug && isCommunityInstalled(state, slug)) {
     if (action.kind === "install" || action.kind === "connect_sensor") {
-      return `Open ${communityTitle(slug)}`;
+      return `Open ${communityTitle(slug)} console`;
+    }
+    if (action.kind === "console") {
+      return action.label || `Open ${communityTitle(slug)} console`;
     }
   }
 
   if (action.kind === "install" && state?.hasAnyConnector) {
-    return slug ? `Explore ${communityTitle(slug)}` : "Explore program";
+    return slug ? `Attach ${communityTitle(slug)}` : "Attach community";
   }
 
   const raw = action.label.trim();
   if (/install community/i.test(raw) && state?.hasAnyConnector) {
-    return slug ? `Explore ${communityTitle(slug)}` : "Explore program";
+    return slug ? `Attach ${communityTitle(slug)}` : "Attach community";
   }
 
   return raw;

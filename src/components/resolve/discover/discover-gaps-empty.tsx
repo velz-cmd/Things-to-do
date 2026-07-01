@@ -26,11 +26,7 @@ export function DiscoverGapsEmpty({
       {role === "community" ? (
         <p className="mt-3 text-[11px] text-resolve-muted-dim">
           Gaps is for funders fulfilling authorizations. Your lane is{" "}
-          <span className="text-white">Earnings</span>.
-        </p>
-      ) : role === "all" ? (
-        <p className="mt-3 text-[11px] font-medium text-amber-200/90">
-          Select a job pill above first — Fund, Earn, Run my community, etc.
+          <span className="text-white">Earnings</span> below.
         </p>
       ) : null}
 

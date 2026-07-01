@@ -22,9 +22,8 @@ import {
 } from "@/components/resolve/discover/discover-action-audit-panel";
 import {
   DiscoverWorkspaceNav,
-  defaultLaneForRole,
   laneForJob,
-  laneVisibleForRole,
+  laneSectionId,
   type DiscoverWorkspaceLane,
 } from "@/components/resolve/discover/discover-workspace-nav";
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
@@ -69,7 +68,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   const [query, setQuery] = useState("");
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
   const [role, setRole] = useState<DiscoverRole>("all");
-  const [roleReady, setRoleReady] = useState(false);
   const [activeJob, setActiveJob] = useState<DiscoverJobId | null>(null);
   const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
   const [lane, setLane] = useState<DiscoverWorkspaceLane>("gaps");
@@ -82,16 +80,8 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
     const saved = loadPersistedDiscoverRole();
     if (saved) {
       setRole(saved);
-      setLane(defaultLaneForRole(saved));
     }
-    setRoleReady(true);
   }, []);
-
-  useEffect(() => {
-    if (!laneVisibleForRole(lane, role)) {
-      setLane(defaultLaneForRole(role));
-    }
-  }, [role, lane]);
 
   const effectiveQuery = queueFilter ?? query;
 
@@ -108,7 +98,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         document.querySelector<HTMLInputElement>("#discover-search input")?.focus();
         return;
       }
-      document.getElementById("discover-workspace")?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById(laneSectionId(nextLane))?.scrollIntoView({ behavior: "smooth" });
     });
   }
 
@@ -128,19 +118,10 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
         {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
 
-        <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-3">
-          {roleReady && role === "all" && (
-            <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-100/90">
-              Pick a job above so tabs and actions match you — Fund, Earn, Run community, Grants, etc.
-            </p>
-          )}
-          <DiscoverWorkspaceNav lane={lane} role={role} onLaneChange={setLane} />
+        <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-8">
+          <DiscoverWorkspaceNav lane={lane} onLaneChange={setLane} />
 
-          {lane === "earn" && <DiscoverEarnCompact signedIn={Boolean(user)} />}
-
-          {lane === "signals" && <DiscoverSignalsMissionCta signedIn={Boolean(user)} />}
-
-          {lane === "gaps" && (
+          <div id="discover-lane-gaps" className="scroll-mt-28">
             <DiscoverTrendingGaps
               signedIn={Boolean(user)}
               query={effectiveQuery}
@@ -149,9 +130,9 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
               needType={needType}
               limit={6}
             />
-          )}
+          </div>
 
-          {lane === "radars" && (
+          <div id="discover-lane-radars" className="scroll-mt-28">
             <DiscoverDomainRadars
               signedIn={Boolean(user)}
               query={effectiveQuery}
@@ -159,9 +140,9 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
               role={role}
               needType={needType}
             />
-          )}
+          </div>
 
-          {lane === "board" && (
+          <div id="discover-lane-board" className="scroll-mt-28">
             <DiscoverOpportunityQueue
               signedIn={Boolean(user)}
               query={effectiveQuery}
@@ -169,7 +150,15 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
               role={role}
               needType={needType}
             />
-          )}
+          </div>
+
+          <div id="discover-lane-signals" className="scroll-mt-28">
+            <DiscoverSignalsMissionCta signedIn={Boolean(user)} />
+          </div>
+
+          <div id="discover-lane-earn" className="scroll-mt-28">
+            <DiscoverEarnCompact signedIn={Boolean(user)} />
+          </div>
         </section>
 
         <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">

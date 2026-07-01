@@ -145,7 +145,6 @@ export function DiscoverValueBubblemap({
   signedIn?: boolean;
 }) {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
   const [data, setData] = useState<RadarPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,17 +160,6 @@ export function DiscoverValueBubblemap({
   const [panelContext, setPanelContext] = useState<CommunityConsoleActionContext | undefined>();
   const consoleBridge = useCommunityConsoleOptional();
   const isMobile = useMediaQuery("(max-width: 640px)");
-
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => setVisible(entry.isIntersecting),
-      { rootMargin: "120px", threshold: 0.1 },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
 
   const loadRadar = useCallback(async () => {
     setLoading(true);
@@ -195,29 +183,15 @@ export function DiscoverValueBubblemap({
   }, []);
 
   useEffect(() => {
-    if (!visible) return;
     void loadRadar();
-  }, [visible, loadRadar]);
+  }, [loadRadar]);
 
   const filteredGraph = useMemo(() => {
-    let nodes = data?.graph.nodes ?? [];
-    let edges = data?.graph.edges ?? [];
-
-    if (!data?.live) {
-      const real = nodes.filter((n) => !n.synthetic);
-      if (real.length > 0) {
-        const ids = new Set(real.map((n) => n.id));
-        nodes = real;
-        edges = edges.filter((e) => ids.has(e.from) && ids.has(e.to));
-      } else {
-        nodes = [];
-        edges = [];
-      }
-    }
-
+    const nodes = data?.graph.nodes ?? [];
+    const edges = data?.graph.edges ?? [];
     const byDomain = filterGraphByDomain(nodes, edges, domainFilter);
     return filterGraphByIntent(byDomain.nodes, byDomain.edges, intent);
-  }, [data?.graph.nodes, data?.graph.edges, data?.live, domainFilter, intent]);
+  }, [data?.graph.nodes, data?.graph.edges, domainFilter, intent]);
 
   const bubbles = useMemo(
     () => layoutBubblemap(filteredGraph.nodes),
@@ -238,9 +212,11 @@ export function DiscoverValueBubblemap({
 
   const modeLabel = data?.live
     ? `Live ledger · ${data.ledgerEventCount ?? 0} authorization${(data.ledgerEventCount ?? 0) === 1 ? "" : "s"}`
-    : hasGraph
-      ? "Ledger nodes only — attach communities on Board to grow the graph"
-      : "No ledger nodes yet — fund or attach a program on Board";
+    : data?.hasCatalogPreview
+      ? "Catalog preview + ledger nodes — dashed rings are structural; click for actions"
+      : hasGraph
+        ? "Ledger nodes — attach communities on Board to grow the graph"
+        : "Loading graph — attach a community on Board to add live nodes";
 
   const panelActions = useMemo(() => {
     if (!panel) return [];
@@ -294,7 +270,7 @@ export function DiscoverValueBubblemap({
             ? "Fund & Sponsor move Arc USDC on testnet when you confirm."
             : role === "founder" || role === "operator"
               ? "Install community nodes — sensors sync verified events to the ledger."
-              : "Pick a job above — graph actions match your role."}
+              : "Click any node for actions — Fund, Attach, Observe, Automate."}
       </p>
 
       {hasGraph && (
@@ -395,12 +371,12 @@ export function DiscoverValueBubblemap({
                     <stop
                       offset="0%"
                       stopColor={fill}
-                      stopOpacity={dimmed || synthetic ? 0.2 : 0.95}
+                      stopOpacity={dimmed ? 0.2 : synthetic ? 0.72 : 0.95}
                     />
                     <stop
                       offset="100%"
                       stopColor={fill}
-                      stopOpacity={dimmed || synthetic ? 0.08 : 0.35}
+                      stopOpacity={dimmed ? 0.08 : synthetic ? 0.28 : 0.35}
                     />
                   </radialGradient>
                 );

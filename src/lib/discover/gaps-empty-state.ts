@@ -1,24 +1,28 @@
 import { COMMUNITY_CATALOG, type CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
+import { classifyBoardNeedType } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
+import { boardCommunityActions } from "@/lib/discover/board-actions-for-role";
 
 /** What the Gaps lane shows — funder-facing ranked opportunities. */
 export const GAPS_TAB_INTRO =
-  "For funders: verified work the network already recognizes but nobody has paid yet — maintainer pools, royalty programs, docs bounties, grant rounds, and citation tolls. Move Arc USDC here to fulfill authorizations; creators collect on Earn.";
+  "Verified unfunded work from ledger and sensors — ranked by opportunity score. No attach-first previews mixed in here.";
 
-export const GAPS_TAB_EXAMPLES = [
-  "Docs bounty on a maintainer repo",
-  "Artist royalties from verified plays",
-  "Citation toll on open research",
-  "Security reviewer pool for a commons",
-] as const;
-
-export function gapsEmptyMessage(needType: DiscoverNeedTypeFilter): string {
-  if (needType !== "all") {
-    return `No ${needType} gaps ranked yet. Browse live community programs below — tap Explore to open one in Discover.`;
-  }
-  return "No ranked gaps yet. Explore a community program below — your connected sources sync automatically in the background.";
+export function gapsRoleIntro(role: DiscoverRole): string {
+  const copy: Partial<Record<DiscoverRole, string>> = {
+    funder:
+      "No ledger gaps ranked yet. Attach a community and fund a program — authorizations appear here when sensors sync.",
+    founder:
+      "No gaps yet. Install your community and launch a program — maintainer and play events rank here.",
+    operator:
+      "No gaps yet. Connect sensors on Profile — verified work surfaces automatically.",
+    dao: "No grant or citation gaps yet. Launch a QF round or attach Open Research.",
+    community:
+      "Creators collect on Earnings, not Gaps. Switch to the Earnings tab or connect ListenBrainz on Profile.",
+    all: "Pick a job above (Fund, Earn, Run…) so actions match who you are — then attach one community to unlock ranked gaps.",
+  };
+  return copy[role] ?? copy.all!;
 }
 
 const KIND_BY_NEED: Partial<Record<DiscoverNeedTypeFilter, CommunityCatalogEntry["kind"][]>> = {
@@ -56,19 +60,48 @@ function catalogForContext(input: {
     if (filtered.length) rows = filtered;
   }
 
-  return rows.slice(0, 4);
+  return rows.slice(0, 2);
+}
+
+/** At most two high-value attach actions for empty Gaps — role-specific, not a catalog grid. */
+export function gapsPrimaryActions(input: {
+  needType: DiscoverNeedTypeFilter;
+  role: DiscoverRole;
+}): DiscoverAction[] {
+  const entries = catalogForContext(input);
+  const actions: DiscoverAction[] = [];
+  for (const entry of entries.slice(0, 2)) {
+    const templateId =
+      entry.kind === "music"
+        ? "user-centric-royalties"
+        : entry.kind === "media"
+          ? "video-royalties"
+          : entry.kind === "research"
+            ? "citation-toll"
+            : "docs-bounty";
+    const needType = classifyBoardNeedType({
+      templateId,
+      communitySlug: entry.slug,
+      boardKind: "community",
+      whyFund: entry.tagline,
+      programName: entry.name,
+    });
+    const rowActions = boardCommunityActions(input.role === "all" ? "funder" : input.role, {
+      communitySlug: entry.slug,
+      templateId,
+      needType,
+      communityName: entry.name,
+    });
+    actions.push(...rowActions.slice(0, 1));
+  }
+  return actions.slice(0, 2);
 }
 
 export function gapsExploreActions(input: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
 }): DiscoverAction[] {
-  return catalogForContext(input).map((entry) => ({
-    id: `explore-${entry.slug}`,
-    label: entry.installCta.replace(/^Install on /i, "Explore "),
-    kind: "install" as const,
-    communitySlug: entry.slug,
-  }));
+  return gapsPrimaryActions(input);
 }
 
 export function gapsExploreCommunities(input: {

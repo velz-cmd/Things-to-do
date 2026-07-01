@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Activity,
   ArrowUpRight,
@@ -26,7 +27,10 @@ import { CommunitySensorPanel } from "@/components/resolve/communities/community
 import { CommunityBridgePanel } from "@/components/resolve/communities/community-bridge-panel";
 import { CommunityLiveAuthorizations } from "@/components/resolve/communities/community-live-authorizations";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
+import { CommunityIntentBanner } from "@/components/resolve/communities/community-intent-banner";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { loadPersistedDiscoverRole } from "@/lib/discover/discover-role-persist";
+import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
 import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
@@ -213,10 +217,17 @@ function ProgramCard({
 
 export function CommunityHome({ slug }: { slug: string }) {
   const catalog = getCommunityBySlug(slug);
+  const searchParams = useSearchParams();
+  const pageIntent = searchParams.get("intent");
+  const [discoverRole, setDiscoverRole] = useState<DiscoverRole | null>(null);
   const { state: connections, refreshSync } = useUserConnections();
   const [surface, setSurface] = useState<CommunitySurface | null>(null);
   const [loading, setLoading] = useState(true);
   const [deploying, setDeploying] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDiscoverRole(loadPersistedDiscoverRole());
+  }, []);
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/communities/${slug}`, { credentials: "include" });
@@ -298,6 +309,12 @@ export function CommunityHome({ slug }: { slug: string }) {
         )
       }
     >
+      <CommunityIntentBanner
+        intent={pageIntent}
+        role={discoverRole}
+        catalog={catalog}
+        installed={installed}
+      />
       {!installed ? (
         <div className="max-w-lg space-y-6">
           <InstallResolveCard community={catalog} onInstalled={() => void refresh()} />

@@ -209,7 +209,7 @@ export function DiscoverActionsProvider({
         setBusy(false);
       }
     },
-    [signedIn, router, wallet, ensureProgram, refreshWallet, refreshBalance, reportActionStatus],
+    [signedIn, router, wallet, ensureProgram, refreshWallet, refreshBalance, reportActionStatus, communityConsole],
   );
 
   const openFundSheet = useCallback(
@@ -302,7 +302,7 @@ export function DiscoverActionsProvider({
                   actionContext: "install",
                 });
               } else if (surface !== "community-console" && surface !== "bubble-operator-panel") {
-                router.push(`/communities/${slug}`);
+                router.push(`/communities/${slug}?intent=install`);
               }
             } catch (e) {
               const msg = e instanceof Error ? e.message : "Install failed";

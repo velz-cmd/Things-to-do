@@ -4,18 +4,17 @@ import { useEffect } from "react";
 import clsx from "clsx";
 import type { DiscoverAction, DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
-import { filterActionsByRole } from "@/lib/discover/role-filters";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { formatDiscoverMoney } from "@/lib/discover/money-display";
-import { filterActionsByIntent } from "@/lib/discover/intent-filters";
-import { needTypeBadgeClass, needTypeLabel, stripCreatorClaimActions } from "@/lib/discover/need-types";
+import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
+import { visibleDiscoverActions } from "@/lib/discover/discover-visible-actions";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -48,17 +47,10 @@ export function DiscoverActionCard({
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
-  const byIntent = filterActionsByIntent(gap.actions, intent);
-  const byRole = role !== "all" ? filterActionsByRole(byIntent, role) : byIntent;
-  const funderSafe =
-    surface === "trending-gaps" ||
-    surface === "opportunity-queue" ||
-    surface.startsWith("radar-") ||
-    surface.startsWith("opportunity-board")
-      ? stripCreatorClaimActions(byRole)
-      : byRole;
-  const filtered = funderSafe;
-  const actions = tailorDiscoverActionsForUser(filtered, connections);
+  const actions = tailorDiscoverActionsForUser(
+    visibleDiscoverActions(gap.actions, surface),
+    connections,
+  );
   const needed = formatDiscoverMoney(
     gap.amountNeededUsd,
     gap.amountVerified,
@@ -198,15 +190,19 @@ export function DiscoverActionCard({
       )}
 
       <div className={clsx("flex flex-wrap gap-2", compact ? "mt-2" : "mt-4")}>
-        {actions.map((action, index) => (
-          <ActionChip
-            key={action.id}
-            action={action}
-            primary={index === 0}
-            connections={connections}
-            onClick={() => void runAction(action, surface)}
-          />
-        ))}
+        {actions.length > 0 ? (
+          actions.map((action, index) => (
+            <ActionChip
+              key={`${action.id}-${action.kind}-${index}`}
+              action={action}
+              primary={index === 0}
+              connections={connections}
+              onClick={() => void runAction(action, surface)}
+            />
+          ))
+        ) : (
+          <p className="text-[11px] text-resolve-muted-dim">No actions for this row — refresh or attach a community on Board.</p>
+        )}
       </div>
       </div>
     </DiscoverCapitalCard>

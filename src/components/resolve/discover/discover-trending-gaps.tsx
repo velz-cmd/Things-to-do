@@ -11,6 +11,7 @@ import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { filterGapsByNeedType } from "@/lib/discover/need-types";
 import { sortByOpportunityScore, type OpportunitySortKey } from "@/lib/discover/opportunity-score";
+import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { DiscoverGapsEmpty } from "@/components/resolve/discover/discover-gaps-empty";
 import {
@@ -54,7 +55,7 @@ export function DiscoverTrendingGaps({
           (g.needType?.includes(q) ?? false),
       );
     }
-    return sortByOpportunityScore(rows, sortKey);
+    return sortByOpportunityScore(dedupeTrendingGaps(rows), sortKey);
   }, [feed?.gaps, query, needType, sortKey]);
 
   const subtitle =

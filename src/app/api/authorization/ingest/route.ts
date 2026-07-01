@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { SettlementInputEvent } from "@/lib/authorization/types";
 import { ingestSettlementBatch } from "@/lib/authorization/ledger";
+import { evaluateAutomationOnIngest } from "@/lib/automation/engine";
 
 const eventSchema = z.object({
   connectorId: z.string(),
@@ -32,11 +33,15 @@ export async function POST(req: Request) {
   }
 
   const result = await ingestSettlementBatch(parsed.data.events as SettlementInputEvent[]);
+  const automationFires = await evaluateAutomationOnIngest(
+    parsed.data.events as SettlementInputEvent[],
+  );
   return NextResponse.json({
     missionId: result.missionId,
     authorizationCount: result.count,
     totalAuthorizedUsd: result.totalUsd,
     status: "authorized",
     message: "Settlement pending funding.",
+    automationFires: automationFires.length,
   });
 }

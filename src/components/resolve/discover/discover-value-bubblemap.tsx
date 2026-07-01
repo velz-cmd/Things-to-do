@@ -18,6 +18,11 @@ import {
   DiscoverBubbleOperatorPanel,
   type BubbleOperatorAnchor,
 } from "@/components/resolve/discover/discover-bubble-operator-panel";
+import {
+  useCommunityConsoleOptional,
+  type CommunityConsoleTab,
+} from "@/components/resolve/discover/discover-community-console-provider";
+import type { AutomationTrigger } from "@/lib/automation/types";
 import { DiscoverBubblemapSkeleton } from "@/components/resolve/discover/discover-skeletons";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
@@ -120,10 +125,12 @@ export function DiscoverValueBubblemap({
   className,
   intent = "all",
   role: _role = "all",
+  signedIn = false,
 }: {
   className?: string;
   intent?: DiscoverIntent;
   role?: DiscoverRole;
+  signedIn?: boolean;
 }) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -136,6 +143,9 @@ export function DiscoverValueBubblemap({
   const [expanded, setExpanded] = useState(false);
   const [domainFilter, setDomainFilter] = useState<GraphDomainFilter>("all");
   const [panel, setPanel] = useState<BubbleOperatorAnchor | null>(null);
+  const [panelTab, setPanelTab] = useState<CommunityConsoleTab>("console");
+  const [panelTrigger, setPanelTrigger] = useState<AutomationTrigger | undefined>();
+  const consoleBridge = useCommunityConsoleOptional();
   const isMobile = useMediaQuery("(max-width: 640px)");
 
   useEffect(() => {
@@ -217,8 +227,31 @@ export function DiscoverValueBubblemap({
   }, [panel, data?.graph.edges]);
 
   const handleNodeClick = (b: BubbleNode) => {
+    setPanelTab("console");
+    setPanelTrigger(undefined);
     setPanel({ node: b });
   };
+
+  useEffect(() => {
+    const req = consoleBridge?.request;
+    if (!req) return;
+
+    const existing = data?.graph.nodes.find((n) => n.communitySlug === req.communitySlug);
+    const node =
+      req.node ??
+      existing ?? {
+        id: `community:${req.communitySlug}`,
+        label: req.label ?? req.communitySlug,
+        type: "community" as const,
+        weight: 1,
+        communitySlug: req.communitySlug,
+      };
+
+    setPanelTab(req.tab ?? "automate");
+    setPanelTrigger(req.automationTrigger);
+    setPanel({ node });
+    consoleBridge.clearRequest();
+  }, [consoleBridge, consoleBridge?.request, data?.graph.nodes]);
 
   const sectionBody = (
     <>
@@ -461,6 +494,7 @@ export function DiscoverValueBubblemap({
       {!showFullscreen && (
         <div ref={sectionRef}>
           <DiscoverPremiumSection
+            id="value-bubblemap"
             title="Value command center"
             subtitle={`${modeLabel} · Click any bubble for operator console`}
             className={className}
@@ -497,6 +531,9 @@ export function DiscoverValueBubblemap({
         nodes={data?.graph.nodes ?? []}
         edges={data?.graph.edges ?? []}
         metrics={data?.metrics ?? null}
+        signedIn={signedIn}
+        initialTab={panelTab}
+        automationTrigger={panelTrigger}
         onClose={() => setPanel(null)}
       />
     </>

@@ -123,6 +123,7 @@ model User {
   communityInstalls ResolveCommunityInstall[]
   resolvePrograms   ResolveProgram[]
   communityFundStakes CommunityFundStake[]
+  automationRules   ResolveAutomationRule[]
 }
 
 model WalletTransaction {
@@ -504,6 +505,7 @@ model ResolveCommunityInstall {
   installedAt      DateTime @default(now())
   updatedAt        DateTime @updatedAt
   programs         ResolveProgram[]
+  automationRules  ResolveAutomationRule[]
 
   @@unique([userId, communitySlug])
   @@index([communitySlug])
@@ -530,6 +532,7 @@ model ResolveProgram {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   fundStakes       CommunityFundStake[]
+  automationRules  ResolveAutomationRule[]
 
   @@index([userId])
   @@index([installId])
@@ -555,6 +558,33 @@ model CommunityFundStake {
   @@index([programId])
   @@index([userId])
   @@index([status])
+}
+
+/// One-click automation rule — when sensor event → authorize → notify
+model ResolveAutomationRule {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installId       String
+  install         ResolveCommunityInstall @relation(fields: [installId], references: [id], onDelete: Cascade)
+  programId       String?
+  program         ResolveProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  communitySlug   String
+  name            String
+  triggerEvent    String
+  authorizeUsd    Float
+  notifyChannel   String   @default("email")
+  notifyTarget    String
+  enabled         Boolean  @default(true)
+  lastFiredAt     DateTime?
+  lastFiredMeta   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([installId])
+  @@index([userId])
+  @@index([communitySlug])
+  @@index([enabled])
 }
 
 model ResolveKnowledgeEntry {

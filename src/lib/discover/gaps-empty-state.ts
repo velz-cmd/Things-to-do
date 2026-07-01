@@ -92,6 +92,7 @@ export function gapsPrimaryActions(input: {
       templateId,
       needType,
       communityName: entry.name,
+      installed: false,
     });
     for (const action of rowActions.slice(0, 1)) {
       const key = `${action.kind}:${action.communitySlug}:${action.label}`;

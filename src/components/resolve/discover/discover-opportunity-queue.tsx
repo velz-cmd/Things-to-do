@@ -29,7 +29,10 @@ import { needTypeBadgeClass, needTypeLabel, primaryBoardCtaLabel } from "@/lib/d
 import {
   boardCommunityActions,
   boardSubtitleForRole,
+  boardUseCaseLine,
 } from "@/lib/discover/board-actions-for-role";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { isCommunityInstalled } from "@/lib/profile/connection-state-types";
 import {
   sortByOpportunityScore,
   type OpportunitySortKey,
@@ -58,6 +61,7 @@ export function DiscoverOpportunityQueue({
   className,
 }: DiscoverOpportunityQueueProps) {
   const { executeFund, refreshWallet, busy, wallet } = useDiscoverActions();
+  const { state: connections } = useUserConnections();
   const { feed, refresh: refreshTrending } = useDiscoverRadarFeed();
   const [board, setBoard] = useState<DiscoverBoardItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,6 +211,7 @@ export function DiscoverOpportunityQueue({
       hidden={!showQueue}
       actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}
     >
+      <p className="mb-4 text-[11px] leading-relaxed text-resolve-muted-dim">{boardUseCaseLine(role)}</p>
       {hasVerifiedPrograms && (
         <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
@@ -410,15 +415,17 @@ export function DiscoverOpportunityQueue({
                 {hasVerifiedPrograms ? "Attach to unlock" : "No ledger programs yet — attach a community"}
               </p>
               <p className="mt-1 text-[11px] text-resolve-muted-dim">
-                Catalog communities — not ranked scores. Actions depend on your role ({role === "all" ? "pick a job above" : role}).
+                Not on your ledger yet — attach once, then fund or launch a program. Ranked scores appear on Gaps after sensors sync.
               </p>
               <ul className="mt-3 divide-y divide-white/[0.06]">
                 {exploreFiltered.map((o) => {
-                  const actions = boardCommunityActions(role, {
+                  const installed = isCommunityInstalled(connections, o.communitySlug);
+                  const actions = boardCommunityActions(role === "all" ? "funder" : role, {
                     communitySlug: o.communitySlug,
                     templateId: o.templateId,
                     needType: o.needType,
                     communityName: o.communityName,
+                    installed,
                   });
                   return (
                     <li key={o.programId} className="py-3 first:pt-0 last:pb-0">
@@ -435,7 +442,7 @@ export function DiscoverOpportunityQueue({
                               {needTypeLabel(o.needType)}
                             </span>
                             <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-200/90">
-                              Attach first
+                              {isCommunityInstalled(connections, o.communitySlug) ? "Attached" : "Attach first"}
                             </span>
                           </div>
                           <p className="mt-0.5 text-[11px] text-resolve-muted">{o.communityTagline}</p>

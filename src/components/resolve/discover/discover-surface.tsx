@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
-import { DiscoverSignalsMissionCta } from "@/components/resolve/discover/discover-signals-mission-cta";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
@@ -23,7 +22,6 @@ import {
 import {
   DiscoverWorkspaceNav,
   laneForJob,
-  laneSectionId,
   type DiscoverWorkspaceLane,
 } from "@/components/resolve/discover/discover-workspace-nav";
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
@@ -35,7 +33,7 @@ import {
   persistDiscoverRole,
 } from "@/lib/discover/discover-role-persist";
 
-/** Job-first Discover — workspace lanes first, value graph last. */
+/** Discover — one workspace tab at a time; value graph always below. */
 export function DiscoverSurface() {
   const { user } = useAuth();
   return (
@@ -78,9 +76,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
   useEffect(() => {
     const saved = loadPersistedDiscoverRole();
-    if (saved) {
-      setRole(saved);
-    }
+    if (saved) setRole(saved);
   }, []);
 
   const effectiveQuery = queueFilter ?? query;
@@ -89,8 +85,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
     setActiveJob(jobId);
     setRole(nextRole);
     persistDiscoverRole(nextRole);
-    const nextLane = laneForJob(jobId);
-    setLane(nextLane);
+    setLane(laneForJob(jobId));
 
     window.requestAnimationFrame(() => {
       if (scrollTo === "discover-search") {
@@ -98,7 +93,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         document.querySelector<HTMLInputElement>("#discover-search input")?.focus();
         return;
       }
-      document.getElementById(laneSectionId(nextLane))?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById("discover-workspace")?.scrollIntoView({ behavior: "smooth" });
     });
   }
 
@@ -118,46 +113,42 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
         {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
 
-        <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-8">
+        <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-4">
           <DiscoverWorkspaceNav lane={lane} onLaneChange={setLane} />
 
-          <div id="discover-lane-gaps" className="scroll-mt-28">
-            <DiscoverTrendingGaps
-              signedIn={Boolean(user)}
-              query={effectiveQuery}
-              intent={intent}
-              role={role}
-              needType={needType}
-              limit={6}
-            />
-          </div>
+          <div key={lane} className="min-h-[280px]">
+            {lane === "gaps" && (
+              <DiscoverTrendingGaps
+                signedIn={Boolean(user)}
+                query={effectiveQuery}
+                intent={intent}
+                role={role}
+                needType={needType}
+                limit={6}
+              />
+            )}
 
-          <div id="discover-lane-radars" className="scroll-mt-28">
-            <DiscoverDomainRadars
-              signedIn={Boolean(user)}
-              query={effectiveQuery}
-              intent={intent}
-              role={role}
-              needType={needType}
-            />
-          </div>
+            {lane === "radars" && (
+              <DiscoverDomainRadars
+                signedIn={Boolean(user)}
+                query={effectiveQuery}
+                intent={intent}
+                role={role}
+                needType={needType}
+              />
+            )}
 
-          <div id="discover-lane-board" className="scroll-mt-28">
-            <DiscoverOpportunityQueue
-              signedIn={Boolean(user)}
-              query={effectiveQuery}
-              intent={intent}
-              role={role}
-              needType={needType}
-            />
-          </div>
+            {lane === "board" && (
+              <DiscoverOpportunityQueue
+                signedIn={Boolean(user)}
+                query={effectiveQuery}
+                intent={intent}
+                role={role}
+                needType={needType}
+              />
+            )}
 
-          <div id="discover-lane-signals" className="scroll-mt-28">
-            <DiscoverSignalsMissionCta signedIn={Boolean(user)} />
-          </div>
-
-          <div id="discover-lane-earn" className="scroll-mt-28">
-            <DiscoverEarnCompact signedIn={Boolean(user)} />
+            {lane === "earn" && <DiscoverEarnCompact signedIn={Boolean(user)} />}
           </div>
         </section>
 
@@ -167,11 +158,15 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
         <footer className="discover-on-canvas mt-10 border-t border-resolve-border/30 pt-6">
           <p className="discover-muted mb-3 text-center text-[10px]">
-            Live feed and community consoles live on{" "}
+            All communities · live consoles on{" "}
             <Link href="/communities" className="text-resolve-accent hover:underline">
               Communities
             </Link>{" "}
-            · Full earnings on{" "}
+            · agent intel on{" "}
+            <Link href="/mission" className="text-resolve-accent hover:underline">
+              Mission
+            </Link>{" "}
+            · payouts on{" "}
             <Link href="/capital" className="text-resolve-accent hover:underline">
               Capital
             </Link>
@@ -182,8 +177,8 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           >
             <Link href="/capital">Capital</Link>
             <Link href="/communities">Communities</Link>
+            <Link href="/mission">Mission</Link>
             <Link href="/stack">Stack</Link>
-            <Link href="/program">Program guide</Link>
             <Link href="/claim">Claim</Link>
           </nav>
         </footer>

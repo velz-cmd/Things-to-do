@@ -1,6 +1,12 @@
-import { randomUUID } from "crypto";
 import { getAddress, isAddress } from "viem";
-import { getCircleClient } from "@/lib/settlement/circle-client";
+import {
+  getCircleClient,
+  getCircleClientWithSecret,
+  resetCircleClientCache,
+} from "@/lib/settlement/circle-client";
+import { ensureCircleEntitySecret } from "@/lib/wallet/circle-config";
+import { circleErrorMessage } from "@/lib/wallet/circle-errors";
+import { circleIdempotencyKey, circleIdempotencyKeyRandom } from "@/lib/wallet/circle-idempotency";
 import { ARC_CLIENT_WALLET_ID } from "@/lib/settlement/arc-config";
 import { verifyArcTx } from "@/lib/settlement/arc-verify";
 import {
@@ -10,6 +16,19 @@ import {
 import type { User } from "@prisma/client";
 
 export const ARC_GAS_RESERVE_USD = 0.05;
+
+async function circleClientForTransfers() {
+  const secretResult = await ensureCircleEntitySecret();
+  resetCircleClientCache();
+  const circle = await getCircleClientWithSecret(secretResult.entitySecret);
+  if (!circle) throw new Error("Circle is not configured for Arc transfers");
+  return circle;
+}
+
+function resolveIdempotencyKey(seed?: string): string {
+  if (!seed) return circleIdempotencyKeyRandom();
+  return circleIdempotencyKey(seed);
+}
 
 export async function waitForCircleArcTransfer(
   circle: NonNullable<Awaited<ReturnType<typeof getCircleClient>>>,
@@ -68,26 +87,27 @@ export async function sendUsdcFromUserCircleWallet(input: {
     throw new Error("Agent signals require a Circle-backed RESOLVE wallet with USDC on Arc");
   }
 
-  const circle = await getCircleClient();
-  if (!circle) {
-    throw new Error("Circle is not configured for Arc transfers");
+  const circle = await circleClientForTransfers();
+
+  try {
+    const res = await circle.createTransaction({
+      idempotencyKey: resolveIdempotencyKey(input.idempotencyKey),
+      walletId: circleWalletId,
+      tokenAddress: "",
+      blockchain: "ARC-TESTNET",
+      destinationAddress: destination,
+      amount: [amountUsd.toFixed(6)],
+      fee: { type: "level", config: { feeLevel: "MEDIUM" } },
+    } as never);
+
+    const circleTransactionId = res.data?.id;
+    if (!circleTransactionId) throw new Error("Circle did not return a transaction id");
+
+    const { txHash } = await waitForCircleArcTransfer(circle, circleTransactionId);
+    return { txHash, circleTransactionId };
+  } catch (err) {
+    throw new Error(circleErrorMessage(err));
   }
-
-  const res = await circle.createTransaction({
-    idempotencyKey: input.idempotencyKey ?? randomUUID(),
-    walletId: circleWalletId,
-    tokenAddress: "",
-    blockchain: "ARC-TESTNET",
-    destinationAddress: destination,
-    amount: [amountUsd.toFixed(6)],
-    fee: { type: "level", config: { feeLevel: "MEDIUM" } },
-  } as never);
-
-  const circleTransactionId = res.data?.id;
-  if (!circleTransactionId) throw new Error("Circle did not return a transaction id");
-
-  const { txHash } = await waitForCircleArcTransfer(circle, circleTransactionId);
-  return { txHash, circleTransactionId };
 }
 
 /** Fund a user Circle wallet from the RESOLVE treasury (ARC_CLIENT_WALLET). */
@@ -109,24 +129,25 @@ export async function sendUsdcFromTreasuryCircleWallet(input: {
     throw new Error("Amount must be greater than zero");
   }
 
-  const circle = await getCircleClient();
-  if (!circle) {
-    throw new Error("Circle is not configured for Arc transfers");
+  const circle = await circleClientForTransfers();
+
+  try {
+    const res = await circle.createTransaction({
+      idempotencyKey: resolveIdempotencyKey(input.idempotencyKey),
+      walletId: ARC_CLIENT_WALLET_ID,
+      tokenAddress: "",
+      blockchain: "ARC-TESTNET",
+      destinationAddress: destination,
+      amount: [amountUsd.toFixed(6)],
+      fee: { type: "level", config: { feeLevel: "MEDIUM" } },
+    } as never);
+
+    const circleTransactionId = res.data?.id;
+    if (!circleTransactionId) throw new Error("Circle did not return a transaction id");
+
+    const { txHash } = await waitForCircleArcTransfer(circle, circleTransactionId);
+    return { txHash, circleTransactionId };
+  } catch (err) {
+    throw new Error(circleErrorMessage(err));
   }
-
-  const res = await circle.createTransaction({
-    idempotencyKey: input.idempotencyKey ?? randomUUID(),
-    walletId: ARC_CLIENT_WALLET_ID,
-    tokenAddress: "",
-    blockchain: "ARC-TESTNET",
-    destinationAddress: destination,
-    amount: [amountUsd.toFixed(6)],
-    fee: { type: "level", config: { feeLevel: "MEDIUM" } },
-  } as never);
-
-  const circleTransactionId = res.data?.id;
-  if (!circleTransactionId) throw new Error("Circle did not return a transaction id");
-
-  const { txHash } = await waitForCircleArcTransfer(circle, circleTransactionId);
-  return { txHash, circleTransactionId };
 }

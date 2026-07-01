@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { User } from "@prisma/client";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { RESOLVE_PLATFORM_WALLET } from "@/lib/payment/platform-fee";
+import { circleIdempotencyKey } from "@/lib/wallet/circle-idempotency";
 import { getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 import { upgradeUserToCircleWallet } from "@/lib/wallet/app-wallet-service";
 import { getRealSpendableUsd, syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
@@ -76,7 +77,7 @@ export async function chargeAgentSignalOnArc(input: {
           await sendUsdcFromTreasuryCircleWallet({
             destinationAddress: user.walletAddress,
             amountUsd: topUp,
-            idempotencyKey: `agent-fund-${user.id}-${Math.floor(topUp * 100)}`,
+            idempotencyKey: circleIdempotencyKey(`agent-fund:${user.id}:${topUp.toFixed(2)}`),
           });
         } catch {
           /* treasury top-up optional — user may already have on-chain USDC */
@@ -115,7 +116,7 @@ export async function chargeAgentSignalOnArc(input: {
       user,
       destinationAddress: RESOLVE_PLATFORM_WALLET,
       amountUsd: amount,
-      idempotencyKey: `agent-signal-${input.taskId}-${input.serviceId}`,
+      idempotencyKey: circleIdempotencyKey(`agent-signal:${input.taskId}:${input.serviceId}`),
     });
 
     await prisma.user.update({

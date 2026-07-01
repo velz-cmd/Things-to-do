@@ -26,6 +26,7 @@ import {
 import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-sheet";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
 import { useCommunityConsoleOptional } from "@/components/resolve/discover/discover-community-console-provider";
+import { useAuth } from "@/components/auth/auth-provider";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -63,6 +64,7 @@ export function DiscoverActionsProvider({
 }) {
   const router = useRouter();
   const communityConsole = useCommunityConsoleOptional();
+  const { balance, balanceLoading, refreshBalance } = useAuth();
   const { reportActionStatus } = useDiscoverActionAudit();
   const [wallet, setWallet] = useState<WalletSnapshot>({
     spendableUsd: 0,
@@ -77,13 +79,37 @@ export function DiscoverActionsProvider({
       setWallet({ spendableUsd: 0, totalUsdc: "0", loaded: true });
       return;
     }
+    if (balance) {
+      setWallet({
+        spendableUsd: balance.availableUsd,
+        totalUsdc: String(balance.onChainUsd ?? balance.availableUsd),
+        loaded: true,
+        address: balance.walletAddress,
+      });
+      return;
+    }
     const snap = await apiFetchWallet();
     setWallet(snap);
-  }, [signedIn]);
+  }, [signedIn, balance]);
 
   useEffect(() => {
-    void refreshWallet();
-  }, [refreshWallet]);
+    if (!signedIn) {
+      setWallet({ spendableUsd: 0, totalUsdc: "0", loaded: true });
+      return;
+    }
+    if (balance) {
+      setWallet({
+        spendableUsd: balance.availableUsd,
+        totalUsdc: String(balance.onChainUsd ?? balance.availableUsd),
+        loaded: true,
+        address: balance.walletAddress,
+      });
+      return;
+    }
+    if (!balanceLoading) {
+      void refreshWallet();
+    }
+  }, [signedIn, balance, balanceLoading, refreshWallet]);
 
   const ensureProgram = useCallback(
     async (target: {
@@ -160,6 +186,7 @@ export function DiscoverActionsProvider({
           id: "discover-chain",
         });
         reportActionStatus(surface, auditAction, "success");
+        await refreshBalance().catch(() => null);
         await refreshWallet();
         setFundSheet(null);
       } catch (e) {
@@ -171,7 +198,7 @@ export function DiscoverActionsProvider({
         setBusy(false);
       }
     },
-    [signedIn, router, wallet, ensureProgram, refreshWallet, reportActionStatus],
+    [signedIn, router, wallet, ensureProgram, refreshWallet, refreshBalance, reportActionStatus],
   );
 
   const openFundSheet = useCallback(

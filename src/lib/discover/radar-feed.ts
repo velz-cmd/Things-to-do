@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
-import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
 import { buildNetworkIntelligence } from "@/lib/workspace/intelligence";
 import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
 import { getTreasurySnapshot } from "@/lib/treasury/engine";
@@ -36,6 +36,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
   const sinceToday = startOfToday();
   const skipGithub = process.env.CI === "true";
   const degraded: string[] = [];
+  const gapLimit = Math.min(Math.max(limit, 1), 48);
 
   const defaultDomainRadars = {
     oss: emptyBundle("oss"),
@@ -43,64 +44,61 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
     dao: emptyBundle("dao"),
   };
 
-  const trending = await safeFeedPart(
-    "trending",
-    () => buildTrendingValueGaps(Math.min(Math.max(limit, 1), 48)),
-    { gaps: [], githubScanAt: null, realSignalCount: 0 },
-  );
-  if (!trending.gaps.length && !trending.realSignalCount) {
-    degraded.push("trending");
-  }
+  const [
+    ossOpportunities,
+    fundable,
+    ledger,
+    connectors,
+    eventsToday,
+    treasury,
+  ] = await Promise.all([
+    skipGithub
+      ? Promise.resolve([])
+      : safeFeedPart(
+          "github",
+          () =>
+            withTimeout(cachedScanAllOpportunities(), GITHUB_TIMEOUT_MS, []).catch(() => []),
+          [],
+        ),
+    safeFeedPart("fundable", () => listFundableOpportunities(48), []),
+    safeFeedPart("ledger", () => getGlobalAuthorizationSummary(), null),
+    safeFeedPart("connectors", () => getConnectorLiveStatuses(), []),
+    process.env.DATABASE_URL
+      ? safeFeedPart(
+          "eventsToday",
+          () =>
+            prisma.paymentAuthorization
+              .count({ where: { createdAt: { gte: sinceToday } } })
+              .catch(() => 0),
+          0,
+        )
+      : Promise.resolve(0),
+    safeFeedPart(
+      "treasury",
+      () =>
+        withTimeout(getTreasurySnapshot(), TREASURY_TIMEOUT_MS, null).catch(() => null),
+      null,
+    ),
+  ]);
 
-  const domainRadars = await safeFeedPart("domainRadars", () => buildDomainRadars(), defaultDomainRadars);
-
-  const ledger = await safeFeedPart(
-    "ledger",
-    () => getGlobalAuthorizationSummary(),
-    null,
-  );
-
-  const connectors = await safeFeedPart(
-    "connectors",
-    () => getConnectorLiveStatuses(),
-    [],
-  );
-
-  const ossOpportunities = skipGithub
-    ? []
-    : await safeFeedPart(
-        "github",
-        () =>
-          withTimeout(scanAllOpportunities(), GITHUB_TIMEOUT_MS, []).catch(() => []),
-        [],
-      );
   if (!skipGithub && ossOpportunities.length === 0) {
     degraded.push("github");
   }
 
-  const fundable = await safeFeedPart(
-    "fundable",
-    () => listFundableOpportunities(48),
-    [],
-  );
+  const sharedOpts = { ossOpportunities, fundable };
 
-  const eventsToday = process.env.DATABASE_URL
-    ? await safeFeedPart(
-        "eventsToday",
-        () =>
-          prisma.paymentAuthorization
-            .count({ where: { createdAt: { gte: sinceToday } } })
-            .catch(() => 0),
-        0,
-      )
-    : 0;
+  const [trending, domainRadars] = await Promise.all([
+    safeFeedPart(
+      "trending",
+      () => buildTrendingValueGaps(gapLimit, sharedOpts),
+      { gaps: [], githubScanAt: null, realSignalCount: 0 },
+    ),
+    safeFeedPart("domainRadars", () => buildDomainRadars(sharedOpts), defaultDomainRadars),
+  ]);
 
-  const treasury = await safeFeedPart(
-    "treasury",
-    () =>
-      withTimeout(getTreasurySnapshot(), TREASURY_TIMEOUT_MS, null).catch(() => null),
-    null,
-  );
+  if (!trending.gaps.length && !trending.realSignalCount) {
+    degraded.push("trending");
+  }
 
   const sensorsOnline = connectors.filter(
     (c) => c.health === "healthy" || c.health === "syncing",

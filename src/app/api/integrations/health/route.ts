@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
+import { authorizeCronRequest } from "@/lib/env/cron-secret";
 
-/** Live ping of all external APIs — no secret values returned. */
-export async function GET() {
+/** Operator health panel — live pings all external APIs. Not used on user tab loads. */
+export async function GET(req: Request) {
+  if (process.env.VERCEL_ENV === "production" && !authorizeCronRequest(req)) {
+    return NextResponse.json(
+      { error: "Operator auth required — use Authorization: Bearer CRON_SECRET" },
+      { status: 401 },
+    );
+  }
+
   const health = await runIntegrationHealthCheck();
 
   const coreLive =

@@ -1,24 +1,26 @@
-import { scanAllOpportunities } from "@/lib/github/opportunities";
 import type { FundingOpportunity } from "@/lib/github/types";
+import { readOssOpportunitiesForDiscover } from "@/lib/github/oss-scan-store";
 
-let cached: { data: FundingOpportunity[]; at: number } | null = null;
+let memory: { data: FundingOpportunity[]; at: number; scannedAt: string } | null = null;
 
-/** Shared GitHub scan — one ingest per TTL across radar-feed, trending, radars, board. */
-const OSS_SCAN_TTL_MS = 5 * 60_000;
+/** In-process buffer on top of Postgres OSS scan store (cron-refreshed). */
+const MEMORY_TTL_MS = 60_000;
 
 export async function cachedScanAllOpportunities(): Promise<FundingOpportunity[]> {
-  if (process.env.CI === "true") return [];
-
   const now = Date.now();
-  if (cached && now - cached.at < OSS_SCAN_TTL_MS) {
-    return cached.data;
+  if (memory && now - memory.at < MEMORY_TTL_MS) {
+    return memory.data;
   }
 
-  const data = await scanAllOpportunities().catch(() => []);
-  cached = { data, at: now };
-  return data;
+  const { opportunities, meta } = await readOssOpportunitiesForDiscover();
+  memory = { data: opportunities, at: now, scannedAt: meta.scannedAt };
+  return opportunities;
 }
 
 export function clearOssOpportunityCache() {
-  cached = null;
+  memory = null;
+}
+
+export function lastOssScanAt(): string | null {
+  return memory?.scannedAt ?? null;
 }

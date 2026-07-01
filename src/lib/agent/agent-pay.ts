@@ -42,43 +42,30 @@ export async function recordAgentSpend(input: {
   txHash?: string | null;
   agent?: string;
 }) {
-  await prisma.$transaction(async (tx) => {
-    await tx.microPayment.create({
-      data: {
-        taskId: input.taskId,
-        purpose: input.purpose,
-        amountUsd: input.amountUsd,
-        txHash: input.txHash ?? null,
-      },
-    });
+  // Sequential writes — interactive $transaction blocks on PgBouncer + connection_limit=1.
+  await prisma.microPayment.create({
+    data: {
+      taskId: input.taskId,
+      purpose: input.purpose,
+      amountUsd: input.amountUsd,
+      txHash: input.txHash ?? null,
+    },
+  });
 
-    await tx.executionCostEvent.create({
-      data: {
-        taskId: input.taskId,
-        agent: input.agent ?? "AgentPay",
-        action: input.purpose,
-        amountUsdc: input.amountUsd,
-        meteringMode: input.meteringMode,
-        txHash: input.txHash ?? null,
-      },
-    });
+  await prisma.executionCostEvent.create({
+    data: {
+      taskId: input.taskId,
+      agent: input.agent ?? "AgentPay",
+      action: input.purpose,
+      amountUsdc: input.amountUsd,
+      meteringMode: input.meteringMode,
+      txHash: input.txHash ?? null,
+    },
+  });
 
-    await tx.task.update({
-      where: { id: input.taskId },
-      data: { executionCostUsd: { increment: input.amountUsd } },
-    });
-
-    const settlement = await tx.settlement.findUnique({
-      where: { taskId: input.taskId },
-      select: { executionCostUsdc: true },
-    });
-    if (settlement) {
-      const next = (parseFloat(settlement.executionCostUsdc) + input.amountUsd).toFixed(6);
-      await tx.settlement.update({
-        where: { taskId: input.taskId },
-        data: { executionCostUsdc: next },
-      });
-    }
+  await prisma.task.update({
+    where: { id: input.taskId },
+    data: { executionCostUsd: { increment: input.amountUsd } },
   });
 }
 

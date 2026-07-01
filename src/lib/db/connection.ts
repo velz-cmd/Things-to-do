@@ -46,6 +46,7 @@ export function resolveRawDatabaseUrl(): { key: string; url: string } | null {
 const PRISMA_POOL_PARAMS = {
   pgbouncer: "true",
   connection_limit: "1",
+  pool_timeout: "30",
 } as const;
 
 /** Append Prisma pool params without parsing credentials (safe for special chars in password). */
@@ -199,6 +200,14 @@ export function isDbPoolExhaustedError(error: unknown): boolean {
     message.includes("max clients reached") ||
     message.includes("EMAXCONNSESSION") ||
     message.includes("Too many connections") ||
-    message.includes("connection slots")
+    message.includes("connection slots") ||
+    message.includes("Timed out fetching a new connection from the connection pool")
+  );
+}
+
+export function dbPoolErrorMessage(): string {
+  return (
+    "Database connection pool busy — check Vercel DATABASE_URL uses Supabase transaction pooler " +
+    "(pooler.supabase.com:6543), then Redeploy. Open /api/health/env to verify DATABASE_PRISMA_READY."
   );
 }

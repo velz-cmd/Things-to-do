@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { dbPoolErrorMessage, isDbPoolExhaustedError } from "@/lib/db/connection";
 import { requireReadyUser } from "@/lib/auth/session";
 import {
   invokeAgentService,
@@ -75,6 +76,20 @@ function buildExecutionReport(data: unknown) {
 
 /** Invoke a pay-per-signal service — wallet debit + ledger authorization + execution report. */
 export async function POST(req: Request) {
+  try {
+    return await handleAgentInvoke(req);
+  } catch (e) {
+    if (isDbPoolExhaustedError(e)) {
+      return NextResponse.json(
+        { ok: false, error: dbPoolErrorMessage() },
+        { status: 503 },
+      );
+    }
+    throw e;
+  }
+}
+
+async function handleAgentInvoke(req: Request) {
   const ready = await requireReadyUser();
   if ("error" in ready) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
@@ -98,7 +113,7 @@ export async function POST(req: Request) {
   const budgetUsd = Math.max(body.maxSpendUsd ?? service.priceUsd ?? 0.05, 0.05);
   const priceUsd = service.priceUsd;
 
-  const balanceCheck = await assertAgentWalletBalance(ready.user.id, priceUsd);
+  const balanceCheck = await assertAgentWalletBalance(ready.user.id, priceUsd, { sync: false });
   if (!balanceCheck.ok) {
     return NextResponse.json(
       {

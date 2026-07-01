@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
-import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
+import type { FundingOpportunity } from "@/lib/github/types";
+import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { EntityIds } from "@/lib/domain/entities";
 import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
 import { resolveFundTarget } from "@/lib/discover/fund-target";
@@ -214,18 +216,30 @@ export type TrendingBuildMeta = {
   realSignalCount: number;
 };
 
+export type TrendingBuildOpts = {
+  ossOpportunities?: FundingOpportunity[];
+  fundable?: FundableOpportunity[];
+};
+
 /**
  * Ranked value gaps from live scans + ledger only.
  * Excludes static music/catalog cards without proof.
  */
-export async function buildTrendingValueGaps(limit = 12): Promise<TrendingBuildMeta> {
+export async function buildTrendingValueGaps(
+  limit = 12,
+  opts?: TrendingBuildOpts,
+): Promise<TrendingBuildMeta> {
   const skipGithub = process.env.CI === "true";
   const hasDb = Boolean(process.env.DATABASE_URL);
   const githubScanAt = skipGithub ? null : new Date().toISOString();
 
   const [ossOpportunities, fundable, ledgerRows] = await Promise.all([
-    skipGithub ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
-    listFundableOpportunities(24),
+    opts?.ossOpportunities != null
+      ? Promise.resolve(opts.ossOpportunities)
+      : skipGithub
+        ? Promise.resolve([])
+        : cachedScanAllOpportunities().catch(() => []),
+    opts?.fundable != null ? Promise.resolve(opts.fundable) : listFundableOpportunities(24),
     hasDb
       ? prisma.paymentAuthorization
           .findMany({

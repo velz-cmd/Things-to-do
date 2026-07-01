@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
-import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
+import type { FundingOpportunity } from "@/lib/github/types";
+import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { resolveFundTarget } from "@/lib/discover/fund-target";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import {
@@ -38,8 +40,13 @@ function repoPath(owner: string, repo: string) {
   return `/e/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 }
 
+export type DomainRadarsOpts = {
+  ossOpportunities?: FundingOpportunity[];
+  fundable?: FundableOpportunity[];
+};
+
 /** Build vertical-specific radar bundles — not a filtered trending list. */
-export async function buildDomainRadars(): Promise<{
+export async function buildDomainRadars(opts?: DomainRadarsOpts): Promise<{
   oss: DomainRadarBundle;
   music: DomainRadarBundle;
   dao: DomainRadarBundle;
@@ -48,8 +55,12 @@ export async function buildDomainRadars(): Promise<{
   const hasDb = Boolean(process.env.DATABASE_URL);
 
   const [ossOpportunities, fundable, ledgerRows] = await Promise.all([
-    skipGithub ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
-    listFundableOpportunities(24),
+    opts?.ossOpportunities != null
+      ? Promise.resolve(opts.ossOpportunities)
+      : skipGithub
+        ? Promise.resolve([])
+        : cachedScanAllOpportunities().catch(() => []),
+    opts?.fundable != null ? Promise.resolve(opts.fundable) : listFundableOpportunities(24),
     hasDb
       ? prisma.paymentAuthorization
           .findMany({

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { CONNECTOR_CATALOG } from "@/lib/connectors/types";
 import { INTEGRATIONS } from "@/lib/integrations/config";
-import { runIntegrationHealthCheck } from "@/lib/integrations/health";
+import { getCachedIntegrationHealthCheck } from "@/lib/integrations/health-cache";
 import { isNavidromeConfigured } from "@/lib/integrations/navidrome";
 import { isListenBrainzConfigured } from "@/lib/integrations/listenbrainz";
 
@@ -27,7 +27,7 @@ function startOfToday() {
 
 export async function getConnectorLiveStatuses(): Promise<ConnectorLiveStatus[]> {
   const sinceToday = startOfToday();
-  const health = await runIntegrationHealthCheck();
+  const health = await getCachedIntegrationHealthCheck();
 
   const rows = await prisma.paymentAuthorization
     .groupBy({

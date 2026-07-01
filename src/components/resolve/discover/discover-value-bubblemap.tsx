@@ -194,10 +194,6 @@ export function DiscoverValueBubblemap({
   }, []);
 
   useEffect(() => {
-    void loadRadar();
-  }, [loadRadar]);
-
-  useEffect(() => {
     if (!visible) return;
     void loadRadar();
   }, [visible, loadRadar]);

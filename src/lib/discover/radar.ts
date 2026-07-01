@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
-import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import { domainLabel, domainForConnector } from "@/lib/workspace/domains";
 import { eventTypeLabel, explainRecognition } from "@/lib/workspace/events";
@@ -153,7 +153,7 @@ export async function buildDiscoverRadar(): Promise<DiscoverRadarPayload> {
         },
       })
       .catch(() => []),
-    skipGithubScan ? Promise.resolve([]) : scanAllOpportunities().catch(() => []),
+    skipGithubScan ? Promise.resolve([]) : cachedScanAllOpportunities().catch(() => []),
   ]);
 
   const activity: DiscoverActivityItem[] = [];

@@ -1,6 +1,6 @@
 import { COMMUNITY_CATALOG, type CommunityCatalogEntry } from "@/lib/communities/catalog";
 import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
-import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { templateLabel } from "@/lib/capital/community-yield";
@@ -107,7 +107,7 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
     withTimeout(listFundableOpportunities(32), 18_000, []),
     skipGithub
       ? Promise.resolve([])
-      : withTimeout(scanAllOpportunities().catch(() => []), GITHUB_BOARD_SCAN_MS, []),
+      : withTimeout(cachedScanAllOpportunities().catch(() => []), GITHUB_BOARD_SCAN_MS, []),
   ]);
 
   const items: DiscoverBoardItem[] = dedupeFundablePrograms(programs).map((p) => ({

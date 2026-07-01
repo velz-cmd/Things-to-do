@@ -5,6 +5,12 @@ import type { DiscoverGraphEdge, DiscoverGraphNode } from "./radar";
 import { hasFundingGapEdge } from "./graph-domain";
 import type { DiscoverAction, DiscoverDataSource, DiscoverIntent } from "./types";
 
+import { QUICK_ACTION_WHY } from "@/lib/discover/resolve-value-copy";
+
+function actionReason(kind: DiscoverAction["kind"], extra?: string): string {
+  return extra ?? QUICK_ACTION_WHY[kind] ?? "Move verified value on Arc";
+}
+
 function defaultTemplateForNode(node: DiscoverGraphNode): string {
   if (node.templateId) return node.templateId;
   if (node.graphDomain === "music") return "user-centric-royalties";
@@ -42,6 +48,7 @@ export function bubbleOperatorActions(
       id: "fund",
       label: gapEdge || node.pendingFunding ? "Fund" : "Fund program",
       kind: "fund",
+      reason: actionReason("fund"),
       programId: node.programId,
       communitySlug: slug,
       templateId,
@@ -58,6 +65,7 @@ export function bubbleOperatorActions(
       id: "bounty",
       label: "Start bounty",
       kind: "create_program",
+      reason: actionReason("create_program"),
       communitySlug: slug,
       templateId,
     });
@@ -65,6 +73,7 @@ export function bubbleOperatorActions(
       id: "sponsor",
       label: "Sponsor",
       kind: "sponsor",
+      reason: actionReason("sponsor"),
       communitySlug: slug,
       templateId,
       programId: node.programId,
@@ -74,6 +83,7 @@ export function bubbleOperatorActions(
       id: "observe",
       label: "Observe",
       kind: "open",
+      reason: actionReason("open"),
       href: `/discover#value-bubblemap`,
       communitySlug: slug,
     });
@@ -81,6 +91,7 @@ export function bubbleOperatorActions(
       id: "automate",
       label: "Automate",
       kind: "automate",
+      reason: actionReason("automate"),
       communitySlug: slug,
       automationTrigger: defaultAutomationTriggerForNode(node),
     });

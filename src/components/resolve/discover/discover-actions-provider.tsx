@@ -335,8 +335,10 @@ export function DiscoverActionsProvider({
               router.push(action.entityPath);
               reportActionStatus(surface, action, "success");
             } else if (action.serviceId) {
+              const prompt =
+                action.label ? `Run intel on ${action.label}` : "Run agent signal on this opportunity";
               router.push(
-                `/discover#agent-market?service=${encodeURIComponent(action.serviceId)}`,
+                `/mission?service=${encodeURIComponent(action.serviceId)}&prompt=${encodeURIComponent(prompt)}`,
               );
               reportActionStatus(surface, action, "success");
             }

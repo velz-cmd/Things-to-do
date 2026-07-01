@@ -25,7 +25,7 @@ export async function chargeUserForAgentSignal(input: {
     return { ok: true, chargedUsd: 0, balanceUsd: bal.availableUsd, previousBalanceUsd: bal.availableUsd };
   }
 
-  const spendable = await getRealSpendableUsd(input.userId, { sync: true });
+  const spendable = await getRealSpendableUsd(input.userId);
   if (spendable.availableUsd < amount) {
     return {
       ok: false,
@@ -51,13 +51,12 @@ export async function chargeUserForAgentSignal(input: {
 
   const previousBalanceUsd = spendable.availableUsd;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
+  await prisma.$transaction([
+    prisma.user.update({
       where: { id: input.userId },
       data: { availableUsd: { decrement: amount } },
-    });
-
-    await tx.walletTransaction.create({
+    }),
+    prisma.walletTransaction.create({
       data: {
         userId: input.userId,
         type: "agent_signal",
@@ -66,8 +65,8 @@ export async function chargeUserForAgentSignal(input: {
         status: "completed",
         method: input.authorizationId ? "ledger" : "metered",
       },
-    });
-  });
+    }),
+  ]);
 
   const after = await getRealSpendableUsd(input.userId);
   return {

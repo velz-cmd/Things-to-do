@@ -158,6 +158,7 @@ async function handleAgentInvoke(req: Request) {
   });
 
   const succeeded = result.ok || Boolean(result.authorizationId);
+  const agentCompleted = succeeded && Boolean(result.data);
   let wallet:
     | {
         chargedUsd: number;
@@ -168,22 +169,29 @@ async function handleAgentInvoke(req: Request) {
   let walletError: string | undefined;
 
   if (succeeded && result.amountUsd > 0) {
-    const charge = await chargeUserForAgentSignal({
-      userId: ready.user.id,
-      amountUsd: result.amountUsd,
-      serviceId,
-      serviceName: result.serviceName,
-      taskId,
-      authorizationId: result.authorizationId,
-    });
-    if (charge.ok) {
-      wallet = {
-        chargedUsd: charge.chargedUsd,
-        balanceUsd: charge.balanceUsd,
-        previousBalanceUsd: charge.previousBalanceUsd,
-      };
-    } else {
-      walletError = charge.error;
+    try {
+      const charge = await chargeUserForAgentSignal({
+        userId: ready.user.id,
+        amountUsd: result.amountUsd,
+        serviceId,
+        serviceName: result.serviceName,
+        taskId,
+        authorizationId: result.authorizationId,
+      });
+      if (charge.ok) {
+        wallet = {
+          chargedUsd: charge.chargedUsd,
+          balanceUsd: charge.balanceUsd,
+          previousBalanceUsd: charge.previousBalanceUsd,
+        };
+      } else {
+        walletError = charge.error;
+      }
+    } catch (e) {
+      walletError =
+        isDbPoolExhaustedError(e) ? dbPoolErrorMessage()
+        : e instanceof Error ? e.message
+        : "Wallet charge failed — retry in a few seconds";
     }
   }
 
@@ -193,6 +201,7 @@ async function handleAgentInvoke(req: Request) {
 
   return NextResponse.json({
     ok: succeeded && !walletError,
+    agentCompleted,
     continue: result.continue,
     serviceId: result.serviceId,
     serviceName: result.serviceName,

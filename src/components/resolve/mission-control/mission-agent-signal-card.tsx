@@ -58,6 +58,7 @@ type ExecutionReport = {
 
 type InvokeResult = {
   ok: boolean;
+  agentCompleted?: boolean;
   serviceName?: string;
   amountUsd?: number;
   authorizationId?: string;
@@ -191,6 +192,10 @@ export function MissionAgentSignalCard({
             ? `${formatAgentPrice(data.wallet.chargedUsd)} charged · ${formatAgentPrice(data.wallet.balanceUsd)} remaining`
             : undefined,
         });
+      } else if (data.agentCompleted && data.execution) {
+        toast.warning("Agent finished — wallet charge retry needed", {
+          description: data.walletError ?? data.error,
+        });
       } else {
         toast.error(data.walletError ?? data.error ?? "Agent invoke failed");
       }
@@ -318,17 +323,32 @@ export function MissionAgentSignalCard({
         </>
       )}
 
-      {result && (
+      {result && (() => {
+        const agentRan = Boolean(result.agentCompleted ?? result.execution);
+        const fullSuccess = result.ok;
+        const partial = agentRan && !fullSuccess;
+        return (
         <div
           className={clsx(
             "rounded-xl border px-4 py-4",
-            result.ok ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-rose-500/20 bg-rose-500/[0.04]",
+            fullSuccess ? "border-emerald-500/20 bg-emerald-500/[0.04]"
+            : partial ? "border-amber-500/20 bg-amber-500/[0.04]"
+            : "border-rose-500/20 bg-rose-500/[0.04]",
           )}
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
-                {result.ok ? "Agent execution report" : "Invoke failed"}
+              <p
+                className={clsx(
+                  "text-[10px] font-semibold uppercase tracking-wider",
+                  fullSuccess ? "text-emerald-400/90"
+                  : partial ? "text-amber-300/90"
+                  : "text-rose-400/90",
+                )}
+              >
+                {fullSuccess ? "Agent execution report"
+                  : partial ? "Agent ran — settlement retry needed"
+                  : "Invoke failed"}
               </p>
               <p className="mt-2 text-base font-medium text-white">
                 {result.summary?.headline ?? result.error ?? "No summary"}
@@ -337,10 +357,10 @@ export function MissionAgentSignalCard({
                 <p className="mt-1 text-sm text-resolve-muted">{result.summary.detail}</p>
               )}
             </div>
-            {result.ok && <Sparkles className="h-5 w-5 shrink-0 text-emerald-400" />}
+            {fullSuccess && <Sparkles className="h-5 w-5 shrink-0 text-emerald-400" />}
           </div>
 
-          {result.ok && result.wallet && (
+          {fullSuccess && result.wallet && (
             <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-xs text-emerald-100">
               <span className="font-semibold tabular-nums">
                 −${result.wallet.chargedUsd.toFixed(3)}
@@ -355,7 +375,7 @@ export function MissionAgentSignalCard({
             <p className="mt-2 text-xs text-amber-200">{result.walletError}</p>
           )}
 
-          {result.ok && result.execution && (
+          {agentRan && result.execution && (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {result.execution.steps.length > 0 && (
                 <div>
@@ -404,7 +424,7 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {result.ok && (
+          {(fullSuccess || partial) && (
             <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3 text-xs text-resolve-muted">
               <span>
                 {result.serviceName} · {formatAgentPrice(result.amountUsd ?? 0)}
@@ -422,7 +442,7 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {result.ok && onFollowUp && (
+          {(fullSuccess || partial) && onFollowUp && (
             <div className="mt-4 border-t border-white/[0.06] pt-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
                 Continue in Mission
@@ -442,7 +462,7 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {!result.ok && (
+          {!fullSuccess && (
             <Button
               variant="secondary"
               size="sm"
@@ -450,11 +470,12 @@ export function MissionAgentSignalCard({
               disabled={invoking}
               onClick={() => void runAgent()}
             >
-              Retry
+              {partial ? "Retry wallet charge" : "Retry"}
             </Button>
           )}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

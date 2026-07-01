@@ -5,6 +5,9 @@ import {
   invokeAgentService,
   matchServiceForPrompt,
 } from "@/lib/agent/commerce";
+import { describeAgentCommerceFeePath } from "@/lib/agent/fee-path";
+import { getAgentSignalService } from "@/lib/agent/service-registry";
+import type { X402MicroResult } from "@/lib/agent/x402-micro";
 
 type InvokeBody = {
   serviceId?: string;
@@ -15,6 +18,31 @@ type InvokeBody = {
   maxSpendUsd?: number;
 };
 
+function buildSummary(
+  serviceId: string,
+  data: unknown,
+): { headline: string; detail: string } {
+  const micro = data as X402MicroResult | undefined;
+  if (micro?.summary) {
+    return { headline: micro.summary, detail: `Service ${micro.service} · ${micro.billingUnit}` };
+  }
+  const legacy = data as { sentiment?: string; score?: number; insight?: string } | undefined;
+  if (legacy?.sentiment) {
+    return {
+      headline: `Sentiment ${legacy.sentiment}`,
+      detail: legacy.score != null ? `Score ${Math.round(legacy.score * 100)}%` : "Classified",
+    };
+  }
+  if (legacy?.insight) {
+    return { headline: legacy.insight.slice(0, 120), detail: "Premium research unlock" };
+  }
+  const svc = getAgentSignalService(serviceId);
+  return {
+    headline: svc ? `${svc.name} completed` : "Agent task completed",
+    detail: "Structured signal returned — see payload",
+  };
+}
+
 /** Invoke a pay-per-signal service — x402 pay + ledger authorization. */
 export async function POST(req: Request) {
   const ready = await requireReadyUser();
@@ -24,21 +52,27 @@ export async function POST(req: Request) {
 
   const body = (await req.json()) as InvokeBody;
   let serviceId = body.serviceId;
-  if (!serviceId && body.prompt) {
-    serviceId = matchServiceForPrompt(body.prompt)?.id;
+  const prompt = body.prompt ?? body.text ?? "";
+  if (!serviceId && prompt) {
+    serviceId = matchServiceForPrompt(prompt)?.id;
   }
   if (!serviceId) {
     return NextResponse.json({ error: "serviceId or matching prompt required" }, { status: 400 });
   }
 
+  const service = getAgentSignalService(serviceId);
+  const budgetUsd = Math.max(body.maxSpendUsd ?? service?.priceUsd ?? 0.05, 0.05);
+
   let taskId = body.taskId;
   if (!taskId) {
     const task = await prisma.task.create({
       data: {
-        title: `Agent signal · ${serviceId}`,
+        title: prompt
+          ? `Agent intel · ${prompt.slice(0, 48)}`
+          : `Agent signal · ${serviceId}`,
         category: "agent_commerce",
         targetValueUsd: 1,
-        budgetUsd: Math.max(body.maxSpendUsd ?? 0.05, 0.05),
+        budgetUsd,
         userId: ready.user.id,
         userWallet: ready.profile.walletAddress,
         status: "created",
@@ -50,21 +84,22 @@ export async function POST(req: Request) {
   }
 
   const query: Record<string, string> = {};
-  if (body.text) query.text = body.text;
-  if (body.prompt && serviceId === "sentiment-per-request" && !body.text) {
-    query.text = body.prompt;
-  }
+  const text = body.text ?? body.prompt;
+  if (text) query.text = text;
 
   const result = await invokeAgentService({
     serviceId,
     taskId,
     missionId: body.missionId,
     query: Object.keys(query).length ? query : undefined,
-    maxSpendUsd: body.maxSpendUsd,
+    maxSpendUsd: budgetUsd,
   });
 
+  const summary = buildSummary(serviceId, result.data);
+  const feePath = describeAgentCommerceFeePath(result.amountUsd);
+
   return NextResponse.json({
-    ok: result.ok,
+    ok: result.ok || Boolean(result.authorizationId),
     continue: result.continue,
     serviceId: result.serviceId,
     serviceName: result.serviceName,
@@ -72,8 +107,11 @@ export async function POST(req: Request) {
     txRef: result.txRef,
     meteringMode: result.meteringMode,
     authorizationId: result.authorizationId,
+    receiptHref: result.authorizationId ? `/receipt/${result.authorizationId}` : null,
     rfbProgram: result.rfbProgram,
     data: result.data,
+    summary,
+    feePath,
     taskId,
     error: result.error,
   });

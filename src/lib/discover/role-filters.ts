@@ -11,9 +11,9 @@ export type DiscoverRole =
 
 const ROLE_ACTIONS: Record<DiscoverRole, DiscoverActionKind[] | "all"> = {
   community: ["claim", "share", "open", "install"],
-  funder: ["fund", "sponsor"],
+  funder: ["fund", "sponsor", "analyze"],
   founder: ["create_program", "install", "connect_sensor", "open", "analyze"],
-  operator: ["install", "connect_sensor", "create_program", "open"],
+  operator: ["install", "connect_sensor", "create_program", "open", "analyze"],
   dao: ["fund", "sponsor", "create_program"],
   all: "all",
 };
@@ -53,6 +53,7 @@ export const DISCOVER_ROLES: {
 
 export type DiscoverSectionId =
   | "earn"
+  | "agentMarket"
   | "pulse"
   | "claim"
   | "bubblemap"
@@ -64,9 +65,9 @@ export type DiscoverSectionId =
 
 const ROLE_SECTIONS: Record<DiscoverRole, DiscoverSectionId[] | "all"> = {
   community: ["earn", "pulse", "trending", "radars", "liveFeed", "communities"],
-  funder: ["pulse", "bubblemap", "trending", "opportunities", "liveFeed"],
-  founder: ["pulse", "bubblemap", "trending", "radars", "opportunities", "communities"],
-  operator: ["pulse", "bubblemap", "radars", "liveFeed", "communities"],
+  funder: ["agentMarket", "pulse", "bubblemap", "trending", "opportunities", "liveFeed"],
+  founder: ["agentMarket", "pulse", "bubblemap", "trending", "radars", "opportunities", "communities"],
+  operator: ["agentMarket", "pulse", "bubblemap", "radars", "liveFeed", "communities"],
   dao: ["pulse", "bubblemap", "trending", "radars", "opportunities", "liveFeed"],
   all: "all",
 };
@@ -93,6 +94,7 @@ export function sectionVisibleForRole(section: DiscoverSectionId, role: Discover
 
 /** Default refresh cooldown per surface (ms) — staggered to reduce API pressure. */
 export const SECTION_REFRESH_COOLDOWN_MS: Record<string, number> = {
+  "agent-signal-market": 120_000,
   "earn-surface": 60_000,
   "network-pulse": 60_000,
   "trending-gaps": 90_000,

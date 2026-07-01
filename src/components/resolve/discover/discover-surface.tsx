@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverEarnSurface } from "@/components/resolve/discover/discover-earn-surface";
+import { DiscoverAgentSignalMarket } from "@/components/resolve/discover/discover-agent-signal-market";
 import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
@@ -101,6 +102,10 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
       {sectionVisibleForRole("earn", role) && (
         <DiscoverEarnSurface signedIn={Boolean(user)} />
+      )}
+
+      {sectionVisibleForRole("agentMarket", role) && (
+        <DiscoverAgentSignalMarket signedIn={Boolean(user)} />
       )}
 
       <div id="discover-search" className="scroll-mt-24">

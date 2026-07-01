@@ -9,27 +9,11 @@ import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 export type DiscoverWorkspaceLane = "gaps" | "radars" | "board" | "signals" | "earn";
 
-const ROLE_LANES: Record<DiscoverRole, DiscoverWorkspaceLane[] | "all"> = {
-  community: ["earn", "gaps"],
-  funder: ["gaps", "board", "radars"],
-  founder: ["signals", "radars", "gaps"],
-  operator: ["signals", "radars"],
-  dao: ["radars", "board", "gaps"],
-  all: "all",
-};
-
-export function laneVisibleForRole(lane: DiscoverWorkspaceLane, role: DiscoverRole): boolean {
-  if (role === "all") return true;
-  const allowed = ROLE_LANES[role];
-  if (allowed === "all") return true;
-  return allowed.includes(lane);
+export function laneSectionId(lane: DiscoverWorkspaceLane): string {
+  return `discover-lane-${lane}`;
 }
 
-export function defaultLaneForRole(role: DiscoverRole): DiscoverWorkspaceLane {
-  if (role === "community") return "earn";
-  if (role === "funder") return "gaps";
-  if (role === "founder" || role === "operator") return "signals";
-  if (role === "dao") return "radars";
+export function defaultLaneForRole(_role: DiscoverRole): DiscoverWorkspaceLane {
   return "gaps";
 }
 
@@ -62,32 +46,31 @@ export function laneForJob(jobId: DiscoverJobId | null): DiscoverWorkspaceLane {
 
 export function DiscoverWorkspaceNav({
   lane,
-  role = "all",
   onLaneChange,
 }: {
   lane: DiscoverWorkspaceLane;
-  role?: DiscoverRole;
   onLaneChange: (lane: DiscoverWorkspaceLane) => void;
 }) {
-  const visible = LANES.filter((item) => laneVisibleForRole(item.id, role));
-
   return (
     <DiscoverCapitalCard
       as="nav"
-      className="discover-workspace-nav"
+      className="discover-workspace-nav sticky top-14 z-20"
       padding={false}
       hover={false}
       ariaLabel="Discover workspace"
     >
       <div className="flex flex-wrap gap-1 p-1.5">
-        {visible.map((item) => {
+        {LANES.map((item) => {
           const active = lane === item.id;
           const Icon = item.icon;
           return (
             <button
               key={item.id}
               type="button"
-              onClick={() => onLaneChange(item.id)}
+              onClick={() => {
+                onLaneChange(item.id);
+                document.getElementById(laneSectionId(item.id))?.scrollIntoView({ behavior: "smooth" });
+              }}
               className={clsx(
                 "discover-workspace-tab",
                 `discover-workspace-tab--${item.id}`,

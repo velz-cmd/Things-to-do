@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Money } from "@/components/resolve/ui/money";
 import type { ProfileEarningsSummary } from "@/lib/earn/summary";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
@@ -19,6 +19,7 @@ export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
+    setLoading(true);
     return fetch("/api/earn/discover", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((body: EarnPayload) => setData(body))
@@ -47,11 +48,8 @@ export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-muted-dim">
             How much have I earned?
           </p>
-          {loading ? (
-            <p className="mt-1 flex items-center gap-2 text-xs text-resolve-muted">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading ledger…
-            </p>
+          {loading && !data ? (
+            <p className="mt-1 text-sm text-resolve-muted">Loading ledger…</p>
           ) : !data?.signedIn ? (
             <p className="mt-1 text-xs text-resolve-muted">
               Sign in on Capital to see verified earnings and claim on Arc.

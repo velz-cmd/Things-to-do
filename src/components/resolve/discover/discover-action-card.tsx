@@ -14,6 +14,8 @@ import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -45,8 +47,10 @@ export function DiscoverActionCard({
 }: DiscoverActionCardProps) {
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
+  const { state: connections } = useUserConnections();
   const byIntent = filterActionsByIntent(gap.actions, intent);
-  const actions = role !== "all" ? filterActionsByRole(byIntent, role) : byIntent;
+  const filtered = role !== "all" ? filterActionsByRole(byIntent, role) : byIntent;
+  const actions = tailorDiscoverActionsForUser(filtered, connections);
   const needed = formatDiscoverMoney(
     gap.amountNeededUsd,
     gap.amountVerified,
@@ -191,6 +195,7 @@ export function DiscoverActionCard({
             key={action.id}
             action={action}
             primary={index === 0}
+            connections={connections}
             onClick={() => void runAction(action, surface)}
           />
         ))}
@@ -204,10 +209,12 @@ function ActionChip({
   action,
   primary,
   onClick,
+  connections,
 }: {
   action: DiscoverAction;
   primary?: boolean;
   onClick: () => void;
+  connections: ReturnType<typeof useUserConnections>["state"];
 }) {
   return (
     <button
@@ -219,7 +226,7 @@ function ActionChip({
         `discover-action-btn--${action.kind}`,
       )}
     >
-      {friendlyDiscoverActionLabel(action)}
+      {friendlyDiscoverActionLabel(action, connections)}
     </button>
   );
 }
@@ -237,22 +244,24 @@ export function DiscoverActionChip({
 }) {
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
+  const { state: connections } = useUserConnections();
+  const tailored = tailorDiscoverActionsForUser([action], connections)[0] ?? action;
 
   useEffect(() => {
-    registerVisibleAction(surface, action);
-  }, [action, registerVisibleAction, surface]);
+    registerVisibleAction(surface, tailored);
+  }, [tailored, registerVisibleAction, surface]);
 
   return (
     <button
       type="button"
-      onClick={() => void runAction(action, surface)}
+      onClick={() => void runAction(tailored, surface)}
       className={clsx(
         "discover-action-btn",
         primary ? "discover-action-btn--primary" : "discover-action-btn--secondary",
-        `discover-action-btn--${action.kind}`,
+        `discover-action-btn--${tailored.kind}`,
       )}
     >
-      {friendlyDiscoverActionLabel(action)}
+      {friendlyDiscoverActionLabel(tailored, connections)}
     </button>
   );
 }

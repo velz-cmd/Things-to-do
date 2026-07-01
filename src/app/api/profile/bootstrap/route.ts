@@ -57,10 +57,10 @@ export async function GET() {
         id: "github",
         connected: Boolean(githubUsername),
         displayValue: githubUsername ? `@${githubUsername}` : undefined,
-        hint: githubUsername ? undefined : "Install GitHub to claim code contributions",
+        hint: githubUsername ? undefined : "Connect once on Profile — communities attach automatically",
         health: githubLive?.health,
         eventsToday: githubLive?.eventsToday,
-        authorizeUrl: "/connect/github",
+        authorizeUrl: githubUsername ? undefined : "/connect/github",
       },
       {
         id: "wallet",
@@ -90,16 +90,16 @@ export async function GET() {
         hint:
           jellyfinConnected ?
             undefined
-          : "Install Jellyfin — one click",
-        authorizeUrl: "/connect/jellyfin",
+          : "Optional — connect on Profile once",
+        authorizeUrl: jellyfinConnected ? undefined : "/connect/jellyfin",
       },
       {
         id: "listenbrainz",
         connected: listenbrainzConnected,
         displayValue:
           profile.listenbrainzUsername ? `@${profile.listenbrainzUsername}` : undefined,
-        hint: listenbrainzConnected ? undefined : "Install MusicBrainz — one click",
-        authorizeUrl: "/connect/listenbrainz",
+        hint: listenbrainzConnected ? undefined : "Connect once on Profile — music communities attach automatically",
+        authorizeUrl: listenbrainzConnected ? undefined : "/connect/listenbrainz",
       },
       {
         id: "gmail",

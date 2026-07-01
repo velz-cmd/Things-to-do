@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import type { DiscoverGraphNode } from "@/lib/discover/radar";
 import type { ProgramTemplateId } from "@/lib/communities/catalog";
+import { CONSOLE_CREATE_ACTIONS } from "@/lib/discover/resolve-value-copy";
 
 type ConsoleActionId =
   | "payroll"
@@ -25,55 +26,25 @@ type ConsoleActionId =
   | "observe"
   | "simulate";
 
-const ACTIONS: {
-  id: ConsoleActionId;
-  label: string;
-  icon: typeof Coins;
-  templateId: ProgramTemplateId;
-  description: string;
-}[] = [
-  {
-    id: "payroll",
-    label: "Create payroll",
-    icon: Users,
-    templateId: "security-fund",
-    description: "Maintainer retainer program",
-  },
-  {
-    id: "grant",
-    label: "Create grant",
-    icon: Gift,
-    templateId: "quadratic-funding",
-    description: "QF match pool",
-  },
-  {
-    id: "bounty",
-    label: "Create bounty",
-    icon: ScrollText,
-    templateId: "docs-bounty",
-    description: "Docs merge rewards",
-  },
-  {
-    id: "invite",
-    label: "Invite",
-    icon: Mail,
-    templateId: "docs-bounty",
-    description: "Share install link",
-  },
-  {
-    id: "observe",
-    label: "Observe",
-    icon: Eye,
-    templateId: "docs-bounty",
-    description: "Health + live authorizations",
-  },
-  {
-    id: "simulate",
-    label: "Simulate",
-    icon: Play,
-    templateId: "docs-bounty",
-    description: "Project rule spend",
-  },
+const ACTION_META: Record<
+  ConsoleActionId,
+  { icon: typeof Coins; templateId: ProgramTemplateId }
+> = {
+  payroll: { icon: Users, templateId: "security-fund" },
+  grant: { icon: Gift, templateId: "quadratic-funding" },
+  bounty: { icon: ScrollText, templateId: "docs-bounty" },
+  invite: { icon: Mail, templateId: "docs-bounty" },
+  observe: { icon: Eye, templateId: "docs-bounty" },
+  simulate: { icon: Play, templateId: "docs-bounty" },
+};
+
+const ACTION_IDS: ConsoleActionId[] = [
+  "payroll",
+  "grant",
+  "bounty",
+  "invite",
+  "observe",
+  "simulate",
 ];
 
 type Props = {
@@ -89,8 +60,9 @@ export function DiscoverCommunityConsoleActions({
   onObserve,
   onSimulate,
 }: Props) {
-  const { runAction, busy } = useDiscoverActions();
+  const { runAction } = useDiscoverActions();
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [pendingId, setPendingId] = useState<ConsoleActionId | null>(null);
   const slug = node.communitySlug;
 
   if (!slug) {
@@ -102,11 +74,12 @@ export function DiscoverCommunityConsoleActions({
   }
 
   async function handleAction(id: ConsoleActionId) {
-    const def = ACTIONS.find((a) => a.id === id)!;
+    const def = CONSOLE_CREATE_ACTIONS[ACTION_IDS.indexOf(id)];
+    const meta = ACTION_META[id];
     const origin = typeof window !== "undefined" ? window.location.origin : "";
 
-    switch (id) {
-      case "invite": {
+    if (id === "invite" || id === "observe" || id === "simulate") {
+      if (id === "invite") {
         const url = `${origin}/discover?community=${slug}`;
         try {
           await navigator.clipboard.writeText(url);
@@ -118,30 +91,34 @@ export function DiscoverCommunityConsoleActions({
         }
         return;
       }
-      case "observe":
+      if (id === "observe") {
         onObserve?.();
         return;
-      case "simulate":
-        onSimulate?.();
-        return;
-      case "payroll":
-      case "grant":
-      case "bounty":
-        if (!signedIn) {
-          toast.error("Sign in to create programs");
-          return;
-        }
-        await runAction(
-          {
-            id: `console-${id}`,
-            label: def.label,
-            kind: "create_program",
-            communitySlug: slug,
-            templateId: def.templateId,
-          },
-          "community-console",
-        );
-        break;
+      }
+      onSimulate?.();
+      return;
+    }
+
+    if (!signedIn) {
+      toast.error("Sign in to create programs");
+      return;
+    }
+
+    setPendingId(id);
+    try {
+      await runAction(
+        {
+          id: `console-${id}`,
+          label: def.label,
+          kind: "create_program",
+          reason: def.why,
+          communitySlug: slug,
+          templateId: meta.templateId,
+        },
+        "community-console",
+      );
+    } finally {
+      setPendingId(null);
     }
   }
 
@@ -151,38 +128,40 @@ export function DiscoverCommunityConsoleActions({
         Create · operate
       </p>
       <div className="grid grid-cols-2 gap-2">
-        {ACTIONS.map((action) => {
-          const Icon = action.icon;
-          const isInvite = action.id === "invite" && inviteCopied;
+        {ACTION_IDS.map((id, index) => {
+          const def = CONSOLE_CREATE_ACTIONS[index];
+          const Icon = ACTION_META[id].icon;
+          const loading = pendingId === id;
+          const isInvite = id === "invite" && inviteCopied;
           return (
             <button
-              key={action.id}
+              key={id}
               type="button"
-              disabled={busy}
-              onClick={() => void handleAction(action.id)}
+              disabled={pendingId !== null && !loading}
+              onClick={() => void handleAction(id)}
+              title={def.why}
               className={clsx(
-                "flex flex-col items-start gap-1 rounded-xl border px-3 py-2.5 text-left transition",
-                action.id === "bounty" || action.id === "grant"
+                "flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition",
+                id === "bounty" || id === "grant"
                   ? "border-emerald-500/25 bg-emerald-500/[0.06] hover:bg-emerald-500/10"
                   : "border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.05]",
+                pendingId !== null && !loading && "opacity-50",
               )}
             >
               <span className="flex items-center gap-1.5 text-[11px] font-medium text-white">
-                {busy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {loading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-resolve-accent" />
                 ) : (
                   <Icon className="h-3.5 w-3.5 text-resolve-accent" />
                 )}
-                {isInvite ? "Copied!" : action.label}
+                {isInvite ? "Copied!" : def.label}
               </span>
-              <span className="text-[10px] text-resolve-muted">{action.description}</span>
+              <span className="text-[10px] text-resolve-muted">{def.description}</span>
+              <span className="text-[9px] leading-snug text-resolve-muted-dim">{def.why}</span>
             </button>
           );
         })}
       </div>
-      <p className="text-[10px] text-resolve-muted-dim">
-        Programs stay on Discover — no tab hopping to /communities.
-      </p>
     </div>
   );
 }

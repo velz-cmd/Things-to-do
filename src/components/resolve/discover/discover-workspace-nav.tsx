@@ -1,17 +1,24 @@
 "use client";
 
 import clsx from "clsx";
+import { Activity, Coins, LayoutGrid, Radar, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 export type DiscoverWorkspaceLane = "gaps" | "radars" | "board" | "signals" | "earn";
 
-const LANES: { id: DiscoverWorkspaceLane; label: string; roles: DiscoverRole[] | "all" }[] = [
-  { id: "gaps", label: "Gaps", roles: "all" },
-  { id: "radars", label: "Radars", roles: ["community", "founder", "operator", "dao", "all"] },
-  { id: "board", label: "Board", roles: ["funder", "founder", "dao", "all"] },
-  { id: "signals", label: "Signals", roles: ["founder", "operator", "funder", "all"] },
-  { id: "earn", label: "Earnings", roles: ["community", "all"] },
+const LANES: {
+  id: DiscoverWorkspaceLane;
+  label: string;
+  icon: LucideIcon;
+  roles: DiscoverRole[] | "all";
+}[] = [
+  { id: "gaps", label: "Gaps", icon: Zap, roles: "all" },
+  { id: "radars", label: "Radars", icon: Radar, roles: ["community", "founder", "operator", "dao", "all"] },
+  { id: "board", label: "Board", icon: LayoutGrid, roles: ["funder", "founder", "dao", "all"] },
+  { id: "signals", label: "Signals", icon: Activity, roles: ["founder", "operator", "funder", "all"] },
+  { id: "earn", label: "Earnings", icon: Coins, roles: ["community", "all"] },
 ];
 
 const JOB_LANE: Record<DiscoverJobId, DiscoverWorkspaceLane> = {
@@ -43,25 +50,23 @@ export function DiscoverWorkspaceNav({
   });
 
   return (
-    <nav
-      className="flex flex-wrap gap-1 rounded-xl border border-resolve-border/50 bg-black/20 p-1"
-      aria-label="Discover workspace"
-    >
+    <nav className="discover-workspace-nav" aria-label="Discover workspace">
       {visible.map((item) => {
         const active = lane === item.id;
+        const Icon = item.icon;
         return (
           <button
             key={item.id}
             type="button"
             onClick={() => onLaneChange(item.id)}
             className={clsx(
-              "rounded-lg px-3 py-1.5 text-[11px] font-medium transition",
-              active
-                ? "bg-resolve-accent/20 text-white ring-1 ring-resolve-accent/30"
-                : "text-resolve-muted hover:bg-white/[0.04] hover:text-white",
+              "discover-workspace-tab",
+              `discover-workspace-tab--${item.id}`,
+              active && "discover-workspace-tab--active",
             )}
           >
-            {item.label}
+            <Icon className="discover-workspace-tab__icon" strokeWidth={1.75} />
+            <span>{item.label}</span>
           </button>
         );
       })}

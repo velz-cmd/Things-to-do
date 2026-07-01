@@ -36,7 +36,7 @@ export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
   return (
     <div
       id="earn"
-      className="scroll-mt-24 rounded-xl border border-white/[0.08] bg-black/25 px-4 py-3"
+      className="discover-earn-strip scroll-mt-24 rounded-xl border border-white/[0.1] bg-gradient-to-r from-emerald-500/[0.06] via-black/30 to-resolve-accent/[0.04] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
@@ -73,14 +73,14 @@ export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
           {claimable > 0 && (
             <Link
               href={data?.claimUrl ?? "/claim"}
-              className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-[11px] font-medium text-emerald-200 hover:bg-emerald-500/25"
+              className="discover-action-btn discover-action-btn--primary discover-action-btn--fund"
             >
               Claim
             </Link>
           )}
           <Link
             href="/capital"
-            className="inline-flex items-center gap-1 rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5 text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15"
+            className="discover-action-btn discover-action-btn--primary discover-action-btn--install inline-flex items-center gap-1"
           >
             Open on Capital
             <ArrowRight className="h-3 w-3" />

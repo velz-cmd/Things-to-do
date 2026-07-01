@@ -85,10 +85,8 @@ export function DiscoverSectionRefresh({
             : `${label} (${formatCooldown(cooldown)} cooldown)`
         }
         className={clsx(
-          "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-medium transition",
-          disabled
-            ? "cursor-not-allowed border-white/5 text-resolve-muted-dim"
-            : "border-white/10 text-resolve-muted hover:border-resolve-accent/30 hover:text-resolve-accent",
+          "discover-toolbar-btn",
+          disabled && "discover-toolbar-btn--disabled",
         )}
       >
         {busy ? (

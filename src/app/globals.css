@@ -797,8 +797,411 @@ html.discover-route body {
   }
 
   .discover-job-pill--selected {
-    border-color: rgba(59, 158, 255, 0.4);
-    background: rgba(59, 158, 255, 0.1);
     box-shadow: 0 0 24px rgba(0, 122, 255, 0.1);
+  }
+
+  /* Job pills — per-role accent */
+  .discover-job-pill {
+    position: relative;
+    overflow: hidden;
+    border-color: rgba(100, 160, 255, 0.14);
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 40%,
+      rgba(6, 14, 32, 0.65) 100%
+    );
+    backdrop-filter: blur(12px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  .discover-job-pill::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+
+  .discover-job-pill:hover {
+    transform: translateY(-2px);
+  }
+
+  .discover-job-pill--earn::before {
+    background: radial-gradient(circle at 20% 0%, rgba(52, 211, 153, 0.18), transparent 55%);
+  }
+  .discover-job-pill--fund::before {
+    background: radial-gradient(circle at 20% 0%, rgba(96, 165, 250, 0.18), transparent 55%);
+  }
+  .discover-job-pill--run::before {
+    background: radial-gradient(circle at 20% 0%, rgba(167, 139, 250, 0.18), transparent 55%);
+  }
+  .discover-job-pill--observe::before {
+    background: radial-gradient(circle at 20% 0%, rgba(45, 212, 191, 0.18), transparent 55%);
+  }
+  .discover-job-pill--grants::before {
+    background: radial-gradient(circle at 20% 0%, rgba(251, 191, 36, 0.18), transparent 55%);
+  }
+  .discover-job-pill--find::before {
+    background: radial-gradient(circle at 20% 0%, rgba(59, 158, 255, 0.18), transparent 55%);
+  }
+
+  .discover-job-pill:hover::before,
+  .discover-job-pill--selected::before {
+    opacity: 1;
+  }
+
+  .discover-job-pill--earn.discover-job-pill--selected {
+    border-color: rgba(52, 211, 153, 0.4);
+    box-shadow: 0 0 28px rgba(52, 211, 153, 0.12);
+  }
+  .discover-job-pill--fund.discover-job-pill--selected {
+    border-color: rgba(96, 165, 250, 0.4);
+    box-shadow: 0 0 28px rgba(96, 165, 250, 0.12);
+  }
+  .discover-job-pill--run.discover-job-pill--selected {
+    border-color: rgba(167, 139, 250, 0.4);
+    box-shadow: 0 0 28px rgba(167, 139, 250, 0.12);
+  }
+  .discover-job-pill--observe.discover-job-pill--selected {
+    border-color: rgba(45, 212, 191, 0.4);
+    box-shadow: 0 0 28px rgba(45, 212, 191, 0.12);
+  }
+  .discover-job-pill--grants.discover-job-pill--selected {
+    border-color: rgba(251, 191, 36, 0.4);
+    box-shadow: 0 0 28px rgba(251, 191, 36, 0.12);
+  }
+  .discover-job-pill--find.discover-job-pill--selected {
+    border-color: rgba(59, 158, 255, 0.4);
+    box-shadow: 0 0 28px rgba(0, 122, 255, 0.12);
+  }
+
+  .discover-job-pill__icon {
+    transition: box-shadow 0.3s ease;
+  }
+
+  .discover-job-pill--selected .discover-job-pill__icon {
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+  }
+
+  /* Workspace lane tabs */
+  .discover-workspace-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.35rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(100, 160, 255, 0.14);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(0, 0, 0, 0.28) 100%
+    );
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .discover-workspace-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 0.65rem;
+    border: 1px solid transparent;
+    padding: 0.45rem 0.75rem;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--resolve-muted);
+    transition:
+      color 0.25s ease,
+      background 0.25s ease,
+      border-color 0.25s ease,
+      box-shadow 0.25s ease,
+      transform 0.25s ease;
+  }
+
+  .discover-workspace-tab:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .discover-workspace-tab__icon {
+    width: 0.8rem;
+    height: 0.8rem;
+    opacity: 0.75;
+  }
+
+  .discover-workspace-tab--active {
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  .discover-workspace-tab--active .discover-workspace-tab__icon {
+    opacity: 1;
+  }
+
+  .discover-workspace-tab--gaps.discover-workspace-tab--active {
+    border-color: rgba(251, 191, 36, 0.35);
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(251, 191, 36, 0.06));
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.1);
+  }
+  .discover-workspace-tab--radars.discover-workspace-tab--active {
+    border-color: rgba(167, 139, 250, 0.35);
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.16), rgba(167, 139, 250, 0.06));
+    box-shadow: 0 0 20px rgba(167, 139, 250, 0.1);
+  }
+  .discover-workspace-tab--board.discover-workspace-tab--active {
+    border-color: rgba(96, 165, 250, 0.35);
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.16), rgba(96, 165, 250, 0.06));
+    box-shadow: 0 0 20px rgba(96, 165, 250, 0.1);
+  }
+  .discover-workspace-tab--signals.discover-workspace-tab--active {
+    border-color: rgba(45, 212, 191, 0.35);
+    background: linear-gradient(135deg, rgba(45, 212, 191, 0.16), rgba(45, 212, 191, 0.06));
+    box-shadow: 0 0 20px rgba(45, 212, 191, 0.1);
+  }
+  .discover-workspace-tab--earn.discover-workspace-tab--active {
+    border-color: rgba(52, 211, 153, 0.35);
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.16), rgba(52, 211, 153, 0.06));
+    box-shadow: 0 0 20px rgba(52, 211, 153, 0.1);
+  }
+
+  /* Premium section */
+  .discover-premium-section {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 12px 40px rgba(0, 20, 50, 0.25);
+  }
+
+  .discover-premium-section--featured {
+    border-color: rgba(59, 158, 255, 0.22);
+  }
+
+  .discover-premium-section--compact .discover-premium-section__header {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(59, 158, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  }
+
+  /* Action cards */
+  .discover-action-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(10, 15, 24, 0.85) 55%,
+      rgba(6, 12, 24, 0.92) 100%
+    );
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition:
+      border-color 0.3s ease,
+      box-shadow 0.3s ease,
+      transform 0.3s ease;
+  }
+
+  .discover-action-card:hover {
+    border-color: rgba(100, 160, 255, 0.2);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 28px rgba(0, 30, 80, 0.2);
+  }
+
+  .discover-action-card--compact {
+    padding: 0.75rem;
+  }
+
+  .discover-action-card--full {
+    padding: 1rem;
+  }
+
+  .discover-action-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 12%;
+    right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(59, 158, 255, 0.35), transparent);
+    opacity: 0.5;
+  }
+
+  /* Action + toolbar buttons */
+  .discover-action-btn,
+  .discover-toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.35rem 0.65rem;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--resolve-muted);
+    background: rgba(255, 255, 255, 0.03);
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      background 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  .discover-toolbar-btn:hover:not(.discover-toolbar-btn--disabled) {
+    color: var(--resolve-accent);
+    border-color: rgba(59, 158, 255, 0.35);
+    background: rgba(59, 158, 255, 0.08);
+  }
+
+  .discover-toolbar-btn--disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .discover-action-btn:hover {
+    transform: translateY(-1px);
+    color: #fff;
+  }
+
+  .discover-action-btn--primary {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .discover-action-btn--fund {
+    border-color: rgba(52, 211, 153, 0.35);
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.14), rgba(52, 211, 153, 0.06));
+    color: #a7f3d0;
+  }
+  .discover-action-btn--install,
+  .discover-action-btn--create_program {
+    border-color: rgba(59, 158, 255, 0.35);
+    background: linear-gradient(135deg, rgba(59, 158, 255, 0.14), rgba(59, 158, 255, 0.06));
+    color: #93c5fd;
+  }
+  .discover-action-btn--claim,
+  .discover-action-btn--sponsor {
+    border-color: rgba(167, 139, 250, 0.35);
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.14), rgba(167, 139, 250, 0.06));
+    color: #ddd6fe;
+  }
+  .discover-action-btn--analyze,
+  .discover-action-btn--automate {
+    border-color: rgba(125, 140, 196, 0.35);
+    background: linear-gradient(135deg, rgba(125, 140, 196, 0.14), rgba(125, 140, 196, 0.06));
+    color: #c7d2fe;
+  }
+
+  .discover-action-btn--secondary {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--resolve-muted);
+  }
+
+  /* Status badges + filter chips */
+  .discover-status-badge {
+    border-radius: 9999px;
+    border: 1px solid transparent;
+    padding: 0.15rem 0.5rem;
+    font-size: 10px;
+  }
+
+  .discover-status-badge--live {
+    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(52, 211, 153, 0.1);
+    color: #6ee7b7;
+  }
+
+  .discover-status-badge--preview {
+    border-color: rgba(251, 191, 36, 0.3);
+    background: rgba(251, 191, 36, 0.1);
+    color: #fde68a;
+  }
+
+  .discover-chip-pill {
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.15rem 0.6rem;
+    font-size: 10px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .discover-chip-pill--idle {
+    color: var(--resolve-muted);
+  }
+
+  .discover-chip-pill--idle:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .discover-chip-pill--active {
+    border-color: rgba(59, 158, 255, 0.4);
+    background: rgba(59, 158, 255, 0.12);
+    color: var(--resolve-accent);
+  }
+
+  .discover-chip-pill--oss-active {
+    border-color: rgba(251, 191, 36, 0.4);
+    background: rgba(251, 191, 36, 0.12);
+    color: #fde68a;
+  }
+
+  .discover-chip-pill--music-active {
+    border-color: rgba(52, 211, 153, 0.4);
+    background: rgba(52, 211, 153, 0.12);
+    color: #a7f3d0;
+  }
+
+  .discover-chip-pill--research-active {
+    border-color: rgba(167, 139, 250, 0.4);
+    background: rgba(167, 139, 250, 0.12);
+    color: #ddd6fe;
+  }
+
+  /* Bubble map */
+  @keyframes discover-bubble-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+
+  @keyframes discover-bubble-pulse {
+    0%,
+    100% {
+      opacity: 0.85;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .discover-bubble-node {
+    animation: discover-bubble-float 4.5s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .discover-bubble-node circle:nth-of-type(1) {
+    animation: discover-bubble-pulse 3s ease-in-out infinite;
+  }
+
+  .discover-bubblemap-stage {
+    min-height: 168px;
+  }
+
+  .discover-bubble-tooltip {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
 }

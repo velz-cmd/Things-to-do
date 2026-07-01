@@ -38,6 +38,7 @@ import {
 } from "@/lib/discover/opportunity-score";
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
+import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
 type DiscoverOpportunityQueueProps = {
   signedIn: boolean;
@@ -46,6 +47,7 @@ type DiscoverOpportunityQueueProps = {
   role?: DiscoverRole;
   needType?: DiscoverNeedTypeFilter;
   className?: string;
+  onSwitchLane?: (lane: DiscoverWorkspaceLane) => void;
 };
 
 const RETURN_URL = "/discover#opportunities";
@@ -58,6 +60,7 @@ export function DiscoverOpportunityQueue({
   role = "all",
   needType = "all",
   className,
+  onSwitchLane,
 }: DiscoverOpportunityQueueProps) {
   const { executeFund, refreshWallet, busy, wallet } = useDiscoverActions();
   const { state: connections } = useUserConnections();
@@ -257,15 +260,36 @@ export function DiscoverOpportunityQueue({
               : "No ledger-backed programs to fund yet. Attach a community below — verified gaps rank on Gaps and Radars when sensors sync."}
           </p>
           {!query.trim() && (
-            <button
-              type="button"
-              onClick={() => {
-                document.getElementById("discover-workspace")?.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="mt-4 inline-flex rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
-            >
-              Browse Gaps
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {onSwitchLane ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onSwitchLane("gaps")}
+                    className="rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
+                  >
+                    Browse Gaps
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSwitchLane("radars")}
+                    className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-resolve-muted hover:text-white"
+                  >
+                    View Radars
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    document.getElementById("discover-workspace")?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
+                >
+                  Browse Gaps
+                </button>
+              )}
+            </div>
           )}
         </DiscoverStatePanel>
       ) : (

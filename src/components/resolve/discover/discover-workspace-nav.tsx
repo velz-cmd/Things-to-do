@@ -9,8 +9,19 @@ import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 export type DiscoverWorkspaceLane = "gaps" | "radars" | "board" | "earn";
 
-export function defaultLaneForRole(_role: DiscoverRole): DiscoverWorkspaceLane {
-  return "gaps";
+export function defaultLaneForRole(role: DiscoverRole): DiscoverWorkspaceLane {
+  switch (role) {
+    case "community":
+      return "earn";
+    case "funder":
+    case "founder":
+      return "board";
+    case "operator":
+    case "dao":
+      return "radars";
+    default:
+      return "gaps";
+  }
 }
 
 const LANES: {

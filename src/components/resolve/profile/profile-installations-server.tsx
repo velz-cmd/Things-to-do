@@ -17,7 +17,37 @@ export async function ProfileInstallationsServer() {
   }
 
   await ensureProfileForUser(user);
-  const communities = await listCommunitySummaries(user.id);
+  let communities: Awaited<ReturnType<typeof listCommunitySummaries>> = [];
+  try {
+    communities = await listCommunitySummaries(user.id);
+  } catch {
+    const { COMMUNITY_CATALOG } = await import("@/lib/communities/catalog");
+    const emptyVitals = {
+      healthPct: null,
+      healthLabel: "Observing",
+      fundingTotalUsd: 0,
+      fundingLabel: "No verified funding yet",
+      openWorkCount: 0,
+      programCount: 0,
+      topBuilders: [],
+      sensor: { gated: true, live: false, ready: false, label: "Observing" },
+      observeNarrative: "Catalog preview",
+      hasLiveData: false,
+    };
+    communities = COMMUNITY_CATALOG.map((c) => ({
+      slug: c.slug,
+      name: c.name,
+      tagline: c.tagline,
+      kind: c.kind,
+      accent: c.accent,
+      featured: c.featured,
+      installCta: c.installCta,
+      attachShape: c.attachShape,
+      upstream: c.upstream,
+      installed: false,
+      vitals: emptyVitals,
+    }));
+  }
   const installed = communities.filter((c) => c.installed);
 
   return (

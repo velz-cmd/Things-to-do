@@ -280,6 +280,21 @@ test.describe("Community phases — APIs", () => {
     const res = await request.get("/api/communities/react/automations");
     expect(res.status()).toBe(401);
   });
+
+  test("GET /api/capital/discover returns board with opportunity scores", async ({ request }) => {
+    const res = await request.get("/api/capital/discover");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.board?.length).toBeGreaterThan(0);
+    const withScores = body.board.filter(
+      (b: { opportunityScorecard?: { chips?: unknown[] } }) => b.opportunityScorecard?.chips?.length,
+    );
+    expect(withScores.length).toBeGreaterThan(0);
+    const card = withScores[0].opportunityScorecard;
+    expect(card.chips.length).toBe(6);
+    expect(card.composite).toBeGreaterThan(0);
+  });
 });
 
 test.describe("Community phases — surfaces", () => {
@@ -292,6 +307,17 @@ test.describe("Community phases — surfaces", () => {
         page.getByRole("heading", { level: 1 }).first(),
       ).toBeVisible({ timeout: 30_000 });
     }
+  });
+
+  test("discover funder role shows sortable opportunity board", async ({ page }) => {
+    await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Fund where it matters" }).click();
+    const board = page.locator("#opportunities");
+    await board.scrollIntoViewIfNeeded();
+    await expect(board.getByText("Sort by")).toBeVisible();
+    await expect(board.getByRole("button", { name: "Score" })).toBeVisible();
+    await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
+    await expect(board.locator("text=Reward").first()).toBeVisible({ timeout: 15_000 });
   });
 
   test("discover founder role shows agent signal market", async ({ page }) => {

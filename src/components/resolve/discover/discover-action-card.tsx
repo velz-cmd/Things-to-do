@@ -11,6 +11,7 @@ import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-sour
 import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import { filterActionsByIntent } from "@/lib/discover/intent-filters";
 import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
+import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -28,6 +29,7 @@ const ACTION_STYLES: Record<string, string> = {
   create_program: "border-blue-500/30 bg-blue-500/10 text-blue-200 hover:bg-blue-500/20",
   sponsor: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20",
   analyze: "border-resolve-calm-periwinkle/30 bg-resolve-calm-periwinkle/10 text-resolve-calm-periwinkle hover:bg-resolve-calm-periwinkle/20",
+  automate: "border-resolve-calm-periwinkle/30 bg-resolve-calm-periwinkle/10 text-resolve-calm-periwinkle hover:bg-resolve-calm-periwinkle/20",
   default: "border-white/10 bg-white/[0.04] text-resolve-muted hover:text-white hover:bg-white/[0.08]",
 };
 
@@ -125,6 +127,11 @@ export function DiscoverActionCard({
           )}
         </div>
         <div className="shrink-0 text-right">
+          {gap.opportunityScorecard && (
+            <p className="mb-1 text-2xl font-semibold tabular-nums text-resolve-accent">
+              {gap.opportunityScorecard.composite}
+            </p>
+          )}
           <p
             className={clsx(
               "text-lg font-semibold tabular-nums",
@@ -156,6 +163,14 @@ export function DiscoverActionCard({
           )}
         </div>
       </div>
+
+      {!compact && gap.opportunityScorecard && (
+        <DiscoverOpportunityScoreChips
+          chips={gap.opportunityScorecard.chips}
+          composite={gap.opportunityScorecard.composite}
+          className="mt-3"
+        />
+      )}
 
       {!compact && (
         <p className="mt-3 text-[10px] text-resolve-muted-dim">

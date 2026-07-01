@@ -12,6 +12,8 @@ import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { isProductionDeploy } from "@/lib/config/demo-mode";
 import type { X402MicroResult } from "@/lib/agent/x402-micro";
 
+export const maxDuration = 120;
+
 type InvokeBody = {
   serviceId?: string;
   taskId?: string;

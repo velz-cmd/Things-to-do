@@ -67,7 +67,7 @@ export async function syncIdentityBalance(userId: string): Promise<IdentityBalan
   const targetAvailable = round(Math.max(0, onChainUsd - reservedUsd));
   const delta = round(targetAvailable - profile.availableUsd);
 
-  if (delta < MIN_SYNC_USD) {
+  if (Math.abs(delta) < MIN_SYNC_USD) {
     return {
       synced: false,
       adjustedUsd: 0,
@@ -84,12 +84,15 @@ export async function syncIdentityBalance(userId: string): Promise<IdentityBalan
   const [updated] = await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
-      data: { availableUsd: { increment: delta } },
+      data:
+        delta > 0
+          ? { availableUsd: { increment: delta } }
+          : { availableUsd: { decrement: Math.abs(delta) } },
     }),
     prisma.walletTransaction.create({
       data: {
         userId,
-        type: "deposit",
+        type: delta > 0 ? "deposit" : "withdrawal",
         method: "crypto",
         amountUsd: Math.abs(delta),
         label: "sync:onchain",

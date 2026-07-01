@@ -14,6 +14,9 @@ export type WalletSnapshot = {
   spendableUsd: number;
   totalUsdc: string;
   loaded: boolean;
+  address?: string;
+  shortAddress?: string;
+  explorerUrl?: string | null;
 };
 
 export async function apiInstallCommunity(slug: string) {
@@ -86,15 +89,24 @@ export async function apiFetchWallet(): Promise<WalletSnapshot> {
     return { spendableUsd: 0, totalUsdc: "0", loaded: true };
   }
   const data = await parseJsonResponse<{
+    wallet?: { address?: string; shortAddress?: string };
     balance?: { spendableUsd?: string; totalUsdc?: string };
   }>(res);
   const spendable = Number(
     data.balance?.spendableUsd ?? data.balance?.totalUsdc ?? 0,
   );
+  const address = data.wallet?.address;
+  const explorerUrl =
+    address && address.match(/^0x[a-fA-F0-9]{40}$/i)
+      ? `${process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app"}/address/${address}`
+      : null;
   return {
     spendableUsd: Number.isFinite(spendable) ? spendable : 0,
     totalUsdc: String(data.balance?.totalUsdc ?? "0"),
     loaded: true,
+    address,
+    shortAddress: data.wallet?.shortAddress,
+    explorerUrl,
   };
 }
 

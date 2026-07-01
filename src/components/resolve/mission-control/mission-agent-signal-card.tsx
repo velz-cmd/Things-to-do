@@ -17,6 +17,7 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/resolve/ui/button";
 import { ArcTxLink } from "@/components/resolve/ui/arc-tx-link";
+import { ArcWalletLink } from "@/components/resolve/ui/arc-wallet-link";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { PLATFORM_LOOP_TAGLINE } from "@/lib/economy/platform-loop";
@@ -115,7 +116,9 @@ export function MissionAgentSignalCard({
   const [serviceId, setServiceId] = useState(initialServiceId ?? "");
   const [budgetUsd, setBudgetUsd] = useState(0.05);
   const [walletUsd, setWalletUsd] = useState<number | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [invoking, setInvoking] = useState(false);
+  const [invokeStage, setInvokeStage] = useState<"idle" | "charging" | "running">("idle");
   const [result, setResult] = useState<InvokeResult | null>(null);
 
   const loadCatalog = useCallback(async () => {
@@ -146,7 +149,10 @@ export function MissionAgentSignalCard({
       setWalletUsd(null);
       return;
     }
-    void apiFetchWallet().then((w) => setWalletUsd(w.spendableUsd));
+    void apiFetchWallet().then((w) => {
+      setWalletUsd(w.spendableUsd);
+      if (w.address) setWalletAddress(w.address);
+    });
   }, [signedIn, result?.wallet?.balanceUsd]);
 
   const selected = useMemo(
@@ -172,12 +178,16 @@ export function MissionAgentSignalCard({
       return;
     }
     setInvoking(true);
+    setInvokeStage("charging");
     setResult(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 110_000);
     try {
       const res = await fetch("/api/agent/invoke", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           serviceId,
           prompt: prompt.trim(),
@@ -185,13 +195,17 @@ export function MissionAgentSignalCard({
           maxSpendUsd: budgetUsd,
         }),
       });
+      setInvokeStage("running");
       const data = (await res.json()) as InvokeResult;
       setResult(data);
       if (data.wallet?.balanceUsd != null) {
         setWalletUsd(data.wallet.balanceUsd);
+      } else if (data.payment?.balanceUsd != null) {
+        setWalletUsd(data.payment.balanceUsd);
       } else if (signedIn) {
         const w = await apiFetchWallet();
         setWalletUsd(w.spendableUsd);
+        if (w.address) setWalletAddress(w.address);
       }
       if (data.ok) {
         toast.success(data.summary?.headline ?? "Agent signal complete", {
@@ -202,10 +216,19 @@ export function MissionAgentSignalCard({
       } else {
         toast.error(data.error ?? "Agent invoke failed");
       }
-    } catch {
-      toast.error("Could not run agent task");
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        toast.error("Agent invoke timed out", {
+          description:
+            "Arc USDC transfers can take up to ~60s. Check Arcscan on your wallet — if charged, refresh and view the report.",
+        });
+      } else {
+        toast.error("Could not run agent task");
+      }
     } finally {
+      window.clearTimeout(timeout);
       setInvoking(false);
+      setInvokeStage("idle");
     }
   }
 
@@ -287,12 +310,18 @@ export function MissionAgentSignalCard({
                     canAfford ? "text-emerald-300" : "text-amber-200",
                   )}
                 >
-                  ${walletUsd.toFixed(2)} on Arc
+                  ${walletUsd.toFixed(2)} USDC on Arc testnet
                 </span>
+                {walletAddress && (
+                  <>
+                    {" "}
+                    · <ArcWalletLink address={walletAddress} label="Arcscan wallet" />
+                  </>
+                )}
                 {" · "}
                 Run charges{" "}
                 <span className="font-medium text-white">{formatAgentPrice(pricePreview)}</span>{" "}
-                USDC with Arcscan proof
+                from your wallet with Arcscan proof
                 {!canAfford && (
                   <span className="ml-1">
                     —{" "}
@@ -322,7 +351,11 @@ export function MissionAgentSignalCard({
             ) : (
               <Bot className="h-4 w-4" />
             )}
-            Run agent · {formatAgentPrice(pricePreview)}
+            {invoking
+              ? invokeStage === "charging"
+                ? "Charging USDC on Arc…"
+                : "Running agent…"
+              : `Run agent · ${formatAgentPrice(pricePreview)}`}
           </Button>
         </>
       )}
@@ -364,14 +397,21 @@ export function MissionAgentSignalCard({
                 <span className="font-semibold tabular-nums">
                   −${(result.payment?.chargedUsd ?? result.wallet?.chargedUsd ?? 0).toFixed(3)}
                 </span>{" "}
-                USDC on Arc · was $
+                USDC sent from your wallet on Arc · was $
                 {(result.payment?.previousBalanceUsd ?? result.wallet?.previousBalanceUsd ?? 0).toFixed(2)}{" "}
                 → now{" "}
                 <span className="font-semibold tabular-nums">
                   ${(result.payment?.balanceUsd ?? result.wallet?.balanceUsd ?? 0).toFixed(2)}
                 </span>
+                {result.payment?.onChainUsd != null && (
+                  <span className="text-emerald-200/80">
+                    {" "}
+                    (on-chain ${result.payment.onChainUsd.toFixed(2)})
+                  </span>
+                )}
               </span>
               {result.payment?.txHash && <ArcTxLink txHash={result.payment.txHash} />}
+              {walletAddress && <ArcWalletLink address={walletAddress} />}
             </div>
           )}
 

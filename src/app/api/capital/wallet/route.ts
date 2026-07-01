@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/session";
+import { ensureProfileForUser, getSessionUser } from "@/lib/auth/session";
 import { ArcRpcUnavailableError, getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 import { resolveUserWallet, shortWalletAddress } from "@/lib/wallet/resolve-user-wallet";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
-
-const PROFILE_BUDGET_MS = 2_500;
 
 type CapitalWalletOk = {
   ok: true;
@@ -64,7 +62,7 @@ async function getReservedUsd(userId: string): Promise<number> {
   return Math.round((agg._sum.amountUsd ?? 0) * 100) / 100;
 }
 
-/** Wallet + Arc RPC first — never block balance on Circle wallet provisioning or heavy profile setup. */
+/** On-chain Arc USDC for the user's Circle RESOLVE wallet — single source of truth for spendable balance. */
 export async function GET() {
   const authUser = await getSessionUser();
   if (!authUser) {
@@ -76,23 +74,28 @@ export async function GET() {
 
   const warnings: string[] = [];
 
-  const profilePromise = Promise.race([
-    loadProfileLight(authUser.id),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), PROFILE_BUDGET_MS)),
-  ]);
+  let profile = await loadProfileLight(authUser.id);
+  if (!profile) {
+    try {
+      const ensured = await ensureProfileForUser(authUser);
+      profile = {
+        id: ensured.id,
+        email: ensured.email,
+        displayName: ensured.displayName,
+        walletAddress: ensured.walletAddress,
+        scanWalletAddress: ensured.scanWalletAddress,
+        embeddedWallet: ensured.embeddedWallet,
+        taskMemoryJson: ensured.taskMemoryJson,
+      };
+    } catch {
+      warnings.push("Could not provision RESOLVE wallet");
+    }
+  }
 
-  const resolved = resolveUserWallet(authUser.id, null, authUser);
+  const walletResolved = resolveUserWallet(authUser.id, profile, authUser);
 
   try {
-    const [chainBalance, profile] = await Promise.all([
-      getArcUsdcBalance(resolved.address),
-      profilePromise,
-    ]);
-
-    const walletResolved = resolveUserWallet(authUser.id, profile, authUser);
-    if (!profile) {
-      warnings.push("Account metadata unavailable");
-    }
+    const chainBalance = await getArcUsdcBalance(walletResolved.address);
 
     const reservedUsd = profile ? await getReservedUsd(profile.id).catch(() => 0) : 0;
     const total = Number(chainBalance.totalUsdc);
@@ -131,7 +134,6 @@ export async function GET() {
 
     return NextResponse.json(body);
   } catch (e) {
-    const profile = await profilePromise.catch(() => null);
     const walletResolved = resolveUserWallet(authUser.id, profile, authUser);
 
     if (e instanceof ArcRpcUnavailableError) {

@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { createAppKit } from "@reown/appkit/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createAppQueryClient } from "@/lib/query/client";
 import { WagmiProvider, type State } from "wagmi";
 import { Toaster } from "sonner";
 import {
@@ -22,7 +23,7 @@ import { JellyfinBackgroundSync } from "@/components/resolve/connectors/jellyfin
 import { AddFundsProvider } from "@/components/wallet/add-funds-context";
 import { SendFundsProvider } from "@/components/wallet/send-funds-context";
 
-const queryClient = new QueryClient();
+const queryClient = createAppQueryClient();
 
 createAppKit({
   adapters: [wagmiAdapter],

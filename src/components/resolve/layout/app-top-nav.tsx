@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { Command } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { PRODUCT_NAV } from "@/components/resolve/layout/nav";
+import { prefetchDiscoverTab, prefetchProfileTab } from "@/lib/query/hooks";
 
 export function ResolveLogo({ className }: { className?: string }) {
   return (
@@ -42,6 +44,12 @@ function isActive(pathname: string, href: string) {
 
 export function ProductNav({ compact = false }: { compact?: boolean }) {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+
+  function onNavPrefetch(href: string) {
+    if (href === "/discover") prefetchDiscoverTab(queryClient);
+    if (href === "/profile") prefetchProfileTab(queryClient);
+  }
 
   return (
     <nav
@@ -58,6 +66,8 @@ export function ProductNav({ compact = false }: { compact?: boolean }) {
             key={item.href}
             href={item.href}
             title={item.question}
+            onMouseEnter={() => onNavPrefetch(item.href)}
+            onFocus={() => onNavPrefetch(item.href)}
             className={clsx(
               "relative flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-all duration-300",
               active

@@ -40,6 +40,16 @@ jobs:
             -H "Authorization: Bearer $SECRET" | head -c 1200
           echo ""
 
+      - name: GitHub OSS scan
+        if: steps.secret.outputs.configured == 'true'
+        env:
+          PRODUCTION_URL: https://resolve-task.vercel.app
+          SECRET: ${{ steps.secret.outputs.value }}
+        run: |
+          curl -fsS -X POST "$PRODUCTION_URL/api/cron/github-oss-scan" \
+            -H "Authorization: Bearer $SECRET" | head -c 800
+          echo ""
+
       - name: Full sensor bootstrap if ledger still empty
         if: steps.secret.outputs.configured == 'true'
         env:

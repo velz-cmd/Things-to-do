@@ -16,3 +16,17 @@ services:
         sync: false
       - key: NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS
         value: "0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f"
+
+  - type: cron
+    name: github-oss-scan
+    runtime: node
+    schedule: "0 */6 * * *"
+    buildCommand: npm install && npx prisma db push
+    startCommand: curl -fsS -X POST "${RENDER_EXTERNAL_URL}/api/cron/github-oss-scan" -H "Authorization: Bearer ${CRON_SECRET}"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false

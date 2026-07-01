@@ -322,8 +322,16 @@ export function DiscoverActionsProvider({
             break;
 
           case "analyze":
-            if (action.entityPath) {
+            if (action.href) {
+              router.push(action.href);
+              reportActionStatus(surface, action, "success");
+            } else if (action.entityPath) {
               router.push(action.entityPath);
+              reportActionStatus(surface, action, "success");
+            } else if (action.serviceId) {
+              router.push(
+                `/discover#agent-market?service=${encodeURIComponent(action.serviceId)}`,
+              );
               reportActionStatus(surface, action, "success");
             }
             break;

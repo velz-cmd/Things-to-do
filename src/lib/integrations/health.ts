@@ -210,13 +210,23 @@ async function pingGmail(): Promise<{ ok: boolean; message: string }> {
   }
   const refresh = process.env.GOOGLE_REFRESH_TOKEN?.trim();
   if (!refresh) {
-    return { ok: false, message: "GOOGLE_REFRESH_TOKEN not set — authorize at /api/connectors/gmail/authorize" };
+    return {
+      ok: true,
+      message: "Per-user Gmail — connect at Profile (no server GOOGLE_REFRESH_TOKEN required)",
+    };
   }
   try {
     await refreshGmailAccessToken(refresh);
-    return { ok: true, message: "Gmail OAuth refresh token valid" };
+    return { ok: true, message: "Server Gmail refresh token valid" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Gmail token refresh failed";
+    if (msg.includes("invalid_grant")) {
+      return {
+        ok: false,
+        message:
+          "invalid_grant — remove GOOGLE_REFRESH_TOKEN from Vercel (wrong OAuth client). Sign in → Profile → Connect Gmail. Setup: GET /api/connectors/gmail/setup",
+      };
+    }
     return { ok: false, message: msg };
   }
 }

@@ -13,6 +13,7 @@ import { DiscoverNeedTypeFilters } from "@/components/resolve/discover/discover-
 import { DiscoverLiveFeed } from "@/components/resolve/discover/discover-live-feed";
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
+import { DiscoverCapitalPrograms } from "@/components/resolve/discover/discover-capital-programs";
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverValueBubblemap } from "@/components/resolve/discover/discover-value-bubblemap";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
@@ -188,14 +189,19 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
       )}
 
       {sectionVisibleForRole("opportunities", role) && (
-        <DiscoverOpportunityQueue
-          signedIn={Boolean(user)}
-          query={effectiveQuery}
-          intent={intent}
-          role={role}
-          needType={needType}
-          className="mb-12"
-        />
+        <>
+          <DiscoverOpportunityQueue
+            signedIn={Boolean(user)}
+            query={effectiveQuery}
+            intent={intent}
+            role={role}
+            needType={needType}
+            className="mb-12"
+          />
+          {(role === "funder" || role === "founder" || role === "all") && (
+            <DiscoverCapitalPrograms className="mb-12" />
+          )}
+        </>
       )}
 
       {sectionVisibleForRole("communities", role) && (

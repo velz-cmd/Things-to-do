@@ -165,8 +165,8 @@ export function DiscoverAutomationRuleBuilder({
   return (
     <div className="space-y-4">
       <p className="text-[11px] leading-relaxed text-resolve-muted-dim">
-        Syncs program payout policy on sensor events and notifies you when authorizations land —
-        sensors still create ledger rows; this does not auto-pay without ingest.
+        Sensors authorize on ingest at the amounts below; this rule notifies you and links the ledger
+        receipt when a matching event lands.
       </p>
       {liveRule && (
         <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-2.5 text-xs text-emerald-100">

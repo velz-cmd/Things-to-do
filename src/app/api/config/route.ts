@@ -52,9 +52,10 @@ export async function GET() {
         oauthConfigured: googleOAuthConfigured(),
         refreshTokenConfigured: Boolean(process.env.GOOGLE_REFRESH_TOKEN?.trim()),
         authorizePath: "/api/connectors/gmail/authorize",
+        setupPath: "/api/connectors/gmail/setup",
         healthPath: "/api/integrations/health",
         setup:
-          "Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET + GOOGLE_REFRESH_TOKEN on Vercel; redirect URI: {APP_URL}/api/connectors/gmail/callback",
+          "If invalid_grant: delete GOOGLE_REFRESH_TOKEN, match Client ID/Secret, sign in → Profile → Connect Gmail. See GET /api/connectors/gmail/setup",
       },
       walletLabels: {
         configured: isWalletLabelsConfigured(),

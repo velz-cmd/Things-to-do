@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import clsx from "clsx";
 import { DiscoverActionCard } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
@@ -13,6 +12,7 @@ import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { filterGapsByNeedType } from "@/lib/discover/need-types";
 import { sortByOpportunityScore, type OpportunitySortKey } from "@/lib/discover/opportunity-score";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import { DiscoverGapsEmpty } from "@/components/resolve/discover/discover-gaps-empty";
 import {
   DiscoverDegradedHint,
   DiscoverRetryButton,
@@ -82,25 +82,13 @@ export function DiscoverTrendingGaps({
 
       {loading && !feed ? (
         <DiscoverTrendingSkeleton />
-      ) : error && !filtered.length ? (
+      ) : error && !feed ? (
         <DiscoverStatePanel variant="error">
           <p className="text-sm text-resolve-muted">{error}</p>
           <DiscoverRetryButton onClick={() => void refresh()} />
         </DiscoverStatePanel>
       ) : !filtered.length ? (
-        <DiscoverStatePanel variant="empty">
-          <p className="text-sm text-resolve-muted">
-            {needType !== "all"
-              ? `No ${needType} opportunities match — try another need type or connect a sensor.`
-              : "No verified value gaps yet. Connect a GitHub or music sensor to populate trending."}
-          </p>
-          <Link
-            href="/communities"
-            className="mt-3 inline-block text-xs font-medium text-resolve-calm-blue hover:text-resolve-accent"
-          >
-            Connect sensors →
-          </Link>
-        </DiscoverStatePanel>
+        <DiscoverGapsEmpty needType={needType} role={role} degraded={feed?.degraded} />
       ) : (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">

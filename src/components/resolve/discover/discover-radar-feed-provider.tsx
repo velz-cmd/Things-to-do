@@ -65,8 +65,11 @@ export function DiscoverRadarFeedProvider({ children }: { children: ReactNode })
       if (!isUsableFeed(feedRef.current)) {
         if (aborted) {
           setFeed(emptyRadarFeedPayload({ degraded: true, degradedParts: ["timeout"] }));
+          setError(null);
+        } else {
+          setFeed(emptyRadarFeedPayload({ degraded: true }));
+          setError("Could not load trending radar");
         }
-        setError(aborted ? "Pulse timed out — showing defaults" : "Could not load trending radar");
         discoverFetchErrorToast(
           "discover-radar-feed",
           aborted ? "Network pulse slow — retry" : "Trending radar unavailable",

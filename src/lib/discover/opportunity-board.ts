@@ -6,6 +6,7 @@ import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { templateLabel } from "@/lib/capital/community-yield";
 import { dedupeDiscoverBoard, dedupeFundablePrograms } from "@/lib/discover/board-dedupe";
 import { classifyBoardNeedType } from "@/lib/discover/need-types";
+import { buildOpportunityScorecard, scorecardFromFundable } from "@/lib/discover/opportunity-score";
 import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 const GITHUB_BOARD_SCAN_MS = 8_000;
@@ -29,6 +30,7 @@ export type DiscoverBoardItem =
       connectCta: string;
       connectHref: string;
       needType: import("@/lib/discover/need-types").DiscoverNeedType;
+      opportunityScorecard?: import("@/lib/discover/opportunity-score").OpportunityScorecard;
     };
 
 function templateForCommunity(c: CommunityCatalogEntry): string {
@@ -63,6 +65,19 @@ function communityBoardRow(
     programName: c.name,
   });
 
+  const opportunityScorecard = buildOpportunityScorecard({
+    amountNeededUsd: gapUsd,
+    amountVerified: Boolean(opts?.ossMatch && gapUsd > 0),
+    amountKind: opts?.ossMatch ? "estimate" : undefined,
+    dataSource: opts?.ossMatch ? "github" : "community_catalog",
+    templateId,
+    domain: c.kind === "music" ? "music" : c.kind === "research" ? "research" : "oss",
+    maintainerCount: opts?.ossMatch ? 3 : 0,
+    sensorGated: true,
+    sensorLive: false,
+    programCount: 0,
+  });
+
   return {
     boardKind: "community",
     programId: `community-${c.slug}`,
@@ -77,7 +92,8 @@ function communityBoardRow(
       ? `${c.tagline} · GitHub scan · est. $${gapUsd.toFixed(0)} maintainer gap`
       : `${c.tagline} · connect a sensor to surface verified needs (no estimate until live)`,
     whoBenefits: c.doctrine.slice(0, 120),
-    score: gapUsd * 0.5 + 40 + (opts?.ossMatch ? 20 : 0),
+    score: opportunityScorecard.composite,
+    opportunityScorecard,
     metricKind: c.attachShape === "sidecar" ? "install" : "connect",
     connectCta: connectCtaForCommunity(c),
     connectHref: `/communities/${c.slug}`,
@@ -103,6 +119,8 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
   const items: DiscoverBoardItem[] = dedupeFundablePrograms(programs).map((p) => ({
     ...p,
     boardKind: "program" as const,
+    opportunityScorecard: p.opportunityScorecard ?? scorecardFromFundable(p),
+    score: p.opportunityScorecard?.composite ?? p.score,
     needType: classifyBoardNeedType({
       templateId: p.templateId,
       communitySlug: p.communitySlug,

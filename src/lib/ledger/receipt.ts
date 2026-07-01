@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/db";
 import { communityLabelForMission } from "@/lib/earn/community-label";
+import { isAgentCommerceReceipt } from "@/lib/economy/platform-loop";
 import { connectorLabel, payeeDisplayLabel, payeeRoleLabel } from "@/lib/ledger/labels";
 import { getSettlementById } from "@/lib/payment/store";
+import {
+  RESOLVE_PLATFORM_FEE_BPS,
+  computePlatformFee,
+} from "@/lib/payment/platform-fee";
 import type { ReceiptKind } from "@/lib/receipt/copy";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { isOnChainTxHash } from "@/lib/payment/tx-utils";
@@ -30,11 +35,21 @@ export type PublicReceiptLineItem = {
   settledAt?: string | null;
 };
 
+export type PublicReceiptPlatformFee = {
+  grossUsd: number;
+  platformFeeBps: number;
+  platformFeeUsd: number;
+  netToProviderUsd: number;
+  note: string;
+};
+
 export type PublicReceipt = {
   kind: ReceiptKind;
   id: string;
   status: string;
   amountUsd: number;
+  agentCommerce?: boolean;
+  platformFee?: PublicReceiptPlatformFee;
   mission: {
     id: string;
     communityName: string;
@@ -65,6 +80,54 @@ export type PublicReceipt = {
 
 /** @deprecated use PublicReceiptLineItem */
 export type PublicReceiptSignal = PublicReceiptLineItem;
+
+function parseEvidenceRaw(evidenceJson: string | null): Record<string, unknown> | undefined {
+  if (!evidenceJson) return undefined;
+  try {
+    const parsed = JSON.parse(evidenceJson) as { raw?: Record<string, unknown> };
+    return parsed.raw;
+  } catch {
+    return undefined;
+  }
+}
+
+function buildReceiptPlatformFee(input: {
+  evidenceJson: string | null;
+  eventType: string;
+  connectorId: string;
+  payeeKeyType: string;
+  amountUsd: number;
+}): PublicReceiptPlatformFee | undefined {
+  if (
+    !isAgentCommerceReceipt({
+      eventType: input.eventType,
+      connectorId: input.connectorId,
+      payeeKeyType: input.payeeKeyType,
+    })
+  ) {
+    return undefined;
+  }
+
+  const raw = parseEvidenceRaw(input.evidenceJson);
+  const grossUsd = typeof raw?.grossUsd === "number" ? raw.grossUsd : input.amountUsd;
+  const platformFeeUsd =
+    typeof raw?.platformFeeUsd === "number" ? raw.platformFeeUsd : computePlatformFee(grossUsd);
+  const platformFeeBps =
+    typeof raw?.platformFeeBps === "number" ? raw.platformFeeBps : RESOLVE_PLATFORM_FEE_BPS;
+  const netToProviderUsd =
+    typeof raw?.netToProviderUsd === "number"
+      ? raw.netToProviderUsd
+      : Math.max(0, Math.round((grossUsd - platformFeeUsd) * 1_000_000) / 1_000_000);
+
+  return {
+    grossUsd,
+    platformFeeBps,
+    platformFeeUsd,
+    netToProviderUsd,
+    note:
+      "x402 USDC pays the signal provider per invoke. RESOLVE platform fee applies on settlement batches.",
+  };
+}
 
 function arcBlock(txHash?: string | null) {
   const onChain = isOnChainTxHash(txHash);
@@ -140,11 +203,21 @@ export async function buildEarningReceipt(authorizationId: string): Promise<Publ
       )?.escrowTxHash
     : null;
 
+  const platformFee = buildReceiptPlatformFee({
+    evidenceJson: row.evidenceJson,
+    eventType: row.eventType,
+    connectorId: row.connectorId,
+    payeeKeyType: row.payeeKeyType,
+    amountUsd: row.amountUsd,
+  });
+
   return {
     kind: "earning",
     id: row.id,
     status: row.status,
     amountUsd: row.amountUsd,
+    agentCommerce: Boolean(platformFee),
+    platformFee,
     mission,
     connector: {
       id: row.connectorId,

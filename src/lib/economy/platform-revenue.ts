@@ -8,9 +8,17 @@ export const PLATFORM_REVENUE_STREAMS: PlatformRevenueStream[] = [
   {
     id: "settlement_fee",
     label: "Settlement fee",
-    model: "Basis points on every on-chain settlement batch",
+    model: "Basis points on program fulfill and on-chain settlement batches",
     defaultRate: `${RESOLVE_PLATFORM_FEE_BPS / 100}%`,
     envKey: "RESOLVE_PLATFORM_FEE_BPS",
+    shipped: true,
+  },
+  {
+    id: "x402_agent",
+    label: "Agent signal commerce",
+    model: "x402 USDC per micro-service; Circle facilitator routes payment to seller wallet",
+    defaultRate: "Per catalog price ($0.001–$0.10) + settlement bps",
+    envKey: "ARC_CLIENT_WALLET_ADDRESS",
     shipped: true,
   },
   {
@@ -30,8 +38,8 @@ export const PLATFORM_REVENUE_STREAMS: PlatformRevenueStream[] = [
   {
     id: "api_usage",
     label: "Developer API",
-    model: "Metered calls + x402 per-request on Arc",
-    defaultRate: "x402 ~$0.007/call demo",
+    model: "Metered agent invoke + x402 per-request on Arc",
+    defaultRate: "Catalog micro-prices via /api/agent/services",
     envKey: "ARC_CLIENT_WALLET_ADDRESS",
     shipped: true,
   },

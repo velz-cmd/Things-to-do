@@ -14,6 +14,6 @@ export function describeAgentCommerceFeePath(amountUsd: number) {
     platformFeeUsd,
     platformWallet: RESOLVE_PLATFORM_WALLET,
     note:
-      "x402 USDC pays the signal provider per request. On program settlement batches, RESOLVE_PLATFORM_FEE_BPS applies to authorized amounts; agent mcp.invocation rows record execution cost separately.",
+      "x402 USDC pays the signal provider per request (Circle facilitator routes to seller wallet). On program settlement batches, RESOLVE_PLATFORM_FEE_BPS applies to authorized amounts; agent mcp.invocation rows record execution cost separately.",
   };
 }

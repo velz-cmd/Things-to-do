@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { ingestSettlementInput } from "@/lib/authorization/ledger";
 import type { AgentSignalService } from "@/lib/agent/service-registry";
+import { buildPlatformFeeBreakdown } from "@/lib/economy/platform-loop";
 
 function proofHash(parts: string[]): string {
   return createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 32);
@@ -18,6 +19,7 @@ export async function recordAgentInvocation(input: {
 }) {
   const missionId = input.missionId ?? `agent-task:${input.taskId}`;
   const idempotencyKey = `agent-invoke:${input.service.id}:${input.taskId}:${input.txRef ?? Date.now()}`;
+  const fee = buildPlatformFeeBreakdown(input.amountUsd);
 
   return ingestSettlementInput(
     {
@@ -44,6 +46,11 @@ export async function recordAgentInvocation(input: {
         serviceId: input.service.id,
         billingUnit: input.service.billingUnit,
         rfbProgram: input.service.rfbProgram,
+        commerceKind: "agent_signal",
+        grossUsd: fee.grossUsd,
+        platformFeeBps: fee.platformFeeBps,
+        platformFeeUsd: fee.platformFeeUsd,
+        netToProviderUsd: fee.netToCreatorsUsd,
       },
     },
     { status: input.txRef ? "authorized" : "pending_funding" },

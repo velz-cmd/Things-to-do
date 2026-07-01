@@ -50,6 +50,15 @@ export const RECEIPT_COPY = {
       "Recorded in RESOLVE. A public transaction link appears after the payout is sent.",
     optionalNote: "Advanced — on-chain confirmation (optional to view)",
   },
+
+  platformFee: {
+    title: "Platform fee",
+    signalCost: "Signal cost (x402)",
+    resolveFee: "RESOLVE platform fee",
+    netToProvider: "Net to signal provider",
+    settlementNote:
+      "x402 pays the provider per invoke; platform bps apply when the program settles on Arc.",
+  },
 } as const;
 
 export function receiptKindCopy(kind: ReceiptKind) {
@@ -84,6 +93,7 @@ export function friendlyEventType(eventType: string): string {
     github_contribution: "GitHub contribution",
     citation_verified: "Citation verified",
     research_citation: "Research citation",
+    "mcp.invocation": "Agent signal purchased",
   };
   return map[eventType] ?? eventType.replace(/_/g, " ");
 }

@@ -165,15 +165,20 @@ Every role gets a shareable artifact that brings them back:
 
 ## Platform revenue stack
 
+**Business model (Discover):** Agents buy signals · Creators earn · Circle settles · RESOLVE coordinates.
+
 | Stream | Model | Status |
 |--------|-------|--------|
 | Settlement fee | 0.5–2.5% bps (`RESOLVE_PLATFORM_FEE_BPS`) | Shipped |
+| Agent signal commerce | x402 USDC per micro-service + settlement bps | Shipped |
 | Operator SaaS | Per community / month | Planned |
 | Company reports | Premium export | Planned |
-| API usage | Metered + x402 | Partial |
+| API usage | Metered + x402 on Arc | Shipped |
 | Program setup | Advanced templates | Planned |
 | Repayment pool fee | % of waterfall | Planned |
 | White-label | Branded community pages | Later |
+
+Invoke receipts for `mcp.invocation` show gross signal cost, platform fee bps, and net to provider — sourced from ledger `evidenceJson`, not UI-only labels.
 
 ---
 

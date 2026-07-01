@@ -228,6 +228,8 @@ test.describe("Community phases — APIs", () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(body.ok).toBe(true);
+    expect(body.tagline).toContain("Agents buy signals");
+    expect(body.platformLoop?.sampleAgentInvoke).toHaveProperty("platformFeeUsd");
     expect(body.services?.length).toBeGreaterThanOrEqual(5);
     expect(body.feePath).toHaveProperty("platformFeeBps");
     const sentiment = body.services.find((s: { id: string }) => s.id === "sentiment-per-request");
@@ -279,6 +281,18 @@ test.describe("Community phases — APIs", () => {
   test("GET /api/communities/react/automations requires sign-in", async ({ request }) => {
     const res = await request.get("/api/communities/react/automations");
     expect(res.status()).toBe(401);
+  });
+
+  test("GET /api/economy/infrastructure exposes platform revenue loop", async ({ request }) => {
+    const res = await request.get("/api/economy/infrastructure");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.summary?.platformRevenue?.tagline).toContain("Agents buy signals");
+    expect(body.summary?.platformRevenue?.loop?.sampleAgentInvoke).toHaveProperty("platformFeeUsd");
+    const agentStream = body.platformRevenue?.find(
+      (s: { id: string }) => s.id === "x402_agent",
+    );
+    expect(agentStream?.shipped).toBe(true);
   });
 
   test("GET /api/capital/discover returns board with opportunity scores", async ({ request }) => {

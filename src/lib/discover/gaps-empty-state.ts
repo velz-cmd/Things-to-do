@@ -19,11 +19,14 @@ export function gapsRoleIntro(role: DiscoverRole): string {
       "No gaps yet. Connect sensors on Profile — verified work surfaces automatically.",
     dao: "No grant or citation gaps yet. Launch a QF round or attach Open Research.",
     community:
-      "No ranked gaps yet — attach any community on Board; authorizations from music, OSS, and research sync here.",
+      "No ranked gaps on the ledger yet. Profile connectors (GitHub, ListenBrainz, Jellyfin) are separate from community attach — attach OSS, research, or music programs below.",
     all: "No ledger gaps ranked yet — attach a community on Board to unlock ranked opportunities across the catalog.",
   };
   return copy[role] ?? copy.all!;
 }
+
+/** Balanced attach suggestions — OSS, research, music, video (not music-only for creator role). */
+const BALANCED_ATTACH_SLUGS = ["react", "open-research", "independent-music", "jellyfin"] as const;
 
 const KIND_BY_NEED: Partial<Record<DiscoverNeedTypeFilter, CommunityCatalogEntry["kind"][]>> = {
   artists: ["music"],
@@ -35,53 +38,59 @@ const KIND_BY_NEED: Partial<Record<DiscoverNeedTypeFilter, CommunityCatalogEntry
   moderators: ["music", "oss", "education"],
 };
 
-const KIND_BY_ROLE: Partial<Record<DiscoverRole, CommunityCatalogEntry["kind"][]>> = {
-  community: ["music", "media"],
-  founder: ["oss", "education"],
-  dao: ["research"],
-  funder: ["oss", "music", "research"],
-};
+function templateForKind(kind: CommunityCatalogEntry["kind"]): string {
+  if (kind === "music") return "user-centric-royalties";
+  if (kind === "media") return "video-royalties";
+  if (kind === "research") return "citation-toll";
+  return "docs-bounty";
+}
 
 function catalogForContext(input: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
+  installedSlugs?: string[];
 }): CommunityCatalogEntry[] {
-  const kinds = new Set<CommunityCatalogEntry["kind"]>();
+  const installed = new Set(input.installedSlugs ?? []);
+  const candidates: CommunityCatalogEntry[] = [];
+
+  for (const slug of BALANCED_ATTACH_SLUGS) {
+    const entry = COMMUNITY_CATALOG.find((c) => c.slug === slug);
+    if (entry && !installed.has(slug)) candidates.push(entry);
+  }
+
   if (input.needType !== "all") {
-    for (const k of KIND_BY_NEED[input.needType] ?? []) kinds.add(k);
-  }
-  if (input.role !== "all") {
-    for (const k of KIND_BY_ROLE[input.role] ?? []) kinds.add(k);
-  }
-
-  let rows = COMMUNITY_CATALOG.filter((c) => c.featured);
-  if (kinds.size > 0) {
-    const filtered = rows.filter((c) => kinds.has(c.kind));
-    if (filtered.length) rows = filtered;
+    const kinds = new Set(KIND_BY_NEED[input.needType] ?? []);
+    const filtered = candidates.filter((c) => kinds.has(c.kind));
+    if (filtered.length) return filtered.slice(0, 3);
   }
 
-  return rows.slice(0, 2);
+  if (candidates.length >= 2) return candidates.slice(0, 3);
+
+  for (const entry of COMMUNITY_CATALOG.filter((c) => c.featured)) {
+    if (candidates.length >= 3) break;
+    if (installed.has(entry.slug)) continue;
+    if (candidates.some((c) => c.slug === entry.slug)) continue;
+    candidates.push(entry);
+  }
+
+  return candidates.slice(0, 3);
 }
 
-/** At most two high-value attach actions for empty Gaps — role-specific, not a catalog grid. */
+/** Up to three attach/console actions — skips already-attached communities. */
 export function gapsPrimaryActions(input: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
+  installedSlugs?: string[];
 }): DiscoverAction[] {
   const entries = catalogForContext(input);
+  const installed = new Set(input.installedSlugs ?? []);
   const actions: DiscoverAction[] = [];
   const seen = new Set<string>();
   const actionRole =
     input.role === "all" || input.role === "community" ? "funder" : input.role;
-  for (const entry of entries.slice(0, 3)) {
-    const templateId =
-      entry.kind === "music"
-        ? "user-centric-royalties"
-        : entry.kind === "media"
-          ? "video-royalties"
-          : entry.kind === "research"
-            ? "citation-toll"
-            : "docs-bounty";
+
+  for (const entry of entries) {
+    const templateId = templateForKind(entry.kind);
     const needType = classifyBoardNeedType({
       templateId,
       communitySlug: entry.slug,
@@ -89,12 +98,13 @@ export function gapsPrimaryActions(input: {
       whyFund: entry.tagline,
       programName: entry.name,
     });
+    const isInstalled = installed.has(entry.slug);
     const rowActions = boardCommunityActions(actionRole, {
       communitySlug: entry.slug,
       templateId,
       needType,
       communityName: entry.name,
-      installed: false,
+      installed: isInstalled,
     });
     for (const action of rowActions.slice(0, 1)) {
       const key = `${action.kind}:${action.communitySlug}:${action.label}`;
@@ -103,12 +113,14 @@ export function gapsPrimaryActions(input: {
       actions.push(action);
     }
   }
-  return actions.slice(0, 2);
+
+  return actions.slice(0, 3);
 }
 
 export function gapsExploreActions(input: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
+  installedSlugs?: string[];
 }): DiscoverAction[] {
   return gapsPrimaryActions(input);
 }
@@ -116,6 +128,7 @@ export function gapsExploreActions(input: {
 export function gapsExploreCommunities(input: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
+  installedSlugs?: string[];
 }): CommunityCatalogEntry[] {
   return catalogForContext(input);
 }

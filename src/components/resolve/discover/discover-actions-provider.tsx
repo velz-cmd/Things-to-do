@@ -29,6 +29,7 @@ import { useCommunityConsoleOptional } from "@/components/resolve/discover/disco
 import { useAuth } from "@/components/auth/auth-provider";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
+import type { CommunityConsoleActionContext } from "@/components/resolve/discover/discover-community-console-provider";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -49,7 +50,7 @@ function missingFields(action: DiscoverAction): string[] {
       missing.push("programId, communitySlug, or missionId");
     }
   }
-  if (action.kind === "install" || action.kind === "create_program") {
+  if (action.kind === "install" || action.kind === "create_program" || action.kind === "console") {
     if (!action.communitySlug) missing.push("communitySlug");
   }
   if (action.kind === "share" && !action.href) missing.push("receipt href");
@@ -67,7 +68,7 @@ export function DiscoverActionsProvider({
   const router = useRouter();
   const communityConsole = useCommunityConsoleOptional();
   const { balance, balanceLoading, refreshBalance } = useAuth();
-  const { state: connections } = useUserConnections();
+  const { state: connections, reload: reloadConnections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
   const [wallet, setWallet] = useState<WalletSnapshot>({
     spendableUsd: 0,
@@ -114,6 +115,26 @@ export function DiscoverActionsProvider({
     }
   }, [signedIn, balance, balanceLoading, refreshWallet]);
 
+  const openDiscoverConsole = useCallback(
+    (
+      communitySlug: string,
+      actionContext?: CommunityConsoleActionContext,
+      label?: string,
+    ) => {
+      if (!communityConsole) {
+        toast.error("Community console unavailable — refresh Discover");
+        return;
+      }
+      communityConsole.open({
+        communitySlug,
+        tab: "console",
+        actionContext,
+        label,
+      });
+    },
+    [communityConsole],
+  );
+
   const ensureProgram = useCallback(
     async (target: {
       programId: string | null;
@@ -124,8 +145,9 @@ export function DiscoverActionsProvider({
       if (target.programId) return target.programId;
 
       if (target.needsInstall) {
-        toast.loading(`Installing ${target.communitySlug}…`, { id: "discover-chain" });
+        toast.loading(`Attaching ${target.communitySlug}…`, { id: "discover-chain" });
         await apiInstallCommunity(target.communitySlug);
+        void reloadConnections();
       }
 
       toast.loading(`Creating ${target.templateId} program…`, { id: "discover-chain" });
@@ -133,7 +155,7 @@ export function DiscoverActionsProvider({
       if (!created.program?.id) throw new Error("Program was not created — POST /api/communities/{slug}/programs returned no id");
       return created.program.id;
     },
-    [],
+    [reloadConnections],
   );
 
   const executeFund = useCallback(
@@ -192,13 +214,8 @@ export function DiscoverActionsProvider({
         await refreshBalance().catch(() => null);
         await refreshWallet();
         setFundSheet(null);
-        if (communityConsole && req.communitySlug) {
-          communityConsole.open({
-            communitySlug: req.communitySlug,
-            tab: "console",
-            actionContext: "fund",
-            label: req.label,
-          });
+        if (req.communitySlug) {
+          openDiscoverConsole(req.communitySlug, "fund", req.label);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Fund failed";
@@ -209,7 +226,7 @@ export function DiscoverActionsProvider({
         setBusy(false);
       }
     },
-    [signedIn, router, wallet, ensureProgram, refreshWallet, refreshBalance, reportActionStatus, communityConsole],
+    [signedIn, router, wallet, ensureProgram, refreshWallet, refreshBalance, reportActionStatus, openDiscoverConsole],
   );
 
   const openFundSheet = useCallback(
@@ -288,94 +305,94 @@ export function DiscoverActionsProvider({
             }
             break;
 
-          case "install":
-            setBusy(true);
-            try {
-              await apiInstallCommunity(action.communitySlug!);
-              const slug = action.communitySlug!;
-              toast.success(`${slug} ready — RESOLVE syncs sources in the background`);
-              reportActionStatus(surface, action, "success");
-              if (communityConsole && surface !== "community-console" && surface !== "bubble-operator-panel") {
-                communityConsole.open({
-                  communitySlug: slug,
-                  tab: "console",
-                  actionContext: "install",
-                });
-              } else if (surface !== "community-console" && surface !== "bubble-operator-panel") {
-                router.push(`/communities/${slug}?intent=install`);
-              }
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : "Install failed";
-              reportActionStatus(surface, action, "error", msg);
-              toast.error(msg);
-              throw e;
-            } finally {
-              setBusy(false);
-            }
+          case "console": {
+            const slug = action.communitySlug;
+            if (!slug) break;
+            openDiscoverConsole(slug, "observe", action.label);
+            reportActionStatus(surface, action, "success");
             break;
+          }
 
-          case "create_program": {
-            setBusy(true);
+          case "install": {
+            const slug = action.communitySlug!;
+            const toastId = `discover-install-${slug}`;
+            toast.loading(`Attaching ${slug}…`, { id: toastId });
             try {
-              try {
-                await apiInstallCommunity(action.communitySlug!);
-              } catch (e) {
-                const msg = e instanceof Error ? e.message : "";
-                if (!msg.toLowerCase().includes("already")) throw e;
-              }
-              const created = await apiCreateProgram(action.communitySlug!, action.templateId);
-              if (!created.program?.id) {
-                throw new Error("Program not created — check community install and templateId");
-              }
-              toast.success(`Program created: ${created.program.name}`);
+              const result = await apiInstallCommunity(slug);
+              toast.success(
+                result.alreadyInstalled
+                  ? `${slug} already attached — console ready`
+                  : `${slug} attached — sensors sync in background`,
+                { id: toastId },
+              );
               reportActionStatus(surface, action, "success");
+              void reloadConnections();
               if (surface !== "community-console" && surface !== "bubble-operator-panel") {
-                if (communityConsole) {
-                  communityConsole.open({
-                    communitySlug: action.communitySlug!,
-                    tab: "console",
-                    actionContext: "create_program",
-                  });
-                } else {
-                  router.push(`/communities/${action.communitySlug}`);
-                }
+                openDiscoverConsole(slug, "install");
               }
             } catch (e) {
-              const msg = e instanceof Error ? e.message : "Create program failed";
+              const msg = e instanceof Error ? e.message : "Attach failed";
               reportActionStatus(surface, action, "error", msg);
-              toast.error(msg);
+              toast.error(msg, { id: toastId });
               throw e;
-            } finally {
-              setBusy(false);
             }
             break;
           }
 
-          case "connect_sensor":
-            setBusy(true);
+          case "create_program": {
+            const slug = action.communitySlug!;
+            const toastId = `discover-program-${slug}`;
+            toast.loading(`Setting up ${slug}…`, { id: toastId });
             try {
-              const slug = action.communitySlug ?? action.href?.match(/\/communities\/([^/#?]+)/)?.[1];
-              if (slug) {
+              try {
                 await apiInstallCommunity(slug);
-                toast.success(`${slug} ready — syncing value automatically`);
-                reportActionStatus(surface, action, "success");
-                if (communityConsole) {
-                  communityConsole.open({ communitySlug: slug, tab: "console" });
-                } else {
-                  router.push(`/communities/${slug}`);
-                }
-              } else if (action.href) {
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : "";
+                if (!msg.toLowerCase().includes("already")) throw e;
+              }
+              const created = await apiCreateProgram(slug, action.templateId);
+              if (!created.program?.id) {
+                throw new Error("Program not created — check community attach and templateId");
+              }
+              toast.success(`Program created: ${created.program.name}`, { id: toastId });
+              reportActionStatus(surface, action, "success");
+              void reloadConnections();
+              if (surface !== "community-console" && surface !== "bubble-operator-panel") {
+                openDiscoverConsole(slug, "create_program");
+              }
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : "Create program failed";
+              reportActionStatus(surface, action, "error", msg);
+              toast.error(msg, { id: toastId });
+              throw e;
+            }
+            break;
+          }
+
+          case "connect_sensor": {
+            const slug = action.communitySlug ?? action.href?.match(/\/communities\/([^/#?]+)/)?.[1];
+            if (!slug) {
+              if (action.href) {
                 router.push(action.href);
                 reportActionStatus(surface, action, "success");
               }
+              break;
+            }
+            const toastId = `discover-sensor-${slug}`;
+            toast.loading(`Attaching ${slug}…`, { id: toastId });
+            try {
+              await apiInstallCommunity(slug);
+              toast.success(`${slug} ready — syncing value automatically`, { id: toastId });
+              reportActionStatus(surface, action, "success");
+              void reloadConnections();
+              openDiscoverConsole(slug, "install");
             } catch (e) {
-              const msg = e instanceof Error ? e.message : "Could not open community";
+              const msg = e instanceof Error ? e.message : "Could not attach community";
               reportActionStatus(surface, action, "error", msg);
-              toast.error(msg);
-            } finally {
-              setBusy(false);
+              toast.error(msg, { id: toastId });
             }
             break;
+          }
 
           case "claim":
             router.push(action.href ?? "/claim");
@@ -451,7 +468,7 @@ export function DiscoverActionsProvider({
         }
       }
     },
-    [signedIn, router, executeFund, openFundSheet, reportActionStatus, communityConsole, connections],
+    [signedIn, router, executeFund, openFundSheet, reportActionStatus, communityConsole, connections, openDiscoverConsole, reloadConnections],
   );
 
   const value = useMemo(

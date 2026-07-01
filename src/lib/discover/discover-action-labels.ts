@@ -23,11 +23,11 @@ export function friendlyDiscoverActionLabel(
 ): string {
   if (state?.signedIn && action.communitySlug) {
     const installed = state.installedCommunitySlugs.includes(action.communitySlug);
-    if (installed && (action.kind === "install" || action.kind === "connect_sensor")) {
-      return `Open ${communityTitle(action.communitySlug)}`;
+    if (installed && (action.kind === "install" || action.kind === "connect_sensor" || action.kind === "console")) {
+      return `Open ${communityTitle(action.communitySlug)} console`;
     }
     if (state.hasAnyConnector && action.kind === "install") {
-      return `Explore ${communityTitle(action.communitySlug)}`;
+      return `Attach ${communityTitle(action.communitySlug)}`;
     }
   }
 

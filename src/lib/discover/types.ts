@@ -15,6 +15,7 @@ export type DiscoverActionKind =
   | "install"
   | "claim"
   | "open"
+  | "console"
   | "create_program"
   | "connect_sensor"
   | "sponsor"

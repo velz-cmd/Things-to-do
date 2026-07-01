@@ -14,7 +14,7 @@ const connectedState: UserConnectionState = {
 };
 
 describe("tailorDiscoverActionsForUser", () => {
-  it("rewrites install to open when community already installed", () => {
+  it("rewrites install to console when community already installed", () => {
     const [action] = tailorDiscoverActionsForUser(
       [
         {
@@ -26,9 +26,10 @@ describe("tailorDiscoverActionsForUser", () => {
       ],
       connectedState,
     );
-    expect(action?.kind).toBe("open");
+    expect(action?.kind).toBe("console");
     expect(action?.label).toContain("React");
-    expect(action?.href).toBe("/communities/react");
+    expect(action?.href).toBeUndefined();
+    expect(action?.communitySlug).toBe("react");
   });
 
   it("leaves fund actions unchanged", () => {

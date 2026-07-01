@@ -20,10 +20,10 @@ export function boardCommunityActions(
     return [
       { id: "earn", label: "View earnings", kind: "open", href: "/capital" },
       {
-        id: "open",
-        label: `Open ${communityName}`,
-        kind: "open",
-        href: `/communities/${communitySlug}`,
+        id: "console",
+        label: `Open ${communityName} console`,
+        kind: "console",
+        communitySlug,
       },
     ];
   }
@@ -55,10 +55,10 @@ export function boardCommunityActions(
         communitySlug,
       },
       {
-        id: "sensor",
-        label: "Open sensors",
-        kind: "open",
-        href: `/communities/${communitySlug}#health`,
+        id: "console",
+        label: "Open console",
+        kind: "console",
+        communitySlug,
       },
     ];
   }

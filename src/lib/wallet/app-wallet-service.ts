@@ -1,13 +1,33 @@
 import { prisma } from "@/lib/db";
 import type { User as DbUser } from "@prisma/client";
 import { embeddedWalletFor } from "@/lib/wallet/embedded";
-import { getCircleClient } from "@/lib/settlement/circle-client";
-import { getCircleWalletSetId } from "@/lib/wallet/circle-config";
+import { getCircleClient, getCircleClientWithSecret, resetCircleClientCache } from "@/lib/settlement/circle-client";
+import {
+  CIRCLE_WALLET_SET_CONFIG_KEY,
+  ensureCircleEntitySecret,
+  ensureCircleWalletSet,
+  getCircleWalletSetId,
+} from "@/lib/wallet/circle-config";
 
 type AppWalletMeta = {
   provider: "circle" | "embedded";
   circleWalletId?: string;
 };
+
+function circleErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (!err || typeof err !== "object") return "Circle API request failed";
+  const e = err as {
+    message?: string;
+    code?: number;
+    response?: { data?: { message?: string } };
+  };
+  return (
+    e.response?.data?.message ??
+    e.message ??
+    (e.code ? `Circle error ${e.code}` : "Circle API request failed")
+  );
+}
 
 function readMeta(json: string | null | undefined): AppWalletMeta | null {
   if (!json) return null;
@@ -32,32 +52,77 @@ function writeMeta(existing: string | null | undefined, meta: AppWalletMeta): st
   return JSON.stringify(base);
 }
 
-async function createCircleAppWallet(userId: string): Promise<{
+async function resolveWalletSetCandidates(): Promise<string[]> {
+  const candidates: string[] = [];
+  const fromEnv = process.env.CIRCLE_WALLET_SET_ID?.trim();
+  if (fromEnv) candidates.push(fromEnv);
+
+  const resolved = await getCircleWalletSetId();
+  if (resolved && !candidates.includes(resolved)) candidates.push(resolved);
+
+  const row = await prisma.appConfig.findUnique({
+    where: { key: CIRCLE_WALLET_SET_CONFIG_KEY },
+  });
+  const fromDb = row?.value?.trim();
+  if (fromDb && !candidates.includes(fromDb)) candidates.push(fromDb);
+
+  if (!candidates.length) {
+    const boot = await ensureCircleWalletSet();
+    candidates.push(boot.walletSetId);
+  }
+
+  return candidates;
+}
+
+async function createCircleAppWallet(
+  userId: string,
+  options?: { throwOnError?: boolean },
+): Promise<{
   address: `0x${string}`;
   circleWalletId: string;
 } | null> {
-  const walletSetId = await getCircleWalletSetId();
-  const circle = await getCircleClient();
-  if (!circle || !walletSetId) return null;
-
   try {
-    const res = await Promise.race([
-      circle.createWallets({
-        walletSetId,
-        blockchains: ["ARC-TESTNET"],
-        count: 1,
-        idempotencyKey: `resolve-app-wallet-${userId}`,
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Circle wallet create timeout")), 4_000),
-      ),
-    ]);
-    const wallet = res.data?.wallets?.[0];
-    const address = wallet?.address as `0x${string}` | undefined;
-    const id = wallet?.id;
-    if (!address || !id) return null;
-    return { address, circleWalletId: id };
-  } catch {
+    const secretResult = await ensureCircleEntitySecret();
+    resetCircleClientCache();
+
+    const circle = await getCircleClientWithSecret(secretResult.entitySecret);
+    if (!circle) {
+      const msg = "Circle client not configured (CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET)";
+      if (options?.throwOnError) throw new Error(msg);
+      return null;
+    }
+
+    const walletSetIds = await resolveWalletSetCandidates();
+    let lastError: unknown = null;
+
+    for (const walletSetId of walletSetIds) {
+      try {
+        const res = await circle.createWallets({
+          walletSetId,
+          blockchains: ["ARC-TESTNET"],
+          count: 1,
+          accountType: "EOA",
+          idempotencyKey: `resolve-app-wallet-${userId}`,
+        });
+
+        const wallet = res.data?.wallets?.[0];
+        const address = wallet?.address as `0x${string}` | undefined;
+        const id = wallet?.id;
+        if (!address || !id) {
+          throw new Error("Circle returned no wallet address");
+        }
+        return { address, circleWalletId: id };
+      } catch (err) {
+        lastError = err;
+        if (walletSetIds.length === 1) throw err;
+      }
+    }
+
+    throw lastError ?? new Error("Could not create wallet in any wallet set");
+  } catch (err) {
+    const msg = circleErrorMessage(err);
+    if (options?.throwOnError) throw new Error(msg);
+    console.error("[createCircleAppWallet]", userId, msg);
     return null;
   }
 }
@@ -150,9 +215,9 @@ export async function upgradeUserToCircleWallet(user: DbUser): Promise<DbUser> {
     return user;
   }
 
-  const circleWallet = await createCircleAppWallet(user.id);
+  const circleWallet = await createCircleAppWallet(user.id, { throwOnError: true });
   if (!circleWallet) {
-    throw new Error("Could not create Circle wallet — check CIRCLE_API_KEY and wallet set");
+    throw new Error("Circle wallet creation failed");
   }
 
   return prisma.user.update({

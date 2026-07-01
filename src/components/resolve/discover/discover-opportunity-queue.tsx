@@ -27,6 +27,10 @@ import type { DiscoverBoardItem } from "@/lib/discover/opportunity-board";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { needTypeBadgeClass, needTypeLabel, primaryBoardCtaLabel } from "@/lib/discover/need-types";
 import {
+  boardCommunityActions,
+  boardSubtitleForRole,
+} from "@/lib/discover/board-actions-for-role";
+import {
   sortByOpportunityScore,
   type OpportunitySortKey,
 } from "@/lib/discover/opportunity-score";
@@ -117,19 +121,11 @@ export function DiscoverOpportunityQueue({
     [board],
   );
 
-  const combined = useMemo(() => [...deduped.map((p) => ({ ...p, boardKind: "program" as const })), ...communityItems], [deduped, communityItems]);
-
-  const filtered = useMemo(() => {
+  const programFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let rows = combined;
+    let rows = deduped.map((p) => ({ ...p, boardKind: "program" as const }));
     if (needType !== "all") {
-      rows = rows.filter((o) => {
-        const nt =
-          "needType" in o && o.needType
-            ? o.needType
-            : undefined;
-        return nt === needType;
-      });
+      rows = rows.filter((o) => o.needType === needType);
     }
     if (q) {
       rows = rows.filter(
@@ -141,7 +137,27 @@ export function DiscoverOpportunityQueue({
       );
     }
     return sortByOpportunityScore(rows, sortKey);
-  }, [combined, query, needType, sortKey]);
+  }, [deduped, query, needType, sortKey]);
+
+  const exploreFiltered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let rows = communityItems;
+    if (needType !== "all") {
+      rows = rows.filter((o) => o.needType === needType);
+    }
+    if (q) {
+      rows = rows.filter(
+        (o) =>
+          o.programName.toLowerCase().includes(q) ||
+          o.communityName.toLowerCase().includes(q) ||
+          o.communitySlug.toLowerCase().includes(q) ||
+          o.whyFund.toLowerCase().includes(q),
+      );
+    }
+    return rows;
+  }, [communityItems, query, needType]);
+
+  const hasVerifiedPrograms = programFiltered.length > 0;
 
   async function fundRow(o: FundableOpportunity) {
     const raw = amountByProgram[o.programId] ?? "25";
@@ -167,25 +183,20 @@ export function DiscoverOpportunityQueue({
     }
   }
 
-  function scrollToCommunities() {
-    document.getElementById("communities")?.scrollIntoView({ behavior: "smooth" });
-  }
-
-  const subtitle =
-    signedIn && walletUsd != null ? (
-      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span>Funded programs and connect paths</span>
+  const subtitle = (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span>{boardSubtitleForRole(role, signedIn, walletUsd)}</span>
+      {signedIn && walletUsd != null && (
         <Link
           href="/capital"
           className="inline-flex items-center gap-1 rounded-md border border-resolve-accent/25 bg-resolve-accent/10 px-2 py-0.5 text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15"
         >
           <Wallet className="h-3 w-3" />
-          ${walletUsd.toFixed(2)} spendable · Manage wallet
+          Manage wallet
         </Link>
-      </span>
-    ) : (
-      "Funded programs plus connect/install paths — refresh when you want updated gaps"
-    );
+      )}
+    </span>
+  );
 
   return (
     <DiscoverPremiumSection
@@ -196,7 +207,7 @@ export function DiscoverOpportunityQueue({
       hidden={!showQueue}
       actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}
     >
-      {filtered.length > 0 && (
+      {hasVerifiedPrograms && (
         <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
             Sort by
@@ -234,17 +245,17 @@ export function DiscoverOpportunityQueue({
             Loading programs…
           </div>
         </DiscoverStatePanel>
-      ) : error && !filtered.length ? (
+      ) : error && !hasVerifiedPrograms && !exploreFiltered.length ? (
         <DiscoverStatePanel variant="error">
           <p className="text-sm text-resolve-muted">{error}</p>
           <DiscoverRetryButton onClick={() => void loadQueue()} />
         </DiscoverStatePanel>
-      ) : !filtered.length ? (
+      ) : !hasVerifiedPrograms && !exploreFiltered.length ? (
         <DiscoverStatePanel variant="empty">
           <p className="text-sm text-resolve-muted">
             {query.trim()
               ? "No programs match your search."
-              : "Fulfillment queue fills as community programs deploy. Explore ecosystems in Gaps or Radars to fund real opportunities."}
+              : "No ledger-backed programs to fund yet. Attach a community below — verified gaps rank on Gaps and Radars when sensors sync."}
           </p>
           {!query.trim() && (
             <button
@@ -254,78 +265,15 @@ export function DiscoverOpportunityQueue({
               }}
               className="mt-4 inline-flex rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
             >
-              Explore programs
+              Browse Gaps
             </button>
           )}
         </DiscoverStatePanel>
       ) : (
+        <>
+          {hasVerifiedPrograms && (
         <ul className="divide-y divide-white/[0.06]">
-          {filtered.map((o) => {
-            if (o.boardKind === "community") {
-              const nt = o.needType;
-              const ctaLabel = primaryBoardCtaLabel(nt, o);
-              return (
-                <li
-                  key={o.programId}
-                  className="resolve-signal-service-row px-1 py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-white">{o.programName}</p>
-                        <span
-                          className={clsx(
-                            "rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase",
-                            needTypeBadgeClass(nt),
-                          )}
-                        >
-                          {needTypeLabel(nt)}
-                        </span>
-                        <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-blue-300">
-                          {o.templateLabel}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-resolve-muted">{o.communityTagline}</p>
-                      <p className="mt-2 text-xs leading-relaxed text-resolve-muted-dim">{o.whyFund}</p>
-                      {o.opportunityScorecard && (
-                        <DiscoverOpportunityScoreChips
-                          chips={o.opportunityScorecard.chips}
-                          composite={o.opportunityScorecard.composite}
-                          compact
-                          className="mt-3"
-                        />
-                      )}
-                    </div>
-                    <div className="shrink-0 text-right">
-                      {o.opportunityScorecard && (
-                        <p className="text-2xl font-semibold tabular-nums text-resolve-accent">
-                          {o.opportunityScorecard.composite}
-                        </p>
-                      )}
-                    {o.fundingGapUsd > 0 && (
-                      <p className="text-sm font-semibold tabular-nums text-amber-200/80">
-                        Est. ${o.fundingGapUsd.toFixed(0)}
-                      </p>
-                    )}
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
-                    <DiscoverActionChip
-                      action={{
-                        id: `install-${o.communitySlug}`,
-                        label: ctaLabel,
-                        kind: "install",
-                        communitySlug: o.communitySlug,
-                      }}
-                      signedIn={signedIn}
-                      primary
-                      surface="opportunity-board"
-                    />
-                  </div>
-                </li>
-              );
-            }
-
+          {programFiltered.map((o) => {
             const program = o as FundableOpportunity & { needType?: import("@/lib/discover/need-types").DiscoverNeedType };
             const programNeed = program.needType ?? "funding";
             const fundLabel = primaryBoardCtaLabel(programNeed, {
@@ -454,6 +402,69 @@ export function DiscoverOpportunityQueue({
             );
           })}
         </ul>
+          )}
+
+          {exploreFiltered.length > 0 && (
+            <div className={clsx(hasVerifiedPrograms && "mt-6 border-t border-white/[0.06] pt-5")}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
+                {hasVerifiedPrograms ? "Attach to unlock" : "No ledger programs yet — attach a community"}
+              </p>
+              <p className="mt-1 text-[11px] text-resolve-muted-dim">
+                Catalog communities — not ranked scores. Actions depend on your role ({role === "all" ? "pick a role in Refine" : role}).
+              </p>
+              <ul className="mt-3 divide-y divide-white/[0.06]">
+                {exploreFiltered.map((o) => {
+                  const actions = boardCommunityActions(role, {
+                    communitySlug: o.communitySlug,
+                    templateId: o.templateId,
+                    needType: o.needType,
+                    communityName: o.communityName,
+                  });
+                  return (
+                    <li key={o.programId} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium text-white">{o.programName}</p>
+                            <span
+                              className={clsx(
+                                "rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase",
+                                needTypeBadgeClass(o.needType),
+                              )}
+                            >
+                              {needTypeLabel(o.needType)}
+                            </span>
+                            <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-200/90">
+                              Attach first
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-resolve-muted">{o.communityTagline}</p>
+                          <p className="mt-2 text-xs leading-relaxed text-resolve-muted-dim">{o.whyFund}</p>
+                          {o.fundingGapUsd > 0 && o.opportunityScorecard && (
+                            <p className="mt-2 text-[11px] text-amber-200/80">
+                              GitHub scan est. ${o.fundingGapUsd.toFixed(0)} — not ledger-verified
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {actions.map((action, index) => (
+                          <DiscoverActionChip
+                            key={action.id}
+                            action={action}
+                            signedIn={signedIn}
+                            primary={index === 0}
+                            surface="opportunity-board-explore"
+                          />
+                        ))}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </DiscoverPremiumSection>
   );

@@ -59,18 +59,21 @@ function communityBoardRow(
     programName: c.name,
   });
 
-  const opportunityScorecard = buildOpportunityScorecard({
-    amountNeededUsd: gapUsd,
-    amountVerified: Boolean(opts?.ossMatch && gapUsd > 0),
-    amountKind: opts?.ossMatch ? "estimate" : undefined,
-    dataSource: opts?.ossMatch ? "github" : "community_catalog",
-    templateId,
-    domain: c.kind === "music" ? "music" : c.kind === "research" ? "research" : "oss",
-    maintainerCount: opts?.ossMatch ? 3 : 0,
-    sensorGated: true,
-    sensorLive: false,
-    programCount: 0,
-  });
+  const hasScanGap = Boolean(opts?.ossMatch && gapUsd > 0);
+  const opportunityScorecard = hasScanGap
+    ? buildOpportunityScorecard({
+        amountNeededUsd: gapUsd,
+        amountVerified: false,
+        amountKind: "estimate",
+        dataSource: "github",
+        templateId,
+        domain: c.kind === "music" ? "music" : c.kind === "research" ? "research" : "oss",
+        maintainerCount: 3,
+        sensorGated: true,
+        sensorLive: false,
+        programCount: 0,
+      })
+    : undefined;
 
   return {
     boardKind: "community",
@@ -82,11 +85,11 @@ function communityBoardRow(
     templateId,
     templateLabel: templateLabel(templateId),
     fundingGapUsd: gapUsd,
-    whyFund: opts?.ossMatch
+    whyFund: hasScanGap
       ? `${c.tagline} · GitHub scan · est. $${gapUsd.toFixed(0)} maintainer gap`
-      : `${c.tagline} · install to surface verified needs as activity syncs`,
+      : `${c.tagline} · attach community — verified gaps appear after sensors sync`,
     whoBenefits: c.doctrine.slice(0, 120),
-    score: opportunityScorecard.composite,
+    score: opportunityScorecard?.composite ?? 0,
     opportunityScorecard,
     metricKind: c.attachShape === "sidecar" ? "install" : "connect",
     connectCta: exploreCtaForCommunity(c),

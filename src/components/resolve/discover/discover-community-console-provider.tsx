@@ -13,12 +13,15 @@ import type { AutomationTrigger } from "@/lib/automation/types";
 
 export type CommunityConsoleTab = "console" | "automate" | "advanced";
 
+export type CommunityConsoleActionContext = "fund" | "install" | "create_program" | "observe" | "automate";
+
 export type CommunityConsoleOpenRequest = {
   communitySlug: string;
   label?: string;
   node?: DiscoverGraphNode;
   tab?: CommunityConsoleTab;
   automationTrigger?: AutomationTrigger;
+  actionContext?: CommunityConsoleActionContext;
 };
 
 type CommunityConsoleContextValue = {

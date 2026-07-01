@@ -20,6 +20,8 @@ import {
   DiscoverStatePanel,
 } from "@/components/resolve/discover/discover-state-panel";
 
+import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
+
 type DiscoverTrendingGapsProps = {
   signedIn: boolean;
   query?: string;
@@ -28,6 +30,7 @@ type DiscoverTrendingGapsProps = {
   needType?: DiscoverNeedTypeFilter;
   className?: string;
   limit?: number;
+  onSwitchLane?: (lane: DiscoverWorkspaceLane) => void;
 };
 
 export function DiscoverTrendingGaps({
@@ -38,6 +41,7 @@ export function DiscoverTrendingGaps({
   needType = "all",
   className,
   limit,
+  onSwitchLane,
 }: DiscoverTrendingGapsProps) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
   const [sortKey, setSortKey] = useState<OpportunitySortKey>("composite");
@@ -89,7 +93,13 @@ export function DiscoverTrendingGaps({
           <DiscoverRetryButton onClick={() => void refresh()} />
         </DiscoverStatePanel>
       ) : !filtered.length ? (
-        <DiscoverGapsEmpty needType={needType} role={role} signedIn={signedIn} degraded={feed?.degraded} />
+        <DiscoverGapsEmpty
+          needType={needType}
+          role={role}
+          signedIn={signedIn}
+          degraded={feed?.degraded}
+          onSwitchLane={onSwitchLane}
+        />
       ) : (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">

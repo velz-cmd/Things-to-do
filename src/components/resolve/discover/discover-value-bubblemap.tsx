@@ -31,6 +31,8 @@ import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-s
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { VALUE_GRAPH_FOOTER, VALUE_GRAPH_MAP_HINT, VALUE_GRAPH_SUBTITLE } from "@/lib/discover/resolve-value-copy";
 import { DiscoverValueNodeStrip } from "@/components/resolve/discover/discover-value-node-strip";
+import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
+import { gapsPrimaryActions } from "@/lib/discover/gaps-empty-state";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -138,11 +140,13 @@ export function DiscoverValueBubblemap({
   intent = "all",
   role = "all",
   signedIn = false,
+  onOpenBoard,
 }: {
   className?: string;
   intent?: DiscoverIntent;
   role?: DiscoverRole;
   signedIn?: boolean;
+  onOpenBoard?: () => void;
 }) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<RadarPayload | null>(null);
@@ -186,11 +190,15 @@ export function DiscoverValueBubblemap({
     void loadRadar();
   }, [loadRadar]);
 
-  const filteredGraph = useMemo(() => {
+  const { filteredGraph, intentFallback } = useMemo(() => {
     const nodes = data?.graph.nodes ?? [];
     const edges = data?.graph.edges ?? [];
     const byDomain = filterGraphByDomain(nodes, edges, domainFilter);
-    return filterGraphByIntent(byDomain.nodes, byDomain.edges, intent);
+    const byIntent = filterGraphByIntent(byDomain.nodes, byDomain.edges, intent);
+    if (byIntent.nodes.length === 0 && intent !== "all" && byDomain.nodes.length > 0) {
+      return { filteredGraph: byDomain, intentFallback: true };
+    }
+    return { filteredGraph: byIntent, intentFallback: false };
   }, [data?.graph.nodes, data?.graph.edges, domainFilter, intent]);
 
   const bubbles = useMemo(
@@ -210,13 +218,20 @@ export function DiscoverValueBubblemap({
   const scaleX = viewW / VIEW_W;
   const scaleY = viewH / VIEW_H;
 
-  const modeLabel = data?.live
-    ? `Live ledger · ${data.ledgerEventCount ?? 0} authorization${(data.ledgerEventCount ?? 0) === 1 ? "" : "s"}`
-    : data?.hasCatalogPreview
-      ? "Catalog preview + ledger nodes — dashed rings are structural; click for actions"
-      : hasGraph
-        ? "Ledger nodes — attach communities on Board to grow the graph"
-        : "Loading graph — attach a community on Board to add live nodes";
+  const emptyAttachActions = useMemo(
+    () => gapsPrimaryActions({ needType: "all", role }),
+    [role],
+  );
+
+  const modeLabel = loading && !data
+    ? "Loading graph…"
+    : data?.live
+      ? `Live ledger · ${data.ledgerEventCount ?? 0} authorization${(data.ledgerEventCount ?? 0) === 1 ? "" : "s"}`
+      : data?.hasCatalogPreview
+        ? "Catalog preview + ledger nodes — dashed rings are structural; click for actions"
+        : hasGraph
+          ? "Ledger nodes — attach communities on Board to grow the graph"
+          : "Awaiting ledger data — attach a community on Board, then refresh";
 
   const panelActions = useMemo(() => {
     if (!panel) return [];
@@ -273,6 +288,12 @@ export function DiscoverValueBubblemap({
               : "Click any node for actions — Fund, Attach, Observe, Automate."}
       </p>
 
+      {intentFallback && (
+        <p className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-200/90">
+          No nodes match your current job filter — showing the full catalog preview. Switch job pills or open Board to attach.
+        </p>
+      )}
+
       {hasGraph && (
         <DiscoverValueNodeStrip
           nodes={filteredGraph.nodes}
@@ -322,12 +343,32 @@ export function DiscoverValueBubblemap({
           </button>
         </div>
       ) : !hasGraph ? (
-        <div className="relative px-6 py-16 text-center">
+        <div className="relative px-6 py-12 text-center">
           <p className="text-sm text-resolve-muted">
             {domainFilter !== "all"
-              ? `No ${domainFilter} nodes in the current graph — try another filter or explore a community below.`
+              ? `No ${domainFilter} nodes in the current graph — try another filter or attach below.`
               : data?.emptyReason ?? "Ledger graph is empty — attach a community on Board, then refresh"}
           </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {emptyAttachActions.map((action, index) => (
+              <DiscoverActionChip
+                key={`${action.id}-${action.communitySlug ?? index}`}
+                action={action}
+                signedIn={signedIn}
+                primary={index === 0}
+                surface="value-graph-empty"
+              />
+            ))}
+            {onOpenBoard && (
+              <button
+                type="button"
+                onClick={onOpenBoard}
+                className="rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-3 py-1.5 text-[11px] font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
+              >
+                Open Board tab
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <>

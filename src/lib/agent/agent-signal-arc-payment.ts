@@ -3,12 +3,10 @@ import type { User } from "@prisma/client";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { RESOLVE_PLATFORM_WALLET } from "@/lib/payment/platform-fee";
 import { circleIdempotencyKey } from "@/lib/wallet/circle-idempotency";
-import { getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 import { upgradeUserToCircleWallet } from "@/lib/wallet/app-wallet-service";
 import { getRealSpendableUsd, syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 import {
   ARC_GAS_RESERVE_USD,
-  sendUsdcFromTreasuryCircleWallet,
   sendUsdcFromUserCircleWallet,
 } from "@/lib/wallet/circle-arc-transfer";
 import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
@@ -65,27 +63,6 @@ export async function chargeAgentSignalOnArc(input: {
     };
   }
 
-  if (user.walletAddress) {
-    const onChain = await getArcUsdcBalance(user.walletAddress).catch(() => null);
-    const onChainUsd = onChain ? round(Number(onChain.totalUsdc)) : 0;
-    const ledgerUsd = round(user.availableUsd);
-    const targetUsd = round(Math.max(ledgerUsd, amount + ARC_GAS_RESERVE_USD));
-    if (onChainUsd + 0.000001 < targetUsd && ledgerUsd >= amount) {
-      const topUp = round(Math.min(ledgerUsd, targetUsd - onChainUsd));
-      if (topUp >= 0.01) {
-        try {
-          await sendUsdcFromTreasuryCircleWallet({
-            destinationAddress: user.walletAddress,
-            amountUsd: topUp,
-            idempotencyKey: circleIdempotencyKey(`agent-fund:${user.id}:${topUp.toFixed(2)}`),
-          });
-        } catch {
-          /* treasury top-up optional — user may already have on-chain USDC */
-        }
-      }
-    }
-  }
-
   const spendable = await getRealSpendableUsd(user.id, { sync: true });
   const previousBalanceUsd = spendable.availableUsd;
   const maxCharge = round(Math.max(0, spendable.availableUsd - ARC_GAS_RESERVE_USD));
@@ -95,8 +72,8 @@ export async function chargeAgentSignalOnArc(input: {
       ok: false,
       error:
         maxCharge <= 0
-          ? "Not enough USDC on Arc (keep a small amount for gas)"
-          : `Insufficient balance: $${spendable.availableUsd.toFixed(2)} available, need $${amount.toFixed(3)}`,
+          ? "Not enough USDC on Arc — deposit USDC to your RESOLVE wallet on Arc testnet"
+          : `Insufficient on-chain balance: $${spendable.availableUsd.toFixed(2)} available on Arc, need $${amount.toFixed(3)}`,
       balanceUsd: spendable.availableUsd,
       onChainUsd: spendable.onChainUsd,
     };
@@ -117,11 +94,6 @@ export async function chargeAgentSignalOnArc(input: {
       destinationAddress: RESOLVE_PLATFORM_WALLET,
       amountUsd: amount,
       idempotencyKey: circleIdempotencyKey(`agent-signal:${input.taskId}:${input.serviceId}`),
-    });
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { availableUsd: { decrement: amount } },
     });
 
     await prisma.walletTransaction.create({

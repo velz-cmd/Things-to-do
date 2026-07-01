@@ -6,3 +6,8 @@ export function explorerUrlForTx(hash?: string | null): string | null {
   if (!hash?.match(/^0x[a-fA-F0-9]{64}$/)) return null;
   return `${PUBLIC_ARC_EXPLORER_URL}/tx/${hash}`;
 }
+
+export function explorerUrlForAddress(address?: string | null): string | null {
+  if (!address?.match(/^0x[a-fA-F0-9]{40}$/i)) return null;
+  return `${PUBLIC_ARC_EXPLORER_URL}/address/${address}`;
+}

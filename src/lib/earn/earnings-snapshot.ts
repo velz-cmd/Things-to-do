@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { isMissingTableError } from "@/lib/db/prisma-errors";
+import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
 import type { User } from "@prisma/client";
 import {
   getProfileEarningsSummary,
@@ -84,7 +84,7 @@ export async function refreshUserEarningsSnapshot(
     },
     });
   } catch (e) {
-    if (!isMissingTableError(e)) throw e;
+    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
   }
 
   return summary;
@@ -106,7 +106,7 @@ export async function getProfileEarningsSummaryCached(input: {
       return snapshotToSummary(row);
     }
   } catch (e) {
-    if (!isMissingTableError(e)) throw e;
+    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
   }
 
   return refreshUserEarningsSnapshot(input.userId, input.profile);

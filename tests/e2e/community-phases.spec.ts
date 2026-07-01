@@ -371,7 +371,7 @@ test.describe("Community phases — surfaces", () => {
       .getByPlaceholder(/Run intel, describe a funding objective/i)
       .fill("Run intel on React maintainers — docs gaps and contributor health");
     await page.getByRole("button", { name: "Submit" }).click();
-    await expect(page.getByText("What you get")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("What you get", { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: /Run agent/i })).toBeVisible();
     await expect(page.getByText("Suggested service")).toBeVisible();
   });
@@ -443,7 +443,7 @@ test.describe("Community phases — surfaces", () => {
 
     await expect(valueGraph).toBeVisible();
     await expect(
-      page.getByRole("main").getByText(/Click a bubble for operator console/i).first(),
+      page.getByRole("main").getByText(/click a bubble/i).first(),
     ).toBeVisible();
     await expect(
       page.locator('svg[aria-label="Value bubblemap"]').or(

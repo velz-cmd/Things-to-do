@@ -28,6 +28,10 @@ import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-p
 import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
+import {
+  VALUE_GRAPH_FOOTER,
+  VALUE_GRAPH_SUBTITLE,
+} from "@/lib/discover/resolve-value-copy";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -62,9 +66,9 @@ type BubbleNode = DiscoverGraphNode & {
 
 const MAX_BUBBLES = 24;
 const VIEW_W = 720;
-const VIEW_H = 220;
-const PAD_X = 28;
-const PAD_Y = 22;
+const VIEW_H = 200;
+const PAD_X = 16;
+const PAD_Y = 14;
 
 const NODE_COLORS: Record<string, string> = {
   creator: "#34d399",
@@ -77,45 +81,41 @@ const NODE_COLORS: Record<string, string> = {
   treasury: "#f87171",
 };
 
-function clampBubble(cx: number, cy: number, r: number) {
-  return {
-    cx: Math.min(VIEW_W - PAD_X - r, Math.max(PAD_X + r, cx)),
-    cy: Math.min(VIEW_H - PAD_Y - r, Math.max(PAD_Y + r, cy)),
-  };
-}
-
 function layoutBubblemap(nodes: DiscoverGraphNode[]): BubbleNode[] {
   if (!nodes.length) return [];
 
   const sorted = [...nodes].sort((a, b) => b.weight - a.weight).slice(0, MAX_BUBBLES);
   const hub = sorted[0];
-  const hubR = Math.min(56, 22 + Math.sqrt(Math.max(hub.weight, 1)) * 5);
-  const hubPos = clampBubble(VIEW_W / 2, VIEW_H / 2, hubR);
+  const hubR = Math.min(42, 18 + Math.sqrt(Math.max(hub.weight, 1)) * 4.5);
 
   const placed: BubbleNode[] = [
     {
       ...hub,
       r: hubR,
-      cx: hubPos.cx,
-      cy: hubPos.cy,
+      cx: VIEW_W / 2,
+      cy: VIEW_H / 2,
     },
   ];
 
   const orbit = sorted.slice(1);
-  const baseOrbit = Math.min(VIEW_W, VIEW_H) * 0.36;
+  const n = orbit.length;
+  const innerCount = Math.max(1, Math.ceil(n / 2));
 
   orbit.forEach((node, i) => {
-    const angle = (2 * Math.PI * i) / Math.max(orbit.length, 1) - Math.PI / 2;
-    const r = Math.min(36, 14 + Math.sqrt(Math.max(node.weight, 0.5)) * 3.5);
-    const dist = baseOrbit + (i % 2) * 24 + r * 0.5;
-    const rawCx = VIEW_W / 2 + dist * Math.cos(angle);
-    const rawCy = VIEW_H / 2 + dist * Math.sin(angle);
-    const { cx, cy } = clampBubble(rawCx, rawCy, r);
+    const onInner = i < innerCount;
+    const ringIndex = onInner ? i : i - innerCount;
+    const ringSize = onInner ? innerCount : n - innerCount;
+    const angle = (2 * Math.PI * ringIndex) / Math.max(ringSize, 1) - Math.PI / 2;
+    const r = Math.min(30, 10 + Math.sqrt(Math.max(node.weight, 0.5)) * 3);
+
+    const rx = (VIEW_W / 2 - PAD_X - r) * (onInner ? 0.52 : 0.94);
+    const ry = (VIEW_H / 2 - PAD_Y - r) * (onInner ? 0.48 : 0.82);
+
     placed.push({
       ...node,
       r,
-      cx,
-      cy,
+      cx: VIEW_W / 2 + rx * Math.cos(angle),
+      cy: VIEW_H / 2 + ry * Math.sin(angle),
     });
   });
 
@@ -319,7 +319,7 @@ export function DiscoverValueBubblemap({
             viewBox={`0 0 ${viewW} ${viewH}`}
             className={clsx(
               "discover-bubblemap-svg mx-auto w-full max-w-full touch-manipulation",
-              expanded ? "h-auto" : "aspect-[720/220] max-h-[220px]",
+              expanded ? "h-auto" : "aspect-[18/5] max-h-[200px]",
             )}
             role="img"
             aria-label="Value bubblemap"
@@ -491,7 +491,7 @@ export function DiscoverValueBubblemap({
 
       {data?.updatedAt && (
         <p className="border-t border-white/[0.04] px-0 py-1.5 text-[9px] text-resolve-muted-dim">
-          Click a bubble for operator console · ⬡ = ecosystem
+          {VALUE_GRAPH_FOOTER}
         </p>
       )}
     </>
@@ -532,7 +532,7 @@ export function DiscoverValueBubblemap({
           <DiscoverPremiumSection
             id="value-graph"
             title="Value graph"
-            subtitle={`${modeLabel} · Click a bubble for operator console`}
+            subtitle={modeLabel ? `${modeLabel} · ${VALUE_GRAPH_SUBTITLE}` : VALUE_GRAPH_SUBTITLE}
             className={className}
             variant="compact"
             actions={bubblemapActions}

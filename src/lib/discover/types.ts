@@ -26,6 +26,8 @@ export type DiscoverAction = {
   id: string;
   label: string;
   kind: DiscoverActionKind;
+  /** Plain-language outcome — shown in UI, not backend jargon */
+  reason?: string;
   href?: string;
   programId?: string;
   missionId?: string;

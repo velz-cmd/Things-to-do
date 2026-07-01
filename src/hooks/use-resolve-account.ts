@@ -16,7 +16,6 @@ import type {
   ResolveWallet,
 } from "@/lib/auth/types";
 import { WALLET_LINKED_EVENT } from "@/components/wallet/wallet-link-effect";
-import { embeddedWalletFor } from "@/lib/wallet/embedded";
 
 export type { ResolveAccountState, ResolveWallet } from "@/lib/auth/types";
 
@@ -118,25 +117,8 @@ export function useResolveAccount(): ResolveAccountState {
 
     setWalletsLoading(true);
 
-    const deterministic =
-      userId ? embeddedWalletFor(userId).toLowerCase() : undefined;
-    if (deterministic) {
-      setWallets([
-        {
-          id: `app-${userId}`,
-          type: "app_managed",
-          chain: "evm",
-          address: deterministic,
-          provider: "embedded",
-          isPrimary: true,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-      setAppWalletPending(false);
-    }
-
-    const walletSyncTimer = window.setTimeout(() => {
-      fetch("/api/account/wallets", { credentials: "include" })
+    function loadWallets() {
+      return fetch("/api/account/wallets", { credentials: "include" })
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (cancelled || !data) return;
@@ -149,11 +131,12 @@ export function useResolveAccount(): ResolveAccountState {
         .finally(() => {
           if (!cancelled) setWalletsLoading(false);
         });
-    }, 8_000);
+    }
+
+    void loadWallets();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(walletSyncTimer);
     };
   }, [userId]);
 
@@ -229,6 +212,7 @@ export function useResolveAccount(): ResolveAccountState {
       arcConnected,
       appWalletPending,
       appWalletProvider: appWallet?.provider as "circle" | "embedded" | undefined,
+      walletsLoading,
       loading:
         hasSupabase &&
         authLoading &&

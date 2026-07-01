@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureProfileForUser, getSessionUser } from "@/lib/auth/session";
 import { ArcRpcUnavailableError, getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
+import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
 import { resolveUserWallet, shortWalletAddress } from "@/lib/wallet/resolve-user-wallet";
+import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -13,10 +15,12 @@ type CapitalWalletOk = {
     address: string;
     shortAddress: string;
     source: string;
+    provider: "circle" | "embedded";
     externalAddress?: string;
   };
   balance: {
     totalUsdc: string;
+    onChainUsd: string;
     nativeUsdc: string;
     erc20Usdc: string;
     chainId: number;
@@ -92,7 +96,13 @@ export async function GET() {
     }
   }
 
+  if (profile) {
+    await syncIdentityBalance(profile.id).catch(() => null);
+  }
+
   const walletResolved = resolveUserWallet(authUser.id, profile, authUser);
+  const walletProvider =
+    profile ? appWalletProvider(profile as Parameters<typeof appWalletProvider>[0]) : "embedded";
 
   try {
     const chainBalance = await getArcUsdcBalance(walletResolved.address);
@@ -107,12 +117,14 @@ export async function GET() {
         address: walletResolved.address,
         shortAddress: shortWalletAddress(walletResolved.address),
         source: walletResolved.source,
+        provider: walletProvider === "circle" ? "circle" : "embedded",
         ...(walletResolved.externalAddress ?
           { externalAddress: walletResolved.externalAddress }
         : {}),
       },
       balance: {
         totalUsdc: chainBalance.totalUsdc,
+        onChainUsd: chainBalance.totalUsdc,
         nativeUsdc: chainBalance.nativeUsdc,
         erc20Usdc: chainBalance.erc20Usdc,
         chainId: chainBalance.chainId,

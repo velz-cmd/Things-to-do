@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/session";
+import { ensureProfileForUser, getSessionUser } from "@/lib/auth/session";
 import { getBankingAccountSnapshot } from "@/lib/banking/account";
 import { bankingSnapshotFromWalletBalance } from "@/lib/banking/fallback-snapshot";
 import { buildFallbackArcRail } from "@/lib/banking/arc-rail";
+import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
 import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 
 export const maxDuration = 30;
@@ -27,25 +28,13 @@ export async function GET(req: Request) {
       return NextResponse.json(snapshot);
     }
 
-    const profile = await Promise.race([
+    let profile = await Promise.race([
       loadProfileLight(authUser.id),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), light ? 3_000 : 8_000)),
     ]);
 
     if (!profile) {
-      const address = resolveUserWallet(authUser.id, null).address;
-      const snapshot = bankingSnapshotFromWalletBalance({
-        userId: authUser.id,
-        email: authUser.email,
-        displayName:
-          (authUser.user_metadata?.full_name as string | undefined) ??
-          authUser.email?.split("@")[0] ??
-          null,
-        walletAddress: address,
-        availableUsd: 0,
-        onChainUsd: null,
-      });
-      return NextResponse.json(snapshot);
+      profile = await ensureProfileForUser(authUser);
     }
 
     const snapshot = await getBankingAccountSnapshot({ authUser, profile, light });
@@ -55,12 +44,13 @@ export async function GET(req: Request) {
     const authUser = await getSessionUser().catch(() => null);
     if (authUser) {
       try {
-        const address = resolveUserWallet(authUser.id, null).address;
+        const profile = await ensureProfileForUser(authUser);
+        const address = resolveUserWallet(profile.id, profile).address;
         const arc = buildFallbackArcRail();
         arc.identityWallet = {
           address,
           label: `${address.slice(0, 6)}…${address.slice(-4)}`,
-          provider: "embedded",
+          provider: appWalletProvider(profile),
           circleWalletId: null,
           depositAddress: address,
           onChainUsdcUsd: null,

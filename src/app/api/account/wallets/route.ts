@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureProfileForUser } from "@/lib/auth/session";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
-import { embeddedWalletFor } from "@/lib/wallet/embedded";
+import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 import type { ResolveWallet } from "@/lib/auth/types";
 
 export async function GET() {
@@ -21,71 +21,35 @@ export async function GET() {
   try {
     profile = await ensureProfileForUser(authUser);
   } catch {
-    const address = embeddedWalletFor(authUser.id).toLowerCase();
-    return NextResponse.json({
-      wallets: [
-        {
-          id: `app-${authUser.id}`,
-          type: "app_managed",
-          chain: "evm",
-          address,
-          provider: "embedded",
-          isPrimary: true,
-          createdAt: new Date().toISOString(),
-        },
-      ],
-      appWalletPending: false,
-      notificationEmail: authUser.email ?? undefined,
-      notificationEmailVerified: Boolean(authUser.email),
-    });
+    return NextResponse.json(
+      { error: "Could not load account wallet", appWalletPending: true },
+      { status: 503 },
+    );
   }
-  const wallets: ResolveWallet[] = [];
-  const createdAt = profile.createdAt.toISOString();
-  const provider = appWalletProvider(profile);
 
-  if (profile.walletAddress && profile.embeddedWallet) {
-    wallets.push({
+  const resolved = resolveUserWallet(profile.id, profile);
+  const provider = appWalletProvider(profile);
+  const wallets: ResolveWallet[] = [
+    {
       id: `app-${profile.id}`,
       type: "app_managed",
       chain: "evm",
-      address: profile.walletAddress,
+      address: resolved.address,
       provider: provider === "circle" ? "circle" : "embedded",
       isPrimary: true,
-      createdAt,
-    });
-  }
+      createdAt: profile.createdAt.toISOString(),
+    },
+  ];
 
   if (profile.scanWalletAddress) {
-    const app = wallets.find((w) => w.type === "app_managed");
     wallets.push({
       id: `ext-${profile.scanWalletAddress}`,
       type: "external",
       chain: "evm",
-      address: profile.scanWalletAddress,
+      address: profile.scanWalletAddress.toLowerCase(),
       provider: "wagmi",
       isPrimary: false,
-      createdAt,
-    });
-    if (app) app.isPrimary = true;
-  }
-
-  if (wallets.length === 0) {
-    const address = embeddedWalletFor(authUser.id).toLowerCase();
-    return NextResponse.json({
-      wallets: [
-        {
-          id: `app-${authUser.id}`,
-          type: "app_managed",
-          chain: "evm",
-          address,
-          provider: "embedded",
-          isPrimary: true,
-          createdAt: createdAt,
-        },
-      ],
-      appWalletPending: false,
-      notificationEmail: profile.email ?? undefined,
-      notificationEmailVerified: Boolean(profile.email),
+      createdAt: profile.createdAt.toISOString(),
     });
   }
 

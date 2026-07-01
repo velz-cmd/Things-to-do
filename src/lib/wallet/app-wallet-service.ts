@@ -124,7 +124,9 @@ export async function ensureAppWalletForUser(user: DbUser): Promise<DbUser> {
 
   if (user.embeddedWallet && user.walletAddress) {
     const provider = appWalletProvider(user);
-    if (provider === "circle") return user;
+    if (provider === "circle" && circleWalletIdForUser(user)) {
+      return user;
+    }
 
     const circleWallet = await createCircleAppWallet(user.id);
     if (circleWallet) {

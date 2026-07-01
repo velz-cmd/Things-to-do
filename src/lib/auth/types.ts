@@ -47,5 +47,6 @@ export type ResolveAccountState = {
   arcConnected: boolean;
   appWalletPending: boolean;
   appWalletProvider?: "circle" | "embedded";
+  walletsLoading: boolean;
   loading: boolean;
 };

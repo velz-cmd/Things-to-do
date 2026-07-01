@@ -17,7 +17,7 @@ test.describe("RESOLVE product surfaces", () => {
     await page.goto("/mission", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Mission" })).toBeVisible();
     await expect(
-      page.getByPlaceholder("Describe your funding objective…"),
+      page.getByPlaceholder(/Run intel, describe a funding objective/i),
     ).toBeVisible();
 
     await page.goto("/communities", { waitUntil: "domcontentloaded" });

@@ -19,8 +19,8 @@ export function gapsRoleIntro(role: DiscoverRole): string {
       "No gaps yet. Connect sensors on Profile — verified work surfaces automatically.",
     dao: "No grant or citation gaps yet. Launch a QF round or attach Open Research.",
     community:
-      "Creators collect on Earnings, not Gaps. Switch to the Earnings tab or connect ListenBrainz on Profile.",
-    all: "No ledger gaps ranked yet — attach a community on Board to unlock ranked opportunities.",
+      "No ranked gaps yet — attach any community on Board; authorizations from music, OSS, and research sync here.",
+    all: "No ledger gaps ranked yet — attach a community on Board to unlock ranked opportunities across the catalog.",
   };
   return copy[role] ?? copy.all!;
 }
@@ -71,6 +71,8 @@ export function gapsPrimaryActions(input: {
   const entries = catalogForContext(input);
   const actions: DiscoverAction[] = [];
   const seen = new Set<string>();
+  const actionRole =
+    input.role === "all" || input.role === "community" ? "funder" : input.role;
   for (const entry of entries.slice(0, 3)) {
     const templateId =
       entry.kind === "music"
@@ -87,7 +89,7 @@ export function gapsPrimaryActions(input: {
       whyFund: entry.tagline,
       programName: entry.name,
     });
-    const rowActions = boardCommunityActions(input.role === "all" ? "funder" : input.role, {
+    const rowActions = boardCommunityActions(actionRole, {
       communitySlug: entry.slug,
       templateId,
       needType,

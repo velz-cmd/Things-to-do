@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 async function openDiscoverWorkspaceLane(
   page: import("@playwright/test").Page,
-  lane: "Gaps" | "Radars" | "Board" | "Signals" | "Earnings",
+  lane: "Gaps" | "Radars" | "Board" | "Earnings",
 ) {
   const nav = page.getByRole("navigation", { name: "Discover workspace" });
   await nav.getByRole("button", { name: lane, exact: true }).click();
@@ -363,17 +363,14 @@ test.describe("Community phases — surfaces", () => {
     }
   });
 
-  test("discover founder role shows agent signals mission CTA", async ({ page }) => {
+  test("discover founder role opens opportunity board", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: /Run my community/i }).click();
-    await openDiscoverWorkspaceLane(page, "Signals");
-    const market = page.locator("#agent-market");
-    await market.scrollIntoViewIfNeeded();
-    await expect(market.getByRole("heading", { name: "Agent signals" })).toBeVisible();
-    await expect(market.getByText("Agents buy signals · Creators earn · Circle moves money · RESOLVE decides where")).toBeVisible();
-    await expect(market.getByRole("link", { name: /Open Mission/i })).toBeVisible();
-    await expect(market.getByText("Example prompts")).toBeVisible();
-    await expect(market.getByText("Docs review")).toBeVisible();
+    await openDiscoverWorkspaceLane(page, "Board");
+    const board = page.locator("#opportunities");
+    await expect(board.getByRole("heading", { name: "Opportunity board" })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("mission runs agent signal from chat prompt", async ({ page }) => {

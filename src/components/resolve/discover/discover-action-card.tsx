@@ -13,6 +13,7 @@ import { filterActionsByIntent } from "@/lib/discover/intent-filters";
 import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
+import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -218,7 +219,7 @@ function ActionChip({
         `discover-action-btn--${action.kind}`,
       )}
     >
-      {action.label}
+      {friendlyDiscoverActionLabel(action)}
     </button>
   );
 }
@@ -251,7 +252,7 @@ export function DiscoverActionChip({
         `discover-action-btn--${action.kind}`,
       )}
     >
-      {action.label}
+      {friendlyDiscoverActionLabel(action)}
     </button>
   );
 }

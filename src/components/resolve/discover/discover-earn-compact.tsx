@@ -68,7 +68,7 @@ export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
                   )}
                 </>
               ) : (
-                <span className="text-sm text-resolve-muted">$0 verified — connect sources on Capital</span>
+                <span className="text-sm text-resolve-muted">$0 verified — earnings appear as value is recognized on Arc</span>
               )}
             </p>
           )}

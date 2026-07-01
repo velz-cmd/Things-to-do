@@ -102,8 +102,8 @@ export function DiscoverCommunities({
   return (
     <DiscoverPremiumSection
       id="communities"
-      title="Connect communities"
-      subtitle="GitHub, Jellyfin, music & more — connect sensors where value already lives"
+      title="Explore communities"
+      subtitle="Music, video, OSS, and research — install once and RESOLVE handles sync in the background"
       className="mb-12"
       actions={
         <DiscoverSectionRefresh

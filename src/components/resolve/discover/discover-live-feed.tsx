@@ -151,8 +151,8 @@ export function DiscoverLiveFeed({
           <Activity className="mx-auto h-8 w-8 text-resolve-calm-periwinkle/60" strokeWidth={1.25} />
           <p className="mt-3 text-sm text-resolve-muted">
             {domainFilter !== "all"
-              ? `No ${domainFilter} events yet — connect a sensor for this domain.`
-              : "No events yet. Connect GitHub, Jellyfin, or ListenBrainz — value appears here when sensors authorize."}
+              ? `No ${domainFilter} events yet — activity appears as communities sync.`
+              : "No events yet. Install a community in Gaps or Radars — live value streams in here automatically."}
           </p>
         </DiscoverStatePanel>
       ) : (

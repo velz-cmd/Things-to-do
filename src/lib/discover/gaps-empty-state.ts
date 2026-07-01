@@ -1,15 +1,11 @@
+import { COMMUNITY_CATALOG, type CommunityCatalogEntry } from "@/lib/communities/catalog";
+import type { DiscoverAction } from "@/lib/discover/types";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
-export type GapSensorLink = {
-  label: string;
-  href: string;
-  hint: string;
-};
-
-/** What the Gaps lane shows — shown before pushing sensor setup. */
+/** What the Gaps lane shows — value first, no connector setup jargon. */
 export const GAPS_TAB_INTRO =
-  "Unfunded work the network can already recognize — maintainer programs, royalty pools, docs bounties, grant rounds, and citation tolls. Verified gaps appear here after community sensors sync to the ledger.";
+  "Unfunded work the network can recognize — maintainer programs, royalty pools, docs bounties, grant rounds, and citation tolls. RESOLVE surfaces opportunities here; sources sync in the background.";
 
 export const GAPS_TAB_EXAMPLES = [
   "Docs bounty on a maintainer repo",
@@ -20,74 +16,64 @@ export const GAPS_TAB_EXAMPLES = [
 
 export function gapsEmptyMessage(needType: DiscoverNeedTypeFilter): string {
   if (needType !== "all") {
-    return `No ${needType} gaps in the ledger yet. Browse communities below and connect the sensors that match your work.`;
+    return `No ${needType} gaps ranked yet. Browse live community programs below — tap Explore to open one in Discover.`;
   }
-  return "No verified gaps yet. Explore what each community tracks, then connect the sensors that fit your ecosystem.";
+  return "No ranked gaps yet. Explore a community program below — RESOLVE handles installs and source sync on the backend.";
 }
 
-/** Community-specific sensor paths — not GitHub-only. */
-export function gapsConnectLinks(input: {
+const KIND_BY_NEED: Partial<Record<DiscoverNeedTypeFilter, CommunityCatalogEntry["kind"][]>> = {
+  artists: ["music"],
+  researchers: ["research"],
+  docs: ["oss", "education"],
+  reviewers: ["oss"],
+  translators: ["education", "oss"],
+  grants: ["research"],
+  moderators: ["music", "oss", "education"],
+};
+
+const KIND_BY_ROLE: Partial<Record<DiscoverRole, CommunityCatalogEntry["kind"][]>> = {
+  community: ["music", "media"],
+  founder: ["oss", "education"],
+  dao: ["research"],
+  funder: ["oss", "music", "research"],
+};
+
+function catalogForContext(input: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
-}): GapSensorLink[] {
-  const { needType, role } = input;
-
-  if (needType === "artists" || role === "community") {
-    return [
-      {
-        label: "Independent Music",
-        href: "/communities/independent-music",
-        hint: "ListenBrainz · MusicBrainz",
-      },
-      {
-        label: "Navidrome",
-        href: "/communities/navidrome",
-        hint: "Self-hosted plays",
-      },
-    ];
+}): CommunityCatalogEntry[] {
+  const kinds = new Set<CommunityCatalogEntry["kind"]>();
+  if (input.needType !== "all") {
+    for (const k of KIND_BY_NEED[input.needType] ?? []) kinds.add(k);
+  }
+  if (input.role !== "all") {
+    for (const k of KIND_BY_ROLE[input.role] ?? []) kinds.add(k);
   }
 
-  if (needType === "researchers" || needType === "grants" || role === "dao") {
-    return [
-      {
-        label: "Open Research",
-        href: "/communities/open-research",
-        hint: "OpenAlex · Crossref",
-      },
-      {
-        label: "Browse communities",
-        href: "/communities",
-        hint: "Grant pools · QF",
-      },
-    ];
+  let rows = COMMUNITY_CATALOG.filter((c) => c.featured);
+  if (kinds.size > 0) {
+    const filtered = rows.filter((c) => kinds.has(c.kind));
+    if (filtered.length) rows = filtered;
   }
 
-  if (needType === "docs" || needType === "reviewers" || needType === "translators") {
-    return [
-      { label: "React", href: "/communities/react", hint: "GitHub · maintainers" },
-      { label: "Linux", href: "/communities/linux", hint: "Security · docs" },
-    ];
-  }
+  return rows.slice(0, 4);
+}
 
-  if (needType === "moderators" || needType === "automation") {
-    return [
-      { label: "Browse communities", href: "/communities", hint: "Install programs" },
-      { label: "Mission agent signals", href: "/mission", hint: "Pay-per-signal" },
-    ];
-  }
+export function gapsExploreActions(input: {
+  needType: DiscoverNeedTypeFilter;
+  role: DiscoverRole;
+}): DiscoverAction[] {
+  return catalogForContext(input).map((entry) => ({
+    id: `explore-${entry.slug}`,
+    label: entry.installCta.replace(/^Install on /i, "Explore "),
+    kind: "install" as const,
+    communitySlug: entry.slug,
+  }));
+}
 
-  if (role === "founder" || role === "operator") {
-    return [
-      { label: "React", href: "/communities/react", hint: "OSS · GitHub" },
-      { label: "Independent Music", href: "/communities/independent-music", hint: "Music" },
-      { label: "Open Research", href: "/communities/open-research", hint: "Citations" },
-    ];
-  }
-
-  return [
-    { label: "React · OSS", href: "/communities/react", hint: "GitHub sensor" },
-    { label: "Independent Music", href: "/communities/independent-music", hint: "Play proofs" },
-    { label: "Open Research", href: "/communities/open-research", hint: "OpenAlex" },
-    { label: "All communities", href: "/communities", hint: "Compare ecosystems" },
-  ];
+export function gapsExploreCommunities(input: {
+  needType: DiscoverNeedTypeFilter;
+  role: DiscoverRole;
+}): CommunityCatalogEntry[] {
+  return catalogForContext(input);
 }

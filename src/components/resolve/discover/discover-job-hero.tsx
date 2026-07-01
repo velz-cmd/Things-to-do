@@ -41,13 +41,12 @@ export function DiscoverJobHero({
                 onClick={() => onSelectJob(job.id, job.role, job.scrollTo)}
                 className={clsx(
                   "discover-job-pill group flex w-full flex-col items-start gap-1 rounded-xl border px-2.5 py-2 text-left transition",
-                  selected
-                    ? "discover-job-pill--selected"
-                    : "border-resolve-border/40 bg-white/[0.03] hover:border-resolve-accent/25 hover:bg-resolve-accent/[0.06]",
+                  `discover-job-pill--${job.id}`,
+                  selected && "discover-job-pill--selected",
                 )}
               >
                 <div className="flex w-full items-center gap-2">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05]">
+                  <span className="discover-job-pill__icon flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05]">
                     <Icon className="h-3.5 w-3.5 text-white/85" strokeWidth={1.75} />
                   </span>
                   <span className="min-w-0 flex-1 text-[11px] font-semibold leading-tight text-white sm:text-xs">

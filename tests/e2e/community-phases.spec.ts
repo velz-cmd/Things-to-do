@@ -352,18 +352,28 @@ test.describe("Community phases — surfaces", () => {
     await expect(board.locator("text=Reward").first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test("discover founder role shows agent signal market", async ({ page }) => {
+  test("discover founder role shows agent signals mission CTA", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: /Run my community/i }).click();
     await openDiscoverWorkspaceLane(page, "Signals");
     const market = page.locator("#agent-market");
     await market.scrollIntoViewIfNeeded();
-    await expect(market.getByRole("heading", { name: "Agent Signal Market" })).toBeVisible();
-    await expect(market.getByText("Micro-services registry")).toBeVisible({ timeout: 30_000 });
-    await expect(market.locator("li").filter({ hasText: "Sentiment" }).first()).toBeVisible();
-    await expect(market.getByText("RESOLVE fee path")).toBeVisible();
-    await expect(market.getByRole("button", { name: /Run agent/ })).toBeVisible();
-    await expect(market.getByText("Price preview:")).toBeVisible();
+    await expect(market.getByRole("heading", { name: "Agent signals" })).toBeVisible();
+    await expect(market.getByText("Agents buy signals · Creators earn · Circle settles · RESOLVE coordinates.")).toBeVisible();
+    await expect(market.getByRole("link", { name: /Open Mission/i })).toBeVisible();
+    await expect(market.getByText("Example prompts")).toBeVisible();
+    await expect(market.getByText("Docs review")).toBeVisible();
+  });
+
+  test("mission runs agent signal from chat prompt", async ({ page }) => {
+    await page.goto("/mission", { waitUntil: "domcontentloaded" });
+    await page
+      .getByPlaceholder(/Run intel, describe a funding objective/i)
+      .fill("Run intel on React maintainers — docs gaps and contributor health");
+    await page.getByRole("button", { name: "Submit" }).click();
+    await expect(page.getByText("What you get")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: /Run agent/i })).toBeVisible();
+    await expect(page.getByText("Suggested service")).toBeVisible();
   });
 
   test("discover community role shows compact earnings lane", async ({ page }) => {

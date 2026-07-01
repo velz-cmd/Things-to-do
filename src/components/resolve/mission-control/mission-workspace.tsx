@@ -19,6 +19,7 @@ import {
   MissionExecuteBar,
 } from "@/components/resolve/mission-control/mission-planning-bar";
 import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
+import { MissionAgentSignalCard } from "@/components/resolve/mission-control/mission-agent-signal-card";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionAiProvidersPanel } from "@/components/resolve/mission-control/mission-ai-providers-panel";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
@@ -34,6 +35,11 @@ import { reportFromBrief } from "@/lib/mission/mission-report";
 import type { ServerTimelineEvent } from "@/lib/mission/client-api";
 import type { MissionTopic } from "@/lib/mission/mission-topic";
 
+export type MissionAgentSignalTurn = {
+  prompt: string;
+  serviceId?: string;
+};
+
 export type MissionTurn = {
   id: string;
   role: "user" | "resolve";
@@ -47,6 +53,7 @@ export type MissionTurn = {
   policy?: PolicyProposal;
   nextSteps?: CapabilityAction[];
   researchReferences?: import("@/lib/mission/capabilities/types").ResearchReference[];
+  agentSignal?: MissionAgentSignalTurn;
 };
 
 export function MissionWorkspace({
@@ -165,7 +172,16 @@ export function MissionWorkspace({
               turn.role === "user" ?
                 <MissionUserBubble key={turn.id}>{turn.text}</MissionUserBubble>
               : <MissionResolveBubble key={turn.id}>
-                  {turn.report ?
+                  {turn.agentSignal ?
+                    <div className="space-y-3">
+                      <p className="text-sm text-resolve-muted">{turn.text}</p>
+                      <MissionAgentSignalCard
+                        prompt={turn.agentSignal.prompt}
+                        initialServiceId={turn.agentSignal.serviceId}
+                        onFollowUp={turn === lastResolve ? onSubmit : undefined}
+                      />
+                    </div>
+                  : turn.report ?
                     <MissionReportCard
                       report={turn.report}
                       onAction={turn === lastResolve ? onAction : undefined}
@@ -209,7 +225,7 @@ export function MissionWorkspace({
               </div>
             </details>
             <MissionSignalRailsPanel
-              onMissionPrompt={(prompt) => onInputChange(prompt)}
+              onMissionPrompt={(prompt) => onSubmit(prompt)}
             />
           </div>
           {onOperatingModeChange && (
@@ -289,7 +305,7 @@ export function MissionWorkspace({
                 <input
                   value={input}
                   onChange={(e) => onInputChange(e.target.value)}
-                  placeholder="Ask anything — communities, funding, risk, claims, settlement…"
+                  placeholder="Ask anything — run intel, fund maintainers, risk, claims, settlement…"
                   disabled={loading}
                   className="w-full rounded-2xl border border-white/[0.1] bg-[#131c2e]/90 px-4 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-sky-500/40 focus:outline-none disabled:opacity-50"
                 />

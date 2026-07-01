@@ -28,6 +28,9 @@ import { toast } from "sonner";
 
 export interface WalletBalance {
   availableUsd: number;
+  onChainUsd: number | null;
+  walletAddress?: string;
+  walletProvider?: "circle" | "embedded";
   lockedUsd: number;
   releasedUsd: number;
   recentActivity: {
@@ -131,6 +134,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.ok && data.balance) {
         setBalance({
           availableUsd: Number(data.balance.spendableUsd),
+          onChainUsd: Number(data.balance.onChainUsd ?? data.balance.totalUsdc),
+          walletAddress: data.wallet?.address,
+          walletProvider: data.wallet?.provider,
           lockedUsd: 0,
           releasedUsd: 0,
           recentActivity: [],

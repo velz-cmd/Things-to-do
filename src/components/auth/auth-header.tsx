@@ -12,6 +12,7 @@ import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { clearGuestExploring } from "@/lib/auth/guest";
+import { ArcWalletLink } from "@/components/resolve/ui/arc-wallet-link";
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -159,14 +160,23 @@ export function AuthHeader() {
                   <p className="text-[10px] font-medium uppercase tracking-wide text-deputy-muted">
                     Your RESOLVE wallet
                   </p>
-                  <p className="mt-0.5 font-mono text-xs text-sky-300">
-                    {shortAddress(account.appWalletAddress)}
-                  </p>
-                  <p className="mt-1 text-[10px] text-slate-500">
-                    {account.appWalletProvider === "circle"
-                      ? "Secured with Circle · locked to your account"
-                      : "Locked to your account · same address every sign-in"}
-                  </p>
+                  {account.walletsLoading || account.appWalletPending ? (
+                    <p className="mt-0.5 text-xs text-slate-500">Loading wallet…</p>
+                  ) : (
+                    <>
+                      <p className="mt-0.5 font-mono text-xs text-sky-300">
+                        {shortAddress(account.appWalletAddress)}
+                      </p>
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        {account.appWalletProvider === "circle"
+                          ? "Circle Arc testnet · one wallet per account · never changes"
+                          : "Provisioning Arc wallet…"}
+                      </p>
+                      <div className="mt-1.5">
+                        <ArcWalletLink address={account.appWalletAddress} label="View on Arcscan" />
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               {hasExternal && (
@@ -176,7 +186,15 @@ export function AuthHeader() {
               )}
               {!balanceLoading && hasEmailSession && balance && (
                 <p className="mt-2 text-xs text-deputy-accent">
-                  ${balance.availableUsd.toFixed(2)} available
+                  ${balance.availableUsd.toFixed(2)} USDC on Arc testnet
+                  {balance.onChainUsd != null &&
+                    Math.abs(balance.onChainUsd - balance.availableUsd) > 0.001 && (
+                      <span className="text-slate-500">
+                        {" "}
+                        (${balance.onChainUsd.toFixed(2)} on-chain
+                        {balance.availableUsd < balance.onChainUsd ? ", reserves held" : ""})
+                      </span>
+                    )}
                 </p>
               )}
               {!balanceLoading && hasEmailSession && !balance && (

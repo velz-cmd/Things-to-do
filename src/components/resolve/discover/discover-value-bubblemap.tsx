@@ -62,7 +62,7 @@ type BubbleNode = DiscoverGraphNode & {
 
 const MAX_BUBBLES = 24;
 const VIEW_W = 720;
-const VIEW_H = 420;
+const VIEW_H = 300;
 
 const NODE_COLORS: Record<string, string> = {
   creator: "#34d399",
@@ -494,9 +494,9 @@ export function DiscoverValueBubblemap({
       {!showFullscreen && (
         <div ref={sectionRef}>
           <DiscoverPremiumSection
-            id="value-bubblemap"
-            title="Value command center"
-            subtitle={`${modeLabel} · Click any bubble for operator console`}
+            id="value-graph"
+            title="Value graph"
+            subtitle={`${modeLabel} · Click a bubble for operator console`}
             className={className}
             actions={bubblemapActions}
           >
@@ -513,8 +513,8 @@ export function DiscoverValueBubblemap({
                 <div className="flex items-center gap-2">
                   <Orbit className="h-4 w-4 text-resolve-accent" />
                   <div>
-                    <p className="text-sm font-semibold text-white">Value command center</p>
-                    <p className="text-[11px] text-resolve-muted">{modeLabel} · Click any bubble for operator console</p>
+                    <p className="text-sm font-semibold text-white">Value graph</p>
+                    <p className="text-[11px] text-resolve-muted">{modeLabel} · Click a bubble for operator console</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">{bubblemapActions}</div>

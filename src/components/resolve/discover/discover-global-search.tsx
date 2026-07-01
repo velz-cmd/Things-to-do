@@ -100,12 +100,12 @@ export function DiscoverGlobalSearch({
   return (
     <section className="relative">
       <form onSubmit={(e) => void handleSubmit(e)} className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-resolve-accent" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-resolve-accent" />
         <input
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           placeholder="owner/repo · @maintainer · artist · fund react · 0x…"
-          className="w-full rounded-2xl border border-resolve-accent/25 bg-[#060a12]/80 py-4 pl-12 pr-4 text-sm text-white shadow-[0_0_40px_rgba(96,165,250,0.08)] placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
+          className="w-full rounded-xl border border-resolve-accent/25 bg-[#060a12]/80 py-3 pl-11 pr-4 text-sm text-white shadow-[0_0_32px_rgba(96,165,250,0.06)] placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
         />
       </form>
 

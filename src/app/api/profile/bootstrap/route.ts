@@ -8,8 +8,8 @@ import { getConnectorStatuses } from "@/lib/connectors/connector-service";
 import { userListenBrainzConfigured, userNavidromeConfigured, userJellyfinConfigured } from "@/lib/profile/user-connections";
 import { safeUrlHostname } from "@/lib/profile/safe-url";
 import { normalizeGithubLogin } from "@/lib/identity/github-login";
-import { embeddedWalletFor } from "@/lib/wallet/embedded";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
+import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 import { isDbPoolExhaustedError } from "@/lib/db/connection";
 import { offlineProfileBootstrap } from "@/lib/profile/bootstrap-fallback";
 import type { ProfileIdentityState } from "@/app/api/profile/identities/route";
@@ -30,10 +30,8 @@ export async function GET() {
     let profile = await ensureProfileForUser(authUser);
     profile = await sanitizeConnectorIdentities(authUser.id, profile);
 
-    const walletAddress =
-      profile.walletAddress?.toLowerCase() ??
-      profile.scanWalletAddress?.toLowerCase() ??
-      embeddedWalletFor(authUser.id).toLowerCase();
+    const walletResolved = resolveUserWallet(authUser.id, profile);
+    const walletAddress = walletResolved.address;
 
     const githubUsername = normalizeGithubLogin(profile.githubUsername);
     const listenbrainzConnected = userListenBrainzConfigured(profile);

@@ -20,9 +20,8 @@ function normalize(addr: string): `0x${string}` {
 }
 
 /**
- * Single canonical RESOLVE wallet resolver — used by Capital, profile, and banking.
- * Embedded wallets always resolve to embeddedWalletFor(userId) so they match the profile menu.
- * Circle wallets use the persisted Circle address from the database.
+ * Single canonical RESOLVE wallet resolver — one persisted address per user id.
+ * Database walletAddress is the source of truth (Circle Arc wallet when provisioned).
  */
 export function resolveUserWallet(
   userId: string,
@@ -38,26 +37,14 @@ export function resolveUserWallet(
       normalize(profile.scanWalletAddress)
     : undefined;
 
-  if (profile?.walletAddress?.trim() && profile.embeddedWallet) {
-    const provider = appWalletProvider(profile as DbUser);
-    if (provider === "circle") {
-      return {
-        address: normalize(profile.walletAddress),
-        source: "circle_embedded",
-        externalAddress: external,
-      };
-    }
-    return {
-      address: deterministic,
-      source: "server_wallet",
-      externalAddress: external,
-    };
-  }
-
   if (profile?.walletAddress?.trim()) {
+    const provider = profile.embeddedWallet ? appWalletProvider(profile as DbUser) : null;
     return {
       address: normalize(profile.walletAddress),
-      source: "profile",
+      source:
+        provider === "circle" ? "circle_embedded"
+        : profile.embeddedWallet ? "server_wallet"
+        : "profile",
       externalAddress: external,
     };
   }

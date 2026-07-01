@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverSignalsMissionCta } from "@/components/resolve/discover/discover-signals-mission-cta";
+import { DiscoverWhyResolve } from "@/components/resolve/discover/discover-why-resolve";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
@@ -116,6 +117,8 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         <div className="discover-section-stack">
           <DiscoverValueBubblemap intent={intent} role={role} signedIn={Boolean(user)} />
         </div>
+
+        <DiscoverWhyResolve className="discover-section-stack" />
 
         <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />
 

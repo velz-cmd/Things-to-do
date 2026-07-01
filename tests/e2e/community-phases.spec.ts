@@ -359,7 +359,7 @@ test.describe("Community phases — surfaces", () => {
     const market = page.locator("#agent-market");
     await market.scrollIntoViewIfNeeded();
     await expect(market.getByRole("heading", { name: "Agent signals" })).toBeVisible();
-    await expect(market.getByText("Agents buy signals · Creators earn · Circle settles · RESOLVE coordinates.")).toBeVisible();
+    await expect(market.getByText("Agents buy signals · Creators earn · Circle moves money · RESOLVE decides where")).toBeVisible();
     await expect(market.getByRole("link", { name: /Open Mission/i })).toBeVisible();
     await expect(market.getByText("Example prompts")).toBeVisible();
     await expect(market.getByText("Docs review")).toBeVisible();

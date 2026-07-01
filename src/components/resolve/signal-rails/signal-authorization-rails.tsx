@@ -11,6 +11,7 @@ import {
   Radio,
 } from "lucide-react";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import { ArcTxLink } from "@/components/resolve/ui/arc-tx-link";
 import { SignalLaneSection } from "@/components/resolve/signal-rails/signal-lane-panel";
 
 export type AgentServiceCard = {
@@ -43,6 +44,12 @@ type InvokeResult = {
   serviceName?: string;
   amountUsd?: number;
   authorizationId?: string;
+  payment?: {
+    txHash: string;
+    explorerUrl: string;
+    chargedUsd: number;
+    balanceUsd: number;
+  };
   data?: { sentiment?: string; score?: number; insight?: string };
   error?: string;
 };
@@ -376,6 +383,11 @@ export function SignalAuthorizationRails({
                         <>
                           <span className="font-medium text-white">Authorized</span>{" "}
                           {formatUnitPrice(lastResult.amountUsd ?? 0)} USDC
+                          {lastResult.payment?.txHash && (
+                            <span className="ml-2 inline-flex align-middle">
+                              <ArcTxLink txHash={lastResult.payment.txHash} />
+                            </span>
+                          )}
                           {lastResult.data?.sentiment && (
                             <>
                               {" "}
@@ -392,7 +404,15 @@ export function SignalAuthorizationRails({
                           )}
                         </>
                       ) : (
-                        lastResult.error ?? "Gateway unavailable for live settlement"
+                        <>
+                          {lastResult.error ?? "Gateway unavailable for live settlement"}
+                          {lastResult.payment?.txHash && (
+                            <span className="mt-2 flex flex-wrap items-center gap-2">
+                              Charged on Arc — agent failed
+                              <ArcTxLink txHash={lastResult.payment.txHash} />
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

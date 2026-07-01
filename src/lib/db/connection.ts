@@ -201,7 +201,9 @@ export function isDbPoolExhaustedError(error: unknown): boolean {
     message.includes("EMAXCONNSESSION") ||
     message.includes("Too many connections") ||
     message.includes("connection slots") ||
-    message.includes("Timed out fetching a new connection from the connection pool")
+    message.includes("Timed out fetching a new connection from the connection pool") ||
+    message.includes("Unable to start a transaction in the given time") ||
+    message.includes("Transaction API error")
   );
 }
 

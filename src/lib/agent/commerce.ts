@@ -98,23 +98,7 @@ export async function invokeAgentService<T = unknown>(input: {
   const microSlug = x402MicroSlugFromServiceId(service.id);
   let pay: AgentPayResult<X402MicroResult | { sentiment?: string; score?: number }>;
 
-  if (!isAgentGatewayEnabled() && isProductionDeploy()) {
-    return {
-      ok: false,
-      serviceId: service.id,
-      serviceName: service.name,
-      amountUsd: 0,
-      txRef: null,
-      meteringMode: "skipped",
-      error:
-        "Live agent payments require x402 gateway (ARC_AGENT_GATEWAY_PRIVATE_KEY) and a funded Arc wallet. Configure gateway env vars or use dev preview for metered invoke.",
-      url,
-      continue: false,
-      rfbProgram: service.rfbProgram,
-    };
-  }
-
-  if (!isAgentGatewayEnabled() && microSlug) {
+  if (microSlug && (input.prepaidArcTxHash || !isAgentGatewayEnabled())) {
     const text = input.query?.text ?? "";
     const direct = runX402MicroService(microSlug, text);
     if (direct && input.prepaidArcTxHash) {
@@ -154,6 +138,20 @@ export async function invokeAgentService<T = unknown>(input: {
       meteringMode: input.prepaidArcTxHash ? "user_arc_prepaid" : "offchain_metered",
       error: direct ? undefined : "Micro-service unavailable",
       url,
+    };
+  } else if (!isAgentGatewayEnabled() && isProductionDeploy()) {
+    return {
+      ok: false,
+      serviceId: service.id,
+      serviceName: service.name,
+      amountUsd: 0,
+      txRef: null,
+      meteringMode: "skipped",
+      error:
+        "Live agent payments require x402 gateway (ARC_AGENT_GATEWAY_PRIVATE_KEY) and a funded Arc wallet. Configure gateway env vars or use dev preview for metered invoke.",
+      url,
+      continue: false,
+      rfbProgram: service.rfbProgram,
     };
   } else {
     pay = await payForResource({

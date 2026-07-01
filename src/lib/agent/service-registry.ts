@@ -34,15 +34,16 @@ export type AgentSignalService = {
   examplePrompt: string;
 };
 
-export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
+/** Phase 6 x402 micro-services — agents find → pay → move on Arc. */
+const X402_MICRO_CATALOG: AgentSignalService[] = [
   {
     id: "sentiment-per-request",
-    name: "Sentiment classify",
-    tagline: "Pay per feedback line — pipeline keeps moving",
+    name: "Sentiment",
+    tagline: "Classify feedback per request",
     description:
-      "Classify customer feedback sentiment. Agent finds the API, pays ~$0.001 USDC per request, returns label + score.",
+      "Classify customer or community feedback. Agent pays $0.001 USDC per request via x402.",
     priceUsd: 0.001,
-    urlPath: "/api/x402/sentiment",
+    urlPath: "/api/x402/micro/sentiment",
     billingUnit: "request",
     eventType: "mcp.invocation",
     connectorId: "agent_x402",
@@ -50,14 +51,86 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
     method: "GET",
     discoverable: true,
     examplePrompt:
-      "My data pipeline needs sentiment analysis. Classify this customer feedback and keep moving.",
+      "Classify sentiment for maintainer feedback: love the DX but docs lag behind releases.",
+  },
+  {
+    id: "citation-verify",
+    name: "Citation verify",
+    tagline: "Verify DOI / arXiv in citation text",
+    description:
+      "Parse and verify citation identifiers in research snippets — $0.003 per signal.",
+    priceUsd: 0.003,
+    urlPath: "/api/x402/micro/citation-verify",
+    billingUnit: "signal",
+    eventType: "mcp.invocation",
+    connectorId: "agent_x402",
+    rfbProgram: "RFB #2",
+    domain: "research",
+    method: "GET",
+    discoverable: true,
+    examplePrompt:
+      "Verify citation 10.1038/nature12373 in this open-science reuse summary.",
+  },
+  {
+    id: "docs-review",
+    name: "Docs review",
+    tagline: "Heuristic docs quality score",
+    description:
+      "Score documentation PR snippets for structure and depth — $0.02 per review signal.",
+    priceUsd: 0.02,
+    urlPath: "/api/x402/micro/docs-review",
+    billingUnit: "signal",
+    eventType: "mcp.invocation",
+    connectorId: "agent_x402",
+    rfbProgram: "RFB #3",
+    domain: "oss",
+    method: "GET",
+    discoverable: true,
+    examplePrompt:
+      "Review this React maintainer docs PR: add migration guide for concurrent features.",
+  },
+  {
+    id: "attribution-signal",
+    name: "Attribution",
+    tagline: "Parse artist/track attribution",
+    description:
+      "Extract MusicBrainz-style attribution from play activity text — $0.002 per signal.",
+    priceUsd: 0.002,
+    urlPath: "/api/x402/micro/attribution",
+    billingUnit: "signal",
+    eventType: "mcp.invocation",
+    connectorId: "agent_x402",
+    rfbProgram: "RFB #7",
+    domain: "music",
+    method: "GET",
+    discoverable: true,
+    examplePrompt:
+      "Attribute play — artist: Radiohead, track: Everything In Its Right Place",
+  },
+  {
+    id: "security-signal",
+    name: "Security signal",
+    tagline: "CVE extraction from advisory text",
+    description:
+      "Extract CVE references and severity hints from security advisories — $0.10 per signal.",
+    priceUsd: 0.1,
+    urlPath: "/api/x402/micro/security-signal",
+    billingUnit: "signal",
+    eventType: "mcp.invocation",
+    connectorId: "agent_x402",
+    rfbProgram: "RFB #3",
+    domain: "oss",
+    method: "GET",
+    discoverable: true,
+    examplePrompt:
+      "Scan advisory: CVE-2024-1234 critical RCE in react-server-dom-webpack — patch review needed.",
   },
   {
     id: "premium-research",
     name: "Premium research unlock",
     tagline: "Paid evidence for mission reasoning",
     description:
-      "x402-gated research snippet — agents pay ~$0.007 USDC for policy-grade insight during Deputy missions.",
+      "x402-gated research snippet — agents pay ~$0.007 USDC for policy-grade insight during missions.",
     priceUsd: 0.007,
     urlPath: "/api/x402/premium-research",
     billingUnit: "signal",
@@ -69,12 +142,15 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
     discoverable: true,
     examplePrompt: "Unlock paid research before allocating capital to this maintainer gap.",
   },
+];
+
+/** Community sensor paths — authorize via programs, not x402 invoke. */
+const SENSOR_INGEST_SERVICES: AgentSignalService[] = [
   {
     id: "play-attribution",
-    name: "Play attribution signal",
-    tagline: "Pay per verified listen",
-    description:
-      "Maps to user-centric royalties: each verified play authorizes artist value at event time (sensor path).",
+    name: "Play attribution (sensor)",
+    tagline: "Pay per verified listen — ListenBrainz",
+    description: "Sensor ingest path for user-centric royalties programs.",
     priceUsd: 0.0004,
     urlPath: "/api/authorization/ingest",
     billingUnit: "play",
@@ -83,15 +159,14 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
     rfbProgram: "RFB #7",
     domain: "music",
     method: "POST",
-    discoverable: true,
+    discoverable: false,
     examplePrompt: "Route $0.0004 per verified play to attributed artists on Navidrome.",
   },
   {
     id: "citation-toll",
-    name: "Citation toll",
-    tagline: "Pay per article signal",
-    description:
-      "Micropayment per verified citation — OpenAlex sensor authorizes researcher value.",
+    name: "Citation toll (sensor)",
+    tagline: "OpenAlex citation ingest",
+    description: "Micropayment per verified citation via OpenAlex sensor.",
     priceUsd: 0.05,
     urlPath: "/api/authorization/ingest",
     billingUnit: "citation",
@@ -100,15 +175,14 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
     rfbProgram: "RFB #2",
     domain: "research",
     method: "POST",
-    discoverable: true,
+    discoverable: false,
     examplePrompt: "Authorize $0.05 when a paper cites an attributed work.",
   },
   {
     id: "docs-merge",
-    name: "Docs merge bounty",
-    tagline: "Pay per merged PR",
-    description:
-      "GitHub sensor authorizes maintainer value when documentation PRs merge.",
+    name: "Docs merge bounty (sensor)",
+    tagline: "GitHub merge ingest",
+    description: "GitHub sensor authorizes maintainer value when documentation PRs merge.",
     priceUsd: 25,
     urlPath: "/api/authorization/ingest",
     billingUnit: "merge",
@@ -117,15 +191,14 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
     rfbProgram: "RFB #3",
     domain: "oss",
     method: "POST",
-    discoverable: true,
+    discoverable: false,
     examplePrompt: "Fund the next docs merge at $25 when GitHub sensor confirms merge.",
   },
   {
     id: "video-watch",
-    name: "Video watch royalty",
-    tagline: "Pay per verified view — Jellyfin",
-    description:
-      "Self-hosted video watches become creator authorizations.",
+    name: "Video watch royalty (sensor)",
+    tagline: "Jellyfin watch ingest",
+    description: "Self-hosted video watches become creator authorizations.",
     priceUsd: 0.002,
     urlPath: "/api/authorization/ingest",
     billingUnit: "view",
@@ -134,9 +207,14 @@ export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
     rfbProgram: "RFB #7",
     domain: "video",
     method: "POST",
-    discoverable: true,
+    discoverable: false,
     examplePrompt: "Authorize creator value when a verified Jellyfin watch completes.",
   },
+];
+
+export const AGENT_SIGNAL_SERVICES: AgentSignalService[] = [
+  ...X402_MICRO_CATALOG,
+  ...SENSOR_INGEST_SERVICES,
 ];
 
 export function getAgentSignalService(id: string): AgentSignalService | undefined {

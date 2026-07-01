@@ -51,9 +51,9 @@ export const DISCOVER_JOBS: DiscoverJob[] = [
     id: "run",
     title: "Run my community",
     who: "Founder",
-    surfaces: "Community console, programs, sensors",
+    surfaces: "Agent market, community console, programs, sensors",
     role: "founder",
-    scrollTo: "communities",
+    scrollTo: "agent-market",
     icon: Users,
   },
   {

@@ -146,12 +146,18 @@ export function DiscoverActionsProvider({
 
       if (target.needsInstall) {
         toast.loading(`Attaching ${target.communitySlug}…`, { id: "discover-chain" });
-        await apiInstallCommunity(target.communitySlug);
+        try {
+          await apiInstallCommunity(target.communitySlug);
+        } catch (e) {
+          toast.dismiss("discover-chain");
+          throw e;
+        }
         void reloadConnections();
       }
 
       toast.loading(`Creating ${target.templateId} program…`, { id: "discover-chain" });
       const created = await apiCreateProgram(target.communitySlug, target.templateId);
+      toast.dismiss("discover-chain");
       if (!created.program?.id) throw new Error("Program was not created — POST /api/communities/{slug}/programs returned no id");
       return created.program.id;
     },

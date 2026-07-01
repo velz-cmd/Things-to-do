@@ -96,7 +96,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
     safeFeedPart("domainRadars", () => buildDomainRadars(sharedOpts), defaultDomainRadars),
   ]);
 
-  if (!trending.gaps.length && !trending.realSignalCount) {
+  if (!trending.gaps.length && !trending.realSignalCount && (eventsToday ?? 0) === 0) {
     degraded.push("trending");
   }
 

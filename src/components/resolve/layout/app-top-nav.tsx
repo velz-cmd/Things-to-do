@@ -65,7 +65,9 @@ export function ProductNav({ compact = false }: { compact?: boolean }) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch
             title={item.question}
+            onPointerDown={() => onNavPrefetch(item.href)}
             onMouseEnter={() => onNavPrefetch(item.href)}
             onFocus={() => onNavPrefetch(item.href)}
             className={clsx(

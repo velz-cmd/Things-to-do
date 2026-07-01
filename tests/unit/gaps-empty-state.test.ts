@@ -18,10 +18,21 @@ describe("gapsExploreCommunities", () => {
     expect(entries.some((e) => e.slug === "react")).toBe(true);
   });
 
-  it("returns role-specific primary actions (max 2)", () => {
-    const actions = gapsExploreActions({ needType: "all", role: "funder" });
-    expect(actions.length).toBeGreaterThan(0);
-    expect(actions.length).toBeLessThanOrEqual(2);
-    expect(actions.some((a) => a.kind === "fund" || a.kind === "install")).toBe(true);
+  it("returns balanced attach actions for community role (not music-only)", () => {
+    const actions = gapsExploreActions({ needType: "all", role: "community" });
+    const slugs = actions.map((a) => a.communitySlug).filter(Boolean);
+    expect(slugs.some((s) => s === "react" || s === "open-research")).toBe(true);
+    expect(actions.length).toBeLessThanOrEqual(3);
+  });
+
+  it("skips already-attached communities", () => {
+    const actions = gapsExploreActions({
+      needType: "all",
+      role: "all",
+      installedSlugs: ["independent-music", "navidrome"],
+    });
+    expect(actions.every((a) => !["independent-music", "navidrome"].includes(a.communitySlug ?? ""))).toBe(
+      true,
+    );
   });
 });

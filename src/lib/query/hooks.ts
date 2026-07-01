@@ -45,10 +45,7 @@ export function useDiscoverRadarFeedQuery(limit = 24) {
     queryKey: queryKeys.discoverRadarFeed(limit),
     queryFn: async ({ signal }) => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 18_000);
-      const merged = signal
-        ? { abort: () => { controller.abort(); signal.removeEventListener?.("abort", onParent) } }
-        : null;
+      const timeout = setTimeout(() => controller.abort(), 28_000);
       const onParent = () => controller.abort();
       signal?.addEventListener("abort", onParent);
       try {
@@ -62,10 +59,11 @@ export function useDiscoverRadarFeedQuery(limit = 24) {
       } finally {
         clearTimeout(timeout);
         signal?.removeEventListener("abort", onParent);
-        void merged;
       }
     },
-    staleTime: 60_000,
+    staleTime: 90_000,
+    gcTime: 300_000,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -82,7 +80,12 @@ export function prefetchDiscoverTab(queryClient: ReturnType<typeof useQueryClien
   void queryClient.prefetchQuery({
     queryKey: queryKeys.discoverRadarFeed(24),
     queryFn: () => fetchJson("/api/discover/radar-feed?limit=24"),
-    staleTime: 60_000,
+    staleTime: 90_000,
+  });
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.userConnections,
+    queryFn: () => fetchJson("/api/profile/connections"),
+    staleTime: 90_000,
   });
 }
 
@@ -90,11 +93,16 @@ export function prefetchProfileTab(queryClient: ReturnType<typeof useQueryClient
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileBootstrap,
     queryFn: () => fetchJson("/api/profile/bootstrap"),
-    staleTime: 45_000,
+    staleTime: 90_000,
   });
   void queryClient.prefetchQuery({
     queryKey: queryKeys.userConnections,
     queryFn: () => fetchJson("/api/profile/connections"),
-    staleTime: 60_000,
+    staleTime: 90_000,
+  });
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.profileWork,
+    queryFn: () => fetchJson("/api/profile/work"),
+    staleTime: 90_000,
   });
 }

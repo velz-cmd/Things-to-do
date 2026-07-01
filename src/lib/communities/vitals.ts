@@ -244,11 +244,14 @@ export async function buildCommunityVitals(
   };
 }
 
-export async function listCommunityVitals(
+export async function computeCommunityVitalsMap(
   sensorStatuses: CommunitySensorStatus[],
+  options?: { mode?: import("@/lib/connectors/ledger-stats").ConnectorHealthMode },
 ): Promise<Record<string, CommunityVitals>> {
   const [connectorStatuses, aggregates] = await Promise.all([
-    getConnectorLiveStatuses().catch(() => [] as ConnectorLiveStatus[]),
+    getConnectorLiveStatuses({ mode: options?.mode ?? "ledger" }).catch(
+      () => [] as ConnectorLiveStatus[],
+    ),
     loadSlugAggregates(),
   ]);
 
@@ -262,4 +265,17 @@ export async function listCommunityVitals(
     );
   }
   return out;
+}
+
+export async function listCommunityVitals(
+  sensorStatuses: CommunitySensorStatus[],
+  options?: { mode?: import("@/lib/connectors/ledger-stats").ConnectorHealthMode },
+): Promise<Record<string, CommunityVitals>> {
+  const { loadCommunityVitalsSnapshots } = await import("@/lib/communities/vitals-snapshot");
+  const { vitals, stale } = await loadCommunityVitalsSnapshots();
+  if (Object.keys(vitals).length > 0 && !stale) {
+    return vitals;
+  }
+
+  return computeCommunityVitalsMap(sensorStatuses, options);
 }

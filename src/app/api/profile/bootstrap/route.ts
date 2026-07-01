@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser, ensureProfileForUser } from "@/lib/auth/session";
 import { sanitizeConnectorIdentities } from "@/lib/identity/sanitize-profile";
-import { getProfileEarningsSummary } from "@/lib/earn/summary";
+import { getProfileEarningsSummaryCached } from "@/lib/earn/earnings-snapshot";
 import { listCommunitySummaries } from "@/lib/communities/surface";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getConnectorStatuses } from "@/lib/connectors/connector-service";
@@ -41,7 +41,7 @@ export async function GET() {
     const [liveConnectors, connectorStatuses, earnings, communities] = await Promise.all([
       getConnectorLiveStatuses().catch(() => []),
       getConnectorStatuses(authUser.id).catch(() => []),
-      getProfileEarningsSummary({ profile }).catch(() => null),
+      getProfileEarningsSummaryCached({ userId: authUser.id, profile }).catch(() => null),
       listCommunitySummaries(authUser.id).catch(() => []),
     ]);
 

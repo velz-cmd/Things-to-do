@@ -6,9 +6,7 @@ import { getCommunitySensorStatuses } from "@/lib/sensors/status";
 export async function GET() {
   const ready = await requireReadyUser();
   const userId = "error" in ready ? null : ready.user.id;
-  const [communities, statuses] = await Promise.all([
-    listCommunitySummaries(userId),
-    getCommunitySensorStatuses(),
-  ]);
+  const statuses = await getCommunitySensorStatuses();
+  const communities = await listCommunitySummaries(userId, { sensorStatuses: statuses });
   return NextResponse.json({ ok: true, communities, sensorStatuses: statuses });
 }

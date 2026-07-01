@@ -3,6 +3,7 @@ import { requireReadyUser } from "@/lib/auth/session";
 import { installCommunity } from "@/lib/communities/installs";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
 import { buildCommunitySurface } from "@/lib/communities/surface";
+import { buildObserveNarrative } from "@/lib/communities/vitals";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -23,11 +24,13 @@ export async function POST(_req: Request, { params }: Params) {
   }
 
   const community = await buildCommunitySurface(ready.user.id, slug);
+  const catalog = getCommunityBySlug(slug);
 
   return NextResponse.json({
     ok: true,
     install: result.install,
     alreadyInstalled: result.alreadyInstalled,
     community,
+    observeNarrative: catalog ? buildObserveNarrative(catalog) : undefined,
   });
 }

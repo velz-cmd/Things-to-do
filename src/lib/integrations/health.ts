@@ -224,7 +224,7 @@ async function pingGmail(): Promise<{ ok: boolean; message: string }> {
       return {
         ok: false,
         message:
-          "invalid_grant — remove GOOGLE_REFRESH_TOKEN from Vercel (wrong OAuth client). Sign in → Profile → Connect Gmail. Setup: GET /api/connectors/gmail/setup",
+          "invalid_grant — GMAIL_CLIENT_ID/SECRET must match the client that issued the refresh token. Delete GOOGLE_REFRESH_TOKEN if using GMAIL_* credentials; sign in → Profile → Connect Gmail. Setup: GET /api/connectors/gmail/setup",
       };
     }
     return { ok: false, message: msg };

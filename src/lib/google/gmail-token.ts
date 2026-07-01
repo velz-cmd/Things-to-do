@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
-import { googleOAuthConfigured } from "@/lib/google/oauth";
+import {
+  getGoogleOAuthClientId,
+  getGoogleOAuthClientSecret,
+  googleOAuthConfigured,
+} from "@/lib/google/oauth";
 
 /** Resolve a Gmail refresh token: per-user DB token, then server env fallback. */
 export async function getGmailRefreshToken(userId?: string | null): Promise<string | null> {
@@ -13,7 +17,11 @@ export async function getGmailRefreshToken(userId?: string | null): Promise<stri
     }
   }
 
-  return process.env.GOOGLE_REFRESH_TOKEN?.trim() ?? null;
+  return (
+    process.env.GMAIL_REFRESH_TOKEN?.trim() ??
+    process.env.GOOGLE_REFRESH_TOKEN?.trim() ??
+    null
+  );
 }
 
 export async function isGmailConnectedForUser(userId?: string | null): Promise<boolean> {
@@ -38,8 +46,8 @@ export async function refreshGmailAccessToken(refreshToken: string): Promise<str
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      client_id: getGoogleOAuthClientId(),
+      client_secret: getGoogleOAuthClientSecret(),
       refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),

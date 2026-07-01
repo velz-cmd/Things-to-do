@@ -16,6 +16,15 @@ function googleClientSecret() {
   return process.env.GMAIL_CLIENT_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET!.trim();
 }
 
+/** OAuth client used for Gmail authorize + token refresh (GMAIL_* preferred). */
+export function getGoogleOAuthClientId(): string {
+  return googleClientId();
+}
+
+export function getGoogleOAuthClientSecret(): string {
+  return googleClientSecret();
+}
+
 export function appOrigin() {
   return (
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??

@@ -61,7 +61,9 @@ export async function GET() {
     },
     cosmetic: {
       escrowLockRef:
-        "Mission escrow lock is a ledger record (escrow:...) until ERC-8183 vault is wired",
+        process.env.NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS
+          ? "Mission ERC-8183 escrow contract configured — use escrow-lock for on-chain jobs; program deploy uses Arc memo batches"
+          : "Mission escrow lock is a ledger record (escrow:...) until NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS is set",
     },
     issues,
     integrations: integrations.live,

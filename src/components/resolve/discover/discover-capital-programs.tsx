@@ -103,10 +103,16 @@ export function DiscoverCapitalPrograms({ className }: { className?: string }) {
             </p>
             <Link
               href="/communities"
-              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-resolve-accent hover:underline"
+              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-resolve-accent hover:underline"
             >
               Install a community
               <ArrowRight className="h-3 w-3" />
+            </Link>
+            <Link
+              href="/api/economy/operator/attach"
+              className="mt-2 block text-[10px] text-resolve-muted-dim hover:text-resolve-muted"
+            >
+              Operator pricing manifest
             </Link>
           </Panel>
 
@@ -125,6 +131,12 @@ export function DiscoverCapitalPrograms({ className }: { className?: string }) {
             >
               Treasury & deploy
               <ArrowRight className="h-3 w-3" />
+            </Link>
+            <Link
+              href="/api/communities/react/export"
+              className="mt-2 block text-[10px] text-resolve-muted-dim hover:text-resolve-muted"
+            >
+              B2B export sample (react)
             </Link>
           </Panel>
         </div>

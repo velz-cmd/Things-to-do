@@ -24,16 +24,16 @@ export const PLATFORM_REVENUE_STREAMS: PlatformRevenueStream[] = [
   {
     id: "operator_saas",
     label: "Operator SaaS",
-    model: "Monthly per active community install with sensors",
-    defaultRate: "TBD tiered",
-    shipped: false,
+    model: "Per active community install — settlement bps live; tiered SaaS manifest at GET /api/economy/operator/attach",
+    defaultRate: "$0 starter · $49 operator · $199 network (billing next)",
+    shipped: true,
   },
   {
     id: "company_reports",
     label: "Company / DAO reports",
-    model: "Premium dependency risk and compliance exports",
-    defaultRate: "Per report or annual",
-    shipped: false,
+    model: "Ledger-backed community export — authorizations, settlements, vitals",
+    defaultRate: "GET /api/communities/{slug}/export",
+    shipped: true,
   },
   {
     id: "api_usage",

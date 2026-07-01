@@ -17,6 +17,24 @@ type CircleClient = ReturnType<
 let clientPromise: Promise<CircleClient | null> | null = null;
 let clientSecretKey: string | null = null;
 
+export function resetCircleClientCache(): void {
+  clientPromise = null;
+  clientSecretKey = null;
+}
+
+/** Build Circle client with an explicit entity secret (bypasses stale env). */
+export async function getCircleClientWithSecret(
+  entitySecret: string,
+): Promise<CircleClient | null> {
+  const apiKey = process.env.CIRCLE_API_KEY?.trim();
+  if (!apiKey || !entitySecret) return null;
+
+  const { initiateDeveloperControlledWalletsClient } = await import(
+    "@circle-fin/developer-controlled-wallets"
+  );
+  return initiateDeveloperControlledWalletsClient({ apiKey, entitySecret });
+}
+
 export async function getCircleClient(): Promise<CircleClient | null> {
   const apiKey = process.env.CIRCLE_API_KEY?.trim();
   const entitySecret = await getCircleEntitySecret();

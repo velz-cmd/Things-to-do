@@ -410,7 +410,7 @@ export function DiscoverOpportunityQueue({
                 {hasVerifiedPrograms ? "Attach to unlock" : "No ledger programs yet — attach a community"}
               </p>
               <p className="mt-1 text-[11px] text-resolve-muted-dim">
-                Catalog communities — not ranked scores. Actions depend on your role ({role === "all" ? "pick a role in Refine" : role}).
+                Catalog communities — not ranked scores. Actions depend on your role ({role === "all" ? "pick a job above" : role}).
               </p>
               <ul className="mt-3 divide-y divide-white/[0.06]">
                 {exploreFiltered.map((o) => {

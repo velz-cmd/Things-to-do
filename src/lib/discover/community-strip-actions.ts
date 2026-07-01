@@ -15,8 +15,8 @@ export function communityStripActions(input: {
     {
       id: "open-console",
       label: "Open console",
-      kind: "open",
-      href: `/communities/${input.slug}#health`,
+      kind: "console",
+      communitySlug: input.slug,
     },
   ];
 

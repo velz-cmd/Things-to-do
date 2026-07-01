@@ -20,7 +20,6 @@ import {
   DiscoverActionAuditPanel,
   DiscoverActionAuditProvider,
 } from "@/components/resolve/discover/discover-action-audit-panel";
-import { DiscoverRefinePanel } from "@/components/resolve/discover/discover-refine-panel";
 import {
   DiscoverWorkspaceNav,
   defaultLaneForRole,
@@ -95,19 +94,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   }, [role, lane]);
 
   const effectiveQuery = queueFilter ?? query;
-
-  function handleDomainJump(anchorId: string) {
-    if (anchorId === "communities") {
-      window.location.href = "/communities";
-      return;
-    }
-    if (anchorId.startsWith("radar-")) {
-      setLane("radars");
-    }
-    window.requestAnimationFrame(() => {
-      document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth" });
-    });
-  }
 
   function handleJobSelect(jobId: DiscoverJobId, nextRole: DiscoverRole, scrollTo: string) {
     setActiveJob(jobId);
@@ -185,20 +171,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
             />
           )}
         </section>
-
-        <DiscoverRefinePanel
-          className="discover-section-stack mt-4"
-          role={role}
-          onRoleChange={(next) => {
-            setRole(next);
-            persistDiscoverRole(next);
-            const nextLane = defaultLaneForRole(next);
-            setLane(nextLane);
-          }}
-          needType={needType}
-          onNeedTypeChange={setNeedType}
-          onDomainJump={handleDomainJump}
-        />
 
         <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">
           <DiscoverValueBubblemap intent={intent} role={role} signedIn={Boolean(user)} />

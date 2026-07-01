@@ -20,13 +20,13 @@ export type WalletSnapshot = {
 };
 
 export async function apiInstallCommunity(slug: string) {
-  const res = await fetch(`/api/communities/${slug}/install`, {
+  const res = await fetch(`/api/communities/${slug}/install?minimal=1`, {
     method: "POST",
     credentials: "include",
   });
-  const data = await parseJsonResponse<{ error?: string }>(res);
+  const data = await parseJsonResponse<{ error?: string; alreadyInstalled?: boolean }>(res);
   if (!res.ok) throw new Error(data.error ?? "Install failed");
-  return data as { alreadyInstalled?: boolean };
+  return data;
 }
 
 export async function apiCreateProgram(slug: string, templateId?: string) {

@@ -17,7 +17,8 @@ const API_BY_KIND: Partial<Record<DiscoverActionKind, string>> = {
   create_program: "POST /api/communities/{slug}/programs",
   share: "GET /api/receipt/{id}",
   claim: "GET /claim",
-  connect_sensor: "GET /communities/{slug}",
+  connect_sensor: "POST /api/communities/{slug}/install",
+  console: "Discover community console",
   open: "navigation",
   analyze: "navigation",
 };

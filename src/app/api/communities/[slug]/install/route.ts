@@ -7,7 +7,7 @@ import { buildObserveNarrative } from "@/lib/communities/vitals";
 
 type Params = { params: Promise<{ slug: string }> };
 
-export async function POST(_req: Request, { params }: Params) {
+export async function POST(req: Request, { params }: Params) {
   const ready = await requireReadyUser();
   if ("error" in ready) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
@@ -21,6 +21,15 @@ export async function POST(_req: Request, { params }: Params) {
   const result = await installCommunity(ready.user.id, slug);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  const minimal = new URL(req.url).searchParams.get("minimal") === "1";
+  if (minimal) {
+    return NextResponse.json({
+      ok: true,
+      install: result.install,
+      alreadyInstalled: result.alreadyInstalled,
+    });
   }
 
   const community = await buildCommunitySurface(ready.user.id, slug);

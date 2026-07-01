@@ -5,14 +5,6 @@ function contributorGraphPath(entityPath: string) {
   return `${entityPath}#people`;
 }
 
-function claimHrefForArtist(entityPath?: string): string {
-  if (!entityPath) return "/claim";
-  const match = entityPath.match(/^\/e\/artist\/(.+)$/);
-  if (!match) return "/claim";
-  const payeeKey = decodeURIComponent(match[1]);
-  return `/claim?payeeKey=${encodeURIComponent(payeeKey)}&payeeKeyType=listen_artist`;
-}
-
 function trimToolbar(actions: DiscoverAction[], max = 5): DiscoverAction[] {
   const seen = new Set<string>();
   const out: DiscoverAction[] = [];
@@ -104,12 +96,6 @@ export function musicCardActions(input: {
           },
         ]
       : []),
-    {
-      id: "claim",
-      label: "Claim artist",
-      kind: "claim",
-      href: claimHrefForArtist(input.entityPath),
-    },
     {
       id: "fund",
       label: "Fund artist",
@@ -263,12 +249,6 @@ export function musicToolbar(ctx: {
       programId: ctx.programId,
       communitySlug: ctx.communitySlug,
       templateId: "user-centric-royalties",
-    },
-    {
-      id: "tb-claim",
-      label: "Claim artist",
-      kind: "claim",
-      href: claimHrefForArtist(ctx.entityPath),
     },
     ...(ctx.entityPath
       ? [

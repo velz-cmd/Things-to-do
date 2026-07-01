@@ -5,6 +5,7 @@ import {
   filterGapsByNeedType,
   needTypeFromTemplateId,
   primaryBoardCtaLabel,
+  stripCreatorClaimActions,
 } from "../../src/lib/discover/need-types";
 import type { TrendingValueGap } from "../../src/lib/discover/types";
 
@@ -46,6 +47,31 @@ describe("discover need types", () => {
     expect(classifyNeedType({ domain: "research", templateId: "citation-toll" })).toBe("researchers");
     expect(classifyNeedType({ headline: "CVE-2024 advisory", domain: "oss" })).toBe("reviewers");
     expect(classifyNeedType({ headline: "i18n locale pack", domain: "oss" })).toBe("translators");
+  });
+
+  it("strips claim actions from funder-facing gap surfaces", () => {
+    const actions = stripCreatorClaimActions([
+      { id: "claim", label: "Claim", kind: "claim", href: "/claim" },
+      { id: "fund", label: "Fund", kind: "fund", communitySlug: "navidrome" },
+    ]);
+    expect(actions.map((a) => a.kind)).toEqual(["fund"]);
+  });
+
+  it("enriches music gaps without claim CTAs", () => {
+    const enriched = enrichGapWithNeedType(
+      baseGap({
+        domain: "music",
+        templateId: "user-centric-royalties",
+        communitySlug: "navidrome",
+        actions: [
+          { id: "claim", label: "Claim artist", kind: "claim", href: "/claim" },
+          { id: "fund", label: "Fund pool", kind: "fund", communitySlug: "navidrome" },
+        ],
+      }),
+    );
+    expect(enriched.needType).toBe("artists");
+    expect(enriched.actions.some((a) => a.kind === "claim")).toBe(false);
+    expect(enriched.actions[0]?.kind).toBe("fund");
   });
 
   it("enriches gaps with need type, copy, and primary CTA order", () => {

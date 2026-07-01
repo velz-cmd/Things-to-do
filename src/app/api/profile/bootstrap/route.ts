@@ -38,10 +38,12 @@ export async function GET() {
     const navidromeConnected = userNavidromeConfigured(profile);
     const jellyfinConnected = userJellyfinConfigured(profile);
 
-    const liveConnectors = await getConnectorLiveStatuses().catch(() => []);
-    const connectorStatuses = await getConnectorStatuses(authUser.id).catch(() => []);
-    const earnings = await getProfileEarningsSummary({ profile }).catch(() => null);
-    const communities = await listCommunitySummaries(authUser.id).catch(() => []);
+    const [liveConnectors, connectorStatuses, earnings, communities] = await Promise.all([
+      getConnectorLiveStatuses().catch(() => []),
+      getConnectorStatuses(authUser.id).catch(() => []),
+      getProfileEarningsSummary({ profile }).catch(() => null),
+      listCommunitySummaries(authUser.id).catch(() => []),
+    ]);
 
     const githubLive = liveConnectors.find((c) => c.id === "github");
     const navidromeLive = liveConnectors.find((c) => c.id === "navidrome");
@@ -108,29 +110,36 @@ export async function GET() {
       },
     ];
 
-    return NextResponse.json({
-      ok: true,
-      signedIn: true,
-      userId: authUser.id,
-      email: authUser.email ?? null,
-      emailVerified: Boolean(authUser.email_confirmed_at ?? authUser.email),
-      identities,
-      earnings,
-      communities,
-      wallet: {
-        address: walletAddress,
-        embedded: profile.embeddedWallet || true,
-        provider: appWalletProvider(profile),
+    return NextResponse.json(
+      {
+        ok: true,
+        signedIn: true,
+        userId: authUser.id,
+        email: authUser.email ?? null,
+        emailVerified: Boolean(authUser.email_confirmed_at ?? authUser.email),
+        identities,
+        earnings,
+        communities,
+        wallet: {
+          address: walletAddress,
+          embedded: profile.embeddedWallet || true,
+          provider: appWalletProvider(profile),
+        },
+        jellyfinSync:
+          jellyfinConnected && profile.jellyfinUrl && profile.jellyfinAccessToken
+            ? {
+                url: profile.jellyfinUrl,
+                accessToken: profile.jellyfinAccessToken,
+              }
+            : null,
+        updatedAt: new Date().toISOString(),
       },
-      jellyfinSync:
-        jellyfinConnected && profile.jellyfinUrl && profile.jellyfinAccessToken ?
-          {
-            url: profile.jellyfinUrl,
-            accessToken: profile.jellyfinAccessToken,
-          }
-        : null,
-      updatedAt: new Date().toISOString(),
-    });
+      {
+        headers: {
+          "Cache-Control": "private, max-age=15, stale-while-revalidate=60",
+        },
+      },
+    );
   } catch (e) {
     console.error("[profile/bootstrap]", e);
     if (isDbPoolExhaustedError(e)) {

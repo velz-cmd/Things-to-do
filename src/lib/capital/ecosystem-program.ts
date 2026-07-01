@@ -3,6 +3,11 @@
  * Single source of truth for the "everyone wins" narrative (bootstrap doctrine).
  */
 
+import {
+  RESOLVE_VALUE_CHAIN,
+  RESOLVE_WHY_PARAGRAPH,
+} from "@/lib/discover/resolve-doctrine";
+
 export type EcosystemRoleId =
   | "creator"
   | "funder"
@@ -23,6 +28,8 @@ export type EcosystemRole = {
   label: string;
   headline: string;
   tagline: string;
+  before: string;
+  after: string;
   youGet: string[];
   youDo: string[];
   youNever: string[];
@@ -44,35 +51,20 @@ export type RfbProgram = {
   communities: string[];
 };
 
-export const ECOSYSTEM_LOOP = [
-  {
-    step: 1,
-    title: "Value already exists",
-    detail: "Plays, merges, citations, OC donations — upstream tools record it.",
-  },
-  {
-    step: 2,
-    title: "Connector authorizes",
-    detail: "RESOLVE recognizes what is owed — at event time, not when a founder clicks pay.",
-  },
-  {
-    step: 3,
-    title: "Capital fulfills",
-    detail: "Funders or operators clear the queue — or seed a QF match pool.",
-  },
-  {
-    step: 4,
-    title: "Creator claims",
-    detail: "Money moves on Arc. Public receipt. Everyone keeps proof.",
-  },
-] as const;
+export const ECOSYSTEM_LOOP = RESOLVE_VALUE_CHAIN.map((step, i) => ({
+  step: i + 1,
+  title: step.stage,
+  detail: step.detail,
+}));
 
 export const ECOSYSTEM_ROLES: EcosystemRole[] = [
   {
     id: "creator",
     label: "Creator",
-    headline: "You were already doing the work",
+    headline: "Your work already creates value",
     tagline: "Contributor, artist, maintainer, researcher",
+    before: "Nobody knows I exist.",
+    after: "My work automatically becomes funding opportunities.",
     youGet: [
       "You've earned $X — notification when connectors recognize your work",
       "Claim to your wallet when programs are funded",
@@ -94,8 +86,10 @@ export const ECOSYSTEM_ROLES: EcosystemRole[] = [
   {
     id: "funder",
     label: "Funder",
-    headline: "Fulfill what is already owed",
+    headline: "Fund where proof already exists",
     tagline: "Anyone with capital — no insider knowledge required",
+    before: "I guess where money should go.",
+    after: "I fund where the ledger already shows a gap.",
     youGet: [
       "Browse programs ranked by pending obligations",
       "Clear the authorization queue or fund a QF match pool (from $5)",
@@ -117,8 +111,10 @@ export const ECOSYSTEM_ROLES: EcosystemRole[] = [
   {
     id: "founder",
     label: "Founder",
-    headline: "Operate programs, don't invent value",
+    headline: "Capital flows where sensors prove impact",
     tagline: "Builder, maintainer lead, collective steward",
+    before: "I don't know who deserves funding.",
+    after: "RESOLVE continuously tells me where capital should go.",
     youGet: [
       "Install RFB programs beside upstream communities (one click)",
       "Sensors authorize automatically — docs merges, plays, citations, OC contributions",
@@ -141,8 +137,10 @@ export const ECOSYSTEM_ROLES: EcosystemRole[] = [
   {
     id: "operator",
     label: "Operator",
-    headline: "Connect once for your whole community",
+    headline: "Connect once — settlement runs itself",
     tagline: "Instance admin, label, collective host",
+    before: "I manually track who did what.",
+    after: "Sensors connect once — health and settlement run themselves.",
     youGet: [
       "One install covers every contributor on your instance",
       "Health dashboard: events today, authorizations, sensor status",
@@ -165,6 +163,8 @@ export const ECOSYSTEM_ROLES: EcosystemRole[] = [
     label: "Audience",
     headline: "You don't need RESOLVE",
     tagline: "Listener, viewer, reader, user",
+    before: "My plays and views disappear.",
+    after: "Verified listening helps creators earn — I change nothing.",
     youGet: [
       "Keep using the apps you already love — zero change",
       "Your plays, views, and usage help creators get recognized upstream",
@@ -280,6 +280,8 @@ export const ECOSYSTEM_FAQ = [
     a: "Never. Listeners, viewers, and readers stay on upstream apps. RESOLVE attaches beside those tools.",
   },
 ] as const;
+
+export const ECOSYSTEM_PROGRAM_INTRO = RESOLVE_WHY_PARAGRAPH;
 
 export function roleById(id: EcosystemRoleId): EcosystemRole | undefined {
   return ECOSYSTEM_ROLES.find((r) => r.id === id);

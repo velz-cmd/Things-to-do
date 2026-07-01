@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Sparkles } from "lucide-react";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { EcosystemBenefitsProgram } from "@/components/resolve/capital/ecosystem-benefits-program";
+import { ECOSYSTEM_PROGRAM_INTRO } from "@/lib/capital/ecosystem-program";
 
 export const metadata: Metadata = {
   title: "Ecosystem Program — RESOLVE",
@@ -15,7 +16,7 @@ export default function ProgramPage() {
     <ProductPage
       icon={Sparkles}
       title="Everyone benefits"
-      description="RESOLVE discovers value that already exists upstream, records what is owed, and fulfills when capital arrives. Pick your role — creators, funders, founders, operators, and audience each have a clear path."
+      description={ECOSYSTEM_PROGRAM_INTRO}
       workflows={[
         { label: "Creator" },
         { label: "Funder" },

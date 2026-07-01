@@ -16,11 +16,11 @@ import type { EconomicInfrastructureManifest } from "./types";
 
 const MANIFEST_VERSION = "1.0.0";
 
-export const ECONOMIC_THESIS =
-  "RESOLVE is programmable economy infrastructure on Arc — anyone can earn, fund, operate, insure, repay, or build on top of value that already exists, with proof on every flow.";
+import { RESOLVE_DOCTRINE, RESOLVE_WHY_PARAGRAPH } from "@/lib/discover/resolve-doctrine";
 
-export const ECONOMIC_POSITIONING =
-  "Embedded payment infrastructure for communities and digital work — not a destination app. Stripe for programmable community economies.";
+export const ECONOMIC_THESIS = RESOLVE_DOCTRINE;
+
+export const ECONOMIC_POSITIONING = RESOLVE_WHY_PARAGRAPH;
 
 export function buildEconomicInfrastructureManifest(): EconomicInfrastructureManifest {
   const shippedEngines = PROFIT_ENGINES.filter((e) => e.shipped).length;

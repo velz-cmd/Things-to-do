@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverSignalsMissionCta } from "@/components/resolve/discover/discover-signals-mission-cta";
@@ -12,6 +12,7 @@ import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverValueBubblemap } from "@/components/resolve/discover/discover-value-bubblemap";
 import { DiscoverEarnCompact } from "@/components/resolve/discover/discover-earn-compact";
+import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverCommunityConsoleProvider } from "@/components/resolve/discover/discover-community-console-provider";
 import { DiscoverRadarFeedProvider } from "@/components/resolve/discover/discover-radar-feed-provider";
@@ -22,15 +23,21 @@ import {
 import { DiscoverRefinePanel } from "@/components/resolve/discover/discover-refine-panel";
 import {
   DiscoverWorkspaceNav,
+  defaultLaneForRole,
   laneForJob,
+  laneVisibleForRole,
   type DiscoverWorkspaceLane,
 } from "@/components/resolve/discover/discover-workspace-nav";
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverIntent } from "@/lib/discover/types";
+import {
+  loadPersistedDiscoverRole,
+  persistDiscoverRole,
+} from "@/lib/discover/discover-role-persist";
 
-/** Job-first Discover — compact landing, value graph, tabbed workspace lanes. */
+/** Job-first Discover — workspace lanes first, value graph last. */
 export function DiscoverSurface() {
   const { user } = useAuth();
   return (
@@ -63,10 +70,29 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   const [query, setQuery] = useState("");
   const [queueFilter, setQueueFilter] = useState<string | null>(null);
   const [role, setRole] = useState<DiscoverRole>("all");
+  const [roleReady, setRoleReady] = useState(false);
   const [activeJob, setActiveJob] = useState<DiscoverJobId | null>(null);
   const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
   const [lane, setLane] = useState<DiscoverWorkspaceLane>("gaps");
   const intent = roleToIntent(role);
+  const { feed } = useDiscoverRadarFeed();
+  const showPulse =
+    (feed?.realSignalCount ?? 0) > 0 || (feed?.intelligence?.leakingUsd ?? 0) > 0;
+
+  useEffect(() => {
+    const saved = loadPersistedDiscoverRole();
+    if (saved) {
+      setRole(saved);
+      setLane(defaultLaneForRole(saved));
+    }
+    setRoleReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!laneVisibleForRole(lane, role)) {
+      setLane(defaultLaneForRole(role));
+    }
+  }, [role, lane]);
 
   const effectiveQuery = queueFilter ?? query;
 
@@ -86,6 +112,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   function handleJobSelect(jobId: DiscoverJobId, nextRole: DiscoverRole, scrollTo: string) {
     setActiveJob(jobId);
     setRole(nextRole);
+    persistDiscoverRole(nextRole);
     const nextLane = laneForJob(jobId);
     setLane(nextLane);
 
@@ -113,14 +140,15 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           />
         </div>
 
-        <div className="discover-section-stack">
-          <DiscoverValueBubblemap intent={intent} role={role} signedIn={Boolean(user)} />
-        </div>
-
-        <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />
+        {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
 
         <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-3">
-          <DiscoverWorkspaceNav lane={lane} onLaneChange={setLane} />
+          {roleReady && role === "all" && (
+            <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-100/90">
+              Pick a job above so tabs and actions match you — Fund, Earn, Run community, Grants, etc.
+            </p>
+          )}
+          <DiscoverWorkspaceNav lane={lane} role={role} onLaneChange={setLane} />
 
           {lane === "earn" && <DiscoverEarnCompact signedIn={Boolean(user)} />}
 
@@ -163,15 +191,18 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           role={role}
           onRoleChange={(next) => {
             setRole(next);
-            if (next === "community") setLane("earn");
-            else if (next === "funder") setLane("board");
-            else if (next === "founder" || next === "operator") setLane("signals");
-            else if (next === "dao") setLane("radars");
+            persistDiscoverRole(next);
+            const nextLane = defaultLaneForRole(next);
+            setLane(nextLane);
           }}
           needType={needType}
           onNeedTypeChange={setNeedType}
           onDomainJump={handleDomainJump}
         />
+
+        <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">
+          <DiscoverValueBubblemap intent={intent} role={role} signedIn={Boolean(user)} />
+        </div>
 
         <footer className="discover-on-canvas mt-10 border-t border-resolve-border/30 pt-6">
           <p className="discover-muted mb-3 text-center text-[10px]">

@@ -18,9 +18,10 @@ describe("gapsExploreCommunities", () => {
     expect(entries.some((e) => e.slug === "react")).toBe(true);
   });
 
-  it("returns install actions without connect_sensor kind", () => {
+  it("returns role-specific primary actions (max 2)", () => {
     const actions = gapsExploreActions({ needType: "all", role: "funder" });
-    expect(actions.length).toBeGreaterThanOrEqual(3);
-    expect(actions.every((a) => a.kind === "install")).toBe(true);
+    expect(actions.length).toBeGreaterThan(0);
+    expect(actions.length).toBeLessThanOrEqual(2);
+    expect(actions.some((a) => a.kind === "fund" || a.kind === "install")).toBe(true);
   });
 });

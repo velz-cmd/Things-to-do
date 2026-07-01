@@ -5,8 +5,33 @@ import { Activity, Coins, LayoutGrid, Radar, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
+import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 export type DiscoverWorkspaceLane = "gaps" | "radars" | "board" | "signals" | "earn";
+
+const ROLE_LANES: Record<DiscoverRole, DiscoverWorkspaceLane[] | "all"> = {
+  community: ["earn", "gaps"],
+  funder: ["gaps", "board", "radars"],
+  founder: ["signals", "radars", "gaps"],
+  operator: ["signals", "radars"],
+  dao: ["radars", "board", "gaps"],
+  all: "all",
+};
+
+export function laneVisibleForRole(lane: DiscoverWorkspaceLane, role: DiscoverRole): boolean {
+  if (role === "all") return true;
+  const allowed = ROLE_LANES[role];
+  if (allowed === "all") return true;
+  return allowed.includes(lane);
+}
+
+export function defaultLaneForRole(role: DiscoverRole): DiscoverWorkspaceLane {
+  if (role === "community") return "earn";
+  if (role === "funder") return "gaps";
+  if (role === "founder" || role === "operator") return "signals";
+  if (role === "dao") return "radars";
+  return "gaps";
+}
 
 const LANES: {
   id: DiscoverWorkspaceLane;
@@ -37,11 +62,15 @@ export function laneForJob(jobId: DiscoverJobId | null): DiscoverWorkspaceLane {
 
 export function DiscoverWorkspaceNav({
   lane,
+  role = "all",
   onLaneChange,
 }: {
   lane: DiscoverWorkspaceLane;
+  role?: DiscoverRole;
   onLaneChange: (lane: DiscoverWorkspaceLane) => void;
 }) {
+  const visible = LANES.filter((item) => laneVisibleForRole(item.id, role));
+
   return (
     <DiscoverCapitalCard
       as="nav"
@@ -51,7 +80,7 @@ export function DiscoverWorkspaceNav({
       ariaLabel="Discover workspace"
     >
       <div className="flex flex-wrap gap-1 p-1.5">
-        {LANES.map((item) => {
+        {visible.map((item) => {
           const active = lane === item.id;
           const Icon = item.icon;
           return (

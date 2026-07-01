@@ -40,6 +40,11 @@ const TRUTH: Record<DiscoverAction["kind"], ActionExecutionTruth> = {
     detail: "Installs community rail — sensors sync in background",
     arcSettlement: false,
   },
+  console: {
+    badge: "Console",
+    detail: "Opens your community console on Discover — sensors and funding stay inline",
+    arcSettlement: false,
+  },
   automate: {
     badge: "Auto-pay rule",
     detail: "Saves a when-proof-arrives rule — Arc pays only after a verified event fires",

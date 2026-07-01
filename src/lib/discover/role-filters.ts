@@ -10,11 +10,11 @@ export type DiscoverRole =
   | "all";
 
 const ROLE_ACTIONS: Record<DiscoverRole, DiscoverActionKind[] | "all"> = {
-  community: ["claim", "share", "open", "install"],
-  funder: ["fund", "sponsor", "analyze"],
-  founder: ["create_program", "install", "connect_sensor", "open", "analyze"],
-  operator: ["install", "connect_sensor", "create_program", "open", "analyze"],
-  dao: ["fund", "sponsor", "create_program"],
+  community: ["claim", "share", "open", "console", "install"],
+  funder: ["fund", "sponsor", "analyze", "console", "install"],
+  founder: ["create_program", "install", "connect_sensor", "open", "console", "analyze"],
+  operator: ["install", "connect_sensor", "create_program", "open", "console", "analyze"],
+  dao: ["fund", "sponsor", "create_program", "console"],
   all: "all",
 };
 

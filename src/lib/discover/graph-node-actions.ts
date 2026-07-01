@@ -89,7 +89,7 @@ export function bubbleOperatorActions(
     });
     actions.push({
       id: "automate",
-      label: "Automate",
+      label: "Auto-pay rule",
       kind: "automate",
       reason: actionReason("automate"),
       communitySlug: slug,
@@ -123,7 +123,7 @@ export function bubbleOperatorActions(
   if (node.synthetic && slug) {
     actions.push({
       id: "install",
-      label: "Connect community",
+      label: "Install community",
       kind: "install",
       communitySlug: slug,
     });

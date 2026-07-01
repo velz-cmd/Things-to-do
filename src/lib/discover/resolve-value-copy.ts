@@ -18,7 +18,10 @@ export {
 } from "@/lib/discover/resolve-doctrine";
 
 export const VALUE_GRAPH_SUBTITLE =
-  "Verified value between communities, creators, and programs — click a bubble to move money or install a rail.";
+  "Pick a node below — Fund & Sponsor settle real Arc USDC. Auto-pay rules wait for verified sensor proof.";
+
+export const VALUE_GRAPH_MAP_HINT =
+  "Map view shows how value connects. Use the horizontal cards for faster actions.";
 
 export const VALUE_GRAPH_FOOTER =
   `Open source · attaches to communities you already run · ${RESOLVE_SETTLEMENT_LINE}`;
@@ -69,7 +72,7 @@ export const QUICK_ACTION_WHY: Record<string, string> = {
   sponsor: "Verified events become programmable payments for creators",
   create_program: "Install a rail beside React or Navidrome — sensors prove work",
   open: "GitHub, Jellyfin, ListenBrainz already know — connect the payment layer",
-  automate: "Policy runs when proof arrives — no monthly governance debate",
+  automate: "When proof arrives (merge, play, watch) — pay automatically up to your cap",
   install: "Attach to communities you already run — we don't replace your stack",
 };
 

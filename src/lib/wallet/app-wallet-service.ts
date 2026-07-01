@@ -143,3 +143,27 @@ export function appWalletProvider(user: DbUser): "circle" | "embedded" {
 export function circleWalletIdForUser(user: DbUser): string | null {
   return readMeta(user.taskMemoryJson)?.circleWalletId ?? null;
 }
+
+/** Upgrade embedded RESOLVE wallet to a Circle Arc wallet for on-chain agent payments. */
+export async function upgradeUserToCircleWallet(user: DbUser): Promise<DbUser> {
+  if (appWalletProvider(user) === "circle" && circleWalletIdForUser(user)) {
+    return user;
+  }
+
+  const circleWallet = await createCircleAppWallet(user.id);
+  if (!circleWallet) {
+    throw new Error("Could not create Circle wallet — check CIRCLE_API_KEY and wallet set");
+  }
+
+  return prisma.user.update({
+    where: { id: user.id },
+    data: {
+      walletAddress: circleWallet.address.toLowerCase(),
+      embeddedWallet: true,
+      taskMemoryJson: writeMeta(user.taskMemoryJson, {
+        provider: "circle",
+        circleWalletId: circleWallet.circleWalletId,
+      }),
+    },
+  });
+}

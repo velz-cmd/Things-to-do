@@ -26,6 +26,7 @@ import { CommunitySensorPanel } from "@/components/resolve/communities/community
 import { CommunityBridgePanel } from "@/components/resolve/communities/community-bridge-panel";
 import { CommunityLiveAuthorizations } from "@/components/resolve/communities/community-live-authorizations";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
 import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
@@ -55,14 +56,19 @@ function programRulesLabel(program: ProgramRecord): string {
   return program.templateId;
 }
 
-function connectorLink(slug: string, kind: string): { href: string; label: string } {
+function connectorLink(
+  slug: string,
+  kind: string,
+  connected: boolean,
+): { href: string; label: string } | null {
+  if (connected) return null;
   if (kind === "music") {
-    return { href: "/settings", label: "Connect sensors" };
+    return { href: "/profile", label: "Connect sources on Profile" };
   }
   if (kind === "research") {
-    return { href: "/settings", label: "Connect research APIs" };
+    return { href: "/profile", label: "Connect research APIs" };
   }
-  return { href: "/settings", label: "Connect GitHub sensor" };
+  return { href: "/profile", label: "Connect GitHub on Profile" };
 }
 
 function ProgramCard({
@@ -72,6 +78,7 @@ function ProgramCard({
   onDeploy,
   deploying,
   readiness,
+  sourcesConnected,
 }: {
   program: ProgramRecord;
   slug: string;
@@ -79,6 +86,7 @@ function ProgramCard({
   onDeploy: (id: string) => void;
   deploying: string | null;
   readiness?: CommunitySurface["deployReadiness"];
+  sourcesConnected?: boolean;
 }) {
   const isDeploying = deploying === program.id;
   const canRedeploy = (readiness?.authorizedCount ?? 0) > 0;
@@ -170,13 +178,19 @@ function ProgramCard({
             "Deploy on Arc"
           )}
         </Button>
-        <Link
-          href={connectorLink(slug, communityKind).href}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
-        >
-          {connectorLink(slug, communityKind).label}
-          <ArrowUpRight className="h-3 w-3" />
-        </Link>
+        {(() => {
+          const link = connectorLink(slug, communityKind, Boolean(sourcesConnected));
+          if (!link) return null;
+          return (
+            <Link
+              href={link.href}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
+            >
+              {link.label}
+              <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          );
+        })()}
         <Link
           href={`/mission?community=${slug}&program=${program.missionId ?? program.id}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-resolve-accent/30 px-3 py-1.5 text-xs text-resolve-accent hover:bg-resolve-accent/10"
@@ -199,6 +213,7 @@ function ProgramCard({
 
 export function CommunityHome({ slug }: { slug: string }) {
   const catalog = getCommunityBySlug(slug);
+  const { state: connections, refreshSync } = useUserConnections();
   const [surface, setSurface] = useState<CommunitySurface | null>(null);
   const [loading, setLoading] = useState(true);
   const [deploying, setDeploying] = useState<string | null>(null);
@@ -361,6 +376,7 @@ export function CommunityHome({ slug }: { slug: string }) {
                   onDeploy={(id) => void deploy(id)}
                   deploying={deploying}
                   readiness={surface?.deployReadiness}
+                  sourcesConnected={connections.hasAnyConnector}
                 />
               ))}
             </div>

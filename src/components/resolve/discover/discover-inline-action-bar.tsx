@@ -3,6 +3,8 @@
 import clsx from "clsx";
 import type { DiscoverAction } from "@/lib/discover/types";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 import { actionExecutionTruth } from "@/lib/discover/discover-action-truth";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 
@@ -22,8 +24,10 @@ export function DiscoverInlineActionBar({
   className,
 }: DiscoverInlineActionBarProps) {
   const { runAction } = useDiscoverActions();
+  const { state: connections } = useUserConnections();
+  const tailored = tailorDiscoverActionsForUser(actions, connections);
 
-  if (!actions.length) return null;
+  if (!tailored.length) return null;
 
   return (
     <div
@@ -34,7 +38,7 @@ export function DiscoverInlineActionBar({
       role="toolbar"
       aria-label="Actions"
     >
-      {actions.map((action) => {
+      {tailored.map((action) => {
         const truth = actionExecutionTruth(action.kind);
         const primary = action.kind === "fund" || action.kind === "sponsor";
         return (
@@ -53,7 +57,7 @@ export function DiscoverInlineActionBar({
             )}
           >
             <span className="discover-inline-action__label">
-              {friendlyDiscoverActionLabel(action)}
+              {friendlyDiscoverActionLabel(action, connections)}
             </span>
             <span className="discover-inline-action__badge">{truth.badge}</span>
           </button>

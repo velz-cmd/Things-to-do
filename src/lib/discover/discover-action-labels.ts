@@ -1,4 +1,5 @@
 import type { DiscoverAction } from "@/lib/discover/types";
+import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
 const COMMUNITY_NAMES: Record<string, string> = {
   react: "React",
@@ -16,7 +17,20 @@ function communityTitle(slug?: string): string {
 }
 
 /** User-facing action labels — never expose raw sensor / connector setup copy. */
-export function friendlyDiscoverActionLabel(action: DiscoverAction): string {
+export function friendlyDiscoverActionLabel(
+  action: DiscoverAction,
+  state?: UserConnectionState | null,
+): string {
+  if (state?.signedIn && action.communitySlug) {
+    const installed = state.installedCommunitySlugs.includes(action.communitySlug);
+    if (installed && (action.kind === "install" || action.kind === "connect_sensor")) {
+      return `Open ${communityTitle(action.communitySlug)}`;
+    }
+    if (state.hasAnyConnector && action.kind === "install") {
+      return `Explore ${communityTitle(action.communitySlug)}`;
+    }
+  }
+
   if (action.kind === "connect_sensor") {
     if (action.communitySlug) return `Explore ${communityTitle(action.communitySlug)}`;
     return "Explore opportunity";

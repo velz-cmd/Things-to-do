@@ -18,7 +18,7 @@ export function gapsEmptyMessage(needType: DiscoverNeedTypeFilter): string {
   if (needType !== "all") {
     return `No ${needType} gaps ranked yet. Browse live community programs below — tap Explore to open one in Discover.`;
   }
-  return "No ranked gaps yet. Explore a community program below — RESOLVE handles installs and source sync on the backend.";
+  return "No ranked gaps yet. Explore a community program below — your connected sources sync automatically in the background.";
 }
 
 const KIND_BY_NEED: Partial<Record<DiscoverNeedTypeFilter, CommunityCatalogEntry["kind"][]>> = {

@@ -15,7 +15,7 @@ export type AgentPayResult<T = unknown> = {
   data?: T;
   amountUsd: number;
   txRef: string | null;
-  meteringMode: "gateway_live" | "offchain_metered" | "skipped";
+  meteringMode: "gateway_live" | "offchain_metered" | "user_arc_prepaid" | "skipped";
   error?: string;
   url: string;
 };

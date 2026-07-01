@@ -171,13 +171,7 @@ export function ossToolbar(ctx: {
     return trimToolbar([
       {
         id: "tb-install",
-        label: "Install community",
-        kind: "install",
-        communitySlug: ctx.communitySlug,
-      },
-      {
-        id: "tb-sensor",
-        label: "Explore ecosystem",
+        label: "Attach community",
         kind: "install",
         communitySlug: ctx.communitySlug,
       },

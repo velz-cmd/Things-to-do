@@ -192,6 +192,14 @@ export function DiscoverActionsProvider({
         await refreshBalance().catch(() => null);
         await refreshWallet();
         setFundSheet(null);
+        if (communityConsole && req.communitySlug) {
+          communityConsole.open({
+            communitySlug: req.communitySlug,
+            tab: "console",
+            actionContext: "fund",
+            label: req.label,
+          });
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Fund failed";
         reportActionStatus(surface, auditAction, "error", msg);
@@ -288,7 +296,11 @@ export function DiscoverActionsProvider({
               toast.success(`${slug} ready — RESOLVE syncs sources in the background`);
               reportActionStatus(surface, action, "success");
               if (communityConsole && surface !== "community-console" && surface !== "bubble-operator-panel") {
-                communityConsole.open({ communitySlug: slug, tab: "console" });
+                communityConsole.open({
+                  communitySlug: slug,
+                  tab: "console",
+                  actionContext: "install",
+                });
               } else if (surface !== "community-console" && surface !== "bubble-operator-panel") {
                 router.push(`/communities/${slug}`);
               }
@@ -318,7 +330,15 @@ export function DiscoverActionsProvider({
               toast.success(`Program created: ${created.program.name}`);
               reportActionStatus(surface, action, "success");
               if (surface !== "community-console" && surface !== "bubble-operator-panel") {
-                router.push(`/communities/${action.communitySlug}`);
+                if (communityConsole) {
+                  communityConsole.open({
+                    communitySlug: action.communitySlug!,
+                    tab: "console",
+                    actionContext: "create_program",
+                  });
+                } else {
+                  router.push(`/communities/${action.communitySlug}`);
+                }
               }
             } catch (e) {
               const msg = e instanceof Error ? e.message : "Create program failed";

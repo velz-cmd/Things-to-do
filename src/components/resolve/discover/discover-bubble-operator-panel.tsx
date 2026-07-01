@@ -14,7 +14,10 @@ import {
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { DiscoverAutomationRuleBuilder } from "@/components/resolve/discover/discover-automation-rule-builder";
 import { useSignInModal } from "@/components/auth/sign-in-context";
-import type { CommunityConsoleTab } from "@/components/resolve/discover/discover-community-console-provider";
+import type {
+  CommunityConsoleTab,
+  CommunityConsoleActionContext,
+} from "@/components/resolve/discover/discover-community-console-provider";
 import { DiscoverInlineActionBar } from "@/components/resolve/discover/discover-inline-action-bar";
 import { actionExecutionTruth, AUTOMATE_TAB } from "@/lib/discover/discover-action-truth";
 import { whyForNodeType } from "@/lib/discover/resolve-value-copy";
@@ -32,6 +35,7 @@ type DiscoverBubbleOperatorPanelProps = {
   signedIn: boolean;
   initialTab?: CommunityConsoleTab;
   automationTrigger?: AutomationTrigger;
+  actionContext?: CommunityConsoleActionContext;
   onClose: () => void;
 };
 
@@ -44,6 +48,7 @@ export function DiscoverBubbleOperatorPanel({
   signedIn,
   initialTab = "console",
   automationTrigger,
+  actionContext,
   onClose,
 }: DiscoverBubbleOperatorPanelProps) {
   const { openSignIn } = useSignInModal();
@@ -75,6 +80,16 @@ export function DiscoverBubbleOperatorPanel({
 
   const { node } = anchor;
   const slug = node.communitySlug;
+  const contextHeadline =
+    actionContext === "fund"
+      ? "Funded — obligations clearing on Arc"
+      : actionContext === "install"
+        ? "Community attached — sensors sync in background"
+        : actionContext === "create_program"
+          ? "Program created — fund or automate next"
+          : actionContext === "automate"
+            ? "Set an auto-pay rule for verified events"
+            : null;
   const needs = surface.sections.find((s) => s.id === "needs")?.items[0];
   const moneyIn = surface.sections.find((s) => s.id === "money")?.items[0];
   const program = surface.sections.find((s) => s.id === "programs")?.items[0];
@@ -100,6 +115,9 @@ export function DiscoverBubbleOperatorPanel({
               </p>
               <h2 className="mt-0.5 truncate text-base font-semibold text-white">{node.label}</h2>
               <p className="text-[10px] capitalize text-resolve-muted">{node.type}</p>
+              {contextHeadline && (
+                <p className="mt-1 text-[11px] font-medium text-emerald-300/90">{contextHeadline}</p>
+              )}
             </div>
             <button
               type="button"

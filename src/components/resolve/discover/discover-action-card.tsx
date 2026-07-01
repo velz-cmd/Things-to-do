@@ -51,7 +51,10 @@ export function DiscoverActionCard({
   const byIntent = filterActionsByIntent(gap.actions, intent);
   const byRole = role !== "all" ? filterActionsByRole(byIntent, role) : byIntent;
   const funderSafe =
-    surface === "trending-gaps" || surface === "opportunity-queue"
+    surface === "trending-gaps" ||
+    surface === "opportunity-queue" ||
+    surface.startsWith("radar-") ||
+    surface.startsWith("opportunity-board")
       ? stripCreatorClaimActions(byRole)
       : byRole;
   const filtered = funderSafe;

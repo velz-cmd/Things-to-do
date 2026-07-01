@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { GitBranch, Mic2, Users } from "lucide-react";
@@ -9,7 +9,10 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import type { DiscoverIntent, DomainRadarBundle, RadarEmptyState } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
+import { filterActionsByRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
+import { defaultRadarForRole, radarSubtitleForRole } from "@/lib/discover/board-actions-for-role";
+import { gapMatchesRadar } from "@/lib/discover/gap-rules";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
@@ -43,9 +46,25 @@ export function DiscoverDomainRadars({
   className,
 }: DiscoverDomainRadarsProps) {
   const { feed, loading, refresh } = useDiscoverRadarFeed();
-  const [activeRadar, setActiveRadar] = useState<"oss" | "music" | "dao">("oss");
+  const [activeRadar, setActiveRadar] = useState<"oss" | "music" | "dao">(() =>
+    defaultRadarForRole(role),
+  );
   const feedLoading = loading && !feed;
   const q = query.trim().toLowerCase();
+
+  useEffect(() => {
+    setActiveRadar(defaultRadarForRole(role));
+  }, [role]);
+
+  const feedGapsForRadar = useMemo(() => {
+    const gaps = feed?.gaps ?? [];
+    return gaps.filter((g) => {
+      if (!gapMatchesRadar(g, activeRadar)) return false;
+      if (needType !== "all" && g.needType !== needType) return false;
+      if (!q) return true;
+      return g.headline.toLowerCase().includes(q) || g.why.toLowerCase().includes(q);
+    });
+  }, [feed?.gaps, activeRadar, needType, q]);
 
   const bundles = useMemo(() => {
     const dr = feed?.domainRadars;
@@ -67,7 +86,7 @@ export function DiscoverDomainRadars({
   return (
     <DiscoverPremiumSection
       title="Opportunity radars"
-      subtitle="One domain at a time — verified gaps with toolbar actions"
+      subtitle={radarSubtitleForRole(role)}
       className={className}
       actions={
         <DiscoverSectionRefresh
@@ -98,6 +117,7 @@ export function DiscoverDomainRadars({
       <DomainRadarPanel
         radarId={activeRadar}
         bundle={bundle}
+        feedGaps={feedGapsForRadar}
         loading={feedLoading}
         signedIn={signedIn}
         intent={intent}
@@ -111,6 +131,7 @@ export function DiscoverDomainRadars({
 function DomainRadarPanel({
   radarId,
   bundle,
+  feedGaps,
   loading,
   signedIn,
   intent,
@@ -119,6 +140,7 @@ function DomainRadarPanel({
 }: {
   radarId: "oss" | "music" | "dao";
   bundle?: DomainRadarBundle & { cards: DomainRadarBundle["cards"] };
+  feedGaps: DomainRadarBundle["cards"];
   loading: boolean;
   signedIn: boolean;
   intent: DiscoverIntent;
@@ -127,8 +149,9 @@ function DomainRadarPanel({
 }) {
   const title = bundle?.title ?? radarId;
   const tagline = bundle?.tagline ?? "";
-  const toolbar = bundle?.toolbar ?? [];
-  const cards = bundle?.cards ?? [];
+  const toolbar = filterActionsByRole(bundle?.toolbar ?? [], role);
+  const radarCards = bundle?.cards ?? [];
+  const displayCards = radarCards.length > 0 ? radarCards : feedGaps;
   const empty = bundle?.emptyState;
   const live = bundle?.hasLiveData ?? false;
 
@@ -145,11 +168,15 @@ function DomainRadarPanel({
             <p className="mt-0.5 text-[10px] leading-relaxed text-resolve-muted-dim">{tagline}</p>
           </div>
         </div>
-        {live && (
+        {live ? (
           <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-300">
             Live
           </span>
-        )}
+        ) : displayCards.length > 0 ? (
+          <span className="shrink-0 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-200/90">
+            {displayCards.length} gap{displayCards.length === 1 ? "" : "s"}
+          </span>
+        ) : null}
       </div>
 
       {toolbar.length > 0 && (
@@ -167,13 +194,9 @@ function DomainRadarPanel({
 
       {loading ? (
         <p className="text-xs text-resolve-muted">Loading verified radar…</p>
-      ) : !cards.length && empty ? (
-        <RadarEmpty empty={empty} />
-      ) : !cards.length ? (
-        <p className="text-xs text-resolve-muted">No cards match — toolbar actions still work.</p>
-      ) : (
+      ) : displayCards.length > 0 ? (
         <ul className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-          {cards.slice(0, 6).map((gap) => (
+          {displayCards.slice(0, 6).map((gap) => (
             <DiscoverActionCard
               key={gap.id}
               gap={gap}
@@ -185,24 +208,46 @@ function DomainRadarPanel({
             />
           ))}
         </ul>
+      ) : empty ? (
+        <RadarEmpty empty={empty} role={role} />
+      ) : (
+        <p className="text-xs text-resolve-muted">No cards match your filters.</p>
       )}
     </div>
   );
 }
 
-function RadarEmpty({ empty }: { empty: RadarEmptyState }) {
+function RadarEmpty({
+  empty,
+  role,
+}: {
+  empty: RadarEmptyState;
+  role: DiscoverRole;
+}) {
   return (
     <div className="space-y-3">
       <p className="text-xs leading-relaxed text-resolve-muted">{empty.message}</p>
-      <Link
-        href={empty.actionHref}
-        className={clsx(
-          "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
-          "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
-        )}
-      >
-        {empty.actionLabel} →
-      </Link>
+      {role === "community" ? (
+        <Link
+          href="/capital"
+          className={clsx(
+            "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
+            "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
+          )}
+        >
+          View earnings on Capital →
+        </Link>
+      ) : (
+        <Link
+          href={empty.actionHref}
+          className={clsx(
+            "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
+            "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
+          )}
+        >
+          {empty.actionLabel} →
+        </Link>
+      )}
     </div>
   );
 }

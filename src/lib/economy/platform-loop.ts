@@ -6,7 +6,7 @@ import { getActiveRevenueStreams } from "@/lib/economy/platform-revenue";
 
 /** Canonical business-model line for Discover and stack. */
 export const PLATFORM_LOOP_TAGLINE =
-  "Agents buy signals · Creators earn · Circle settles · RESOLVE coordinates.";
+  "Agents buy signals · Creators earn · Circle moves money · RESOLVE decides where";
 
 export type PlatformFeeBreakdown = {
   grossUsd: number;
@@ -35,8 +35,8 @@ export function describePlatformRevenueLoop(sampleGrossUsd = 0.02): PlatformReve
     loops: [
       { actor: "Agents", action: "Buy signals (x402)", rail: "Circle Gateway · per request" },
       { actor: "Creators", action: "Earn on verified events", rail: "Authorization ledger → Arc payout" },
-      { actor: "Circle", action: "Settles USDC", rail: "Arc testnet · batched releases" },
-      { actor: "RESOLVE", action: "Coordinates + platform fee", rail: `${sample.platformFeeBps / 100}% on fulfill / settlement` },
+      { actor: "Circle", action: "Moves USDC", rail: "Arc · batched settlement" },
+      { actor: "RESOLVE", action: "Decides where capital goes", rail: `${sample.platformFeeBps / 100}% on fulfill / settlement` },
     ],
     liveStreams: getActiveRevenueStreams(),
     sampleAgentInvoke: sample,

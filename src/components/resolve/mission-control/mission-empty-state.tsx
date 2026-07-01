@@ -5,6 +5,9 @@ import { Bot, Loader2, Send } from "lucide-react";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionAiProvidersPanel } from "@/components/resolve/mission-control/mission-ai-providers-panel";
 import { PLATFORM_LOOP_TAGLINE } from "@/lib/economy/platform-loop";
+import {
+  RESOLVE_EXISTENTIAL_THESIS,
+} from "@/lib/discover/resolve-doctrine";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 
 const PRESETS = [
@@ -70,7 +73,7 @@ export function MissionEmptyState({
       <div className="w-full max-w-xl">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Mission</h1>
         <p className="mt-2 text-sm text-resolve-muted">
-          Propose payout plans from real evidence — or run paid agent signals and approve before anything settles.
+          {RESOLVE_EXISTENTIAL_THESIS} Type a prompt — run intel, fund maintainers, or plan settlement.
         </p>
         <p className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-3 py-2 text-center text-xs font-medium leading-relaxed text-violet-100/95">
           {PLATFORM_LOOP_TAGLINE}

@@ -18,6 +18,7 @@ import { DiscoverAutomationRuleBuilder } from "@/components/resolve/discover/dis
 import { DiscoverCommunityConsoleActions } from "@/components/resolve/discover/discover-community-console-actions";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import type { CommunityConsoleTab } from "@/components/resolve/discover/discover-community-console-provider";
+import { whyForNodeType } from "@/lib/discover/resolve-value-copy";
 
 export type BubbleOperatorAnchor = {
   node: DiscoverGraphNode;
@@ -110,6 +111,9 @@ export function DiscoverBubbleOperatorPanel({
                 {node.label}
               </h2>
               <p className="mt-0.5 text-xs capitalize text-resolve-muted">{node.type}</p>
+              <p className="mt-2 text-[11px] leading-relaxed text-resolve-calm-periwinkle/90">
+                {whyForNodeType(node.type)}
+              </p>
             </div>
             <button
               type="button"
@@ -254,7 +258,7 @@ export function DiscoverBubbleOperatorPanel({
           <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
             Quick actions
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-col gap-2">
             {actions.length ? (
               actions.map((action) => {
                 const Icon = ACTION_ICONS[action.kind] ?? Sparkles;
@@ -267,7 +271,7 @@ export function DiscoverBubbleOperatorPanel({
                       if (action.kind !== "automate") onClose();
                     }}
                     className={clsx(
-                      "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-medium transition",
+                      "flex w-full flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left transition",
                       action.kind === "fund" || action.kind === "sponsor"
                         ? "border-amber-500/35 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
                         : action.kind === "create_program"
@@ -277,8 +281,13 @@ export function DiscoverBubbleOperatorPanel({
                             : "border-white/10 bg-white/[0.04] text-resolve-muted hover:text-white",
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" />
-                    {action.label}
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium">
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      {action.label}
+                    </span>
+                    {action.reason && (
+                      <span className="text-[10px] leading-snug opacity-80">{action.reason}</span>
+                    )}
                   </button>
                 );
               })

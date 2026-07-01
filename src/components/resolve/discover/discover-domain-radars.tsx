@@ -9,10 +9,10 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import type { DiscoverIntent, DomainRadarBundle, RadarEmptyState } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
-import { filterActionsByRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { defaultRadarForRole } from "@/lib/discover/board-actions-for-role";
 import { gapMatchesRadar } from "@/lib/discover/gap-rules";
+import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 
@@ -149,9 +149,11 @@ function DomainRadarPanel({
 }) {
   const title = bundle?.title ?? radarId;
   const tagline = bundle?.tagline ?? "";
-  const toolbar = filterActionsByRole(bundle?.toolbar ?? [], role);
+  const toolbar = bundle?.toolbar ?? [];
   const radarCards = bundle?.cards ?? [];
-  const displayCards = radarCards.length > 0 ? radarCards : feedGaps;
+  const displayCards = dedupeTrendingGaps(
+    radarCards.length > 0 ? radarCards : feedGaps,
+  );
   const empty = bundle?.emptyState;
   const live = bundle?.hasLiveData ?? false;
 

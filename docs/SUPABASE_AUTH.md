@@ -21,7 +21,17 @@ Users sign in with **email and password** — no magic link or 6-digit code. Pas
 2. **Disable “Confirm email”** for instant sign-in without inbox verification (recommended for global self-serve)
 3. Ensure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set on Vercel
 
-### User flow
+### Password reset
+
+Forgot-password sends a **“Set your password for RESOLVE”** email (not a magic-link activation). The link opens `/auth/reset-password` where users choose a new password.
+
+If emails still say “Confirm your signup”, fix Supabase → **Authentication** → **Email Templates** → **Reset password**:
+
+- **Subject:** `Set your password for RESOLVE`
+- **Body:** Tell users to tap the link to choose a password (use `{{ .ConfirmationURL }}` for the link variable)
+
+Also ensure **Confirm email** is OFF under User signups (main Providers page, scroll up from the Email popup).
+
 
 - **Sign in:** existing users enter email + password
 - **Create account:** new users choose “Create an account”, set a password (6+ characters), and are signed in immediately (when confirm email is off)

@@ -1,6 +1,6 @@
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
-import { isCommunityInstalled } from "@/lib/profile/connection-state-types";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 
 const COMMUNITY_NAMES: Record<string, string> = {
   react: "React",
@@ -17,33 +17,42 @@ function communityTitle(slug?: string): string {
   return COMMUNITY_NAMES[slug] ?? slug.replace(/-/g, " ");
 }
 
-/** Rewrite install/connect actions when user already has communities or identities linked. */
+/** Profile-linked users skip repeat setup — actions run on Discover. */
 export function tailorDiscoverActionsForUser(
   actions: DiscoverAction[],
   state: UserConnectionState | null | undefined,
 ): DiscoverAction[] {
   if (!state?.signedIn) return actions;
 
-  return actions.map((action) => {
-    const slug = action.communitySlug;
-    const installed = isCommunityInstalled(state, slug);
+  return actions
+    .map((action) => {
+      const slug = action.communitySlug;
+      const ready = slug ? communityReadyForDiscover(slug, state) : false;
 
-    if ((action.kind === "install" || action.kind === "connect_sensor") && installed && slug) {
-      return {
-        ...action,
-        kind: "console",
-        label: `Open ${communityTitle(slug)} console`,
-        href: undefined,
-        reason: "Already attached — opens console on Discover",
-      };
-    }
+      if ((action.kind === "install" || action.kind === "connect_sensor") && ready && slug) {
+        return null;
+      }
 
-    if (action.kind === "install" && state.hasAnyConnector && slug && !installed) {
+      if (action.kind === "connect_sensor") {
+        return {
+          ...action,
+          href: "/profile",
+          label: action.label.replace(/^Connect\s+/i, "Link "),
+        };
+      }
+
+      if (action.kind === "install" && ready && slug) {
+        return {
+          ...action,
+          kind: "console",
+          label: `Open ${communityTitle(slug)}`,
+          href: undefined,
+        };
+      }
+
       return action;
-    }
-
-    return action;
-  });
+    })
+    .filter((action): action is DiscoverAction => action != null);
 }
 
 export function friendlyDiscoverActionLabelForUser(
@@ -51,23 +60,11 @@ export function friendlyDiscoverActionLabelForUser(
   state: UserConnectionState | null | undefined,
 ): string {
   const slug = action.communitySlug;
-  if (state?.signedIn && slug && isCommunityInstalled(state, slug)) {
-    if (action.kind === "install" || action.kind === "connect_sensor") {
-      return `Open ${communityTitle(slug)} console`;
-    }
+  if (state?.signedIn && slug && communityReadyForDiscover(slug, state)) {
     if (action.kind === "console") {
-      return action.label || `Open ${communityTitle(slug)} console`;
+      return action.label || `Open ${communityTitle(slug)}`;
     }
   }
 
-  if (action.kind === "install" && state?.hasAnyConnector) {
-    return slug ? `Attach ${communityTitle(slug)}` : "Attach community";
-  }
-
-  const raw = action.label.trim();
-  if (/install community/i.test(raw) && state?.hasAnyConnector) {
-    return slug ? `Attach ${communityTitle(slug)}` : "Attach community";
-  }
-
-  return raw;
+  return action.label.trim();
 }

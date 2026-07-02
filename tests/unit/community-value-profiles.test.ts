@@ -29,8 +29,19 @@ describe("community value profiles", () => {
     expect(radar).toContain("maintainer");
   });
 
-  it("operational actions include connect and fund chains when not installed", () => {
+  it("funder role only surfaces fund action", () => {
     const actions = operationalActionsForCommunity("funder", {
+      communitySlug: "navidrome",
+      templateId: "user-centric-royalties",
+      communityName: "Navidrome",
+      installed: false,
+    });
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.kind).toBe("fund");
+  });
+
+  it("founder role includes setup and operate chain when not installed", () => {
+    const actions = operationalActionsForCommunity("founder", {
       communitySlug: "navidrome",
       templateId: "user-centric-royalties",
       communityName: "Navidrome",
@@ -38,11 +49,10 @@ describe("community value profiles", () => {
     });
     expect(actions.some((a) => a.kind === "connect_sensor")).toBe(true);
     expect(actions.some((a) => a.kind === "fund")).toBe(true);
-    expect(actions.some((a) => a.label.includes("Preview"))).toBe(true);
   });
 
-  it("jellyfin row includes scan, rule, fund, and proof actions", () => {
-    const actions = operationalActionsForCommunity("funder", {
+  it("founder jellyfin row includes scan, rule, fund, and proof actions", () => {
+    const actions = operationalActionsForCommunity("founder", {
       communitySlug: "jellyfin",
       templateId: "video-royalties",
       communityName: "Jellyfin",
@@ -61,6 +71,7 @@ describe("community value profiles", () => {
     expect(signals.every((s) => !s.settled)).toBe(true);
 
     const metrics = buildUnpaidValueMetrics("jellyfin", false);
+    expect(metrics.observedEvents).toBe("Not linked");
     expect(metrics.payoutRules).toContain("0");
     expect(metrics.settlement).toBe("Not active");
   });

@@ -13,7 +13,9 @@ import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labe
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 import { visibleDiscoverActions } from "@/lib/discover/discover-visible-actions";
-import { isCommunityInstalled } from "@/lib/profile/connection-state-types";
+import { discoverActionsForRole } from "@/lib/discover/discover-role-actions";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
+import { isPreviewSource } from "@/lib/discover/source-badges";
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
@@ -45,7 +47,7 @@ export function DiscoverFeatureRow({
   gap,
   signedIn: _signedIn,
   intent: _intent = "all",
-  role: _role = "all",
+  role = "all",
   rank,
   surface = "feature-row",
   maxActions = 3,
@@ -55,12 +57,15 @@ export function DiscoverFeatureRow({
   const { state: connections } = useUserConnections();
 
   const tailored = tailorDiscoverActionsForUser(
-    visibleDiscoverActions(gap.actions, surface),
+    discoverActionsForRole(
+      role,
+      visibleDiscoverActions(gap.actions, surface),
+    ),
     connections,
   );
 
   const installed =
-    gap.communitySlug != null && isCommunityInstalled(connections, gap.communitySlug);
+    gap.communitySlug != null && communityReadyForDiscover(gap.communitySlug, connections);
 
   const { attach, operational } = useMemo(() => {
     const { attach: a, operational: o } = partitionActions(tailored);
@@ -123,7 +128,7 @@ export function DiscoverFeatureRow({
                 {needTypeLabel(gap.needType)}
               </span>
             )}
-            {gap.amountVerified && (
+            {gap.amountVerified && !isPreviewSource(gap.dataSource) && (
               <DiscoverSourceBadge
                 source={gap.dataSource}
                 estimate={Boolean(gap.proofGithubScanAt)}
@@ -132,7 +137,7 @@ export function DiscoverFeatureRow({
           </div>
 
           <p className="mt-1 text-[13px] font-semibold leading-snug text-white">{gap.headline}</p>
-          {!showProof && (
+          {!showProof && gap.why && (
             <p className="mt-1 line-clamp-1 text-[11px] leading-relaxed text-resolve-muted">
               {gap.why}
             </p>
@@ -163,7 +168,7 @@ export function DiscoverFeatureRow({
                     )}
                   >
                     <span className="font-medium text-white/90">{signal.label}</span>
-                    {signal.count != null && (
+                    {signal.count != null && signal.count > 0 && (
                       <span className="tabular-nums text-resolve-muted-dim">{signal.count}</span>
                     )}
                   </span>
@@ -173,11 +178,6 @@ export function DiscoverFeatureRow({
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-0.5">
-          {gap.opportunityScorecard && gap.amountVerified && (
-            <span className="text-lg font-semibold tabular-nums text-resolve-accent">
-              {gap.opportunityScorecard.composite}
-            </span>
-          )}
           <span
             className={clsx(
               "text-right text-[11px] font-semibold leading-tight tabular-nums",

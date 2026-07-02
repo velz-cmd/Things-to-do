@@ -8,9 +8,11 @@ import {
   radarHeadlineForProfile,
 } from "@/lib/discover/community-value-profiles";
 import { classifyBoardNeedType } from "@/lib/discover/need-types";
-import { buildOpportunityScorecard } from "@/lib/discover/opportunity-score";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DomainRadarId, TrendingValueGap } from "@/lib/discover/types";
+import type { UserConnectionState } from "@/lib/profile/connection-state-types";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
+import { humanizeExtractionSources } from "@/lib/discover/humanize-sources";
 
 /** Communities with upstream value extraction — preview rows when ledger is empty. */
 export const LIVE_SENSOR_COMMUNITY_SLUGS = [
@@ -41,7 +43,7 @@ type PreviewSurface = "gaps" | DomainRadarId;
 function buildPreviewRow(
   slug: string,
   role: DiscoverRole,
-  installed: Set<string>,
+  connections: UserConnectionState | null | undefined,
   surface: PreviewSurface,
 ): TrendingValueGap | null {
   const entry = getCommunityBySlug(slug) ?? COMMUNITY_CATALOG.find((c) => c.slug === slug);
@@ -57,13 +59,14 @@ function buildPreviewRow(
     programName: entry.name,
   });
 
-  const isInstalled = installed.has(slug);
+  const isInstalled = communityReadyForDiscover(slug, connections);
   const actions = boardCommunityActions(role === "all" || role === "community" ? "funder" : role, {
     communitySlug: slug,
     templateId,
     needType,
     communityName: entry.name,
     installed: isInstalled,
+    connections,
   });
 
   const headline =
@@ -76,19 +79,7 @@ function buildPreviewRow(
   const why = profile?.unpaidSubtitle ?? entry.doctrine;
 
   const metrics = buildUnpaidValueMetrics(slug, isInstalled);
-
-  const opportunityScorecard = buildOpportunityScorecard({
-    amountNeededUsd: 0,
-    amountVerified: false,
-    amountKind: "estimate",
-    dataSource: "community_catalog",
-    templateId,
-    domain: domainForKind(entry.kind),
-    maintainerCount: 2,
-    sensorGated: false,
-    sensorLive: false,
-    programCount: 0,
-  });
+  const upstream = profile ? humanizeExtractionSources(profile.extractionSources) : entry.name;
 
   return {
     id: `value-preview-${surface}-${slug}`,
@@ -97,16 +88,16 @@ function buildPreviewRow(
     headline,
     why,
     whoBenefits: entry.doctrine.slice(0, 120),
-    proofSource: `Verified via ${metrics.verifiedSource}`,
+    proofSource: upstream,
     dataSource: "community_catalog",
     amountVerified: false,
     amountKind: "estimate",
-    eligibilityCriteria: `${metrics.observedEvents} · ${metrics.payoutRules} · ${metrics.settlement}`,
+    eligibilityCriteria: `${metrics.observedEvents} · ${metrics.payoutRules}`,
     proofConnectorId: entry.connectors[0],
     amountNeededUsd: 0,
     moneyCanMoveUsd: 0,
     peopleImpacted: 0,
-    trendScore: opportunityScorecard.composite,
+    trendScore: 0,
     communitySlug: slug,
     templateId,
     entityPath: `/communities/${slug}`,
@@ -115,25 +106,23 @@ function buildPreviewRow(
     valueSignals: buildPreviewValueSignals(slug, isInstalled),
     valueMetrics: metrics,
     actions,
-    opportunityScorecard,
   };
 }
 
 /** Value-extraction preview rows — distinct framing per Discover surface. */
 export function buildSensorCommunityPreviewRows(
   role: DiscoverRole,
-  installedSlugs: string[] = [],
+  connections: UserConnectionState | null | undefined = null,
   limit = 5,
   surface: PreviewSurface = "gaps",
 ): TrendingValueGap[] {
-  const installed = new Set(installedSlugs);
   const rows: TrendingValueGap[] = [];
 
   for (const slug of LIVE_SENSOR_COMMUNITY_SLUGS) {
     if (rows.length >= limit) break;
     const profile = getCommunityValueProfile(slug);
     if (surface !== "gaps" && profile && !profile.radarFraming[surface]) continue;
-    const row = buildPreviewRow(slug, role, installed, surface);
+    const row = buildPreviewRow(slug, role, connections, surface);
     if (row) rows.push(row);
   }
 
@@ -145,14 +134,14 @@ export const LIVE_SENSOR_RAIL = [
   {
     id: "github",
     label: "GitHub",
-    href: "/connect/github",
+    href: "/profile",
     platform: "github" as const,
     extracts: "PRs · commits · maintainers",
   },
   {
     id: "listenbrainz",
     label: "ListenBrainz",
-    href: "/connect/listenbrainz",
+    href: "/profile",
     platform: "listenbrainz" as const,
     extracts: "Listens · artist graph",
   },
@@ -166,14 +155,14 @@ export const LIVE_SENSOR_RAIL = [
   {
     id: "jellyfin",
     label: "Jellyfin",
-    href: "/connect/jellyfin",
+    href: "/profile",
     platform: "jellyfin" as const,
     extracts: "Watches · sessions",
   },
   {
     id: "navidrome",
     label: "Navidrome",
-    href: "/communities/navidrome",
+    href: "/profile",
     platform: "navidrome" as const,
     extracts: "Plays · library",
   },

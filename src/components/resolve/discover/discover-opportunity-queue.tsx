@@ -30,12 +30,11 @@ import {
   boardSubtitleForRole,
 } from "@/lib/discover/board-actions-for-role";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
-import { isCommunityInstalled } from "@/lib/profile/connection-state-types";
 import {
   sortByOpportunityScore,
   type OpportunitySortKey,
 } from "@/lib/discover/opportunity-score";
-import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { DiscoverAttachRail } from "@/components/resolve/discover/discover-attach-rail";
 import { BOARD_MAX_ROWS } from "@/lib/discover/discover-row-limits";
@@ -71,7 +70,7 @@ export function DiscoverOpportunityQueue({
   const [error, setError] = useState<string | null>(null);
   const [fundingId, setFundingId] = useState<string | null>(null);
   const [amountByProgram, setAmountByProgram] = useState<Record<string, string>>({});
-  const [sortKey, setSortKey] = useState<OpportunitySortKey>("composite");
+  const [sortKey, setSortKey] = useState<OpportunitySortKey>("reward");
   const opportunitiesRef = useRef(board);
   opportunitiesRef.current = board;
 
@@ -255,7 +254,6 @@ export function DiscoverOpportunityQueue({
           </span>
           {(
             [
-              ["composite", "Score"],
               ["reward", "Reward"],
               ["urgency", "Urgency"],
               ["confidence", "Confidence"],
@@ -376,21 +374,8 @@ export function DiscoverOpportunityQueue({
                     {program.communityName} — {program.communityTagline}
                   </p>
                   <p className="mt-2 text-xs leading-relaxed text-resolve-muted-dim">{program.whyFund}</p>
-                  {program.opportunityScorecard && (
-                    <DiscoverOpportunityScoreChips
-                      chips={program.opportunityScorecard.chips}
-                      composite={program.opportunityScorecard.composite}
-                      compact
-                      className="mt-3"
-                    />
-                  )}
                 </div>
                 <div className="shrink-0 text-right text-xs">
-                  {program.opportunityScorecard && (
-                    <p className="mb-1 text-2xl font-semibold tabular-nums text-resolve-accent">
-                      {program.opportunityScorecard.composite}
-                    </p>
-                  )}
                   <p className="text-[10px] uppercase text-resolve-muted-dim">
                     {program.metricKind === "match_leverage"
                       ? CAPITAL_YIELD_COPY.discover.qfLabel
@@ -476,13 +461,14 @@ export function DiscoverOpportunityQueue({
               </p>
               <ul className="mt-3 divide-y divide-white/[0.06]">
                 {boardCommunityRows.map((o) => {
-                  const installed = isCommunityInstalled(connections, o.communitySlug);
+                  const installed = communityReadyForDiscover(o.communitySlug, connections);
                   const actions = boardCommunityActions(role === "all" ? "funder" : role, {
                     communitySlug: o.communitySlug,
                     templateId: o.templateId,
                     needType: o.needType,
                     communityName: o.communityName,
                     installed,
+                    connections,
                   });
                   return (
                     <li key={o.programId} className="py-3 first:pt-0 last:pb-0">
@@ -499,14 +485,14 @@ export function DiscoverOpportunityQueue({
                               {needTypeLabel(o.needType)}
                             </span>
                             <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-200/90">
-                              {isCommunityInstalled(connections, o.communitySlug) ? "Set up" : "Set up first"}
+                              {installed ? "Ready" : "Link in Profile"}
                             </span>
                           </div>
                           <p className="mt-0.5 text-[11px] text-resolve-muted">{o.communityTagline}</p>
                           <p className="mt-2 text-xs leading-relaxed text-resolve-muted-dim">{o.whyFund}</p>
-                          {o.fundingGapUsd > 0 && o.opportunityScorecard && (
+                          {o.fundingGapUsd > 0 && (
                             <p className="mt-2 text-[11px] text-amber-200/80">
-                              GitHub scan est. ${o.fundingGapUsd.toFixed(0)} — not ledger-verified
+                              Est. ${o.fundingGapUsd.toFixed(0)} unfunded
                             </p>
                           )}
                         </div>

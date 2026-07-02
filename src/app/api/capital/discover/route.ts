@@ -5,7 +5,7 @@ import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 export const maxDuration = 60;
 
-const BOARD_TIMEOUT_MS = 25_000;
+const BOARD_TIMEOUT_MS = 12_000;
 
 /** Public — programs any funder can discover without knowing communities */
 export async function GET() {

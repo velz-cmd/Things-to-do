@@ -24,7 +24,7 @@ Set for **Production** + **Preview**, then **Redeploy**.
 
 | Key | TTL | Data |
 |-----|-----|------|
-| `resolve:discover:radar-feed:*` | 30s | Full Discover tab feed |
+| `resolve:discover:radar-feed:*` | 45s | Full Discover tab feed (18s build cap per request) |
 | `resolve:oss:opportunities` | 60s | GitHub OSS scan results |
 | `resolve:integrations:health` | 180s | External API health pings |
 
@@ -32,6 +32,7 @@ Set for **Production** + **Preview**, then **Redeploy**.
 
 - **TanStack Query** — tab switches reuse cached fetches (`staleTime` 30–90s)
 - **Parallel fetches** — profile bootstrap uses `Promise.all`
+- **Discover timeouts** — server caps each feed part at 3–10s; client aborts at 18s with degraded fallback (never infinite skeleton)
 - **HTTP Cache-Control** — Discover/profile routes use `stale-while-revalidate`
 
 ## Edge health routes

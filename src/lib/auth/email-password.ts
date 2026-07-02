@@ -8,7 +8,7 @@ export type EmailPasswordResult =
       suggestForgotPassword?: boolean;
     };
 
-function isInvalidLogin(message: string) {
+export function isInvalidLogin(message: string) {
   return message.toLowerCase().includes("invalid login credentials");
 }
 
@@ -16,7 +16,9 @@ function isAlreadyRegistered(message: string) {
   const lower = message.toLowerCase();
   return (
     lower.includes("user already registered") ||
-    lower.includes("already been registered")
+    lower.includes("already been registered") ||
+    lower.includes("already registered") ||
+    lower.includes("email address has already been")
   );
 }
 
@@ -43,21 +45,23 @@ export function mapPasswordAuthError(message: string): string {
 async function trySignIn(
   supabase: SupabaseClient,
   email: string,
-  password: string
-): Promise<EmailPasswordResult> {
+  password: string,
+): Promise<EmailPasswordResult & { invalidCredentials?: boolean }> {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (!error) return { ok: true };
+  const invalidCredentials = isInvalidLogin(error.message);
   return {
     ok: false,
     message: mapPasswordAuthError(error.message),
-    suggestForgotPassword: isInvalidLogin(error.message),
+    suggestForgotPassword: invalidCredentials,
+    invalidCredentials,
   };
 }
 
 async function trySignUp(
   supabase: SupabaseClient,
   email: string,
-  password: string
+  password: string,
 ): Promise<EmailPasswordResult & { existingUser?: boolean }> {
   const { data, error } = await supabase.auth.signUp({ email, password });
 
@@ -103,7 +107,7 @@ async function trySignUp(
 export async function continueWithEmailPassword(
   supabase: SupabaseClient,
   email: string,
-  password: string
+  password: string,
 ): Promise<EmailPasswordResult> {
   const trimmed = email.trim().toLowerCase();
   if (!trimmed || password.length < 6) {
@@ -116,7 +120,7 @@ export async function continueWithEmailPassword(
   const signIn = await trySignIn(supabase, trimmed, password);
   if (signIn.ok) return signIn;
 
-  if (!isInvalidLogin(signIn.message)) {
+  if (!signIn.invalidCredentials) {
     return signIn;
   }
 
@@ -138,7 +142,7 @@ export async function continueWithEmailPassword(
 export async function requestPasswordReset(
   supabase: SupabaseClient,
   email: string,
-  redirectTo: string
+  redirectTo: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const trimmed = email.trim().toLowerCase();
   if (!trimmed) {

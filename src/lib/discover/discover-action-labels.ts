@@ -1,5 +1,6 @@
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 
 const COMMUNITY_NAMES: Record<string, string> = {
   react: "React",
@@ -16,34 +17,26 @@ function communityTitle(slug?: string): string {
   return COMMUNITY_NAMES[slug] ?? slug.replace(/-/g, " ");
 }
 
-/** User-facing action labels — never expose raw sensor / connector setup copy. */
+/** User-facing action labels — no engineer or hackathon jargon. */
 export function friendlyDiscoverActionLabel(
   action: DiscoverAction,
   state?: UserConnectionState | null,
 ): string {
-  if (state?.signedIn && action.communitySlug) {
-    const installed = state.installedCommunitySlugs.includes(action.communitySlug);
-    if (installed && (action.kind === "install" || action.kind === "connect_sensor" || action.kind === "console")) {
-      return `Open ${communityTitle(action.communitySlug)} console`;
-    }
-    if (state.hasAnyConnector && action.kind === "install") {
-      return `Attach ${communityTitle(action.communitySlug)}`;
+  if (state?.signedIn && action.communitySlug && communityReadyForDiscover(action.communitySlug, state)) {
+    if (action.kind === "console") {
+      return action.label || `Open ${communityTitle(action.communitySlug)}`;
     }
   }
 
   if (action.kind === "connect_sensor") {
-    if (action.communitySlug) return `Explore ${communityTitle(action.communitySlug)}`;
-    return "Explore opportunity";
+    return "Link in Profile";
   }
 
-  const raw = action.label.trim();
-  if (/connect\s+(sensor|github|jellyfin|listenbrainz|openalex)/i.test(raw)) {
-    if (action.communitySlug) return `Explore ${communityTitle(action.communitySlug)}`;
-    return "Explore program";
+  if (action.kind === "install") {
+    return action.communitySlug
+      ? `Set up ${communityTitle(action.communitySlug)}`
+      : "Set up community";
   }
-  if (/github sensor/i.test(raw)) return action.communitySlug ? `Explore ${communityTitle(action.communitySlug)}` : "Explore maintainers";
-  if (/music sensor/i.test(raw)) return "Explore royalties";
-  if (/openalex sensor/i.test(raw)) return "Explore research";
 
-  return raw;
+  return action.label.trim();
 }

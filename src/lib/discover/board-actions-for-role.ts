@@ -3,6 +3,8 @@ import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedType } from "@/lib/discover/need-types";
 import { primaryBoardCtaLabel } from "@/lib/discover/need-types";
 import { operationalActionsForCommunity } from "@/lib/discover/community-value-profiles";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
+import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
 export type BoardCommunityContext = {
   communitySlug: string;
@@ -10,6 +12,7 @@ export type BoardCommunityContext = {
   needType: DiscoverNeedType;
   communityName: string;
   installed?: boolean;
+  connections?: UserConnectionState | null;
 };
 
 /** One-line use case — who the Value Graph lane is for. */
@@ -37,7 +40,10 @@ export function boardCommunityActions(
   item: BoardCommunityContext,
 ): DiscoverAction[] {
   const { communitySlug, templateId, needType, communityName } = item;
-  const installed = item.installed ?? false;
+  const installed =
+    item.installed ??
+    communityReadyForDiscover(communitySlug, item.connections) ??
+    false;
   const fundLabel = primaryBoardCtaLabel(needType, {
     boardKind: "program",
     templateId,
@@ -49,7 +55,21 @@ export function boardCommunityActions(
     communityName,
     installed,
     connected: installed,
+    connections: item.connections,
   });
+
+  if (role === "funder") {
+    const fund = operational.find((a) => a.kind === "fund");
+    return [
+      fund ?? {
+        id: "fund",
+        label: fundLabel,
+        kind: "fund",
+        communitySlug,
+        templateId,
+      },
+    ];
+  }
 
   if (!installed) {
     const attach: DiscoverAction = {
@@ -57,7 +77,7 @@ export function boardCommunityActions(
       label: `Set up ${communityName}`,
       kind: "install",
       communitySlug,
-      reason: "One-time setup — then connect sources, create rules, and fund",
+      reason: "Set up once in Profile — syncs across Discover, Communities, and Capital",
     };
     return [attach, ...operational];
   }

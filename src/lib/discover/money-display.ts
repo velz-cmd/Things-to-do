@@ -28,7 +28,7 @@ export function formatDiscoverMoney(
         tone: "estimate",
       };
     }
-    return { label: "Value provided · not settled", tone: "not_synced" };
+    return { label: "Unpaid", tone: "not_synced" };
   }
   if (amountUsd == null) {
     return { label: "No verified amount yet", tone: "not_synced" };

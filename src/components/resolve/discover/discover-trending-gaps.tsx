@@ -47,7 +47,7 @@ export function DiscoverTrendingGaps({
 }: DiscoverTrendingGapsProps) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
   const { state: connections } = useUserConnections();
-  const [sortKey, setSortKey] = useState<OpportunitySortKey>("composite");
+  const [sortKey, setSortKey] = useState<OpportunitySortKey>("reward");
 
   const filtered = useMemo(() => {
     const gaps = filterGapsByNeedType(feed?.gaps ?? [], needType);
@@ -67,8 +67,8 @@ export function DiscoverTrendingGaps({
 
   const displayRows = useMemo(
     () =>
-      collectGapsRows(feed, filtered, limit ?? GAPS_MAX_ROWS, role, connections.installedCommunitySlugs),
-    [feed, filtered, limit, role, connections.installedCommunitySlugs],
+      collectGapsRows(feed, filtered, limit ?? GAPS_MAX_ROWS, role, connections),
+    [feed, filtered, limit, role, connections],
   );
 
   const subtitle =
@@ -121,7 +121,6 @@ export function DiscoverTrendingGaps({
                   </span>
                   {(
                     [
-                      ["composite", "Score"],
                       ["reward", "Reward"],
                       ["urgency", "Urgency"],
                       ["confidence", "Confidence"],

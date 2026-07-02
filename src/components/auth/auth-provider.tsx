@@ -19,6 +19,7 @@ import {
 } from "@/hooks/use-auth-capabilities";
 import { syncLocalMemoryToServer } from "@/lib/auth/memory-sync";
 import { syncLocalEcosystemsToServer, clearGuestSessionStorage } from "@/lib/auth/ecosystem-sync";
+import { clearSignInFlowState } from "@/lib/auth/sign-in-storage";
 import {
   setRememberedEmail,
   setRememberedProvider,
@@ -47,7 +48,12 @@ export type EmailSendResult =
       expiresInMinutes?: number;
       resendCooldownSeconds?: number;
     }
-  | { ok: false; cooldownSeconds?: number; message: string };
+  | {
+      ok: false;
+      cooldownSeconds?: number;
+      pendingVerify?: boolean;
+      message: string;
+    };
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -295,6 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
           cooldownSeconds?: number;
+          pendingVerify?: boolean;
           expiresInMinutes?: number;
           resendCooldownSeconds?: number;
         };
@@ -303,6 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return {
             ok: false,
             cooldownSeconds: data.cooldownSeconds,
+            pendingVerify: data.pendingVerify,
             message: String(data.error ?? "Could not send sign-in link."),
           };
         }
@@ -332,6 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
     clearGuestSessionStorage();
+    clearSignInFlowState();
     try {
       sessionStorage.removeItem("resolve.auth.lastUserId");
     } catch {

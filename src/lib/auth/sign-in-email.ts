@@ -39,7 +39,7 @@ export function mapAuthEmailError(message: string): string {
     return "Too many sign-in emails sent. Wait about an hour, or configure Resend SMTP in Supabase. Try Google sign-in meanwhile.";
   }
   if (lower.includes("after") && lower.includes("seconds")) {
-    return message;
+    return "A sign-in email was already sent. Check your inbox or wait a moment to resend.";
   }
   if (lower.includes("invalid") && lower.includes("email")) {
     return "Enter a valid email address.";

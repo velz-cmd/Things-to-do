@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { isRedisConfigured, verifyRedisConnection } from "@/lib/cache/redis";
 
+export const runtime = "edge";
+
 /** Safe Redis diagnostics — never returns secret values. */
 export async function GET() {
   const configured = isRedisConfigured();

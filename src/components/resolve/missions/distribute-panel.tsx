@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
-import { ImpactBreakdown } from "@/components/resolve/weight/impact-breakdown";
+
+const ImpactBreakdown = dynamic(
+  () =>
+    import("@/components/resolve/weight/impact-breakdown").then(
+      (m) => m.ImpactBreakdown,
+    ),
+  { loading: () => <div className="h-24 animate-pulse rounded-lg bg-white/[0.03]" /> },
+);
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { DEMO_DISTRIBUTION_CSV } from "@/lib/treasury/demo-data";

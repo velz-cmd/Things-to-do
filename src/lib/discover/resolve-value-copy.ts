@@ -18,10 +18,10 @@ export {
 } from "@/lib/discover/resolve-doctrine";
 
 export const VALUE_GRAPH_SUBTITLE =
-  "Pick a node below — Fund & Sponsor settle real Arc USDC. Auto-pay rules wait for verified sensor proof.";
+  "Pick a node — fund payouts, open proof, and settle on Arc when value is verified.";
 
 export const VALUE_GRAPH_MAP_HINT =
-  "Map view shows how value connects. Use the horizontal cards for faster actions.";
+  "Relationships between contributors, programs, and payouts.";
 
 export const VALUE_GRAPH_FOOTER =
   `Open source · attaches to communities you already run · ${RESOLVE_SETTLEMENT_LINE}`;

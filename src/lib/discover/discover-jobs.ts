@@ -1,8 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Compass,
-  Radio,
   Search,
+  Sparkles,
   Users,
   Wallet,
 } from "lucide-react";
@@ -10,8 +10,8 @@ import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 export type DiscoverJobId =
   | "fund"
+  | "earn"
   | "run"
-  | "observe"
   | "grants"
   | "find";
 
@@ -25,49 +25,49 @@ export type DiscoverJob = {
   icon: LucideIcon;
 };
 
-/** Primary Discover entry — maps to existing roles and section anchors. */
+/** Compact intent modes — Fund · Earn · Run · Launch · Explore */
 export const DISCOVER_JOBS: DiscoverJob[] = [
   {
+    id: "earn",
+    title: "Earn from work",
+    who: "Earn",
+    surfaces: "Claim verified earnings and connect identity",
+    role: "community",
+    scrollTo: "discover-workspace",
+    icon: Sparkles,
+  },
+  {
     id: "fund",
-    title: "Fund where it matters",
-    who: "Funder",
-    surfaces: "Opportunity board, fulfillment queue, wallet",
+    title: "Fund value",
+    who: "Fund",
+    surfaces: "Fund pools and sponsor payouts on Arc",
     role: "funder",
     scrollTo: "opportunities",
     icon: Wallet,
   },
   {
     id: "run",
-    title: "Run my community",
-    who: "Founder",
-    surfaces: "Board, programs, and community console on Discover",
+    title: "Run a program",
+    who: "Run",
+    surfaces: "Create communities, payout rules, and pools",
     role: "founder",
     scrollTo: "discover-workspace",
     icon: Users,
   },
   {
-    id: "observe",
-    title: "Connect & observe",
-    who: "Operator",
-    surfaces: "Domain radars and sensor health across communities",
-    role: "operator",
-    scrollTo: "discover-workspace",
-    icon: Radio,
-  },
-  {
     id: "grants",
-    title: "Launch grants / pools",
-    who: "DAO",
-    surfaces: "Quadratic funding, treasury, payroll",
+    title: "Launch DAO pool",
+    who: "Build",
+    surfaces: "Grants, citation tolls, and treasury programs",
     role: "dao",
     scrollTo: "discover-workspace",
     icon: Compass,
   },
   {
     id: "find",
-    title: "Find opportunities",
-    who: "Everyone",
-    surfaces: "Search and scored opportunity board",
+    title: "Explore gaps",
+    who: "Explore",
+    surfaces: "Unpaid value waiting for rules and funding",
     role: "all",
     scrollTo: "discover-workspace",
     icon: Search,

@@ -60,9 +60,9 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Video",
     product: "Jellyfin server",
     upstream: "Jellyfin",
-    unpaidTitle: "Jellyfin watch events without payout rules",
+    unpaidTitle: "Jellyfin watch time is not paying creators",
     unpaidSubtitle:
-      "Self-hosted video servers produce watch sessions at playback time. No creator payout rule is active yet.",
+      "Connect play history, create a pay-per-minute rule, then fund the pool.",
     liveSignalTitle: "Self-hosted video watch activity",
     extractionSources: ["Jellyfin", "Playback events"],
     valueEvents: [
@@ -90,9 +90,9 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Music",
     product: "Navidrome library",
     upstream: "Navidrome · MusicBrainz",
-    unpaidTitle: "Navidrome listens can become artist royalties",
+    unpaidTitle: "Navidrome listens are unpaid artist value",
     unpaidSubtitle:
-      "Plays in your Navidrome library are real value events — per-play royalty splits are not configured yet.",
+      "Connect play history, map artists with MusicBrainz, then create a royalty pool.",
     liveSignalTitle: "Navidrome play activity",
     extractionSources: ["Navidrome", "MusicBrainz"],
     valueEvents: [
@@ -250,9 +250,9 @@ export function buildUnpaidValueMetrics(
     ? humanizeExtractionSources(profile.extractionSources)
     : "Your connected sources";
   return {
-    observedEvents: connected ? "Syncing" : "Not linked",
-    payoutRules: "0 active",
-    settlement: "Not active",
+    observedEvents: connected ? "Activity verified" : "Source not connected",
+    payoutRules: "Rule missing",
+    settlement: "Pool unfunded",
     verifiedSource: source,
   };
 }
@@ -371,7 +371,9 @@ export function operationalActionsForCommunity(
       push("proof", "View watch proof", "open", {
         entityPath: `/communities/${slug}`,
       });
-      if (input.installed) push("console", "Open console", "console");
+      if (input.installed) {
+        push("console", "Advanced console", "console");
+      }
       break;
     case "navidrome":
       if (!connected) {
@@ -391,7 +393,9 @@ export function operationalActionsForCommunity(
         reason: "See user-centric royalty allocation",
       });
       push("fund", "Fund artist pool", "fund");
-      if (input.installed) push("console", "Open console", "console");
+      if (input.installed) {
+        push("console", "Advanced console", "console");
+      }
       break;
     case "independent-music":
       if (!connected) {
@@ -470,13 +474,6 @@ export function operationalActionsForCommunity(
       }
       push("fund", `Fund ${input.communityName}`, "fund");
       push("program", "Create payout rule", "create_program");
-  }
-
-  if (input.installed && role === "community") {
-    return [
-      { id: "earn", label: "View earnings", kind: "open", href: "/capital" },
-      ...actions.filter((a) => a.kind !== "fund").slice(0, 4),
-    ];
   }
 
   if (role === "funder") {

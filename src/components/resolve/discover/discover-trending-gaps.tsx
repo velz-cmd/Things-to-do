@@ -151,7 +151,7 @@ export function DiscoverTrendingGaps({
                       role={role}
                       rank={i + 1}
                       surface="trending-gaps"
-                      maxActions={3}
+                      lane="gaps"
                     />
                   ))}
                 </ul>

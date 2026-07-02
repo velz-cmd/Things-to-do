@@ -1,4 +1,4 @@
-# Supabase auth setup (Google + email OTP)
+# Supabase auth setup (Google + email magic link)
 
 ## Redirect URLs (Supabase Dashboard → Authentication → URL Configuration)
 
@@ -10,12 +10,14 @@
 
 If `/auth/callback` is missing from the allowlist, Supabase falls back to Site URL and you will land on `/?code=...` without a session. The app middleware forwards that to `/auth/callback`, but you should still add the URLs above so sign-in completes in one hop.
 
-## Email sign-in (magic link)
+## Email sign-in (magic link only)
 
-Email links are sent **server-side** via Supabase (`/api/auth/send-code`). For reliable delivery in production:
+Email magic links are sent **server-side** via `/api/auth/send-code`. Users tap the link in their inbox — there is no 6-digit code step in the app.
+
+For reliable delivery to **any** inbox (global users, no manual involvement):
 
 1. Supabase → **Authentication** → **Email** → enable provider
-2. Supabase → **Authentication** → **SMTP Settings** — use Resend (not Google OAuth credentials):
+2. Supabase → **Authentication** → **SMTP Settings** → **Enable custom SMTP** (Resend):
 
 | Field | Value |
 |-------|--------|
@@ -23,14 +25,16 @@ Email links are sent **server-side** via Supabase (`/api/auth/send-code`). For r
 | Port | `465` or `587` |
 | Username | `resend` |
 | Password | Your `RESEND_API_KEY` from Vercel |
-| Sender email | Verified address in Resend |
+| Sender email | Verified address in Resend (e.g. `auth@yourdomain.com`) |
 | Sender name | `RESOLVE` |
 
 Do **not** use Google OAuth Client ID/Secret or your personal password as SMTP credentials.
 
-Until `RESEND_FROM_EMAIL` uses a **verified domain**, sign-in emails are sent by **Supabase Auth** (not the Resend API). Configure Supabase SMTP above for reliable delivery to any inbox.
-3. Ensure `SUPABASE_SERVICE_ROLE_KEY` is set on Vercel (required for server-side send)
-4. Magic link redirect uses `APP_URL` / `NEXT_PUBLIC_APP_URL` → `/auth/callback`
+3. Resend → verify your sending domain, then set `RESEND_FROM_EMAIL` on Vercel to that address (enables branded Resend delivery as a fallback path)
+4. Ensure `SUPABASE_SERVICE_ROLE_KEY` is set on Vercel (required for server-side send)
+5. Magic link redirect uses `APP_URL` / `NEXT_PUBLIC_APP_URL` → `/auth/callback`
+
+Until custom SMTP is enabled, Supabase's built-in email has a low hourly quota (~4/hour). Custom SMTP via Resend removes that limit for production scale.
 
 ## Google sign-in
 
@@ -45,11 +49,3 @@ App env vars `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are for Gmail agent too
 ## GitHub sign-in
 
 Same redirect URL rules as Google. OAuth starts at `/api/auth/oauth/github`.
-
-## Email login code (OTP)
-
-1. Supabase → **Authentication** → **Email** → enable Email provider
-2. Email template should include `{{ .Token }}` for 6-digit codes (default OTP template)
-3. RESOLVE verifies codes client-side via `verifyOtp`
-
-New users receive a welcome / activation email from Resend after first verification.

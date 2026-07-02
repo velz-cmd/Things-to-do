@@ -1,20 +1,13 @@
 import { createHash } from "crypto";
 import { prisma } from "@/lib/db";
 
-/** Rolling window for abuse detection. */
-export const ABUSE_WINDOW_MS = 8 * 60 * 1000;
-/** Max link requests allowed within the abuse window before a block. */
-export const ABUSE_MAX_REQUESTS = 20;
-/** Block duration after abuse threshold is exceeded. */
-export const ABUSE_BLOCK_MS = 2 * 60 * 1000;
-/** Minimum wait between link requests for the same email. */
-export const MIN_RESEND_INTERVAL_MS = 60 * 1000;
-/** Shown to users — links should be used within this window. */
-export const LINK_VALID_MINUTES = 5;
+/** Light anti-spam — brief pause between resends for the same inbox. */
+export const MIN_RESEND_INTERVAL_MS = 15 * 1000;
+/** Shown to users — magic links should be used within this window. */
+export const LINK_VALID_MINUTES = 15;
 
 type RateState = {
   requests: number[];
-  blockedUntil: number | null;
 };
 
 export type EmailRateLimitResult =
@@ -22,7 +15,7 @@ export type EmailRateLimitResult =
   | {
       allowed: false;
       cooldownSeconds: number;
-      reason: "interval" | "abuse";
+      reason: "interval";
       message: string;
     };
 
@@ -32,16 +25,14 @@ function rateLimitKey(email: string) {
 }
 
 function parseState(raw: string | null | undefined): RateState {
-  if (!raw) return { requests: [], blockedUntil: null };
+  if (!raw) return { requests: [] };
   try {
     const parsed = JSON.parse(raw) as RateState;
     return {
       requests: Array.isArray(parsed.requests) ? parsed.requests : [],
-      blockedUntil:
-        typeof parsed.blockedUntil === "number" ? parsed.blockedUntil : null,
     };
   } catch {
-    return { requests: [], blockedUntil: null };
+    return { requests: [] };
   }
 }
 
@@ -53,9 +44,8 @@ async function loadState(email: string): Promise<RateState> {
 }
 
 async function saveState(email: string, state: RateState) {
-  const windowStart = Date.now() - ABUSE_WINDOW_MS;
+  const windowStart = Date.now() - 60 * 60 * 1000;
   const trimmed: RateState = {
-    blockedUntil: state.blockedUntil,
     requests: state.requests.filter((t) => t > windowStart),
   };
   await prisma.appConfig.upsert({
@@ -78,30 +68,7 @@ export async function checkEmailLinkRateLimit(
 ): Promise<EmailRateLimitResult> {
   const now = Date.now();
   const state = await loadState(email);
-  const windowStart = now - ABUSE_WINDOW_MS;
-  const recent = state.requests.filter((t) => t > windowStart);
-
-  if (state.blockedUntil && state.blockedUntil > now) {
-    const cooldownSeconds = Math.ceil((state.blockedUntil - now) / 1000);
-    return {
-      allowed: false,
-      cooldownSeconds,
-      reason: "abuse",
-      message: `Too many sign-in requests. Try again in ${formatWait(cooldownSeconds)}.`,
-    };
-  }
-
-  if (recent.length >= ABUSE_MAX_REQUESTS) {
-    const blockedUntil = now + ABUSE_BLOCK_MS;
-    await saveState(email, { requests: recent, blockedUntil });
-    const cooldownSeconds = Math.ceil(ABUSE_BLOCK_MS / 1000);
-    return {
-      allowed: false,
-      cooldownSeconds,
-      reason: "abuse",
-      message: `Too many sign-in links requested. Try again in ${formatWait(cooldownSeconds)}.`,
-    };
-  }
+  const recent = state.requests;
 
   const last = recent[recent.length - 1];
   if (last && now - last < MIN_RESEND_INTERVAL_MS) {
@@ -112,7 +79,7 @@ export async function checkEmailLinkRateLimit(
       allowed: false,
       cooldownSeconds,
       reason: "interval",
-      message: `Please wait ${formatWait(cooldownSeconds)} before requesting another link.`,
+      message: `Link sent — check your inbox. You can resend in ${formatWait(cooldownSeconds)}.`,
     };
   }
 
@@ -122,8 +89,8 @@ export async function checkEmailLinkRateLimit(
 export async function recordEmailLinkRequest(email: string) {
   const now = Date.now();
   const state = await loadState(email);
-  const windowStart = now - ABUSE_WINDOW_MS;
+  const windowStart = now - 60 * 60 * 1000;
   const recent = state.requests.filter((t) => t > windowStart);
   recent.push(now);
-  await saveState(email, { requests: recent, blockedUntil: null });
+  await saveState(email, { requests: recent });
 }

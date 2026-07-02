@@ -25,18 +25,13 @@ import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-sour
 import type { DiscoverBoardItem } from "@/lib/discover/opportunity-board";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { needTypeBadgeClass, needTypeLabel, primaryBoardCtaLabel } from "@/lib/discover/need-types";
-import {
-  boardCommunityActions,
-  boardSubtitleForRole,
-} from "@/lib/discover/board-actions-for-role";
-import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { boardSubtitleForRole } from "@/lib/discover/board-actions-for-role";
 import {
   sortByOpportunityScore,
   type OpportunitySortKey,
 } from "@/lib/discover/opportunity-score";
-import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
-import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { DiscoverAttachRail } from "@/components/resolve/discover/discover-attach-rail";
+import { DiscoverBoardCommunityRow } from "@/components/resolve/discover/discover-board-community-row";
 import { BOARD_MAX_ROWS } from "@/lib/discover/discover-row-limits";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
@@ -63,7 +58,6 @@ export function DiscoverOpportunityQueue({
   onSwitchLane,
 }: DiscoverOpportunityQueueProps) {
   const { executeFund, refreshWallet, busy, wallet } = useDiscoverActions();
-  const { state: connections } = useUserConnections();
   const { feed, refresh: refreshTrending } = useDiscoverRadarFeed();
   const [board, setBoard] = useState<DiscoverBoardItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -460,56 +454,14 @@ export function DiscoverOpportunityQueue({
                 {boardProgramRows.length > 0 ? "Unpaid value to act on" : "Set up communities"}
               </p>
               <ul className="mt-3 divide-y divide-white/[0.06]">
-                {boardCommunityRows.map((o) => {
-                  const installed = communityReadyForDiscover(o.communitySlug, connections);
-                  const actions = boardCommunityActions(role === "all" ? "funder" : role, {
-                    communitySlug: o.communitySlug,
-                    templateId: o.templateId,
-                    needType: o.needType,
-                    communityName: o.communityName,
-                    installed,
-                    connections,
-                  });
-                  return (
-                    <li key={o.programId} className="py-3 first:pt-0 last:pb-0">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium text-white">{o.programName}</p>
-                            <span
-                              className={clsx(
-                                "rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase",
-                                needTypeBadgeClass(o.needType),
-                              )}
-                            >
-                              {needTypeLabel(o.needType)}
-                            </span>
-                            <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-200/90">
-                              {installed ? "Ready" : "Link in Profile"}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-[11px] leading-relaxed text-resolve-muted">{o.communityTagline}</p>
-                          {o.fundingGapUsd > 0 && (
-                            <p className="mt-2 text-[11px] text-amber-200/80">
-                              Est. ${o.fundingGapUsd.toFixed(0)} unfunded
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {actions.map((action, index) => (
-                          <DiscoverActionChip
-                            key={action.id}
-                            action={action}
-                            signedIn={signedIn}
-                            primary={index === 0}
-                            surface="opportunity-board-explore"
-                          />
-                        ))}
-                      </div>
-                    </li>
-                  );
-                })}
+                {boardCommunityRows.map((o) => (
+                  <DiscoverBoardCommunityRow
+                    key={o.programId}
+                    item={o}
+                    signedIn={signedIn}
+                    role={role}
+                  />
+                ))}
               </ul>
             </div>
           )}

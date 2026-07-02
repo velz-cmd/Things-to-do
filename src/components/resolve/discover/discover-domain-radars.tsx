@@ -174,7 +174,7 @@ export function DiscoverDomainRadars({
                   role={role}
                   rank={i + 1}
                   surface={`radar-${activeRadar}`}
-                  maxActions={3}
+                  lane="radars"
                 />
               ))}
             </ul>

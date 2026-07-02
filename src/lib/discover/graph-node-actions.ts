@@ -28,7 +28,31 @@ export function defaultAutomationTriggerForNode(node: DiscoverGraphNode): Automa
   return "docs_merge";
 }
 
-/** Phase 7 — Fund, bounty, sponsor, observe, automate (one-click rules). */
+function receiptIdFromNode(node: DiscoverGraphNode): string | undefined {
+  return node.proofHref?.match(/\/receipt\/([^/?#]+)/)?.[1];
+}
+
+function receiptActions(node: DiscoverGraphNode): DiscoverAction[] {
+  const receiptId = receiptIdFromNode(node);
+  if (!receiptId) return [];
+  return [
+    {
+      id: "arcscan",
+      label: "Open Arcscan",
+      kind: "open",
+      href: node.proofHref ?? `/receipt/${receiptId}`,
+      reason: "View on-chain settlement proof",
+    },
+    {
+      id: "share",
+      label: "Share receipt",
+      kind: "share",
+      href: `/receipt/${receiptId}`,
+    },
+  ];
+}
+
+/** Node panel actions — concrete money/proof moves, no vague Observe/Automate. */
 export function bubbleOperatorActions(
   node: DiscoverGraphNode,
   edges: DiscoverGraphEdge[],
@@ -43,75 +67,142 @@ export function bubbleOperatorActions(
       (node.type === "repository" || node.type === "ecosystem" || node.programId)) ||
     node.pendingFunding;
 
-  if (canFund && (node.programId || slug)) {
+  if (receiptIdFromNode(node)) {
+    return receiptActions(node);
+  }
+
+  if (node.type === "person" || node.type === "creator") {
+    if (canFund && (node.programId || slug)) {
+      actions.push({
+        id: "fund-payout",
+        label: "Fund this payout",
+        kind: "fund",
+        reason: actionReason("fund"),
+        programId: node.programId,
+        communitySlug: slug,
+        templateId,
+        missionId: node.missionId,
+        amountUsd:
+          node.moneyGapUsd != null && node.moneyGapUsd > 0
+            ? Math.max(5, Math.min(node.moneyGapUsd, 500))
+            : undefined,
+      });
+    }
     actions.push({
-      id: "fund",
-      label: gapEdge || node.pendingFunding ? "Fund" : "Fund program",
-      kind: "fund",
-      reason: actionReason("fund"),
-      programId: node.programId,
+      id: "proof",
+      label: "Open proof",
+      kind: "open",
+      entityPath: node.entityPath ?? (slug ? `/communities/${slug}` : undefined),
       communitySlug: slug,
-      templateId,
-      missionId: node.missionId,
-      amountUsd:
-        node.moneyGapUsd != null && node.moneyGapUsd > 0
-          ? Math.max(5, Math.min(node.moneyGapUsd, 500))
-          : undefined,
     });
+    actions.push({
+      id: "identity",
+      label: "View identity",
+      kind: "open",
+      entityPath: node.entityPath ?? `/profile`,
+    });
+    if (node.authorizationStatus === "claimable") {
+      actions.push({
+        id: "claim",
+        label: "Claim route",
+        kind: "claim",
+        programId: node.programId,
+        communitySlug: slug,
+      });
+    } else if (canFund) {
+      actions.push({
+        id: "settle",
+        label: "Settle via Arc",
+        kind: "fund",
+        programId: node.programId,
+        communitySlug: slug,
+        templateId,
+        missionId: node.missionId,
+      });
+    }
+    return actions.slice(0, 4);
+  }
+
+  if (node.type === "community" || node.programId) {
+    if (canFund) {
+      actions.push({
+        id: "fund-program",
+        label: "Fund program",
+        kind: "fund",
+        programId: node.programId,
+        communitySlug: slug,
+        templateId,
+        missionId: node.missionId,
+      });
+    }
+    if (slug) {
+      actions.push({
+        id: "program",
+        label: "Create program",
+        kind: "create_program",
+        communitySlug: slug,
+        templateId,
+      });
+      actions.push({
+        id: "connect",
+        label: "Connect source",
+        kind: "connect_sensor",
+        href: "/profile",
+        communitySlug: slug,
+      });
+      actions.push({
+        id: "unpaid",
+        label: "View unpaid value",
+        kind: "open",
+        href: "/discover#discover-workspace",
+        communitySlug: slug,
+      });
+    }
+    return actions.slice(0, 4);
   }
 
   if (slug) {
+    if (canFund) {
+      actions.push({
+        id: "fund",
+        label: gapEdge || node.pendingFunding ? "Fund this payout" : "Fund program",
+        kind: "fund",
+        reason: actionReason("fund"),
+        programId: node.programId,
+        communitySlug: slug,
+        templateId,
+        missionId: node.missionId,
+      });
+    }
     actions.push({
-      id: "bounty",
-      label: "Start bounty",
-      kind: "create_program",
-      reason: actionReason("create_program"),
-      communitySlug: slug,
-      templateId,
-    });
-    actions.push({
-      id: "sponsor",
-      label: "Sponsor",
-      kind: "sponsor",
-      reason: actionReason("sponsor"),
-      communitySlug: slug,
-      templateId,
-      programId: node.programId,
-      missionId: node.missionId,
-    });
-    actions.push({
-      id: "observe",
-      label: "Observe",
+      id: "rules",
+      label: "View rules",
       kind: "open",
-      reason: actionReason("open"),
-      href: `/discover#value-bubblemap`,
+      entityPath: `/communities/${slug}`,
       communitySlug: slug,
     });
     actions.push({
-      id: "automate",
-      label: "Auto-pay rule",
-      kind: "automate",
-      reason: actionReason("automate"),
+      id: "settle-queue",
+      label: "Settle queue",
+      kind: "fund",
+      programId: node.programId,
       communitySlug: slug,
-      automationTrigger: defaultAutomationTriggerForNode(node),
+      templateId,
     });
-  } else if (node.entityPath) {
+    return actions.slice(0, 4);
+  }
+
+  if (node.entityPath) {
     actions.push({
-      id: "observe",
-      label: "Observe",
+      id: "proof",
+      label: "Open proof",
       kind: "analyze",
       entityPath: node.entityPath,
-    });
-    actions.push({
-      id: "automate",
-      label: "Automate",
-      kind: "open",
-      href: `/mission?prompt=${encodeURIComponent(`Observe and fund opportunities for ${node.label}`)}`,
     });
     if (canFund) {
       actions.push({
         id: "sponsor",
-        label: "Sponsor",
+        label: "Fund this payout",
         kind: "sponsor",
         programId: node.programId,
         templateId,
@@ -122,14 +213,14 @@ export function bubbleOperatorActions(
 
   if (node.synthetic && slug) {
     actions.push({
-      id: "install",
-      label: "Install community",
+      id: "activate",
+      label: "Activate community",
       kind: "install",
       communitySlug: slug,
     });
   }
 
-  return actions;
+  return actions.slice(0, 4);
 }
 
 export function bubblePopoverActions(
@@ -152,30 +243,18 @@ export function defaultActionsForGraphNode(input: {
   const actions: DiscoverAction[] = [];
 
   if (input.entityPath && !input.synthetic) {
-    actions.push({ id: "open", label: "Open", kind: "open", entityPath: input.entityPath });
-    actions.push({
-      id: "analyze",
-      label: "Analyze",
-      kind: "analyze",
-      entityPath: input.entityPath,
-    });
+    actions.push({ id: "proof", label: "Open proof", kind: "open", entityPath: input.entityPath });
   }
 
   if ((input.programId || input.communitySlug || input.missionId) && !input.synthetic) {
     actions.push({
       id: "fund",
-      label: "Fund",
+      label: "Fund this payout",
       kind: "fund",
       programId: input.programId,
       communitySlug: input.communitySlug,
       templateId: input.templateId,
       missionId: input.missionId,
-    });
-    actions.push({
-      id: "install",
-      label: "Install",
-      kind: "install",
-      communitySlug: input.communitySlug,
     });
   }
 

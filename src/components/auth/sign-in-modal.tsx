@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAppKit } from "@reown/appkit/react";
 import { useAccount, useConnect } from "wagmi";
-import { ArrowLeft, Mail, Wallet } from "lucide-react";
+import { ArrowLeft, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -11,21 +11,15 @@ import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { useAuthCapabilities } from "@/hooks/use-auth-capabilities";
 import { WalletAuthEffect } from "@/components/wallet/wallet-auth-effect";
 import { enableGuestExploring } from "@/lib/auth/guest";
-import { getRememberedEmail } from "@/lib/auth/remember";
-import { detectInjectedWallets } from "@/lib/wallet/detect";
 import {
-  formatSignInCooldown,
-  getSignInCooldownRemaining,
-  hasSignInVerifyPending,
-  markSignInVerifyPending,
-  setSignInCooldownSeconds,
-  SIGN_IN_EMAIL_KEY,
-} from "@/lib/auth/sign-in-storage";
+  getRememberedEmail,
+  setRememberedEmail,
+} from "@/lib/auth/remember";
+import { detectInjectedWallets } from "@/lib/wallet/detect";
 
-type Step = "welcome" | "verify" | "wallet-picker";
+type Step = "welcome" | "wallet-picker";
 type AuthAction = "email" | "google" | "github" | "wallet" | "guest" | null;
-
-const DEFAULT_RESEND_COOLDOWN_SEC = 15;
+type EmailMode = "sign-in" | "sign-up";
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -34,7 +28,8 @@ function isValidEmail(value: string) {
 export function SignInModal() {
   const { open, closeSignIn } = useSignInModal();
   const {
-    sendLoginCode,
+    signInWithEmailPassword,
+    signUpWithEmailPassword,
     emailEnabled,
     googleEnabled,
     githubEnabled,
@@ -46,11 +41,12 @@ export function SignInModal() {
   const { connect, connectors, isPending: connectPending } = useConnect();
 
   const [step, setStep] = useState<Step>("welcome");
+  const [emailMode, setEmailMode] = useState<EmailMode>("sign-in");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberEmail, setRememberEmail] = useState(true);
   const [authAction, setAuthAction] = useState<AuthAction>(null);
   const [walletConnecting, setWalletConnecting] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  const [linkValidMinutes, setLinkValidMinutes] = useState(15);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [methodError, setMethodError] = useState<{
     google?: string;
@@ -78,38 +74,17 @@ export function SignInModal() {
   useEffect(() => {
     if (!open) {
       setStep("welcome");
+      setEmailMode("sign-in");
       setAuthAction(null);
       setWalletConnecting(false);
       setInlineError(null);
+      setPassword("");
       setMethodError({});
       return;
     }
 
-    let savedEmail = "";
-    try {
-      savedEmail =
-        localStorage.getItem(SIGN_IN_EMAIL_KEY) ??
-        getRememberedEmail() ??
-        "";
-      if (savedEmail) setEmail(savedEmail);
-    } catch {
-      /* ignore */
-    }
-
-    const remaining = getSignInCooldownRemaining();
-    setCooldown(remaining);
-
-    if (remaining > 0 && savedEmail && hasSignInVerifyPending()) {
-      setStep("verify");
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const tick = () => setCooldown(getSignInCooldownRemaining());
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
+    const savedEmail = getRememberedEmail() ?? "";
+    if (savedEmail) setEmail(savedEmail);
   }, [open]);
 
   useEffect(() => {
@@ -129,16 +104,6 @@ export function SignInModal() {
   }, [open, isConnected, address, closeSignIn, closeWallet]);
 
   if (!open) return null;
-
-  function goToVerifyStep(cooldownSeconds: number, validMinutes: number) {
-    setLinkValidMinutes(validMinutes);
-    setStep("verify");
-    markSignInVerifyPending(email.trim());
-    setSignInCooldownSeconds(cooldownSeconds);
-    setCooldown(cooldownSeconds);
-    setMethodError((prev) => ({ ...prev, email: undefined }));
-    setInlineError(null);
-  }
 
   function handleOpenWalletPicker() {
     setMethodError((prev) => ({ ...prev, wallet: undefined }));
@@ -169,7 +134,7 @@ export function SignInModal() {
     }
   }
 
-  async function handleEmailContinue(e?: React.FormEvent) {
+  async function handleEmailSubmit(e?: React.FormEvent) {
     e?.preventDefault();
     setInlineError(null);
     setMethodError((prev) => ({ ...prev, email: undefined }));
@@ -183,67 +148,35 @@ export function SignInModal() {
       setInlineError("Enter a valid email address.");
       return;
     }
-
-    if (cooldown > 0 && hasSignInVerifyPending()) {
-      goToVerifyStep(cooldown, linkValidMinutes);
+    if (password.length < 6) {
+      setInlineError("Password must be at least 6 characters.");
       return;
     }
 
     setAuthAction("email");
     try {
-      localStorage.setItem(SIGN_IN_EMAIL_KEY, trimmed);
-      const result = await sendLoginCode(trimmed);
+      if (rememberEmail) {
+        setRememberedEmail(trimmed);
+      }
+
+      const result =
+        emailMode === "sign-up"
+          ? await signUpWithEmailPassword(trimmed, password)
+          : await signInWithEmailPassword(trimmed, password);
 
       if (!result.ok) {
-        if (result.cooldownSeconds) {
-          setSignInCooldownSeconds(result.cooldownSeconds);
-          setCooldown(result.cooldownSeconds);
-        }
-        if (result.pendingVerify) {
-          goToVerifyStep(
-            result.cooldownSeconds ?? cooldown ?? DEFAULT_RESEND_COOLDOWN_SEC,
-            linkValidMinutes
-          );
-          return;
+        if (
+          emailMode === "sign-up" &&
+          result.message.toLowerCase().includes("already exists")
+        ) {
+          setEmailMode("sign-in");
         }
         setMethodError((prev) => ({ ...prev, email: result.message }));
         return;
       }
 
-      goToVerifyStep(
-        result.resendCooldownSeconds ?? DEFAULT_RESEND_COOLDOWN_SEC,
-        result.expiresInMinutes ?? 15
-      );
-    } finally {
-      setAuthAction(null);
-    }
-  }
-
-  async function handleResend() {
-    if (cooldown > 0 || authAction === "email") return;
-    setAuthAction("email");
-    setMethodError((prev) => ({ ...prev, email: undefined }));
-    setInlineError(null);
-    try {
-      const result = await sendLoginCode(email.trim());
-      if (!result.ok) {
-        if (result.cooldownSeconds) {
-          setSignInCooldownSeconds(result.cooldownSeconds);
-          setCooldown(result.cooldownSeconds);
-        }
-        if (result.pendingVerify) {
-          return;
-        }
-        setMethodError((prev) => ({
-          ...prev,
-          email: result.message,
-        }));
-        return;
-      }
-      goToVerifyStep(
-        result.resendCooldownSeconds ?? DEFAULT_RESEND_COOLDOWN_SEC,
-        result.expiresInMinutes ?? 15
-      );
+      setPassword("");
+      closeSignIn();
     } finally {
       setAuthAction(null);
     }
@@ -259,17 +192,16 @@ export function SignInModal() {
   const subtitle =
     step === "wallet-picker"
       ? "Pick the wallet you want to connect."
-      : step === "verify"
-        ? `We sent a secure sign-in link to ${email}.`
-        : showEmail && showWallet
-          ? "Enter your email or connect a wallet to get started."
-          : showWallet
-            ? "Connect a wallet to get started."
-            : "Enter your email to get started.";
+      : showEmail && showWallet
+        ? "Sign in with email and password, or connect a wallet."
+        : showWallet
+          ? "Connect a wallet to get started."
+          : "Enter your email and password to get started.";
 
-  const emailReady = isValidEmail(email);
+  const emailReady = isValidEmail(email) && password.length >= 6;
   const walletBusy =
     authAction === "wallet" || walletConnecting || connectPending;
+  const rememberedEmail = getRememberedEmail();
 
   return (
     <>
@@ -285,7 +217,7 @@ export function SignInModal() {
           aria-modal="true"
           aria-labelledby="sign-in-title"
         >
-          {(step === "wallet-picker" || step === "verify") && (
+          {step === "wallet-picker" && (
             <button
               type="button"
               onClick={() => {
@@ -306,12 +238,12 @@ export function SignInModal() {
                 RESOLVE
               </p>
               <h2 id="sign-in-title" className="mt-1 text-2xl font-semibold text-white">
-                {step === "verify"
-                  ? "Check your email"
-                  : step === "wallet-picker"
-                    ? "Choose wallet"
-                    : getRememberedEmail() && email
-                      ? "Welcome back"
+                {step === "wallet-picker"
+                  ? "Choose wallet"
+                  : rememberedEmail && email && emailMode === "sign-in"
+                    ? "Welcome back"
+                    : emailMode === "sign-up"
+                      ? "Create account"
                       : "Welcome"}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-slate-400">{subtitle}</p>
@@ -329,7 +261,7 @@ export function SignInModal() {
           {step === "welcome" && (
             <div className="mt-6 space-y-5">
               {showEmail && (
-                <form onSubmit={handleEmailContinue} className="space-y-3">
+                <form onSubmit={(e) => void handleEmailSubmit(e)} className="space-y-3">
                   <input
                     type="email"
                     value={email}
@@ -341,16 +273,54 @@ export function SignInModal() {
                     autoComplete="email"
                     className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-500/50"
                   />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setInlineError(null);
+                    }}
+                    placeholder="Password (6+ characters)"
+                    autoComplete={
+                      emailMode === "sign-up" ? "new-password" : "current-password"
+                    }
+                    minLength={6}
+                    className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-500/50"
+                  />
+                  <label className="flex items-center gap-2 text-xs text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={rememberEmail}
+                      onChange={(e) => setRememberEmail(e.target.checked)}
+                      className="rounded border-white/20 bg-black/30"
+                    />
+                    Remember my email on this device
+                  </label>
                   <button
                     type="submit"
                     disabled={authAction === "email" || !emailReady}
                     className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {authAction === "email"
-                      ? "Sending link…"
-                      : cooldown > 0
-                        ? `Check your email · resend in ${formatSignInCooldown(cooldown)}`
-                        : "Continue with email"}
+                      ? emailMode === "sign-up"
+                        ? "Creating account…"
+                        : "Signing in…"
+                      : emailMode === "sign-up"
+                        ? "Create account"
+                        : "Sign in with email"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailMode(emailMode === "sign-in" ? "sign-up" : "sign-in");
+                      setMethodError((prev) => ({ ...prev, email: undefined }));
+                      setInlineError(null);
+                    }}
+                    className="w-full text-center text-xs text-sky-400 hover:text-sky-300"
+                  >
+                    {emailMode === "sign-in"
+                      ? "New here? Create an account"
+                      : "Already have an account? Sign in"}
                   </button>
                   {inlineError && (
                     <p className="text-xs text-amber-200">{inlineError}</p>
@@ -464,51 +434,6 @@ export function SignInModal() {
               {methodError.wallet && (
                 <p className="text-xs text-amber-200">{methodError.wallet}</p>
               )}
-            </div>
-          )}
-
-          {step === "verify" && showEmail && (
-            <div className="mt-6 space-y-5">
-              <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-4 text-sm text-slate-300">
-                <div className="flex items-start gap-3">
-                  <Mail className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
-                  <div>
-                    <p>
-                      Open the email on <span className="text-white">this device</span>{" "}
-                      and tap <span className="font-medium text-white">Sign in to RESOLVE</span>.
-                    </p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      The link expires in {linkValidMinutes} minutes and works once.
-                      Check spam if you do not see it within a minute.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {methodError.email && (
-                <p className="text-center text-xs text-amber-200">{methodError.email}</p>
-              )}
-              <button
-                type="button"
-                onClick={handleOpenWalletPicker}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/30 py-3 text-sm text-white hover:border-sky-500/40"
-              >
-                <Wallet className="h-4 w-4 text-sky-400" />
-                Continue with wallet instead
-              </button>
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>Keep this tab open after you tap the link.</span>
-                <button
-                  type="button"
-                  disabled={authAction === "email" || cooldown > 0}
-                  onClick={() => void handleResend()}
-                  className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
-                >
-                  {cooldown > 0
-                    ? `Resend in ${formatSignInCooldown(cooldown)}`
-                    : "Resend link"}
-                </button>
-              </div>
             </div>
           )}
 

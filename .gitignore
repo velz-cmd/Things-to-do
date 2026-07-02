@@ -16,3 +16,4 @@ contracts/broadcast
 test-results
 playwright-report
 .env*
+vercel-import.env

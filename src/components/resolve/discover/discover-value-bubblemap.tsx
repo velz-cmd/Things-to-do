@@ -241,10 +241,10 @@ export function DiscoverValueBubblemap({
     : data?.live
       ? `Live ledger · ${data.ledgerEventCount ?? 0} authorization${(data.ledgerEventCount ?? 0) === 1 ? "" : "s"}`
       : data?.hasCatalogPreview
-        ? "Catalog preview + ledger nodes — dashed rings are structural; click for actions"
+        ? `${data.ledgerEventCount ?? 0} verified events on ledger`
         : hasGraph
-          ? "Ledger nodes — attach communities on Board to grow the graph"
-          : "Awaiting ledger data — attach a community on Board, then refresh";
+          ? "Pick a node — fund, claim, or set rules"
+          : "Fund a community to grow the graph";
 
   const panelActions = useMemo(() => {
     if (!panel) return [];
@@ -297,8 +297,8 @@ export function DiscoverValueBubblemap({
           : role === "funder" || role === "dao"
             ? "Fund & Sponsor move Arc USDC on testnet when you confirm."
             : role === "founder" || role === "operator"
-              ? "Install community nodes — sensors sync verified events to the ledger."
-              : "Click any node for actions — Fund, Attach, Observe, Automate."}
+              ? "Set up communities above — activity appears here as value flows"
+              : "Click a node — fund pools, claim earnings, or set rules"}
       </p>
 
       {intentFallback && (

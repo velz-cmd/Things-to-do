@@ -43,9 +43,7 @@ export function discoverActionsForRole(
       allowed = COMMUNITY_KINDS;
       break;
     default:
-      allowed = null;
+      allowed = FUNDER_KINDS;
   }
-
-  if (!allowed) return actions;
   return actions.filter((a) => allowed!.has(a.kind));
 }

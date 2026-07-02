@@ -156,10 +156,10 @@ export function DiscoverActionsProvider({
         void reloadConnections();
       }
 
-      toast.loading(`Creating ${target.templateId} program…`, { id: "discover-chain" });
+      toast.loading(`Creating payout pool…`, { id: "discover-chain" });
       const created = await apiCreateProgram(target.communitySlug, target.templateId);
       toast.dismiss("discover-chain");
-      if (!created.program?.id) throw new Error("Program was not created — POST /api/communities/{slug}/programs returned no id");
+      if (!created.program?.id) throw new Error("Pool was not created — try again in a moment");
       return created.program.id;
     },
     [reloadConnections],
@@ -201,6 +201,7 @@ export function DiscoverActionsProvider({
         let programId = req.programId;
 
         if (!programId) {
+          toast.loading("Preparing pool…", { id: "discover-chain" });
           const target = await apiResolveFundTarget({
             programId: req.programId,
             communitySlug: req.communitySlug,
@@ -210,12 +211,13 @@ export function DiscoverActionsProvider({
           programId = await ensureProgram(target);
         }
 
-        toast.loading(`Funding $${req.amountUsd.toFixed(2)} via POST /api/capital/fund…`, {
+        toast.loading(`Sending $${req.amountUsd.toFixed(2)} USDC to pool…`, {
           id: "discover-chain",
         });
         await apiFundProgram(programId, req.amountUsd);
-        toast.success(`Funded $${req.amountUsd.toFixed(2)} — obligations clearing`, {
+        toast.success(`$${req.amountUsd.toFixed(2)} added to pool`, {
           id: "discover-chain",
+          description: "Obligations clear as verified activity arrives",
         });
         reportActionStatus(surface, auditAction, "success");
         await refreshBalance().catch(() => null);

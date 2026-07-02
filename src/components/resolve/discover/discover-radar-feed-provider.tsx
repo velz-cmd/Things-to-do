@@ -29,11 +29,16 @@ export function DiscoverRadarFeedProvider({ children }: { children: ReactNode })
   const value = useMemo(
     () => ({
       feed: query.data ?? null,
-      loading: query.isLoading,
-      error: query.isError ? "Could not load trending radar" : null,
+      loading: !query.data && (query.isPending || query.isFetching),
+      error:
+        query.isError ? "Could not load trending radar"
+        : query.data?.degradedParts?.includes("client_timeout") ||
+            query.data?.degradedParts?.includes("timeout") ?
+          "Some signals timed out — showing partial data"
+        : null,
       refresh,
     }),
-    [query.data, query.isLoading, query.isError, refresh],
+    [query.data, query.isPending, query.isFetching, query.isError, refresh],
   );
 
   return (

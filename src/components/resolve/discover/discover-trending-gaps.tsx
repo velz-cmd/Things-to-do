@@ -76,9 +76,9 @@ export function DiscoverTrendingGaps({
   const previewOnly = displayRows.length > 0 && !hasVerified;
 
   const subtitle =
-    feed?.realSignalCount != null
-      ? `${feed.realSignalCount} ledger-verified signals · top ${GAPS_MAX_ROWS} ranked rows`
-      : `Top ${GAPS_MAX_ROWS} opportunities from live scans and ledger`;
+    feed?.realSignalCount != null && feed.realSignalCount > 0
+      ? `${feed.realSignalCount} ledger-verified authorizations · capital not yet settled`
+      : "Unfunded value from real upstream activity — ranked by opportunity score";
 
   return (
     <DiscoverPremiumSection
@@ -117,7 +117,8 @@ export function DiscoverTrendingGaps({
           <div className="min-w-0 flex-1">
             {previewOnly && (
               <p className="mb-2 text-[11px] text-amber-200/80">
-                Live scan previews — attach a community and connect sensors for ledger-verified ranks.
+                Value is produced on upstream products (plays, watches, PRs, citations) — connect
+                sources on the left, then fund to settle authorizations on Arc.
               </p>
             )}
 
@@ -160,7 +161,7 @@ export function DiscoverTrendingGaps({
                       role={role}
                       rank={i + 1}
                       surface="trending-gaps"
-                      maxActions={3}
+                      maxActions={4}
                     />
                   ))}
                 </ul>

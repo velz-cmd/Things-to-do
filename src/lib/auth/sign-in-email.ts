@@ -1,14 +1,13 @@
 import { getAppBaseUrl } from "@/lib/browser/app-url";
 
-/** Direct app link — avoids PKCE code exchange failures from admin generateLink action_link. */
+/** Direct reset page — verify on user click (stops Gmail/Outlook link prefetch). */
 export function buildPasswordRecoveryUrl(hashedToken: string): string {
   const base = getAppBaseUrl();
   const params = new URLSearchParams({
     token_hash: hashedToken,
     type: "recovery",
-    next: "/auth/reset-password",
   });
-  return `${base}/auth/callback?${params.toString()}`;
+  return `${base}/auth/reset-password?${params.toString()}`;
 }
 
 export function buildPasswordResetEmailHtml(input: {
@@ -25,7 +24,9 @@ export function buildPasswordResetEmailHtml(input: {
     <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.2em;color:#38bdf8">RESOLVE</p>
     <h1 style="margin:0 0 16px;font-size:24px;color:#fff">Set your password</h1>
     <p style="margin:0 0 24px;color:#94a3b8;line-height:1.6">
-      You asked to set or reset your password. Tap the button below — you will choose a new password on the next screen.
+      You asked to set or reset your password. On the next screen, tap
+      <strong style="color:#e2e8f0">Continue to set password</strong>, then choose your new password.
+      Open only the <strong style="color:#e2e8f0">latest</strong> email if you requested more than one.
       This link expires in ${mins} minutes.
     </p>
     <a href="${input.resetLink}" style="display:inline-block;background:#0ea5e9;color:#041018;text-decoration:none;font-weight:600;padding:14px 28px;border-radius:12px">

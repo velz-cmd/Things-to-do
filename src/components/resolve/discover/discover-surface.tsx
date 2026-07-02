@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
@@ -9,7 +10,19 @@ import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
-import { DiscoverValueBubblemap } from "@/components/resolve/discover/discover-value-bubblemap";
+
+const DiscoverValueBubblemap = dynamic(
+  () =>
+    import("@/components/resolve/discover/discover-value-bubblemap").then(
+      (m) => m.DiscoverValueBubblemap,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 animate-pulse rounded-xl border border-white/[0.06] bg-white/[0.02]" />
+    ),
+  },
+);
 import { DiscoverEarnCompact } from "@/components/resolve/discover/discover-earn-compact";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";

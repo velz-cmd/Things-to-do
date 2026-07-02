@@ -34,6 +34,10 @@ Set for **Production** + **Preview**, then **Redeploy**.
 - **Parallel fetches** — profile bootstrap uses `Promise.all`
 - **HTTP Cache-Control** — Discover/profile routes use `stale-while-revalidate`
 
-## Database
+## Edge health routes
 
-Prisma schema already indexes hot columns (`userId`, `communitySlug`, `status`, etc.). Add more indexes in Supabase only when a specific query is slow.
+`/api/health/cache` and `/api/health/deploy` run on Vercel Edge for fast global responses (~100ms).
+
+## Lazy-loaded UI
+
+Heavy Discover bubblemap and Settle/Weight impact charts load via `next/dynamic` after first paint.

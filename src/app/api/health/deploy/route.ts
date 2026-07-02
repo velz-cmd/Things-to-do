@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { cronSecretHasWhitespace, claimTokenSecretHasWhitespace } from "@/lib/env/cron-secret";
 
+export const runtime = "edge";
+
 /** Production deploy fingerprint — verify main is live on Vercel. */
 export async function GET() {
   const commit =

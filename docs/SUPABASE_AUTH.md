@@ -43,7 +43,7 @@ Supabase’s **built-in email** has strict limits (~4/hour, ~60s between sends).
 ### User flow
 
 - **Continue:** returning users sign in; new users get an account automatically
-- **Forgot password:** “Set your password” email → choose password on `/auth/reset-password`
+- **Forgot password:** “Set your password” email → tap **Continue to set password** on `/auth/reset-password` (stops Gmail link prefetch from burning the token)
 - **Remember me:** email saved locally only — never the password
 
 

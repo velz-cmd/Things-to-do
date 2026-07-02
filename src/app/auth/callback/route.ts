@@ -32,7 +32,9 @@ export async function GET(request: Request) {
 
   if (authError) {
     return NextResponse.redirect(
-      `${origin}/?auth_error=${encodeURIComponent(authError)}`
+      isPasswordReset ?
+        `${origin}/auth/reset-password?auth_error=${encodeURIComponent(authError)}`
+      : `${origin}/?auth_error=${encodeURIComponent(authError)}`,
     );
   }
 
@@ -65,6 +67,14 @@ export async function GET(request: Request) {
   });
 
   try {
+    if (tokenHash && isPasswordReset) {
+      const params = new URLSearchParams({
+        token_hash: tokenHash,
+        type: "recovery",
+      });
+      return NextResponse.redirect(`${origin}/auth/reset-password?${params}`);
+    }
+
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
@@ -72,9 +82,11 @@ export async function GET(request: Request) {
           isPasswordReset ?
             " Request a new password reset email and open the latest link once."
           : "";
-        return NextResponse.redirect(
-          `${origin}/?auth_error=${encodeURIComponent(error.message + recoveryHint)}`
-        );
+        const dest =
+          isPasswordReset ?
+            `${origin}/auth/reset-password?auth_error=${encodeURIComponent(error.message + recoveryHint)}`
+          : `${origin}/?auth_error=${encodeURIComponent(error.message + recoveryHint)}`;
+        return NextResponse.redirect(dest);
       }
     } else if (tokenHash) {
       const { data, error } = await supabase.auth.verifyOtp({
@@ -83,7 +95,7 @@ export async function GET(request: Request) {
       });
       if (error) {
         return NextResponse.redirect(
-          `${origin}/?auth_error=${encodeURIComponent(error.message)}`
+          `${origin}/?auth_error=${encodeURIComponent(error.message)}`,
         );
       }
       if (data.user && !isPasswordReset) {
@@ -125,8 +137,10 @@ export async function GET(request: Request) {
       e instanceof Error
         ? e.message
         : "Sign-in link expired or already used. Request a new one.";
-    return NextResponse.redirect(
-      `${origin}/?auth_error=${encodeURIComponent(message)}`
-    );
+    const dest =
+      isPasswordReset ?
+        `${origin}/auth/reset-password?auth_error=${encodeURIComponent(message)}`
+      : `${origin}/?auth_error=${encodeURIComponent(message)}`;
+    return NextResponse.redirect(dest);
   }
 }

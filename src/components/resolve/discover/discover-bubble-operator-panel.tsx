@@ -20,7 +20,6 @@ import type {
 } from "@/components/resolve/discover/discover-community-console-provider";
 import { DiscoverInlineActionBar } from "@/components/resolve/discover/discover-inline-action-bar";
 import { actionExecutionTruth, AUTOMATE_TAB } from "@/lib/discover/discover-action-truth";
-import { whyForNodeType } from "@/lib/discover/resolve-value-copy";
 
 export type BubbleOperatorAnchor = {
   node: DiscoverGraphNode;
@@ -111,7 +110,9 @@ export function DiscoverBubbleOperatorPanel({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-resolve-calm-periwinkle">
-                Value node
+                {node.type === "person" || node.type === "creator"
+                  ? "Verified contributor"
+                  : "Value node"}
               </p>
               <h2 className="mt-0.5 truncate text-base font-semibold text-white">{node.label}</h2>
               <p className="text-[10px] capitalize text-resolve-muted">{node.type}</p>
@@ -147,7 +148,7 @@ export function DiscoverBubbleOperatorPanel({
             )}
             {!node.synthetic && node.amountVerified && (
               <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
-                Ledger verified
+                Activity verified
               </span>
             )}
           </div>
@@ -180,8 +181,8 @@ export function DiscoverBubbleOperatorPanel({
           <div className="grid gap-2 sm:grid-cols-2">
             <FlowTile
               tone="in"
-              label="Signal"
-              value={needs?.detail ?? whyForNodeType(node.type)}
+              label="Proof source"
+              value={needs?.detail ?? surface.stats.statusLabel}
             />
             <FlowTile
               tone="out"
@@ -266,7 +267,7 @@ export function DiscoverBubbleOperatorPanel({
                 {showAutomate ? "Hide auto-pay" : AUTOMATE_TAB.label}
               </button>
             ) : (
-              <span className="text-[11px] text-resolve-muted-dim">Install a community to automate</span>
+              <span className="text-[11px] text-resolve-muted-dim">Payout settings</span>
             )}
             <button
               type="button"

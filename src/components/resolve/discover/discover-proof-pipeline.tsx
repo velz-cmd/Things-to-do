@@ -1,60 +1,48 @@
 "use client";
 
 import clsx from "clsx";
-import type { UnpaidValueMetrics } from "@/lib/discover/community-value-profiles";
+import type { PipelineStageState } from "@/lib/discover/discover-card-state";
 
 type DiscoverProofPipelineProps = {
-  metrics?: UnpaidValueMetrics;
-  connected?: boolean;
-  amountVerified?: boolean;
+  stages: PipelineStageState[];
   className?: string;
+  onStageClick?: (stage: PipelineStageState) => void;
 };
 
-const STAGES = [
-  { id: "extract", label: "Extract" },
-  { id: "rule", label: "Rule" },
-  { id: "settle", label: "Settle" },
-] as const;
-
-/** Compact proof strip — shows where value is in the loop without explanatory copy. */
+/** Extract → Rule → Settle with real states — clickable when an action is available. */
 export function DiscoverProofPipeline({
-  metrics,
-  connected = false,
-  amountVerified = false,
+  stages,
   className,
+  onStageClick,
 }: DiscoverProofPipelineProps) {
-  if (!metrics) return null;
-
-  const extracted =
-    connected ||
-    amountVerified ||
-    (!metrics.observedEvents.toLowerCase().includes("await") &&
-      !metrics.observedEvents.toLowerCase().includes("0 "));
-  const ruled = !metrics.payoutRules.includes("0");
-  const settled = metrics.settlement !== "Not active";
-
-  const done = [extracted, ruled, settled];
+  if (!stages.length) return null;
 
   return (
     <div
       className={clsx("flex flex-wrap items-center gap-1", className)}
       aria-label="Value proof pipeline"
     >
-      {STAGES.map((stage, index) => (
+      {stages.map((stage, index) => (
         <div key={stage.id} className="flex items-center gap-1">
           {index > 0 && <span className="text-[8px] text-resolve-muted-dim/80">→</span>}
-          <span
+          <button
+            type="button"
+            disabled={!onStageClick}
+            onClick={() => onStageClick?.(stage)}
             className={clsx(
-              "rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums",
-              done[index]
+              "rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums transition",
+              stage.done
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-                : index === 0 || done[index - 1]
+                : stage.active
                   ? "border-amber-500/25 bg-amber-500/8 text-amber-100/90"
                   : "border-white/[0.08] bg-white/[0.02] text-resolve-muted-dim",
+              onStageClick && stage.active && "hover:border-amber-400/40",
             )}
+            title={`${stage.label}: ${stage.status}`}
           >
             {stage.label}
-          </span>
+            <span className="ml-1 opacity-80">{stage.status}</span>
+          </button>
         </div>
       ))}
     </div>

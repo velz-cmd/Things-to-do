@@ -38,7 +38,7 @@ describe("bubble operator surface", () => {
 });
 
 describe("bubble operator actions", () => {
-  it("returns fund, bounty, sponsor, observe, automate for ecosystems", () => {
+  it("returns concrete fund and settlement actions for ecosystems", () => {
     const react = node({
       id: "community:react",
       label: "React",
@@ -52,8 +52,8 @@ describe("bubble operator actions", () => {
     ];
     const labels = bubbleOperatorActions(react, edges).map((a) => a.label);
     expect(labels).toEqual(
-      expect.arrayContaining(["Fund", "Start bounty", "Sponsor", "Observe", "Automate"]),
+      expect.arrayContaining(["Fund this payout", "View rules", "Settle queue"]),
     );
-    expect(labels.length).toBeGreaterThanOrEqual(5);
+    expect(labels.length).toBeLessThanOrEqual(4);
   });
 });

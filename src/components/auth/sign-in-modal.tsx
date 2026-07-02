@@ -452,23 +452,28 @@ export function SignInModal() {
 
               <div className="space-y-3">
                 {showGithub && (
-                  <a
-                    href="/api/auth/oauth/github?next=/profile"
-                    className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-[#24292f] py-3.5 text-sm font-medium text-white transition hover:bg-[#2f363d]"
-                  >
-                    <GithubIcon />
-                    Continue with GitHub
-                  </a>
+                  <form action="/api/auth/oauth/github" method="get">
+                    <input type="hidden" name="next" value="/profile" />
+                    <button
+                      type="submit"
+                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-[#24292f] py-3.5 text-sm font-medium text-white transition hover:bg-[#2f363d]"
+                    >
+                      <GithubIcon />
+                      Continue with GitHub
+                    </button>
+                  </form>
                 )}
 
                 {showGoogle && (
-                  <a
-                    href="/api/auth/oauth/google"
-                    className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
-                  >
-                    <GoogleIcon />
-                    Continue with Google
-                  </a>
+                  <form action="/api/auth/oauth/google" method="get">
+                    <button
+                      type="submit"
+                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+                    >
+                      <GoogleIcon />
+                      Continue with Google
+                    </button>
+                  </form>
                 )}
 
                 <button

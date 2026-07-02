@@ -23,7 +23,6 @@ const DiscoverValueBubblemap = dynamic(
     ),
   },
 );
-import { DiscoverEarnCompact } from "@/components/resolve/discover/discover-earn-compact";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverCommunityConsoleProvider } from "@/components/resolve/discover/discover-community-console-provider";
@@ -104,13 +103,11 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
       const anchorId =
         scrollTo === "discover-search"
           ? "discover-search"
-          : scrollTo === "earn"
-            ? "earn"
-            : scrollTo === "opportunities"
-              ? "opportunities"
-              : scrollTo === "value-bubblemap"
-                ? "value-bubblemap"
-                : "discover-workspace";
+          : scrollTo === "opportunities"
+            ? "opportunities"
+            : scrollTo === "value-bubblemap"
+              ? "value-bubblemap"
+              : "discover-workspace";
       document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth" });
       if (scrollTo === "discover-search") {
         document.querySelector<HTMLInputElement>("#discover-search input")?.focus();
@@ -185,8 +182,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
                 onSwitchLane={switchLane}
               />
             )}
-
-            {lane === "earn" && <DiscoverEarnCompact signedIn={Boolean(user)} />}
           </div>
         </section>
 

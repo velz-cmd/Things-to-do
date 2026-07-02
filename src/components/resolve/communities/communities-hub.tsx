@@ -14,6 +14,7 @@ import { displayVitals } from "@/lib/communities/humanize-vitals";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCommunitiesHubQuery } from "@/lib/query/hooks";
+import { queryKeys } from "@/lib/query/keys";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 
 type CommunitySummary = {

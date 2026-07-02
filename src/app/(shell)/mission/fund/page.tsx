@@ -1,16 +1,22 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { WorkspaceFundSurface } from "@/components/resolve/workspace/workspace-fund-surface";
+import { redirect } from "next/navigation";
+import { missionFundHref } from "@/lib/mission/fund-redirect";
 
-export const metadata: Metadata = {
-  title: "Fund — RESOLVE Mission",
-  description: "Analyze attribution and authorize settlement.",
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default function MissionFundPage() {
-  return (
-    <Suspense fallback={<p className="p-6 text-sm text-resolve-muted">Loading…</p>}>
-      <WorkspaceFundSurface />
-    </Suspense>
+export default async function MissionFundRedirect({ searchParams }: PageProps) {
+  const sp = await searchParams;
+  const owner = typeof sp.owner === "string" ? sp.owner : undefined;
+  const repo = typeof sp.repo === "string" ? sp.repo : undefined;
+  const amountRaw = typeof sp.amount === "string" ? sp.amount : undefined;
+  const amountUsd = amountRaw ? Number(amountRaw.replace(/[^0-9.]/g, "")) : undefined;
+
+  redirect(
+    missionFundHref({
+      owner,
+      repo,
+      amountUsd: Number.isFinite(amountUsd) ? amountUsd : undefined,
+    })
   );
 }

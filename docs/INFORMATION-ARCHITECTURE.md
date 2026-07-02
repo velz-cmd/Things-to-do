@@ -171,7 +171,7 @@ Fund · Simulate · Policy · Export evidence
 
 | Route | Purpose |
 |-------|---------|
-| `/mission/fund` | Full fund-repo flow (action from Mission) |
+| `/mission` | Mission OS — fund, simulate, approve (replaces old `/mission/fund` form) |
 | `/mission?panel=policies` | Policies panel |
 
 ---

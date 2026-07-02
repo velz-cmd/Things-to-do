@@ -165,7 +165,7 @@ export function ConnectorsPage({ embedded = false }: { embedded?: boolean }) {
               <div className="flex shrink-0 flex-col gap-2 sm:items-end">
                 {c.id === "github" && (
                   <Link
-                    href="/workspace/fund"
+                    href="/mission"
                     className="rounded-md bg-resolve-accent px-4 py-2 text-center text-sm font-semibold text-white hover:bg-blue-500"
                   >
                     Fund a project
@@ -204,7 +204,7 @@ export function ConnectorsPage({ embedded = false }: { embedded?: boolean }) {
           Connectors emit normalized events into the Authorization Ledger. Install more sources as
           they ship — the Settlement Core stays the same.
         </p>
-        <Link href="/workspace/fund" className="mt-2 inline-block text-sm text-resolve-accent hover:underline">
+        <Link href="/mission" className="mt-2 inline-block text-sm text-resolve-accent hover:underline">
           Fund a project →
         </Link>
       </Panel>

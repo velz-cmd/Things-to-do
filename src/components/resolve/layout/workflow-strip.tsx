@@ -6,9 +6,9 @@ import { ArrowRight, Activity, Banknote, Wallet, User } from "lucide-react";
 import { Panel } from "@/components/resolve/ui/panel";
 
 const WORKFLOWS = [
-  { question: "Where is value?", href: "/activity", cta: "Open activity", icon: Activity },
-  { question: "Fund contributors", href: "/workspace/fund", cta: "Fund a project", icon: Banknote },
-  { question: "Claim earnings", href: "/payments", cta: "View payments", icon: Wallet },
+  { question: "Where is value?", href: "/discover", cta: "Open discover", icon: Activity },
+  { question: "Fund contributors", href: "/mission", cta: "Open mission", icon: Banknote },
+  { question: "Claim earnings", href: "/capital", cta: "View capital", icon: Wallet },
   { question: "Connect identity", href: "/profile", cta: "Open profile", icon: User },
 ] as const;
 

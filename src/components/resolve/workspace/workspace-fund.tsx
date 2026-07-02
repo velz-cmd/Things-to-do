@@ -24,6 +24,7 @@ import { PaymentSummary } from "@/components/resolve/payment/payment-summary";
 import { SettlementReceipt } from "@/components/resolve/missions/settlement-receipt";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
+import { missionFundHref } from "@/lib/mission/fund-redirect";
 import { parseRepoInput } from "@/lib/workspace/parse-repo";
 import {
   intentForPreset,
@@ -105,7 +106,9 @@ export function WorkspaceFund() {
     setResult(null);
     setLiveMessages(["Scanning repository…"]);
 
-    router.replace(`/workspace/fund?owner=${parsed.owner}&repo=${parsed.repo}`, { scroll: false });
+    router.replace(missionFundHref({ owner: parsed.owner, repo: parsed.repo }), {
+      scroll: false,
+    });
 
     try {
       await fetch("/api/treasury", { method: "POST" });
@@ -223,14 +226,16 @@ export function WorkspaceFund() {
     setOwner("");
     setRepo("");
     setLiveMessages([]);
-    router.replace("/workspace/fund", { scroll: false });
+    router.replace("/mission", { scroll: false });
   }
 
   function selectOpportunity(selectedOwner: string, selectedRepo: string) {
     setOwner(selectedOwner);
     setRepo(selectedRepo);
     setRepoInput(`${selectedOwner}/${selectedRepo}`);
-    router.replace(`/workspace/fund?owner=${selectedOwner}&repo=${selectedRepo}`, { scroll: false });
+    router.replace(missionFundHref({ owner: selectedOwner, repo: selectedRepo }), {
+      scroll: false,
+    });
     autoRan.current = true;
     void runAnalysis();
   }
@@ -238,7 +243,7 @@ export function WorkspaceFund() {
   function handleSidebarSelect(w: RecentWorkspace) {
     if (w.owner && w.repo) {
       setRepoInput(`${w.owner}/${w.repo}`);
-      router.replace(`/workspace/fund?owner=${w.owner}&repo=${w.repo}`, { scroll: false });
+      router.replace(missionFundHref({ owner: w.owner, repo: w.repo }), { scroll: false });
       autoRan.current = true;
       void runAnalysis();
     }

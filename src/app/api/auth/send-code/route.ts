@@ -7,15 +7,92 @@ import {
 } from "@/lib/supabase/admin";
 import { parseOtpCooldown } from "@/lib/auth/otp-cooldown";
 import {
+  buildSignInEmailHtml,
+  mapAuthEmailError,
+} from "@/lib/auth/sign-in-email";
+import {
   checkEmailLinkRateLimit,
   LINK_VALID_MINUTES,
   MIN_RESEND_INTERVAL_MS,
   recordEmailLinkRequest,
 } from "@/lib/auth/email-rate-limit";
 import { getAppBaseUrl } from "@/lib/browser/app-url";
+import { sendEmail } from "@/lib/resend/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
+
+async function deliverMagicLink(email: string, redirectTo: string) {
+  const supabase = createAdminClient();
+  if (!supabase) {
+    return { ok: false as const, status: 503, error: "Email sign-in is not configured on the server." };
+  }
+
+  const { data, error } = await supabase.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+    options: { redirectTo },
+  });
+
+  if (error) {
+    const cooldownSeconds = parseOtpCooldown(error.message);
+    return {
+      ok: false as const,
+      status: cooldownSeconds ? 429 : 400,
+      error: mapAuthEmailError(error.message),
+      cooldownSeconds,
+    };
+  }
+
+  const magicLink = data.properties?.action_link;
+  const otp = data.properties?.email_otp;
+  if (!magicLink) {
+    return {
+      ok: false as const,
+      status: 500,
+      error: "Could not create a sign-in link. Try again.",
+    };
+  }
+
+  if (process.env.RESEND_API_KEY?.trim()) {
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Sign in to RESOLVE",
+        html: buildSignInEmailHtml({
+          magicLink,
+          otp: otp ?? undefined,
+          expiresMinutes: LINK_VALID_MINUTES,
+        }),
+      });
+      return { ok: true as const, delivery: "resend" as const, otpSent: Boolean(otp) };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Resend delivery failed";
+      console.error("[auth/send-code] Resend failed:", message);
+      // Fall through to Supabase mailer if Resend fails (e.g. unverified domain).
+    }
+  }
+
+  const { error: otpError } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: redirectTo,
+    },
+  });
+
+  if (otpError) {
+    const cooldownSeconds = parseOtpCooldown(otpError.message);
+    return {
+      ok: false as const,
+      status: cooldownSeconds ? 429 : 400,
+      error: mapAuthEmailError(otpError.message),
+      cooldownSeconds,
+    };
+  }
+
+  return { ok: true as const, delivery: "supabase" as const, otpSent: false };
+}
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -28,8 +105,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
 
-  const adminConfigured = isSupabaseAdminConfigured();
-  if (!adminConfigured) {
+  if (!isSupabaseAdminConfigured()) {
     const hasUrl = Boolean(getSupabaseServerUrl());
     const hasKey = Boolean(getSupabaseServiceRoleKey());
     return NextResponse.json(
@@ -68,32 +144,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, recorded: true });
   }
 
-  const supabase = createAdminClient();
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Email sign-in is not configured on the server." },
-      { status: 503 }
-    );
-  }
-
   const redirectTo = `${getAppBaseUrl()}/auth/callback`;
+  const delivered = await deliverMagicLink(email, redirectTo);
 
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      shouldCreateUser: true,
-      emailRedirectTo: redirectTo,
-    },
-  });
-
-  if (error) {
-    const cooldownSeconds = parseOtpCooldown(error.message);
+  if (!delivered.ok) {
     return NextResponse.json(
       {
-        error: error.message,
-        cooldownSeconds,
+        error: delivered.error,
+        cooldownSeconds: delivered.cooldownSeconds,
       },
-      { status: cooldownSeconds ? 429 : 400 }
+      { status: delivered.status }
     );
   }
 
@@ -102,7 +162,8 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     serverSend: true,
-    delivery: "supabase",
+    delivery: delivered.delivery,
+    otpSent: delivered.otpSent,
     message: "Sign-in link sent to your inbox",
     expiresInMinutes: LINK_VALID_MINUTES,
     resendCooldownSeconds: Math.ceil(MIN_RESEND_INTERVAL_MS / 1000),

@@ -32,17 +32,14 @@ export async function GET() {
     }
   }
 
-  const emailOtp = isSupabaseAdminConfigured();
-  const emailMagicLink = supabase;
-  const email = Boolean(supabase && isSupabaseAdminConfigured());
+  const email = Boolean(supabase);
 
   const wallet = true;
 
   return NextResponse.json({
     supabase,
     email,
-    emailMagicLink,
-    emailOtp,
+    emailPassword: email,
     google: supabase && google,
     github: supabase && github,
     wallet,

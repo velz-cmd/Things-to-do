@@ -42,18 +42,9 @@ export interface WalletBalance {
   }[];
 }
 
-export type EmailSendResult =
-  | {
-      ok: true;
-      expiresInMinutes?: number;
-      resendCooldownSeconds?: number;
-    }
-  | {
-      ok: false;
-      cooldownSeconds?: number;
-      pendingVerify?: boolean;
-      message: string;
-    };
+export type EmailPasswordResult =
+  | { ok: true; isNewUser?: boolean }
+  | { ok: false; message: string };
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -83,8 +74,14 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
   linkGitHub: () => Promise<void>;
-  signInWithEmail: (email: string) => Promise<EmailSendResult>;
-  sendLoginCode: (email: string) => Promise<EmailSendResult>;
+  signInWithEmailPassword: (
+    email: string,
+    password: string
+  ) => Promise<EmailPasswordResult>;
+  signUpWithEmailPassword: (
+    email: string,
+    password: string
+  ) => Promise<EmailPasswordResult>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   provisionWallet: () => Promise<void>;
@@ -283,58 +280,120 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase, githubEnabled, signInWithGitHub]);
 
-  const signInWithEmail = useCallback(
-    async (email: string): Promise<EmailSendResult> => {
+function mapPasswordAuthError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes("invalid login credentials")) {
+    return "Wrong email or password.";
+  }
+  if (lower.includes("user already registered")) {
+    return "An account with this email already exists. Sign in instead.";
+  }
+  if (lower.includes("password should be at least")) {
+    return "Password must be at least 6 characters.";
+  }
+  if (lower.includes("email not confirmed")) {
+    return "Confirm your email first, or ask an admin to disable email confirmation in Supabase.";
+  }
+  if (lower.includes("signup is disabled")) {
+    return "New sign-ups are disabled. Contact support.";
+  }
+  return message;
+}
+
+  const signInWithEmailPassword = useCallback(
+    async (email: string, password: string): Promise<EmailPasswordResult> => {
       if (!emailEnabled) {
         return { ok: false, message: "Email sign-in is not available" };
       }
+      if (!supabase) {
+        return { ok: false, message: "Auth is not configured" };
+      }
+
+      const trimmed = email.trim().toLowerCase();
+      if (!trimmed || password.length < 6) {
+        return {
+          ok: false,
+          message: "Enter a valid email and password (6+ characters).",
+        };
+      }
 
       try {
-        const res = await withTimeout(
-          fetch("/api/auth/send-code", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: email.trim().toLowerCase() }),
-          }),
-          30_000
+        const { error } = await withTimeout(
+          supabase.auth.signInWithPassword({ email: trimmed, password }),
+          15_000
         );
-        const data = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          cooldownSeconds?: number;
-          pendingVerify?: boolean;
-          expiresInMinutes?: number;
-          resendCooldownSeconds?: number;
-        };
+        if (error) {
+          return { ok: false, message: mapPasswordAuthError(error.message) };
+        }
+        setRememberedEmail(trimmed);
+        setRememberedProvider("email");
+        return { ok: true };
+      } catch (e) {
+        if (e instanceof Error && e.message === "timeout") {
+          return { ok: false, message: "Sign-in timed out. Try again." };
+        }
+        return { ok: false, message: "Could not sign in. Try again." };
+      }
+    },
+    [emailEnabled, supabase]
+  );
 
-        if (!res.ok) {
-          return {
-            ok: false,
-            cooldownSeconds: data.cooldownSeconds,
-            pendingVerify: data.pendingVerify,
-            message: String(data.error ?? "Could not send sign-in link."),
-          };
+  const signUpWithEmailPassword = useCallback(
+    async (email: string, password: string): Promise<EmailPasswordResult> => {
+      if (!emailEnabled) {
+        return { ok: false, message: "Email sign-up is not available" };
+      }
+      if (!supabase) {
+        return { ok: false, message: "Auth is not configured" };
+      }
+
+      const trimmed = email.trim().toLowerCase();
+      if (!trimmed || password.length < 6) {
+        return {
+          ok: false,
+          message: "Enter a valid email and password (6+ characters).",
+        };
+      }
+
+      try {
+        const { data, error } = await withTimeout(
+          supabase.auth.signUp({ email: trimmed, password }),
+          15_000
+        );
+        if (error) {
+          return { ok: false, message: mapPasswordAuthError(error.message) };
+        }
+
+        if (data.session) {
+          setRememberedEmail(trimmed);
+          setRememberedProvider("email");
+          return { ok: true, isNewUser: true };
+        }
+
+        // Supabase may require email confirmation before session is issued.
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: trimmed,
+          password,
+        });
+        if (!signInError && data.user) {
+          setRememberedEmail(trimmed);
+          setRememberedProvider("email");
+          return { ok: true, isNewUser: true };
         }
 
         return {
-          ok: true,
-          expiresInMinutes: data.expiresInMinutes ?? 5,
-          resendCooldownSeconds: data.resendCooldownSeconds ?? 15,
+          ok: false,
+          message:
+            "Account created. Disable “Confirm email” in Supabase Auth settings for instant sign-in, or check your inbox to confirm.",
         };
       } catch (e) {
         if (e instanceof Error && e.message === "timeout") {
-          return { ok: false, message: "Email send timed out. Try again." };
+          return { ok: false, message: "Sign-up timed out. Try again." };
         }
-        return { ok: false, message: "Could not send sign-in email." };
+        return { ok: false, message: "Could not create account. Try again." };
       }
     },
-    [emailEnabled]
-  );
-
-  const sendLoginCode = useCallback(
-    async (email: string): Promise<EmailSendResult> => {
-      return signInWithEmail(email);
-    },
-    [signInWithEmail]
+    [emailEnabled, supabase]
   );
 
   const signOut = useCallback(async () => {
@@ -366,8 +425,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signInWithGitHub,
       linkGitHub,
-      signInWithEmail,
-      sendLoginCode,
+      signInWithEmailPassword,
+      signUpWithEmailPassword,
       signOut,
       refreshBalance,
       provisionWallet,
@@ -386,8 +445,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signInWithGitHub,
       linkGitHub,
-      signInWithEmail,
-      sendLoginCode,
+      signInWithEmailPassword,
+      signUpWithEmailPassword,
       signOut,
       refreshBalance,
       provisionWallet,

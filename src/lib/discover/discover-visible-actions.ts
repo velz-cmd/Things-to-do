@@ -40,5 +40,5 @@ export function visibleDiscoverActions(
     return true;
   });
 
-  return unique.slice(0, 4);
+  return unique.slice(0, 6);
 }

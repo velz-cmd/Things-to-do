@@ -2,6 +2,7 @@ import { COMMUNITY_CATALOG, getCommunityBySlug } from "@/lib/communities/catalog
 import { boardCommunityActions } from "@/lib/discover/board-actions-for-role";
 import {
   buildPreviewValueSignals,
+  buildUnpaidValueMetrics,
   gapsHeadlineForProfile,
   getCommunityValueProfile,
   radarHeadlineForProfile,
@@ -56,12 +57,13 @@ function buildPreviewRow(
     programName: entry.name,
   });
 
+  const isInstalled = installed.has(slug);
   const actions = boardCommunityActions(role === "all" || role === "community" ? "funder" : role, {
     communitySlug: slug,
     templateId,
     needType,
     communityName: entry.name,
-    installed: installed.has(slug),
+    installed: isInstalled,
   });
 
   const headline =
@@ -71,9 +73,9 @@ function buildPreviewRow(
         ? gapsHeadlineForProfile(profile)
         : entry.name;
 
-  const why =
-    profile?.gapsFraming ??
-    `${entry.doctrine} · Value extracted from ${profile?.upstream ?? entry.upstream}`;
+  const why = profile?.unpaidSubtitle ?? entry.doctrine;
+
+  const metrics = buildUnpaidValueMetrics(slug, isInstalled);
 
   const opportunityScorecard = buildOpportunityScorecard({
     amountNeededUsd: 0,
@@ -95,13 +97,11 @@ function buildPreviewRow(
     headline,
     why,
     whoBenefits: entry.doctrine.slice(0, 120),
-    proofSource: profile
-      ? `Extracted from ${profile.extractionSources.join(" · ")}`
-      : entry.upstream,
+    proofSource: `Verified via ${metrics.verifiedSource}`,
     dataSource: "community_catalog",
     amountVerified: false,
     amountKind: "estimate",
-    eligibilityCriteria: "Value provided when upstream is connected — capital settles after fund",
+    eligibilityCriteria: `${metrics.observedEvents} · ${metrics.payoutRules} · ${metrics.settlement}`,
     proofConnectorId: entry.connectors[0],
     amountNeededUsd: 0,
     moneyCanMoveUsd: 0,
@@ -112,7 +112,8 @@ function buildPreviewRow(
     entityPath: `/communities/${slug}`,
     productLabel: profile?.product,
     ecosystem: profile?.ecosystem,
-    valueSignals: buildPreviewValueSignals(slug, false),
+    valueSignals: buildPreviewValueSignals(slug, isInstalled),
+    valueMetrics: metrics,
     actions,
     opportunityScorecard,
   };
@@ -139,6 +140,7 @@ export function buildSensorCommunityPreviewRows(
   return rows;
 }
 
+/** Sources that prove real upstream activity — not product tabs. */
 export const LIVE_SENSOR_RAIL = [
   {
     id: "github",

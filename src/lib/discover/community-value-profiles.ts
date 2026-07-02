@@ -26,6 +26,15 @@ export type ValueProvidedSignal = {
   count?: number;
   settled: boolean;
   amountUsd?: number;
+  /** Honest status — e.g. "awaiting connection", "0 rules" */
+  statusText?: string;
+};
+
+export type UnpaidValueMetrics = {
+  observedEvents: string;
+  payoutRules: string;
+  settlement: string;
+  verifiedSource: string;
 };
 
 export type CommunityValueProfile = {
@@ -33,10 +42,12 @@ export type CommunityValueProfile = {
   ecosystem: "Open source" | "Music" | "Video" | "Research";
   product: string;
   upstream: string;
-  valueHook: string;
+  /** User-facing unpaid-value title — not integration name */
+  unpaidTitle: string;
+  unpaidSubtitle: string;
+  liveSignalTitle: string;
   extractionSources: string[];
   valueEvents: ValueEventDefinition[];
-  gapsFraming: string;
   radarFraming: Record<"oss" | "music" | "dao", string | null>;
 };
 
@@ -46,26 +57,28 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Video",
     product: "Jellyfin server",
     upstream: "Jellyfin",
-    valueHook: "Movie and episode watches you already stream become creator authorizations",
+    unpaidTitle: "Jellyfin watch events without payout rules",
+    unpaidSubtitle:
+      "Self-hosted video servers produce watch sessions at playback time. No creator payout rule is active yet.",
+    liveSignalTitle: "Self-hosted video watch activity",
     extractionSources: ["Jellyfin Sessions API", "Playback events"],
     valueEvents: [
       {
         kind: "watch",
         event: "video.watch",
-        label: "Watches",
+        label: "Watch events",
         description: "Verified playback sessions from your Jellyfin library",
       },
       {
         kind: "contribute",
         event: "media.catalog",
-        label: "Catalog",
+        label: "Catalog items",
         description: "Library metadata tied to credited creators",
       },
     ],
-    gapsFraming: "Self-hosted video value is produced at watch time — capital has not settled to creators",
     radarFraming: {
       oss: null,
-      music: "Creator video royalties — watches on your Jellyfin server",
+      music: "Creator video royalties from self-hosted watch sessions",
       dao: null,
     },
   },
@@ -74,7 +87,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Music",
     product: "Navidrome library",
     upstream: "Navidrome · MusicBrainz",
-    valueHook: "Every play in your self-hosted library becomes a royalty authorization",
+    unpaidTitle: "Navidrome listens can become artist royalties",
+    unpaidSubtitle:
+      "Plays in your Navidrome library are real value events — per-play royalty splits are not configured yet.",
+    liveSignalTitle: "Navidrome play activity",
     extractionSources: ["Navidrome API", "MusicBrainz artist graph"],
     valueEvents: [
       {
@@ -90,7 +106,6 @@ const PROFILES: Record<string, CommunityValueProfile> = {
         description: "Listening history attributed to artists and composers",
       },
     ],
-    gapsFraming: "Listener-direct plays are value — per-play royalties await funding",
     radarFraming: {
       oss: null,
       music: "Per-play royalties from your Navidrome library",
@@ -102,7 +117,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Music",
     product: "Independent music graph",
     upstream: "ListenBrainz · MusicBrainz · Navidrome",
-    valueHook: "Cross-platform plays aggregate into user-centric royalty splits",
+    unpaidTitle: "Cross-platform listens with no royalty program",
+    unpaidSubtitle:
+      "Listens across connected music sources can split to artists — no payout rule is funding claims yet.",
+    liveSignalTitle: "User-centric royalty opportunities",
     extractionSources: ["ListenBrainz", "MusicBrainz", "Navidrome"],
     valueEvents: [
       {
@@ -118,7 +136,6 @@ const PROFILES: Record<string, CommunityValueProfile> = {
         description: "Credits split to artists, composers, and session musicians",
       },
     ],
-    gapsFraming: "Artist value from real plays — money has not flowed to participants",
     radarFraming: {
       oss: null,
       music: "User-centric royalties across ListenBrainz and Navidrome",
@@ -130,7 +147,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Open source",
     product: "React ecosystem",
     upstream: "GitHub · Open Collective",
-    valueHook: "Merged PRs, docs, and maintainer labor extracted from public GitHub activity",
+    unpaidTitle: "React docs and security work has no payout program",
+    unpaidSubtitle:
+      "GitHub activity proves contributor work — docs bounties and maintainer pools are not active yet.",
+    liveSignalTitle: "React maintainer and docs contributions",
     extractionSources: ["GitHub API", "Open Collective treasuries"],
     valueEvents: [
       {
@@ -146,7 +166,6 @@ const PROFILES: Record<string, CommunityValueProfile> = {
         description: "Contribution velocity across tracked repositories",
       },
     ],
-    gapsFraming: "Maintainer labor is measurable on GitHub — funding gap on docs and core work",
     radarFraming: {
       oss: "UI layer maintainers — docs bounties and dependency funding",
       music: null,
@@ -158,7 +177,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Open source",
     product: "Linux commons",
     upstream: "GitHub · kernel.org",
-    valueHook: "Kernel patches, security fixes, and docs work from public contribution graphs",
+    unpaidTitle: "Linux commons work is underfunded vs measured impact",
+    unpaidSubtitle:
+      "Kernel patches and security fixes are verifiable on GitHub — funding pools lag verified work.",
+    liveSignalTitle: "Kernel and security contribution activity",
     extractionSources: ["GitHub API", "Security advisories"],
     valueEvents: [
       {
@@ -174,7 +196,6 @@ const PROFILES: Record<string, CommunityValueProfile> = {
         description: "CVE response and hardening work",
       },
     ],
-    gapsFraming: "Critical infrastructure work is underfunded relative to measured impact",
     radarFraming: {
       oss: "Kernel and desktop sustainability — security and maintainer retention",
       music: null,
@@ -186,7 +207,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Research",
     product: "Open science graph",
     upstream: "OpenAlex · Crossref",
-    valueHook: "Citations and paper reuse become micropayment authorizations for researchers",
+    unpaidTitle: "Research citations are not settling to authors",
+    unpaidSubtitle:
+      "OpenAlex and Crossref track when work is cited and reused — citation tolls and grant pools await setup.",
+    liveSignalTitle: "Citation and reproducibility activity",
     extractionSources: ["OpenAlex", "Crossref"],
     valueEvents: [
       {
@@ -202,7 +226,6 @@ const PROFILES: Record<string, CommunityValueProfile> = {
         description: "Replication and dataset contributions",
       },
     ],
-    gapsFraming: "Citation value is produced when work is reused — tolls await settlement",
     radarFraming: {
       oss: null,
       music: null,
@@ -215,25 +238,60 @@ export function getCommunityValueProfile(slug: string): CommunityValueProfile | 
   return PROFILES[slug] ?? null;
 }
 
+export function buildUnpaidValueMetrics(
+  slug: string,
+  connected: boolean,
+): UnpaidValueMetrics {
+  const profile = getCommunityValueProfile(slug);
+  const source = profile?.extractionSources.join(" · ") ?? "Upstream source";
+  return {
+    observedEvents: connected ? "Syncing from source" : "Awaiting connection",
+    payoutRules: "0 active",
+    settlement: "Not active",
+    verifiedSource: source,
+  };
+}
+
 export function buildPreviewValueSignals(
   slug: string,
-  settled: boolean,
+  connected: boolean,
 ): ValueProvidedSignal[] {
   const profile = getCommunityValueProfile(slug);
   if (!profile) return [];
 
-  return profile.valueEvents.map((event) => ({
+  const metrics = buildUnpaidValueMetrics(slug, connected);
+
+  const eventSignals = profile.valueEvents.map((event) => ({
     event: event.event,
     label: event.label,
     source: profile.extractionSources[0] ?? profile.upstream,
-    count: settled ? undefined : 0,
-    settled,
-    amountUsd: settled ? undefined : 0,
+    count: connected ? undefined : 0,
+    settled: false,
+    amountUsd: 0,
+    statusText: connected ? "extracting" : "awaiting connection",
   }));
+
+  return [
+    ...eventSignals,
+    {
+      event: "payout.rules",
+      label: "Payout rules",
+      source: "RESOLVE programs",
+      settled: false,
+      statusText: metrics.payoutRules,
+    },
+    {
+      event: "settlement.status",
+      label: "Settlement",
+      source: "Arc · Circle",
+      settled: false,
+      statusText: metrics.settlement,
+    },
+  ];
 }
 
 export function gapsHeadlineForProfile(profile: CommunityValueProfile): string {
-  return `${profile.product} · ${profile.valueEvents[0]?.label ?? "Value"} from ${profile.upstream}`;
+  return profile.unpaidTitle;
 }
 
 export function radarHeadlineForProfile(
@@ -242,7 +300,7 @@ export function radarHeadlineForProfile(
 ): string {
   const radarLine = profile.radarFraming[radarId];
   if (radarLine) return radarLine;
-  return gapsHeadlineForProfile(profile);
+  return profile.liveSignalTitle;
 }
 
 function connectHrefForSlug(slug: string): string | undefined {
@@ -265,6 +323,7 @@ export function operationalActionsForCommunity(
     templateId: string;
     communityName: string;
     installed: boolean;
+    connected?: boolean;
   },
 ): DiscoverAction[] {
   const profile = getCommunityValueProfile(input.communitySlug);
@@ -288,70 +347,136 @@ export function operationalActionsForCommunity(
     });
   };
 
-  if (!input.installed) {
-    const connectHref = connectHrefForSlug(slug);
-    if (connectHref) {
-      push("connect", `Connect ${profile?.upstream.split(" · ")[0] ?? "source"}`, "connect_sensor", {
-        href: connectHref,
-        reason: "Extract real activity before funding",
-      });
-    }
-  }
+  const connected = input.connected ?? input.installed;
 
   switch (slug) {
     case "jellyfin":
-      push("fund", "Fund creator pool", "fund", { reason: "Settle video.watch authorizations" });
-      push("program", "Launch video royalties", "create_program", {
+      if (!connected) {
+        push("connect", "Connect Jellyfin", "connect_sensor", {
+          href: connectHrefForSlug(slug),
+          reason: "Extract watch sessions before creating payout rules",
+        });
+      }
+      push("scan", "Scan watch activity", "analyze", {
+        entityPath: `/communities/${slug}`,
+        reason: "Import playback events from your server",
+      });
+      push("program", "Create pay-per-minute rule", "create_program", {
         templateId: "video-royalties",
       });
-      if (input.installed) push("console", "Open Jellyfin console", "console");
+      push("fund", "Fund creator pool", "fund", {
+        reason: "Settle video.watch authorizations on Arc",
+      });
+      push("proof", "View watch proof", "open", {
+        entityPath: `/communities/${slug}`,
+      });
+      if (input.installed) push("console", "Open console", "console");
       break;
     case "navidrome":
+      if (!connected) {
+        push("connect-lb", "Connect ListenBrainz", "connect_sensor", {
+          href: "/connect/listenbrainz",
+        });
+        push("connect", "Connect Navidrome", "connect_sensor", {
+          href: connectHrefForSlug(slug),
+        });
+      }
+      push("scan", "Scan play activity", "analyze", {
+        entityPath: `/communities/${slug}`,
+      });
+      push("program", "Create royalty pool", "create_program", { templateId });
+      push("preview", "Preview split", "open", {
+        href: "/capital",
+        reason: "See user-centric royalty allocation",
+      });
       push("fund", "Fund artist pool", "fund");
-      push("program", "Launch per-play royalties", "create_program");
-      if (input.installed) push("console", "Open Navidrome console", "console");
+      if (input.installed) push("console", "Open console", "console");
       break;
     case "independent-music":
-      push("analyze", "View artist graph", "open", { href: "/capital", reason: "See attributed plays" });
+      if (!connected) {
+        push("connect-lb", "Connect ListenBrainz", "connect_sensor", {
+          href: "/connect/listenbrainz",
+        });
+        push("connect-mb", "Map artists (MusicBrainz)", "connect_sensor", {
+          href: "/profile",
+        });
+      }
+      push("program", "Create royalty program", "create_program", { templateId });
+      push("preview", "Preview split", "open", { href: "/capital" });
       push("fund", "Fund royalties", "fund");
-      push("program", "Launch royalty program", "create_program");
+      push("graph", "View artist graph", "open", { href: "/capital" });
       break;
     case "react":
-      push("fund", "Fund maintainers", "fund", { reason: "Clear GitHub authorization backlog" });
-      push("program", "Launch docs bounty", "create_program", { templateId: "docs-bounty" });
-      push("analyze", "View maintainer graph", "open", {
-        entityPath: "/communities/react",
+      if (!connected) {
+        push("connect", "Connect GitHub", "connect_sensor", {
+          href: "/connect/github",
+        });
+      }
+      push("scan", "Scan GitHub activity", "analyze", {
+        entityPath: `/communities/${slug}`,
+      });
+      push("program", "Create docs bounty", "create_program", {
+        templateId: "docs-bounty",
+      });
+      push("fund", "Fund maintainers", "fund", {
+        reason: "Clear verified work backlog",
+      });
+      push("graph", "View contributor graph", "open", {
+        entityPath: `/communities/${slug}`,
       });
       break;
     case "linux":
-      push("fund", "Fund security pool", "fund");
-      push("program", "Launch security fund", "create_program", {
+      if (!connected) {
+        push("connect", "Connect GitHub", "connect_sensor", {
+          href: "/connect/github",
+        });
+      }
+      push("scan", "Scan dependency graph", "analyze", {
+        entityPath: `/communities/${slug}`,
+      });
+      push("program", "Create security fund", "create_program", {
         templateId: "security-fund",
       });
-      push("analyze", "View dependency graph", "open", { entityPath: "/communities/linux" });
+      push("fund", "Fund security pool", "fund");
+      push("graph", "View maintainer graph", "open", {
+        entityPath: `/communities/${slug}`,
+      });
       break;
     case "open-research":
+      if (!connected) {
+        push("connect", "Connect OpenAlex", "connect_sensor", {
+          href: "/profile",
+        });
+      }
       if (role === "dao" || role === "all") {
-        push("program", "Launch grant round", "create_program", {
+        push("grant", "Create grant round", "create_program", {
           templateId: "quadratic-funding",
         });
       }
-      push("fund", "Fund citation pool", "fund");
-      push("analyze", "View researcher graph", "open", {
-        entityPath: "/communities/open-research",
+      push("program", "Create citation toll", "create_program", {
+        templateId: "citation-toll",
+      });
+      push("fund", "Fund research pool", "fund");
+      push("graph", "View citation graph", "open", {
+        entityPath: `/communities/${slug}`,
       });
       break;
     default:
+      if (!connected && connectHrefForSlug(slug)) {
+        push("connect", `Connect ${profile?.upstream.split(" · ")[0] ?? "source"}`, "connect_sensor", {
+          href: connectHrefForSlug(slug),
+        });
+      }
       push("fund", `Fund ${input.communityName}`, "fund");
-      push("program", "Launch program", "create_program");
+      push("program", "Create payout rule", "create_program");
   }
 
   if (input.installed && role === "community") {
     return [
       { id: "earn", label: "View earnings", kind: "open", href: "/capital" },
-      ...actions.filter((a) => a.kind !== "fund").slice(0, 2),
+      ...actions.filter((a) => a.kind !== "fund").slice(0, 4),
     ];
   }
 
-  return actions.slice(0, 3);
+  return actions.slice(0, 6);
 }

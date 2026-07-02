@@ -4,6 +4,7 @@ import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { templateLabel } from "@/lib/capital/community-yield";
 import { dedupeDiscoverBoard, dedupeFundablePrograms } from "@/lib/discover/board-dedupe";
 import { classifyBoardNeedType } from "@/lib/discover/need-types";
+import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
 import { buildOpportunityScorecard, scorecardFromFundable } from "@/lib/discover/opportunity-score";
 import { withTimeout } from "@/lib/discover/fetch-timeout";
 
@@ -39,7 +40,8 @@ function templateForCommunity(c: CommunityCatalogEntry): string {
 }
 
 function exploreCtaForCommunity(c: CommunityCatalogEntry): string {
-  return `Explore ${c.name}`;
+  const profile = getCommunityValueProfile(c.slug);
+  return profile ? `Act on ${c.name}` : `Explore ${c.name}`;
 }
 
 function communityBoardRow(
@@ -73,19 +75,22 @@ function communityBoardRow(
       })
     : undefined;
 
+  const profile = getCommunityValueProfile(c.slug);
+  const unpaidLine = profile?.unpaidSubtitle ?? c.tagline;
+
   return {
     boardKind: "community",
     programId: `community-${c.slug}`,
-    programName: c.name,
+    programName: profile?.unpaidTitle ?? c.name,
     communitySlug: c.slug,
     communityName: c.name,
-    communityTagline: c.tagline,
+    communityTagline: unpaidLine,
     templateId,
     templateLabel: templateLabel(templateId),
     fundingGapUsd: gapUsd,
     whyFund: hasScanGap
-      ? `${c.tagline} · GitHub scan · est. $${gapUsd.toFixed(0)} maintainer gap`
-      : `${c.tagline} · attach community — verified gaps appear after sensors sync`,
+      ? `${unpaidLine} · GitHub scan · est. $${gapUsd.toFixed(0)} maintainer gap`
+      : `${unpaidLine} · Connect source to verify activity, then create a payout rule`,
     whoBenefits: c.doctrine.slice(0, 120),
     score: opportunityScorecard?.composite ?? 0,
     opportunityScorecard,

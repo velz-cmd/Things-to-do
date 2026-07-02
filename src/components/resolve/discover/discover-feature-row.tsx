@@ -47,7 +47,7 @@ export function DiscoverFeatureRow({
   role: _role = "all",
   rank,
   surface = "feature-row",
-  maxActions = 3,
+  maxActions = 5,
 }: DiscoverFeatureRowProps) {
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
@@ -132,29 +132,47 @@ export function DiscoverFeatureRow({
 
           {showValueStrip && (
             <div className="mt-2 flex flex-wrap gap-1.5">
+              {gap.valueMetrics && (
+                <>
+                  <span className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[9px] text-resolve-muted">
+                    <span className="text-resolve-muted-dim">Events:</span>
+                    <span className="font-medium text-white/90">{gap.valueMetrics.observedEvents}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[9px] text-amber-100/90">
+                    <span className="text-amber-200/70">Rules:</span>
+                    <span className="font-medium">{gap.valueMetrics.payoutRules}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[9px] text-amber-100/90">
+                    <span className="text-amber-200/70">Settlement:</span>
+                    <span className="font-medium">{gap.valueMetrics.settlement}</span>
+                  </span>
+                </>
+              )}
               {valueSignals.length > 0 ? (
-                valueSignals.map((signal) => (
+                valueSignals
+                  .filter((s) => !s.event.startsWith("payout.") && !s.event.startsWith("settlement."))
+                  .map((signal) => (
                   <span
                     key={signal.event}
                     className={clsx(
                       "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[9px]",
                       signal.settled
                         ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-                        : "border-amber-500/20 bg-amber-500/5 text-amber-100/90",
+                        : "border-white/[0.08] bg-white/[0.02] text-resolve-muted",
                     )}
                   >
-                    <span className="font-medium">{signal.label}</span>
-                    <span className="text-resolve-muted-dim">from {signal.source}</span>
-                    {!signal.settled && (
-                      <span className="text-amber-200/70">· value provided</span>
+                    <span className="font-medium text-white/90">{signal.label}</span>
+                    <span className="text-resolve-muted-dim">via {signal.source}</span>
+                    {signal.statusText && (
+                      <span className="text-amber-200/80">· {signal.statusText}</span>
                     )}
                   </span>
                 ))
-              ) : (
+              ) : !gap.valueMetrics ? (
                 <span className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-0.5 text-[9px] text-resolve-muted-dim">
                   Connect upstream to extract real activity
                 </span>
-              )}
+              ) : null}
             </div>
           )}
         </div>

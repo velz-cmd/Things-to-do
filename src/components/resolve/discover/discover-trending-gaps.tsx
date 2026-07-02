@@ -78,12 +78,12 @@ export function DiscoverTrendingGaps({
   const subtitle =
     feed?.realSignalCount != null && feed.realSignalCount > 0
       ? `${feed.realSignalCount} ledger-verified authorizations · capital not yet settled`
-      : "Unfunded value from real upstream activity — ranked by opportunity score";
+      : "Value happening without money flow — ranked by what you can act on next";
 
   return (
     <DiscoverPremiumSection
       id="trending"
-      title="Trending value gaps"
+      title="Unpaid value"
       subtitle={subtitle}
       className={className}
       actions={
@@ -117,8 +117,8 @@ export function DiscoverTrendingGaps({
           <div className="min-w-0 flex-1">
             {previewOnly && (
               <p className="mb-2 text-[11px] text-amber-200/80">
-                Value is produced on upstream products (plays, watches, PRs, citations) — connect
-                sources on the left, then fund to settle authorizations on Arc.
+                We found unpaid value from real upstream activity — connect a source on the
+                left, create a payout rule, then fund to settle on Arc.
               </p>
             )}
 
@@ -161,7 +161,7 @@ export function DiscoverTrendingGaps({
                       role={role}
                       rank={i + 1}
                       surface="trending-gaps"
-                      maxActions={4}
+                      maxActions={5}
                     />
                   ))}
                 </ul>
@@ -171,7 +171,8 @@ export function DiscoverTrendingGaps({
             {displayRows.length === 0 && (
               <DiscoverStatePanel variant="empty">
                 <p className="text-sm text-resolve-muted">
-                  Sensors are syncing — attach GitHub or a community on the left to populate ranked gaps.
+                  No unpaid value ranked yet — connect a source on the left to extract real
+                  activity (plays, watches, PRs, citations).
                 </p>
               </DiscoverStatePanel>
             )}

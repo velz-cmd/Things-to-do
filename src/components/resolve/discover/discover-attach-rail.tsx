@@ -75,7 +75,7 @@ export function DiscoverAttachRail({
       aria-label="Value extraction sources"
     >
       <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-resolve-muted-dim">
-        {context === "board" ? "Extract value" : "Value sources"}
+        {context === "board" ? "Sources to prove value" : "Sources to prove value"}
       </p>
       <p className="mt-0.5 text-[9px] leading-relaxed text-resolve-muted-dim">
         Real activity from upstream products — not RESOLVE copy
@@ -122,7 +122,7 @@ export function DiscoverAttachRail({
           <p className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">
             Communities
           </p>
-          <p className="text-[9px] text-resolve-muted-dim">Attach once — then fund and operate</p>
+          <p className="text-[9px] text-resolve-muted-dim">Set up once — then connect, rule, and fund</p>
           {attachActions.slice(0, 3).map((action, index) => (
             <DiscoverActionChip
               key={`${action.id}-${index}`}

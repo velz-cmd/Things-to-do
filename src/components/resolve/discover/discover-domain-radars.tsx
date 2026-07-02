@@ -105,8 +105,8 @@ export function DiscoverDomainRadars({
 
   return (
     <DiscoverPremiumSection
-      title="Domain radars"
-      subtitle="Extracted value per ecosystem — OSS, creators, and research programs"
+      title="Live signals"
+      subtitle="Extracted activity per ecosystem — OSS, creators, and research"
       className={className}
       actions={
         <DiscoverSectionRefresh
@@ -182,12 +182,12 @@ export function DiscoverDomainRadars({
                   role={role}
                   rank={i + 1}
                   surface={`radar-${activeRadar}`}
-                  maxActions={activeRadar === "dao" ? 4 : 3}
+                  maxActions={5}
                 />
               ))}
             </ul>
           ) : (
-            <p className="text-xs text-resolve-muted">Loading sensor rows…</p>
+            <p className="text-xs text-resolve-muted">Loading extracted activity…</p>
           )}
 
           {displayRows.length > 0 && (

@@ -14,6 +14,7 @@ import { isDiscordConfigured } from "@/lib/integrations/discord";
 import { isMastodonConfigured } from "@/lib/integrations/mastodon";
 import { githubOAuthConfigured } from "@/lib/integrations/github-oauth";
 import { analyzeDatabaseUrl, getDatabaseDiagnostics, listPresentDatabaseEnvKeys } from "@/lib/db/connection";
+import { getAuthEmailDeliveryStatus } from "@/lib/email/deliver";
 
 /** Safe env presence check — never returns secret values. */
 export async function GET() {
@@ -52,7 +53,14 @@ export async function GET() {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: present("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     SUPABASE_SERVICE_ROLE: Boolean(getSupabaseServiceRoleKey()),
     RESEND_API_KEY: present("RESEND_API_KEY"),
-    EMAIL_LOGIN_CODES: isSupabaseAdminConfigured() && present("RESEND_API_KEY"),
+    RESEND_FROM_EMAIL: present("RESEND_FROM_EMAIL"),
+    BREVO_API_KEY: present("BREVO_API_KEY"),
+    BREVO_FROM_EMAIL: present("BREVO_FROM_EMAIL"),
+    BREVO_FROM_NAME: present("BREVO_FROM_NAME"),
+    EMAIL_AUTH_DELIVERY: getAuthEmailDeliveryStatus(),
+    EMAIL_LOGIN_CODES:
+      isSupabaseAdminConfigured() &&
+      (present("RESEND_API_KEY") || present("BREVO_API_KEY")),
     CIRCLE_API_KEY: present("CIRCLE_API_KEY"),
     CIRCLE_ENTITY_SECRET: present("CIRCLE_ENTITY_SECRET"),
     CIRCLE_WALLET_SET_ID: present("CIRCLE_WALLET_SET_ID"),

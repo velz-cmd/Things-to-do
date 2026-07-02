@@ -39,7 +39,7 @@ export function WorkspaceFundSidebar({
                 Recent
               </p>
               <Link
-                href="/workspace/fund"
+                href="/mission"
                 className="rounded-md p-1 text-resolve-muted transition hover:bg-resolve-hover hover:text-white"
                 title="New project"
               >

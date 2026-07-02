@@ -15,7 +15,7 @@ const ITEMS = [
   { href: "/workspace", label: "Command", icon: LayoutGrid, exact: true },
   { href: "/payments", label: "Capital", icon: Landmark, exact: false },
   { href: "/activity", label: "Network feed", icon: Activity, exact: false },
-  { href: "/workspace/fund", label: "Allocate", icon: SlidersHorizontal, exact: false },
+  { href: "/mission", label: "Allocate", icon: SlidersHorizontal, exact: false },
 ] as const;
 
 export function WorkspaceSidebar({ onManual }: { onManual?: () => void }) {

@@ -83,14 +83,11 @@ export function boardCommunityActions(
   }
 
   if (role === "community") {
-    return operational.length > 0
-      ? operational
-      : [{ id: "earn", label: "View earnings on Capital", kind: "open", href: "/capital" }];
+    return operational.filter((a) => !/view earnings/i.test(a.label)).slice(0, 4);
   }
 
   if (role === "founder") {
     const program = operational.find((a) => a.kind === "create_program");
-    const consoleAction = operational.find((a) => a.kind === "console");
     return [
       program ?? {
         id: "program",
@@ -99,27 +96,16 @@ export function boardCommunityActions(
         communitySlug,
         templateId,
       },
-      consoleAction ?? {
-        id: "console",
-        label: "Open console",
-        kind: "console",
-        communitySlug,
-      },
-      ...operational.filter((a) => a.id !== program?.id && a.id !== consoleAction?.id).slice(0, 3),
+      ...operational
+        .filter((a) => a.kind !== "console" && a.id !== program?.id)
+        .slice(0, 2),
     ];
   }
 
   if (role === "operator") {
-    return operational.filter((a) => a.kind === "console" || a.kind === "connect_sensor").length > 0
-      ? operational
-      : [
-          {
-            id: "console",
-            label: "Open console",
-            kind: "console",
-            communitySlug,
-          },
-        ];
+    return operational
+      .filter((a) => a.kind === "connect_sensor" || a.kind === "analyze")
+      .slice(0, 3);
   }
 
   if (role === "dao") {

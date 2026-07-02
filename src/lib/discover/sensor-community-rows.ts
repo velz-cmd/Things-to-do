@@ -76,7 +76,7 @@ function buildPreviewRow(
         ? gapsHeadlineForProfile(profile)
         : entry.name;
 
-  const why = profile?.unpaidSubtitle ?? entry.doctrine;
+  const why = profile?.unpaidSubtitle ?? "";
 
   const metrics = buildUnpaidValueMetrics(slug, isInstalled);
   const upstream = profile ? humanizeExtractionSources(profile.extractionSources) : entry.name;
@@ -87,7 +87,7 @@ function buildPreviewRow(
     needType,
     headline,
     why,
-    whoBenefits: entry.doctrine.slice(0, 120),
+    whoBenefits: "",
     proofSource: upstream,
     dataSource: "community_catalog",
     amountVerified: false,

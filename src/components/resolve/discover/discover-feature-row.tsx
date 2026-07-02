@@ -1,21 +1,19 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import type { DiscoverAction, DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
-import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
-import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
-import { visibleDiscoverActions } from "@/lib/discover/discover-visible-actions";
-import { discoverActionsForRole } from "@/lib/discover/discover-role-actions";
-import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
-import { isPreviewSource } from "@/lib/discover/source-badges";
+import {
+  deriveDiscoverCardState,
+  type DiscoverCardLane,
+} from "@/lib/discover/discover-card-state";
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
@@ -34,14 +32,8 @@ type DiscoverFeatureRowProps = {
   role?: DiscoverRole;
   rank?: number;
   surface?: string;
-  maxActions?: number;
+  lane?: DiscoverCardLane;
 };
-
-function partitionActions(actions: DiscoverAction[]) {
-  const attach = actions.filter((a) => a.kind === "install" || a.kind === "connect_sensor");
-  const operational = actions.filter((a) => a.kind !== "install");
-  return { attach, operational };
-}
 
 export function DiscoverFeatureRow({
   gap,
@@ -50,31 +42,17 @@ export function DiscoverFeatureRow({
   role = "all",
   rank,
   surface = "feature-row",
-  maxActions = 3,
+  lane = "gaps",
 }: DiscoverFeatureRowProps) {
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const tailored = tailorDiscoverActionsForUser(
-    discoverActionsForRole(
-      role,
-      visibleDiscoverActions(gap.actions, surface),
-    ),
-    connections,
+  const card = useMemo(
+    () => deriveDiscoverCardState(gap, connections, lane, role, surface),
+    [gap, connections, lane, role, surface],
   );
-
-  const installed =
-    gap.communitySlug != null && communityReadyForDiscover(gap.communitySlug, connections);
-
-  const { attach, operational } = useMemo(() => {
-    const { attach: a, operational: o } = partitionActions(tailored);
-    const attachVisible = installed ? [] : a.slice(0, 1);
-    const ops = o.slice(0, maxActions);
-    return { attach: attachVisible, operational: ops };
-  }, [tailored, installed, maxActions]);
-
-  const allVisible = useMemo(() => [...attach, ...operational], [attach, operational]);
 
   const needed = formatDiscoverMoney(
     gap.amountNeededUsd,
@@ -83,9 +61,10 @@ export function DiscoverFeatureRow({
     gap.amountKind,
   );
 
-  const valueSignals = gap.valueSignals ?? [];
-  const showProof = Boolean(gap.valueMetrics);
-  const showSignals = !showProof && valueSignals.length > 0;
+  const allVisible = useMemo(
+    () => [...card.primaryActions, ...(showAdvanced ? card.advancedActions : [])],
+    [card, showAdvanced],
+  );
 
   useEffect(() => {
     for (const action of allVisible) {
@@ -128,53 +107,36 @@ export function DiscoverFeatureRow({
                 {needTypeLabel(gap.needType)}
               </span>
             )}
-            {gap.amountVerified && !isPreviewSource(gap.dataSource) && (
-              <DiscoverSourceBadge
-                source={gap.dataSource}
-                estimate={Boolean(gap.proofGithubScanAt)}
-              />
-            )}
+            <span className="rounded border border-amber-500/20 bg-amber-500/8 px-1.5 py-0.5 text-[8px] font-medium text-amber-100/90">
+              {card.settlementStatus}
+            </span>
           </div>
 
-          <p className="mt-1 text-[13px] font-semibold leading-snug text-white">{gap.headline}</p>
-          {!showProof && gap.why && (
-            <p className="mt-1 line-clamp-1 text-[11px] leading-relaxed text-resolve-muted">
-              {gap.why}
-            </p>
-          )}
+          <p className="mt-1 text-[13px] font-semibold leading-snug text-white">{card.title}</p>
 
-          {showProof && gap.valueMetrics && (
-            <DiscoverProofPipeline
-              metrics={gap.valueMetrics}
-              connected={installed}
-              amountVerified={gap.amountVerified}
-              className="mt-2"
-            />
-          )}
-
-          {showSignals && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {valueSignals
-                .filter((s) => !s.event.startsWith("payout.") && !s.event.startsWith("settlement."))
-                .slice(0, 2)
-                .map((signal) => (
-                  <span
-                    key={signal.event}
-                    className={clsx(
-                      "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[9px]",
-                      signal.settled
-                        ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-                        : "border-white/[0.08] bg-white/[0.02] text-resolve-muted",
-                    )}
-                  >
-                    <span className="font-medium text-white/90">{signal.label}</span>
-                    {signal.count != null && signal.count > 0 && (
-                      <span className="tabular-nums text-resolve-muted-dim">{signal.count}</span>
-                    )}
-                  </span>
-                ))}
+          <dl className="mt-2 grid gap-1 text-[10px] leading-snug sm:grid-cols-3">
+            <div>
+              <dt className="text-resolve-muted-dim">Proof</dt>
+              <dd className="font-medium text-resolve-muted">{card.proofSource}</dd>
             </div>
-          )}
+            <div>
+              <dt className="text-resolve-muted-dim">Missing</dt>
+              <dd className="font-medium text-resolve-muted">{card.missingStep}</dd>
+            </div>
+            <div>
+              <dt className="text-resolve-muted-dim">Status</dt>
+              <dd className="font-medium text-amber-100/90">{card.settlementStatus}</dd>
+            </div>
+          </dl>
+
+          <DiscoverProofPipeline
+            stages={card.pipeline}
+            className="mt-2"
+            onStageClick={(stage) => {
+              const match = card.primaryActions.find((a) => actionForStage(a, stage.id));
+              if (match) void runAction(match, surface);
+            }}
+          />
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-0.5">
@@ -189,19 +151,9 @@ export function DiscoverFeatureRow({
         </div>
       </div>
 
-      {allVisible.length > 0 && (
+      {card.primaryActions.length > 0 && (
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          {attach.map((action, index) => (
-            <button
-              key={`attach-${action.id}-${index}`}
-              type="button"
-              onClick={() => void runAction(action, surface)}
-              className="rounded-md border border-white/10 px-2.5 py-1 text-[10px] font-medium text-resolve-muted transition hover:border-white/20 hover:text-white"
-            >
-              {friendlyDiscoverActionLabel(action, connections)}
-            </button>
-          ))}
-          {operational.map((action, index) => (
+          {card.primaryActions.map((action, index) => (
             <button
               key={`op-${action.id}-${action.kind}-${index}`}
               type="button"
@@ -216,8 +168,39 @@ export function DiscoverFeatureRow({
               {friendlyDiscoverActionLabel(action, connections)}
             </button>
           ))}
+          {card.advancedActions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="rounded-md border border-white/[0.06] px-2 py-1 text-[10px] text-resolve-muted-dim hover:text-white"
+            >
+              {showAdvanced ? "Less" : "Advanced"}
+            </button>
+          )}
+          {showAdvanced &&
+            card.advancedActions.map((action, index) => (
+              <button
+                key={`adv-${action.id}-${index}`}
+                type="button"
+                onClick={() => void runAction(action, surface)}
+                className="rounded-md border border-white/[0.06] px-2.5 py-1 text-[10px] font-medium text-resolve-muted-dim hover:text-white"
+              >
+                {friendlyDiscoverActionLabel(action, connections)}
+              </button>
+            ))}
         </div>
       )}
     </li>
   );
+}
+
+function actionForStage(
+  action: DiscoverAction,
+  stage: "extract" | "rule" | "settle",
+): boolean {
+  if (stage === "extract") {
+    return action.kind === "connect_sensor" || action.kind === "analyze" || action.kind === "install";
+  }
+  if (stage === "rule") return action.kind === "create_program";
+  return action.kind === "fund" || action.kind === "sponsor" || action.kind === "claim";
 }

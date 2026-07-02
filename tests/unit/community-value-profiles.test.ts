@@ -11,7 +11,7 @@ import {
 describe("community value profiles", () => {
   it("uses unpaid-value titles — not sensor product labels", () => {
     const jellyfin = getCommunityValueProfile("jellyfin");
-    expect(jellyfin?.unpaidTitle).toContain("watch events");
+    expect(jellyfin?.unpaidTitle).toContain("watch time");
     expect(jellyfin?.unpaidTitle).not.toContain("sensor");
     expect(jellyfin?.product).toBe("Jellyfin server");
 
@@ -71,8 +71,8 @@ describe("community value profiles", () => {
     expect(signals.every((s) => !s.settled)).toBe(true);
 
     const metrics = buildUnpaidValueMetrics("jellyfin", false);
-    expect(metrics.observedEvents).toBe("Not linked");
-    expect(metrics.payoutRules).toContain("0");
-    expect(metrics.settlement).toBe("Not active");
+    expect(metrics.observedEvents).toBe("Source not connected");
+    expect(metrics.payoutRules).toBe("Rule missing");
+    expect(metrics.settlement).toBe("Pool unfunded");
   });
 });

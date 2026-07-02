@@ -488,8 +488,7 @@ export function DiscoverOpportunityQueue({
                               {installed ? "Ready" : "Link in Profile"}
                             </span>
                           </div>
-                          <p className="mt-0.5 text-[11px] text-resolve-muted">{o.communityTagline}</p>
-                          <p className="mt-2 text-xs leading-relaxed text-resolve-muted-dim">{o.whyFund}</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-resolve-muted">{o.communityTagline}</p>
                           {o.fundingGapUsd > 0 && (
                             <p className="mt-2 text-[11px] text-amber-200/80">
                               Est. ${o.fundingGapUsd.toFixed(0)} unfunded

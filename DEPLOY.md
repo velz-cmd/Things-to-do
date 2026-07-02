@@ -2,6 +2,22 @@
 
 ---
 
+## Build failed: Prisma `P1001` during `migrate deploy`
+
+If deploy logs show:
+
+```text
+Error: P1001: Can't reach database server at 'db.xxx.supabase.co:5432'
+```
+
+**Cause:** Vercel build servers cannot run `prisma migrate deploy` against Supabase direct (port 5432). This is **not** a rate limit — the build exits before the app deploys.
+
+**Fix (in repo):** Production builds use `scripts/vercel-build.sh` — `prisma generate && next build` only. Migrations are applied via Supabase; runtime code heals missing tables.
+
+**Do not** add `prisma migrate deploy` back to `vercel.json` without a reachable migration URL.
+
+---
+
 ## Vercel rate limit (`api-deployments-free-per-day`)
 
 Free tier allows **100 deploys per 24 hours**. If you see:

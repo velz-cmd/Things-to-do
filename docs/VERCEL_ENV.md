@@ -9,7 +9,7 @@ Enable **Production**, **Preview**, and **Development** for each.
 | Name | Value |
 |------|-------|
 | `DATABASE_URL` | Supabase → Settings → Database → Connection string (pooler URI, port **6543**) |
-| `DIRECT_URL` | Supabase → Settings → Database → **Direct** connection (port **5432**) — required for Prisma migrations and password-reset table bootstrap |
+| `DIRECT_URL` | Supabase **direct** connection (port **5432**) — optional; used only for local `prisma migrate deploy`, not Vercel builds |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://jjducnguljjddciczvuy.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
 | `NEXT_PUBLIC_APP_URL` | `https://things-to-do-eta.vercel.app` |

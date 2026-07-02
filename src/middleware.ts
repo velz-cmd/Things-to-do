@@ -4,7 +4,20 @@ import { getSupabaseServerUrl } from "@/lib/supabase/admin";
 import { LEGACY_REDIRECTS } from "@/components/resolve/layout/nav";
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
+
+  // OAuth/email codes sometimes land on Site URL (/) when the requested
+  // redirect URL is missing from Supabase's allowlist. Forward to callback.
+  if (pathname === "/") {
+    const code = searchParams.get("code");
+    const tokenHash = searchParams.get("token_hash");
+    if (code || tokenHash) {
+      const callback = request.nextUrl.clone();
+      callback.pathname = "/auth/callback";
+      return NextResponse.redirect(callback);
+    }
+  }
+
   const legacyTarget = LEGACY_REDIRECTS[pathname];
   if (legacyTarget && legacyTarget !== pathname) {
     return NextResponse.redirect(new URL(legacyTarget, request.url));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAppKit } from "@reown/appkit/react";
 import { useAccount, useConnect } from "wagmi";
 import { ArrowLeft, Mail, Wallet } from "lucide-react";
@@ -14,39 +14,20 @@ import { WalletAuthEffect } from "@/components/wallet/wallet-auth-effect";
 import { enableGuestExploring } from "@/lib/auth/guest";
 import { getRememberedEmail } from "@/lib/auth/remember";
 import { detectInjectedWallets } from "@/lib/wallet/detect";
+import {
+  clearSignInFlowState,
+  formatSignInCooldown,
+  getSignInCooldownRemaining,
+  hasSignInVerifyPending,
+  markSignInVerifyPending,
+  setSignInCooldownSeconds,
+  SIGN_IN_EMAIL_KEY,
+} from "@/lib/auth/sign-in-storage";
 
 type Step = "welcome" | "verify" | "wallet-picker";
 type AuthAction = "email" | "google" | "github" | "wallet" | "guest" | null;
 
-const COOLDOWN_KEY = "resolve.signin.cooldownUntil";
-const EMAIL_KEY = "resolve.signin.email";
-const VERIFY_STEP_KEY = "resolve.signin.verifyPending";
 const DEFAULT_RESEND_COOLDOWN_SEC = 60;
-
-function getCooldownRemaining(): number {
-  try {
-    const until = Number(localStorage.getItem(COOLDOWN_KEY) ?? 0);
-    return Math.max(0, Math.ceil((until - Date.now()) / 1000));
-  } catch {
-    return 0;
-  }
-}
-
-function setCooldownSeconds(seconds: number) {
-  try {
-    localStorage.setItem(COOLDOWN_KEY, String(Date.now() + seconds * 1000));
-  } catch {
-    /* ignore */
-  }
-}
-
-function formatCooldown(seconds: number) {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (mins <= 0) return `${secs}s`;
-  if (secs === 0) return `${mins}m`;
-  return `${mins}m ${secs}s`;
-}
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -81,7 +62,6 @@ export function SignInModal() {
     email?: string;
     wallet?: string;
   }>({});
-  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const showEmail = emailEnabled;
   const showGoogle = capabilities.loaded && googleEnabled;
@@ -113,7 +93,7 @@ export function SignInModal() {
     let savedEmail = "";
     try {
       savedEmail =
-        localStorage.getItem(EMAIL_KEY) ??
+        localStorage.getItem(SIGN_IN_EMAIL_KEY) ??
         getRememberedEmail() ??
         "";
       if (savedEmail) setEmail(savedEmail);
@@ -121,32 +101,21 @@ export function SignInModal() {
       /* ignore */
     }
 
-    const remaining = getCooldownRemaining();
+    const remaining = getSignInCooldownRemaining();
     setCooldown(remaining);
 
-    if (remaining > 0 && savedEmail) {
-      try {
-        if (localStorage.getItem(VERIFY_STEP_KEY) === "1") {
-          setStep("verify");
-        }
-      } catch {
-        /* ignore */
-      }
+    if (remaining > 0 && savedEmail && hasSignInVerifyPending()) {
+      setStep("verify");
     }
   }, [open]);
 
   useEffect(() => {
-    if (cooldown <= 0) {
-      if (cooldownRef.current) clearInterval(cooldownRef.current);
-      return;
-    }
-    cooldownRef.current = setInterval(() => {
-      setCooldown(getCooldownRemaining());
-    }, 1000);
-    return () => {
-      if (cooldownRef.current) clearInterval(cooldownRef.current);
-    };
-  }, [cooldown]);
+    if (!open) return;
+    const tick = () => setCooldown(getSignInCooldownRemaining());
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [open]);
 
   useEffect(() => {
     if (open && account.isAuthenticated) {
@@ -169,12 +138,8 @@ export function SignInModal() {
   function goToVerifyStep(cooldownSeconds: number, validMinutes: number) {
     setLinkValidMinutes(validMinutes);
     setStep("verify");
-    try {
-      localStorage.setItem(VERIFY_STEP_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-    setCooldownSeconds(cooldownSeconds);
+    markSignInVerifyPending(email.trim());
+    setSignInCooldownSeconds(cooldownSeconds);
     setCooldown(cooldownSeconds);
     setMethodError((prev) => ({ ...prev, email: undefined }));
     setInlineError(null);
@@ -210,7 +175,7 @@ export function SignInModal() {
       }
 
       try {
-        localStorage.removeItem(VERIFY_STEP_KEY);
+        clearSignInFlowState();
       } catch {
         /* ignore */
       }
@@ -271,30 +236,32 @@ export function SignInModal() {
     }
 
     if (cooldown > 0) {
-      try {
-        if (localStorage.getItem(VERIFY_STEP_KEY) === "1") {
-          setStep("verify");
-          return;
-        }
-      } catch {
-        /* ignore */
-      }
+      goToVerifyStep(cooldown, linkValidMinutes);
+      return;
     }
 
     setAuthAction("email");
     try {
-      localStorage.setItem(EMAIL_KEY, trimmed);
+      localStorage.setItem(SIGN_IN_EMAIL_KEY, trimmed);
       const result = await sendLoginCode(trimmed);
 
       if (!result.ok) {
+        const pendingVerify = Boolean(result.pendingVerify);
         if (result.cooldownSeconds) {
-          setCooldownSeconds(result.cooldownSeconds);
+          setSignInCooldownSeconds(result.cooldownSeconds);
           setCooldown(result.cooldownSeconds);
         }
-        setMethodError((prev) => ({ ...prev, email: result.message }));
-        if (localStorage.getItem(VERIFY_STEP_KEY) === "1") {
-          setStep("verify");
+        if (pendingVerify || result.cooldownSeconds) {
+          goToVerifyStep(
+            result.cooldownSeconds ?? cooldown ?? DEFAULT_RESEND_COOLDOWN_SEC,
+            linkValidMinutes
+          );
+          if (!pendingVerify) {
+            setMethodError((prev) => ({ ...prev, email: result.message }));
+          }
+          return;
         }
+        setMethodError((prev) => ({ ...prev, email: result.message }));
         return;
       }
 
@@ -316,8 +283,17 @@ export function SignInModal() {
       const result = await sendLoginCode(email.trim());
       if (!result.ok) {
         if (result.cooldownSeconds) {
-          setCooldownSeconds(result.cooldownSeconds);
+          setSignInCooldownSeconds(result.cooldownSeconds);
           setCooldown(result.cooldownSeconds);
+        }
+        if (result.pendingVerify || result.cooldownSeconds) {
+          setMethodError((prev) => ({
+            ...prev,
+            email: result.pendingVerify
+              ? undefined
+              : result.message,
+          }));
+          return;
         }
         setMethodError((prev) => ({
           ...prev,
@@ -431,8 +407,21 @@ export function SignInModal() {
                     disabled={authAction === "email" || !emailReady}
                     className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {authAction === "email" ? "Sending link…" : "Continue with email"}
+                    {authAction === "email"
+                      ? "Sending link…"
+                      : cooldown > 0
+                        ? `Check your email · resend in ${formatSignInCooldown(cooldown)}`
+                        : "Continue with email"}
                   </button>
+                  {cooldown > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => goToVerifyStep(cooldown, linkValidMinutes)}
+                      className="w-full text-center text-xs text-sky-400 hover:text-sky-300"
+                    >
+                      Open code entry screen
+                    </button>
+                  )}
                   {inlineError && (
                     <p className="text-xs text-amber-200">{inlineError}</p>
                   )}
@@ -607,7 +596,7 @@ export function SignInModal() {
                   className="text-sky-400 hover:text-sky-300 disabled:opacity-50"
                 >
                   {cooldown > 0
-                    ? `Resend in ${formatCooldown(cooldown)}`
+                    ? `Resend in ${formatSignInCooldown(cooldown)}`
                     : "Resend link"}
                 </button>
               </div>

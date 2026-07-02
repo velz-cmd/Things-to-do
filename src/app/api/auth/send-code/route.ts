@@ -41,6 +41,7 @@ async function deliverMagicLink(email: string, redirectTo: string) {
       status: cooldownSeconds ? 429 : 400,
       error: mapAuthEmailError(error.message),
       cooldownSeconds,
+      pendingVerify: Boolean(cooldownSeconds),
     };
   }
 
@@ -88,6 +89,7 @@ async function deliverMagicLink(email: string, redirectTo: string) {
       status: cooldownSeconds ? 429 : 400,
       error: mapAuthEmailError(otpError.message),
       cooldownSeconds,
+      pendingVerify: Boolean(cooldownSeconds),
     };
   }
 
@@ -128,6 +130,7 @@ export async function POST(req: Request) {
           error: limit.message,
           cooldownSeconds: limit.cooldownSeconds,
           reason: limit.reason,
+          pendingVerify: limit.reason === "interval",
         },
         { status: 429 }
       );
@@ -152,6 +155,7 @@ export async function POST(req: Request) {
       {
         error: delivered.error,
         cooldownSeconds: delivered.cooldownSeconds,
+        pendingVerify: delivered.pendingVerify ?? Boolean(delivered.cooldownSeconds),
       },
       { status: delivered.status }
     );

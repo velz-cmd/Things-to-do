@@ -6,8 +6,7 @@ import { LEGACY_REDIRECTS } from "@/components/resolve/layout/nav";
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
-  // OAuth/email codes sometimes land on Site URL (/) when the requested
-  // redirect URL is missing from Supabase's allowlist. Forward to callback.
+  // Password reset links use token_hash (not PKCE code) — see buildPasswordRecoveryUrl.
   if (pathname === "/") {
     const code = searchParams.get("code");
     const tokenHash = searchParams.get("token_hash");

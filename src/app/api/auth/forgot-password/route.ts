@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { getAppBaseUrl } from "@/lib/browser/app-url";
-import { buildPasswordResetEmailHtml } from "@/lib/auth/sign-in-email";
+import { buildPasswordResetEmailHtml, buildPasswordRecoveryUrl } from "@/lib/auth/sign-in-email";
 import { parseOtpCooldown } from "@/lib/auth/otp-cooldown";
 import {
   checkEmailLinkRateLimit,
@@ -13,6 +13,16 @@ export const runtime = "nodejs";
 
 const RESET_REDIRECT = () =>
   `${getAppBaseUrl()}/auth/callback?next=/auth/reset-password`;
+
+function buildResetLinkFromGenerateLink(data: {
+  properties?: { action_link?: string; hashed_token?: string } | null;
+}): string | null {
+  const hashedToken = data.properties?.hashed_token?.trim();
+  if (hashedToken) {
+    return buildPasswordRecoveryUrl(hashedToken);
+  }
+  return data.properties?.action_link?.trim() ?? null;
+}
 
 function mapResetError(message: string) {
   const cooldown = parseOtpCooldown(message);
@@ -88,7 +98,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const resetLink = data.properties?.action_link;
+  const resetLink = buildResetLinkFromGenerateLink(data);
   if (!resetLink) {
     return NextResponse.json(
       { error: "Could not create a password reset link." },

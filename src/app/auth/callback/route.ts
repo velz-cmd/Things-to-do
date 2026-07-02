@@ -22,7 +22,10 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = (requestUrl.searchParams.get("type") ?? "email") as EmailOtpType;
-  const next = requestUrl.searchParams.get("next") ?? "/missions";
+  const nextParam = requestUrl.searchParams.get("next") ?? "/mission";
+  const isPasswordReset =
+    type === "recovery" || nextParam.startsWith("/auth/reset-password");
+  const next = isPasswordReset ? "/auth/reset-password" : nextParam;
   const authError =
     requestUrl.searchParams.get("error_description") ??
     requestUrl.searchParams.get("error");
@@ -79,7 +82,7 @@ export async function GET(request: Request) {
           `${origin}/?auth_error=${encodeURIComponent(error.message)}`
         );
       }
-      if (data.user) {
+      if (data.user && !isPasswordReset) {
         try {
           await ensureProfileForUser(data.user);
         } catch {
@@ -97,7 +100,7 @@ export async function GET(request: Request) {
     }
 
     const { data: userData } = await supabase.auth.getUser();
-    if (userData.user) {
+    if (userData.user && !isPasswordReset) {
       try {
         await ensureProfileForUser(userData.user);
         const profile = await prisma.user.findUnique({

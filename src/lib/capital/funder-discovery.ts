@@ -13,6 +13,22 @@ import { classifyBoardNeedType } from "@/lib/discover/need-types";
 import { computeProgramYield, programDiscoveryMetrics } from "@/lib/capital/yield-service";
 import { scorecardFromFundable } from "@/lib/discover/opportunity-score";
 
+async function mapInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<R | null>,
+): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const chunk = items.slice(i, i + batchSize);
+    const rows = await Promise.all(chunk.map(fn));
+    for (const row of rows) {
+      if (row !== null) out.push(row);
+    }
+  }
+  return out;
+}
+
 /** Programs any funder can discover — no need to know the community beforehand */
 export async function listFundableOpportunities(limit = 24): Promise<FundableOpportunity[]> {
   if (!process.env.DATABASE_URL) return [];
@@ -24,9 +40,7 @@ export async function listFundableOpportunities(limit = 24): Promise<FundableOpp
     take: 48,
   });
 
-  const opportunities = (
-    await Promise.all(
-      programs.map(async (p) => {
+  const opportunities = await mapInBatches(programs, 6, async (p) => {
         try {
           const slug = p.install?.communitySlug ?? "unknown";
           const community = getCommunityBySlug(slug);
@@ -87,16 +101,15 @@ export async function listFundableOpportunities(limit = 24): Promise<FundableOpp
           console.warn("[funder-discovery] program metrics failed:", p.id, e);
           return null;
         }
-      }),
-    )
-  ).filter((o) => o !== null) as FundableOpportunity[];
+      });
 
-  for (const o of opportunities) {
+  const scored = opportunities as FundableOpportunity[];
+  for (const o of scored) {
     o.opportunityScorecard = scorecardFromFundable(o);
     o.score = o.opportunityScorecard.composite;
   }
 
-  return opportunities.sort((a, b) => b.score - a.score).slice(0, limit);
+  return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
 /** Communities without an active program yet — attach + fund path */

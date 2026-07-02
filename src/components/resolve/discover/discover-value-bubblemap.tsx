@@ -172,8 +172,10 @@ export function DiscoverValueBubblemap({
   const loadRadar = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
     try {
-      const res = await fetch("/api/discover/radar");
+      const res = await fetch("/api/discover/radar", { signal: controller.signal });
       if (!res.ok) throw new Error("Radar unavailable");
       const d = (await res.json()) as RadarPayload;
       setData(d);
@@ -186,6 +188,7 @@ export function DiscoverValueBubblemap({
         Boolean(dataRef.current),
       );
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }, []);

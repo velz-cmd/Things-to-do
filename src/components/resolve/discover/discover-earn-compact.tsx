@@ -20,12 +20,17 @@ export function DiscoverEarnCompact({ signedIn }: { signedIn: boolean }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    return fetch("/api/earn/discover", { credentials: "include" })
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    return fetch("/api/earn/discover", { credentials: "include", signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((body: EarnPayload) => setData(body))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => setData({ signedIn, earnings: undefined }))
+      .finally(() => {
+        clearTimeout(timer);
+        setLoading(false);
+      });
+  }, [signedIn]);
 
   useEffect(() => {
     void load();

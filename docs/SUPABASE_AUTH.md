@@ -5,6 +5,7 @@
 - **Site URL:** `https://things-to-do-eta.vercel.app` (production) or `http://localhost:3000` (local dev)
 - **Redirect URLs** (add every host you use; wildcards are supported):
   - `https://things-to-do-eta.vercel.app/**`
+  - `https://things-to-do-eta.vercel.app/auth/reset-password`
   - `http://localhost:3000/**`
   - `https://resolve-task.vercel.app/**` (legacy, optional)
 

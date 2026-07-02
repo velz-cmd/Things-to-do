@@ -330,7 +330,8 @@ export function SignInModal() {
                   </button>
                   {resetSent && (
                     <p className="text-xs text-emerald-300">
-                      Reset link sent. Check your inbox (and spam), then set a password.
+                      Reset link sent. Open it on this device, then choose a new
+                      password on the next screen.
                     </p>
                   )}
                   {inlineError && (

@@ -5,6 +5,7 @@ import {
   findValidResetToken,
   markResetTokenUsed,
 } from "@/lib/auth/password-reset-token";
+import { sanitizeAuthApiError } from "@/lib/auth/sanitize-auth-error";
 import { ensureProfileForUser } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -53,7 +54,12 @@ export async function POST(req: Request) {
 
   if (updateError) {
     return NextResponse.json(
-      { error: updateError.message || "Could not save password." },
+      {
+        error: sanitizeAuthApiError(
+          updateError,
+          "Could not save password. Try again.",
+        ),
+      },
       { status: 400 },
     );
   }

@@ -1160,6 +1160,24 @@ html.discover-route body {
 
   .discover-action-btn--primary {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    border-color: rgba(59, 158, 255, 0.45);
+    background: linear-gradient(135deg, rgba(59, 158, 255, 0.22), rgba(59, 158, 255, 0.1));
+    color: #e0f2fe;
+    min-height: 34px;
+    padding: 0.5rem 1rem;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .discover-action-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
+  }
+
+  .discover-action-btn:disabled:hover {
+    transform: none;
+    color: inherit;
   }
 
   .discover-action-btn--fund {

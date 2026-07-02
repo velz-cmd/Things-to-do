@@ -10,6 +10,8 @@ export type DiscoverDataSource =
 
 export type DiscoverIntent = "earn" | "fund" | "operate" | "build" | "sponsor" | "all";
 
+export type DiscoverCardLane = "gaps" | "radars" | "graph";
+
 export type DiscoverActionKind =
   | "fund"
   | "install"

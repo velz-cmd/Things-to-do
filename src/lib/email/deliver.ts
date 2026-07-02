@@ -13,13 +13,16 @@ export type AuthEmailDeliveryStatus = {
   resendProductionReady: boolean;
   brevo: boolean;
   brevoFromEmail: boolean;
+  brevoSmtpKeyMisconfigured: boolean;
   primary: "resend" | "brevo" | null;
 };
 
 export function getAuthEmailDeliveryStatus(): AuthEmailDeliveryStatus {
   const resend = Boolean(process.env.RESEND_API_KEY?.trim());
   const resendProductionReady = isResendProductionReady();
-  const brevo = Boolean(process.env.BREVO_API_KEY?.trim());
+  const brevoKey = process.env.BREVO_API_KEY?.trim() ?? "";
+  const brevoSmtpKeyMisconfigured = Boolean(brevoKey) && isBrevoSmtpKey(brevoKey);
+  const brevo = Boolean(brevoKey) && !brevoSmtpKeyMisconfigured;
   const brevoFromEmail = Boolean(process.env.BREVO_FROM_EMAIL?.trim());
   const brevoReady = brevo && brevoFromEmail;
 
@@ -33,8 +36,25 @@ export function getAuthEmailDeliveryStatus(): AuthEmailDeliveryStatus {
     resendProductionReady,
     brevo,
     brevoFromEmail,
+    brevoSmtpKeyMisconfigured,
     primary,
   };
+}
+
+/** Brevo SMTP keys (xsmtpsib-) cannot authenticate REST API calls. */
+export function isBrevoSmtpKey(key: string): boolean {
+  return key.trim().startsWith("xsmtpsib-");
+}
+
+function brevoKeyMisconfiguration(apiKey: string): EmailDeliveryResult | null {
+  if (isBrevoSmtpKey(apiKey)) {
+    return {
+      ok: false,
+      message:
+        "BREVO_API_KEY is an SMTP key (xsmtpsib-). Create an API key (xkeysib-) in Brevo → SMTP & API → API keys, then update Vercel and redeploy.",
+    };
+  }
+  return null;
 }
 
 /** Optional Brevo (Sendinblue) — free tier, verify a Gmail sender, no domain required. */
@@ -48,6 +68,9 @@ async function sendViaBrevo(input: {
   if (!apiKey || !fromEmail) {
     return { ok: false, message: "Brevo is not configured." };
   }
+
+  const misconfigured = brevoKeyMisconfiguration(apiKey);
+  if (misconfigured) return misconfigured;
 
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
@@ -85,6 +108,9 @@ export async function verifyBrevoConnection(): Promise<
   if (!process.env.BREVO_FROM_EMAIL?.trim()) {
     return { ok: false, message: "BREVO_FROM_EMAIL is not set." };
   }
+
+  const misconfigured = brevoKeyMisconfiguration(apiKey);
+  if (misconfigured) return misconfigured;
 
   const res = await fetch("https://api.brevo.com/v3/account", {
     headers: { "api-key": apiKey },

@@ -16,7 +16,9 @@ export async function GET() {
     status,
     brevo: brevoCheck,
     note:
-      status.primary === "brevo" ?
+      status.brevoSmtpKeyMisconfigured ?
+        "BREVO_API_KEY is an SMTP key (xsmtpsib-). Create an API key (xkeysib-) in Brevo → SMTP & API → API keys."
+      : status.primary === "brevo" ?
         "Auth emails use Brevo (Resend is sandbox-only or unset)."
       : status.primary === "resend" ?
         "Auth emails use Resend."

@@ -19,6 +19,9 @@ function createSupabaseClient(
   );
 }
 
+const RECOVERY_TOKEN_KEY = "resolve.auth.recoveryToken";
+const RECOVERY_TYPE_KEY = "resolve.auth.recoveryType";
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,7 +50,16 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (!tokenHash) {
+    const storedHash =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem(RECOVERY_TOKEN_KEY) ?? tokenHash
+        : tokenHash;
+    const storedType =
+      (typeof window !== "undefined"
+        ? sessionStorage.getItem(RECOVERY_TYPE_KEY) ?? recoveryType
+        : recoveryType) as EmailOtpType;
+
+    if (!storedHash) {
       setError("Missing reset token. Request a new password reset email.");
       setPhase("error");
       return;
@@ -56,27 +68,29 @@ export default function ResetPasswordPage() {
     setVerifying(true);
     setError(null);
     try {
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        token_hash: tokenHash,
-        type: recoveryType,
+      const res = await fetch("/api/auth/verify-recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ token_hash: storedHash, type: storedType }),
+        signal: AbortSignal.timeout(15_000),
       });
-      if (verifyError) throw verifyError;
-
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!data.session) {
-        throw new Error("Could not start a reset session. Request a new link.");
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Could not verify reset link.");
       }
 
+      sessionStorage.removeItem(RECOVERY_TOKEN_KEY);
+      sessionStorage.removeItem(RECOVERY_TYPE_KEY);
       clearRecoveryParams();
       setPhase("form");
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not verify reset link.";
       setError(
-        message.includes("invalid") || message.includes("expired") ?
-          "This reset link expired or was already used. Request a new one and open only the latest email."
-        : message,
+        message.includes("invalid") || message.includes("expired")
+          ? "This reset link expired or was already used. Request a new one and open only the latest email."
+          : message,
       );
       setPhase("error");
     } finally {
@@ -145,8 +159,24 @@ export default function ResetPasswordPage() {
           return;
         }
 
-        if (tokenHash) {
-          if (!cancelled) setPhase("confirm");
+        const storedToken = sessionStorage.getItem(RECOVERY_TOKEN_KEY);
+        const effectiveToken = tokenHash ?? storedToken;
+
+        if (effectiveToken) {
+          if (!cancelled) {
+            try {
+              if (tokenHash) {
+                sessionStorage.setItem(RECOVERY_TOKEN_KEY, tokenHash);
+                sessionStorage.setItem(RECOVERY_TYPE_KEY, recoveryType);
+              }
+              if (window.location.search.includes("token_hash=")) {
+                clearRecoveryParams();
+              }
+            } catch {
+              /* ignore */
+            }
+            setPhase("confirm");
+          }
           return;
         }
 
@@ -176,6 +206,7 @@ export default function ResetPasswordPage() {
     clearRecoveryParams,
     searchParams,
     tokenHash,
+    recoveryType,
   ]);
 
   async function handleSubmit(e: React.FormEvent) {

@@ -38,6 +38,8 @@ import {
 } from "@/lib/discover/opportunity-score";
 import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
+import { DiscoverAttachRail } from "@/components/resolve/discover/discover-attach-rail";
+import { BOARD_MAX_ROWS } from "@/lib/discover/discover-row-limits";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
 type DiscoverOpportunityQueueProps = {
@@ -161,6 +163,16 @@ export function DiscoverOpportunityQueue({
 
   const hasVerifiedPrograms = programFiltered.length > 0;
 
+  const boardProgramRows = useMemo(
+    () => programFiltered.slice(0, BOARD_MAX_ROWS),
+    [programFiltered],
+  );
+
+  const boardCommunityRows = useMemo(() => {
+    const slotsLeft = Math.max(0, BOARD_MAX_ROWS - boardProgramRows.length);
+    return exploreFiltered.slice(0, slotsLeft);
+  }, [exploreFiltered, boardProgramRows.length]);
+
   async function fundRow(o: FundableOpportunity) {
     const raw = amountByProgram[o.programId] ?? "25";
     const amountUsd = Number(raw);
@@ -252,51 +264,54 @@ export function DiscoverOpportunityQueue({
           <p className="text-sm text-resolve-muted">{error}</p>
           <DiscoverRetryButton onClick={() => void loadQueue()} />
         </DiscoverStatePanel>
-      ) : !hasVerifiedPrograms && !exploreFiltered.length ? (
-        <DiscoverStatePanel variant="empty">
-          <p className="text-sm text-resolve-muted">
-            {query.trim()
-              ? "No programs match your search."
-              : "No ledger-backed programs to fund yet. Attach a community below — verified gaps rank on Gaps and Radars when sensors sync."}
-          </p>
-          {!query.trim() && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {onSwitchLane ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => onSwitchLane("gaps")}
-                    className="rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
-                  >
-                    Browse Gaps
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onSwitchLane("radars")}
-                    className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-resolve-muted hover:text-white"
-                  >
-                    View Radars
-                  </button>
-                </>
-              ) : (
+      ) : boardProgramRows.length === 0 && boardCommunityRows.length === 0 ? (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <DiscoverAttachRail
+            context="board"
+            role={role}
+            needType={needType}
+            signedIn={signedIn}
+          />
+          <DiscoverStatePanel variant="empty" className="min-w-0 flex-1">
+            <p className="text-sm text-resolve-muted">
+              {query.trim()
+                ? "No programs match your search."
+                : "Attach a community on the left — ledger programs and fundable rows appear here."}
+            </p>
+            {onSwitchLane && !query.trim() && (
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    document.getElementById("discover-workspace")?.scrollIntoView({ behavior: "smooth" });
-                  }}
+                  onClick={() => onSwitchLane("gaps")}
                   className="rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
                 >
                   Browse Gaps
                 </button>
-              )}
-            </div>
-          )}
-        </DiscoverStatePanel>
+                <button
+                  type="button"
+                  onClick={() => onSwitchLane("radars")}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-resolve-muted hover:text-white"
+                >
+                  View Radars
+                </button>
+              </div>
+            )}
+          </DiscoverStatePanel>
+        </div>
       ) : (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <DiscoverAttachRail
+            context="board"
+            role={role}
+            needType={needType}
+            signedIn={signedIn}
+          />
+
+          <div className="min-w-0 flex-1">
         <>
-          {hasVerifiedPrograms && (
+          {boardProgramRows.length > 0 && (
         <ul className="divide-y divide-white/[0.06]">
-          {programFiltered.map((o) => {
+          {boardProgramRows.map((o) => {
             const program = o as FundableOpportunity & { needType?: import("@/lib/discover/need-types").DiscoverNeedType };
             const programNeed = program.needType ?? "funding";
             const fundLabel = primaryBoardCtaLabel(programNeed, {
@@ -427,16 +442,13 @@ export function DiscoverOpportunityQueue({
         </ul>
           )}
 
-          {exploreFiltered.length > 0 && (
-            <div className={clsx(hasVerifiedPrograms && "mt-6 border-t border-white/[0.06] pt-5")}>
+          {boardCommunityRows.length > 0 && (
+            <div className={clsx(boardProgramRows.length > 0 && "mt-6 border-t border-white/[0.06] pt-5")}>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-                {hasVerifiedPrograms ? "Attach to unlock" : "No ledger programs yet — attach a community"}
-              </p>
-              <p className="mt-1 text-[11px] text-resolve-muted-dim">
-                Not on your ledger yet — attach once, then fund or launch a program. Ranked scores appear on Gaps after sensors sync.
+                {boardProgramRows.length > 0 ? "Attach to unlock" : "Attach communities"}
               </p>
               <ul className="mt-3 divide-y divide-white/[0.06]">
-                {exploreFiltered.map((o) => {
+                {boardCommunityRows.map((o) => {
                   const installed = isCommunityInstalled(connections, o.communitySlug);
                   const actions = boardCommunityActions(role === "all" ? "funder" : role, {
                     communitySlug: o.communitySlug,
@@ -490,6 +502,8 @@ export function DiscoverOpportunityQueue({
             </div>
           )}
         </>
+          </div>
+        </div>
       )}
     </DiscoverPremiumSection>
   );

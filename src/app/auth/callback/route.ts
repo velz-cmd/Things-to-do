@@ -68,8 +68,12 @@ export async function GET(request: Request) {
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
+        const recoveryHint =
+          isPasswordReset ?
+            " Request a new password reset email and open the latest link once."
+          : "";
         return NextResponse.redirect(
-          `${origin}/?auth_error=${encodeURIComponent(error.message)}`
+          `${origin}/?auth_error=${encodeURIComponent(error.message + recoveryHint)}`
         );
       }
     } else if (tokenHash) {

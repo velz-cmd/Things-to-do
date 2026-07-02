@@ -1,5 +1,16 @@
 import { getAppBaseUrl } from "@/lib/browser/app-url";
 
+/** Direct app link — avoids PKCE code exchange failures from admin generateLink action_link. */
+export function buildPasswordRecoveryUrl(hashedToken: string): string {
+  const base = getAppBaseUrl();
+  const params = new URLSearchParams({
+    token_hash: hashedToken,
+    type: "recovery",
+    next: "/auth/reset-password",
+  });
+  return `${base}/auth/callback?${params.toString()}`;
+}
+
 export function buildPasswordResetEmailHtml(input: {
   resetLink: string;
   expiresMinutes?: number;

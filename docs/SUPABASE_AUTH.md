@@ -30,10 +30,12 @@ Supabase’s **built-in email** has strict limits (~4/hour, ~60s between sends).
 1. Sign up at [brevo.com](https://www.brevo.com)
 2. **Senders** → verify your Gmail (e.g. `podrift.mail@gmail.com`)
 3. **SMTP & API** → create an API key (v3)
-4. Add on **Vercel**:
+4. Add on **Vercel** (check **Production** + **Preview**):
    - `BREVO_API_KEY` = your API key
    - `BREVO_FROM_EMAIL` = verified sender Gmail
    - `BREVO_FROM_NAME` = `RESOLVE` (optional)
+5. **Redeploy** after saving env vars — Vercel does not inject new secrets until the next deploy
+6. Verify: `GET /api/health/email` should show `brevo.ok: true` and `primary: "brevo"` when Resend is sandbox-only
 
 **Alternative — Resend:** set `RESEND_API_KEY` + verified `RESEND_FROM_EMAIL` (needs a domain for all users).
 

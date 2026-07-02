@@ -5,6 +5,8 @@ import { classifyBoardNeedType } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { boardCommunityActions } from "@/lib/discover/board-actions-for-role";
 import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
+import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
 /** What the Unpaid Value lane shows. */
 export const GAPS_TAB_INTRO =
@@ -87,6 +89,7 @@ export function gapsPrimaryActions(input: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
   installedSlugs?: string[];
+  connections?: UserConnectionState | null;
 }): DiscoverAction[] {
   const entries = catalogForContext(input);
   const installed = new Set(input.installedSlugs ?? []);
@@ -110,7 +113,8 @@ export function gapsPrimaryActions(input: {
       templateId,
       needType,
       communityName: entry.name,
-      installed: isInstalled,
+      installed: isInstalled || communityReadyForDiscover(entry.slug, input.connections),
+      connections: input.connections,
     });
     for (const action of rowActions.slice(0, 3)) {
       const key = `${action.kind}:${action.communitySlug}:${action.label}`;

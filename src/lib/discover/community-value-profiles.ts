@@ -1,5 +1,8 @@
-import type { DiscoverAction, DiscoverActionKind } from "@/lib/discover/types";
-import type { DiscoverRole } from "@/lib/discover/role-filters";
+import type { DiscoverAction, DiscoverActionKind } from "./types";
+import type { DiscoverRole } from "./role-filters";
+import type { UserConnectionState } from "../profile/connection-state-types";
+import { communityReadyForDiscover } from "./community-profile-link";
+import { humanizeExtractionSources } from "./humanize-sources";
 
 /** What users already do on upstream products — extracted, not invented by RESOLVE. */
 export type ValueEventKind =
@@ -61,7 +64,7 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     unpaidSubtitle:
       "Self-hosted video servers produce watch sessions at playback time. No creator payout rule is active yet.",
     liveSignalTitle: "Self-hosted video watch activity",
-    extractionSources: ["Jellyfin Sessions API", "Playback events"],
+    extractionSources: ["Jellyfin", "Playback events"],
     valueEvents: [
       {
         kind: "watch",
@@ -91,7 +94,7 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     unpaidSubtitle:
       "Plays in your Navidrome library are real value events — per-play royalty splits are not configured yet.",
     liveSignalTitle: "Navidrome play activity",
-    extractionSources: ["Navidrome API", "MusicBrainz artist graph"],
+    extractionSources: ["Navidrome", "MusicBrainz"],
     valueEvents: [
       {
         kind: "play",
@@ -151,7 +154,7 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     unpaidSubtitle:
       "GitHub activity proves contributor work — docs bounties and maintainer pools are not active yet.",
     liveSignalTitle: "React maintainer and docs contributions",
-    extractionSources: ["GitHub API", "Open Collective treasuries"],
+    extractionSources: ["GitHub", "Open Collective"],
     valueEvents: [
       {
         kind: "merge",
@@ -181,7 +184,7 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     unpaidSubtitle:
       "Kernel patches and security fixes are verifiable on GitHub — funding pools lag verified work.",
     liveSignalTitle: "Kernel and security contribution activity",
-    extractionSources: ["GitHub API", "Security advisories"],
+    extractionSources: ["GitHub", "Security advisories"],
     valueEvents: [
       {
         kind: "commit",
@@ -243,9 +246,11 @@ export function buildUnpaidValueMetrics(
   connected: boolean,
 ): UnpaidValueMetrics {
   const profile = getCommunityValueProfile(slug);
-  const source = profile?.extractionSources.join(" · ") ?? "Upstream source";
+  const source = profile
+    ? humanizeExtractionSources(profile.extractionSources)
+    : "Your connected sources";
   return {
-    observedEvents: connected ? "Syncing from source" : "Awaiting connection",
+    observedEvents: connected ? "Syncing" : "Not linked",
     payoutRules: "0 active",
     settlement: "Not active",
     verifiedSource: source,
@@ -268,7 +273,7 @@ export function buildPreviewValueSignals(
     count: connected ? undefined : 0,
     settled: false,
     amountUsd: 0,
-    statusText: connected ? "extracting" : "awaiting connection",
+    statusText: connected ? "live" : "link in Profile",
   }));
 
   return [
@@ -303,16 +308,8 @@ export function radarHeadlineForProfile(
   return profile.liveSignalTitle;
 }
 
-function connectHrefForSlug(slug: string): string | undefined {
-  const map: Record<string, string> = {
-    react: "/connect/github",
-    linux: "/connect/github",
-    jellyfin: "/connect/jellyfin",
-    navidrome: "/communities/navidrome",
-    "independent-music": "/connect/listenbrainz",
-    "open-research": "/profile",
-  };
-  return map[slug];
+function connectHrefForSlug(_slug: string): string {
+  return "/profile";
 }
 
 /** Operational actions — attach is separate prerequisite handled by boardCommunityActions. */
@@ -324,6 +321,7 @@ export function operationalActionsForCommunity(
     communityName: string;
     installed: boolean;
     connected?: boolean;
+    connections?: UserConnectionState | null;
   },
 ): DiscoverAction[] {
   const profile = getCommunityValueProfile(input.communitySlug);
@@ -347,7 +345,10 @@ export function operationalActionsForCommunity(
     });
   };
 
-  const connected = input.connected ?? input.installed;
+  const connected =
+    input.connected ??
+    input.installed ??
+    communityReadyForDiscover(slug, input.connections);
 
   switch (slug) {
     case "jellyfin":
@@ -476,6 +477,11 @@ export function operationalActionsForCommunity(
       { id: "earn", label: "View earnings", kind: "open", href: "/capital" },
       ...actions.filter((a) => a.kind !== "fund").slice(0, 4),
     ];
+  }
+
+  if (role === "funder") {
+    const fund = actions.find((a) => a.kind === "fund");
+    return fund ? [fund] : actions.filter((a) => a.kind === "fund").slice(0, 1);
   }
 
   return actions.slice(0, 6);

@@ -6,8 +6,8 @@ export const SOURCE_BADGE_LABELS: Record<DiscoverDataSource, string> = {
   openalex: "OpenAlex",
   arc: "Arc",
   supabase_ledger: "Supabase ledger",
-  community_catalog: "Community catalog",
-  catalog_preview: "Catalog preview",
+  community_catalog: "Preview",
+  catalog_preview: "Preview",
   local_seed: "Local seed",
 };
 
@@ -23,5 +23,9 @@ export const SOURCE_BADGE_STYLES: Record<DiscoverDataSource, string> = {
 };
 
 export function isPreviewSource(source: DiscoverDataSource): boolean {
-  return source === "catalog_preview" || source === "local_seed";
+  return (
+    source === "catalog_preview" ||
+    source === "local_seed" ||
+    source === "community_catalog"
+  );
 }

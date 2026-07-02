@@ -16,9 +16,14 @@ Users sign in with **email and password** — no magic link or 6-digit code. Pas
 
 ### Supabase setup
 
-1. Supabase → **Authentication** → **Providers** → **Email** → Enable
-2. **Disable “Confirm email”** for instant sign-in without inbox verification (recommended for global self-serve)
-3. Ensure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set on Vercel
+1. Supabase → **Authentication** → **Providers** → **Email** → Enable (the screen in your screenshot is correct)
+2. **Turn off “Confirm email”** — this is **not** inside the Email provider popup. Close that popup, then on the same **Sign In / Providers** page scroll up to the **User signups** section at the top. You should see:
+   - **Allow new users to sign up** — ON
+   - **Confirm email** — turn **OFF** (users sign in immediately after creating an account)
+3. Click **Save** at the bottom of the page
+4. Ensure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set on Vercel
+
+If you only see the Email provider modal, click **Cancel**, scroll the main Providers page upward — **Confirm email** lives in the general signup settings above the provider list, not inside the Email toggles.
 
 ### User flow
 

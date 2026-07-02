@@ -27,6 +27,8 @@ Email links are sent **server-side** via Supabase (`/api/auth/send-code`). For r
 | Sender name | `RESOLVE` |
 
 Do **not** use Google OAuth Client ID/Secret or your personal password as SMTP credentials.
+
+Until `RESEND_FROM_EMAIL` uses a **verified domain**, sign-in emails are sent by **Supabase Auth** (not the Resend API). Configure Supabase SMTP above for reliable delivery to any inbox.
 3. Ensure `SUPABASE_SERVICE_ROLE_KEY` is set on Vercel (required for server-side send)
 4. Magic link redirect uses `APP_URL` / `NEXT_PUBLIC_APP_URL` → `/auth/callback`
 

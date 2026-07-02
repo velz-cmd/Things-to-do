@@ -17,7 +17,7 @@ import {
 import { detectInjectedWallets } from "@/lib/wallet/detect";
 
 type Step = "welcome" | "wallet-picker" | "forgot-password";
-type AuthAction = "email" | "wallet" | "guest" | null;
+type AuthAction = "email" | "forgot" | "wallet" | "guest" | null;
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -187,7 +187,7 @@ export function SignInModal() {
       return;
     }
 
-    setAuthAction("email");
+    setAuthAction("forgot");
     setMethodError((prev) => ({ ...prev, email: undefined }));
     setInlineError(null);
     try {
@@ -327,7 +327,11 @@ export function SignInModal() {
                   </label>
                   <button
                     type="submit"
-                    disabled={authAction === "email" || !emailReady}
+                    disabled={
+                      authAction === "email" ||
+                      authAction === "forgot" ||
+                      !emailReady
+                    }
                     className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {authAction === "email" ? "Continuing…" : "Continue"}
@@ -340,14 +344,17 @@ export function SignInModal() {
                     onClick={() => void handleForgotPassword()}
                     disabled={
                       authAction === "email" ||
+                      authAction === "forgot" ||
                       !isValidEmail(email) ||
                       forgotCooldown > 0
                     }
                     className="w-full text-center text-xs text-sky-400 hover:text-sky-300 disabled:opacity-50"
                   >
-                    {forgotCooldown > 0
-                      ? `Resend reset link in ${forgotCooldown}s`
-                      : "Forgot password?"}
+                    {authAction === "forgot"
+                      ? "Sending reset link…"
+                      : forgotCooldown > 0
+                        ? `Resend reset link in ${forgotCooldown}s`
+                        : "Forgot password?"}
                   </button>
                   {resetSent && (
                     <p className="text-xs text-emerald-300">

@@ -35,23 +35,50 @@ const baseGap = (overrides: Partial<TrendingValueGap> = {}): TrendingValueGap =>
   ...overrides,
 });
 
+function primarySlot(state: ReturnType<typeof deriveDiscoverCardState>) {
+  return state.actionSlots.find((s) => s.variant === "primary");
+}
+
 describe("deriveDiscoverCardState", () => {
-  it("shows connect as primary when source not linked", () => {
-    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "funder", "trending-gaps");
-    expect(state.primaryActions[0]?.kind).toBe("connect_sensor");
+  it("shows disabled fund + connect secondary for funder when source not linked", () => {
+    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "funder", "trending-gaps", {
+      signedIn: true,
+    });
+    const primary = primarySlot(state);
+    expect(primary?.action.kind).toBe("fund");
+    expect(primary?.disabled).toBe(true);
+    expect(primary?.disabledReason).toMatch(/Connect source/i);
     expect(state.settlementStatus).toBe("Source not connected");
-    expect(state.primaryActions.some((a) => EARNINGS_OPEN.test(a.label))).toBe(false);
+    expect(state.actionSlots.some((s) => s.action.kind === "connect_sensor")).toBe(true);
+  });
+
+  it("shows connect as primary for operator when source not linked", () => {
+    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "operator", "trending-gaps", {
+      signedIn: true,
+    });
+    expect(primarySlot(state)?.action.kind).toBe("connect_sensor");
+  });
+
+  it("blocks actions when signed out", () => {
+    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "funder", "trending-gaps", {
+      signedIn: false,
+    });
+    expect(primarySlot(state)?.disabledReason).toBe("Sign in to continue");
   });
 
   it("hides view earnings when nothing claimable", () => {
-    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "community", "trending-gaps");
-    expect(state.primaryActions.every((a) => !/view earnings/i.test(a.label))).toBe(true);
+    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "community", "trending-gaps", {
+      signedIn: true,
+    });
+    expect(state.actionSlots.every((s) => !EARNINGS_OPEN.test(s.action.label))).toBe(true);
   });
 
   it("puts console in advanced", () => {
-    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "founder", "trending-gaps");
+    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "founder", "trending-gaps", {
+      signedIn: true,
+    });
     expect(state.advancedActions.some((a) => a.kind === "console")).toBe(true);
-    expect(state.primaryActions.some((a) => a.kind === "console")).toBe(false);
+    expect(state.actionSlots.some((a) => a.action.kind === "console")).toBe(false);
   });
 
   it("prefers fund when rule exists but pool unfunded", () => {
@@ -70,10 +97,40 @@ describe("deriveDiscoverCardState", () => {
       githubUsername: null,
       platforms: { navidrome: { connected: true } },
       hasAnyConnector: true,
-    } as import("@/lib/profile/connection-state-types").UserConnectionState;
+    } as import("../../src/lib/profile/connection-state-types").UserConnectionState;
 
-    const state = deriveDiscoverCardState(gap, connections, "gaps", "funder", "trending-gaps");
-    expect(state.primaryActions[0]?.kind).toBe("fund");
+    const state = deriveDiscoverCardState(gap, connections, "gaps", "funder", "trending-gaps", {
+      signedIn: true,
+      spendableUsd: 50,
+    });
+    expect(primarySlot(state)?.action.kind).toBe("fund");
+    expect(primarySlot(state)?.disabled).toBeFalsy();
     expect(state.settlementStatus).toBe("Pool unfunded");
+  });
+
+  it("disables fund when Arc balance is low", () => {
+    const gap = baseGap({
+      valueMetrics: {
+        observedEvents: "Activity verified",
+        payoutRules: "1 active",
+        settlement: "Pool unfunded",
+        verifiedSource: "Navidrome",
+      },
+      programId: "prog-1",
+    });
+    const connections = {
+      signedIn: true,
+      installedCommunitySlugs: ["navidrome"],
+      githubUsername: null,
+      platforms: { navidrome: { connected: true } },
+      hasAnyConnector: true,
+    } as import("../../src/lib/profile/connection-state-types").UserConnectionState;
+
+    const state = deriveDiscoverCardState(gap, connections, "gaps", "funder", "trending-gaps", {
+      signedIn: true,
+      spendableUsd: 2,
+    });
+    expect(primarySlot(state)?.disabled).toBe(true);
+    expect(primarySlot(state)?.disabledReason).toMatch(/Arc USDC/i);
   });
 });

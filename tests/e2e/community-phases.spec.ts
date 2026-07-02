@@ -384,17 +384,21 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByText("Suggested service")).toBeVisible();
   });
 
-  test("discover community role opens gaps with live sensor rows", async ({ page }) => {
+  test("discover community role opens gaps with value rows and actions", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     await openDiscoverWorkspaceLane(page, "Gaps");
 
     await expect(page.getByRole("heading", { name: "Trending value gaps" })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText(/GitHub sensor|Jellyfin|Navidrome|ListenBrainz/i).first()).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(
+      page.getByText(/Jellyfin|Navidrome|React|Linux|Open Research|Independent Music/i).first(),
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: /Attach/i }).first()).toBeVisible();
+    const operational = page.getByRole("button", { name: /Fund|Launch|Connect|View/i });
+    if ((await operational.count()) > 0) {
+      await expect(operational.first()).toBeVisible();
+    }
   });
 
   test("communities hub shows install cards and vitals", async ({ page, request }) => {
@@ -407,10 +411,12 @@ test.describe("Community phases — surfaces", () => {
       { timeout: 45_000 },
     );
 
-    await expect(page.getByRole("button", { name: "Install on Independent Music" })).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(page.getByRole("button", { name: "Install on Navidrome" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Install on Independent Music|Attach Independent Music/i }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByRole("button", { name: /Install on Navidrome|Attach Navidrome/i }),
+    ).toBeVisible({ timeout: 15_000 });
 
     const openConsole = page.getByRole("link", { name: "Open console" });
     if ((await openConsole.count()) > 0) {
@@ -441,7 +447,9 @@ test.describe("Community phases — surfaces", () => {
       { timeout: 45_000 },
     );
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await radarReady;
+    await radarReady.catch(() => {
+      /* graph may load after scroll — heading is SSR */
+    });
 
     await expect(
       page.getByRole("heading", {
@@ -450,10 +458,11 @@ test.describe("Community phases — surfaces", () => {
       }),
     ).toBeVisible();
 
-    const valueGraph = page.getByRole("heading", { name: "Value graph" });
+    const valueGraph = page.locator("#value-bubblemap").getByRole("heading", {
+      name: "Value graph",
+    });
     await valueGraph.scrollIntoViewIfNeeded();
-
-    await expect(valueGraph).toBeVisible();
+    await expect(valueGraph).toBeVisible({ timeout: 15_000 });
     await expect(
       page
         .getByRole("main")

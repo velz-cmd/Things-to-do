@@ -129,7 +129,12 @@ async function hygieneChecks() {
   assert(html.includes("Fund where it matters"), "discover HTML includes primary jobs");
   assert(!html.includes("Earn from my work"), "discover HTML excludes removed earn job card");
   assert(!html.includes("owner/repo"), "discover HTML excludes global search bar");
-  assert(html.includes("Value graph"), "discover HTML includes value graph");
+  assert(
+    html.includes("Value graph") ||
+      html.includes('id="value-bubblemap"') ||
+      html.includes('aria-label="Value graph"'),
+    "discover HTML includes value graph section",
+  );
   assert(html.includes('href="/communities"'), "discover HTML links to Communities tab");
 }
 

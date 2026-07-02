@@ -172,14 +172,18 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           <DiscoverCommunities signedIn={Boolean(user)} role={role} />
         </div>
 
-        <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">
+        <section
+          id="value-bubblemap"
+          aria-label="Value graph"
+          className="discover-section-stack scroll-mt-24"
+        >
           <DiscoverValueBubblemap
             intent={intent}
             role={role}
             signedIn={Boolean(user)}
             onOpenBoard={() => switchLane("board")}
           />
-        </div>
+        </section>
 
         <footer className="discover-on-canvas mt-10 border-t border-resolve-border/30 pt-6">
           <p className="discover-muted mb-3 text-center text-[10px]">

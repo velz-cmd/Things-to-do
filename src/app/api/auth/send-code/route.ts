@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import {
+  createAdminClient,
   getSupabaseServerUrl,
   getSupabaseServiceRoleKey,
   isSupabaseAdminConfigured,
 } from "@/lib/supabase/admin";
+import { parseOtpCooldown } from "@/lib/auth/otp-cooldown";
 import {
   checkEmailLinkRateLimit,
   LINK_VALID_MINUTES,
   MIN_RESEND_INTERVAL_MS,
   recordEmailLinkRequest,
 } from "@/lib/auth/email-rate-limit";
+import { getAppBaseUrl } from "@/lib/browser/app-url";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -24,8 +28,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
 
-  const admin = isSupabaseAdminConfigured();
-  if (!admin) {
+  const adminConfigured = isSupabaseAdminConfigured();
+  if (!adminConfigured) {
     const hasUrl = Boolean(getSupabaseServerUrl());
     const hasKey = Boolean(getSupabaseServiceRoleKey());
     return NextResponse.json(
@@ -64,9 +68,40 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, recorded: true });
   }
 
+  const supabase = createAdminClient();
+  if (!supabase) {
+    return NextResponse.json(
+      { error: "Email sign-in is not configured on the server." },
+      { status: 503 }
+    );
+  }
+
+  const redirectTo = `${getAppBaseUrl()}/auth/callback`;
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: redirectTo,
+    },
+  });
+
+  if (error) {
+    const cooldownSeconds = parseOtpCooldown(error.message);
+    return NextResponse.json(
+      {
+        error: error.message,
+        cooldownSeconds,
+      },
+      { status: cooldownSeconds ? 429 : 400 }
+    );
+  }
+
+  await recordEmailLinkRequest(email);
+
   return NextResponse.json({
     ok: true,
-    clientSend: true,
+    serverSend: true,
     delivery: "supabase",
     message: "Sign-in link sent to your inbox",
     expiresInMinutes: LINK_VALID_MINUTES,

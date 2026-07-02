@@ -83,6 +83,8 @@ export type TrendingValueGap = {
   opportunityScorecard?: import("@/lib/discover/opportunity-score").OpportunityScorecard;
   /** Extracted user activity on upstream products — not RESOLVE marketing copy */
   valueSignals?: import("@/lib/discover/community-value-profiles").ValueProvidedSignal[];
+  /** Honest unpaid-value metrics for preview rows */
+  valueMetrics?: import("@/lib/discover/community-value-profiles").UnpaidValueMetrics;
   /** Upstream product label — e.g. "Jellyfin server" not "Jellyfin sensor" */
   productLabel?: string;
   /** Ecosystem grouping for Discover rows */

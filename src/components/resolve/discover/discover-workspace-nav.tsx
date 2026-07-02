@@ -30,9 +30,9 @@ const LANES: {
   icon: LucideIcon;
   accent: "amber" | "violet" | "blue";
 }[] = [
-  { id: "gaps", label: "Gaps", icon: Zap, accent: "amber" },
-  { id: "radars", label: "Radars", icon: Radar, accent: "violet" },
-  { id: "board", label: "Board", icon: LayoutGrid, accent: "blue" },
+  { id: "gaps", label: "Unpaid Value", icon: Zap, accent: "amber" },
+  { id: "radars", label: "Live Signals", icon: Radar, accent: "violet" },
+  { id: "board", label: "Value Graph", icon: LayoutGrid, accent: "blue" },
 ];
 
 const JOB_LANE: Record<DiscoverJobId, DiscoverWorkspaceLane> = {

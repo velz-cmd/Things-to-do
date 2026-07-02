@@ -12,25 +12,25 @@ export type BoardCommunityContext = {
   installed?: boolean;
 };
 
-/** One-line use case — who the Opportunity board is for. */
+/** One-line use case — who the Value Graph lane is for. */
 export function boardUseCaseLine(role: DiscoverRole): string {
   const copy: Partial<Record<DiscoverRole, string>> = {
     funder:
-      "For funders: top rows are ledger programs you can fund now. Below that, attach a community to unlock ranked gaps.",
+      "Fund ledger programs at the top. Below: unpaid value waiting for payout rules and pools.",
     founder:
-      "For founders: attach the community you run, then launch a program beside your existing tools.",
+      "Set up your community once, then launch payout programs beside the tools you already run.",
     operator:
-      "For operators: attach communities to sync sensors — funding is optional.",
-    dao: "For DAOs: attach a grant community, launch a QF round, or fund an existing pool.",
+      "Connect sources to extract activity — funding is optional until value is verified.",
+    dao: "Launch grant rounds, citation tolls, or fund pools for research communities.",
     community:
-      "For creators: attach communities where you earn — payouts and claims live on Capital.",
-    all: "Fund verified programs at the top when available. Attach a community once to install your console and unlock Gaps.",
+      "Set up where you earn — claims and payouts live on Capital.",
+    all: "Verified programs first, then unpaid value you can connect, rule, and fund.",
   };
   return copy[role] ?? copy.all!;
 }
 
 /**
- * Row actions: attach is prerequisite; operational actions (fund, launch, connect) do the work.
+ * Row actions: setup is prerequisite; operational actions extract value and move money.
  */
 export function boardCommunityActions(
   role: DiscoverRole,
@@ -48,20 +48,16 @@ export function boardCommunityActions(
     templateId,
     communityName,
     installed,
+    connected: installed,
   });
 
   if (!installed) {
     const attach: DiscoverAction = {
       id: "install",
-      label:
-        role === "operator"
-          ? `Connect ${communityName}`
-          : role === "founder"
-            ? `Install on ${communityName}`
-            : `Attach ${communityName}`,
+      label: `Set up ${communityName}`,
       kind: "install",
       communitySlug,
-      reason: "Required once — then fund, launch programs, and extract value",
+      reason: "One-time setup — then connect sources, create rules, and fund",
     };
     return [attach, ...operational];
   }
@@ -78,7 +74,7 @@ export function boardCommunityActions(
     return [
       program ?? {
         id: "program",
-        label: "Launch program",
+        label: "Create payout rule",
         kind: "create_program",
         communitySlug,
         templateId,
@@ -89,6 +85,7 @@ export function boardCommunityActions(
         kind: "console",
         communitySlug,
       },
+      ...operational.filter((a) => a.id !== program?.id && a.id !== consoleAction?.id).slice(0, 3),
     ];
   }
 
@@ -111,7 +108,7 @@ export function boardCommunityActions(
     return [
       grant ?? {
         id: "grant",
-        label: "Launch grant round",
+        label: "Create grant round",
         kind: "create_program",
         communitySlug,
         templateId: "quadratic-funding",
@@ -123,7 +120,7 @@ export function boardCommunityActions(
         communitySlug,
         templateId,
       },
-      ...operational.filter((a) => a.kind === "analyze" || a.kind === "open").slice(0, 1),
+      ...operational.filter((a) => a.kind === "analyze" || a.kind === "open").slice(0, 2),
     ];
   }
 
@@ -139,7 +136,7 @@ export function boardCommunityActions(
         },
         {
           id: "program",
-          label: "Launch program",
+          label: "Create payout rule",
           kind: "create_program",
           communitySlug,
           templateId,
@@ -154,24 +151,24 @@ export function boardSubtitleForRole(role: DiscoverRole, signedIn: boolean, wall
       : "Sign in to fund from your Arc wallet";
 
   const byRole: Partial<Record<DiscoverRole, string>> = {
-    funder: `Ledger-backed programs you can fund now · ${wallet}`,
-    founder: `Attach your stack, then launch programs · ${wallet}`,
-    operator: `Attach communities — sensors sync without funding`,
-    dao: `Grant pools and treasury programs · ${wallet}`,
-    community: `Attach where you earn — claims on Capital`,
-    all: `Verified programs first, then attach to unlock · ${wallet}`,
+    funder: `Ledger-backed programs · unpaid value below · ${wallet}`,
+    founder: `Set up your stack, create payout rules · ${wallet}`,
+    operator: `Connect sources — extract activity before funding`,
+    dao: `Grant pools and citation programs · ${wallet}`,
+    community: `Set up where you earn — claims on Capital`,
+    all: `Verified programs first, then unpaid value to act on · ${wallet}`,
   };
   return byRole[role] ?? byRole.all!;
 }
 
 export function radarSubtitleForRole(role: DiscoverRole): string {
   const byRole: Partial<Record<DiscoverRole, string>> = {
-    funder: "Verified gaps in this domain — fund to clear ledger authorizations",
-    founder: "Launch programs and attach sensors for this vertical",
-    operator: "Connect sources — cards appear when ledger rows rank up",
-    dao: "Grant pools, citations, and treasury signals",
-    community: "Attach communities on Board — earnings aggregate on the Earnings tab.",
-    all: "Live ledger gaps when available — attach any catalog community to unlock more",
+    funder: "Live extracted activity — fund to clear unpaid authorizations",
+    founder: "Launch payout programs for this vertical",
+    operator: "Connect sources — rows rank when activity is verified",
+    dao: "Citations, grant pools, and treasury signals",
+    community: "Set up communities on Value Graph — earnings on Capital.",
+    all: "Real activity from connected sources — connect to extract more",
   };
   return byRole[role] ?? byRole.all!;
 }

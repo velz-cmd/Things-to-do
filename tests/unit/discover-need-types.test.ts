@@ -101,6 +101,6 @@ describe("discover need types", () => {
         templateId: "user-centric-royalties",
         connectCta: "Connect Navidrome",
       }),
-    ).toBe("Connect music sensor");
+    ).toBe("Explore music program");
   });
 });

@@ -109,11 +109,11 @@ export function DiscoverOpportunityQueue({
               templateId: "docs-bounty",
               templateLabel: "Program",
               fundingGapUsd: 0,
-              whyFund: `${c.tagline} · attach to unlock ledger programs`,
+              whyFund: `${c.tagline} · set up to unlock ledger programs`,
               whoBenefits: c.name,
               score: 0,
               metricKind: "connect" as const,
-              connectCta: `Attach ${c.name}`,
+              connectCta: `Set up ${c.name}`,
               connectHref: `/communities/${c.slug}`,
               needType: "funding" as const,
             })),
@@ -244,7 +244,7 @@ export function DiscoverOpportunityQueue({
   return (
     <DiscoverPremiumSection
       id="opportunities"
-      title="Opportunity board"
+      title="Value graph"
       subtitle={subtitle}
       className={className}
       actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}
@@ -305,7 +305,7 @@ export function DiscoverOpportunityQueue({
             <p className="text-sm text-resolve-muted">
               {query.trim()
                 ? "No programs match your search."
-                : "Attach a community on the left — ledger programs and fundable rows appear here."}
+                : "Set up a community on the left — ledger programs and fundable rows appear here."}
             </p>
             {onSwitchLane && !query.trim() && (
               <div className="mt-4 flex flex-wrap gap-2">
@@ -314,14 +314,14 @@ export function DiscoverOpportunityQueue({
                   onClick={() => onSwitchLane("gaps")}
                   className="rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-4 py-2 text-sm font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
                 >
-                  Browse Gaps
+                  Browse unpaid value
                 </button>
                 <button
                   type="button"
                   onClick={() => onSwitchLane("radars")}
                   className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-resolve-muted hover:text-white"
                 >
-                  View Radars
+                  View live signals
                 </button>
               </div>
             )}
@@ -474,7 +474,7 @@ export function DiscoverOpportunityQueue({
           {boardCommunityRows.length > 0 && (
             <div className={clsx(boardProgramRows.length > 0 && "mt-6 border-t border-white/[0.06] pt-5")}>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-                {boardProgramRows.length > 0 ? "Attach to unlock" : "Attach communities"}
+                {boardProgramRows.length > 0 ? "Unpaid value to act on" : "Set up communities"}
               </p>
               <ul className="mt-3 divide-y divide-white/[0.06]">
                 {boardCommunityRows.map((o) => {
@@ -501,7 +501,7 @@ export function DiscoverOpportunityQueue({
                               {needTypeLabel(o.needType)}
                             </span>
                             <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] text-amber-200/90">
-                              {isCommunityInstalled(connections, o.communitySlug) ? "Attached" : "Attach first"}
+                              {isCommunityInstalled(connections, o.communitySlug) ? "Set up" : "Set up first"}
                             </span>
                           </div>
                           <p className="mt-0.5 text-[11px] text-resolve-muted">{o.communityTagline}</p>

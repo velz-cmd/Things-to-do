@@ -14,6 +14,7 @@ import {
   safeFeedPart,
 } from "@/lib/discover/radar-feed-fallback";
 import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
+import { cacheGetOrSet } from "@/lib/cache/kv";
 
 function startOfToday() {
   const d = new Date();
@@ -153,34 +154,25 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 }
 
 /** Safe wrapper for API route — returns empty payload only on total failure. */
-const FEED_CACHE_MS = 30_000;
-let feedCache: {
-  at: number;
-  limit: number;
-  data: DiscoverRadarFeedPayload;
-} | null = null;
+const FEED_CACHE_SECONDS = 30;
 
 export async function buildDiscoverRadarFeedSafe(limit = 24): Promise<DiscoverRadarFeedPayload> {
   const bounded = Math.min(Math.max(limit, 1), 48);
-  const now = Date.now();
-  if (
-    feedCache &&
-    feedCache.limit === bounded &&
-    now - feedCache.at < FEED_CACHE_MS
-  ) {
-    return feedCache.data;
-  }
 
-  try {
-    const data = await buildDiscoverRadarFeed(bounded);
-    feedCache = { at: now, limit: bounded, data };
-    return data;
-  } catch (e) {
-    console.error("[discover/radar-feed] catastrophic:", e);
-    return emptyRadarFeedPayload({
-      ok: true,
-      degraded: true,
-      degradedParts: ["fatal"],
-    });
-  }
+  return cacheGetOrSet(
+    `resolve:discover:radar-feed:${bounded}`,
+    FEED_CACHE_SECONDS,
+    async () => {
+      try {
+        return await buildDiscoverRadarFeed(bounded);
+      } catch (e) {
+        console.error("[discover/radar-feed] catastrophic:", e);
+        return emptyRadarFeedPayload({
+          ok: true,
+          degraded: true,
+          degradedParts: ["fatal"],
+        });
+      }
+    },
+  );
 }

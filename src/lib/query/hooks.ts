@@ -104,6 +104,26 @@ export function prefetchDiscoverTab(queryClient: ReturnType<typeof useQueryClien
   });
 }
 
+export function prefetchCommunitiesTab(queryClient: ReturnType<typeof useQueryClient>) {
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.communities,
+    queryFn: () => fetchJson("/api/communities"),
+    staleTime: 60_000,
+  });
+}
+
+export function useCommunitiesHubQuery() {
+  return useQuery({
+    queryKey: queryKeys.communities,
+    queryFn: ({ signal }) => fetchJson<{ communities: unknown[]; sensorStatuses?: unknown[] }>(
+      "/api/communities",
+      signal,
+    ),
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function prefetchProfileTab(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileBootstrap,

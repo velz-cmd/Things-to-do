@@ -400,25 +400,8 @@ export function ProfileContributorIdentity() {
     <section className="space-y-4">
       <div>
         <h2 className="text-sm font-semibold text-white">{CONTRIBUTOR_IDENTITY_COPY.title}</h2>
-        <p className="mt-1 max-w-2xl text-xs leading-relaxed text-resolve-muted">
-          {CONTRIBUTOR_IDENTITY_COPY.subtitle}
-        </p>
+        <p className="mt-1 max-w-xl text-xs text-resolve-muted">{CONTRIBUTOR_IDENTITY_COPY.subtitle}</p>
       </div>
-
-      <Panel variant="flat" className="space-y-4 border-resolve-accent/15 bg-resolve-accent/[0.03]">
-        <p className="text-sm font-medium text-white">{CONTRIBUTOR_IDENTITY_COPY.doctrine.title}</p>
-        <p className="text-xs leading-relaxed text-resolve-muted">
-          {CONTRIBUTOR_IDENTITY_COPY.doctrine.body}
-        </p>
-        <ul className="space-y-2">
-          {CONTRIBUTOR_IDENTITY_COPY.doctrine.bullets.map((bullet) => (
-            <li key={bullet} className="flex gap-2 text-xs leading-relaxed text-resolve-muted">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-resolve-accent" />
-              {bullet}
-            </li>
-          ))}
-        </ul>
-      </Panel>
 
       <div className="flex flex-wrap gap-2">
         {TAB_META.map(({ id, label, icon: Icon }) => (

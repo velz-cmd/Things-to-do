@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { Activity, CircleDollarSign, Layers, Radio, Users, Wrench } from "lucide-react";
 import type { CommunityVitalsSummary } from "@/lib/communities/types";
+import { humanizeHealthLabel, humanizeSensorLabel } from "@/lib/communities/humanize-vitals";
 
 type CommunityVitalsRowProps = {
   vitals: CommunityVitalsSummary;
@@ -93,10 +94,10 @@ export function CommunityVitalsRow({ vitals, compact = false }: CommunityVitalsR
           tone={vitals.programCount > 0 ? "default" : "muted"}
         />
         <Metric icon={Users} label="Top builders" value={buildersValue} tone="muted" />
-        <Metric icon={Radio} label="Sensor" value={vitals.sensor.label} tone={sensorTone} />
+        <Metric icon={Radio} label="Proof" value={humanizeSensorLabel(vitals.sensor.label)} tone={sensorTone} />
       </div>
       {!compact && vitals.healthLabel && (
-        <p className="mt-2 text-[10px] text-resolve-muted-dim">{vitals.healthLabel}</p>
+        <p className="mt-2 text-[10px] text-resolve-muted-dim">{humanizeHealthLabel(vitals.healthLabel)}</p>
       )}
     </div>
   );

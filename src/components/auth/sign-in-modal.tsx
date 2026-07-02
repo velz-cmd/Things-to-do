@@ -48,6 +48,7 @@ export function SignInModal() {
   }>({});
   const [showForgotHint, setShowForgotHint] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [forgotCooldown, setForgotCooldown] = useState(0);
 
   const showEmail = emailEnabled;
   const showWallet = true;
@@ -73,12 +74,21 @@ export function SignInModal() {
       setMethodError({});
       setShowForgotHint(false);
       setResetSent(false);
+      setForgotCooldown(0);
       return;
     }
 
     const savedEmail = getRememberedEmail() ?? "";
     if (savedEmail) setEmail(savedEmail);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || forgotCooldown <= 0) return;
+    const id = window.setInterval(() => {
+      setForgotCooldown((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [open, forgotCooldown]);
 
   useEffect(() => {
     if (open && account.isAuthenticated) {
@@ -170,6 +180,7 @@ export function SignInModal() {
   }
 
   async function handleForgotPassword() {
+    if (forgotCooldown > 0) return;
     const trimmed = email.trim();
     if (!isValidEmail(trimmed)) {
       setInlineError("Enter your email address first.");
@@ -182,10 +193,14 @@ export function SignInModal() {
     try {
       const result = await requestPasswordReset(trimmed);
       if (!result.ok) {
+        if (result.cooldownSeconds) {
+          setForgotCooldown(result.cooldownSeconds);
+        }
         setMethodError((prev) => ({ ...prev, email: result.message }));
         return;
       }
       setResetSent(true);
+      setForgotCooldown(15);
       setShowForgotHint(false);
     } finally {
       setAuthAction(null);
@@ -323,10 +338,16 @@ export function SignInModal() {
                   <button
                     type="button"
                     onClick={() => void handleForgotPassword()}
-                    disabled={authAction === "email" || !isValidEmail(email)}
+                    disabled={
+                      authAction === "email" ||
+                      !isValidEmail(email) ||
+                      forgotCooldown > 0
+                    }
                     className="w-full text-center text-xs text-sky-400 hover:text-sky-300 disabled:opacity-50"
                   >
-                    Forgot password?
+                    {forgotCooldown > 0
+                      ? `Resend reset link in ${forgotCooldown}s`
+                      : "Forgot password?"}
                   </button>
                   {resetSent && (
                     <p className="text-xs text-emerald-300">

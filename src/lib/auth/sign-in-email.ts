@@ -1,6 +1,13 @@
 import { getAppBaseUrl } from "@/lib/browser/app-url";
 
-/** Direct reset page — verify on user click (stops Gmail/Outlook link prefetch). */
+/** App-owned reset link — token is only consumed when password is saved (prefetch-safe). */
+export function buildPasswordResetUrl(plainToken: string): string {
+  const base = getAppBaseUrl();
+  const params = new URLSearchParams({ token: plainToken });
+  return `${base}/auth/reset-password?${params.toString()}`;
+}
+
+/** @deprecated Legacy Supabase token_hash links — kept for old emails in flight. */
 export function buildPasswordRecoveryUrl(hashedToken: string): string {
   const base = getAppBaseUrl();
   const params = new URLSearchParams({
@@ -30,7 +37,7 @@ export function buildPasswordResetEmailHtml(input: {
       This link expires in ${mins} minutes.
     </p>
     <a href="${input.resetLink}" style="display:inline-block;background:#0ea5e9;color:#041018;text-decoration:none;font-weight:600;padding:14px 28px;border-radius:12px">
-      Choose password
+      Set password
     </a>
     <p style="margin:28px 0 0;color:#64748b;font-size:12px;line-height:1.6">
       If you did not request this, you can ignore this email.<br />

@@ -13,6 +13,13 @@ export async function parseJsonResponse<T = Record<string, unknown>>(
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error(`Invalid server response (${res.status}) — not JSON`);
+    if (res.status === 504 || res.status === 502) {
+      throw new Error("Request timed out — try again in a moment");
+    }
+    throw new Error(
+      res.ok
+        ? "Could not read server response — try again"
+        : `Something went wrong (${res.status}) — try again`,
+    );
   }
 }

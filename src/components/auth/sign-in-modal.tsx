@@ -5,6 +5,7 @@ import { useAppKit } from "@reown/appkit/react";
 import { useAccount, useConnect } from "wagmi";
 import { ArrowLeft, Mail, Wallet } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
@@ -52,6 +53,7 @@ function isValidEmail(value: string) {
 }
 
 export function SignInModal() {
+  const router = useRouter();
   const { open, closeSignIn } = useSignInModal();
   const {
     sendLoginCode,
@@ -71,6 +73,7 @@ export function SignInModal() {
   const [walletConnecting, setWalletConnecting] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [linkValidMinutes, setLinkValidMinutes] = useState(5);
+  const [otpCode, setOtpCode] = useState("");
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [methodError, setMethodError] = useState<{
     google?: string;
@@ -102,6 +105,7 @@ export function SignInModal() {
       setAuthAction(null);
       setWalletConnecting(false);
       setInlineError(null);
+      setOtpCode("");
       setMethodError({});
       return;
     }
@@ -176,16 +180,50 @@ export function SignInModal() {
     setInlineError(null);
   }
 
-  function handleGithub() {
-    setMethodError((prev) => ({ ...prev, github: undefined }));
-    setAuthAction("github");
-    window.location.assign("/api/auth/oauth/github?next=/profile");
-  }
+  async function handleVerifyOtp(e?: React.FormEvent) {
+    e?.preventDefault();
+    const code = otpCode.replace(/\s/g, "");
+    if (code.length < 6) {
+      setMethodError((prev) => ({
+        ...prev,
+        email: "Enter the 6-digit code from your email.",
+      }));
+      return;
+    }
 
-  function handleGoogle() {
-    setMethodError((prev) => ({ ...prev, google: undefined }));
-    setAuthAction("google");
-    window.location.assign("/api/auth/oauth/google");
+    setAuthAction("email");
+    setMethodError((prev) => ({ ...prev, email: undefined }));
+    try {
+      const res = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim(), code }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setMethodError((prev) => ({
+          ...prev,
+          email: String(data.error ?? "Invalid or expired code."),
+        }));
+        return;
+      }
+
+      try {
+        localStorage.removeItem(VERIFY_STEP_KEY);
+      } catch {
+        /* ignore */
+      }
+      closeSignIn();
+      router.refresh();
+    } catch {
+      setMethodError((prev) => ({
+        ...prev,
+        email: "Could not verify code. Try again.",
+      }));
+    } finally {
+      setAuthAction(null);
+    }
   }
 
   function handleOpenWalletPicker() {
@@ -414,39 +452,23 @@ export function SignInModal() {
 
               <div className="space-y-3">
                 {showGithub && (
-                  <>
-                    <button
-                      type="button"
-                      disabled={authAction === "github" || authAction === "google"}
-                      onClick={() => void handleGithub()}
-                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-[#24292f] py-3.5 text-sm font-medium text-white transition hover:bg-[#2f363d] disabled:opacity-70"
-                    >
-                      <GithubIcon />
-                      {authAction === "github" ? "Redirecting…" : "Continue with GitHub"}
-                    </button>
-                    {methodError.github && (
-                      <p className="text-xs text-amber-200">{methodError.github}</p>
-                    )}
-                  </>
+                  <a
+                    href="/api/auth/oauth/github?next=/profile"
+                    className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-[#24292f] py-3.5 text-sm font-medium text-white transition hover:bg-[#2f363d]"
+                  >
+                    <GithubIcon />
+                    Continue with GitHub
+                  </a>
                 )}
 
                 {showGoogle && (
-                  <>
-                    <button
-                      type="button"
-                      disabled={authAction === "google" || authAction === "github"}
-                      onClick={() => void handleGoogle()}
-                      className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-70"
-                    >
-                      <GoogleIcon />
-                      {authAction === "google"
-                        ? "Redirecting…"
-                        : "Continue with Google"}
-                    </button>
-                    {methodError.google && (
-                      <p className="text-xs text-amber-200">{methodError.google}</p>
-                    )}
-                  </>
+                  <a
+                    href="/api/auth/oauth/google"
+                    className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+                  >
+                    <GoogleIcon />
+                    Continue with Google
+                  </a>
                 )}
 
                 <button
@@ -529,7 +551,8 @@ export function SignInModal() {
                   <div>
                     <p>
                       Open the email on <span className="text-white">this device</span>{" "}
-                      and tap <span className="font-medium text-white">Sign in</span>.
+                      and tap <span className="font-medium text-white">Sign in</span>,
+                      or enter the 6-digit code below.
                     </p>
                     <p className="mt-2 text-xs text-slate-500">
                       The link expires in {linkValidMinutes} minutes and works once.
@@ -538,6 +561,27 @@ export function SignInModal() {
                   </div>
                 </div>
               </div>
+
+              <form onSubmit={(e) => void handleVerifyOtp(e)} className="space-y-3">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  placeholder="6-digit code"
+                  className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-center text-lg tracking-[0.35em] text-white outline-none placeholder:text-slate-600 focus:border-sky-500/50"
+                />
+                <button
+                  type="submit"
+                  disabled={authAction === "email"}
+                  className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-[#041018] transition hover:bg-sky-400 disabled:opacity-70"
+                >
+                  {authAction === "email" ? "Verifying…" : "Verify code"}
+                </button>
+              </form>
+
               {methodError.email && (
                 <p className="text-center text-xs text-amber-200">{methodError.email}</p>
               )}

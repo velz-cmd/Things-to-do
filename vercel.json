@@ -1,5 +1,5 @@
 {
-  "buildCommand": "prisma generate && bash -c 'if [ -n \"$DATABASE_URL\" ]; then prisma migrate deploy; fi' && next build",
+  "buildCommand": "export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\" && prisma generate && bash -c 'if [ -n \"$DATABASE_URL\" ]; then export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\"; prisma migrate deploy; fi' && next build",
   "installCommand": "npm install --legacy-peer-deps --include=dev",
   "framework": "nextjs",
   "ignoreCommand": "bash -c 'if [ \"$VERCEL_ENV\" = \"preview\" ]; then echo \"Skipping preview deploy (saves free-tier quota)\"; exit 0; fi; exit 1'"

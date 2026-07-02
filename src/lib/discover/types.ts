@@ -81,6 +81,12 @@ export type TrendingValueGap = {
   actions: DiscoverAction[];
   /** Phase 8 — investor-grade comparable scores */
   opportunityScorecard?: import("@/lib/discover/opportunity-score").OpportunityScorecard;
+  /** Extracted user activity on upstream products — not RESOLVE marketing copy */
+  valueSignals?: import("@/lib/discover/community-value-profiles").ValueProvidedSignal[];
+  /** Upstream product label — e.g. "Jellyfin server" not "Jellyfin sensor" */
+  productLabel?: string;
+  /** Ecosystem grouping for Discover rows */
+  ecosystem?: string;
 };
 
 export type RadarEmptyState = {

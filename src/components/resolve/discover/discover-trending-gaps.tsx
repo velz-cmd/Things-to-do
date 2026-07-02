@@ -11,7 +11,6 @@ import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { filterGapsByNeedType } from "@/lib/discover/need-types";
 import { sortByOpportunityScore, type OpportunitySortKey } from "@/lib/discover/opportunity-score";
 import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
-import { isVerifiedGap } from "@/lib/discover/gap-rules";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import {
   DiscoverDegradedHint,
@@ -72,13 +71,10 @@ export function DiscoverTrendingGaps({
     [feed, filtered, limit, role, connections.installedCommunitySlugs],
   );
 
-  const hasVerified = displayRows.some(isVerifiedGap);
-  const previewOnly = displayRows.length > 0 && !hasVerified;
-
   const subtitle =
     feed?.realSignalCount != null && feed.realSignalCount > 0
-      ? `${feed.realSignalCount} ledger-verified authorizations · capital not yet settled`
-      : "Value happening without money flow — ranked by what you can act on next";
+      ? `${feed.realSignalCount} verified on ledger`
+      : undefined;
 
   return (
     <DiscoverPremiumSection
@@ -107,21 +103,16 @@ export function DiscoverTrendingGaps({
         </DiscoverStatePanel>
       ) : (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <DiscoverAttachRail
-            context="gaps"
-            role={role}
-            needType={needType}
-            signedIn={signedIn}
-          />
+          {displayRows.length === 0 && (
+            <DiscoverAttachRail
+              context="gaps"
+              role={role}
+              needType={needType}
+              signedIn={signedIn}
+            />
+          )}
 
           <div className="min-w-0 flex-1">
-            {previewOnly && (
-              <p className="mb-2 text-[11px] text-amber-200/80">
-                We found unpaid value from real upstream activity — connect a source on the
-                left, create a payout rule, then fund to settle on Arc.
-              </p>
-            )}
-
             {displayRows.length > 0 && (
               <>
                 <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -161,7 +152,7 @@ export function DiscoverTrendingGaps({
                       role={role}
                       rank={i + 1}
                       surface="trending-gaps"
-                      maxActions={5}
+                      maxActions={3}
                     />
                   ))}
                 </ul>
@@ -171,8 +162,7 @@ export function DiscoverTrendingGaps({
             {displayRows.length === 0 && (
               <DiscoverStatePanel variant="empty">
                 <p className="text-sm text-resolve-muted">
-                  No unpaid value ranked yet — connect a source on the left to extract real
-                  activity (plays, watches, PRs, citations).
+                  Connect a source to extract plays, watches, PRs, or citations.
                 </p>
               </DiscoverStatePanel>
             )}

@@ -30,7 +30,6 @@ import {
   DiscoverActionAuditPanel,
   DiscoverActionAuditProvider,
 } from "@/components/resolve/discover/discover-action-audit-panel";
-import { DiscoverCommunities } from "@/components/resolve/discover/discover-communities";
 import {
   DiscoverWorkspaceNav,
   defaultLaneForRole,
@@ -168,10 +167,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           </div>
         </section>
 
-        <div className="discover-section-stack scroll-mt-24">
-          <DiscoverCommunities signedIn={Boolean(user)} role={role} />
-        </div>
-
         <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">
           <DiscoverValueBubblemap
             intent={intent}
@@ -181,30 +176,14 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           />
         </div>
 
-        <footer className="discover-on-canvas mt-10 border-t border-resolve-border/30 pt-6">
-          <p className="discover-muted mb-3 text-center text-[10px]">
-            All communities · live consoles on{" "}
-            <Link href="/communities" className="text-resolve-accent hover:underline">
-              Communities
-            </Link>{" "}
-            · agent intel on{" "}
-            <Link href="/mission" className="text-resolve-accent hover:underline">
-              Mission
-            </Link>{" "}
-            · payouts on{" "}
-            <Link href="/capital" className="text-resolve-accent hover:underline">
-              Capital
-            </Link>
-          </p>
+        <footer className="discover-on-canvas mt-10 border-t border-resolve-border/30 pt-5">
           <nav
             className="discover-muted flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs"
             aria-label="Discover navigation"
           >
-            <Link href="/capital">Capital</Link>
             <Link href="/communities">Communities</Link>
+            <Link href="/capital">Capital</Link>
             <Link href="/mission">Mission</Link>
-            <Link href="/stack">Stack</Link>
-            <Link href="/claim">Claim</Link>
           </nav>
         </footer>
       </div>

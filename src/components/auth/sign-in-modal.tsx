@@ -55,8 +55,6 @@ export function SignInModal() {
   const { open, closeSignIn } = useSignInModal();
   const {
     sendLoginCode,
-    signInWithGoogle,
-    signInWithGitHub,
     emailEnabled,
     googleEnabled,
     githubEnabled,
@@ -178,32 +176,16 @@ export function SignInModal() {
     setInlineError(null);
   }
 
-  async function handleGithub() {
+  function handleGithub() {
     setMethodError((prev) => ({ ...prev, github: undefined }));
     setAuthAction("github");
-    try {
-      await signInWithGitHub();
-    } catch {
-      setMethodError((prev) => ({
-        ...prev,
-        github: "GitHub sign-in needs OAuth in Supabase dashboard.",
-      }));
-      setAuthAction(null);
-    }
+    window.location.assign("/api/auth/oauth/github?next=/profile");
   }
 
-  async function handleGoogle() {
+  function handleGoogle() {
     setMethodError((prev) => ({ ...prev, google: undefined }));
     setAuthAction("google");
-    try {
-      await signInWithGoogle();
-    } catch {
-      setMethodError((prev) => ({
-        ...prev,
-        google: "Google sign-in needs OAuth redirect setup.",
-      }));
-      setAuthAction(null);
-    }
+    window.location.assign("/api/auth/oauth/google");
   }
 
   function handleOpenWalletPicker() {

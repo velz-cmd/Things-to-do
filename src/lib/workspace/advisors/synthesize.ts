@@ -55,6 +55,7 @@ export async function askValueAdvisor(input: {
   const result = await runMissionOrchestrator({
     question: input.question,
     messages: input.messages,
+    seedEvidence: input.evidence,
     operatingMode: input.operatingMode,
     ecosystem: input.ecosystem,
   });

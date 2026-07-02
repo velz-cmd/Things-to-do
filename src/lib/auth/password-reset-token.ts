@@ -1,0 +1,74 @@
+import { createHash, randomBytes } from "crypto";
+import { prisma } from "@/lib/db";
+
+const RESET_TTL_MS = 60 * 60 * 1000;
+
+export function hashResetToken(plain: string): string {
+  return createHash("sha256").update(plain).digest("hex");
+}
+
+export function generateResetToken(): { plain: string; hash: string } {
+  const plain = randomBytes(32).toString("base64url");
+  return { plain, hash: hashResetToken(plain) };
+}
+
+export async function invalidateActiveResetTokens(email: string) {
+  await prisma.passwordResetToken.updateMany({
+    where: {
+      email: email.trim().toLowerCase(),
+      usedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    data: { usedAt: new Date() },
+  });
+}
+
+export async function createPasswordResetToken(input: {
+  userId: string;
+  email: string;
+  ttlMs?: number;
+}): Promise<{ plain: string; expiresAt: Date }> {
+  const email = input.email.trim().toLowerCase();
+  await invalidateActiveResetTokens(email);
+
+  const { plain, hash } = generateResetToken();
+  const expiresAt = new Date(Date.now() + (input.ttlMs ?? RESET_TTL_MS));
+
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: input.userId,
+      email,
+      tokenHash: hash,
+      expiresAt,
+    },
+  });
+
+  return { plain, expiresAt };
+}
+
+export async function findValidResetToken(plain: string) {
+  const hash = hashResetToken(plain.trim());
+  const row = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hash },
+  });
+
+  if (!row || row.usedAt || row.expiresAt <= new Date()) {
+    return null;
+  }
+
+  return row;
+}
+
+export async function markResetTokenUsed(id: string) {
+  await prisma.passwordResetToken.update({
+    where: { id },
+    data: { usedAt: new Date() },
+  });
+}
+
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return email;
+  const visible = local.length <= 2 ? local[0] ?? "*" : local.slice(0, 2);
+  return `${visible}***@${domain}`;
+}

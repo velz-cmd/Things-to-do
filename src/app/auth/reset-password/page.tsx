@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
@@ -19,13 +19,15 @@ function createSupabaseClient(
   );
 }
 
-const RECOVERY_TOKEN_KEY = "resolve.auth.recoveryToken";
-const RECOVERY_TYPE_KEY = "resolve.auth.recoveryType";
+const APP_TOKEN_KEY = "resolve.auth.resetToken";
+const LEGACY_TOKEN_KEY = "resolve.auth.recoveryToken";
+const LEGACY_TYPE_KEY = "resolve.auth.recoveryType";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const capabilities = useAuthCapabilities();
+  const bootstrapped = useRef(false);
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -33,15 +35,45 @@ export default function ResetPasswordPage() {
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [maskedEmail, setMaskedEmail] = useState<string | null>(null);
+  const [appToken, setAppToken] = useState<string | null>(null);
+  const [legacyMode, setLegacyMode] = useState(false);
 
+  const tokenFromUrl = searchParams.get("token");
   const tokenHash = searchParams.get("token_hash");
   const recoveryType = (searchParams.get("type") ?? "recovery") as EmailOtpType;
 
-  const clearRecoveryParams = useCallback(() => {
+  const stripQueryParams = useCallback(() => {
     router.replace("/auth/reset-password");
   }, [router]);
 
-  const verifyRecoveryToken = useCallback(async () => {
+  const storeAppToken = useCallback((token: string) => {
+    setAppToken(token);
+    try {
+      sessionStorage.setItem(APP_TOKEN_KEY, token);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const validateAppToken = useCallback(async (token: string) => {
+    const res = await fetch(
+      `/api/auth/validate-reset-token?token=${encodeURIComponent(token)}`,
+      { credentials: "include", signal: AbortSignal.timeout(15_000) },
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      email?: string;
+      error?: string;
+    };
+    if (!res.ok) {
+      throw new Error(data.error ?? "Could not verify reset link.");
+    }
+    if (data.email) setMaskedEmail(data.email);
+    return true;
+  }, []);
+
+  const verifyLegacyRecoveryToken = useCallback(async () => {
     const config = capabilities.publicConfig;
     const supabase = createSupabaseClient(config);
     if (!supabase) {
@@ -52,11 +84,11 @@ export default function ResetPasswordPage() {
 
     const storedHash =
       typeof window !== "undefined"
-        ? sessionStorage.getItem(RECOVERY_TOKEN_KEY) ?? tokenHash
+        ? sessionStorage.getItem(LEGACY_TOKEN_KEY) ?? tokenHash
         : tokenHash;
     const storedType =
       (typeof window !== "undefined"
-        ? sessionStorage.getItem(RECOVERY_TYPE_KEY) ?? recoveryType
+        ? sessionStorage.getItem(LEGACY_TYPE_KEY) ?? recoveryType
         : recoveryType) as EmailOtpType;
 
     if (!storedHash) {
@@ -80,9 +112,10 @@ export default function ResetPasswordPage() {
         throw new Error(data.error ?? "Could not verify reset link.");
       }
 
-      sessionStorage.removeItem(RECOVERY_TOKEN_KEY);
-      sessionStorage.removeItem(RECOVERY_TYPE_KEY);
-      clearRecoveryParams();
+      sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+      sessionStorage.removeItem(LEGACY_TYPE_KEY);
+      stripQueryParams();
+      setLegacyMode(true);
       setPhase("form");
     } catch (e) {
       const message =
@@ -96,10 +129,11 @@ export default function ResetPasswordPage() {
     } finally {
       setVerifying(false);
     }
-  }, [capabilities.publicConfig, clearRecoveryParams, recoveryType, tokenHash]);
+  }, [capabilities.publicConfig, recoveryType, stripQueryParams, tokenHash]);
 
   useEffect(() => {
-    if (!capabilities.loaded) return;
+    if (!capabilities.loaded || bootstrapped.current) return;
+    bootstrapped.current = true;
 
     let cancelled = false;
 
@@ -131,7 +165,8 @@ export default function ResetPasswordPage() {
             await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) throw exchangeError;
           if (!cancelled) {
-            clearRecoveryParams();
+            stripQueryParams();
+            setLegacyMode(true);
             setPhase("form");
           }
           return;
@@ -147,6 +182,7 @@ export default function ResetPasswordPage() {
           });
           if (sessionError) throw sessionError;
           if (!cancelled) {
+            setLegacyMode(true);
             setPhase("form");
           }
           return;
@@ -155,28 +191,41 @@ export default function ResetPasswordPage() {
         const { data, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) throw sessionError;
         if (data.session) {
+          if (!cancelled) {
+            setLegacyMode(true);
+            setPhase("form");
+          }
+          return;
+        }
+
+        const storedAppToken =
+          tokenFromUrl ?? sessionStorage.getItem(APP_TOKEN_KEY);
+        if (storedAppToken) {
+          if (tokenFromUrl) {
+            storeAppToken(tokenFromUrl);
+            if (window.location.search.includes("token=")) {
+              stripQueryParams();
+            }
+          } else {
+            setAppToken(storedAppToken);
+          }
+
+          await validateAppToken(storedAppToken);
           if (!cancelled) setPhase("form");
           return;
         }
 
-        const storedToken = sessionStorage.getItem(RECOVERY_TOKEN_KEY);
-        const effectiveToken = tokenHash ?? storedToken;
-
-        if (effectiveToken) {
-          if (!cancelled) {
-            try {
-              if (tokenHash) {
-                sessionStorage.setItem(RECOVERY_TOKEN_KEY, tokenHash);
-                sessionStorage.setItem(RECOVERY_TYPE_KEY, recoveryType);
-              }
-              if (window.location.search.includes("token_hash=")) {
-                clearRecoveryParams();
-              }
-            } catch {
-              /* ignore */
+        const storedLegacy = sessionStorage.getItem(LEGACY_TOKEN_KEY);
+        const effectiveLegacy = tokenHash ?? storedLegacy;
+        if (effectiveLegacy) {
+          if (tokenHash) {
+            sessionStorage.setItem(LEGACY_TOKEN_KEY, tokenHash);
+            sessionStorage.setItem(LEGACY_TYPE_KEY, recoveryType);
+            if (window.location.search.includes("token_hash=")) {
+              stripQueryParams();
             }
-            setPhase("confirm");
           }
+          if (!cancelled) setPhase("confirm");
           return;
         }
 
@@ -203,10 +252,13 @@ export default function ResetPasswordPage() {
   }, [
     capabilities.loaded,
     capabilities.publicConfig,
-    clearRecoveryParams,
-    searchParams,
-    tokenHash,
     recoveryType,
+    searchParams,
+    storeAppToken,
+    stripQueryParams,
+    tokenFromUrl,
+    tokenHash,
+    validateAppToken,
   ]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -222,18 +274,34 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    const supabase = createSupabaseClient(capabilities.publicConfig);
-    if (!supabase) {
-      setError("Auth is not configured.");
-      return;
-    }
-
     setSubmitting(true);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({
-        password,
-      });
-      if (updateError) throw updateError;
+      if (appToken && !legacyMode) {
+        const res = await fetch("/api/auth/complete-password-reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ token: appToken, password }),
+          signal: AbortSignal.timeout(20_000),
+        });
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) {
+          throw new Error(data.error ?? "Could not save password.");
+        }
+
+        sessionStorage.removeItem(APP_TOKEN_KEY);
+      } else {
+        const supabase = createSupabaseClient(capabilities.publicConfig);
+        if (!supabase) {
+          setError("Auth is not configured.");
+          return;
+        }
+
+        const { error: updateError } = await supabase.auth.updateUser({
+          password,
+        });
+        if (updateError) throw updateError;
+      }
 
       await fetch("/api/wallet/provision", {
         method: "POST",
@@ -284,7 +352,7 @@ export default function ResetPasswordPage() {
             <button
               type="button"
               disabled={verifying}
-              onClick={() => void verifyRecoveryToken()}
+              onClick={() => void verifyLegacyRecoveryToken()}
               className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:opacity-50"
             >
               {verifying ? "Verifying…" : "Continue to set password"}
@@ -306,6 +374,11 @@ export default function ResetPasswordPage() {
 
         {phase === "form" && (
           <form onSubmit={(e) => void handleSubmit(e)} className="mt-6 space-y-3">
+            {maskedEmail && (
+              <p className="text-sm text-slate-400">
+                Setting password for <span className="text-white">{maskedEmail}</span>
+              </p>
+            )}
             {error && <p className="text-sm text-amber-200">{error}</p>}
             <input
               type="password"

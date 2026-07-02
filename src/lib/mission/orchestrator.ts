@@ -133,6 +133,7 @@ async function maybeEnhanceWithReasoning(
 export async function runMissionOrchestrator(input: {
   question: string;
   messages?: AdvisorMessage[];
+  seedEvidence?: import("@/lib/workspace/context").WorkspaceEvidence;
   operatingMode?: import("@/lib/mission/capital-os").OperatingMode;
   ecosystem?: {
     name: string;
@@ -149,6 +150,7 @@ export async function runMissionOrchestrator(input: {
   const collected = await runCollectors({
     capability,
     question: input.question,
+    seedEvidence: input.seedEvidence,
     community: input.ecosystem ?
       {
         name: input.ecosystem.name,

@@ -1,11 +1,29 @@
 import { NextResponse } from "next/server";
 import { buildDiscoverRadar } from "@/lib/discover/radar";
 
+const RADAR_CACHE_MS = 30_000;
+let radarCache: { at: number; body: Awaited<ReturnType<typeof buildDiscoverRadar>> } | null =
+  null;
+
 /** Discover global radar — real authorizations, timeline, graph slice only */
 export async function GET() {
+  const now = Date.now();
+  if (radarCache && now - radarCache.at < RADAR_CACHE_MS) {
+    return NextResponse.json(radarCache.body, {
+      headers: {
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+      },
+    });
+  }
+
   try {
     const radar = await buildDiscoverRadar();
-    return NextResponse.json(radar);
+    radarCache = { at: now, body: radar };
+    return NextResponse.json(radar, {
+      headers: {
+        "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+      },
+    });
   } catch (e) {
     console.error("[discover/radar]", e);
     return NextResponse.json(

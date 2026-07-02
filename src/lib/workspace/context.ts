@@ -2,7 +2,7 @@ import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getTreasurySnapshot } from "@/lib/treasury/engine";
 import { getCapitalFlowSnapshot } from "@/lib/capital-flow/engine";
-import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
 import { domainLabel } from "@/lib/workspace/domains";
 
@@ -14,7 +14,7 @@ export type WorkspaceEvidence = {
   capitalFlow: Awaited<ReturnType<typeof getCapitalFlowSnapshot>>;
   connectors: Awaited<ReturnType<typeof getConnectorLiveStatuses>>;
   integrations: Awaited<ReturnType<typeof runIntegrationHealthCheck>>;
-  opportunities: Awaited<ReturnType<typeof scanAllOpportunities>>;
+  opportunities: Awaited<ReturnType<typeof cachedScanAllOpportunities>>;
 };
 
 export async function gatherWorkspaceEvidence(): Promise<WorkspaceEvidence> {
@@ -25,7 +25,7 @@ export async function gatherWorkspaceEvidence(): Promise<WorkspaceEvidence> {
     runIntegrationHealthCheck().catch(() => null),
     process.env.CI === "true"
       ? Promise.resolve([])
-      : scanAllOpportunities().catch(() => []),
+      : cachedScanAllOpportunities().catch(() => []),
   ]);
 
   const capitalFlow = await getCapitalFlowSnapshot(ledger?.count ?? 0);

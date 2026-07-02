@@ -249,9 +249,6 @@ export function MissionControl() {
           })),
         ).catch(() => undefined);
       }
-
-      const wb = await fetchWorkbench();
-      if (wb) setTreasuryBalanceUsd(wb.treasury.balanceUsd);
     }
     void bootstrap();
   }, []);
@@ -265,6 +262,14 @@ export function MissionControl() {
       lastCapability === "claim_value",
     [lastPhase, lastCapability],
   );
+
+  useEffect(() => {
+    if (!serverMode || treasuryBalanceUsd !== undefined) return;
+    if (!showCapital && !objective) return;
+    void fetchWorkbench().then((wb) => {
+      if (wb) setTreasuryBalanceUsd(wb.treasury.balanceUsd);
+    });
+  }, [serverMode, showCapital, objective, treasuryBalanceUsd]);
 
   const showPolicies = useMemo(
     () => showCapital && policies.length > 0,

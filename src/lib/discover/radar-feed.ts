@@ -153,9 +153,28 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 }
 
 /** Safe wrapper for API route — returns empty payload only on total failure. */
+const FEED_CACHE_MS = 30_000;
+let feedCache: {
+  at: number;
+  limit: number;
+  data: DiscoverRadarFeedPayload;
+} | null = null;
+
 export async function buildDiscoverRadarFeedSafe(limit = 24): Promise<DiscoverRadarFeedPayload> {
+  const bounded = Math.min(Math.max(limit, 1), 48);
+  const now = Date.now();
+  if (
+    feedCache &&
+    feedCache.limit === bounded &&
+    now - feedCache.at < FEED_CACHE_MS
+  ) {
+    return feedCache.data;
+  }
+
   try {
-    return await buildDiscoverRadarFeed(limit);
+    const data = await buildDiscoverRadarFeed(bounded);
+    feedCache = { at: now, limit: bounded, data };
+    return data;
   } catch (e) {
     console.error("[discover/radar-feed] catastrophic:", e);
     return emptyRadarFeedPayload({

@@ -34,6 +34,7 @@ import { DiscoverValueNodeStrip } from "@/components/resolve/discover/discover-v
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { gapsPrimaryActions } from "@/lib/discover/gaps-empty-state";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { useInView } from "@/hooks/use-in-view";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -151,6 +152,7 @@ export function DiscoverValueBubblemap({
 }) {
   const { state: connections } = useUserConnections();
   const sectionRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(sectionRef);
   const [data, setData] = useState<RadarPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,8 +191,9 @@ export function DiscoverValueBubblemap({
   }, []);
 
   useEffect(() => {
+    if (!inView) return;
     void loadRadar();
-  }, [loadRadar]);
+  }, [inView, loadRadar]);
 
   const { filteredGraph, intentFallback } = useMemo(() => {
     const nodes = data?.graph.nodes ?? [];

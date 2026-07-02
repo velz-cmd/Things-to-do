@@ -75,6 +75,7 @@ function wantsLayer(community: CommunityContext, layer: CapabilityLayer): boolea
 export async function runCollectors(input: {
   capability: CapabilityId;
   question: string;
+  seedEvidence?: Awaited<ReturnType<typeof gatherWorkspaceEvidence>>;
   community?: {
     name: string;
     kind?: string;
@@ -106,7 +107,7 @@ export async function runCollectors(input: {
   const stepsRun: string[] = [`Detecting ${community.kindLabel} community`];
 
   stepsRun.push("Gathering workspace evidence");
-  const evidence = await gatherWorkspaceEvidence();
+  const evidence = input.seedEvidence ?? (await gatherWorkspaceEvidence());
 
   if (wantsLayer(community, "capital") || wantsLayer(community, "verify")) {
     traces.push(

@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Coins,
   Compass,
   Radio,
   Search,
@@ -10,7 +9,6 @@ import {
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 export type DiscoverJobId =
-  | "earn"
   | "fund"
   | "run"
   | "observe"
@@ -29,15 +27,6 @@ export type DiscoverJob = {
 
 /** Primary Discover entry — maps to existing roles and section anchors. */
 export const DISCOVER_JOBS: DiscoverJob[] = [
-  {
-    id: "earn",
-    title: "Earn from my work",
-    who: "Community · creator",
-    surfaces: "Capital earnings, claim, GitHub & artist connectors",
-    role: "community",
-    scrollTo: "discover-workspace",
-    icon: Coins,
-  },
   {
     id: "fund",
     title: "Fund where it matters",
@@ -80,7 +69,7 @@ export const DISCOVER_JOBS: DiscoverJob[] = [
     who: "Everyone",
     surfaces: "Search and scored opportunity board",
     role: "all",
-    scrollTo: "discover-search",
+    scrollTo: "discover-workspace",
     icon: Search,
   },
 ];

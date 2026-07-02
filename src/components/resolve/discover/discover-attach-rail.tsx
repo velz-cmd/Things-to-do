@@ -78,7 +78,7 @@ export function DiscoverAttachRail({
         {context === "board" ? "Sources to prove value" : "Sources to prove value"}
       </p>
       <p className="mt-0.5 text-[9px] leading-relaxed text-resolve-muted-dim">
-        Real activity from upstream products — not RESOLVE copy
+        Upstream activity
       </p>
 
       <ul className="mt-2 space-y-1.5">

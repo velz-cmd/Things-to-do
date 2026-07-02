@@ -33,9 +33,6 @@ export function DiscoverJobHero({
             What do you want to do?
           </h1>
         </div>
-        <p className="discover-subtitle max-w-md text-[11px] leading-snug sm:text-xs">
-          Pick a job — proof, actions, and rails surface below. No essays.
-        </p>
       </div>
 
       <ul className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -55,7 +52,6 @@ export function DiscoverJobHero({
                   `discover-job-pill--${job.id}`,
                   selected && "discover-job-pill--selected",
                 )}
-                title={job.surfaces}
                 onClick={() => onSelectJob(job.id, job.role, job.scrollTo)}
               >
                 <span className="flex w-full flex-col items-start gap-1 px-2.5 py-2">

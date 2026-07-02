@@ -16,7 +16,6 @@ import {
 } from "@/lib/supabase/client";
 import {
   useAuthCapabilities,
-  markGoogleAuthBroken,
 } from "@/hooks/use-auth-capabilities";
 import { syncLocalMemoryToServer } from "@/lib/auth/memory-sync";
 import { syncLocalEcosystemsToServer, clearGuestSessionStorage } from "@/lib/auth/ecosystem-sync";
@@ -242,46 +241,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, refreshBalance]);
 
   const signInWithGoogle = useCallback(async () => {
-    if (!supabase || !googleEnabled) {
+    if (!googleEnabled) {
       throw new Error("Google sign-in is not available");
     }
-    const { error } = await withTimeout(
-      supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          scopes: "openid email profile",
-        },
-      }),
-      10_000
-    );
-    if (error) {
-      if (
-        error.message.includes("redirect") ||
-        error.message.includes("OAuth")
-      ) {
-        markGoogleAuthBroken();
-      }
-      throw error;
-    }
-  }, [supabase, googleEnabled]);
+    window.location.assign("/api/auth/oauth/google");
+  }, [googleEnabled]);
 
   const signInWithGitHub = useCallback(async () => {
-    if (!supabase || !githubEnabled) {
+    if (!githubEnabled) {
       throw new Error("GitHub sign-in is not available");
     }
-    const { error } = await withTimeout(
-      supabase.auth.signInWithOAuth({
-        provider: "github",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/profile`,
-          scopes: "read:user",
-        },
-      }),
-      10_000,
-    );
-    if (error) throw error;
-  }, [supabase, githubEnabled]);
+    window.location.assign("/api/auth/oauth/github?next=/profile");
+  }, [githubEnabled]);
 
   const linkGitHub = useCallback(async () => {
     if (!supabase || !githubEnabled) {

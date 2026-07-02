@@ -15,7 +15,18 @@ If `/auth/callback` is missing from the allowlist, Supabase falls back to Site U
 Email links are sent **server-side** via Supabase (`/api/auth/send-code`). For reliable delivery in production:
 
 1. Supabase → **Authentication** → **Email** → enable provider
-2. Supabase → **Authentication** → **SMTP Settings** — configure custom SMTP (e.g. Resend) for production volume; the built-in Supabase mailer has low rate limits
+2. Supabase → **Authentication** → **SMTP Settings** — use Resend (not Google OAuth credentials):
+
+| Field | Value |
+|-------|--------|
+| Host | `smtp.resend.com` |
+| Port | `465` or `587` |
+| Username | `resend` |
+| Password | Your `RESEND_API_KEY` from Vercel |
+| Sender email | Verified address in Resend |
+| Sender name | `RESOLVE` |
+
+Do **not** use Google OAuth Client ID/Secret or your personal password as SMTP credentials.
 3. Ensure `SUPABASE_SERVICE_ROLE_KEY` is set on Vercel (required for server-side send)
 4. Magic link redirect uses `APP_URL` / `NEXT_PUBLIC_APP_URL` → `/auth/callback`
 
@@ -25,8 +36,13 @@ Email links are sent **server-side** via Supabase (`/api/auth/send-code`). For r
 2. Paste your Google Cloud OAuth **Client ID** and **Client Secret**
 3. Authorized redirect URI in Google Cloud Console must include:
    `https://jjducnguljjddciczvuy.supabase.co/auth/v1/callback`
+4. The app starts OAuth via `/api/auth/oauth/google` (server redirect with PKCE cookies)
 
 App env vars `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are for Gmail agent tools only — **not** Supabase OAuth.
+
+## GitHub sign-in
+
+Same redirect URL rules as Google. OAuth starts at `/api/auth/oauth/github`.
 
 ## Email login code (OTP)
 

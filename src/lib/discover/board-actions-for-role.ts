@@ -2,6 +2,7 @@ import type { DiscoverAction } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedType } from "@/lib/discover/need-types";
 import { primaryBoardCtaLabel } from "@/lib/discover/need-types";
+import { operationalActionsForCommunity } from "@/lib/discover/community-value-profiles";
 
 export type BoardCommunityContext = {
   communitySlug: string;
@@ -29,8 +30,7 @@ export function boardUseCaseLine(role: DiscoverRole): string {
 }
 
 /**
- * Role-tailored CTAs for catalog "attach first" rows.
- * Unattached → one action (Attach). Attached → fund / launch program (never duplicate explore + console).
+ * Row actions: attach is prerequisite; operational actions (fund, launch, connect) do the work.
  */
 export function boardCommunityActions(
   role: DiscoverRole,
@@ -43,70 +43,47 @@ export function boardCommunityActions(
     templateId,
   });
 
+  const operational = operationalActionsForCommunity(role, {
+    communitySlug,
+    templateId,
+    communityName,
+    installed,
+  });
+
   if (!installed) {
-    if (role === "community") {
-      return [
-        {
-          id: "install",
-          label: `Attach ${communityName}`,
-          kind: "install",
-          communitySlug,
-          reason: "Installs your community console — earnings sync to Capital",
-        },
-      ];
-    }
-    if (role === "founder") {
-      return [
-        {
-          id: "install",
-          label: `Install on ${communityName}`,
-          kind: "install",
-          communitySlug,
-        },
-      ];
-    }
-    if (role === "operator") {
-      return [
-        {
-          id: "install",
-          label: `Connect ${communityName}`,
-          kind: "install",
-          communitySlug,
-        },
-      ];
-    }
-    return [
-      {
-        id: "install",
-        label: `Attach ${communityName}`,
-        kind: "install",
-        communitySlug,
-        reason: "One step — sensors sync in background; fund after program exists",
-      },
-    ];
+    const attach: DiscoverAction = {
+      id: "install",
+      label:
+        role === "operator"
+          ? `Connect ${communityName}`
+          : role === "founder"
+            ? `Install on ${communityName}`
+            : `Attach ${communityName}`,
+      kind: "install",
+      communitySlug,
+      reason: "Required once — then fund, launch programs, and extract value",
+    };
+    return [attach, ...operational];
   }
 
   if (role === "community") {
-    return [
-      { id: "earn", label: "View earnings on Capital", kind: "open", href: "/capital" },
-    ];
+    return operational.length > 0
+      ? operational
+      : [{ id: "earn", label: "View earnings on Capital", kind: "open", href: "/capital" }];
   }
 
   if (role === "founder") {
+    const program = operational.find((a) => a.kind === "create_program");
+    const consoleAction = operational.find((a) => a.kind === "console");
     return [
-      {
+      program ?? {
         id: "program",
         label: "Launch program",
         kind: "create_program",
         communitySlug,
         templateId,
       },
-    ];
-  }
-
-  if (role === "operator") {
-    return [
-      {
+      consoleAction ?? {
         id: "console",
         label: "Open console",
         kind: "console",
@@ -115,43 +92,59 @@ export function boardCommunityActions(
     ];
   }
 
+  if (role === "operator") {
+    return operational.filter((a) => a.kind === "console" || a.kind === "connect_sensor").length > 0
+      ? operational
+      : [
+          {
+            id: "console",
+            label: "Open console",
+            kind: "console",
+            communitySlug,
+          },
+        ];
+  }
+
   if (role === "dao") {
-    const grantTemplate =
-      templateId === "quadratic-funding" ? templateId : ("quadratic-funding" as const);
+    const grant = operational.find((a) => a.templateId === "quadratic-funding");
+    const fund = operational.find((a) => a.kind === "fund");
     return [
-      {
+      grant ?? {
         id: "grant",
         label: "Launch grant round",
         kind: "create_program",
         communitySlug,
-        templateId: grantTemplate,
+        templateId: "quadratic-funding",
       },
-      {
+      fund ?? {
         id: "fund",
         label: fundLabel,
         kind: "fund",
         communitySlug,
         templateId,
       },
+      ...operational.filter((a) => a.kind === "analyze" || a.kind === "open").slice(0, 1),
     ];
   }
 
-  return [
-    {
-      id: "fund",
-      label: fundLabel,
-      kind: "fund",
-      communitySlug,
-      templateId,
-    },
-    {
-      id: "program",
-      label: "Launch program",
-      kind: "create_program",
-      communitySlug,
-      templateId,
-    },
-  ];
+  return operational.length > 0
+    ? operational
+    : [
+        {
+          id: "fund",
+          label: fundLabel,
+          kind: "fund",
+          communitySlug,
+          templateId,
+        },
+        {
+          id: "program",
+          label: "Launch program",
+          kind: "create_program",
+          communitySlug,
+          templateId,
+        },
+      ];
 }
 
 export function boardSubtitleForRole(role: DiscoverRole, signedIn: boolean, walletUsd: number | null): string {

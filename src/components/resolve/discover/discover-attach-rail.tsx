@@ -15,7 +15,7 @@ type AttachContext = "gaps" | "radar" | "board";
 
 const RADAR_SENSOR_FILTER: Record<DomainRadarId, string[]> = {
   oss: ["github"],
-  music: ["listenbrainz", "musicbrainz", "navidrome"],
+  music: ["listenbrainz", "musicbrainz", "navidrome", "jellyfin"],
   dao: ["musicbrainz"],
 };
 
@@ -72,10 +72,13 @@ export function DiscoverAttachRail({
         "w-full sm:w-[11.5rem]",
         className,
       )}
-      aria-label="Attach sensors and communities"
+      aria-label="Value extraction sources"
     >
       <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-resolve-muted-dim">
-        {context === "board" ? "Unlock board" : "Live sensors"}
+        {context === "board" ? "Extract value" : "Value sources"}
+      </p>
+      <p className="mt-0.5 text-[9px] leading-relaxed text-resolve-muted-dim">
+        Real activity from upstream products — not RESOLVE copy
       </p>
 
       <ul className="mt-2 space-y-1.5">
@@ -90,18 +93,23 @@ export function DiscoverAttachRail({
               <div className="flex items-center gap-1.5 text-[10px] font-medium text-white">
                 <Icon className="h-3.5 w-3.5 text-sky-400" />
                 {sensor.label}
-                {linked && (
+                {linked ? (
                   <span className="ml-auto rounded bg-emerald-500/15 px-1 py-0.5 text-[8px] text-emerald-300">
-                    live
+                    extracting
+                  </span>
+                ) : (
+                  <span className="ml-auto rounded bg-white/[0.04] px-1 py-0.5 text-[8px] text-resolve-muted-dim">
+                    idle
                   </span>
                 )}
               </div>
+              <p className="mt-0.5 text-[9px] text-resolve-muted-dim">{sensor.extracts}</p>
               {!linked && (
                 <a
                   href={sensor.href}
                   className="mt-1 inline-block text-[10px] font-medium text-sky-400 hover:text-sky-300"
                 >
-                  Connect {sensor.label} →
+                  Connect →
                 </a>
               )}
             </li>
@@ -111,7 +119,10 @@ export function DiscoverAttachRail({
 
       {attachActions.length > 0 && (
         <div className="mt-3 space-y-1.5 border-t border-white/[0.06] pt-3">
-          <p className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Communities</p>
+          <p className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">
+            Communities
+          </p>
+          <p className="text-[9px] text-resolve-muted-dim">Attach once — then fund and operate</p>
           {attachActions.slice(0, 3).map((action, index) => (
             <DiscoverActionChip
               key={`${action.id}-${index}`}

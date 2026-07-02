@@ -391,10 +391,11 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByRole("heading", { name: "Trending value gaps" })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText(/GitHub sensor|Jellyfin|Navidrome|ListenBrainz/i).first()).toBeVisible({
+    await expect(page.getByText(/Jellyfin|Navidrome|React ecosystem|GitHub/i).first()).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByRole("button", { name: /Attach/i }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Fund|Launch|Connect/i }).first()).toBeVisible();
   });
 
   test("communities hub shows install cards and vitals", async ({ page, request }) => {

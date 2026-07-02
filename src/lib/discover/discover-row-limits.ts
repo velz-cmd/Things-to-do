@@ -29,7 +29,7 @@ export function collectGapsRows(
     return filtered.slice(0, limit);
   }
   if (!feed) {
-    return buildSensorCommunityPreviewRows(role, installedSlugs, limit);
+    return buildSensorCommunityPreviewRows(role, installedSlugs, limit, "gaps");
   }
 
   const verified = dedupeTrendingGaps((feed.gaps ?? []).filter(isVerifiedGap));
@@ -42,7 +42,7 @@ export function collectGapsRows(
     ...feed.domainRadars.oss.cards,
     ...feed.domainRadars.music.cards,
     ...feed.domainRadars.dao.cards,
-    ...buildSensorCommunityPreviewRows(role, installedSlugs, limit),
+    ...buildSensorCommunityPreviewRows(role, installedSlugs, limit, "gaps"),
   ]).sort((a, b) => gapRank(b) - gapRank(a));
 
   return preview.slice(0, limit);
@@ -67,12 +67,18 @@ function filterSensorRowsForRadar(
   role: DiscoverRole,
   installedSlugs: string[],
 ): TrendingValueGap[] {
-  const all = buildSensorCommunityPreviewRows(role, installedSlugs, 8);
+  const all = buildSensorCommunityPreviewRows(role, installedSlugs, 8, radarId);
   if (radarId === "oss") {
     return all.filter((g) => g.domain === "oss" || g.communitySlug === "react" || g.communitySlug === "linux");
   }
   if (radarId === "music") {
-    return all.filter((g) => g.domain === "music" || g.communitySlug === "jellyfin");
+    return all.filter(
+      (g) =>
+        g.domain === "music" ||
+        g.communitySlug === "jellyfin" ||
+        g.communitySlug === "navidrome" ||
+        g.communitySlug === "independent-music",
+    );
   }
   return all.filter((g) => g.domain === "research" || g.communitySlug === "open-research");
 }

@@ -98,15 +98,15 @@ export function DiscoverDomainRadars({
   const live = bundle?.hasLiveData ?? false;
 
   const radarTaglines: Record<typeof activeRadar, string> = {
-    oss: "Maintainer graphs · docs bounties · security funds",
-    music: "Per-play royalties · artist graphs · listener-direct",
-    dao: "QF rounds · citation tolls · grant pools",
+    oss: "GitHub contribution graphs · docs bounties · maintainer funding",
+    music: "Plays and watches from your libraries · per-event royalties",
+    dao: "Citation tolls · QF grant rounds · research treasuries",
   };
 
   return (
     <DiscoverPremiumSection
       title="Domain radars"
-      subtitle="OSS, creators, and DAO/research — top rows per vertical when ledger or scan data exists"
+      subtitle="Extracted value per ecosystem — OSS, creators, and research programs"
       className={className}
       actions={
         <DiscoverSectionRefresh
@@ -164,7 +164,7 @@ export function DiscoverDomainRadars({
               </span>
             ) : displayRows.length > 0 ? (
               <span className="shrink-0 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-200/90">
-                Scan preview
+                Awaiting upstream
               </span>
             ) : null}
           </div>
@@ -182,7 +182,7 @@ export function DiscoverDomainRadars({
                   role={role}
                   rank={i + 1}
                   surface={`radar-${activeRadar}`}
-                  maxActions={activeRadar === "dao" ? 3 : 2}
+                  maxActions={activeRadar === "dao" ? 4 : 3}
                 />
               ))}
             </ul>

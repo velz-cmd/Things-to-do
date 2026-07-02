@@ -14,6 +14,7 @@ import { useUserConnections } from "@/components/resolve/profile/user-connection
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 import { visibleDiscoverActions } from "@/lib/discover/discover-visible-actions";
 import { isCommunityInstalled } from "@/lib/profile/connection-state-types";
+import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -47,7 +48,7 @@ export function DiscoverFeatureRow({
   role: _role = "all",
   rank,
   surface = "feature-row",
-  maxActions = 5,
+  maxActions = 3,
 }: DiscoverFeatureRowProps) {
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
@@ -68,7 +69,7 @@ export function DiscoverFeatureRow({
     return { attach: attachVisible, operational: ops };
   }, [tailored, installed, maxActions]);
 
-  const allVisible = [...attach, ...operational];
+  const allVisible = useMemo(() => [...attach, ...operational], [attach, operational]);
 
   const needed = formatDiscoverMoney(
     gap.amountNeededUsd,
@@ -78,7 +79,8 @@ export function DiscoverFeatureRow({
   );
 
   const valueSignals = gap.valueSignals ?? [];
-  const showValueStrip = valueSignals.length > 0 || !gap.amountVerified;
+  const showProof = Boolean(gap.valueMetrics);
+  const showSignals = !showProof && valueSignals.length > 0;
 
   useEffect(() => {
     for (const action of allVisible) {
@@ -101,14 +103,16 @@ export function DiscoverFeatureRow({
                 {gap.ecosystem}
               </span>
             )}
-            <span
-              className={clsx(
-                "rounded border px-1.5 py-0.5 text-[8px] font-medium uppercase",
-                DOMAIN_BADGE_CLASS[gap.domain] ?? "border-white/10 bg-white/[0.06] text-resolve-muted",
-              )}
-            >
-              {gap.domain}
-            </span>
+            {!gap.ecosystem && (
+              <span
+                className={clsx(
+                  "rounded border px-1.5 py-0.5 text-[8px] font-medium uppercase",
+                  DOMAIN_BADGE_CLASS[gap.domain] ?? "border-white/10 bg-white/[0.06] text-resolve-muted",
+                )}
+              >
+                {gap.domain}
+              </span>
+            )}
             {gap.needType && (
               <span
                 className={clsx(
@@ -119,39 +123,36 @@ export function DiscoverFeatureRow({
                 {needTypeLabel(gap.needType)}
               </span>
             )}
-            <DiscoverSourceBadge
-              source={gap.dataSource}
-              estimate={!gap.amountVerified && Boolean(gap.proofGithubScanAt)}
-            />
+            {gap.amountVerified && (
+              <DiscoverSourceBadge
+                source={gap.dataSource}
+                estimate={Boolean(gap.proofGithubScanAt)}
+              />
+            )}
           </div>
 
           <p className="mt-1 text-[13px] font-semibold leading-snug text-white">{gap.headline}</p>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-resolve-muted">
-            {gap.why}
-          </p>
+          {!showProof && (
+            <p className="mt-1 line-clamp-1 text-[11px] leading-relaxed text-resolve-muted">
+              {gap.why}
+            </p>
+          )}
 
-          {showValueStrip && (
+          {showProof && gap.valueMetrics && (
+            <DiscoverProofPipeline
+              metrics={gap.valueMetrics}
+              connected={installed}
+              amountVerified={gap.amountVerified}
+              className="mt-2"
+            />
+          )}
+
+          {showSignals && (
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {gap.valueMetrics && (
-                <>
-                  <span className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[9px] text-resolve-muted">
-                    <span className="text-resolve-muted-dim">Events:</span>
-                    <span className="font-medium text-white/90">{gap.valueMetrics.observedEvents}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[9px] text-amber-100/90">
-                    <span className="text-amber-200/70">Rules:</span>
-                    <span className="font-medium">{gap.valueMetrics.payoutRules}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-[9px] text-amber-100/90">
-                    <span className="text-amber-200/70">Settlement:</span>
-                    <span className="font-medium">{gap.valueMetrics.settlement}</span>
-                  </span>
-                </>
-              )}
-              {valueSignals.length > 0 ? (
-                valueSignals
-                  .filter((s) => !s.event.startsWith("payout.") && !s.event.startsWith("settlement."))
-                  .map((signal) => (
+              {valueSignals
+                .filter((s) => !s.event.startsWith("payout.") && !s.event.startsWith("settlement."))
+                .slice(0, 2)
+                .map((signal) => (
                   <span
                     key={signal.event}
                     className={clsx(
@@ -162,17 +163,11 @@ export function DiscoverFeatureRow({
                     )}
                   >
                     <span className="font-medium text-white/90">{signal.label}</span>
-                    <span className="text-resolve-muted-dim">via {signal.source}</span>
-                    {signal.statusText && (
-                      <span className="text-amber-200/80">· {signal.statusText}</span>
+                    {signal.count != null && (
+                      <span className="tabular-nums text-resolve-muted-dim">{signal.count}</span>
                     )}
                   </span>
-                ))
-              ) : !gap.valueMetrics ? (
-                <span className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-0.5 text-[9px] text-resolve-muted-dim">
-                  Connect upstream to extract real activity
-                </span>
-              ) : null}
+                ))}
             </div>
           )}
         </div>
@@ -185,17 +180,12 @@ export function DiscoverFeatureRow({
           )}
           <span
             className={clsx(
-              "text-right text-[11px] font-semibold leading-tight",
+              "text-right text-[11px] font-semibold leading-tight tabular-nums",
               needed.tone === "verified" ? "text-amber-200" : "text-amber-200/60",
             )}
           >
             {needed.label}
           </span>
-          {gap.proofSource && (
-            <span className="max-w-[9rem] text-right text-[9px] text-resolve-muted-dim">
-              {gap.proofSource}
-            </span>
-          )}
         </div>
       </div>
 
@@ -206,26 +196,22 @@ export function DiscoverFeatureRow({
               key={`attach-${action.id}-${index}`}
               type="button"
               onClick={() => void runAction(action, surface)}
-              className="rounded-md border border-white/10 px-2 py-1 text-[10px] font-medium text-resolve-muted transition hover:border-white/20 hover:text-white"
+              className="rounded-md border border-white/10 px-2.5 py-1 text-[10px] font-medium text-resolve-muted transition hover:border-white/20 hover:text-white"
             >
               {friendlyDiscoverActionLabel(action, connections)}
             </button>
           ))}
-          {attach.length > 0 && operational.length > 0 && (
-            <span className="text-[9px] text-resolve-muted-dim">then</span>
-          )}
           {operational.map((action, index) => (
             <button
               key={`op-${action.id}-${action.kind}-${index}`}
               type="button"
               onClick={() => void runAction(action, surface)}
               className={clsx(
-                "rounded-md border px-2 py-1 text-[10px] font-medium transition",
+                "rounded-md border px-2.5 py-1 text-[10px] font-medium transition",
                 index === 0
                   ? "border-resolve-accent/35 bg-resolve-accent/12 text-resolve-accent hover:bg-resolve-accent/18"
                   : "border-white/10 text-resolve-muted hover:border-white/20 hover:text-white",
               )}
-              title={action.reason}
             >
               {friendlyDiscoverActionLabel(action, connections)}
             </button>

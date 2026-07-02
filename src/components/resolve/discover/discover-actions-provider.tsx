@@ -30,6 +30,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 import type { CommunityConsoleActionContext } from "@/components/resolve/discover/discover-community-console-provider";
+import { communitySlugFromDiscoverTarget } from "@/lib/discover/discover-inline-target";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -145,7 +146,7 @@ export function DiscoverActionsProvider({
       if (target.programId) return target.programId;
 
       if (target.needsInstall) {
-        toast.loading(`Attaching ${target.communitySlug}…`, { id: "discover-chain" });
+        toast.loading(`Setting up ${target.communitySlug}…`, { id: "discover-chain" });
         try {
           await apiInstallCommunity(target.communitySlug);
         } catch (e) {
@@ -287,6 +288,14 @@ export function DiscoverActionsProvider({
       try {
         switch (action.kind) {
           case "open": {
+            const inlineSlug =
+              communitySlugFromDiscoverTarget(action.entityPath) ??
+              communitySlugFromDiscoverTarget(action.href);
+            if (inlineSlug && communityConsole) {
+              openDiscoverConsole(inlineSlug, "observe", action.label);
+              reportActionStatus(surface, action, "success");
+              break;
+            }
             const target = action.entityPath ?? action.href;
             if (!target) break;
             router.push(target);
@@ -322,13 +331,13 @@ export function DiscoverActionsProvider({
           case "install": {
             const slug = action.communitySlug!;
             const toastId = `discover-install-${slug}`;
-            toast.loading(`Attaching ${slug}…`, { id: toastId });
+            toast.loading(`Setting up ${slug}…`, { id: toastId });
             try {
               const result = await apiInstallCommunity(slug);
               toast.success(
                 result.alreadyInstalled
-                  ? `${slug} already attached — console ready`
-                  : `${slug} attached — sensors sync in background`,
+                  ? `${slug} ready — console open`
+                  : `${slug} ready — syncing in background`,
                 { id: toastId },
               );
               reportActionStatus(surface, action, "success");
@@ -385,7 +394,7 @@ export function DiscoverActionsProvider({
               break;
             }
             const toastId = `discover-sensor-${slug}`;
-            toast.loading(`Attaching ${slug}…`, { id: toastId });
+            toast.loading(`Setting up ${slug}…`, { id: toastId });
             try {
               await apiInstallCommunity(slug);
               toast.success(`${slug} ready — syncing value automatically`, { id: toastId });
@@ -425,7 +434,17 @@ export function DiscoverActionsProvider({
             }
             break;
 
-          case "analyze":
+          case "analyze": {
+            const inlineSlug =
+              communitySlugFromDiscoverTarget(action.entityPath) ??
+              communitySlugFromDiscoverTarget(action.href) ??
+              action.communitySlug ??
+              null;
+            if (inlineSlug && communityConsole) {
+              openDiscoverConsole(inlineSlug, "observe", action.label);
+              reportActionStatus(surface, action, "success");
+              break;
+            }
             if (action.href) {
               router.push(action.href);
               reportActionStatus(surface, action, "success");
@@ -441,6 +460,7 @@ export function DiscoverActionsProvider({
               reportActionStatus(surface, action, "success");
             }
             break;
+          }
 
           case "automate":
             if (action.communitySlug && communityConsole) {

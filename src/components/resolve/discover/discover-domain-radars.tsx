@@ -94,19 +94,12 @@ export function DiscoverDomainRadars({
     role,
     connections.installedCommunitySlugs,
   );
-  const rowLimit = RADAR_MAX_ROWS[activeRadar];
   const live = bundle?.hasLiveData ?? false;
-
-  const radarTaglines: Record<typeof activeRadar, string> = {
-    oss: "GitHub contribution graphs · docs bounties · maintainer funding",
-    music: "Plays and watches from your libraries · per-event royalties",
-    dao: "Citation tolls · QF grant rounds · research treasuries",
-  };
 
   return (
     <DiscoverPremiumSection
       title="Live signals"
-      subtitle="Extracted activity per ecosystem — OSS, creators, and research"
+      subtitle={live ? "Ledger-backed" : undefined}
       className={className}
       actions={
         <DiscoverSectionRefresh
@@ -136,13 +129,15 @@ export function DiscoverDomainRadars({
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <DiscoverAttachRail
-          context="radar"
-          radarId={activeRadar}
-          role={role}
-          needType={needType}
-          signedIn={signedIn}
-        />
+        {displayRows.length === 0 && (
+          <DiscoverAttachRail
+            context="radar"
+            radarId={activeRadar}
+            role={role}
+            needType={needType}
+            signedIn={signedIn}
+          />
+        )}
 
         <div
           id={`radar-${activeRadar}`}
@@ -153,9 +148,6 @@ export function DiscoverDomainRadars({
               <Icon className="h-4 w-4 shrink-0 text-resolve-accent" />
               <div>
                 <h3 className="text-sm font-semibold text-white">{bundle?.title ?? activeRadar}</h3>
-                <p className="mt-0.5 text-[10px] leading-relaxed text-resolve-muted-dim">
-                  {radarTaglines[activeRadar]}
-                </p>
               </div>
             </div>
             {live ? (
@@ -182,18 +174,12 @@ export function DiscoverDomainRadars({
                   role={role}
                   rank={i + 1}
                   surface={`radar-${activeRadar}`}
-                  maxActions={5}
+                  maxActions={3}
                 />
               ))}
             </ul>
           ) : (
-            <p className="text-xs text-resolve-muted">Loading extracted activity…</p>
-          )}
-
-          {displayRows.length > 0 && (
-            <p className="mt-2 text-[10px] text-resolve-muted-dim">
-              Showing {displayRows.length} of {rowLimit} max rows for this radar.
-            </p>
+            <p className="text-xs text-resolve-muted">No signals yet for this radar.</p>
           )}
         </div>
       </div>

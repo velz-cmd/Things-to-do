@@ -28,7 +28,6 @@ import { needTypeBadgeClass, needTypeLabel, primaryBoardCtaLabel } from "@/lib/d
 import {
   boardCommunityActions,
   boardSubtitleForRole,
-  boardUseCaseLine,
 } from "@/lib/discover/board-actions-for-role";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { isCommunityInstalled } from "@/lib/profile/connection-state-types";
@@ -249,7 +248,6 @@ export function DiscoverOpportunityQueue({
       className={className}
       actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}
     >
-      <p className="mb-4 text-[11px] leading-relaxed text-resolve-muted-dim">{boardUseCaseLine(role)}</p>
       {hasVerifiedPrograms && (
         <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">

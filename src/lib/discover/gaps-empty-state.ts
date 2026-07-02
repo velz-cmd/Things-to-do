@@ -25,8 +25,15 @@ export function gapsRoleIntro(role: DiscoverRole): string {
   return copy[role] ?? copy.all!;
 }
 
-/** Balanced attach suggestions — OSS, research, music, video (not music-only for creator role). */
-const BALANCED_ATTACH_SLUGS = ["react", "open-research", "independent-music", "jellyfin"] as const;
+/** Balanced attach suggestions — OSS, research, music, video with live sensors. */
+const BALANCED_ATTACH_SLUGS = [
+  "react",
+  "linux",
+  "jellyfin",
+  "navidrome",
+  "independent-music",
+  "open-research",
+] as const;
 
 const KIND_BY_NEED: Partial<Record<DiscoverNeedTypeFilter, CommunityCatalogEntry["kind"][]>> = {
   artists: ["music"],
@@ -114,7 +121,7 @@ export function gapsPrimaryActions(input: {
     }
   }
 
-  return actions.slice(0, 3);
+  return actions.slice(0, 5);
 }
 
 export function gapsExploreActions(input: {

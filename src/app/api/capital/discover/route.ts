@@ -5,14 +5,16 @@ import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 export const maxDuration = 60;
 
-const BOARD_TIMEOUT_MS = 12_000;
+const BOARD_TIMEOUT_MS = 6_000;
+const BOARD_MAX_ITEMS = 24;
 
 /** Public — programs any funder can discover without knowing communities */
 export async function GET() {
+  const fallback = listDiscoverCommunityBoardFallback().slice(0, BOARD_MAX_ITEMS);
   try {
-    let board = await withTimeout(listDiscoverOpportunityBoard(), BOARD_TIMEOUT_MS, []);
+    let board = await withTimeout(listDiscoverOpportunityBoard(), BOARD_TIMEOUT_MS, fallback);
     if (!board.length) {
-      board = listDiscoverCommunityBoardFallback();
+      board = fallback;
     }
     const degraded = board.every((b) => b.boardKind === "community");
     const seedCommunities = await withTimeout(

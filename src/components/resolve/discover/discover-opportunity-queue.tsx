@@ -80,18 +80,47 @@ export function DiscoverOpportunityQueue({
     setLoading(true);
     setError(null);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
+    const timer = setTimeout(() => controller.abort(), 22_000);
     try {
       const res = await fetch("/api/capital/discover", { signal: controller.signal });
       if (!res.ok) throw new Error("Queue unavailable");
       const data = await res.json();
-      setBoard(data.board ?? data.opportunities ?? []);
-      if (data.degraded && !(data.board ?? data.opportunities ?? []).length) {
+      const rows = data.board ?? data.opportunities ?? [];
+      setBoard(rows);
+      if (data.degraded && !rows.length) {
         setError("Board is still loading — try Refresh in a moment");
       }
     } catch (e) {
       const aborted = e instanceof Error && e.name === "AbortError";
-      setError(aborted ? "Opportunity board timed out — try Refresh" : "Could not load fulfillment queue");
+      if (!opportunitiesRef.current.length) {
+        const seedRes = await fetch("/api/communities").catch(() => null);
+        const seedBody = seedRes?.ok ? await seedRes.json().catch(() => null) : null;
+        const communities = (seedBody as { communities?: { slug: string; name: string; tagline: string }[] } | null)
+          ?.communities;
+        if (communities?.length) {
+          setBoard(
+            communities.slice(0, 5).map((c) => ({
+              boardKind: "community" as const,
+              programId: `community-${c.slug}`,
+              programName: c.name,
+              communitySlug: c.slug,
+              communityName: c.name,
+              communityTagline: c.tagline,
+              templateId: "docs-bounty",
+              templateLabel: "Program",
+              fundingGapUsd: 0,
+              whyFund: `${c.tagline} · attach to unlock ledger programs`,
+              whoBenefits: c.name,
+              score: 0,
+              metricKind: "connect" as const,
+              connectCta: `Attach ${c.name}`,
+              connectHref: `/communities/${c.slug}`,
+              needType: "funding" as const,
+            })),
+          );
+        }
+      }
+      setError(aborted ? "Opportunity board timed out — showing attach rows" : "Could not load fulfillment queue");
       discoverFetchErrorToast(
         "discover-queue",
         aborted ? "Opportunity board timed out" : "Fulfillment queue unavailable",

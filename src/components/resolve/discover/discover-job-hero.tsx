@@ -5,8 +5,7 @@ import { DISCOVER_JOBS, type DiscoverJobId } from "@/lib/discover/discover-jobs"
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 
-const JOB_ACCENT: Record<DiscoverJobId, "emerald" | "blue" | "violet" | "teal" | "amber" | "cyan"> = {
-  earn: "emerald",
+const JOB_ACCENT: Record<DiscoverJobId, "blue" | "violet" | "teal" | "amber" | "cyan"> = {
   fund: "blue",
   run: "violet",
   observe: "teal",
@@ -39,7 +38,7 @@ export function DiscoverJobHero({
         </p>
       </div>
 
-      <ul className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <ul className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {DISCOVER_JOBS.map((job) => {
           const Icon = job.icon;
           const selected = activeJob === job.id;

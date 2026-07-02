@@ -126,7 +126,9 @@ async function hygieneChecks() {
     assert(!html.includes(token), `discover HTML excludes "${token}"`);
   }
   assert(html.includes("What do you want to do?"), "discover HTML includes job-first hero");
-  assert(html.includes("Earn from my work"), "discover HTML includes primary jobs");
+  assert(html.includes("Fund where it matters"), "discover HTML includes primary jobs");
+  assert(!html.includes("Earn from my work"), "discover HTML excludes removed earn job card");
+  assert(!html.includes("owner/repo"), "discover HTML excludes global search bar");
   assert(html.includes("Value graph"), "discover HTML includes value graph");
   assert(html.includes('href="/communities"'), "discover HTML links to Communities tab");
 }

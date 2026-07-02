@@ -38,7 +38,7 @@ After adding/changing vars → **Redeploy** (or push to `main`).
 3. **URL Configuration** → add redirect:
    - `https://resolve-task.vercel.app/auth/callback`
    - `http://localhost:3000/auth/callback` (for local)
-4. **Site URL:** `https://resolve-task.vercel.app`
+4. **Site URL:** `https://things-to-do-eta.vercel.app` (and `http://localhost:3000/**` in redirect URLs for local dev)
 5. Enable **Email** provider (magic link)
 
 ### 3. Reown (WalletConnect)

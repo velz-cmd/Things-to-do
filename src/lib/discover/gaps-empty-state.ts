@@ -4,28 +4,28 @@ import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { classifyBoardNeedType } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { boardCommunityActions } from "@/lib/discover/board-actions-for-role";
+import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
 
-/** What the Gaps lane shows — funder-facing ranked opportunities. */
+/** What the Unpaid Value lane shows. */
 export const GAPS_TAB_INTRO =
-  "Unfunded authorizations from real upstream activity — ranked by opportunity score.";
+  "Verified activity that is not earning yet — ranked by what you can fund or rule next.";
 
 export function gapsRoleIntro(role: DiscoverRole): string {
   const copy: Partial<Record<DiscoverRole, string>> = {
     funder:
-      "No ledger gaps ranked yet. Attach a community and fund a program — authorizations appear here when sensors sync.",
+      "No ledger-ranked unpaid value yet. Set up a community, connect a source, and create a payout rule.",
     founder:
-      "No gaps yet. Install your community and launch a program — maintainer and play events rank here.",
+      "No unpaid value ranked yet. Set up your community and launch a payout program.",
     operator:
-      "No gaps yet. Connect sensors on Profile — verified work surfaces automatically.",
-    dao: "No grant or citation gaps yet. Launch a QF round or attach Open Research.",
+      "No ranked value yet. Connect GitHub, ListenBrainz, or Jellyfin on Profile to extract activity.",
+    dao: "No citation or grant gaps yet. Set up Open Research and launch a QF round.",
     community:
-      "No ranked gaps on the ledger yet. Profile connectors (GitHub, ListenBrainz, Jellyfin) are separate from community attach — attach OSS, research, or music programs below.",
-    all: "No ledger gaps ranked yet — attach a community on Board to unlock ranked opportunities across the catalog.",
+      "No ranked unpaid value on the ledger yet. Set up OSS, research, or music programs below.",
+    all: "No unpaid value ranked yet — set up a community on Value Graph to unlock more rows.",
   };
   return copy[role] ?? copy.all!;
 }
 
-/** Balanced attach suggestions — OSS, research, music, video with live sensors. */
 const BALANCED_ATTACH_SLUGS = [
   "react",
   "linux",
@@ -83,7 +83,6 @@ function catalogForContext(input: {
   return candidates.slice(0, 3);
 }
 
-/** Up to three attach/console actions — skips already-attached communities. */
 export function gapsPrimaryActions(input: {
   needType: DiscoverNeedTypeFilter;
   role: DiscoverRole;
@@ -113,7 +112,7 @@ export function gapsPrimaryActions(input: {
       communityName: entry.name,
       installed: isInstalled,
     });
-    for (const action of rowActions.slice(0, 2)) {
+    for (const action of rowActions.slice(0, 3)) {
       const key = `${action.kind}:${action.communitySlug}:${action.label}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -121,7 +120,7 @@ export function gapsPrimaryActions(input: {
     }
   }
 
-  return actions.slice(0, 5);
+  return actions.slice(0, 6);
 }
 
 export function gapsExploreActions(input: {
@@ -138,4 +137,8 @@ export function gapsExploreCommunities(input: {
   installedSlugs?: string[];
 }): CommunityCatalogEntry[] {
   return catalogForContext(input);
+}
+
+export function unpaidValueTitleForSlug(slug: string, fallbackName: string): string {
+  return getCommunityValueProfile(slug)?.unpaidTitle ?? fallbackName;
 }

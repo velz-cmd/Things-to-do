@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 async function openDiscoverWorkspaceLane(
   page: import("@playwright/test").Page,
-  lane: "Gaps" | "Radars" | "Board",
+  lane: "Unpaid Value" | "Live Signals" | "Value Graph",
 ) {
   const nav = page.getByRole("navigation", { name: "Discover workspace" });
   await nav.getByRole("button", { name: lane, exact: true }).click();
@@ -351,11 +351,11 @@ test.describe("Community phases — surfaces", () => {
 
     const board = page.locator("#opportunities");
     await board.scrollIntoViewIfNeeded();
-    await expect(board.getByRole("heading", { name: "Opportunity board" })).toBeVisible();
-    const sortOrAttach = board
+    await expect(board.getByRole("heading", { name: "Value graph" })).toBeVisible();
+    const sortOrSetup = board
       .getByText("Sort by")
-      .or(board.getByText(/Attach to unlock|Attach communities|Attach React|Attach Navidrome/i));
-    await expect(sortOrAttach.first()).toBeVisible({ timeout: 30_000 });
+      .or(board.getByText(/Set up React|Set up Navidrome|Explore music program|Connect GitHub/i));
+    await expect(sortOrSetup.first()).toBeVisible({ timeout: 30_000 });
     const hasSort = await board.getByText("Sort by").isVisible().catch(() => false);
     if (hasSort) {
       await expect(board.getByRole("button", { name: "Score" })).toBeVisible();
@@ -366,9 +366,9 @@ test.describe("Community phases — surfaces", () => {
   test("discover founder role opens opportunity board", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: /Run my community/i }).click();
-    await openDiscoverWorkspaceLane(page, "Board");
+    await openDiscoverWorkspaceLane(page, "Value Graph");
     const board = page.locator("#opportunities");
-    await expect(board.getByRole("heading", { name: "Opportunity board" })).toBeVisible({
+    await expect(board.getByRole("heading", { name: "Value graph" })).toBeVisible({
       timeout: 15_000,
     });
   });
@@ -384,18 +384,18 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByText("Suggested service")).toBeVisible();
   });
 
-  test("discover community role opens gaps with live sensor rows", async ({ page }) => {
+  test("discover community role opens unpaid value with operational rows", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await openDiscoverWorkspaceLane(page, "Gaps");
+    await openDiscoverWorkspaceLane(page, "Unpaid Value");
 
-    await expect(page.getByRole("heading", { name: "Trending value gaps" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Unpaid value" })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText(/Jellyfin|Navidrome|React ecosystem|GitHub/i).first()).toBeVisible({
+    await expect(page.getByText(/Jellyfin|Navidrome|React|payout program|watch events/i).first()).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByRole("button", { name: /Attach/i }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: /Fund|Launch|Connect/i }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Set up|Connect|Scan/i }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Fund|Launch|Create/i }).first()).toBeVisible();
   });
 
   test("communities hub shows install cards and vitals", async ({ page, request }) => {
@@ -465,11 +465,11 @@ test.describe("Community phases — surfaces", () => {
     const emptyLedger = page.getByText(/Ledger graph is empty|No ledger nodes yet/i);
     await expect(svg.or(emptyLedger).first()).toBeVisible({ timeout: 30_000 });
 
-    await openDiscoverWorkspaceLane(page, "Gaps");
-    await expect(page.getByRole("heading", { name: "Trending value gaps" })).toBeVisible();
+    await openDiscoverWorkspaceLane(page, "Unpaid Value");
+    await expect(page.getByRole("heading", { name: "Unpaid value" })).toBeVisible();
 
-    await openDiscoverWorkspaceLane(page, "Board");
-    await expect(page.locator("#opportunities").getByRole("heading", { name: "Opportunity board" })).toBeVisible();
+    await openDiscoverWorkspaceLane(page, "Value Graph");
+    await expect(page.locator("#opportunities").getByRole("heading", { name: "Value graph" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
   });
 

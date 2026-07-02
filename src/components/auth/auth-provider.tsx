@@ -324,6 +324,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: trimmed }),
+          signal: AbortSignal.timeout(15_000),
         });
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;

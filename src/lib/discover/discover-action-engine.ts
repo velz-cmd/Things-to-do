@@ -42,29 +42,53 @@ export async function apiInstallCommunity(slug: string) {
 }
 
 export async function apiCreateProgram(slug: string, templateId?: string) {
-  const res = await fetch(`/api/communities/${slug}/programs`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ templateId }),
-  });
-  const data = await parseJsonResponse<{ error?: string; program?: { id: string; name: string } }>(
-    res,
-  );
-  if (!res.ok) throw new Error(data.error ?? "Could not create program");
-  return data as { program?: { id: string; name: string } };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25_000);
+  try {
+    const res = await fetch(`/api/communities/${slug}/programs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ templateId }),
+      signal: controller.signal,
+    });
+    const data = await parseJsonResponse<{ error?: string; program?: { id: string; name: string } }>(
+      res,
+    );
+    if (!res.ok) throw new Error(data.error ?? "Could not create program");
+    return data as { program?: { id: string; name: string } };
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("Creating the pool timed out — try again");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function apiFundProgram(programId: string, amountUsd: number) {
-  const res = await fetch("/api/capital/fund", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ programId, amountUsd }),
-  });
-  const data = await parseJsonResponse<{ error?: string }>(res);
-  if (!res.ok) throw new Error(data.error ?? "Fund failed");
-  return data;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 55_000);
+  try {
+    const res = await fetch("/api/capital/fund", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ programId, amountUsd }),
+      signal: controller.signal,
+    });
+    const data = await parseJsonResponse<{ error?: string }>(res);
+    if (!res.ok) throw new Error(data.error ?? "Fund failed");
+    return data;
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("Funding timed out — your wallet may still be syncing. Try Capital, then retry.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export type FundTargetPayload = {

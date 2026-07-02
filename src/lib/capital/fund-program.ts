@@ -36,7 +36,12 @@ export async function fundCommunityProgram(input: {
     include: { install: { select: { communitySlug: true, ecosystemId: true } } },
   });
   if (!program) return { ok: false, error: "Program not found" };
-  if (!program.missionId) return { ok: false, error: "Program is not deployed yet" };
+  if (!program.missionId) {
+    await prisma.resolveProgram.update({
+      where: { id: program.id },
+      data: { missionId: `program-${crypto.randomUUID().slice(0, 12)}` },
+    });
+  }
 
   let programStatus = program.status;
   if (programStatus === "draft") {
@@ -51,14 +56,18 @@ export async function fundCommunityProgram(input: {
     return { ok: false, error: "Program is not accepting funds" };
   }
 
-  const spendable = await getRealSpendableUsd(input.userId, { sync: true });
-  if (spendable.availableUsd < amount) {
+  let availableUsd = (await getRealSpendableUsd(input.userId, { sync: false })).availableUsd;
+  if (availableUsd < amount) {
+    const synced = await getRealSpendableUsd(input.userId, { sync: true });
+    availableUsd = synced.availableUsd;
+  }
+  if (availableUsd < amount) {
     return {
       ok: false,
       error:
-        spendable.availableUsd <= 0
+        availableUsd <= 0
           ? "No spendable USDC — open Capital to sync your wallet and add funds"
-          : `Insufficient balance: $${spendable.availableUsd.toFixed(2)} spendable, need $${amount.toFixed(2)}`,
+          : `Insufficient balance: $${availableUsd.toFixed(2)} spendable, need $${amount.toFixed(2)}`,
     };
   }
 

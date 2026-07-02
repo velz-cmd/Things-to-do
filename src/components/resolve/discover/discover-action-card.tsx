@@ -9,7 +9,6 @@ import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-a
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
-import { DiscoverOpportunityScoreChips } from "@/components/resolve/discover/discover-opportunity-score-chips";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
@@ -125,11 +124,6 @@ export function DiscoverActionCard({
           )}
         </div>
         <div className="shrink-0 text-right">
-          {gap.opportunityScorecard && (
-            <p className="mb-1 text-2xl font-semibold tabular-nums text-resolve-accent">
-              {gap.opportunityScorecard.composite}
-            </p>
-          )}
           <p
             className={clsx(
               "text-lg font-semibold tabular-nums",
@@ -162,33 +156,6 @@ export function DiscoverActionCard({
         </div>
       </div>
 
-      {!compact && gap.opportunityScorecard && (
-        <DiscoverOpportunityScoreChips
-          chips={gap.opportunityScorecard.chips}
-          composite={gap.opportunityScorecard.composite}
-          className="mt-3"
-        />
-      )}
-
-      {!compact && (
-        <p className="mt-3 text-[10px] text-resolve-muted-dim">
-          Proof: {gap.proofSource}
-          {gap.proofAuthorizationId ? ` · auth ${gap.proofAuthorizationId.slice(0, 8)}` : ""}
-          {gap.proofGithubScanAt && !gap.proofAuthorizationId
-            ? ` · scanned ${new Date(gap.proofGithubScanAt).toLocaleString()}`
-            : ""}
-          {gap.proofHref ? (
-            <>
-              {" "}
-              ·{" "}
-              <a href={gap.proofHref} className="text-resolve-accent hover:underline">
-                View proof
-              </a>
-            </>
-          ) : null}
-        </p>
-      )}
-
       <div className={clsx("flex flex-wrap gap-2", compact ? "mt-2" : "mt-4")}>
         {actions.length > 0 ? (
           actions.map((action, index) => (
@@ -201,7 +168,9 @@ export function DiscoverActionCard({
             />
           ))
         ) : (
-          <p className="text-[11px] text-resolve-muted-dim">No actions for this row — refresh or attach a community on Board.</p>
+          <p className="text-[11px] text-resolve-muted-dim">
+            No actions for this row — refresh or connect sources in Profile.
+          </p>
         )}
       </div>
       </div>

@@ -332,9 +332,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           cooldownSeconds?: number;
         };
         if (!res.ok) {
+          const raw = String(data.error ?? "Could not send reset link.");
+          const message =
+            /prisma|invocation|does not exist/i.test(raw)
+              ? "Could not send reset link right now. Try again in a minute."
+              : raw;
           return {
             ok: false as const,
-            message: String(data.error ?? "Could not send reset link."),
+            message,
             cooldownSeconds: data.cooldownSeconds,
           };
         }

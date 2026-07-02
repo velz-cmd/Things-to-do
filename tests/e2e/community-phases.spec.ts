@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 async function openDiscoverWorkspaceLane(
   page: import("@playwright/test").Page,
-  lane: "Gaps" | "Radars" | "Board" | "Earnings",
+  lane: "Gaps" | "Radars" | "Board",
 ) {
   const nav = page.getByRole("navigation", { name: "Discover workspace" });
   await nav.getByRole("button", { name: lane, exact: true }).click();
@@ -354,7 +354,7 @@ test.describe("Community phases — surfaces", () => {
     await expect(board.getByRole("heading", { name: "Opportunity board" })).toBeVisible();
     const sortOrAttach = board
       .getByText("Sort by")
-      .or(board.getByText(/Attach to unlock|No ledger programs yet/i));
+      .or(board.getByText(/Attach to unlock|Attach communities|Attach React|Attach Navidrome/i));
     await expect(sortOrAttach.first()).toBeVisible({ timeout: 30_000 });
     const hasSort = await board.getByText("Sort by").isVisible().catch(() => false);
     if (hasSort) {
@@ -384,15 +384,17 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByText("Suggested service")).toBeVisible();
   });
 
-  test("discover community role shows compact earnings lane", async ({ page }) => {
+  test("discover community role opens gaps with live sensor rows", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /Earn from my work/i }).click();
-    await openDiscoverWorkspaceLane(page, "Earnings");
+    await openDiscoverWorkspaceLane(page, "Gaps");
 
-    const earn = page.locator("#earn");
-    await expect(earn).toBeVisible({ timeout: 15_000 });
-    await expect(earn.getByText("How much have I earned?")).toBeVisible();
-    await expect(earn.getByRole("link", { name: /Open on Capital/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Trending value gaps" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText(/GitHub sensor|Jellyfin|Navidrome|ListenBrainz/i).first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("button", { name: /Attach/i }).first()).toBeVisible();
   });
 
   test("communities hub shows install cards and vitals", async ({ page, request }) => {

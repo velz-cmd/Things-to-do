@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
-import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
@@ -77,8 +76,6 @@ function roleToIntent(role: DiscoverRole): DiscoverIntent {
 }
 
 function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["user"] }) {
-  const [query, setQuery] = useState("");
-  const [queueFilter, setQueueFilter] = useState<string | null>(null);
   const [role, setRole] = useState<DiscoverRole>("all");
   const [activeJob, setActiveJob] = useState<DiscoverJobId | null>(null);
   const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
@@ -96,22 +93,17 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
     }
   }, []);
 
-  const effectiveQuery = queueFilter ?? query;
+  const effectiveQuery = "";
 
   function scrollToDiscoverAnchor(scrollTo: string) {
     window.requestAnimationFrame(() => {
       const anchorId =
-        scrollTo === "discover-search"
-          ? "discover-search"
-          : scrollTo === "opportunities"
-            ? "opportunities"
-            : scrollTo === "value-bubblemap"
-              ? "value-bubblemap"
-              : "discover-workspace";
+        scrollTo === "opportunities"
+          ? "opportunities"
+          : scrollTo === "value-bubblemap"
+            ? "value-bubblemap"
+            : "discover-workspace";
       document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth" });
-      if (scrollTo === "discover-search") {
-        document.querySelector<HTMLInputElement>("#discover-search input")?.focus();
-      }
     });
   }
 
@@ -134,15 +126,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
     <div className="resolve-grid-bg min-h-screen pb-12">
       <div className="relative mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">
         <DiscoverJobHero activeJob={activeJob} onSelectJob={handleJobSelect} />
-
-        <div id="discover-search" className="discover-section-stack scroll-mt-24">
-          <DiscoverGlobalSearch
-            signedIn={Boolean(user)}
-            query={query}
-            onQueryChange={setQuery}
-            onQueueFilter={setQueueFilter}
-          />
-        </div>
 
         {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
 

@@ -15,6 +15,7 @@ import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-s
 import { DiscoverAttachRail } from "@/components/resolve/discover/discover-attach-rail";
 import { DiscoverFeatureRow } from "@/components/resolve/discover/discover-feature-row";
 import { collectRadarRows, RADAR_MAX_ROWS } from "@/lib/discover/discover-row-limits";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
 const RADAR_ICONS = {
@@ -48,6 +49,7 @@ export function DiscoverDomainRadars({
   className,
 }: DiscoverDomainRadarsProps) {
   const { feed, loading, refresh } = useDiscoverRadarFeed();
+  const { state: connections } = useUserConnections();
   const [activeRadar, setActiveRadar] = useState<"oss" | "music" | "dao">(() =>
     defaultRadarForRole(role),
   );
@@ -85,7 +87,13 @@ export function DiscoverDomainRadars({
   const bundle = bundles?.find((b) => b.id === activeRadar);
   const Icon = RADAR_ICONS[activeRadar];
   const radarCards = bundle?.cards ?? [];
-  const displayRows = collectRadarRows(activeRadar, radarCards, feedGapsForRadar);
+  const displayRows = collectRadarRows(
+    activeRadar,
+    radarCards,
+    feedGapsForRadar,
+    role,
+    connections.installedCommunitySlugs,
+  );
   const rowLimit = RADAR_MAX_ROWS[activeRadar];
   const live = bundle?.hasLiveData ?? false;
 
@@ -179,9 +187,7 @@ export function DiscoverDomainRadars({
               ))}
             </ul>
           ) : (
-            <p className="text-xs leading-relaxed text-resolve-muted">
-              No {activeRadar} rows yet — connect {activeRadar === "oss" ? "GitHub" : activeRadar === "music" ? "ListenBrainz" : "Open Research"} on the left, then attach the community.
-            </p>
+            <p className="text-xs text-resolve-muted">Loading sensor rows…</p>
           )}
 
           {displayRows.length > 0 && (

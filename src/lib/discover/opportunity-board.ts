@@ -1,7 +1,5 @@
 import { COMMUNITY_CATALOG, type CommunityCatalogEntry } from "@/lib/communities/catalog";
 import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
-import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
-import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { templateLabel } from "@/lib/capital/community-yield";
 import { dedupeDiscoverBoard, dedupeFundablePrograms } from "@/lib/discover/board-dedupe";
@@ -9,7 +7,7 @@ import { classifyBoardNeedType } from "@/lib/discover/need-types";
 import { buildOpportunityScorecard, scorecardFromFundable } from "@/lib/discover/opportunity-score";
 import { withTimeout } from "@/lib/discover/fetch-timeout";
 
-const GITHUB_BOARD_SCAN_MS = 8_000;
+const PROGRAMS_TIMEOUT_MS = 5_000;
 
 export type DiscoverBoardItem =
   | (FundableOpportunity & { boardKind: "program" })
@@ -103,15 +101,9 @@ export function listDiscoverCommunityBoardFallback(): DiscoverBoardItem[] {
   return COMMUNITY_CATALOG.map((c) => communityBoardRow(c));
 }
 
-/** All real opportunities — programs plus every catalog community not already on a program row. */
+/** All real opportunities — programs plus sensor-live communities (no slow GitHub scan). */
 export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[]> {
-  const skipGithub = process.env.CI === "true";
-  const [programs, ossScans] = await Promise.all([
-    withTimeout(listFundableOpportunities(32), 18_000, []),
-    skipGithub
-      ? Promise.resolve([])
-      : withTimeout(cachedScanAllOpportunities().catch(() => []), GITHUB_BOARD_SCAN_MS, []),
-  ]);
+  const programs = await withTimeout(listFundableOpportunities(16), PROGRAMS_TIMEOUT_MS, []);
 
   const items: DiscoverBoardItem[] = dedupeFundablePrograms(programs).map((p) => ({
     ...p,
@@ -130,17 +122,7 @@ export async function listDiscoverOpportunityBoard(): Promise<DiscoverBoardItem[
 
   for (const c of COMMUNITY_CATALOG) {
     if (seenSlugs.has(c.slug)) continue;
-    const ossMatch = ossScans.find((o) => {
-      const { communitySlug } = resolveCommunityForRepo(o.owner, o.repo);
-      return communitySlug === c.slug;
-    });
-    const gapUsd = ossMatch?.health.fundingGapUsd ?? 0;
-    items.push(
-      communityBoardRow(c, {
-        gapUsd,
-        ossMatch: Boolean(ossMatch),
-      }),
-    );
+    items.push(communityBoardRow(c));
     seenSlugs.add(c.slug);
   }
 

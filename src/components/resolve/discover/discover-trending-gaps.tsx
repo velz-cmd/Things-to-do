@@ -21,6 +21,7 @@ import {
 import { DiscoverAttachRail } from "@/components/resolve/discover/discover-attach-rail";
 import { DiscoverFeatureRow } from "@/components/resolve/discover/discover-feature-row";
 import { collectGapsRows, GAPS_MAX_ROWS } from "@/lib/discover/discover-row-limits";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
@@ -46,6 +47,7 @@ export function DiscoverTrendingGaps({
   onSwitchLane: _onSwitchLane,
 }: DiscoverTrendingGapsProps) {
   const { feed, loading, error, refresh } = useDiscoverRadarFeed();
+  const { state: connections } = useUserConnections();
   const [sortKey, setSortKey] = useState<OpportunitySortKey>("composite");
 
   const filtered = useMemo(() => {
@@ -65,8 +67,9 @@ export function DiscoverTrendingGaps({
   }, [feed?.gaps, query, needType, sortKey]);
 
   const displayRows = useMemo(
-    () => collectGapsRows(feed, filtered, limit ?? GAPS_MAX_ROWS),
-    [feed, filtered, limit],
+    () =>
+      collectGapsRows(feed, filtered, limit ?? GAPS_MAX_ROWS, role, connections.installedCommunitySlugs),
+    [feed, filtered, limit, role, connections.installedCommunitySlugs],
   );
 
   const hasVerified = displayRows.some(isVerifiedGap);
@@ -157,7 +160,7 @@ export function DiscoverTrendingGaps({
                       role={role}
                       rank={i + 1}
                       surface="trending-gaps"
-                      maxActions={2}
+                      maxActions={3}
                     />
                   ))}
                 </ul>

@@ -58,7 +58,7 @@ services:
     region: oregon
     branch: main
     repo: https://github.com/velz-cmd/Things-to-do
-    buildCommand: npm install && npx prisma db push && npm run build
+    buildCommand: npm install --legacy-peer-deps && bash scripts/vercel-build.sh
     startCommand: npm run start
     healthCheckPath: /api/health/live
     envVars:

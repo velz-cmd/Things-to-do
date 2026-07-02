@@ -25,7 +25,6 @@ import {
   setRememberedProvider,
 } from "@/lib/auth/remember";
 import {
-  continueWithEmailPassword,
   type EmailPasswordResult,
 } from "@/lib/auth/email-password";
 import { toast } from "sonner";
@@ -288,28 +287,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!emailEnabled) {
         return { ok: false, message: "Email sign-in is not available" };
       }
-      if (!supabase) {
-        return { ok: false, message: "Auth is not configured" };
-      }
 
       try {
-        const result = await withTimeout(
-          continueWithEmailPassword(supabase, email, password),
-          15_000
-        );
-        if (result.ok) {
-          setRememberedEmail(email.trim().toLowerCase());
-          setRememberedProvider("email");
+        const res = await fetch("/api/auth/email-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(20_000),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          suggestForgotPassword?: boolean;
+          isNewUser?: boolean;
+        };
+
+        if (!res.ok) {
+          return {
+            ok: false,
+            message: String(data.error ?? "Could not sign in. Try again."),
+            suggestForgotPassword: data.suggestForgotPassword,
+          };
         }
-        return result;
+
+        setRememberedEmail(email.trim().toLowerCase());
+        setRememberedProvider("email");
+
+        if (supabase) {
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            setSession(data.session);
+            setUser(data.session.user);
+          }
+        }
+
+        return { ok: true, isNewUser: data.isNewUser };
       } catch (e) {
-        if (e instanceof Error && e.message === "timeout") {
+        if (e instanceof Error && e.name === "TimeoutError") {
           return { ok: false, message: "Sign-in timed out. Try again." };
         }
         return { ok: false, message: "Could not sign in. Try again." };
       }
     },
-    [emailEnabled, supabase]
+    [emailEnabled, supabase],
   );
 
   const requestPasswordResetEmail = useCallback(

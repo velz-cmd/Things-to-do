@@ -2,10 +2,14 @@ name: Playwright E2E
 
 on:
   push:
-    branches: [main, "cursor/**"]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: playwright-e2e-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   e2e:

@@ -272,7 +272,7 @@ export function ProtocolChat({
         </form>
         {isEngine && (
           <p className="mt-2 text-[10px] text-resolve-muted-dim">
-            <Link href="/mission/fund" className="text-resolve-accent hover:underline">
+            <Link href="/mission" className="text-resolve-accent hover:underline">
               Fund a repository
             </Link>
             {" · "}

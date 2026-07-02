@@ -65,7 +65,7 @@ export function MissionActionPanel({
             </Link>
           )}
           <Link
-            href="/mission/fund"
+            href="/mission"
             className="rounded-lg border border-resolve-border px-3 py-2 text-center text-xs font-medium text-white hover:bg-resolve-hover/30"
           >
             Fund

@@ -15,6 +15,7 @@ import {
 } from "@/lib/discover/radar-feed-fallback";
 import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
 import { cacheGetOrSet } from "@/lib/cache/kv";
+import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 function startOfToday() {
   const d = new Date();
@@ -22,15 +23,15 @@ function startOfToday() {
   return d;
 }
 
-const GITHUB_TIMEOUT_MS = 12_000;
-const TREASURY_TIMEOUT_MS = 8_000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
-  ]);
-}
+const GITHUB_TIMEOUT_MS = 10_000;
+const TREASURY_TIMEOUT_MS = 6_000;
+const FUNDABLE_TIMEOUT_MS = 10_000;
+const LEDGER_TIMEOUT_MS = 5_000;
+const CONNECTORS_TIMEOUT_MS = 5_000;
+const TRENDING_TIMEOUT_MS = 8_000;
+const DOMAIN_RADARS_TIMEOUT_MS = 8_000;
+const EVENTS_TIMEOUT_MS = 3_000;
+const FEED_BUILD_TIMEOUT_MS = 18_000;
 
 /** Single Discover data source — gaps, pulse, radars, claim hint. Never throws. */
 export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarFeedPayload> {
@@ -61,16 +62,32 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
             withTimeout(cachedScanAllOpportunities(), GITHUB_TIMEOUT_MS, []).catch(() => []),
           [],
         ),
-    safeFeedPart("fundable", () => listFundableOpportunities(48), []),
-    safeFeedPart("ledger", () => getGlobalAuthorizationSummary(), null),
-    safeFeedPart("connectors", () => getConnectorLiveStatuses(), []),
+    safeFeedPart(
+      "fundable",
+      () => withTimeout(listFundableOpportunities(48), FUNDABLE_TIMEOUT_MS, []),
+      [],
+    ),
+    safeFeedPart(
+      "ledger",
+      () => withTimeout(getGlobalAuthorizationSummary(), LEDGER_TIMEOUT_MS, null),
+      null,
+    ),
+    safeFeedPart(
+      "connectors",
+      () => withTimeout(getConnectorLiveStatuses(), CONNECTORS_TIMEOUT_MS, []),
+      [],
+    ),
     process.env.DATABASE_URL
       ? safeFeedPart(
           "eventsToday",
           () =>
-            prisma.paymentAuthorization
-              .count({ where: { createdAt: { gte: sinceToday } } })
-              .catch(() => 0),
+            withTimeout(
+              prisma.paymentAuthorization
+                .count({ where: { createdAt: { gte: sinceToday } } })
+                .catch(() => 0),
+              EVENTS_TIMEOUT_MS,
+              0,
+            ),
           0,
         )
       : Promise.resolve(0),
@@ -91,10 +108,19 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
   const [trending, domainRadars] = await Promise.all([
     safeFeedPart(
       "trending",
-      () => buildTrendingValueGaps(gapLimit, sharedOpts),
+      () =>
+        withTimeout(buildTrendingValueGaps(gapLimit, sharedOpts), TRENDING_TIMEOUT_MS, {
+          gaps: [],
+          githubScanAt: null,
+          realSignalCount: 0,
+        }),
       { gaps: [], githubScanAt: null, realSignalCount: 0 },
     ),
-    safeFeedPart("domainRadars", () => buildDomainRadars(sharedOpts), defaultDomainRadars),
+    safeFeedPart(
+      "domainRadars",
+      () => withTimeout(buildDomainRadars(sharedOpts), DOMAIN_RADARS_TIMEOUT_MS, defaultDomainRadars),
+      defaultDomainRadars,
+    ),
   ]);
 
   if (!trending.gaps.length && !trending.realSignalCount && (eventsToday ?? 0) === 0) {
@@ -154,7 +180,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 }
 
 /** Safe wrapper for API route — returns empty payload only on total failure. */
-const FEED_CACHE_SECONDS = 30;
+const FEED_CACHE_SECONDS = 45;
 
 export async function buildDiscoverRadarFeedSafe(limit = 24): Promise<DiscoverRadarFeedPayload> {
   const bounded = Math.min(Math.max(limit, 1), 48);
@@ -164,7 +190,15 @@ export async function buildDiscoverRadarFeedSafe(limit = 24): Promise<DiscoverRa
     FEED_CACHE_SECONDS,
     async () => {
       try {
-        return await buildDiscoverRadarFeed(bounded);
+        return await withTimeout(
+          buildDiscoverRadarFeed(bounded),
+          FEED_BUILD_TIMEOUT_MS,
+          emptyRadarFeedPayload({
+            ok: true,
+            degraded: true,
+            degradedParts: ["timeout"],
+          }),
+        );
       } catch (e) {
         console.error("[discover/radar-feed] catastrophic:", e);
         return emptyRadarFeedPayload({

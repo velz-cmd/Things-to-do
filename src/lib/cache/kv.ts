@@ -1,6 +1,7 @@
 import { getRedisClient } from "@/lib/cache/redis";
 
 const memory = new Map<string, { value: unknown; expiresAt: number }>();
+const inflight = new Map<string, Promise<unknown>>();
 
 function memoryGet<T>(key: string): T | null {
   const row = memory.get(key);
@@ -22,7 +23,7 @@ function memorySet(key: string, value: unknown, ttlSeconds: number) {
 
 /**
  * Shared cache — Redis when configured, in-process memory otherwise.
- * Always stores real computed data (never synthetic placeholders).
+ * Singleflight prevents duplicate expensive builds on cold cache.
  */
 export async function cacheGetOrSet<T>(
   key: string,
@@ -47,24 +48,34 @@ export async function cacheGetOrSet<T>(
     }
   }
 
-  const fresh = await factory();
+  const pending = inflight.get(namespaced) as Promise<T> | undefined;
+  if (pending) return pending;
 
-  memorySet(namespaced, fresh, ttlSeconds);
-
-  if (redis) {
+  const work = (async () => {
     try {
-      await redis.set(namespaced, fresh, { ex: ttlSeconds });
-    } catch (e) {
-      console.warn("[cache] redis set failed:", namespaced, e);
+      const fresh = await factory();
+      memorySet(namespaced, fresh, ttlSeconds);
+      if (redis) {
+        try {
+          await redis.set(namespaced, fresh, { ex: ttlSeconds });
+        } catch (e) {
+          console.warn("[cache] redis set failed:", namespaced, e);
+        }
+      }
+      return fresh;
+    } finally {
+      inflight.delete(namespaced);
     }
-  }
+  })();
 
-  return fresh;
+  inflight.set(namespaced, work);
+  return work;
 }
 
 export async function cacheDelete(key: string): Promise<void> {
   const namespaced = key.startsWith("resolve:") ? key : `resolve:${key}`;
   memory.delete(namespaced);
+  inflight.delete(namespaced);
   const redis = getRedisClient();
   if (redis) {
     try {

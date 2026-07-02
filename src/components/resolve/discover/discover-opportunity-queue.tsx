@@ -78,7 +78,7 @@ export function DiscoverOpportunityQueue({
     setLoading(true);
     setError(null);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 28_000);
+    const timer = setTimeout(() => controller.abort(), 15_000);
     try {
       const res = await fetch("/api/capital/discover", { signal: controller.signal });
       if (!res.ok) throw new Error("Queue unavailable");

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { buildDiscoverRadar } from "@/lib/discover/radar";
+import { withTimeout } from "@/lib/discover/fetch-timeout";
+
+export const maxDuration = 60;
 
 const RADAR_CACHE_MS = 30_000;
+const RADAR_BUILD_TIMEOUT_MS = 12_000;
 let radarCache: { at: number; body: Awaited<ReturnType<typeof buildDiscoverRadar>> } | null =
   null;
 
@@ -17,7 +21,13 @@ export async function GET() {
   }
 
   try {
-    const radar = await buildDiscoverRadar();
+    const radar = await withTimeout(buildDiscoverRadar(), RADAR_BUILD_TIMEOUT_MS, null);
+    if (!radar) {
+      return NextResponse.json(
+        { ok: false, degraded: true, graph: { nodes: [], edges: [] }, timeline: [] },
+        { status: 200 },
+      );
+    }
     radarCache = { at: now, body: radar };
     return NextResponse.json(radar, {
       headers: {

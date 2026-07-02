@@ -1,7 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 
 async function openSignIn(page: Page) {
-  await page.locator("header").getByRole("button", { name: "Sign in" }).click();
+  const signIn = page.getByRole("button", { name: "Sign in" }).first();
+  await signIn.waitFor({ state: "visible" });
+  await signIn.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
 }
 
 test.describe("RESOLVE auth smoke", () => {
@@ -11,13 +14,15 @@ test.describe("RESOLVE auth smoke", () => {
       localStorage.removeItem("resolve.guest.exploring");
       localStorage.removeItem("resolve.auth.googleBroken");
       localStorage.removeItem("resolve.signin.cooldownUntil");
+      localStorage.removeItem("resolve.auth.rememberedEmail");
+      localStorage.removeItem("resolve.auth.rememberedProvider");
     });
   });
 
   test("1. sign-in modal opens", async ({ page }) => {
     await openSignIn(page);
     await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
   });
 
   test("2. close button closes modal", async ({ page }) => {

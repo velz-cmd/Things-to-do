@@ -15,7 +15,7 @@ import { getRememberedEmail } from "@/lib/auth/remember";
 import { detectInjectedWallets } from "@/lib/wallet/detect";
 
 type Step = "welcome" | "verify" | "wallet-picker";
-type AuthAction = "email" | "google" | "wallet" | "guest" | null;
+type AuthAction = "email" | "google" | "github" | "wallet" | "guest" | null;
 
 const COOLDOWN_KEY = "resolve.signin.cooldownUntil";
 const EMAIL_KEY = "resolve.signin.email";
@@ -180,7 +180,7 @@ export function SignInModal() {
 
   async function handleGithub() {
     setMethodError((prev) => ({ ...prev, github: undefined }));
-    setAuthAction("google");
+    setAuthAction("github");
     try {
       await signInWithGitHub();
     } catch {
@@ -435,12 +435,12 @@ export function SignInModal() {
                   <>
                     <button
                       type="button"
-                      disabled={authAction === "google"}
+                      disabled={authAction === "github" || authAction === "google"}
                       onClick={() => void handleGithub()}
                       className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-[#24292f] py-3.5 text-sm font-medium text-white transition hover:bg-[#2f363d] disabled:opacity-70"
                     >
                       <GithubIcon />
-                      {authAction === "google" ? "Redirecting…" : "Continue with GitHub"}
+                      {authAction === "github" ? "Redirecting…" : "Continue with GitHub"}
                     </button>
                     {methodError.github && (
                       <p className="text-xs text-amber-200">{methodError.github}</p>
@@ -452,7 +452,7 @@ export function SignInModal() {
                   <>
                     <button
                       type="button"
-                      disabled={authAction === "google"}
+                      disabled={authAction === "google" || authAction === "github"}
                       onClick={() => void handleGoogle()}
                       className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/10 bg-white py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-70"
                     >

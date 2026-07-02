@@ -25,8 +25,13 @@ Email links are sent **server-side** via Supabase (`/api/auth/send-code`). For r
 2. Paste your Google Cloud OAuth **Client ID** and **Client Secret**
 3. Authorized redirect URI in Google Cloud Console must include:
    `https://jjducnguljjddciczvuy.supabase.co/auth/v1/callback`
+4. The app starts OAuth via `/api/auth/oauth/google` (server redirect with PKCE cookies)
 
 App env vars `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are for Gmail agent tools only — **not** Supabase OAuth.
+
+## GitHub sign-in
+
+Same redirect URL rules as Google. OAuth starts at `/api/auth/oauth/github`.
 
 ## Email login code (OTP)
 

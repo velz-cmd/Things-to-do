@@ -92,7 +92,7 @@ export function DiscoverDomainRadars({
     radarCards,
     feedGapsForRadar,
     role,
-    connections.installedCommunitySlugs,
+    connections,
   );
   const live = bundle?.hasLiveData ?? false;
 

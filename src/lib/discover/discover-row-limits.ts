@@ -3,6 +3,7 @@ import { isVerifiedGap } from "@/lib/discover/gap-rules";
 import { buildSensorCommunityPreviewRows } from "@/lib/discover/sensor-community-rows";
 import type { DomainRadarId, DiscoverRadarFeedPayload, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
+import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
 export const GAPS_MAX_ROWS = 5;
 export const BOARD_MAX_ROWS = 5;
@@ -23,13 +24,13 @@ export function collectGapsRows(
   filtered: TrendingValueGap[],
   limit = GAPS_MAX_ROWS,
   role: DiscoverRole = "all",
-  installedSlugs: string[] = [],
+  connections: UserConnectionState | null = null,
 ): TrendingValueGap[] {
   if (filtered.length > 0) {
     return filtered.slice(0, limit);
   }
   if (!feed) {
-    return buildSensorCommunityPreviewRows(role, installedSlugs, limit, "gaps");
+    return buildSensorCommunityPreviewRows(role, connections, limit, "gaps");
   }
 
   const verified = dedupeTrendingGaps((feed.gaps ?? []).filter(isVerifiedGap));
@@ -42,7 +43,7 @@ export function collectGapsRows(
     ...feed.domainRadars.oss.cards,
     ...feed.domainRadars.music.cards,
     ...feed.domainRadars.dao.cards,
-    ...buildSensorCommunityPreviewRows(role, installedSlugs, limit, "gaps"),
+    ...buildSensorCommunityPreviewRows(role, connections, limit, "gaps"),
   ]).sort((a, b) => gapRank(b) - gapRank(a));
 
   return preview.slice(0, limit);
@@ -53,11 +54,11 @@ export function collectRadarRows(
   radarCards: TrendingValueGap[],
   feedGaps: TrendingValueGap[],
   role: DiscoverRole = "all",
-  installedSlugs: string[] = [],
+  connections: UserConnectionState | null = null,
 ): TrendingValueGap[] {
   const limit = RADAR_MAX_ROWS[radarId];
   const merged = dedupeTrendingGaps(
-    radarCards.length > 0 ? radarCards : feedGaps.length > 0 ? feedGaps : filterSensorRowsForRadar(radarId, role, installedSlugs),
+    radarCards.length > 0 ? radarCards : feedGaps.length > 0 ? feedGaps : filterSensorRowsForRadar(radarId, role, connections),
   );
   return merged.slice(0, limit);
 }
@@ -65,9 +66,9 @@ export function collectRadarRows(
 function filterSensorRowsForRadar(
   radarId: DomainRadarId,
   role: DiscoverRole,
-  installedSlugs: string[],
+  connections: UserConnectionState | null,
 ): TrendingValueGap[] {
-  const all = buildSensorCommunityPreviewRows(role, installedSlugs, 8, radarId);
+  const all = buildSensorCommunityPreviewRows(role, connections, 8, radarId);
   if (radarId === "oss") {
     return all.filter((g) => g.domain === "oss" || g.communitySlug === "react" || g.communitySlug === "linux");
   }

@@ -385,27 +385,9 @@ export function DiscoverActionsProvider({
           }
 
           case "connect_sensor": {
-            const slug = action.communitySlug ?? action.href?.match(/\/communities\/([^/#?]+)/)?.[1];
-            if (!slug) {
-              if (action.href) {
-                router.push(action.href);
-                reportActionStatus(surface, action, "success");
-              }
-              break;
-            }
-            const toastId = `discover-sensor-${slug}`;
-            toast.loading(`Setting up ${slug}…`, { id: toastId });
-            try {
-              await apiInstallCommunity(slug);
-              toast.success(`${slug} ready — syncing value automatically`, { id: toastId });
-              reportActionStatus(surface, action, "success");
-              void reloadConnections();
-              openDiscoverConsole(slug, "install");
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : "Could not attach community";
-              reportActionStatus(surface, action, "error", msg);
-              toast.error(msg, { id: toastId });
-            }
+            const target = action.href ?? "/profile";
+            router.push(target);
+            reportActionStatus(surface, action, "success");
             break;
           }
 

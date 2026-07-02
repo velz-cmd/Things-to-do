@@ -1,13 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import clsx from "clsx";
 import { GitBranch, Mic2, Users } from "lucide-react";
-import { DiscoverActionCard } from "@/components/resolve/discover/discover-action-card";
-import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
-import type { DiscoverIntent, DomainRadarBundle, RadarEmptyState } from "@/lib/discover/types";
+import type { DiscoverIntent, DomainRadarBundle } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { defaultRadarForRole } from "@/lib/discover/board-actions-for-role";
@@ -15,6 +12,9 @@ import { gapMatchesRadar } from "@/lib/discover/gap-rules";
 import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
+import { DiscoverAttachRail } from "@/components/resolve/discover/discover-attach-rail";
+import { DiscoverFeatureRow } from "@/components/resolve/discover/discover-feature-row";
+import { collectRadarRows, RADAR_MAX_ROWS } from "@/lib/discover/discover-row-limits";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
 const RADAR_ICONS = {
@@ -46,7 +46,6 @@ export function DiscoverDomainRadars({
   role = "all",
   needType = "all",
   className,
-  onSwitchLane,
 }: DiscoverDomainRadarsProps) {
   const { feed, loading, refresh } = useDiscoverRadarFeed();
   const [activeRadar, setActiveRadar] = useState<"oss" | "music" | "dao">(() =>
@@ -85,11 +84,21 @@ export function DiscoverDomainRadars({
 
   const bundle = bundles?.find((b) => b.id === activeRadar);
   const Icon = RADAR_ICONS[activeRadar];
+  const radarCards = bundle?.cards ?? [];
+  const displayRows = collectRadarRows(activeRadar, radarCards, feedGapsForRadar);
+  const rowLimit = RADAR_MAX_ROWS[activeRadar];
+  const live = bundle?.hasLiveData ?? false;
+
+  const radarTaglines: Record<typeof activeRadar, string> = {
+    oss: "Maintainer graphs · docs bounties · security funds",
+    music: "Per-play royalties · artist graphs · listener-direct",
+    dao: "QF rounds · citation tolls · grant pools",
+  };
 
   return (
     <DiscoverPremiumSection
       title="Domain radars"
-      subtitle="OSS, creators, and DAO/research — ranked gaps across every community when ledger data exists"
+      subtitle="OSS, creators, and DAO/research — top rows per vertical when ledger or scan data exists"
       className={className}
       actions={
         <DiscoverSectionRefresh
@@ -113,149 +122,75 @@ export function DiscoverDomainRadars({
             )}
           >
             {tab.label}
+            <span className="ml-1 text-[9px] text-resolve-muted-dim">({RADAR_MAX_ROWS[tab.id]})</span>
           </button>
         ))}
       </div>
 
-      <DomainRadarPanel
-        radarId={activeRadar}
-        bundle={bundle}
-        feedGaps={feedGapsForRadar}
-        loading={feedLoading}
-        signedIn={signedIn}
-        intent={intent}
-        role={role}
-        icon={Icon}
-        onSwitchLane={onSwitchLane}
-      />
-    </DiscoverPremiumSection>
-  );
-}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <DiscoverAttachRail
+          context="radar"
+          radarId={activeRadar}
+          role={role}
+          needType={needType}
+          signedIn={signedIn}
+        />
 
-function DomainRadarPanel({
-  radarId,
-  bundle,
-  feedGaps,
-  loading,
-  signedIn,
-  intent,
-  role,
-  icon: Icon,
-  onSwitchLane,
-}: {
-  radarId: "oss" | "music" | "dao";
-  bundle?: DomainRadarBundle & { cards: DomainRadarBundle["cards"] };
-  feedGaps: DomainRadarBundle["cards"];
-  loading: boolean;
-  signedIn: boolean;
-  intent: DiscoverIntent;
-  role: DiscoverRole;
-  icon: typeof GitBranch;
-  onSwitchLane?: (lane: DiscoverWorkspaceLane) => void;
-}) {
-  const title = bundle?.title ?? radarId;
-  const tagline = bundle?.tagline ?? "";
-  const toolbar = bundle?.toolbar ?? [];
-  const radarCards = bundle?.cards ?? [];
-  const displayCards = dedupeTrendingGaps(
-    radarCards.length > 0 ? radarCards : feedGaps,
-  );
-  const empty = bundle?.emptyState;
-  const live = bundle?.hasLiveData ?? false;
-
-  return (
-    <div
-      id={`radar-${radarId}`}
-      className="scroll-mt-24 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:p-4"
-    >
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 shrink-0 text-resolve-accent" />
-          <div>
-            <h3 className="text-sm font-semibold text-white">{title}</h3>
-            <p className="mt-0.5 text-[10px] leading-relaxed text-resolve-muted-dim">{tagline}</p>
-          </div>
-        </div>
-        {live ? (
-          <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-300">
-            Live
-          </span>
-        ) : displayCards.length > 0 ? (
-          <span className="shrink-0 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-200/90">
-            {displayCards.length} gap{displayCards.length === 1 ? "" : "s"}
-          </span>
-        ) : null}
-      </div>
-
-      {toolbar.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {toolbar.map((action) => (
-            <DiscoverActionChip
-              key={action.id}
-              action={action}
-              signedIn={signedIn}
-              surface={`radar-toolbar-${radarId}`}
-            />
-          ))}
-        </div>
-      )}
-
-      {loading ? (
-        <p className="text-xs text-resolve-muted">Loading verified radar…</p>
-      ) : displayCards.length > 0 ? (
-        <ul className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-          {displayCards.slice(0, 6).map((gap) => (
-            <DiscoverActionCard
-              key={gap.id}
-              gap={gap}
-              signedIn={signedIn}
-              intent={intent}
-              role={role}
-              compact
-              surface={`radar-${radarId}`}
-            />
-          ))}
-        </ul>
-      ) : empty ? (
-        <RadarEmpty empty={empty} role={role} onSwitchLane={onSwitchLane} />
-      ) : (
-        <p className="text-xs text-resolve-muted">No cards match your filters.</p>
-      )}
-    </div>
-  );
-}
-
-function RadarEmpty({
-  empty,
-  onSwitchLane,
-}: {
-  empty: RadarEmptyState;
-  role: DiscoverRole;
-  onSwitchLane?: (lane: DiscoverWorkspaceLane) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-xs leading-relaxed text-resolve-muted">{empty.message}</p>
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href={empty.actionHref}
-          className={clsx(
-            "inline-flex rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5",
-            "text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15",
-          )}
+        <div
+          id={`radar-${activeRadar}`}
+          className="min-w-0 flex-1 scroll-mt-24 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:p-4"
         >
-          {empty.actionLabel} →
-        </Link>
-        {onSwitchLane && (
-          <button
-            type="button"
-            onClick={() => onSwitchLane("board")}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] font-medium text-resolve-muted hover:text-white"
-          >
-            Open Board
-          </button>
-        )}
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Icon className="h-4 w-4 shrink-0 text-resolve-accent" />
+              <div>
+                <h3 className="text-sm font-semibold text-white">{bundle?.title ?? activeRadar}</h3>
+                <p className="mt-0.5 text-[10px] leading-relaxed text-resolve-muted-dim">
+                  {radarTaglines[activeRadar]}
+                </p>
+              </div>
+            </div>
+            {live ? (
+              <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-300">
+                Live
+              </span>
+            ) : displayRows.length > 0 ? (
+              <span className="shrink-0 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-200/90">
+                Scan preview
+              </span>
+            ) : null}
+          </div>
+
+          {feedLoading ? (
+            <p className="text-xs text-resolve-muted">Loading verified radar…</p>
+          ) : displayRows.length > 0 ? (
+            <ul className="divide-y divide-white/[0.06]">
+              {displayRows.map((gap, i) => (
+                <DiscoverFeatureRow
+                  key={gap.id}
+                  gap={gap}
+                  signedIn={signedIn}
+                  intent={intent}
+                  role={role}
+                  rank={i + 1}
+                  surface={`radar-${activeRadar}`}
+                  maxActions={activeRadar === "dao" ? 3 : 2}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs leading-relaxed text-resolve-muted">
+              No {activeRadar} rows yet — connect {activeRadar === "oss" ? "GitHub" : activeRadar === "music" ? "ListenBrainz" : "Open Research"} on the left, then attach the community.
+            </p>
+          )}
+
+          {displayRows.length > 0 && (
+            <p className="mt-2 text-[10px] text-resolve-muted-dim">
+              Showing {displayRows.length} of {rowLimit} max rows for this radar.
+            </p>
+          )}
+        </div>
       </div>
-    </div>
+    </DiscoverPremiumSection>
   );
 }

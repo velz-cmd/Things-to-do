@@ -24,6 +24,10 @@ import {
   setRememberedEmail,
   setRememberedProvider,
 } from "@/lib/auth/remember";
+import {
+  continueWithEmailPassword,
+  type EmailPasswordResult,
+} from "@/lib/auth/email-password";
 import { toast } from "sonner";
 
 export interface WalletBalance {
@@ -42,9 +46,7 @@ export interface WalletBalance {
   }[];
 }
 
-export type EmailPasswordResult =
-  | { ok: true; isNewUser?: boolean }
-  | { ok: false; message: string };
+export type { EmailPasswordResult } from "@/lib/auth/email-password";
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -74,14 +76,11 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
   linkGitHub: () => Promise<void>;
-  signInWithEmailPassword: (
+  continueWithEmailPassword: (
     email: string,
     password: string
   ) => Promise<EmailPasswordResult>;
-  signUpWithEmailPassword: (
-    email: string,
-    password: string
-  ) => Promise<EmailPasswordResult>;
+  requestPasswordReset: (email: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   provisionWallet: () => Promise<void>;
@@ -280,27 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase, githubEnabled, signInWithGitHub]);
 
-function mapPasswordAuthError(message: string): string {
-  const lower = message.toLowerCase();
-  if (lower.includes("invalid login credentials")) {
-    return "Wrong email or password.";
-  }
-  if (lower.includes("user already registered")) {
-    return "An account with this email already exists. Sign in instead.";
-  }
-  if (lower.includes("password should be at least")) {
-    return "Password must be at least 6 characters.";
-  }
-  if (lower.includes("email not confirmed")) {
-    return "Confirm your email first, or ask an admin to disable email confirmation in Supabase.";
-  }
-  if (lower.includes("signup is disabled")) {
-    return "New sign-ups are disabled. Contact support.";
-  }
-  return message;
-}
-
-  const signInWithEmailPassword = useCallback(
+  const continueWithEmail = useCallback(
     async (email: string, password: string): Promise<EmailPasswordResult> => {
       if (!emailEnabled) {
         return { ok: false, message: "Email sign-in is not available" };
@@ -309,25 +288,16 @@ function mapPasswordAuthError(message: string): string {
         return { ok: false, message: "Auth is not configured" };
       }
 
-      const trimmed = email.trim().toLowerCase();
-      if (!trimmed || password.length < 6) {
-        return {
-          ok: false,
-          message: "Enter a valid email and password (6+ characters).",
-        };
-      }
-
       try {
-        const { error } = await withTimeout(
-          supabase.auth.signInWithPassword({ email: trimmed, password }),
+        const result = await withTimeout(
+          continueWithEmailPassword(supabase, email, password),
           15_000
         );
-        if (error) {
-          return { ok: false, message: mapPasswordAuthError(error.message) };
+        if (result.ok) {
+          setRememberedEmail(email.trim().toLowerCase());
+          setRememberedProvider("email");
         }
-        setRememberedEmail(trimmed);
-        setRememberedProvider("email");
-        return { ok: true };
+        return result;
       } catch (e) {
         if (e instanceof Error && e.message === "timeout") {
           return { ok: false, message: "Sign-in timed out. Try again." };
@@ -338,62 +308,35 @@ function mapPasswordAuthError(message: string): string {
     [emailEnabled, supabase]
   );
 
-  const signUpWithEmailPassword = useCallback(
-    async (email: string, password: string): Promise<EmailPasswordResult> => {
-      if (!emailEnabled) {
-        return { ok: false, message: "Email sign-up is not available" };
-      }
-      if (!supabase) {
-        return { ok: false, message: "Auth is not configured" };
-      }
-
+  const requestPasswordResetEmail = useCallback(
+    async (email: string) => {
       const trimmed = email.trim().toLowerCase();
-      if (!trimmed || password.length < 6) {
-        return {
-          ok: false,
-          message: "Enter a valid email and password (6+ characters).",
-        };
+      if (!trimmed) {
+        return { ok: false as const, message: "Enter your email address." };
       }
 
       try {
-        const { data, error } = await withTimeout(
-          supabase.auth.signUp({ email: trimmed, password }),
-          15_000
-        );
-        if (error) {
-          return { ok: false, message: mapPasswordAuthError(error.message) };
-        }
-
-        if (data.session) {
-          setRememberedEmail(trimmed);
-          setRememberedProvider("email");
-          return { ok: true, isNewUser: true };
-        }
-
-        // Supabase may require email confirmation before session is issued.
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: trimmed,
-          password,
+        const res = await fetch("/api/auth/forgot-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmed }),
         });
-        if (!signInError && data.user) {
-          setRememberedEmail(trimmed);
-          setRememberedProvider("email");
-          return { ok: true, isNewUser: true };
-        }
-
-        return {
-          ok: false,
-          message:
-            "Account created. Disable “Confirm email” in Supabase Auth settings for instant sign-in, or check your inbox to confirm.",
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
         };
-      } catch (e) {
-        if (e instanceof Error && e.message === "timeout") {
-          return { ok: false, message: "Sign-up timed out. Try again." };
+        if (!res.ok) {
+          return {
+            ok: false as const,
+            message: String(data.error ?? "Could not send reset link."),
+          };
         }
-        return { ok: false, message: "Could not create account. Try again." };
+        return { ok: true as const };
+      } catch {
+        return { ok: false as const, message: "Could not send reset link." };
       }
     },
-    [emailEnabled, supabase]
+    []
   );
 
   const signOut = useCallback(async () => {
@@ -425,8 +368,8 @@ function mapPasswordAuthError(message: string): string {
       signInWithGoogle,
       signInWithGitHub,
       linkGitHub,
-      signInWithEmailPassword,
-      signUpWithEmailPassword,
+      continueWithEmailPassword: continueWithEmail,
+      requestPasswordReset: requestPasswordResetEmail,
       signOut,
       refreshBalance,
       provisionWallet,
@@ -445,8 +388,8 @@ function mapPasswordAuthError(message: string): string {
       signInWithGoogle,
       signInWithGitHub,
       linkGitHub,
-      signInWithEmailPassword,
-      signUpWithEmailPassword,
+      continueWithEmail,
+      requestPasswordResetEmail,
       signOut,
       refreshBalance,
       provisionWallet,

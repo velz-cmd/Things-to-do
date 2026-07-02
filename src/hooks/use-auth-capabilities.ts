@@ -61,8 +61,8 @@ export function useAuthCapabilities(): AuthCapabilities {
       setCaps({
         supabase: Boolean(data.supabase),
         email: Boolean(data.email),
-        emailMagicLink: Boolean(data.emailMagicLink),
-        emailOtp: Boolean(data.emailOtp),
+        emailMagicLink: Boolean(data.emailPassword ?? data.email),
+        emailOtp: false,
         google: Boolean(data.google) && !googleBroken,
         github: Boolean(data.github),
         wallet: true,

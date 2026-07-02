@@ -50,11 +50,6 @@ export type EmailSendResult =
     }
   | { ok: false; cooldownSeconds?: number; message: string };
 
-function parseOtpCooldown(message: string): number | undefined {
-  const match = message.match(/after (\d+) seconds?/i);
-  return match ? Number(match[1]) : undefined;
-}
-
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("timeout")), ms);
@@ -313,42 +308,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithEmail = useCallback(
     async (email: string): Promise<EmailSendResult> => {
-      if (!supabase || !emailEnabled) {
-        return { ok: false, message: "Email sign-in is not available" };
-      }
-
-      const { error } = await withTimeout(
-        supabase.auth.signInWithOtp({
-          email: email.trim().toLowerCase(),
-          options: {
-            shouldCreateUser: true,
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        }),
-        15_000
-      );
-
-      if (error) {
-        const cooldownSeconds = parseOtpCooldown(error.message);
-        if (cooldownSeconds !== undefined) {
-          return {
-            ok: false,
-            cooldownSeconds,
-            message: `Magic link already sent. Try again in ${cooldownSeconds} seconds.`,
-          };
-        }
-        return { ok: false, message: error.message };
-      }
-
-      return { ok: true };
-    },
-    [supabase, emailEnabled]
-  );
-
-  const sendLoginCode = useCallback(
-    async (email: string): Promise<EmailSendResult> => {
-      const trimmed = email.trim().toLowerCase();
-
       if (!emailEnabled) {
         return { ok: false, message: "Email sign-in is not available" };
       }
@@ -358,61 +317,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           fetch("/api/auth/send-code", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: trimmed }),
+            body: JSON.stringify({ email: email.trim().toLowerCase() }),
           }),
-          20_000
+          30_000
         );
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
           cooldownSeconds?: number;
-          clientSend?: boolean;
           expiresInMinutes?: number;
           resendCooldownSeconds?: number;
         };
 
         if (!res.ok) {
-          const cooldownSeconds =
-            data.cooldownSeconds ?? parseOtpCooldown(String(data.error ?? ""));
-          const message = String(data.error ?? "Could not send sign-in link.");
-
           return {
             ok: false,
-            cooldownSeconds,
-            message,
+            cooldownSeconds: data.cooldownSeconds,
+            message: String(data.error ?? "Could not send sign-in link."),
           };
         }
-
-        if (!supabase) {
-          return { ok: false, message: "Email sign-in is not available" };
-        }
-
-        const { error } = await withTimeout(
-          supabase.auth.signInWithOtp({
-            email: trimmed,
-            options: {
-              shouldCreateUser: true,
-              emailRedirectTo: `${window.location.origin}/auth/callback`,
-            },
-          }),
-          15_000
-        );
-
-        if (error) {
-          const cooldownSeconds = parseOtpCooldown(error.message);
-          return {
-            ok: false,
-            cooldownSeconds,
-            message: error.message,
-          };
-        }
-
-        await fetch("/api/auth/send-code", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: trimmed, confirm: true }),
-        }).catch(() => {
-          /* non-fatal */
-        });
 
         return {
           ok: true,
@@ -426,7 +348,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, message: "Could not send sign-in email." };
       }
     },
-    [emailEnabled, supabase]
+    [emailEnabled]
+  );
+
+  const sendLoginCode = useCallback(
+    async (email: string): Promise<EmailSendResult> => {
+      return signInWithEmail(email);
+    },
+    [signInWithEmail]
   );
 
   const signOut = useCallback(async () => {

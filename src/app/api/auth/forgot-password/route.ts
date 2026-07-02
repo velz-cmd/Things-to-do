@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const redirectTo = `${getAppBaseUrl()}/auth/callback?next=/profile`;
+  const redirectTo = `${getAppBaseUrl()}/auth/callback?next=/auth/reset-password`;
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
   if (error) {

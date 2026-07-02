@@ -312,7 +312,7 @@ export function SignInModal() {
                       setShowForgotHint(false);
                     }}
                     placeholder="Password (6+ characters)"
-                    autoComplete="current-password"
+                    autoComplete={rememberedEmail && email ? "current-password" : "new-password"}
                     minLength={6}
                     className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-500/50"
                   />

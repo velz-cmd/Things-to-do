@@ -21,6 +21,10 @@ export function generateResetToken(): { plain: string; hash: string } {
   return { plain, hash: hashResetToken(plain) };
 }
 
+export async function isPasswordResetStorageReady(): Promise<boolean> {
+  return ensurePasswordResetSchema();
+}
+
 async function withResetTable<T>(fn: () => Promise<T>): Promise<T> {
   const ready = await ensurePasswordResetSchema();
   if (!ready) {

@@ -14,6 +14,7 @@ import {
 import { deliverAuthEmail } from "@/lib/email/deliver";
 import {
   createPasswordResetToken,
+  isPasswordResetStorageReady,
   PasswordResetStorageError,
 } from "@/lib/auth/password-reset-token";
 import { ensureUserProfile } from "@/lib/wallet/service";
@@ -55,83 +56,114 @@ function legacyResetLinkFromGenerateLink(data: {
  * when the PasswordResetToken table is not migrated yet.
  */
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const email = String((body as { email?: string }).email ?? "")
-    .trim()
-    .toLowerCase();
+  try {
+    const body = await req.json().catch(() => ({}));
+    const email = String((body as { email?: string }).email ?? "")
+      .trim()
+      .toLowerCase();
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
-  }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
+    }
 
-  if (!isSupabaseAdminConfigured()) {
-    return NextResponse.json(
-      { error: "Password reset is not configured on the server." },
-      { status: 503 },
-    );
-  }
+    if (!isSupabaseAdminConfigured()) {
+      return NextResponse.json(
+        { error: "Password reset is not configured on the server." },
+        { status: 503 },
+      );
+    }
 
-  const limit = await checkEmailLinkRateLimit(email).catch(() => null);
-  if (limit && !limit.allowed) {
-    return NextResponse.json(
-      {
-        error: limit.message,
-        cooldownSeconds: limit.cooldownSeconds,
-      },
-      { status: 429 },
-    );
-  }
+    const limit = await checkEmailLinkRateLimit(email).catch(() => null);
+    if (limit && !limit.allowed) {
+      return NextResponse.json(
+        {
+          error: limit.message,
+          cooldownSeconds: limit.cooldownSeconds,
+        },
+        { status: 429 },
+      );
+    }
 
-  const supabase = createAdminClient();
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Password reset is not configured on the server." },
-      { status: 503 },
-    );
-  }
+    const supabase = createAdminClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: "Password reset is not configured on the server." },
+        { status: 503 },
+      );
+    }
 
-  const redirectTo = `${getAppBaseUrl()}/auth/callback?next=/auth/reset-password`;
+    const redirectTo = `${getAppBaseUrl()}/auth/callback?next=/auth/reset-password`;
 
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: { redirectTo },
-  });
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo },
+    });
 
-  if (error) {
-    const lower = error.message.toLowerCase();
-    if (lower.includes("user not found") || lower.includes("not found")) {
-      return NextResponse.json({
-        ok: true,
-        message: "If that email has an account, we sent a reset link.",
+    if (error) {
+      const lower = error.message.toLowerCase();
+      if (lower.includes("user not found") || lower.includes("not found")) {
+        return NextResponse.json({
+          ok: true,
+          message: "If that email has an account, we sent a reset link.",
+        });
+      }
+      const mapped = mapResetError(error.message);
+      return NextResponse.json(mapped, {
+        status: mapped.cooldownSeconds ? 429 : 400,
       });
     }
-    const mapped = mapResetError(error.message);
-    return NextResponse.json(mapped, {
-      status: mapped.cooldownSeconds ? 429 : 400,
-    });
-  }
 
-  const userId = data.user?.id;
-  if (!userId) {
-    return NextResponse.json(
-      { error: "Could not create a password reset link." },
-      { status: 500 },
-    );
-  }
+    const userId = data.user?.id;
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Could not create a password reset link." },
+        { status: 500 },
+      );
+    }
 
-  await supabase.auth.admin
-    .updateUserById(userId, { email_confirm: true })
-    .catch(() => {
-      /* non-fatal */
-    });
+    await supabase.auth.admin
+      .updateUserById(userId, { email_confirm: true })
+      .catch(() => {
+        /* non-fatal */
+      });
 
-  let resetLink: string;
-  try {
-    const { plain } = await createPasswordResetToken({ userId, email });
-    resetLink = buildPasswordResetUrl(plain);
-  } catch (e) {
-    if (e instanceof PasswordResetStorageError) {
+    let resetLink: string;
+    const storageReady = await isPasswordResetStorageReady();
+
+    if (storageReady) {
+      try {
+        const { plain } = await createPasswordResetToken({ userId, email });
+        resetLink = buildPasswordResetUrl(plain);
+      } catch (e) {
+        if (e instanceof PasswordResetStorageError) {
+          const fallback = legacyResetLinkFromGenerateLink(data);
+          if (!fallback) {
+            return NextResponse.json(
+              {
+                error:
+                  "Password reset is temporarily unavailable. Try wallet sign-in or retry in a few minutes.",
+              },
+              { status: 503 },
+            );
+          }
+          resetLink = fallback;
+          console.warn(
+            "[auth] PasswordResetToken write failed — sent legacy Supabase link",
+          );
+        } else {
+          return NextResponse.json(
+            {
+              error: sanitizeAuthApiError(
+                e,
+                "Could not send reset link. Try again in a moment.",
+              ),
+            },
+            { status: 500 },
+          );
+        }
+      }
+    } else {
       const fallback = legacyResetLinkFromGenerateLink(data);
       if (!fallback) {
         return NextResponse.json(
@@ -144,44 +176,45 @@ export async function POST(req: Request) {
       }
       resetLink = fallback;
       console.warn("[auth] PasswordResetToken table missing — sent legacy Supabase link");
-    } else {
-      return NextResponse.json(
-        {
-          error: sanitizeAuthApiError(
-            e,
-            "Could not send reset link. Try again in a moment.",
-          ),
-        },
-        { status: 500 },
-      );
     }
+
+    await ensureUserProfile({
+      id: userId,
+      email,
+      authProvider: "email",
+    }).catch(() => {
+      /* profile row created on password save if this fails */
+    });
+
+    const delivered = await deliverAuthEmail({
+      to: email,
+      subject: "Set your password for RESOLVE",
+      html: buildPasswordResetEmailHtml({ resetLink, expiresMinutes: 60 }),
+    });
+
+    if (!delivered.ok) {
+      return NextResponse.json({ error: delivered.message }, { status: 502 });
+    }
+
+    await recordEmailLinkRequest(email).catch(() => {
+      /* non-fatal */
+    });
+
+    return NextResponse.json({
+      ok: true,
+      delivery: delivered.provider,
+      message: "Password reset link sent. Open it and choose a new password.",
+    });
+  } catch (e) {
+    console.error("[auth] forgot-password failed:", e);
+    return NextResponse.json(
+      {
+        error: sanitizeAuthApiError(
+          e,
+          "Could not send reset link. Try again in a moment.",
+        ),
+      },
+      { status: 500 },
+    );
   }
-
-  await ensureUserProfile({
-    id: userId,
-    email,
-    authProvider: "email",
-  }).catch(() => {
-    /* profile row created on password save if this fails */
-  });
-
-  const delivered = await deliverAuthEmail({
-    to: email,
-    subject: "Set your password for RESOLVE",
-    html: buildPasswordResetEmailHtml({ resetLink, expiresMinutes: 60 }),
-  });
-
-  if (!delivered.ok) {
-    return NextResponse.json({ error: delivered.message }, { status: 502 });
-  }
-
-  await recordEmailLinkRequest(email).catch(() => {
-    /* non-fatal */
-  });
-
-  return NextResponse.json({
-    ok: true,
-    delivery: delivered.provider,
-    message: "Password reset link sent. Open it and choose a new password.",
-  });
 }

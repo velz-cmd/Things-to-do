@@ -358,7 +358,7 @@ test.describe("Community phases — surfaces", () => {
     await expect(sortOrSetup.first()).toBeVisible({ timeout: 30_000 });
     const hasSort = await board.getByText("Sort by").isVisible().catch(() => false);
     if (hasSort) {
-      await expect(board.getByRole("button", { name: "Score" })).toBeVisible();
+      await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
       await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
     }
   });

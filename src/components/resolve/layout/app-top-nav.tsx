@@ -7,7 +7,7 @@ import { Command } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { PRODUCT_NAV } from "@/components/resolve/layout/nav";
-import { prefetchDiscoverTab, prefetchProfileTab } from "@/lib/query/hooks";
+import { prefetchDiscoverTab, prefetchProfileTab, prefetchCommunitiesTab } from "@/lib/query/hooks";
 
 export function ResolveLogo({ className }: { className?: string }) {
   return (
@@ -49,6 +49,7 @@ export function ProductNav({ compact = false }: { compact?: boolean }) {
   function onNavPrefetch(href: string) {
     if (href === "/discover") prefetchDiscoverTab(queryClient);
     if (href === "/profile") prefetchProfileTab(queryClient);
+    if (href === "/communities") prefetchCommunitiesTab(queryClient);
   }
 
   return (

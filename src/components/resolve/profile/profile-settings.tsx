@@ -670,35 +670,17 @@ export function ProfileSettings() {
       </section>
 
       {ecosystems.length > 0 && (
-        <section className="space-y-3">
+        <section className="space-y-2">
           <SectionHeader
-            title="Your communities"
-            subtitle="Workspaces you fund or observe — saved to your account"
+            title="Communities"
+            subtitle={`${ecosystems.length} workspace${ecosystems.length === 1 ? "" : "s"} linked — manage programs on Communities`}
           />
-          <ul className="space-y-2">
-            {ecosystems.map((eco) => (
-              <li
-                key={eco.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-[#0a0f18] px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm font-medium text-white">{eco.name}</p>
-                  <p className="text-[11px] text-resolve-muted">
-                    {eco.kind} · {eco.repoCount} repo{eco.repoCount === 1 ? "" : "s"}
-                    {eco.connectors.length > 0 ?
-                      ` · sensors: ${eco.connectors.join(", ")}`
-                    : " · connect GitHub to scan repos"}
-                  </p>
-                </div>
-                <Link
-                  href="/mission"
-                  className="text-xs font-medium text-resolve-accent hover:underline"
-                >
-                  Open mission →
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <Link
+            href="/communities"
+            className="inline-flex items-center gap-1 text-xs font-medium text-resolve-accent hover:underline"
+          >
+            Open Communities hub →
+          </Link>
         </section>
       )}
 

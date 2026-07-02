@@ -22,8 +22,7 @@ export function ProfileWorkView({
           Your connected work
         </p>
         <p className="mt-1 text-xs text-resolve-muted">
-          RESOLVE reads activity from your linked sources and maps it to earn eligibility.
-          Thresholds are goals — not balances. Dollar amounts below are ledger authorizations, not money in your wallet.
+          Verified activity from your linked sources — claim payouts on Capital.
         </p>
         {degraded && (
           <p className="mt-1 text-[10px] text-amber-200/90">Ledger sync delayed — showing connection status.</p>

@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Plug, Terminal } from "lucide-react";
+import { CheckCircle2, Loader2, Plug, ArrowRight } from "lucide-react";
 import clsx from "clsx";
 import { toast } from "sonner";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Button } from "@/components/resolve/ui/button";
 import { CommunityVitalsRow } from "@/components/resolve/communities/community-vitals-row";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { CommunityVitalsSummary } from "@/lib/communities/types";
 
@@ -39,8 +39,8 @@ export function InstallResolveCard({
   compact = false,
   onInstalled,
 }: InstallResolveCardProps) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const { refreshSync } = useUserConnections();
   const [observeNarrative, setObserveNarrative] = useState<string | null>(null);
   const showInstalled = installed || Boolean(observeNarrative);
 
@@ -57,17 +57,17 @@ export function InstallResolveCard({
       const narrative =
         data.observeNarrative ??
         vitals?.observeNarrative ??
-        `RESOLVE will now observe upstream signals for ${community.name}.`;
+        `Connected to ${community.name}.`;
 
       setObserveNarrative(narrative);
       toast.success(
         data.alreadyInstalled
           ? `Already connected to ${community.name}`
           : `Connected to ${community.name}`,
-        { description: narrative },
+        { description: "Syncs from Profile across all tabs" },
       );
       onInstalled?.(narrative);
-      router.push(consoleHref(community.slug));
+      void refreshSync().catch(() => null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not install RESOLVE");
     } finally {
@@ -88,8 +88,8 @@ export function InstallResolveCard({
               href={consoleHref(community.slug)}
               className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-400"
             >
-              <Terminal className="h-3.5 w-3.5" />
-              Open console
+              Manage
+              <ArrowRight className="h-3 w-3" />
             </Link>
           ) : (
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => void install()}>
@@ -133,24 +133,13 @@ export function InstallResolveCard({
 
         {vitals && <CommunityVitalsRow vitals={vitals} />}
 
-        {showInstalled && (observeNarrative ?? vitals?.observeNarrative) && (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/90">
-              Observing
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-emerald-100/80">
-              {observeNarrative ?? vitals?.observeNarrative}
-            </p>
-          </div>
-        )}
-
         {showInstalled ? (
           <Link
             href={consoleHref(community.slug)}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/15"
           >
-            <Terminal className="h-4 w-4" />
-            Open console
+            Manage community
+            <ArrowRight className="h-4 w-4" />
           </Link>
         ) : (
           <Button className="w-full" disabled={busy} onClick={() => void install()}>
@@ -160,7 +149,7 @@ export function InstallResolveCard({
                 Connecting…
               </>
             ) : (
-              community.installCta
+              "Connect community"
             )}
           </Button>
         )}

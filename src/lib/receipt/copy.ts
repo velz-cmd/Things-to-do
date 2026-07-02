@@ -107,18 +107,12 @@ export function friendlyPayeeRole(payeeKeyType: string): string {
 }
 
 export const CONTRIBUTOR_IDENTITY_COPY = {
-  title: "Your earnings identity",
-  subtitle:
-    "RESOLVE plugs into communities that already exist — GitHub, Jellyfin, Navidrome, ListenBrainz, and more. We verify real activity there and credit the right people when a program is funded.",
+  title: "Payout identity",
+  subtitle: "Link the accounts where your work happens — we match verified activity to you when programs pay out.",
   doctrine: {
-    title: "Your audience doesn't need RESOLVE",
-    body:
-      "Fans can keep listening, watching, and contributing wherever they already do. RESOLVE attaches to those communities — we check what happened upstream, then route earnings to the people who earned them. You only connect once so we know it's you and where to pay you.",
-    bullets: [
-      "Music plays on Navidrome, ListenBrainz, or any scrobbling setup — artists still get credit",
-      "Code and docs on GitHub — maintainers get credit without every user joining RESOLVE",
-      "Videos on Jellyfin — watches in funded programs can credit creators",
-    ],
+    title: "",
+    body: "",
+    bullets: [] as string[],
   },
   communities: {
     open_source: {

@@ -127,6 +127,21 @@ model User {
   earningsSnapshot  UserEarningsSnapshot?
 }
 
+/** App-owned reset tokens — survives email link prefetch (Supabase OTP is single-use). */
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+}
+
 model WalletTransaction {
   id        String   @id @default(cuid())
   userId    String

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import { createRouteHandlerClient } from "@/lib/supabase/route-handler";
 
 export const runtime = "nodejs";
 
-/** Server-side recovery verify — sets session cookies reliably after user confirms. */
+/** Legacy Supabase recovery verify — sets session cookies after user confirms. */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const tokenHash = String((body as { token_hash?: string }).token_hash ?? "").trim();
@@ -14,7 +14,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing reset token." }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const response = NextResponse.json({ ok: true });
+  const supabase = await createRouteHandlerClient(response);
   if (!supabase) {
     return NextResponse.json({ error: "Auth is not configured." }, { status: 503 });
   }
@@ -41,5 +42,5 @@ export async function POST(req: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  return response;
 }

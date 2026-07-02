@@ -7,7 +7,7 @@ import { boardCommunityActions } from "@/lib/discover/board-actions-for-role";
 
 /** What the Gaps lane shows — funder-facing ranked opportunities. */
 export const GAPS_TAB_INTRO =
-  "Verified unfunded work from ledger and sensors — ranked by opportunity score. No attach-first previews mixed in here.";
+  "Unfunded authorizations from real upstream activity — ranked by opportunity score.";
 
 export function gapsRoleIntro(role: DiscoverRole): string {
   const copy: Partial<Record<DiscoverRole, string>> = {
@@ -113,7 +113,7 @@ export function gapsPrimaryActions(input: {
       communityName: entry.name,
       installed: isInstalled,
     });
-    for (const action of rowActions.slice(0, 1)) {
+    for (const action of rowActions.slice(0, 2)) {
       const key = `${action.kind}:${action.communitySlug}:${action.label}`;
       if (seen.has(key)) continue;
       seen.add(key);

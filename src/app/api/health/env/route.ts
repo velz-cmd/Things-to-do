@@ -15,6 +15,7 @@ import { isMastodonConfigured } from "@/lib/integrations/mastodon";
 import { githubOAuthConfigured } from "@/lib/integrations/github-oauth";
 import { analyzeDatabaseUrl, getDatabaseDiagnostics, listPresentDatabaseEnvKeys } from "@/lib/db/connection";
 import { getAuthEmailDeliveryStatus } from "@/lib/email/deliver";
+import { isRedisConfigured } from "@/lib/cache/redis";
 
 /** Safe env presence check — never returns secret values. */
 export async function GET() {
@@ -58,6 +59,9 @@ export async function GET() {
     BREVO_FROM_EMAIL: present("BREVO_FROM_EMAIL"),
     BREVO_FROM_NAME: present("BREVO_FROM_NAME"),
     EMAIL_AUTH_DELIVERY: getAuthEmailDeliveryStatus(),
+    UPSTASH_REDIS_REST_URL: present("UPSTASH_REDIS_REST_URL"),
+    UPSTASH_REDIS_REST_TOKEN: present("UPSTASH_REDIS_REST_TOKEN"),
+    REDIS_CACHE: isRedisConfigured(),
     EMAIL_LOGIN_CODES:
       isSupabaseAdminConfigured() &&
       (present("RESEND_API_KEY") || present("BREVO_API_KEY")),

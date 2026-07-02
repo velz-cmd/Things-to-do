@@ -1,26 +1,27 @@
 import type { FundingOpportunity } from "@/lib/github/types";
 import { readOssOpportunitiesForDiscover } from "@/lib/github/oss-scan-store";
+import { cacheDelete, cacheGetOrSet } from "@/lib/cache/kv";
 
-let memory: { data: FundingOpportunity[]; at: number; scannedAt: string } | null = null;
-
-/** In-process buffer on top of Postgres OSS scan store (cron-refreshed). */
-const MEMORY_TTL_MS = 60_000;
+/** Shared across Vercel instances when Upstash is configured. */
+const CACHE_TTL_SECONDS = 60;
+const CACHE_KEY = "resolve:oss:opportunities";
 
 export async function cachedScanAllOpportunities(): Promise<FundingOpportunity[]> {
-  const now = Date.now();
-  if (memory && now - memory.at < MEMORY_TTL_MS) {
-    return memory.data;
-  }
-
-  const { opportunities, meta } = await readOssOpportunitiesForDiscover();
-  memory = { data: opportunities, at: now, scannedAt: meta.scannedAt };
-  return opportunities;
+  return cacheGetOrSet(
+    CACHE_KEY,
+    CACHE_TTL_SECONDS,
+    async () => {
+      const { opportunities } = await readOssOpportunitiesForDiscover();
+      return opportunities;
+    },
+  );
 }
 
-export function clearOssOpportunityCache() {
-  memory = null;
+export async function clearOssOpportunityCache() {
+  await cacheDelete(CACHE_KEY);
 }
 
-export function lastOssScanAt(): string | null {
-  return memory?.scannedAt ?? null;
+export async function lastOssScanAt(): Promise<string | null> {
+  const { meta } = await readOssOpportunitiesForDiscover();
+  return meta.scannedAt;
 }

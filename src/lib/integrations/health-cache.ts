@@ -1,23 +1,16 @@
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
+import { cacheDelete, cacheGetOrSet } from "@/lib/cache/kv";
 
 type HealthResult = Awaited<ReturnType<typeof runIntegrationHealthCheck>>;
 
-let cached: { result: HealthResult; at: number } | null = null;
-
-/** In-process TTL — avoids 20+ external pings on every profile/discover request. */
-const HEALTH_TTL_MS = 3 * 60_000;
+const CACHE_KEY = "resolve:integrations:health";
+/** Avoid 20+ external pings on every profile/discover request. */
+const CACHE_TTL_SECONDS = 3 * 60;
 
 export async function getCachedIntegrationHealthCheck(): Promise<HealthResult> {
-  const now = Date.now();
-  if (cached && now - cached.at < HEALTH_TTL_MS) {
-    return cached.result;
-  }
-  const result = await runIntegrationHealthCheck();
-  cached = { result, at: now };
-  return result;
+  return cacheGetOrSet(CACHE_KEY, CACHE_TTL_SECONDS, runIntegrationHealthCheck);
 }
 
-/** Test / admin hooks */
-export function clearIntegrationHealthCache() {
-  cached = null;
+export async function clearIntegrationHealthCache() {
+  await cacheDelete(CACHE_KEY);
 }

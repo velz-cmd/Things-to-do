@@ -1,18 +1,18 @@
 "use client";
 
 import clsx from "clsx";
-import { Coins, LayoutGrid, Radar, Zap } from "lucide-react";
+import { LayoutGrid, Radar, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
-export type DiscoverWorkspaceLane = "gaps" | "radars" | "board" | "earn";
+export type DiscoverWorkspaceLane = "gaps" | "radars" | "board";
 
 export function defaultLaneForRole(role: DiscoverRole): DiscoverWorkspaceLane {
   switch (role) {
     case "community":
-      return "earn";
+      return "gaps";
     case "funder":
     case "founder":
       return "board";
@@ -28,16 +28,15 @@ const LANES: {
   id: DiscoverWorkspaceLane;
   label: string;
   icon: LucideIcon;
-  accent: "amber" | "violet" | "blue" | "emerald";
+  accent: "amber" | "violet" | "blue";
 }[] = [
   { id: "gaps", label: "Gaps", icon: Zap, accent: "amber" },
   { id: "radars", label: "Radars", icon: Radar, accent: "violet" },
   { id: "board", label: "Board", icon: LayoutGrid, accent: "blue" },
-  { id: "earn", label: "Earnings", icon: Coins, accent: "emerald" },
 ];
 
 const JOB_LANE: Record<DiscoverJobId, DiscoverWorkspaceLane> = {
-  earn: "earn",
+  earn: "gaps",
   fund: "board",
   run: "board",
   observe: "radars",

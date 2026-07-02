@@ -33,9 +33,9 @@ export const DISCOVER_JOBS: DiscoverJob[] = [
     id: "earn",
     title: "Earn from my work",
     who: "Community · creator",
-    surfaces: "Earn console, claim, GitHub & artist connectors",
+    surfaces: "Capital earnings, claim, GitHub & artist connectors",
     role: "community",
-    scrollTo: "earn",
+    scrollTo: "discover-workspace",
     icon: Coins,
   },
   {

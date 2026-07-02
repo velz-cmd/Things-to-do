@@ -28,8 +28,9 @@ Supabase’s **built-in email** has strict limits (~4/hour, ~60s between sends).
 **Recommended — Brevo (free, no domain, 300 emails/day):**
 
 1. Sign up at [brevo.com](https://www.brevo.com)
-2. **Senders** → verify your Gmail (e.g. `podrift.mail@gmail.com`)
-3. **SMTP & API** → create an API key (v3)
+2. **Senders** → verify your Gmail (e.g. `abdullahlp114@gmail.com`)
+3. **SMTP & API** → **API keys** tab → create an API key (starts with `xkeysib-`)
+   - Do **not** use the SMTP key (`xsmtpsib-`) — that only works for SMTP relay, not our REST API
 4. Add on **Vercel** (check **Production** + **Preview**):
    - `BREVO_API_KEY` = your API key
    - `BREVO_FROM_EMAIL` = verified sender Gmail

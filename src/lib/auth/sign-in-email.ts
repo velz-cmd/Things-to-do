@@ -42,7 +42,7 @@ export function isLikelyMagicLinkPending(
 export function mapAuthEmailError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes("rate limit exceeded")) {
-    return "Email is busy right now. Try Google or wallet sign-in, or retry in a few minutes.";
+    return "Email is busy right now. Try Google or wallet sign-in, or retry in a few minutes. For higher volume, connect free Brevo SMTP in Supabase (no domain needed — see docs/SUPABASE_AUTH.md).";
   }
   if (lower.includes("after") && lower.includes("seconds")) {
     return "We already sent a sign-in link. Check your inbox (and spam).";

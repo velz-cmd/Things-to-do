@@ -88,7 +88,7 @@ async function deliverViaSupabaseMagicLink(
   return { ok: true, delivery: "supabase" };
 }
 
-/** Resend delivers a branded magic-link email (requires verified domain). */
+/** Resend delivers a branded magic-link email (optional — needs verified domain). */
 async function deliverViaResendMagicLink(
   email: string,
   redirectTo: string

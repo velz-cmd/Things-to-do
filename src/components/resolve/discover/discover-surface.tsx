@@ -75,8 +75,8 @@ function roleToIntent(role: DiscoverRole): DiscoverIntent {
 }
 
 function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["user"] }) {
-  const [role, setRole] = useState<DiscoverRole>("all");
-  const [activeJob, setActiveJob] = useState<DiscoverJobId | null>(null);
+  const [role, setRole] = useState<DiscoverRole>("funder");
+  const [activeJob, setActiveJob] = useState<DiscoverJobId | null>("fund");
   const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
   const [lane, setLane] = useState<DiscoverWorkspaceLane>("gaps");
   const intent = roleToIntent(role);

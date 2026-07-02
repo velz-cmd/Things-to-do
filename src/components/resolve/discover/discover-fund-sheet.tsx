@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import type { FundSheetRequest, WalletSnapshot } from "@/lib/discover/discover-action-engine";
 import { Button } from "@/components/resolve/ui/button";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
-import { isCommunityInstalled } from "@/lib/profile/connection-state-types";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 
 type DiscoverFundSheetProps = {
   open: boolean;
@@ -31,14 +31,14 @@ export function DiscoverFundSheet({
 
   const defaultAmount = request.amountUsd && request.amountUsd >= 5 ? String(request.amountUsd) : "25";
   const slug = request.communitySlug;
-  const communityReady = slug ? isCommunityInstalled(connections, slug) : false;
+  const communityReady = slug ? communityReadyForDiscover(slug, connections) : false;
   const fundHint = request.programId
-    ? "Fulfill obligations from your Arc wallet"
+    ? "USDC moves from your wallet into this pool"
     : communityReady && slug
-      ? `Fund the royalty pool on ${slug} — program is created automatically if needed`
+      ? `Adds USDC to the ${slug} pool on Arc`
       : slug
-        ? `Set up ${slug} and fund in one step`
-        : "Resolve program and fund";
+        ? `Creates the pool and funds it in one step`
+        : "Fund this program";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">

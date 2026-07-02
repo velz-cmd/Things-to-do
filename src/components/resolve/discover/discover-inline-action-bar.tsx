@@ -59,7 +59,9 @@ export function DiscoverInlineActionBar({
             <span className="discover-inline-action__label">
               {friendlyDiscoverActionLabel(action, connections)}
             </span>
-            <span className="discover-inline-action__badge">{truth.badge}</span>
+            {truth.arcSettlement && truth.badge && (
+              <span className="discover-inline-action__badge">{truth.badge}</span>
+            )}
           </button>
         );
       })}

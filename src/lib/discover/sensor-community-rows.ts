@@ -60,7 +60,7 @@ function buildPreviewRow(
   });
 
   const isInstalled = communityReadyForDiscover(slug, connections);
-  const actions = boardCommunityActions(role === "all" || role === "community" ? "funder" : role, {
+  const actions = boardCommunityActions(role, {
     communitySlug: slug,
     templateId,
     needType,

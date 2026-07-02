@@ -10,6 +10,7 @@ const createSchema = z.object({
   templateId: z
     .enum([
       "user-centric-royalties",
+      "video-royalties",
       "docs-bounty",
       "security-fund",
       "quadratic-funding",

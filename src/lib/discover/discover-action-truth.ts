@@ -1,96 +1,80 @@
 import type { DiscoverAction } from "@/lib/discover/types";
 
 export type ActionExecutionTruth = {
-  /** Short badge on the button */
   badge: string;
-  /** One line for tooltips / panel footer */
   detail: string;
-  /** Whether this can move real Arc USDC when confirmed */
   arcSettlement: boolean;
 };
 
 const TRUTH: Record<DiscoverAction["kind"], ActionExecutionTruth> = {
   fund: {
-    badge: "Arc USDC",
-    detail: "Charges your Circle wallet on Arc — tx visible on Arcscan after confirm",
+    badge: "USDC",
+    detail: "Moves USDC from your wallet into this pool on Arc",
     arcSettlement: true,
   },
   sponsor: {
-    badge: "Arc USDC",
-    detail: "Sponsor flow posts real USDC from your wallet to the program pool",
+    badge: "USDC",
+    detail: "Sponsor flow adds USDC to the program pool",
     arcSettlement: true,
   },
   claim: {
-    badge: "Arc claim",
-    detail: "Settles verified ledger authorizations to your wallet on Arc",
+    badge: "Claim",
+    detail: "Settles verified earnings to your wallet",
     arcSettlement: true,
   },
   create_program: {
-    badge: "Creates program",
-    detail: "Writes a funded program in your account — capital moves when you fund it",
+    badge: "",
+    detail: "Creates a payout rule for this community",
     arcSettlement: false,
   },
   install: {
-    badge: "Install + sync",
-    detail: "Installs community and starts background sensor sync — no charge",
+    badge: "",
+    detail: "One-time setup — syncs from Profile everywhere",
     arcSettlement: false,
   },
   connect_sensor: {
-    badge: "Install + sync",
-    detail: "Installs community rail — sensors sync in background",
+    badge: "",
+    detail: "Link sources in Profile",
     arcSettlement: false,
   },
   console: {
-    badge: "Console",
-    detail: "Opens your community console on Discover — sensors and funding stay inline",
+    badge: "",
+    detail: "Open community console on this page",
     arcSettlement: false,
   },
   automate: {
-    badge: "Auto-pay rule",
-    detail: "Saves a when-proof-arrives rule — Arc pays only after a verified event fires",
+    badge: "",
+    detail: "Pay automatically when verified activity arrives",
     arcSettlement: false,
   },
   open: {
-    badge: "View",
-    detail: "Opens entity or section — read-only navigation",
+    badge: "",
+    detail: "View details",
     arcSettlement: false,
   },
   analyze: {
-    badge: "Agent",
-    detail: "Runs Mission agent (may charge prepaid USDC if configured)",
+    badge: "",
+    detail: "Review verified activity for this community",
     arcSettlement: false,
   },
   share: {
-    badge: "Receipt",
-    detail: "Copies a verified receipt link from the ledger",
+    badge: "",
+    detail: "Copy settlement receipt",
     arcSettlement: false,
   },
 };
 
 export function actionExecutionTruth(kind: DiscoverAction["kind"]): ActionExecutionTruth {
-  return TRUTH[kind] ?? { badge: "Action", detail: "Runs in Discover", arcSettlement: false };
+  return TRUTH[kind] ?? { badge: "", detail: "", arcSettlement: false };
 }
 
-/** Who the value graph is designed for — shown as legend. */
 export const VALUE_GRAPH_AUDIENCES = [
-  {
-    id: "funder",
-    label: "Funders",
-    hint: "Click gaps · Fund / Sponsor moves Arc USDC",
-  },
-  {
-    id: "creator",
-    label: "Creators",
-    hint: "Person / artist bubbles · Claim when ledger shows earnings",
-  },
-  {
-    id: "operator",
-    label: "Operators",
-    hint: "Community bubbles · Install rails + auto-pay rules",
-  },
+  { id: "funder", label: "Funders", hint: "Fund pools — USDC on Arc" },
+  { id: "creator", label: "Creators", hint: "Claim verified earnings" },
+  { id: "operator", label: "Operators", hint: "Rules and auto-pay" },
 ] as const;
 
 export const AUTOMATE_TAB = {
   label: "Auto-pay",
-  hint: "When a sensor proves work (merge, play, watch), pay automatically up to your cap",
+  hint: "Pay when verified activity arrives, up to your cap",
 };

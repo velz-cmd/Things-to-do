@@ -3,6 +3,7 @@ import { createAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/adm
 import { getAppBaseUrl } from "@/lib/browser/app-url";
 import {
   buildPasswordResetEmailHtml,
+  buildPasswordRecoveryUrl,
   buildPasswordResetUrl,
 } from "@/lib/auth/sign-in-email";
 import { parseOtpCooldown } from "@/lib/auth/otp-cooldown";
@@ -11,8 +12,12 @@ import {
   recordEmailLinkRequest,
 } from "@/lib/auth/email-rate-limit";
 import { deliverAuthEmail } from "@/lib/email/deliver";
-import { createPasswordResetToken } from "@/lib/auth/password-reset-token";
+import {
+  createPasswordResetToken,
+  PasswordResetStorageError,
+} from "@/lib/auth/password-reset-token";
 import { ensureUserProfile } from "@/lib/wallet/service";
+import { sanitizeAuthApiError } from "@/lib/auth/sanitize-auth-error";
 
 export const runtime = "nodejs";
 
@@ -32,12 +37,22 @@ function mapResetError(message: string) {
       cooldownSeconds: 120,
     };
   }
-  return { error: message };
+  return { error: sanitizeAuthApiError(message, "Could not send reset link.") };
+}
+
+function legacyResetLinkFromGenerateLink(data: {
+  properties?: { action_link?: string; hashed_token?: string } | null;
+}): string | null {
+  const hashedToken = data.properties?.hashed_token?.trim();
+  if (hashedToken) {
+    return buildPasswordRecoveryUrl(hashedToken);
+  }
+  return data.properties?.action_link?.trim() ?? null;
 }
 
 /**
- * Password reset — app-owned token in Postgres + Supabase admin for user lookup.
- * Email link is prefetch-safe; token is consumed only when password is saved.
+ * Password reset — app-owned Postgres token (prefetch-safe) with Supabase fallback
+ * when the PasswordResetToken table is not migrated yet.
  */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -52,7 +67,7 @@ export async function POST(req: Request) {
   if (!isSupabaseAdminConfigured()) {
     return NextResponse.json(
       { error: "Password reset is not configured on the server." },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
@@ -63,7 +78,7 @@ export async function POST(req: Request) {
         error: limit.message,
         cooldownSeconds: limit.cooldownSeconds,
       },
-      { status: 429 }
+      { status: 429 },
     );
   }
 
@@ -71,7 +86,7 @@ export async function POST(req: Request) {
   if (!supabase) {
     return NextResponse.json(
       { error: "Password reset is not configured on the server." },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
@@ -101,7 +116,7 @@ export async function POST(req: Request) {
   if (!userId) {
     return NextResponse.json(
       { error: "Could not create a password reset link." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -116,9 +131,30 @@ export async function POST(req: Request) {
     const { plain } = await createPasswordResetToken({ userId, email });
     resetLink = buildPasswordResetUrl(plain);
   } catch (e) {
-    const message =
-      e instanceof Error ? e.message : "Could not store reset token.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (e instanceof PasswordResetStorageError) {
+      const fallback = legacyResetLinkFromGenerateLink(data);
+      if (!fallback) {
+        return NextResponse.json(
+          {
+            error:
+              "Password reset is temporarily unavailable. Try wallet sign-in or retry in a few minutes.",
+          },
+          { status: 503 },
+        );
+      }
+      resetLink = fallback;
+      console.warn("[auth] PasswordResetToken table missing — sent legacy Supabase link");
+    } else {
+      return NextResponse.json(
+        {
+          error: sanitizeAuthApiError(
+            e,
+            "Could not send reset link. Try again in a moment.",
+          ),
+        },
+        { status: 500 },
+      );
+    }
   }
 
   await ensureUserProfile({

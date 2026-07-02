@@ -80,7 +80,11 @@ interface AuthContextValue {
     email: string,
     password: string
   ) => Promise<EmailPasswordResult>;
-  requestPasswordReset: (email: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  requestPasswordReset: (
+    email: string
+  ) => Promise<
+    { ok: true } | { ok: false; message: string; cooldownSeconds?: number }
+  >;
   signOut: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   provisionWallet: () => Promise<void>;
@@ -324,11 +328,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = (await res.json().catch(() => ({}))) as {
           error?: string;
           message?: string;
+          cooldownSeconds?: number;
         };
         if (!res.ok) {
           return {
             ok: false as const,
             message: String(data.error ?? "Could not send reset link."),
+            cooldownSeconds: data.cooldownSeconds,
           };
         }
         return { ok: true as const };

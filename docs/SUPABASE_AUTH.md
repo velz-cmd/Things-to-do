@@ -21,21 +21,28 @@ Users sign in with **email and password** — no magic link or 6-digit code. Pas
 2. **Disable “Confirm email”** for instant sign-in without inbox verification (recommended for global self-serve)
 3. Ensure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set on Vercel
 
-### Password reset
+### Email delivery (avoid Supabase rate limits)
 
-Forgot-password sends a **“Set your password for RESOLVE”** email (not a magic-link activation). The link opens `/auth/reset-password` where users choose a new password.
+Supabase’s **built-in email** has strict limits (~4/hour, ~60s between sends). Password reset emails are sent by **Resend** or **Brevo** instead — Supabase only creates the secure link.
 
-If emails still say “Confirm your signup”, fix Supabase → **Authentication** → **Email Templates** → **Reset password**:
+**Recommended — Brevo (free, no domain, 300 emails/day):**
 
-- **Subject:** `Set your password for RESOLVE`
-- **Body:** Tell users to tap the link to choose a password (use `{{ .ConfirmationURL }}` for the link variable)
+1. Sign up at [brevo.com](https://www.brevo.com)
+2. **Senders** → verify your Gmail (e.g. `podrift.mail@gmail.com`)
+3. **SMTP & API** → create an API key (v3)
+4. Add on **Vercel**:
+   - `BREVO_API_KEY` = your API key
+   - `BREVO_FROM_EMAIL` = verified sender Gmail
+   - `BREVO_FROM_NAME` = `RESOLVE` (optional)
 
-Also ensure **Confirm email** is OFF under User signups (main Providers page, scroll up from the Email popup).
+**Alternative — Resend:** set `RESEND_API_KEY` + verified `RESEND_FROM_EMAIL` (needs a domain for all users).
 
+### User flow
 
-- **Sign in:** existing users enter email + password
-- **Create account:** new users choose “Create an account”, set a password (6+ characters), and are signed in immediately (when confirm email is off)
-- **Remember me:** email is saved in browser `localStorage` — passwords are never stored locally
+- **Continue:** returning users sign in; new users get an account automatically
+- **Forgot password:** “Set your password” email → choose password on `/auth/reset-password`
+- **Remember me:** email saved locally only — never the password
+
 
 ## Google sign-in
 

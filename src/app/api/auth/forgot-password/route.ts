@@ -2,18 +2,41 @@ import { NextResponse } from "next/server";
 import { createAdminClient, isSupabaseAdminConfigured } from "@/lib/supabase/admin";
 import { getAppBaseUrl } from "@/lib/browser/app-url";
 import { buildPasswordResetEmailHtml } from "@/lib/auth/sign-in-email";
+import { parseOtpCooldown } from "@/lib/auth/otp-cooldown";
 import {
-  isResendProductionReady,
-  isResendSandboxError,
-  sendEmail,
-} from "@/lib/resend/client";
+  checkEmailLinkRateLimit,
+  recordEmailLinkRequest,
+} from "@/lib/auth/email-rate-limit";
+import { deliverAuthEmail } from "@/lib/email/deliver";
 
 export const runtime = "nodejs";
 
 const RESET_REDIRECT = () =>
   `${getAppBaseUrl()}/auth/callback?next=/auth/reset-password`;
 
-/** Send branded password-reset email (not Supabase activation template). */
+function mapResetError(message: string) {
+  const cooldown = parseOtpCooldown(message);
+  if (cooldown) {
+    return {
+      error: `Please wait ${cooldown}s before requesting another reset link.`,
+      cooldownSeconds: cooldown,
+    };
+  }
+  const lower = message.toLowerCase();
+  if (lower.includes("rate limit")) {
+    return {
+      error:
+        "Too many reset requests. Wait a few minutes, or use wallet sign-in.",
+      cooldownSeconds: 120,
+    };
+  }
+  return { error: message };
+}
+
+/**
+ * Password reset — one Supabase generateLink call, email via Resend/Brevo only.
+ * Never calls resetPasswordForEmail (avoids Supabase mail limits + wrong templates).
+ */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const email = String((body as { email?: string }).email ?? "")
@@ -28,6 +51,17 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "Password reset is not configured on the server." },
       { status: 503 }
+    );
+  }
+
+  const limit = await checkEmailLinkRateLimit(email).catch(() => null);
+  if (limit && !limit.allowed) {
+    return NextResponse.json(
+      {
+        error: limit.message,
+        cooldownSeconds: limit.cooldownSeconds,
+      },
+      { status: 429 }
     );
   }
 
@@ -48,7 +82,10 @@ export async function POST(req: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const mapped = mapResetError(error.message);
+    return NextResponse.json(mapped, {
+      status: mapped.cooldownSeconds ? 429 : 400,
+    });
   }
 
   const resetLink = data.properties?.action_link;
@@ -59,7 +96,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // Unconfirmed magic-link users otherwise get a signup "activation" email from Supabase.
   if (data.user?.id) {
     await supabase.auth.admin
       .updateUserById(data.user.id, { email_confirm: true })
@@ -68,46 +104,23 @@ export async function POST(req: Request) {
       });
   }
 
-  const html = buildPasswordResetEmailHtml({ resetLink, expiresMinutes: 60 });
-
-  if (process.env.RESEND_API_KEY?.trim()) {
-    try {
-      await sendEmail({
-        to: email,
-        subject: "Set your password for RESOLVE",
-        html,
-      });
-      return NextResponse.json({
-        ok: true,
-        delivery: "resend",
-        message: "Password reset link sent. Open it and choose a new password.",
-      });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Email delivery failed";
-      console.error("[auth/forgot-password] Resend failed:", message);
-
-      if (!isResendSandboxError(message) && !isResendProductionReady()) {
-        return NextResponse.json(
-          { error: `Could not send email: ${message}` },
-          { status: 502 }
-        );
-      }
-      /* Resend sandbox — fall through to Supabase mailer */
-    }
-  }
-
-  const { error: mailError } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo,
+  const delivered = await deliverAuthEmail({
+    to: email,
+    subject: "Set your password for RESOLVE",
+    html: buildPasswordResetEmailHtml({ resetLink, expiresMinutes: 60 }),
   });
 
-  if (mailError) {
-    return NextResponse.json({ error: mailError.message }, { status: 400 });
+  if (!delivered.ok) {
+    return NextResponse.json({ error: delivered.message }, { status: 502 });
   }
+
+  await recordEmailLinkRequest(email).catch(() => {
+    /* non-fatal */
+  });
 
   return NextResponse.json({
     ok: true,
-    delivery: "supabase",
-    message:
-      "Password reset link sent. If the email says “confirm signup”, open Supabase → Authentication → Email Templates → Reset password and use a “Set your password” subject.",
+    delivery: delivered.provider,
+    message: "Password reset link sent. Open it and choose a new password.",
   });
 }

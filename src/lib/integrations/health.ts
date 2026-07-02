@@ -22,6 +22,22 @@ import { googleOAuthConfigured } from "@/lib/google/oauth";
 import { refreshGmailAccessToken } from "@/lib/google/gmail-token";
 
 export async function runIntegrationHealthCheck() {
+  const now = Date.now();
+  if (healthCache && now - healthCache.at < HEALTH_CACHE_MS) {
+    return healthCache.value;
+  }
+  const value = await runIntegrationHealthCheckLive();
+  healthCache = { at: now, value };
+  return value;
+}
+
+const HEALTH_CACHE_MS = 5 * 60 * 1000;
+let healthCache: {
+  at: number;
+  value: Awaited<ReturnType<typeof runIntegrationHealthCheckLive>>;
+} | null = null;
+
+async function runIntegrationHealthCheckLive() {
   const ai = listConfiguredProviders();
   const search = listSearchProviders();
 

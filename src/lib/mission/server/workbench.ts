@@ -1,46 +1,36 @@
 import { gatherWorkspaceEvidence } from "@/lib/workspace/context";
-import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
-import { getTreasurySnapshot } from "@/lib/treasury/engine";
-import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
-import { runIntegrationHealthCheck } from "@/lib/integrations/health";
 
 export async function buildWorkbenchSnapshot(userId: string) {
-  const [evidence, connectors, treasury, ledger, integrations] = await Promise.all([
-    gatherWorkspaceEvidence(),
-    getConnectorLiveStatuses().catch(() => []),
-    getTreasurySnapshot(),
-    getGlobalAuthorizationSummary().catch(() => null),
-    runIntegrationHealthCheck().catch(() => null),
-  ]);
+  const evidence = await gatherWorkspaceEvidence();
 
   return {
     userId,
-    gatheredAt: new Date().toISOString(),
+    gatheredAt: evidence.gatheredAt,
     treasury: {
-      balanceUsd: treasury.balanceUsd,
-      obligationsUsd: treasury.obligationsUsd,
-      canSettleGlobally: treasury.canSettleGlobally,
-      blockers: treasury.blockers,
+      balanceUsd: evidence.treasury.balanceUsd,
+      obligationsUsd: evidence.treasury.obligationsUsd,
+      canSettleGlobally: evidence.treasury.canSettleGlobally,
+      blockers: evidence.treasury.blockers,
     },
-    ledger: ledger
+    ledger: evidence.ledger
       ? {
-          count: ledger.count,
-          claimableUsd: ledger.claimableUsd,
-          pendingFundingUsd: ledger.pendingFundingUsd,
-          settledUsd: ledger.settledUsd,
+          count: evidence.ledger.count,
+          claimableUsd: evidence.ledger.claimableUsd,
+          pendingFundingUsd: evidence.ledger.pendingFundingUsd,
+          settledUsd: evidence.ledger.settledUsd,
         }
       : null,
-    connectors: connectors.map((c) => ({
+    connectors: evidence.connectors.map((c) => ({
       id: c.id,
       health: c.health,
       eventsToday: c.eventsToday,
       authorizationCount: c.authorizationCount,
       connectHref: "/profile",
     })),
-    integrations: integrations
+    integrations: evidence.integrations
       ? {
-          configured: integrations.configured,
-          live: integrations.live,
+          configured: evidence.integrations.configured,
+          live: evidence.integrations.live,
         }
       : null,
     apis: [

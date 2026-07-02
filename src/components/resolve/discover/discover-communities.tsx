@@ -58,15 +58,9 @@ export function DiscoverCommunities({
 
   const loadCommunities = useCallback(() => {
     setLoadError(null);
-    return Promise.all([
-      fetch("/api/communities", { credentials: "include" }).then((r) =>
-        r.ok ? r.json() : Promise.reject(new Error("communities")),
-      ),
-      fetch("/api/communities/sensor-status").then((r) =>
-        r.ok ? r.json() : Promise.reject(new Error("sensor-status")),
-      ),
-    ])
-      .then(([commRes, statusRes]) => {
+    return fetch("/api/communities", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("communities"))))
+      .then((commRes) => {
         const map: Record<string, boolean> = {};
         const vitals: Record<string, CommunityVitalsSummary> = {};
         for (const c of commRes.communities ?? []) {
@@ -75,7 +69,7 @@ export function DiscoverCommunities({
         }
         setInstalled(map);
         setVitalsBySlug(vitals);
-        setSensorStatuses(commRes.sensorStatuses ?? statusRes.statuses ?? []);
+        setSensorStatuses(commRes.sensorStatuses ?? []);
         setLastLoaded(new Date().toISOString());
       })
       .catch(() => setLoadError("Could not load community install status"));

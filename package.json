@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
-    "build": "prisma generate && bash -c 'if [ -n \"$DATABASE_URL\" ]; then prisma migrate deploy; fi' && next build",
+    "build": "export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\" && prisma generate && bash -c 'if [ -n \"$DATABASE_URL\" ]; then export DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL}\"; prisma migrate deploy; fi' && next build",
     "start": "next start --hostname 0.0.0.0 --port ${PORT:-3000}",
     "lint": "next lint",
     "db:push": "prisma db push",

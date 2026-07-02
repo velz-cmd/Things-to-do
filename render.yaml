@@ -1,31 +1,241 @@
+# Render Blueprint — RESOLVE / Deputy
+# Apply: https://dashboard.render.com/blueprint/new?repo=https://github.com/velz-cmd/Things-to-do
+# After first deploy, set APP_URL + NEXT_PUBLIC_APP_URL to your onrender.com hostname.
+
+envVarGroups:
+  - name: resolve-public
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PLAYWRIGHT_ENABLED
+        value: "true"
+      - key: DEPUTY_DEMO_MODE
+        value: "false"
+      - key: NEXT_PUBLIC_DEPUTY_DEMO_MODE
+        value: "false"
+      - key: AI_SWARM_ENABLED
+        value: "true"
+      - key: CLOUDFLARE_AI_GATEWAY_ENABLED
+        value: "false"
+      - key: NEXT_PUBLIC_ARC_CHAIN_ID
+        value: "5042002"
+      - key: ARC_CHAIN_ID
+        value: "5042002"
+      - key: ARC_RPC_URL
+        value: https://rpc.testnet.arc.network
+      - key: ARC_TESTNET_RPC_URL
+        value: https://rpc.testnet.arc.network
+      - key: NEXT_PUBLIC_USDC_ADDRESS
+        value: "0x3600000000000000000000000000000000000000"
+      - key: ARC_USDC_CONTRACT
+        value: "0x3600000000000000000000000000000000000000"
+      - key: ARC_AGENTIC_COMMERCE_CONTRACT
+        value: "0x0747EEf0706327138c69792bF28Cd525089e4583"
+      - key: ARC_EXPLORER_URL
+        value: https://testnet.arcscan.app
+      - key: NEXT_PUBLIC_ARC_EXPLORER_URL
+        value: https://testnet.arcscan.app
+      - key: NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS
+        value: "0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f"
+      - key: NEXT_PUBLIC_RESOLVE_AGENT_ADDRESS
+        value: "0xDD81E79E22053a4d7036D6E9DB22Dad591b65511"
+      - key: BLOCKSCOUT_CHAIN_ID
+        value: "5042002"
+      - key: ERC8004_IDENTITY_REGISTRY
+        value: "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+      - key: ERC8004_REPUTATION_REGISTRY
+        value: "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+      - key: ERC8004_VALIDATION_REGISTRY
+        value: "0x8004Cb1BF31DAf7788923b405b754f57acEB4272"
+      - key: RESEND_FROM_EMAIL
+        value: onboarding@resend.dev
+
 services:
   - type: web
     name: deputy
     runtime: node
     plan: free
+    region: oregon
+    branch: main
+    repo: https://github.com/velz-cmd/Things-to-do
     buildCommand: npm install && npx prisma db push && npm run build
     startCommand: npm run start
+    healthCheckPath: /api/health/live
     envVars:
+      - fromGroup: resolve-public
       - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_REOWN_PROJECT_ID
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: GOOGLE_GENERATIVE_AI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: DASHSCOPE_API_KEY
+        sync: false
+      - key: QWEN_OPENAI_BASE_URL
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_AI_GATEWAY_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: TAVILY_MCP_KEY
+        sync: false
+      - key: SERPER_API_KEY
+        sync: false
+      - key: WEBSEARCH_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_OAUTH_CLIENT_ID
+        sync: false
+      - key: GITHUB_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: LIBRARIES_IO_API_KEY
+        sync: false
+      - key: NPM_REGISTRY_TOKEN
+        sync: false
+      - key: DOCKER_HUB_USERNAME
+        sync: false
+      - key: DOCKER_HUB_TOKEN
+        sync: false
+      - key: OPENALEX_API_KEY
+        sync: false
+      - key: BLOCKSCOUT_API_KEY
+        sync: false
+      - key: ETHERSCAN_API_KEY
+        sync: false
+      - key: ALCHEMY_API_KEY
+        sync: false
+      - key: WALLET_LABELS_API_KEY
+        sync: false
+      - key: CIRCLE_API_KEY
+        sync: false
+      - key: CIRCLE_ENTITY_SECRET
+        sync: false
+      - key: CIRCLE_WALLET_SET_ID
+        sync: false
+      - key: ARC_PROVIDER_WALLET_ID
+        sync: false
+      - key: ARC_CLIENT_WALLET_ID
+        sync: false
+      - key: ARC_PROVIDER_WALLET_ADDRESS
+        sync: false
+      - key: ARC_CLIENT_WALLET_ADDRESS
+        sync: false
+      - key: ARC_AGENT_GATEWAY_PRIVATE_KEY
+        sync: false
+      - key: ARC_AGENT_GATEWAY_SELLER_ADDRESS
+        sync: false
       - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_CLAIM_TO
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: CLAIM_TOKEN_SECRET
         sync: false
       - key: DEPUTY_ORACLE_PRIVATE_KEY
         sync: false
-      - key: NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS
-        value: "0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f"
+      - key: MERCHANT_WEBHOOK_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: OPENCOLLECTIVE_TOKEN
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: MASTODON_INSTANCE_URL
+        sync: false
+      - key: MASTODON_ACCESS_TOKEN
+        sync: false
+      - key: MASTODON_CLIENT_KEY
+        sync: false
+      - key: MASTODON_CLIENT_SECRET
+        sync: false
+      - key: LISTENBRAINZ_TOKEN
+        sync: false
+      - key: LISTENBRAINZ_USERNAME
+        sync: false
+      - key: MUSICBRAINZ_CLIENT_ID
+        sync: false
+      - key: MUSICBRAINZ_CLIENT_SECRET
+        sync: false
+      - key: LASTFM_API_KEY
+        sync: false
+      - key: LASTFM_SHARED_SECRET
+        sync: false
+      - key: LASTFM_USERNAME
+        sync: false
+      - key: NAVIDROME_URL
+        sync: false
+      - key: NAVIDROME_USERNAME
+        sync: false
+      - key: NAVIDROME_PASSWORD
+        sync: false
+      - key: NAVIDROME_SYNC_SECRET
+        sync: false
+      - key: NAVIDROME_PROGRAM_MISSION_ID
+        sync: false
+      - key: NAVIDROME_INSTANCE_ID
+        sync: false
+      - key: RESOLVE_PLATFORM_FEE_BPS
+        sync: false
+      - key: RESOLVE_PLATFORM_FEE_WALLET
+        sync: false
 
   - type: cron
     name: github-oss-scan
     runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    repo: https://github.com/velz-cmd/Things-to-do
     schedule: "0 */6 * * *"
-    buildCommand: npm install && npx prisma db push
-    startCommand: curl -fsS -X POST "${RENDER_EXTERNAL_URL}/api/cron/github-oss-scan" -H "Authorization: Bearer ${CRON_SECRET}"
+    buildCommand: npm install
+    startCommand: >-
+      curl -fsS -X POST "${RENDER_EXTERNAL_URL}/api/cron/github-oss-scan"
+      -H "Authorization: Bearer ${CRON_SECRET}"
     envVars:
-      - key: DATABASE_URL
-        sync: false
+      - fromGroup: resolve-public
       - key: CRON_SECRET
         sync: false
       - key: GITHUB_TOKEN

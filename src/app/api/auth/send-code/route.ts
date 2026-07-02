@@ -8,6 +8,7 @@ import {
 import { parseOtpCooldown } from "@/lib/auth/otp-cooldown";
 import {
   buildSignInEmailHtml,
+  isLikelyMagicLinkPending,
   mapAuthEmailError,
 } from "@/lib/auth/sign-in-email";
 import {
@@ -26,21 +27,34 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-type DeliveryResult =
-  | {
-      ok: true;
-      delivery: "resend" | "supabase";
-      otpSent: boolean;
-    }
-  | {
-      ok: false;
-      status: number;
-      error: string;
-      cooldownSeconds?: number;
-      pendingVerify?: boolean;
-    };
+type DeliveryFailure = {
+  ok: false;
+  status: number;
+  error: string;
+  cooldownSeconds?: number;
+  pendingVerify?: boolean;
+};
 
-async function deliverViaSupabaseOtp(
+type DeliverySuccess = {
+  ok: true;
+  delivery: "resend" | "supabase";
+};
+
+type DeliveryResult = DeliverySuccess | DeliveryFailure;
+
+function withPendingFlag(
+  error: string,
+  cooldownSeconds?: number
+): Pick<DeliveryFailure, "error" | "cooldownSeconds" | "pendingVerify"> {
+  return {
+    error,
+    cooldownSeconds,
+    pendingVerify: isLikelyMagicLinkPending(error, cooldownSeconds),
+  };
+}
+
+/** Supabase sends the magic-link email to any global inbox. */
+async function deliverViaSupabaseMagicLink(
   email: string,
   redirectTo: string
 ): Promise<DeliveryResult> {
@@ -63,19 +77,19 @@ async function deliverViaSupabaseOtp(
 
   if (error) {
     const cooldownSeconds = parseOtpCooldown(error.message);
+    const mapped = mapAuthEmailError(error.message);
     return {
       ok: false,
       status: cooldownSeconds ? 429 : 400,
-      error: mapAuthEmailError(error.message),
-      cooldownSeconds,
-      pendingVerify: Boolean(cooldownSeconds),
+      ...withPendingFlag(mapped, cooldownSeconds),
     };
   }
 
-  return { ok: true, delivery: "supabase", otpSent: true };
+  return { ok: true, delivery: "supabase" };
 }
 
-async function deliverViaResend(
+/** Resend delivers a branded magic-link email (requires verified domain). */
+async function deliverViaResendMagicLink(
   email: string,
   redirectTo: string
 ): Promise<DeliveryResult> {
@@ -96,17 +110,15 @@ async function deliverViaResend(
 
   if (error) {
     const cooldownSeconds = parseOtpCooldown(error.message);
+    const mapped = mapAuthEmailError(error.message);
     return {
       ok: false,
       status: cooldownSeconds ? 429 : 400,
-      error: mapAuthEmailError(error.message),
-      cooldownSeconds,
-      pendingVerify: Boolean(cooldownSeconds),
+      ...withPendingFlag(mapped, cooldownSeconds),
     };
   }
 
   const magicLink = data.properties?.action_link;
-  const otp = data.properties?.email_otp;
   if (!magicLink) {
     return {
       ok: false,
@@ -121,17 +133,16 @@ async function deliverViaResend(
       subject: "Sign in to RESOLVE",
       html: buildSignInEmailHtml({
         magicLink,
-        otp: otp ?? undefined,
         expiresMinutes: LINK_VALID_MINUTES,
       }),
     });
-    return { ok: true, delivery: "resend", otpSent: Boolean(otp) };
+    return { ok: true, delivery: "resend" };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Resend delivery failed";
     console.error("[auth/send-code] Resend failed:", message);
 
     if (isResendSandboxError(message)) {
-      return deliverViaSupabaseOtp(email, redirectTo);
+      return deliverViaSupabaseMagicLink(email, redirectTo);
     }
 
     return {
@@ -147,12 +158,9 @@ async function deliverMagicLink(
   redirectTo: string
 ): Promise<DeliveryResult> {
   if (isResendProductionReady()) {
-    return deliverViaResend(email, redirectTo);
+    return deliverViaResendMagicLink(email, redirectTo);
   }
-
-  // Resend sandbox (onboarding@resend.dev) only delivers to the account owner.
-  // Use Supabase Auth email so any inbox can receive the OTP + magic link.
-  return deliverViaSupabaseOtp(email, redirectTo);
+  return deliverViaSupabaseMagicLink(email, redirectTo);
 }
 
 export async function POST(req: Request) {
@@ -160,7 +168,6 @@ export async function POST(req: Request) {
   const email = String((body as { email?: string }).email ?? "")
     .trim()
     .toLowerCase();
-  const confirm = Boolean((body as { confirm?: boolean }).confirm);
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
@@ -181,29 +188,16 @@ export async function POST(req: Request) {
     );
   }
 
-  try {
-    const limit = await checkEmailLinkRateLimit(email);
-    if (!limit.allowed) {
-      return NextResponse.json(
-        {
-          error: limit.message,
-          cooldownSeconds: limit.cooldownSeconds,
-          reason: limit.reason,
-          pendingVerify: limit.reason === "interval",
-        },
-        { status: 429 }
-      );
-    }
-  } catch {
+  const limit = await checkEmailLinkRateLimit(email).catch(() => null);
+  if (limit && !limit.allowed) {
     return NextResponse.json(
-      { error: "Could not verify sign-in limits. Try again shortly." },
-      { status: 503 }
+      {
+        error: limit.message,
+        cooldownSeconds: limit.cooldownSeconds,
+        pendingVerify: true,
+      },
+      { status: 429 }
     );
-  }
-
-  if (confirm) {
-    await recordEmailLinkRequest(email);
-    return NextResponse.json({ ok: true, recorded: true });
   }
 
   const redirectTo = `${getAppBaseUrl()}/auth/callback`;
@@ -214,7 +208,7 @@ export async function POST(req: Request) {
       {
         error: delivered.error,
         cooldownSeconds: delivered.cooldownSeconds,
-        pendingVerify: delivered.pendingVerify ?? Boolean(delivered.cooldownSeconds),
+        pendingVerify: delivered.pendingVerify ?? false,
       },
       { status: delivered.status }
     );
@@ -226,7 +220,6 @@ export async function POST(req: Request) {
     ok: true,
     serverSend: true,
     delivery: delivered.delivery,
-    otpSent: delivered.otpSent,
     message: "Sign-in link sent to your inbox",
     expiresInMinutes: LINK_VALID_MINUTES,
     resendCooldownSeconds: Math.ceil(MIN_RESEND_INTERVAL_MS / 1000),

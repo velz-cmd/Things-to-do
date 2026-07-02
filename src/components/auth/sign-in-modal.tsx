@@ -5,7 +5,6 @@ import { useAppKit } from "@reown/appkit/react";
 import { useAccount, useConnect } from "wagmi";
 import { ArrowLeft, Mail, Wallet } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
@@ -15,7 +14,6 @@ import { enableGuestExploring } from "@/lib/auth/guest";
 import { getRememberedEmail } from "@/lib/auth/remember";
 import { detectInjectedWallets } from "@/lib/wallet/detect";
 import {
-  clearSignInFlowState,
   formatSignInCooldown,
   getSignInCooldownRemaining,
   hasSignInVerifyPending,
@@ -27,14 +25,13 @@ import {
 type Step = "welcome" | "verify" | "wallet-picker";
 type AuthAction = "email" | "google" | "github" | "wallet" | "guest" | null;
 
-const DEFAULT_RESEND_COOLDOWN_SEC = 60;
+const DEFAULT_RESEND_COOLDOWN_SEC = 15;
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 export function SignInModal() {
-  const router = useRouter();
   const { open, closeSignIn } = useSignInModal();
   const {
     sendLoginCode,
@@ -53,8 +50,7 @@ export function SignInModal() {
   const [authAction, setAuthAction] = useState<AuthAction>(null);
   const [walletConnecting, setWalletConnecting] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [linkValidMinutes, setLinkValidMinutes] = useState(5);
-  const [otpCode, setOtpCode] = useState("");
+  const [linkValidMinutes, setLinkValidMinutes] = useState(15);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [methodError, setMethodError] = useState<{
     google?: string;
@@ -85,7 +81,6 @@ export function SignInModal() {
       setAuthAction(null);
       setWalletConnecting(false);
       setInlineError(null);
-      setOtpCode("");
       setMethodError({});
       return;
     }
@@ -145,52 +140,6 @@ export function SignInModal() {
     setInlineError(null);
   }
 
-  async function handleVerifyOtp(e?: React.FormEvent) {
-    e?.preventDefault();
-    const code = otpCode.replace(/\s/g, "");
-    if (code.length < 6) {
-      setMethodError((prev) => ({
-        ...prev,
-        email: "Enter the 6-digit code from your email.",
-      }));
-      return;
-    }
-
-    setAuthAction("email");
-    setMethodError((prev) => ({ ...prev, email: undefined }));
-    try {
-      const res = await fetch("/api/auth/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email: email.trim(), code }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setMethodError((prev) => ({
-          ...prev,
-          email: String(data.error ?? "Invalid or expired code."),
-        }));
-        return;
-      }
-
-      try {
-        clearSignInFlowState();
-      } catch {
-        /* ignore */
-      }
-      closeSignIn();
-      router.refresh();
-    } catch {
-      setMethodError((prev) => ({
-        ...prev,
-        email: "Could not verify code. Try again.",
-      }));
-    } finally {
-      setAuthAction(null);
-    }
-  }
-
   function handleOpenWalletPicker() {
     setMethodError((prev) => ({ ...prev, wallet: undefined }));
     setStep("wallet-picker");
@@ -235,7 +184,7 @@ export function SignInModal() {
       return;
     }
 
-    if (cooldown > 0) {
+    if (cooldown > 0 && hasSignInVerifyPending()) {
       goToVerifyStep(cooldown, linkValidMinutes);
       return;
     }
@@ -246,19 +195,15 @@ export function SignInModal() {
       const result = await sendLoginCode(trimmed);
 
       if (!result.ok) {
-        const pendingVerify = Boolean(result.pendingVerify);
         if (result.cooldownSeconds) {
           setSignInCooldownSeconds(result.cooldownSeconds);
           setCooldown(result.cooldownSeconds);
         }
-        if (pendingVerify || result.cooldownSeconds) {
+        if (result.pendingVerify) {
           goToVerifyStep(
             result.cooldownSeconds ?? cooldown ?? DEFAULT_RESEND_COOLDOWN_SEC,
             linkValidMinutes
           );
-          if (!pendingVerify) {
-            setMethodError((prev) => ({ ...prev, email: result.message }));
-          }
           return;
         }
         setMethodError((prev) => ({ ...prev, email: result.message }));
@@ -267,7 +212,7 @@ export function SignInModal() {
 
       goToVerifyStep(
         result.resendCooldownSeconds ?? DEFAULT_RESEND_COOLDOWN_SEC,
-        result.expiresInMinutes ?? 5
+        result.expiresInMinutes ?? 15
       );
     } finally {
       setAuthAction(null);
@@ -286,13 +231,7 @@ export function SignInModal() {
           setSignInCooldownSeconds(result.cooldownSeconds);
           setCooldown(result.cooldownSeconds);
         }
-        if (result.pendingVerify || result.cooldownSeconds) {
-          setMethodError((prev) => ({
-            ...prev,
-            email: result.pendingVerify
-              ? undefined
-              : result.message,
-          }));
+        if (result.pendingVerify) {
           return;
         }
         setMethodError((prev) => ({
@@ -303,7 +242,7 @@ export function SignInModal() {
       }
       goToVerifyStep(
         result.resendCooldownSeconds ?? DEFAULT_RESEND_COOLDOWN_SEC,
-        result.expiresInMinutes ?? 5
+        result.expiresInMinutes ?? 15
       );
     } finally {
       setAuthAction(null);
@@ -413,15 +352,6 @@ export function SignInModal() {
                         ? `Check your email · resend in ${formatSignInCooldown(cooldown)}`
                         : "Continue with email"}
                   </button>
-                  {cooldown > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => goToVerifyStep(cooldown, linkValidMinutes)}
-                      className="w-full text-center text-xs text-sky-400 hover:text-sky-300"
-                    >
-                      Open code entry screen
-                    </button>
-                  )}
                   {inlineError && (
                     <p className="text-xs text-amber-200">{inlineError}</p>
                   )}
@@ -545,8 +475,7 @@ export function SignInModal() {
                   <div>
                     <p>
                       Open the email on <span className="text-white">this device</span>{" "}
-                      and tap <span className="font-medium text-white">Sign in</span>,
-                      or enter the 6-digit code below.
+                      and tap <span className="font-medium text-white">Sign in to RESOLVE</span>.
                     </p>
                     <p className="mt-2 text-xs text-slate-500">
                       The link expires in {linkValidMinutes} minutes and works once.
@@ -555,26 +484,6 @@ export function SignInModal() {
                   </div>
                 </div>
               </div>
-
-              <form onSubmit={(e) => void handleVerifyOtp(e)} className="space-y-3">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={8}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                  placeholder="6-digit code"
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-center text-lg tracking-[0.35em] text-white outline-none placeholder:text-slate-600 focus:border-sky-500/50"
-                />
-                <button
-                  type="submit"
-                  disabled={authAction === "email"}
-                  className="w-full rounded-xl bg-sky-500 py-3.5 text-sm font-semibold text-[#041018] transition hover:bg-sky-400 disabled:opacity-70"
-                >
-                  {authAction === "email" ? "Verifying…" : "Verify code"}
-                </button>
-              </form>
 
               {methodError.email && (
                 <p className="text-center text-xs text-amber-200">{methodError.email}</p>

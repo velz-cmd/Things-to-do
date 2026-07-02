@@ -318,7 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return {
           ok: true,
           expiresInMinutes: data.expiresInMinutes ?? 5,
-          resendCooldownSeconds: data.resendCooldownSeconds ?? 60,
+          resendCooldownSeconds: data.resendCooldownSeconds ?? 15,
         };
       } catch (e) {
         if (e instanceof Error && e.message === "timeout") {

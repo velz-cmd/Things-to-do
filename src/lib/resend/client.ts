@@ -40,3 +40,20 @@ export async function sendEmail(input: SendEmailInput) {
   if (error) throw new Error(error.message);
   return data;
 }
+
+/** True when Resend can deliver to any recipient (verified domain configured). */
+export function isResendProductionReady(): boolean {
+  if (!process.env.RESEND_API_KEY?.trim()) return false;
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
+  if (!from) return false;
+  return !from.includes("onboarding@resend.dev");
+}
+
+export function isResendSandboxError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("only send testing emails") ||
+    lower.includes("verify a domain") ||
+    lower.includes("testing emails to your own")
+  );
+}

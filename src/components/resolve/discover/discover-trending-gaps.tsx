@@ -9,7 +9,7 @@ import type { DiscoverIntent } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { filterGapsByNeedType } from "@/lib/discover/need-types";
-import { LANE_PURPOSE } from "@/lib/discover/discover-lane-copy";
+import { LANE_PURPOSE, WORKSPACE_LANE_LABELS } from "@/lib/discover/discover-lane-copy";
 import { sortByOpportunityScore, type OpportunitySortKey } from "@/lib/discover/opportunity-score";
 import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
@@ -80,7 +80,7 @@ export function DiscoverTrendingGaps({
   return (
     <DiscoverPremiumSection
       id="trending"
-      title="Unpaid value"
+      title={WORKSPACE_LANE_LABELS.gaps}
       subtitle={subtitle}
       className={className}
       actions={

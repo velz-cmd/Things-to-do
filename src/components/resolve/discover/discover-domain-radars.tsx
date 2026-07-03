@@ -17,7 +17,7 @@ import { DiscoverFeatureRow } from "@/components/resolve/discover/discover-featu
 import { collectRadarRows, RADAR_MAX_ROWS } from "@/lib/discover/discover-row-limits";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
-import { LANE_PURPOSE } from "@/lib/discover/discover-lane-copy";
+import { LANE_PURPOSE, WORKSPACE_LANE_LABELS } from "@/lib/discover/discover-lane-copy";
 
 const RADAR_ICONS = {
   oss: GitBranch,
@@ -99,7 +99,7 @@ export function DiscoverDomainRadars({
 
   return (
     <DiscoverPremiumSection
-      title="Live signals"
+      title={WORKSPACE_LANE_LABELS.radars}
       subtitle={live ? `Ledger-backed · ${LANE_PURPOSE.radars}` : LANE_PURPOSE.radars}
       className={className}
       actions={

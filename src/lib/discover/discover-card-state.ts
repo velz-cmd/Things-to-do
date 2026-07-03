@@ -12,6 +12,7 @@ import {
   type DiscoverActionSlot,
   type OpportunityState,
 } from "@/lib/discover/discover-opportunity-state";
+import { resolveLaneAdvancedActions } from "@/lib/discover/discover-lane-slots";
 import type { DiscoverCardLane } from "@/lib/discover/types";
 
 export type { DiscoverCardLane } from "@/lib/discover/types";
@@ -123,6 +124,17 @@ export function deriveDiscoverCardState(
     spendableUsd: options?.spendableUsd ?? null,
   });
 
+  const slotInput = {
+    gap,
+    connections,
+    role,
+    lane,
+    signedIn: options?.signedIn ?? Boolean(connections?.signedIn),
+    spendableUsd: options?.spendableUsd ?? null,
+  };
+
+  const advancedActions = resolveLaneAdvancedActions(slotInput, actionSlots);
+
   const proofSource =
     gap.valueMetrics?.verifiedSource ??
     gap.proofSource ??
@@ -140,6 +152,6 @@ export function deriveDiscoverCardState(
     pipeline: buildPipeline(connected, hasRule, funded, settled),
     opportunityState,
     actionSlots,
-    advancedActions: [],
+    advancedActions,
   };
 }

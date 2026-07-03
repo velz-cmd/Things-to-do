@@ -32,10 +32,21 @@ export function friendlyDiscoverActionLabel(
     return "Connect source";
   }
 
-  if (action.kind === "install") {
-    return action.communitySlug
-      ? `Create community program`
-      : "Create community program";
+  if (action.kind === "install" || action.kind === "create_program") {
+    if (/reward program|bounty|pool/i.test(action.label)) return action.label;
+    return action.communitySlug ? "Create reward program" : "Create reward program";
+  }
+
+  if (action.kind === "automate") {
+    return action.label.trim() || "Automate payouts";
+  }
+
+  if (action.kind === "analyze") {
+    return action.label.trim() || "Run analysis";
+  }
+
+  if (action.kind === "console") {
+    return action.label.trim() || (action.communitySlug ? `Open ${communityTitle(action.communitySlug)}` : "Open community");
   }
 
   return action.label.trim();

@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Bot,
   Compass,
   Search,
   Sparkles,
@@ -13,11 +14,14 @@ export type DiscoverJobId =
   | "earn"
   | "run"
   | "grants"
-  | "find";
+  | "find"
+  | "automate";
 
 export type DiscoverJob = {
   id: DiscoverJobId;
+  /** Accessible full label */
   title: string;
+  /** Short pill label shown in the hero */
   who: string;
   surfaces: string;
   role: DiscoverRole;
@@ -25,20 +29,20 @@ export type DiscoverJob = {
   icon: LucideIcon;
 };
 
-/** Compact intent modes — Fund · Earn · Run · Launch · Explore */
+/** Compact intent modes — Earn · Fund · Build · Automate · Explore */
 export const DISCOVER_JOBS: DiscoverJob[] = [
   {
     id: "earn",
-    title: "Earn from work",
+    title: "Earn from verified work",
     who: "Earn",
-    surfaces: "Claim verified earnings and connect identity",
+    surfaces: "Claim earnings and connect identity",
     role: "community",
     scrollTo: "discover-workspace",
     icon: Sparkles,
   },
   {
     id: "fund",
-    title: "Fund value",
+    title: "Fund where value is blocked",
     who: "Fund",
     surfaces: "Fund pools and sponsor payouts on Arc",
     role: "funder",
@@ -47,17 +51,26 @@ export const DISCOVER_JOBS: DiscoverJob[] = [
   },
   {
     id: "run",
-    title: "Run a program",
-    who: "Run",
+    title: "Run a payout program",
+    who: "Build",
     surfaces: "Create communities, payout rules, and pools",
     role: "founder",
     scrollTo: "discover-workspace",
     icon: Users,
   },
   {
+    id: "automate",
+    title: "Automate when proof arrives",
+    who: "Automate",
+    surfaces: "Auto-pay rules, agent signals, and payout caps",
+    role: "operator",
+    scrollTo: "value-bubblemap",
+    icon: Bot,
+  },
+  {
     id: "grants",
-    title: "Launch DAO pool",
-    who: "Build",
+    title: "Launch DAO or grant pool",
+    who: "Launch",
     surfaces: "Grants, citation tolls, and treasury programs",
     role: "dao",
     scrollTo: "discover-workspace",
@@ -65,9 +78,9 @@ export const DISCOVER_JOBS: DiscoverJob[] = [
   },
   {
     id: "find",
-    title: "Explore gaps",
+    title: "Explore unpaid value gaps",
     who: "Explore",
-    surfaces: "Unpaid value waiting for rules and funding",
+    surfaces: "Verified work waiting for rules and funding",
     role: "all",
     scrollTo: "discover-workspace",
     icon: Search,

@@ -12,8 +12,8 @@ Enable **Production**, **Preview**, and **Development** for each.
 | `DIRECT_URL` | Supabase **direct** connection (port **5432**) — optional; used only for local `prisma migrate deploy`, not Vercel builds |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://jjducnguljjddciczvuy.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
-| `NEXT_PUBLIC_APP_URL` | `https://things-to-do-eta.vercel.app` |
-| `APP_URL` | `https://things-to-do-eta.vercel.app` |
+| `NEXT_PUBLIC_APP_URL` | `https://resolve-task.vercel.app` |
+| `APP_URL` | `https://resolve-task.vercel.app` |
 
 ## Arc + Circle (live settlement)
 
@@ -45,11 +45,11 @@ Enable **Production**, **Preview**, and **Development** for each.
 ## After deploy — verify (no secrets exposed)
 
 ```text
-https://things-to-do-eta.vercel.app/api/health/env
-https://things-to-do-eta.vercel.app/api/settlement/config
-https://things-to-do-eta.vercel.app/demo-portals/streamly
-https://things-to-do-eta.vercel.app/api/communities
-https://things-to-do-eta.vercel.app/discover
+https://resolve-task.vercel.app/api/health/env
+https://resolve-task.vercel.app/api/settlement/config
+https://resolve-task.vercel.app/demo-portals/streamly
+https://resolve-task.vercel.app/api/communities
+https://resolve-task.vercel.app/discover
 ```
 
 `missingRecommended` should be empty when everything is set.
@@ -83,6 +83,22 @@ DATABASE_URL="postgresql://..." npx prisma migrate deploy
 | `NAVIDROME_PROGRAM_MISSION_ID` | Per bridge host | Copy from community page after **Install** (e.g. `program-<installId>-user-cen`). Bridge script on Navidrome host uses this to route scrobbles. |
 | `NAVIDROME_SYNC_SECRET` | Recommended | Shared secret for `POST /api/connectors/navidrome/sync` (bridge batches) |
 | `RESOLVE_PLATFORM_FEE_BPS` | Optional | `250` = 2.5% platform fee on program deploy (default if unset) |
+| `RESOLVE_PLATFORM_FEE_WALLET` | Optional | Overrides the platform fee destination wallet. |
+
+## Recommended production services
+
+These should match `/api/health/env` and `.env.example`.
+
+| Name | Why |
+|------|-----|
+| `GITHUB_TOKEN` | Higher GitHub API limits for OSS scans and repository intelligence. |
+| `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | Profile/claim GitHub connector OAuth. |
+| `GROQ_API_KEY`, `GEMINI_API_KEY`, or `OPENROUTER_API_KEY` | At least one AI provider for mission intelligence. |
+| `TAVILY_API_KEY` or `SERPER_API_KEY` | Search-backed discovery and research. |
+| `RESEND_API_KEY` or `BREVO_API_KEY` | Email login codes and notifications. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Optional cache for production stability. |
+| `ALCHEMY_API_KEY` or `ALCHEMY_ARC_RPC_URL` | More reliable Arc RPC reads. |
+| `NAVIDROME_SYNC_SECRET`, `JELLYFIN_SYNC_SECRET` | Protect media connector ingest endpoints. |
 
 `NAVIDROME_PROGRAM_MISSION_ID` is **auto-generated per install** and shown on `/communities/independent-music` after install — set it on the Navidrome bridge host, not necessarily as a global Vercel var unless you have one primary program.
 

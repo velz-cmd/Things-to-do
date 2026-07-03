@@ -133,4 +133,43 @@ describe("deriveDiscoverCardState", () => {
     expect(primarySlot(state)?.disabled).toBe(true);
     expect(primarySlot(state)?.disabledReason).toMatch(/Arc USDC/i);
   });
+
+  it("shows install as primary for founder when community not set up", () => {
+    const gap = baseGap({
+      actions: [
+        { id: "install", label: "Set up Navidrome", kind: "install", communitySlug: "navidrome" },
+        { id: "connect", label: "Connect Navidrome", kind: "connect_sensor", communitySlug: "navidrome" },
+        { id: "fund", label: "Fund artist pool", kind: "fund", communitySlug: "navidrome" },
+      ],
+    });
+    const state = deriveDiscoverCardState(gap, null, "graph", "founder", "board", { signedIn: true });
+    expect(primarySlot(state)?.action.kind).toBe("install");
+  });
+
+  it("treats 10 active rules as programmed not verified", () => {
+    const gap = baseGap({
+      valueMetrics: {
+        observedEvents: "Activity verified",
+        payoutRules: "10 active",
+        settlement: "Pool unfunded",
+        verifiedSource: "Navidrome",
+      },
+      programId: "prog-1",
+    });
+    const connections = {
+      signedIn: true,
+      installedCommunitySlugs: ["navidrome"],
+      githubUsername: null,
+      platforms: { navidrome: { connected: true } },
+      hasAnyConnector: true,
+    } as import("../../src/lib/profile/connection-state-types").UserConnectionState;
+
+    const state = deriveDiscoverCardState(gap, connections, "gaps", "funder", "trending-gaps", {
+      signedIn: true,
+      spendableUsd: 50,
+    });
+    expect(state.opportunityState).toBe("programmed");
+    expect(primarySlot(state)?.action.kind).toBe("fund");
+    expect(primarySlot(state)?.disabled).toBeFalsy();
+  });
 });

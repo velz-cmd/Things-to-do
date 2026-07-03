@@ -117,7 +117,9 @@ export function DiscoverBoardCommunityRow({
         showAdvanced={showAdvanced}
         onToggleAdvanced={() => setShowAdvanced((v) => !v)}
         onAction={(action) => {
-          const slot = card.actionSlots.find((s) => s.action.id === action.id);
+          const slot = card.actionSlots.find(
+            (s) => s.action.id === action.id && s.action.kind === action.kind,
+          );
           if (slot?.disabled) return;
           void runAction(action, "opportunity-board-explore");
         }}

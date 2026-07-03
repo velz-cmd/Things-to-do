@@ -17,7 +17,7 @@ function domainForBoardItem(
   return "oss";
 }
 
-/** Convert Value Graph community board rows into gap cards for the state machine. */
+/** Convert Funding board community rows into gap cards for the state machine. */
 export function boardCommunityItemToGap(
   item: Extract<DiscoverBoardItem, { boardKind: "community" }>,
   role: DiscoverRole,

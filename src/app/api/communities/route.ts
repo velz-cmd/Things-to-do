@@ -36,6 +36,7 @@ export async function GET() {
         observeNarrative: "Catalog preview — connect DATABASE_URL for live vitals.",
         hasLiveData: false,
       },
+      hubOps: null,
     }));
     const statuses = await getCommunitySensorStatuses().catch(() => []);
     return NextResponse.json({ ok: true, communities, sensorStatuses: statuses, degraded: true });

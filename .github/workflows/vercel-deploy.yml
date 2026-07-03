@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PRODUCTION_URL: https://resolve-task.vercel.app
+  PRODUCTION_URL: https://things-to-do-eta.vercel.app
   VERCEL_DEPLOY_HOOK_URL: https://api.vercel.com/v1/integrations/deploy/prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd/krAQUtlB2i
 
 jobs:

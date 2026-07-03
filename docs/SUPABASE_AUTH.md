@@ -2,10 +2,10 @@
 
 ## Redirect URLs (Supabase Dashboard → Authentication → URL Configuration)
 
-- **Site URL:** `https://resolve-task.vercel.app` (production) or `http://localhost:3000` (local dev)
+- **Site URL:** `https://things-to-do-eta.vercel.app` (production) or `http://localhost:3000` (local dev)
 - **Redirect URLs** (add every host you use; wildcards are supported):
-  - `https://resolve-task.vercel.app/**`
-  - `https://resolve-task.vercel.app/auth/reset-password`
+  - `https://things-to-do-eta.vercel.app/**`
+  - `https://things-to-do-eta.vercel.app/auth/reset-password`
   - `http://localhost:3000/**`
 
 If `/auth/callback` is missing from the allowlist, Supabase falls back to Site URL and you will land on `/?code=...` without a session. The app middleware forwards that to `/auth/callback`, but you should still add the URLs above so OAuth sign-in completes in one hop.

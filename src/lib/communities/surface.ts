@@ -286,6 +286,8 @@ export async function buildCommunitySurface(
   };
 }
 
+import type { CommunityHubOpsStats } from "@/lib/communities/hub-ops-stats";
+
 export async function listCommunitySummaries(
   userId: string | null,
   options?: { sensorStatuses?: import("@/lib/sensors/catalog-visibility").CommunitySensorStatus[] },
@@ -303,6 +305,13 @@ export async function listCommunitySummaries(
     options?.sensorStatuses ?? (await getCommunitySensorStatuses().catch(() => []));
   const vitalsBySlug = await listCommunityVitals(sensorStatuses);
 
+  const hubOpsBySlug =
+    userId && installSet.size > 0
+      ? await import("@/lib/communities/hub-ops-stats").then((m) =>
+          m.buildUserHubOpsMap(userId),
+        )
+      : {};
+
   return COMMUNITY_CATALOG.map((c) => ({
     slug: c.slug,
     name: c.name,
@@ -315,5 +324,6 @@ export async function listCommunitySummaries(
     upstream: c.upstream,
     installed: installSet.has(c.slug),
     vitals: vitalsBySlug[c.slug],
+    hubOps: (hubOpsBySlug[c.slug] ?? null) as CommunityHubOpsStats | null,
   }));
 }

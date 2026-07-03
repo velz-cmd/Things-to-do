@@ -5,7 +5,7 @@
  *   JELLYFIN_URL=http://localhost:8096 \
  *   JELLYFIN_API_KEY=your-api-key-from-dashboard \
  *   RESOLVE_USER_ID=your-supabase-user-id \
- *   RESOLVE_SYNC_URL=https://resolve-task.vercel.app/api/connectors/jellyfin/sync \
+ *   RESOLVE_SYNC_URL=https://things-to-do-eta.vercel.app/api/connectors/jellyfin/sync \
  *   JELLYFIN_SYNC_SECRET=your-cron-secret \
  *   npx tsx scripts/jellyfin-bridge.ts
  */

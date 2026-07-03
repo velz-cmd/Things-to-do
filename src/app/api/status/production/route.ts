@@ -43,7 +43,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: issues.length === 0,
-    liveAt: "https://resolve-task.vercel.app",
+    liveAt: "https://things-to-do-eta.vercel.app",
     real: {
       githubPipeline: integrations.live.github?.ok ?? false,
       arcOnChainPayouts: arc.canDistributeOnChain,

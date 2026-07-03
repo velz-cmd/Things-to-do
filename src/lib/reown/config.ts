@@ -49,6 +49,6 @@ export const wagmiConfig = wagmiAdapter.wagmiConfig;
 export const appKitMetadata = {
   name: "RESOLVE",
   description: "Assign the problem. Pay only on proof.",
-  url: process.env.NEXT_PUBLIC_APP_URL ?? "https://resolve-task.vercel.app",
-  icons: ["https://resolve-task.vercel.app/favicon.ico"],
+  url: process.env.NEXT_PUBLIC_APP_URL ?? "https://things-to-do-eta.vercel.app",
+  icons: ["https://things-to-do-eta.vercel.app/favicon.ico"],
 };

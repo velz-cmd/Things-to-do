@@ -37,6 +37,6 @@ export function getAppReferer(): string {
   return (
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     process.env.APP_URL?.trim() ||
-    "https://resolve-task.vercel.app"
+    "https://things-to-do-eta.vercel.app"
   );
 }

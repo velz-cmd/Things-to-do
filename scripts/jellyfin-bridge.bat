@@ -14,8 +14,8 @@ if not exist "jellyfin-bridge.env" (
   echo   copy scripts\jellyfin-bridge.env.example jellyfin-bridge.env
   echo Then edit jellyfin-bridge.env with your API key and RESOLVE_USER_ID.
   echo.
-  echo Find RESOLVE_USER_ID: sign in at https://resolve-task.vercel.app/profile
-  echo   then open https://resolve-task.vercel.app/api/profile/me
+  echo Find RESOLVE_USER_ID: sign in at https://things-to-do-eta.vercel.app/profile
+  echo   then open https://things-to-do-eta.vercel.app/api/profile/me
   echo.
   exit /b 1
 )

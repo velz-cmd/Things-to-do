@@ -112,7 +112,7 @@ export function DiscoverGlobalSearch({
       </form>
 
       <p className="mt-2 text-[11px] text-resolve-muted-dim">
-        Enter runs the top result action: create, fund, connect, claim, or run an agent.
+        Enter runs the top result action: create, fund, connect, claim, or start analysis.
       </p>
 
       {query.trim().length >= 2 && (

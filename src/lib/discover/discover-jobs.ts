@@ -60,11 +60,11 @@ export const DISCOVER_JOBS: DiscoverJob[] = [
   },
   {
     id: "automate",
-    title: "Run agent intelligence",
-    who: "Run agent intelligence",
-    surfaces: "Agent signals, source scans, and payout recommendations",
+    title: "Analyze an opportunity",
+    who: "Run analysis",
+    surfaces: "Analyze contributors, splits, citations, and funding gaps",
     role: "operator",
-    scrollTo: "agent-market",
+    scrollTo: "discover-workspace",
     icon: Bot,
   },
   {

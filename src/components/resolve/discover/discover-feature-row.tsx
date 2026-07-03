@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
-import type { DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
+import type { DiscoverAction, DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
@@ -12,6 +12,13 @@ import { useUserConnections } from "@/components/resolve/profile/user-connection
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 import { DiscoverCardNarrativeBlock } from "@/components/resolve/discover/discover-card-narrative";
 import { DiscoverActionBar } from "@/components/resolve/discover/discover-action-bar";
+import { DiscoverSolveButton } from "@/components/resolve/discover/discover-solve-button";
+import {
+  DiscoverQuickActions,
+  buildCardQuickActions,
+} from "@/components/resolve/discover/discover-quick-actions";
+import { useDiscoverSolveOptional } from "@/components/resolve/discover/discover-solve-provider";
+import { solveIntentForGap } from "@/lib/discover/solve-intents";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -44,7 +51,9 @@ export function DiscoverFeatureRow({
   const { runAction, wallet } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
+  const solve = useDiscoverSolveOptional();
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
 
   const spendableUsd = wallet.loaded ? wallet.spendableUsd : null;
 
@@ -71,8 +80,38 @@ export function DiscoverFeatureRow({
     }
   }, [allVisible, registerVisibleAction, surface]);
 
+  const handleAction = (action: DiscoverAction) => {
+    const slot = card.actionSlots.find(
+      (s) => s.action.id === action.id && s.action.kind === action.kind,
+    );
+    if (slot?.disabled) return;
+    void runAction(action, surface);
+  };
+
+  const quickItems = buildCardQuickActions({
+    card,
+    connections,
+    onAction: handleAction,
+    solve: solve
+      ? {
+          label: "Solve with AI",
+          onSelect: () => solve.requestSolve(solveIntentForGap(gap)),
+        }
+      : null,
+  });
+
   return (
-    <li className="resolve-signal-service-row px-1 py-3 first:pt-0 last:pb-0">
+    <li
+      className="resolve-signal-service-row group relative px-1 py-3 first:pt-0 last:pb-0 focus:outline-none focus-visible:rounded-lg focus-visible:ring-1 focus-visible:ring-resolve-accent/40"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "." || e.key === " ") {
+          e.preventDefault();
+          setQuickOpen(true);
+        }
+      }}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -114,6 +153,13 @@ export function DiscoverFeatureRow({
 
           <DiscoverProofPipeline stages={card.pipeline} className="mt-2" />
         </div>
+
+        <DiscoverQuickActions
+          items={quickItems}
+          open={quickOpen}
+          onOpenChange={setQuickOpen}
+          triggerClassName="opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100"
+        />
       </div>
 
       <DiscoverActionBar
@@ -122,13 +168,8 @@ export function DiscoverFeatureRow({
         connections={connections}
         showAdvanced={showAdvanced}
         onToggleAdvanced={() => setShowAdvanced((v) => !v)}
-        onAction={(action) => {
-          const slot = card.actionSlots.find(
-            (s) => s.action.id === action.id && s.action.kind === action.kind,
-          );
-          if (slot?.disabled) return;
-          void runAction(action, surface);
-        }}
+        onAction={handleAction}
+        trailing={<DiscoverSolveButton gap={gap} />}
       />
     </li>
   );

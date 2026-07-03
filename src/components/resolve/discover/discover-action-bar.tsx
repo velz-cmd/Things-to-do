@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import clsx from "clsx";
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { DiscoverActionSlot } from "@/lib/discover/discover-opportunity-state";
@@ -13,6 +14,8 @@ type DiscoverActionBarProps = {
   onAction: (action: DiscoverAction) => void;
   showAdvanced?: boolean;
   onToggleAdvanced?: () => void;
+  /** Extra CTA rendered alongside primary/secondary — e.g. "Solve with AI". */
+  trailing?: ReactNode;
 };
 
 /** Real action buttons — primary CTA + secondary, not hashtag pills. */
@@ -23,11 +26,14 @@ export function DiscoverActionBar({
   onAction,
   showAdvanced,
   onToggleAdvanced,
+  trailing,
 }: DiscoverActionBarProps) {
   const primary = slots.find((s) => s.variant === "primary");
   const secondary = slots.filter((s) => s.variant === "secondary");
 
-  if (!primary && secondary.length === 0 && advanced.length === 0) return null;
+  if (!primary && secondary.length === 0 && advanced.length === 0 && !trailing) {
+    return null;
+  }
 
   return (
     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -46,6 +52,7 @@ export function DiscoverActionBar({
           onClick={() => onAction(slot.action)}
         />
       ))}
+      {trailing}
       {advanced.length > 0 && onToggleAdvanced && (
         <button
           type="button"

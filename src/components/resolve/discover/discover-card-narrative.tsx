@@ -8,70 +8,75 @@ type Props = {
   className?: string;
 };
 
-const NARRATIVE_SECTIONS = [
-  {
-    key: "evidence",
-    label: "Evidence",
-    labelClass: "text-resolve-muted-dim",
-    bodyClass: "text-resolve-muted",
-    body: (n: DiscoverCardNarrative) => n.evidence,
-  },
-  {
-    key: "problem",
-    label: "Why money stopped",
-    labelClass: "text-amber-200/70",
-    bodyClass: "text-white/90",
-    body: (n: DiscoverCardNarrative) => n.problem,
-  },
-  {
-    key: "opportunity",
-    label: "Opportunity",
-    labelClass: "text-emerald-200/70",
-    bodyClass: (n: DiscoverCardNarrative) =>
-      clsx(
-        "font-semibold tabular-nums",
-        n.opportunityTone === "verified"
-          ? "text-amber-200"
-          : n.opportunityTone === "estimate"
-            ? "text-amber-200/80"
-            : "text-resolve-muted",
-      ),
-    body: (n: DiscoverCardNarrative) => n.opportunity,
-  },
-] as const;
+const AMOUNT_TONE_CLASS: Record<DiscoverCardNarrative["opportunityTone"], string> = {
+  verified: "text-emerald-300",
+  estimate: "text-amber-200",
+  not_synced: "text-resolve-muted",
+  zero: "text-resolve-muted",
+};
 
-/** Evidence → problem → opportunity — action marketplace card story. */
+/**
+ * Splits the composite opportunity line into a leading money figure (emphasised)
+ * and the descriptive remainder so the dollar reads as the headline number.
+ */
+function splitOpportunity(narrative: DiscoverCardNarrative): {
+  amount: string | null;
+  detail: string;
+} {
+  const amount = narrative.opportunityAmount?.trim();
+  const opportunity = narrative.opportunity?.trim() ?? "";
+
+  if (amount && amount !== "Unpaid" && opportunity.startsWith(amount)) {
+    return { amount, detail: opportunity.slice(amount.length).replace(/^\s+/, "") };
+  }
+
+  return { amount: null, detail: opportunity };
+}
+
+/**
+ * Evidence → Problem → Opportunity — the action-marketplace card story.
+ * A vertical narrative (not a status grid): muted proof line, a prominent
+ * "why money stopped" statement, then the emphasised dollar opportunity.
+ */
 export function DiscoverCardNarrativeBlock({ narrative, className }: Props) {
+  const { amount, detail } = splitOpportunity(narrative);
+
   return (
     <div
       className={clsx(
-        "mt-2 grid gap-3 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5 sm:grid-cols-3",
+        "mt-2 space-y-1.5 rounded-lg border-l-2 border-white/10 bg-black/20 py-2 pl-3 pr-3",
         className,
       )}
       aria-label="Value opportunity story"
     >
-      {NARRATIVE_SECTIONS.map((section) => (
-        <div key={section.key}>
-          <p
+      {/* Evidence — the proof that value exists */}
+      <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-resolve-muted">
+        <span
+          aria-hidden
+          className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-emerald-400/70"
+        />
+        <span>{narrative.evidence}</span>
+      </p>
+
+      {/* Problem — why money stopped; the strongest read of the card */}
+      <p className="text-[12.5px] font-semibold leading-snug text-white/95">
+        {narrative.problem}
+      </p>
+
+      {/* Opportunity — the dollar and impact unlocked by acting */}
+      <p className="flex flex-wrap items-baseline gap-x-1.5 text-[11px] leading-relaxed text-resolve-muted">
+        {amount && (
+          <span
             className={clsx(
-              "text-[9px] font-semibold uppercase tracking-[0.14em]",
-              section.labelClass,
+              "text-[12.5px] font-semibold tabular-nums",
+              AMOUNT_TONE_CLASS[narrative.opportunityTone],
             )}
           >
-            {section.label}
-          </p>
-          <p
-            className={clsx(
-              "mt-0.5 text-[11px] leading-relaxed",
-              typeof section.bodyClass === "function"
-                ? section.bodyClass(narrative)
-                : section.bodyClass,
-            )}
-          >
-            {section.body(narrative)}
-          </p>
-        </div>
-      ))}
+            {amount}
+          </span>
+        )}
+        <span>{detail}</span>
+      </p>
     </div>
   );
 }

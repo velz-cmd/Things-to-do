@@ -417,7 +417,7 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   return slots;
 }
 
-/** Value graph board — fund gaps and open communities; creation lives in Unpaid Value. */
+/** Funding board — fund gaps and open communities; creation lives in Unpaid Value. */
 function resolveGraphSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   const slots: DiscoverActionSlot[] = [];
   const push = makePush(slots);
@@ -533,7 +533,7 @@ export function resolveLaneAdvancedActions(
   return out;
 }
 
-/** Tab-specific action slots — Discover / Live Signals / Value Graph. */
+/** Tab-specific action slots — Unpaid Value / Live Signals / Funding board. */
 export function resolveLaneActionSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   switch (input.lane) {
     case "radars":

@@ -17,8 +17,6 @@ import {
   DiscoverQuickActions,
   buildCardQuickActions,
 } from "@/components/resolve/discover/discover-quick-actions";
-import { useDiscoverSolveOptional } from "@/components/resolve/discover/discover-solve-provider";
-import { solveIntentForGap } from "@/lib/discover/solve-intents";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -51,7 +49,6 @@ export function DiscoverFeatureRow({
   const { runAction, wallet } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
-  const solve = useDiscoverSolveOptional();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
 
@@ -92,12 +89,7 @@ export function DiscoverFeatureRow({
     card,
     connections,
     onAction: handleAction,
-    solve: solve
-      ? {
-          label: "Solve with AI",
-          onSelect: () => solve.requestSolve(solveIntentForGap(gap)),
-        }
-      : null,
+    solve: null,
   });
 
   return (

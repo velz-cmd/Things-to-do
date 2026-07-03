@@ -32,14 +32,14 @@ function programActionLabel(templateId?: string): string {
 
 function agentActionLabel(action: DiscoverAction): string {
   const templateId = action.templateId ?? "";
-  if (templateId === "citation-toll") return "Run citation agent";
-  if (templateId === "security-fund") return "Run security agent";
-  if (templateId === "docs-bounty") return "Find contributors";
+  if (templateId === "citation-toll") return "Verify citations";
+  if (templateId === "security-fund") return "Start security analysis";
+  if (templateId === "docs-bounty") return "Run contributor analysis";
   if (templateId === "user-centric-royalties" || templateId === "video-royalties") {
-    return "Calculate creator earnings";
+    return "Calculate revenue split";
   }
   if (/budget|impact|estimate/i.test(action.label)) return "Estimate budget";
-  return action.label.trim() || "Run agent";
+  return action.label.trim() || "Start analysis";
 }
 
 /** User-facing action labels — no engineer or hackathon jargon. */

@@ -4,6 +4,9 @@ import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
 import {
+  gapHasActiveRule,
+  gapIsFunded,
+  gapIsSettled,
   getOpportunityState,
   resolveDiscoverActionSlots,
   type DiscoverActionSlot,
@@ -47,26 +50,6 @@ function missingLabelForGap(gap: TrendingValueGap): string {
   if (gap.templateId === "docs-bounty") return "docs bounty";
   if (profile?.upstream) return `payout rule for ${profile.upstream.split(" · ")[0]}`;
   return "payout rule";
-}
-
-function hasActiveRule(gap: TrendingValueGap): boolean {
-  const rules = gap.valueMetrics?.payoutRules ?? "";
-  if (Boolean(gap.programId)) return true;
-  const lower = rules.toLowerCase();
-  return lower.includes("active") && !lower.includes("missing") && !lower.includes("0");
-}
-
-function isFunded(gap: TrendingValueGap): boolean {
-  const settlement = gap.valueMetrics?.settlement ?? "";
-  if (settlement.toLowerCase().includes("active") || settlement.toLowerCase().includes("funded")) {
-    return true;
-  }
-  return gap.amountVerified && (gap.moneyCanMoveUsd > 0 || gap.amountNeededUsd > 0);
-}
-
-function isSettled(gap: TrendingValueGap): boolean {
-  const settlement = gap.valueMetrics?.settlement ?? "";
-  return settlement.toLowerCase().includes("settled") || settlement.toLowerCase().includes("on arc");
 }
 
 function settlementStatusLabel(
@@ -128,9 +111,9 @@ export function deriveDiscoverCardState(
   const profile = gap.communitySlug ? getCommunityValueProfile(gap.communitySlug) : null;
   const connected =
     gap.communitySlug != null && communityReadyForDiscover(gap.communitySlug, connections);
-  const hasRule = hasActiveRule(gap);
-  const funded = isFunded(gap);
-  const settled = isSettled(gap);
+  const hasRule = gapHasActiveRule(gap);
+  const funded = gapIsFunded(gap);
+  const settled = gapIsSettled(gap);
   const opportunityState = getOpportunityState(gap, connected);
 
   const actionSlots = resolveDiscoverActionSlots({

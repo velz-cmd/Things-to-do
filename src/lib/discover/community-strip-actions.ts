@@ -1,5 +1,6 @@
 import { programTemplatesForCommunity } from "../connectors/phase3-tracks";
 import type { DiscoverAction } from "./types";
+import { communityConsolePath } from "@/lib/communities/community-nav";
 
 /** Default program template when creating from Discover community strip. */
 export function defaultProgramTemplateForCommunity(slug: string): string {
@@ -14,8 +15,9 @@ export function communityStripActions(input: {
   const actions: DiscoverAction[] = [
     {
       id: "open-console",
-      label: "Open console",
-      kind: "console",
+      label: "Operate community",
+      kind: "open",
+      href: communityConsolePath(input.slug),
       communitySlug: input.slug,
     },
   ];

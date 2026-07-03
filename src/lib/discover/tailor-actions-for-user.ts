@@ -1,6 +1,7 @@
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
+import { communityConsolePath } from "@/lib/communities/community-nav";
 
 const COMMUNITY_NAMES: Record<string, string> = {
   react: "React",
@@ -44,9 +45,18 @@ export function tailorDiscoverActionsForUser(
       if (action.kind === "install" && ready && slug) {
         return {
           ...action,
-          kind: "console",
-          label: `Open ${communityTitle(slug)}`,
-          href: undefined,
+          kind: "open",
+          label: `Operate ${communityTitle(slug)}`,
+          href: communityConsolePath(slug),
+        };
+      }
+
+      if (action.kind === "console" && slug) {
+        return {
+          ...action,
+          kind: "open",
+          label: action.label || `Operate ${communityTitle(slug)}`,
+          href: communityConsolePath(slug),
         };
       }
 
@@ -61,8 +71,8 @@ export function friendlyDiscoverActionLabelForUser(
 ): string {
   const slug = action.communitySlug;
   if (state?.signedIn && slug && communityReadyForDiscover(slug, state)) {
-    if (action.kind === "console") {
-      return action.label || `Open ${communityTitle(slug)}`;
+    if (action.kind === "console" || (action.kind === "open" && action.href?.includes("/communities/"))) {
+      return action.label || `Operate ${communityTitle(slug)}`;
     }
   }
 

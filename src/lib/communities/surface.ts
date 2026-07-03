@@ -131,13 +131,15 @@ export async function buildCommunitySurface(
     }
   }
 
-  for (const missionId of missionIds) {
-    const summary = await getAuthorizationSummary({ missionId });
+  const missionSummaries = missionIds.length
+    ? await Promise.all(missionIds.map((missionId) => getAuthorizationSummary({ missionId })))
+    : [];
+
+  for (const summary of missionSummaries) {
     authorizedUsd += summary.authorizedUsd + summary.pendingFundingUsd;
     settledUsd += summary.settledUsd + summary.claimableUsd;
     playCount += summary.count;
-    const artists = new Set(summary.authorizations.map((a) => a.payeeKey));
-    artistCount += artists.size;
+    artistCount += new Set(summary.authorizations.map((a) => a.payeeKey)).size;
   }
 
   const programBudgetUsd = programs.reduce((s, p) => s + p.budgetUsd, 0);
@@ -188,8 +190,7 @@ export async function buildCommunitySurface(
     amountUsd: number;
   }> = [];
 
-  for (const missionId of missionIds) {
-    const summary = await getAuthorizationSummary({ missionId });
+  for (const summary of missionSummaries) {
     for (const a of summary.authorizations) {
       if (a.status === "authorized" || a.status === "pending_funding") {
         authorizedForDeployUsd += a.amountUsd;
@@ -202,12 +203,16 @@ export async function buildCommunitySurface(
     }
   }
 
-  for (const a of authorizedForDeploy) {
-    const payee = await resolvePayee({
-      platform: "navidrome",
-      payload: { exifArtist: a.payeeKey },
-    });
-    if (payee.wallet) walletMappedCount++;
+  if (authorizedForDeploy.length > 0) {
+    const payees = await Promise.all(
+      authorizedForDeploy.map((a) =>
+        resolvePayee({
+          platform: "navidrome",
+          payload: { exifArtist: a.payeeKey },
+        }).catch(() => ({ wallet: null as string | null })),
+      ),
+    );
+    walletMappedCount = payees.filter((payee) => payee.wallet).length;
   }
 
   const deployReasons: string[] = [];

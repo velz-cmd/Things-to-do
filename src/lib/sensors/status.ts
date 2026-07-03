@@ -20,36 +20,41 @@ function sensorReadyForSlug(slug: string): boolean {
   return true;
 }
 
-export async function getCommunitySensorStatuses(): Promise<CommunitySensorStatus[]> {
-  const statuses: CommunitySensorStatus[] = [];
-
-  for (const entry of COMMUNITY_CATALOG) {
-    const gated = sensorGated(entry.slug);
-    const ready = sensorReadyForSlug(entry.slug);
-    const live = gated ? await communityHasLiveSensorEvents(entry.slug) : true;
-
-    let message = "Live sensor events in ledger";
-    if (gated && !ready) {
-      message =
-        entry.slug === "open-research"
-          ? "Awaiting OPENALEX_API_KEY"
-          : entry.slug === "react" || entry.slug === "linux"
-            ? "Awaiting GITHUB_TOKEN"
-            : "Sensor not configured";
-    } else if (gated && !live) {
-      message = "Sensor gated — run sync to produce real authorizations before catalog visibility";
-    }
-
-    statuses.push({
-      slug: entry.slug,
-      sensorGated: gated,
-      sensorLive: live,
-      sensorReady: ready,
-      message,
-    });
+function sensorStatusMessage(
+  entry: CommunityCatalogEntry,
+  gated: boolean,
+  ready: boolean,
+  live: boolean,
+): string {
+  if (gated && !ready) {
+    return entry.slug === "open-research"
+      ? "Awaiting OPENALEX_API_KEY"
+      : entry.slug === "react" || entry.slug === "linux"
+        ? "Awaiting GITHUB_TOKEN"
+        : "Sensor not configured";
   }
+  if (gated && !live) {
+    return "Sensor gated — run sync to produce real authorizations before catalog visibility";
+  }
+  return "Live sensor events in ledger";
+}
 
-  return statuses;
+export async function getCommunitySensorStatuses(): Promise<CommunitySensorStatus[]> {
+  return Promise.all(
+    COMMUNITY_CATALOG.map(async (entry) => {
+      const gated = sensorGated(entry.slug);
+      const ready = sensorReadyForSlug(entry.slug);
+      const live = gated ? await communityHasLiveSensorEvents(entry.slug) : true;
+
+      return {
+        slug: entry.slug,
+        sensorGated: gated,
+        sensorLive: live,
+        sensorReady: ready,
+        message: sensorStatusMessage(entry, gated, ready, live),
+      };
+    }),
+  );
 }
 
 export async function getBrowsableCommunities(): Promise<CommunityCatalogEntry[]> {

@@ -124,6 +124,37 @@ export function useCommunitiesHubQuery() {
   });
 }
 
+export function useCommunitySurfaceQuery(slug: string, options?: { pollWhenInstalled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.communitySurface(slug),
+    queryFn: ({ signal }) =>
+      fetchJson<{ community: import("@/lib/communities/types").CommunitySurface }>(
+        `/api/communities/${slug}`,
+        signal,
+      ).then((data) => data.community),
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+    refetchInterval: (query) => {
+      if (!options?.pollWhenInstalled) return false;
+      return query.state.data?.installed ? 30_000 : false;
+    },
+  });
+}
+
+export function prefetchCommunitySurface(
+  queryClient: ReturnType<typeof useQueryClient>,
+  slug: string,
+) {
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.communitySurface(slug),
+    queryFn: () =>
+      fetchJson<{ community: import("@/lib/communities/types").CommunitySurface }>(
+        `/api/communities/${slug}`,
+      ).then((data) => data.community),
+    staleTime: 30_000,
+  });
+}
+
 export function prefetchProfileTab(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileBootstrap,

@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Layers, Loader2, Search } from "lucide-react";
+import { ArrowUpRight, Layers, Search } from "lucide-react";
 import clsx from "clsx";
 import { ProductPage } from "@/components/resolve/layout/product-page";
-import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { listBrowsableCommunities, type CommunitySensorStatus } from "@/lib/sensors/catalog-visibility";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
+import { CommunityHubSkeleton } from "@/components/resolve/communities/communities-skeletons";
 import type { CommunityVitalsSummary } from "@/lib/communities/types";
 import { displayVitals } from "@/lib/communities/humanize-vitals";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
@@ -33,7 +33,6 @@ export function CommunitiesHub() {
   const queryClient = useQueryClient();
   const { state: connections } = useUserConnections();
   const { data: hubData, isLoading: loading } = useCommunitiesHubQuery();
-  const [sensorStatuses, setSensorStatuses] = useState<CommunitySensorStatus[]>([]);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<(typeof KINDS)[number]>("all");
 
@@ -42,21 +41,10 @@ export function CommunitiesHub() {
     [hubData?.communities],
   );
 
-  useEffect(() => {
-    if (hubData?.sensorStatuses?.length) {
-      setSensorStatuses(hubData.sensorStatuses as CommunitySensorStatus[]);
-      return;
-    }
-    let cancelled = false;
-    void fetch("/api/communities/sensor-status")
-      .then((r) => (r.ok ? r.json() : { statuses: [] }))
-      .then((statusRes) => {
-        if (!cancelled) setSensorStatuses(statusRes.statuses ?? []);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [hubData?.sensorStatuses]);
+  const sensorStatuses = useMemo(
+    () => (hubData?.sensorStatuses ?? []) as CommunitySensorStatus[],
+    [hubData?.sensorStatuses],
+  );
 
   const installedBySlug = useMemo(() => {
     const map: Record<string, boolean> = {};
@@ -133,12 +121,7 @@ export function CommunitiesHub() {
           </Link>
         </div>
 
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-resolve-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading…
-          </div>
-        ) : installed.length > 0 ? (
+        {installed.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {installed.map(({ meta, summary }) => (
               <InstallResolveCard
@@ -149,8 +132,10 @@ export function CommunitiesHub() {
               />
             ))}
           </div>
+        ) : loading ? (
+          <CommunityHubSkeleton count={3} />
         ) : (
-          <BlueGlowCard variant="subtle" className="border-dashed border-white/10">
+          <div className="rounded-xl border border-dashed border-white/10 bg-[#0a0f18]/40 px-4 py-5">
             <p className="text-sm text-resolve-muted">
               Connect GitHub, Jellyfin, or music sources in{" "}
               <Link href="/profile" className="text-resolve-accent hover:underline">
@@ -158,7 +143,7 @@ export function CommunitiesHub() {
               </Link>{" "}
               — communities attach automatically.
             </p>
-          </BlueGlowCard>
+          </div>
         )}
       </section>
 

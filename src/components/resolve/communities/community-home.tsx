@@ -28,7 +28,11 @@ import { CommunityBridgePanel } from "@/components/resolve/communities/community
 import { CommunityLiveAuthorizations } from "@/components/resolve/communities/community-live-authorizations";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import { CommunityIntentBanner } from "@/components/resolve/communities/community-intent-banner";
+import { CommunityConsoleSkeleton } from "@/components/resolve/communities/communities-skeletons";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { useCommunitySurfaceQuery } from "@/lib/query/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query/keys";
 import { loadPersistedDiscoverRole } from "@/lib/discover/discover-role-persist";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
@@ -217,34 +221,26 @@ function ProgramCard({
 
 export function CommunityHome({ slug }: { slug: string }) {
   const catalog = getCommunityBySlug(slug);
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const pageIntent = searchParams.get("intent");
   const [discoverRole, setDiscoverRole] = useState<DiscoverRole | null>(null);
-  const { state: connections, refreshSync } = useUserConnections();
-  const [surface, setSurface] = useState<CommunitySurface | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { state: connections } = useUserConnections();
   const [deploying, setDeploying] = useState<string | null>(null);
+
+  const {
+    data: surface,
+    isLoading: loading,
+    refetch,
+  } = useCommunitySurfaceQuery(slug, { pollWhenInstalled: true });
 
   useEffect(() => {
     setDiscoverRole(loadPersistedDiscoverRole());
   }, []);
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/communities/${slug}`, { credentials: "include" });
-    const data = await res.json();
-    if (res.ok) setSurface(data.community);
-    setLoading(false);
-  }, [slug]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    if (!surface?.installed) return;
-    const t = setInterval(() => void refresh(), 30_000);
-    return () => clearInterval(t);
-  }, [surface?.installed, refresh]);
+    await refetch();
+  }, [refetch]);
 
   async function deploy(programId: string) {
     setDeploying(programId);
@@ -256,8 +252,9 @@ export function CommunityHome({ slug }: { slug: string }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Deploy failed");
       toast.success(data.message);
-      if (data.community) setSurface(data.community);
-      else await refresh();
+      if (data.community) {
+        queryClient.setQueryData(queryKeys.communitySurface(slug), data.community);
+      } else await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Deploy failed");
     } finally {
@@ -273,16 +270,8 @@ export function CommunityHome({ slug }: { slug: string }) {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-16 text-center">
-        <Loader2 className="mx-auto h-6 w-6 animate-spin text-resolve-accent" />
-        <p className="mt-3 text-sm text-resolve-muted">Entering {catalog.name}…</p>
-      </div>
-    );
-  }
-
   const installed = surface?.installed ?? false;
+  const surfaceLoading = loading && !surface;
 
   return (
     <ProductPage
@@ -317,9 +306,17 @@ export function CommunityHome({ slug }: { slug: string }) {
       />
       {!installed ? (
         <div className="max-w-lg space-y-6">
-          <InstallResolveCard community={catalog} onInstalled={() => void refresh()} />
-          <CommunitySensorPanel slug={slug} installed={false} />
+          {surfaceLoading ? (
+            <CommunityConsoleSkeleton />
+          ) : (
+            <>
+              <InstallResolveCard community={catalog} onInstalled={() => void refresh()} />
+              <CommunitySensorPanel slug={slug} installed={false} />
+            </>
+          )}
         </div>
+      ) : surfaceLoading ? (
+        <CommunityConsoleSkeleton />
       ) : (
         <div className="space-y-8">
           <section id="treasury" className="grid gap-4 md:grid-cols-3 scroll-mt-24">

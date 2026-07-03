@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
+import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
@@ -97,6 +98,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   const [activeJob, setActiveJob] = useState<DiscoverJobId | null>("fund");
   const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
   const [lane, setLane] = useState<DiscoverWorkspaceLane>("gaps");
+  const [query, setQuery] = useState("");
   const intent = roleToIntent(role);
   const { feed } = useDiscoverRadarFeed();
   const showPulse =
@@ -110,7 +112,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
     }
   }, []);
 
-  const effectiveQuery = "";
+  const effectiveQuery = query;
 
   function scrollToDiscoverAnchor(scrollTo: string) {
     window.requestAnimationFrame(() => {
@@ -119,7 +121,9 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           ? "opportunities"
           : scrollTo === "value-bubblemap"
             ? "value-bubblemap"
-            : "discover-workspace";
+            : scrollTo === "agent-market"
+              ? "agent-market"
+              : "discover-workspace";
       document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth" });
     });
   }
@@ -143,6 +147,14 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
     <div className="resolve-grid-bg min-h-screen pb-12">
       <div className="relative mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">
         <DiscoverJobHero activeJob={activeJob} onSelectJob={handleJobSelect} />
+
+        <div className="discover-section-stack">
+          <DiscoverGlobalSearch
+            signedIn={Boolean(user)}
+            query={query}
+            onQueryChange={setQuery}
+          />
+        </div>
 
         {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
 
@@ -185,7 +197,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           </div>
         </section>
 
-        <div className="discover-section-stack">
+        <div id="agent-market" className="discover-section-stack scroll-mt-24">
           <DiscoverAgentSignalMarket signedIn={Boolean(user)} />
         </div>
 

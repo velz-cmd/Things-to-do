@@ -18,7 +18,7 @@ export {
 } from "@/lib/discover/resolve-doctrine";
 
 export const VALUE_GRAPH_SUBTITLE =
-  "Pick a node — fund payouts, open proof, and settle on Arc when value is verified.";
+  "Click a node to fund, automate, or open the community console — operate the economy, don't just view it.";
 
 export const VALUE_GRAPH_MAP_HINT =
   "Relationships between contributors, programs, and payouts.";

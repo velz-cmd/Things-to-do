@@ -110,6 +110,9 @@ export async function GET() {
     MUSICBRAINZ_CLIENT_SECRET: present("MUSICBRAINZ_CLIENT_SECRET"),
     LASTFM_API_KEY: present("LASTFM_API_KEY"),
     LASTFM_USERNAME: present("LASTFM_USERNAME"),
+    JELLYFIN_URL: present("JELLYFIN_URL"),
+    JELLYFIN_API_KEY: present("JELLYFIN_API_KEY"),
+    JELLYFIN_SYNC_SECRET: present("JELLYFIN_SYNC_SECRET"),
     NAVIDROME_URL: present("NAVIDROME_URL"),
     NAVIDROME_USERNAME: present("NAVIDROME_USERNAME"),
     NAVIDROME_PASSWORD: present("NAVIDROME_PASSWORD"),
@@ -121,7 +124,9 @@ export async function GET() {
     DEPUTY_DEMO_MODE: process.env.DEPUTY_DEMO_MODE === "true",
     ARC_AGENT_GATEWAY_PRIVATE_KEY: present("ARC_AGENT_GATEWAY_PRIVATE_KEY"),
     ALCHEMY_API_KEY: present("ALCHEMY_API_KEY"),
+    ALCHEMY_ARC_RPC_URL: present("ALCHEMY_ARC_RPC_URL"),
     WALLET_LABELS_API_KEY: present("WALLET_LABELS_API_KEY"),
+    ALLOW_LIVE_GITHUB_SCAN: process.env.ALLOW_LIVE_GITHUB_SCAN === "true",
   };
 
   const aiReady = ai.gemini || ai.groq || ai.openrouter;

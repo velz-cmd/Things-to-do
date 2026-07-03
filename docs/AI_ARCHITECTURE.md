@@ -45,12 +45,12 @@ Set `AI_SWARM_ENABLED=false` to disable. Requires at least two configured provid
 
 ```bash
 # Classify with swarm stages in response
-curl -X POST https://resolve-task.vercel.app/api/tasks/classify \
+curl -X POST https://things-to-do-eta.vercel.app/api/tasks/classify \
   -H "Content-Type: application/json" \
   -d '{"input":"Pay designer when logo is approved on GitHub"}'
 
 # Direct swarm run
-curl -X POST https://resolve-task.vercel.app/api/ai/swarm \
+curl -X POST https://things-to-do-eta.vercel.app/api/ai/swarm \
   -H "Content-Type: application/json" \
   -d '{"task":"Analyze unpaid maintainers for react repo","mode":"analyze"}'
 ```
@@ -95,8 +95,8 @@ Set `CLOUDFLARE_AI_GATEWAY_ENABLED=true` with account ID and gateway ID to route
 ## Verification
 
 ```bash
-curl https://resolve-task.vercel.app/api/config
-curl -X POST https://resolve-task.vercel.app/api/tasks/classify \
+curl https://things-to-do-eta.vercel.app/api/config
+curl -X POST https://things-to-do-eta.vercel.app/api/tasks/classify \
   -H "Content-Type: application/json" \
   -d '{"input":"I am a founder distributing rewards to my team and community"}'
 ```

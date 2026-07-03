@@ -135,7 +135,7 @@ export async function GET() {
 
   const missing: string[] = [];
   if (!env.PLAYWRIGHT_ENABLED) missing.push("PLAYWRIGHT_ENABLED=true");
-  if (!env.APP_URL) missing.push("APP_URL=https://resolve-task.vercel.app");
+  if (!env.APP_URL) missing.push("APP_URL=https://things-to-do-eta.vercel.app");
   if (!env.DATABASE_URL) {
     missing.push(
       "DATABASE_URL — add in Vercel, check Production + Preview boxes, then Redeploy (env vars do not apply until redeploy)",

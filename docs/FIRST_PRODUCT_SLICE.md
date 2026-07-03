@@ -1,5 +1,7 @@
 # First Product Slice
 
+This slice follows `docs/RESOLVE_PRODUCT_DOCTRINE.md`.
+
 ## Scope
 
 Stabilize the existing production spine before adding new product surfaces:
@@ -9,6 +11,8 @@ Stabilize the existing production spine before adding new product surfaces:
 - settlement and Arc/Circle readiness
 - environment diagnostics
 - production URL and deploy verification
+- proof-backed actions that move Discover opportunities toward Communities,
+  Capital, Profile, or settlement
 
 ## Guardrails
 

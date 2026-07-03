@@ -1,4 +1,4 @@
-const USER_AGENT = "RESOLVE/1.0 (https://resolve-task.vercel.app)";
+const USER_AGENT = "RESOLVE/1.0 (https://things-to-do-eta.vercel.app)";
 
 export type MusicBrainzArtistHit = {
   mbid: string;

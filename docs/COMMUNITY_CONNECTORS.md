@@ -6,9 +6,9 @@ RESOLVE uses **program templates** on **communities**. Profile connectors unlock
 
 | Track | Profile connector | Vercel env | OAuth / callback |
 |-------|-------------------|------------|------------------|
-| **Music** | ListenBrainz (MusicBrainz OAuth) | `MUSICBRAINZ_CLIENT_ID`, `MUSICBRAINZ_CLIENT_SECRET` | `https://resolve-task.vercel.app/api/connectors/listenbrainz/callback` |
+| **Music** | ListenBrainz (MusicBrainz OAuth) | `MUSICBRAINZ_CLIENT_ID`, `MUSICBRAINZ_CLIENT_SECRET` | `https://things-to-do-eta.vercel.app/api/connectors/listenbrainz/callback` |
 | **Music** | Navidrome (optional URL + user + pass on Profile) | — | No OAuth — credentials on Profile |
-| **OSS** | GitHub (`Resolve connector` OAuth app) | `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | `https://resolve-task.vercel.app/api/connectors/github/callback` |
+| **OSS** | GitHub (`Resolve connector` OAuth app) | `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | `https://things-to-do-eta.vercel.app/api/connectors/github/callback` |
 | **OSS** | GitHub API (optional, rate limits) | `GITHUB_TOKEN` | — |
 | **Research** | OpenAlex sensor | `OPENALEX_API_KEY` (optional) | No user OAuth — public API |
 
@@ -72,7 +72,7 @@ RESOLVE on Vercel **cannot** reach `localhost`, `10.x`, or `192.168.x` addresses
 JELLYFIN_URL=http://localhost:8096 \
 JELLYFIN_API_KEY=your-api-key \
 RESOLVE_USER_ID=your-user-id \
-RESOLVE_SYNC_URL=https://resolve-task.vercel.app/api/connectors/jellyfin/sync \
+RESOLVE_SYNC_URL=https://things-to-do-eta.vercel.app/api/connectors/jellyfin/sync \
 JELLYFIN_SYNC_SECRET=your-cron-secret \
 npx tsx scripts/jellyfin-bridge.ts
 ```

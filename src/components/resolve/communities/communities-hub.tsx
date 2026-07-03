@@ -50,34 +50,36 @@ export function CommunitiesHub() {
     [hubData?.sensorStatuses],
   );
 
-  const installedBySlug = useMemo(() => {
-    const map: Record<string, boolean> = {};
+  const installedSlugs = useMemo(() => {
+    const set = new Set<string>();
     for (const c of communities) {
-      map[c.slug] = c.installed || communityLinkedViaProfile(c.slug, connections);
+      if (c.installed) set.add(c.slug);
     }
-    for (const meta of COMMUNITY_CATALOG) {
-      if (communityLinkedViaProfile(meta.slug, connections)) {
-        map[meta.slug] = true;
-      }
-    }
-    return map;
-  }, [communities, connections]);
+    return set;
+  }, [communities]);
+
+  const profileLinkedOnly = useMemo(
+    () =>
+      COMMUNITY_CATALOG.filter(
+        (c) => !installedSlugs.has(c.slug) && communityLinkedViaProfile(c.slug, connections),
+      ),
+    [installedSlugs, connections],
+  );
 
   const operating = useMemo(
     () =>
-      COMMUNITY_CATALOG.filter((c) => installedBySlug[c.slug]).map((meta) => ({
+      COMMUNITY_CATALOG.filter((c) => installedSlugs.has(c.slug)).map((meta) => ({
         meta,
         summary: communities.find((s) => s.slug === meta.slug),
-        linkedOnly: !communities.find((s) => s.slug === meta.slug)?.installed,
       })),
-    [communities, installedBySlug],
+    [communities, installedSlugs],
   );
 
   const browse = useMemo(() => {
     const q = query.trim().toLowerCase();
     const catalog = listBrowsableCommunities(sensorStatuses);
     return catalog.filter((c) => {
-      if (installedBySlug[c.slug]) return false;
+      if (installedSlugs.has(c.slug)) return false;
       if (kind !== "all" && c.kind !== kind) return false;
       if (!q) return true;
       return (
@@ -86,7 +88,7 @@ export function CommunitiesHub() {
         c.keywords.some((k) => k.includes(q))
       );
     });
-  }, [query, kind, sensorStatuses, installedBySlug]);
+  }, [query, kind, sensorStatuses, installedSlugs]);
 
   const gatedCount = sensorStatuses.filter((s) => s.sensorGated && !s.sensorLive).length;
   const showBrowseExpanded = browseOpen || operating.length === 0;
@@ -143,7 +145,7 @@ export function CommunitiesHub() {
 
         {operating.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {operating.map(({ meta, summary, linkedOnly }) => (
+            {operating.map(({ meta, summary }) => (
               <div
                 key={meta.slug}
                 onMouseEnter={() => prefetchSlug(meta.slug)}
@@ -152,7 +154,6 @@ export function CommunitiesHub() {
                 <CommunityOperateCard
                   community={meta}
                   hubOps={summary?.hubOps ?? null}
-                  linkedOnly={linkedOnly}
                   programCountFallback={summary?.vitals?.programCount ?? 0}
                   pendingFallbackUsd={0}
                   treasuryFallbackUsd={summary?.vitals?.fundingTotalUsd ?? 0}
@@ -174,6 +175,30 @@ export function CommunitiesHub() {
           </div>
         )}
       </section>
+
+      {profileLinkedOnly.length > 0 && (
+        <section className="mb-10">
+          <div className="mb-5">
+            <h2 className="text-lg font-semibold text-white">Connect RESOLVE</h2>
+            <p className="mt-1 max-w-xl text-sm text-resolve-muted">
+              Profile is linked — install RESOLVE on these communities to operate programs and payouts.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {profileLinkedOnly.map((c) => (
+              <InstallResolveCard
+                key={c.slug}
+                community={c}
+                installed={false}
+                vitals={vitalsFor(c.slug)}
+                onInstalled={() => {
+                  void queryClient.invalidateQueries({ queryKey: queryKeys.communities });
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {browse.length > 0 && (
         <section>

@@ -39,6 +39,7 @@ import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-
 import { communitySlugFromDiscoverTarget } from "@/lib/discover/discover-inline-target";
 import {
   communityConsolePath,
+  discoverAutomatePath,
   type CommunityIntent,
 } from "@/lib/communities/community-nav";
 
@@ -463,7 +464,11 @@ export function DiscoverActionsProvider({
 
           case "automate":
             if (action.communitySlug) {
-              navigateToCommunity(action.communitySlug, "review_obligations", { tab: "advanced" });
+              router.push(
+                discoverAutomatePath(action.communitySlug, {
+                  trigger: action.automationTrigger,
+                }),
+              );
               reportActionStatus(surface, action, "success");
             } else if (action.href) {
               router.push(action.href);

@@ -6,7 +6,7 @@ import { getCommunityBySlug } from "@/lib/communities/catalog";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { runPaymentSettlement } from "@/lib/payment/orchestrator";
 import { applyPlatformFeeSplit, RESOLVE_PLATFORM_WALLET } from "@/lib/payment/platform-fee";
-import { resolvePayee } from "@/lib/registry/resolvers";
+import { resolveAuthorizationPayee, noAuthorizationsHint } from "@/lib/communities/payee-resolve";
 
 export type DeployProgramResult = {
   ok: boolean;
@@ -44,9 +44,12 @@ export async function deployProgramOnArc(
   );
 
   if (!authorized.length) {
+    const hint = community
+      ? noAuthorizationsHint(community.kind, community.connectors)
+      : "Run live sensors — authorizations appear when upstream activity is recognized";
     return {
       ok: false,
-      message: "No authorized plays to settle — connect Navidrome and sync scrobbles first",
+      message: `No authorized obligations to settle — ${hint}`,
       error: "no_authorizations",
     };
   }
@@ -83,9 +86,11 @@ export async function deployProgramOnArc(
   let rank = 1;
 
   for (const payee of byPayee.values()) {
-    const resolved = await resolvePayee({
-      platform: "navidrome",
-      payload: { exifArtist: payee.payeeKey, artist: payee.payeeKey },
+    const resolved = await resolveAuthorizationPayee({
+      communityKind: community?.kind ?? "oss",
+      connectors: community?.connectors ?? ["github"],
+      payeeKey: payee.payeeKey,
+      payeeKeyType: payee.payeeKeyType,
     });
 
     if (resolved?.wallet) {
@@ -191,7 +196,7 @@ export async function deployProgramOnArc(
 
     return {
       ok: true,
-      message: `Deployed on Arc — $${settledTotal.toFixed(2)} USDC to ${contributors.length} artists`,
+      message: `Deployed on Arc — $${settledTotal.toFixed(2)} USDC to ${contributors.length - (platformFeeUsd > 0 ? 1 : 0)} payees`,
       settlementId: result.settlementId,
       settledUsd: settledTotal,
       claimableUsd: pendingClaimUsd,
@@ -214,7 +219,7 @@ export async function deployProgramOnArc(
 
   return {
     ok: true,
-    message: `$${pendingClaimUsd.toFixed(2)} marked claimable — artists can link wallets to receive`,
+    message: `$${pendingClaimUsd.toFixed(2)} marked claimable — payees can link wallets to receive`,
     claimableUsd: pendingClaimUsd,
     payeeCount: claimablePayees.length,
   };

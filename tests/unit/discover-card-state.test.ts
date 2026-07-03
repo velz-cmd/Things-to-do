@@ -73,12 +73,57 @@ describe("deriveDiscoverCardState", () => {
     expect(state.actionSlots.every((s) => !EARNINGS_OPEN.test(s.action.label))).toBe(true);
   });
 
-  it("does not surface console as a Discover card action", () => {
-    const state = deriveDiscoverCardState(baseGap(), null, "gaps", "founder", "trending-gaps", {
+  it("keeps console in advanced — not a primary Unpaid Value CTA", () => {
+    const connections = {
+      signedIn: true,
+      installedCommunitySlugs: ["navidrome"],
+      githubUsername: null,
+      platforms: { navidrome: { connected: true } },
+      hasAnyConnector: true,
+    } as import("../../src/lib/profile/connection-state-types").UserConnectionState;
+
+    const state = deriveDiscoverCardState(baseGap(), connections, "gaps", "founder", "trending-gaps", {
       signedIn: true,
     });
-    expect(state.advancedActions).toHaveLength(0);
     expect(state.actionSlots.some((a) => a.action.kind === "console")).toBe(false);
+    expect(state.actionSlots.some((a) => /scan activity/i.test(a.action.label))).toBe(false);
+  });
+
+  it("Live Signals prefers automate over create program when verified", () => {
+    const gap = baseGap({
+      valueMetrics: {
+        observedEvents: "Activity verified",
+        payoutRules: "Rule missing",
+        settlement: "Pool unfunded",
+        verifiedSource: "Navidrome",
+      },
+    });
+    const connections = {
+      signedIn: true,
+      installedCommunitySlugs: ["navidrome"],
+      githubUsername: null,
+      platforms: { navidrome: { connected: true } },
+      hasAnyConnector: true,
+    } as import("../../src/lib/profile/connection-state-types").UserConnectionState;
+
+    const state = deriveDiscoverCardState(gap, connections, "radars", "operator", "radar-music", {
+      signedIn: true,
+    });
+    const primary = primarySlot(state);
+    expect(primary?.action.kind === "automate" || primary?.action.kind === "analyze").toBe(true);
+    expect(state.actionSlots.some((s) => s.action.kind === "create_program")).toBe(false);
+  });
+
+  it("Value graph opens community — not install — when source not linked", () => {
+    const gap = baseGap({
+      actions: [
+        { id: "install", label: "Set up Navidrome", kind: "install", communitySlug: "navidrome" },
+        { id: "connect", label: "Connect Navidrome", kind: "connect_sensor", communitySlug: "navidrome" },
+        { id: "fund", label: "Fund artist pool", kind: "fund", communitySlug: "navidrome" },
+      ],
+    });
+    const state = deriveDiscoverCardState(gap, null, "graph", "founder", "board", { signedIn: true });
+    expect(primarySlot(state)?.action.kind).toBe("console");
   });
 
   it("prefers fund when rule exists but pool unfunded", () => {
@@ -134,16 +179,28 @@ describe("deriveDiscoverCardState", () => {
     expect(primarySlot(state)?.disabledReason).toMatch(/Arc USDC/i);
   });
 
-  it("shows create community program as primary for founder when not set up", () => {
+
+  it("shows create reward program as primary for founder on Unpaid Value when verified", () => {
     const gap = baseGap({
-      actions: [
-        { id: "install", label: "Set up Navidrome", kind: "install", communitySlug: "navidrome" },
-        { id: "connect", label: "Connect Navidrome", kind: "connect_sensor", communitySlug: "navidrome" },
-        { id: "fund", label: "Fund artist pool", kind: "fund", communitySlug: "navidrome" },
-      ],
+      valueMetrics: {
+        observedEvents: "Activity verified",
+        payoutRules: "Rule missing",
+        settlement: "Pool unfunded",
+        verifiedSource: "Navidrome",
+      },
     });
-    const state = deriveDiscoverCardState(gap, null, "graph", "founder", "board", { signedIn: true });
-    expect(primarySlot(state)?.action.kind).toBe("install");
+    const connections = {
+      signedIn: true,
+      installedCommunitySlugs: ["navidrome"],
+      githubUsername: null,
+      platforms: { navidrome: { connected: true } },
+      hasAnyConnector: true,
+    } as import("../../src/lib/profile/connection-state-types").UserConnectionState;
+
+    const state = deriveDiscoverCardState(gap, connections, "gaps", "founder", "trending-gaps", {
+      signedIn: true,
+    });
+    expect(primarySlot(state)?.action.kind).toBe("create_program");
   });
 
   it("treats 10 active rules as programmed not verified", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DiscoverBubblemapMetrics } from "@/components/resolve/discover/discover-bubblemap-metrics";
 import type { DiscoverGraphNode } from "@/lib/discover/radar";
 
@@ -24,12 +24,33 @@ type RadarSlice = {
   };
 };
 
-/** Advanced graph metrics for a community — PageRank + funding entropy from live radar. */
+/** Advanced graph metrics — deferred until section scrolls into view. */
 export function CommunityGraphObservatory({ slug }: { slug: string }) {
+  const rootRef = useRef<HTMLElement>(null);
+  const [visible, setVisible] = useState(false);
   const [data, setData] = useState<RadarSlice | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "120px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+
     let cancelled = false;
     void fetch("/api/discover/radar")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("radar"))))
@@ -54,10 +75,10 @@ export function CommunityGraphObservatory({ slug }: { slug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, visible]);
 
   return (
-    <section id="observatory" className="scroll-mt-24">
+    <section id="observatory" className="scroll-mt-24" ref={rootRef}>
       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
         Observatory
       </p>
@@ -66,8 +87,11 @@ export function CommunityGraphObservatory({ slug }: { slug: string }) {
         Funding entropy and PageRank from the live value graph — same data as Discover bubble map
         Advanced tab.
       </p>
-      {error && <p className="mt-4 text-sm text-resolve-muted">{error}</p>}
-      {data && (
+      {!visible ? (
+        <p className="mt-4 text-xs text-resolve-muted-dim">Scroll here to load graph metrics…</p>
+      ) : error ? (
+        <p className="mt-4 text-sm text-resolve-muted">{error}</p>
+      ) : data ? (
         <div className="mt-4">
           <DiscoverBubblemapMetrics
             metrics={data.metrics}
@@ -75,6 +99,8 @@ export function CommunityGraphObservatory({ slug }: { slug: string }) {
             className="border-0 p-0 sm:grid-cols-2"
           />
         </div>
+      ) : (
+        <p className="mt-4 text-xs text-resolve-muted">Loading graph metrics…</p>
       )}
     </section>
   );

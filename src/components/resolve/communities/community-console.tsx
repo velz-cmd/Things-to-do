@@ -25,6 +25,7 @@ import {
   quickActionsForKind,
   type CommunityQuickActionId,
 } from "@/lib/communities/console-quick-actions";
+import { profileConnectPath } from "@/lib/communities/community-nav";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
@@ -138,7 +139,7 @@ function ProgramCard({
         </Link>
         {!sourcesConnected && (
           <Link
-            href="/profile"
+            href={profileConnectPath(`/communities/${slug}`)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
           >
             Connect source
@@ -166,11 +167,16 @@ type Props = {
   connections: UserConnectionState;
   busy: boolean;
   deploying: string | null;
-  onDeploy: (programId: string) => void;
+  obligationsFilter: "all" | "pending";
+  onObligationsFilterChange: (f: "all" | "pending") => void;
+  onRequestDeploy: (programId: string) => void;
   onFund: (programId: string) => void;
-  onCreateProgram: () => Promise<void>;
+  onRequestCreateProgram: () => void;
+  onRequestApprovePayouts: () => void;
   onRefresh: () => void;
 };
+
+const PENDING_STATUSES = new Set(["authorized", "pending_funding"]);
 
 export function CommunityConsole({
   slug,
@@ -179,9 +185,12 @@ export function CommunityConsole({
   connections,
   busy,
   deploying,
-  onDeploy,
+  obligationsFilter,
+  onObligationsFilterChange,
+  onRequestDeploy,
   onFund,
-  onCreateProgram,
+  onRequestCreateProgram,
+  onRequestApprovePayouts,
   onRefresh,
 }: Props) {
   const [sensorsOpen, setSensorsOpen] = useState(false);
@@ -192,6 +201,10 @@ export function CommunityConsole({
   const builderCount = surface.impact?.artistCount ?? 0;
   const pendingUsd = surface.deployReadiness?.pendingObligationsUsd ?? 0;
 
+  const filteredAuthorizations = (surface.authorizations ?? []).filter((a) =>
+    obligationsFilter === "pending" ? PENDING_STATUSES.has(a.status) : true,
+  );
+
   function scrollTo(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -199,26 +212,18 @@ export function CommunityConsole({
   async function runQuickAction(actionId: CommunityQuickActionId) {
     switch (actionId) {
       case "create_program":
-        await onCreateProgram();
-        scrollTo("programs");
+        onRequestCreateProgram();
         break;
       case "connect_source":
-        window.location.href = `/profile?next=${encodeURIComponent(`/communities/${slug}`)}`;
+        window.location.href = profileConnectPath(`/communities/${slug}`);
         break;
       case "review_obligations":
+        onObligationsFilterChange("pending");
         scrollTo("obligations");
         break;
-      case "approve_payouts": {
-        if (surface.deployReadiness?.canDeploy && surface.programs[0]) {
-          onDeploy(surface.programs[0].id);
-        } else if (pendingUsd > 0.01 && surface.programs[0]) {
-          scrollTo("programs");
-          onFund(surface.programs[0].id);
-        } else {
-          scrollTo("programs");
-        }
+      case "approve_payouts":
+        onRequestApprovePayouts();
         break;
-      }
     }
   }
 
@@ -320,13 +325,34 @@ export function CommunityConsole({
       </section>
 
       <section id="obligations" className="scroll-mt-24">
-        <h2 className="text-sm font-semibold text-white">Obligations</h2>
-        <p className="mt-1 text-xs text-resolve-muted">
-          Verified activity from sensors — fund pools, then deploy on Arc to settle.
-        </p>
-        {(surface.authorizations?.length ?? 0) > 0 ? (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-white">Obligations</h2>
+            <p className="mt-1 text-xs text-resolve-muted">
+              Verified activity from sensors — fund pools, then deploy on Arc to settle.
+            </p>
+          </div>
+          <div className="flex gap-1 rounded-lg border border-white/[0.08] p-0.5">
+            {(["all", "pending"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => onObligationsFilterChange(f)}
+                className={clsx(
+                  "rounded-md px-2.5 py-1 text-[10px] font-medium capitalize transition",
+                  obligationsFilter === f
+                    ? "bg-white/10 text-white"
+                    : "text-resolve-muted hover:text-white",
+                )}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+        {filteredAuthorizations.length > 0 ? (
           <ul className="mt-4 divide-y divide-white/[0.06] rounded-xl border border-white/[0.06]">
-            {surface.authorizations.map((a) => (
+            {filteredAuthorizations.map((a) => (
               <li key={a.id} className="flex items-start justify-between gap-4 px-4 py-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm text-white">{a.contextLabel ?? a.payeeKey}</p>
@@ -345,7 +371,9 @@ export function CommunityConsole({
           </ul>
         ) : (
           <p className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-resolve-muted">
-            No authorizations yet. Connect sources in Profile and sync sensors below.
+            {obligationsFilter === "pending"
+              ? "No pending obligations — sync sensors or switch to All."
+              : "No authorizations yet. Connect sources in Profile and sync sensors below."}
           </p>
         )}
       </section>
@@ -363,7 +391,7 @@ export function CommunityConsole({
                 program={p}
                 slug={slug}
                 communityKind={catalog.kind}
-                onDeploy={onDeploy}
+                onDeploy={onRequestDeploy}
                 onFund={onFund}
                 deploying={deploying}
                 readiness={surface.deployReadiness}
@@ -378,7 +406,7 @@ export function CommunityConsole({
               size="sm"
               className="mt-3"
               disabled={busy}
-              onClick={() => void onCreateProgram()}
+              onClick={() => onRequestCreateProgram()}
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create program"}
             </Button>

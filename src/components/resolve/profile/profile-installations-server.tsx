@@ -46,6 +46,7 @@ export async function ProfileInstallationsServer() {
       upstream: c.upstream,
       installed: false,
       vitals: emptyVitals,
+      hubOps: null,
     }));
   }
   const installed = communities.filter((c) => c.installed);

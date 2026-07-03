@@ -1,5 +1,6 @@
 import type { DiscoverAction } from "@/lib/discover/types";
 import { parseJsonResponse } from "@/lib/http/parse-json-response";
+import type { DiscoverActionResponse } from "@/lib/discover/discover-action-response";
 
 export type FundSheetRequest = {
   programId?: string;
@@ -168,4 +169,47 @@ export function fundParamsFromAction(action: DiscoverAction): FundSheetRequest {
     amountUsd: action.amountUsd,
     label: action.label,
   };
+}
+
+export async function apiDiscoverAction(
+  action: DiscoverAction,
+  opts?: { amountUsd?: number; role?: string; surface?: string },
+): Promise<DiscoverActionResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 55_000);
+  try {
+    const res = await fetch("/api/discover/actions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      signal: controller.signal,
+      body: JSON.stringify({
+        actionKind: action.kind,
+        actionId: action.id,
+        label: action.label,
+        communitySlug: action.communitySlug,
+        programId: action.programId,
+        templateId: action.templateId,
+        missionId: action.missionId,
+        amountUsd: opts?.amountUsd ?? action.amountUsd,
+        entityId: action.entityPath,
+        href: action.href,
+        role: opts?.role,
+        surface: opts?.surface,
+      }),
+    });
+    return await parseJsonResponse<DiscoverActionResponse>(res);
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      return {
+        ok: false,
+        code: "TIMEOUT",
+        message: "Request timed out — try again in a moment",
+        nextAction: "retry",
+      };
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }

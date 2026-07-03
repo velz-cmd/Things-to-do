@@ -11,16 +11,15 @@ const AUTH_REQUIRED: DiscoverActionKind[] = [
 ];
 
 const API_BY_KIND: Partial<Record<DiscoverActionKind, string>> = {
-  fund: "POST /api/capital/fund",
-  sponsor: "POST /api/capital/fund",
-  install: "POST /api/communities/{slug}/install",
-  create_program: "POST /api/communities/{slug}/programs",
-  share: "GET /api/receipt/{id}",
-  claim: "GET /claim",
-  connect_sensor: "POST /api/communities/{slug}/install",
-  console: "Discover community console",
-  open: "navigation",
-  analyze: "navigation",
+  fund: "POST /api/discover/actions",
+  sponsor: "POST /api/discover/actions",
+  install: "POST /api/discover/actions",
+  create_program: "POST /api/discover/actions",
+  share: "POST /api/discover/actions",
+  claim: "POST /api/discover/actions",
+  connect_sensor: "POST /api/discover/actions",
+  analyze: "POST /api/discover/scan-source",
+  open: "GET /api/discover/proof/{id}",
 };
 
 export function requiredDataForAction(action: DiscoverAction): string[] {

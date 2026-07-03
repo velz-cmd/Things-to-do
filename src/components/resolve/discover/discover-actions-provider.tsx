@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import type { DiscoverAction } from "@/lib/discover/types";
 import {
   apiCreateProgram,
+  apiDiscoverAction,
   apiFetchWallet,
   apiFundProgram,
   apiInstallCommunity,
@@ -24,6 +25,13 @@ import {
   type WalletSnapshot,
 } from "@/lib/discover/discover-action-engine";
 import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-sheet";
+import { DiscoverActionConfirmSheet } from "@/components/resolve/discover/discover-action-confirm-sheet";
+import {
+  discoverActionNeedsConfirm,
+} from "@/lib/discover/discover-action-copy";
+import { pushJellyfinWatchesFromBrowser } from "@/lib/integrations/jellyfin-client-sync";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query/keys";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
 import { useCommunityConsoleOptional } from "@/components/resolve/discover/discover-community-console-provider";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -71,6 +79,7 @@ export function DiscoverActionsProvider({
   const { balance, balanceLoading, refreshBalance } = useAuth();
   const { state: connections, reload: reloadConnections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
+  const queryClient = useQueryClient();
   const [wallet, setWallet] = useState<WalletSnapshot>({
     spendableUsd: 0,
     totalUsdc: "0",
@@ -78,6 +87,11 @@ export function DiscoverActionsProvider({
   });
   const [busy, setBusy] = useState(false);
   const [fundSheet, setFundSheet] = useState<FundSheetRequest | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    action: DiscoverAction;
+    surface: string;
+    amountUsd?: number;
+  } | null>(null);
 
   const refreshWallet = useCallback(async () => {
     if (!signedIn) {
@@ -253,6 +267,69 @@ export function DiscoverActionsProvider({
     [signedIn, router, wallet.loaded, wallet.spendableUsd],
   );
 
+  const refreshDiscover = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
+      reloadConnections(),
+      refreshWallet(),
+    ]);
+  }, [queryClient, reloadConnections, refreshWallet]);
+
+  const executeConfirmedAction = useCallback(async () => {
+    if (!confirmAction) return;
+    const { action, surface, amountUsd } = confirmAction;
+    setBusy(true);
+    reportActionStatus(surface, action, "pending");
+    try {
+      const result = await apiDiscoverAction(action, { amountUsd, surface });
+      if (!result.ok) {
+        reportActionStatus(surface, action, "error", result.message);
+        toast.error(result.message);
+        if (result.nextAction === "add_funds") router.push("/capital");
+        if (result.nextAction === "connect_source") router.push("/profile");
+        return;
+      }
+      reportActionStatus(surface, action, "success", result.message);
+      toast.success(result.message ?? "Action completed");
+      if (result.status === "browser_sync" && action.communitySlug === "jellyfin") {
+        try {
+          const browser = await pushJellyfinWatchesFromBrowser();
+          if (browser.ingested > 0) {
+            toast.success(`Imported ${browser.ingested} watch events`);
+          }
+        } catch {
+          toast.message("Open Jellyfin in this browser to finish reading watch activity");
+        }
+      }
+      if (result.receiptUrl) {
+        router.push(result.receiptUrl);
+      } else if (result.action === "connect_source") {
+        router.push("/profile");
+      } else if (result.action === "claim_value") {
+        router.push(action.href ?? "/claim");
+      } else if (result.action === "create_rule" || result.action === "create_community_program") {
+        if (action.communitySlug && surface !== "community-console" && surface !== "bubble-operator-panel") {
+          openDiscoverConsole(action.communitySlug, "create_program", action.label);
+        }
+      }
+      setConfirmAction(null);
+      await refreshDiscover();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Action failed";
+      reportActionStatus(surface, action, "error", msg);
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    confirmAction,
+    reportActionStatus,
+    router,
+    refreshDiscover,
+    openDiscoverConsole,
+  ]);
+
   const runAction = useCallback(
     async (rawAction: DiscoverAction, surface = "discover") => {
       const [action = rawAction] = tailorDiscoverActionsForUser([rawAction], connections);
@@ -285,15 +362,37 @@ export function DiscoverActionsProvider({
         return;
       }
 
+      if (discoverActionNeedsConfirm(action)) {
+        setConfirmAction({ action, surface, amountUsd: action.amountUsd });
+        return;
+      }
+
       reportActionStatus(surface, action, "pending");
 
       try {
         switch (action.kind) {
           case "open": {
+            const proofHref = action.href ?? action.entityPath;
+            if (proofHref?.includes("/receipt/") || proofHref?.includes("/ledger/")) {
+              setBusy(true);
+              try {
+                const result = await apiDiscoverAction(action, { surface });
+                if (!result.ok) {
+                  toast.error(result.message);
+                  reportActionStatus(surface, action, "blocked", result.message);
+                  break;
+                }
+                router.push(result.receiptUrl ?? proofHref);
+                reportActionStatus(surface, action, "success");
+              } finally {
+                setBusy(false);
+              }
+              break;
+            }
             const inlineSlug =
               communitySlugFromDiscoverTarget(action.entityPath) ??
               communitySlugFromDiscoverTarget(action.href);
-            if (inlineSlug && communityConsole) {
+            if (inlineSlug && communityConsole && action.label.toLowerCase().includes("proof")) {
               openDiscoverConsole(inlineSlug, "observe", action.label);
               reportActionStatus(surface, action, "success");
               break;
@@ -330,65 +429,17 @@ export function DiscoverActionsProvider({
             break;
           }
 
-          case "install": {
-            const slug = action.communitySlug!;
-            const toastId = `discover-install-${slug}`;
-            toast.loading(`Setting up ${slug}…`, { id: toastId });
-            try {
-              const result = await apiInstallCommunity(slug);
-              toast.success(
-                result.alreadyInstalled
-                  ? `${slug} ready — console open`
-                  : `${slug} ready — syncing in background`,
-                { id: toastId },
-              );
-              reportActionStatus(surface, action, "success");
-              void reloadConnections();
-              if (surface !== "community-console" && surface !== "bubble-operator-panel") {
-                openDiscoverConsole(slug, "install");
-              }
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : "Attach failed";
-              reportActionStatus(surface, action, "error", msg);
-              toast.error(msg, { id: toastId });
-              throw e;
-            }
+          case "install":
+          case "create_program":
+          case "analyze":
+            setConfirmAction({ action, surface });
+            reportActionStatus(surface, action, "idle");
             break;
-          }
-
-          case "create_program": {
-            const slug = action.communitySlug!;
-            const toastId = `discover-program-${slug}`;
-            toast.loading(`Setting up ${slug}…`, { id: toastId });
-            try {
-              try {
-                await apiInstallCommunity(slug);
-              } catch (e) {
-                const msg = e instanceof Error ? e.message : "";
-                if (!msg.toLowerCase().includes("already")) throw e;
-              }
-              const created = await apiCreateProgram(slug, action.templateId);
-              if (!created.program?.id) {
-                throw new Error("Program not created — check community attach and templateId");
-              }
-              toast.success(`Program created: ${created.program.name}`, { id: toastId });
-              reportActionStatus(surface, action, "success");
-              void reloadConnections();
-              if (surface !== "community-console" && surface !== "bubble-operator-panel") {
-                openDiscoverConsole(slug, "create_program");
-              }
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : "Create program failed";
-              reportActionStatus(surface, action, "error", msg);
-              toast.error(msg, { id: toastId });
-              throw e;
-            }
-            break;
-          }
 
           case "connect_sensor": {
             const target = action.href ?? "/profile";
             router.push(target);
+            void apiDiscoverAction(action, { surface }).catch(() => null);
             reportActionStatus(surface, action, "success");
             break;
           }
@@ -417,34 +468,6 @@ export function DiscoverActionsProvider({
               }
             }
             break;
-
-          case "analyze": {
-            const inlineSlug =
-              communitySlugFromDiscoverTarget(action.entityPath) ??
-              communitySlugFromDiscoverTarget(action.href) ??
-              action.communitySlug ??
-              null;
-            if (inlineSlug && communityConsole) {
-              openDiscoverConsole(inlineSlug, "observe", action.label);
-              reportActionStatus(surface, action, "success");
-              break;
-            }
-            if (action.href) {
-              router.push(action.href);
-              reportActionStatus(surface, action, "success");
-            } else if (action.entityPath) {
-              router.push(action.entityPath);
-              reportActionStatus(surface, action, "success");
-            } else if (action.serviceId) {
-              const prompt =
-                action.label ? `Run intel on ${action.label}` : "Run agent signal on this opportunity";
-              router.push(
-                `/mission?service=${encodeURIComponent(action.serviceId)}&prompt=${encodeURIComponent(prompt)}`,
-              );
-              reportActionStatus(surface, action, "success");
-            }
-            break;
-          }
 
           case "automate":
             if (action.communitySlug && communityConsole) {
@@ -507,6 +530,16 @@ export function DiscoverActionsProvider({
           if (!fundSheet) return;
           void executeFund({ ...fundSheet, amountUsd });
         }}
+      />
+      <DiscoverActionConfirmSheet
+        open={Boolean(confirmAction)}
+        action={confirmAction?.action ?? null}
+        connections={connections}
+        wallet={wallet}
+        busy={busy}
+        amountUsd={confirmAction?.amountUsd}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={() => void executeConfirmedAction()}
       />
     </DiscoverActionsContext.Provider>
   );

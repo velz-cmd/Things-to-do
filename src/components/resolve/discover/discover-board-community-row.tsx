@@ -14,6 +14,14 @@ import { communityReadyForDiscover } from "@/lib/discover/community-profile-link
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 import { DiscoverCardNarrativeBlock } from "@/components/resolve/discover/discover-card-narrative";
 import { DiscoverActionBar } from "@/components/resolve/discover/discover-action-bar";
+import { DiscoverSolveButton } from "@/components/resolve/discover/discover-solve-button";
+import {
+  DiscoverQuickActions,
+  buildCardQuickActions,
+} from "@/components/resolve/discover/discover-quick-actions";
+import { useDiscoverSolveOptional } from "@/components/resolve/discover/discover-solve-provider";
+import { solveIntentForGap } from "@/lib/discover/solve-intents";
+import type { DiscoverAction } from "@/lib/discover/types";
 
 type DiscoverBoardCommunityRowProps = {
   item: Extract<DiscoverBoardItem, { boardKind: "community" }>;
@@ -30,7 +38,9 @@ export function DiscoverBoardCommunityRow({
   const { runAction, wallet } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
+  const solve = useDiscoverSolveOptional();
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
 
   const gap = useMemo(
     () => boardCommunityItemToGap(item, role, connections),
@@ -63,8 +73,38 @@ export function DiscoverBoardCommunityRow({
     }
   }, [allVisible, registerVisibleAction]);
 
+  const handleAction = (action: DiscoverAction) => {
+    const slot = card.actionSlots.find(
+      (s) => s.action.id === action.id && s.action.kind === action.kind,
+    );
+    if (slot?.disabled) return;
+    void runAction(action, "opportunity-board-explore");
+  };
+
+  const quickItems = buildCardQuickActions({
+    card,
+    connections,
+    onAction: handleAction,
+    solve: solve
+      ? {
+          label: "Solve with AI",
+          onSelect: () => solve.requestSolve(solveIntentForGap(gap)),
+        }
+      : null,
+  });
+
   return (
-    <li className="py-3 first:pt-0 last:pb-0">
+    <li
+      className="group relative py-3 first:pt-0 last:pb-0 focus:outline-none focus-visible:rounded-lg focus-visible:ring-1 focus-visible:ring-resolve-accent/40"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "." || e.key === " ") {
+          e.preventDefault();
+          setQuickOpen(true);
+        }
+      }}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -91,6 +131,13 @@ export function DiscoverBoardCommunityRow({
           <DiscoverCardNarrativeBlock narrative={card.narrative} />
           <DiscoverProofPipeline stages={card.pipeline} className="mt-2" />
         </div>
+
+        <DiscoverQuickActions
+          items={quickItems}
+          open={quickOpen}
+          onOpenChange={setQuickOpen}
+          triggerClassName="opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100"
+        />
       </div>
 
       <DiscoverActionBar
@@ -99,13 +146,8 @@ export function DiscoverBoardCommunityRow({
         connections={connections}
         showAdvanced={showAdvanced}
         onToggleAdvanced={() => setShowAdvanced((v) => !v)}
-        onAction={(action) => {
-          const slot = card.actionSlots.find(
-            (s) => s.action.id === action.id && s.action.kind === action.kind,
-          );
-          if (slot?.disabled) return;
-          void runAction(action, "opportunity-board-explore");
-        }}
+        onAction={handleAction}
+        trailing={<DiscoverSolveButton gap={gap} />}
       />
     </li>
   );

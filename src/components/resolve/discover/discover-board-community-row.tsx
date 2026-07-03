@@ -12,8 +12,8 @@ import { boardCommunityItemToGap } from "@/lib/discover/board-item-to-gap";
 import { deriveDiscoverCardState } from "@/lib/discover/discover-card-state";
 import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
+import { DiscoverCardNarrativeBlock } from "@/components/resolve/discover/discover-card-narrative";
 import { DiscoverActionBar } from "@/components/resolve/discover/discover-action-bar";
-import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
 
 type DiscoverBoardCommunityRowProps = {
   item: Extract<DiscoverBoardItem, { boardKind: "community" }>;
@@ -21,7 +21,7 @@ type DiscoverBoardCommunityRowProps = {
   role?: DiscoverRole;
 };
 
-/** Value graph unpaid-value row — state-aware primary CTA + real action buttons. */
+/** Funding board community row — state-aware primary CTA + real action buttons. */
 export function DiscoverBoardCommunityRow({
   item,
   signedIn,
@@ -39,7 +39,6 @@ export function DiscoverBoardCommunityRow({
 
   const spendableUsd = wallet.loaded ? wallet.spendableUsd : null;
   const installed = communityReadyForDiscover(item.communitySlug, connections);
-  const profile = getCommunityValueProfile(item.communitySlug);
 
   const card = useMemo(
     () =>
@@ -89,23 +88,7 @@ export function DiscoverBoardCommunityRow({
               {installed ? "Source connected" : "Source needed"}
             </span>
           </div>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-resolve-muted">
-            {profile?.unpaidSubtitle ?? item.communityTagline}
-          </p>
-          <dl className="mt-2 grid gap-1 text-[10px] leading-snug sm:grid-cols-3">
-            <div>
-              <dt className="text-resolve-muted-dim">Proof</dt>
-              <dd className="font-medium text-resolve-muted">{card.proofSource}</dd>
-            </div>
-            <div>
-              <dt className="text-resolve-muted-dim">Missing</dt>
-              <dd className="font-medium text-resolve-muted">{card.missingStep}</dd>
-            </div>
-            <div>
-              <dt className="text-resolve-muted-dim">Status</dt>
-              <dd className="font-medium text-amber-100/90">{card.settlementStatus}</dd>
-            </div>
-          </dl>
+          <DiscoverCardNarrativeBlock narrative={card.narrative} />
           <DiscoverProofPipeline stages={card.pipeline} className="mt-2" />
         </div>
       </div>

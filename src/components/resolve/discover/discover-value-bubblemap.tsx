@@ -30,6 +30,7 @@ import { discoverFetchErrorToast } from "@/lib/discover/fetch-error-toast";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { VALUE_GRAPH_FOOTER, VALUE_GRAPH_MAP_HINT, VALUE_GRAPH_SUBTITLE } from "@/lib/discover/resolve-value-copy";
+import { DISCOVER_SECTION } from "@/lib/discover/discover-lane-copy";
 import { DiscoverValueNodeStrip } from "@/components/resolve/discover/discover-value-node-strip";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { gapsPrimaryActions } from "@/lib/discover/gaps-empty-state";
@@ -360,7 +361,7 @@ export function DiscoverValueBubblemap({
           <p className="text-sm text-resolve-muted">
             {domainFilter !== "all"
               ? `No ${domainFilter} nodes in the current graph — try another filter or attach below.`
-              : data?.emptyReason ?? "Ledger graph is empty — attach a community on Board, then refresh"}
+              : data?.emptyReason ?? "Ledger graph is empty — fund a program on the funding board, then refresh"}
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             {emptyAttachActions.map((action, index) => (
@@ -378,7 +379,7 @@ export function DiscoverValueBubblemap({
                 onClick={onOpenBoard}
                 className="rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-3 py-1.5 text-[11px] font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
               >
-                Open Board tab
+                Open funding board
               </button>
             )}
           </div>
@@ -604,7 +605,7 @@ export function DiscoverValueBubblemap({
         <div ref={sectionRef}>
           <DiscoverPremiumSection
             id="value-graph"
-            title="Value graph"
+            title={DISCOVER_SECTION.valueGraph}
             subtitle={modeLabel ? `${modeLabel} · ${VALUE_GRAPH_SUBTITLE}` : VALUE_GRAPH_SUBTITLE}
             className={className}
             variant="compact"
@@ -623,7 +624,7 @@ export function DiscoverValueBubblemap({
                 <div className="flex items-center gap-2">
                   <Orbit className="h-4 w-4 text-resolve-accent" />
                   <div>
-                    <p className="text-sm font-semibold text-white">Value graph</p>
+                    <p className="text-sm font-semibold text-white">{DISCOVER_SECTION.valueGraph}</p>
                     <p className="text-[11px] text-resolve-muted">{modeLabel} · Click a bubble for operator console</p>
                   </div>
                 </div>

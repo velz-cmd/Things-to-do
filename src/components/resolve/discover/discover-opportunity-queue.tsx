@@ -26,6 +26,7 @@ import type { DiscoverBoardItem } from "@/lib/discover/opportunity-board";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { needTypeBadgeClass, needTypeLabel, primaryBoardCtaLabel } from "@/lib/discover/need-types";
 import { boardSubtitleForRole } from "@/lib/discover/board-actions-for-role";
+import { DISCOVER_SECTION, LANE_PURPOSE } from "@/lib/discover/discover-lane-copy";
 import {
   sortByOpportunityScore,
   type OpportunitySortKey,
@@ -220,7 +221,9 @@ export function DiscoverOpportunityQueue({
 
   const subtitle = (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span>{boardSubtitleForRole(role, signedIn, walletUsd)}</span>
+      <span>
+        {boardSubtitleForRole(role, signedIn, walletUsd)} · {LANE_PURPOSE.board}
+      </span>
       {signedIn && walletUsd != null && (
         <Link
           href="/capital"
@@ -236,7 +239,7 @@ export function DiscoverOpportunityQueue({
   return (
     <DiscoverPremiumSection
       id="opportunities"
-      title="Value graph"
+      title={DISCOVER_SECTION.fundingBoard}
       subtitle={subtitle}
       className={className}
       actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}

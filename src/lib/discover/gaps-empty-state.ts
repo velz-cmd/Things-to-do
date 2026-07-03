@@ -23,7 +23,7 @@ export function gapsRoleIntro(role: DiscoverRole): string {
     dao: "No citation or grant gaps yet. Set up Open Research and launch a QF round.",
     community:
       "No ranked unpaid value on the ledger yet. Set up OSS, research, or music programs below.",
-    all: "No unpaid value ranked yet — set up a community on Value Graph to unlock more rows.",
+    all: "No unpaid value ranked yet — set up a community on the Funding board to unlock more rows.",
   };
   return copy[role] ?? copy.all!;
 }

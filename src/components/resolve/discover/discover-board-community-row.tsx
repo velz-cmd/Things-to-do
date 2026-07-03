@@ -19,8 +19,6 @@ import {
   DiscoverQuickActions,
   buildCardQuickActions,
 } from "@/components/resolve/discover/discover-quick-actions";
-import { useDiscoverSolveOptional } from "@/components/resolve/discover/discover-solve-provider";
-import { solveIntentForGap } from "@/lib/discover/solve-intents";
 import type { DiscoverAction } from "@/lib/discover/types";
 
 type DiscoverBoardCommunityRowProps = {
@@ -38,7 +36,6 @@ export function DiscoverBoardCommunityRow({
   const { runAction, wallet } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
-  const solve = useDiscoverSolveOptional();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
 
@@ -85,12 +82,7 @@ export function DiscoverBoardCommunityRow({
     card,
     connections,
     onAction: handleAction,
-    solve: solve
-      ? {
-          label: "Solve with AI",
-          onSelect: () => solve.requestSolve(solveIntentForGap(gap)),
-        }
-      : null,
+    solve: null,
   });
 
   return (

@@ -158,7 +158,7 @@ function automationAction(needType: DiscoverNeedType, gap: TrendingValueGap): Di
   const prompt =
     gap.headline.length > 12
       ? `Run intel on ${gap.headline}`
-      : "Run agent signal on this opportunity";
+      : "Start analysis on this opportunity";
   return {
     id: `agent-${serviceId}`,
       label: needType === "automation" ? "Run analysis" : "Automate payouts",
@@ -402,7 +402,7 @@ export function primaryBoardCtaLabel(
       docs: "Explore docs program",
       moderators: "Explore community",
       grants: "Explore grant pool",
-      automation: "Run agent signal",
+      automation: "Start analysis",
     };
     return explore[needType] ?? item.connectCta ?? "Explore program";
   }
@@ -415,8 +415,8 @@ export function primaryBoardCtaLabel(
     researchers: "Fund citation pool",
     translators: "Fund translation bounty",
     moderators: "Fund steward pool",
-    automation: "Authorize signal",
-    funding: "Fulfill program",
+    automation: "Start analysis",
+    funding: "Fund now",
   };
   if (item.templateId === "quadratic-funding") return "Fund grant pool";
   return fund[needType] ?? "Fund program";

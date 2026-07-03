@@ -63,7 +63,7 @@ export function DiscoverGapsEmpty({
             onClick={() => onSwitchLane("board")}
             className="rounded-lg border border-resolve-calm-blue/30 bg-resolve-calm-blue/10 px-3 py-1.5 text-[11px] font-medium text-resolve-calm-blue hover:bg-resolve-calm-blue/15"
           >
-            Open Board → attach
+            Open funding board → attach
           </button>
           <button
             type="button"

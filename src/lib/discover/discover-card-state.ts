@@ -13,6 +13,10 @@ import {
   type OpportunityState,
 } from "@/lib/discover/discover-opportunity-state";
 import { resolveLaneAdvancedActions } from "@/lib/discover/discover-lane-slots";
+import {
+  buildDiscoverCardNarrative,
+  type DiscoverCardNarrative,
+} from "@/lib/discover/discover-card-narrative";
 import type { DiscoverCardLane } from "@/lib/discover/types";
 
 export type { DiscoverCardLane } from "@/lib/discover/types";
@@ -33,6 +37,7 @@ export type DiscoverCardState = {
   proofSource: string;
   missingStep: string;
   settlementStatus: string;
+  narrative: DiscoverCardNarrative;
   pipeline: PipelineStageState[];
   opportunityState: OpportunityState;
   actionSlots: DiscoverActionSlot[];
@@ -144,11 +149,23 @@ export function deriveDiscoverCardState(
 
   void surface;
 
+  const narrative = buildDiscoverCardNarrative({
+    gap,
+    lane,
+    proofSource,
+    connected,
+    hasRule,
+    funded,
+    settled,
+    opportunityState,
+  });
+
   return {
     title: gap.headline,
     proofSource,
     missingStep: connected && hasRule ? (funded ? "—" : "pool funding") : missingLabelForGap(gap),
     settlementStatus: settlementStatusLabel(connected, hasRule, funded, settled, gap),
+    narrative,
     pipeline: buildPipeline(connected, hasRule, funded, settled),
     opportunityState,
     actionSlots,

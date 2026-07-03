@@ -129,15 +129,15 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   return (
     <div className="resolve-grid-bg min-h-screen pb-12">
       <div className="relative mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">
-        <DiscoverJobHero activeJob={activeJob} onSelectJob={handleJobSelect} />
-
-        <div className="discover-section-stack">
+        <div className="mb-5">
           <DiscoverGlobalSearch
             signedIn={Boolean(user)}
             query={query}
             onQueryChange={setQuery}
           />
         </div>
+
+        <DiscoverJobHero activeJob={activeJob} onSelectJob={handleJobSelect} />
 
         {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
 

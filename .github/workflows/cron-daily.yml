@@ -33,7 +33,7 @@ jobs:
       - name: Daily tick (sensors + earn notify)
         if: steps.secret.outputs.configured == 'true'
         env:
-          PRODUCTION_URL: https://resolve-task.vercel.app
+          PRODUCTION_URL: https://things-to-do-eta.vercel.app
           SECRET: ${{ steps.secret.outputs.value }}
         run: |
           curl -fsS -X POST "$PRODUCTION_URL/api/cron/tick" \
@@ -43,7 +43,7 @@ jobs:
       - name: GitHub OSS scan
         if: steps.secret.outputs.configured == 'true'
         env:
-          PRODUCTION_URL: https://resolve-task.vercel.app
+          PRODUCTION_URL: https://things-to-do-eta.vercel.app
           SECRET: ${{ steps.secret.outputs.value }}
         run: |
           curl -fsS -X POST "$PRODUCTION_URL/api/cron/github-oss-scan" \
@@ -53,7 +53,7 @@ jobs:
       - name: Full sensor bootstrap if ledger still empty
         if: steps.secret.outputs.configured == 'true'
         env:
-          PRODUCTION_URL: https://resolve-task.vercel.app
+          PRODUCTION_URL: https://things-to-do-eta.vercel.app
           SECRET: ${{ steps.secret.outputs.value }}
         run: |
           LIVE=$(curl -fsS "$PRODUCTION_URL/api/health/live" | grep -o '"activityCount":[0-9]*' | cut -d: -f2)

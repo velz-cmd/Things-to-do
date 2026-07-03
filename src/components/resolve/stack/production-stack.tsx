@@ -161,7 +161,7 @@ export function ProductionStack() {
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-resolve-muted">
             Multi-tier AI routing, Arc USDC settlement, and Supabase production
             infrastructure — the stack judges can verify live at{" "}
-            <span className="text-white/90">resolve-task.vercel.app</span>.
+            <span className="text-white/90">things-to-do-eta.vercel.app</span>.
           </p>
         </header>
 

@@ -12,8 +12,8 @@ Enable **Production**, **Preview**, and **Development** for each.
 | `DIRECT_URL` | Supabase **direct** connection (port **5432**) — optional; used only for local `prisma migrate deploy`, not Vercel builds |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://jjducnguljjddciczvuy.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
-| `NEXT_PUBLIC_APP_URL` | `https://resolve-task.vercel.app` |
-| `APP_URL` | `https://resolve-task.vercel.app` |
+| `NEXT_PUBLIC_APP_URL` | `https://things-to-do-eta.vercel.app` |
+| `APP_URL` | `https://things-to-do-eta.vercel.app` |
 
 ## Arc + Circle (live settlement)
 
@@ -45,11 +45,11 @@ Enable **Production**, **Preview**, and **Development** for each.
 ## After deploy — verify (no secrets exposed)
 
 ```text
-https://resolve-task.vercel.app/api/health/env
-https://resolve-task.vercel.app/api/settlement/config
-https://resolve-task.vercel.app/demo-portals/streamly
-https://resolve-task.vercel.app/api/communities
-https://resolve-task.vercel.app/discover
+https://things-to-do-eta.vercel.app/api/health/env
+https://things-to-do-eta.vercel.app/api/settlement/config
+https://things-to-do-eta.vercel.app/demo-portals/streamly
+https://things-to-do-eta.vercel.app/api/communities
+https://things-to-do-eta.vercel.app/discover
 ```
 
 `missingRecommended` should be empty when everything is set.
@@ -126,7 +126,7 @@ Do **not** set `VERCEL_TOKEN` in GitHub secrets for this repo — the old CLI `v
 
 | Item | Value |
 |------|-------|
-| Production URL | `https://resolve-task.vercel.app` |
+| Production URL | `https://things-to-do-eta.vercel.app` |
 | Vercel project | `things-to-do` / `prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd` |
 
 ## Build fix (June 2025)

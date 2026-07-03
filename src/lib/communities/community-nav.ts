@@ -18,6 +18,10 @@ export function communityConsolePath(
   return qs ? `/communities/${slug}?${qs}` : `/communities/${slug}`;
 }
 
+export function profileConnectPath(returnTo: string): string {
+  return `/profile?next=${encodeURIComponent(returnTo)}`;
+}
+
 /** Section id to scroll when landing with ?intent= */
 export const COMMUNITY_INTENT_ANCHOR: Record<CommunityIntent, string> = {
   fund: "programs",

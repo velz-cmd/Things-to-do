@@ -32,7 +32,7 @@ export function useCommunityOperationsHandlers(slug: string) {
     : { spendableUsd: 0, totalUsdc: "0", loaded: false };
 
   const invalidateSurface = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.communitySurface(slug) });
+    await queryClient.invalidateQueries({ queryKey: ["communities", "surface", slug] });
     await queryClient.invalidateQueries({ queryKey: queryKeys.communities });
   }, [queryClient, slug]);
 

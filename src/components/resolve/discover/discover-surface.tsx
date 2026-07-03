@@ -25,6 +25,7 @@ const DiscoverValueBubblemap = dynamic(
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverCommunityConsoleProvider } from "@/components/resolve/discover/discover-community-console-provider";
+import { DiscoverUrlHandoff } from "@/components/resolve/discover/discover-url-handoff";
 import { DiscoverRadarFeedProvider } from "@/components/resolve/discover/discover-radar-feed-provider";
 import {
   DiscoverActionAuditPanel,
@@ -53,6 +54,7 @@ export function DiscoverSurface() {
       <DiscoverRadarFeedProvider>
         <DiscoverActionsProvider signedIn={Boolean(user)}>
           <DiscoverCommunityConsoleProvider>
+            <DiscoverUrlHandoff />
             <DiscoverSurfaceContent user={user} />
             <DiscoverActionAuditPanel />
           </DiscoverCommunityConsoleProvider>

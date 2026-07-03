@@ -41,6 +41,18 @@ test.describe("Community phases — APIs", () => {
     expect(body.community).toHaveProperty("deployReadiness");
   });
 
+  test("GET /api/communities/[slug]?lite=1 returns lite surface", async ({ request }) => {
+    const res = await request.get("/api/communities/independent-music?lite=1");
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.community.name).toBe("Independent Music");
+    expect(body.community.observatory).toEqual([]);
+    expect(body.community.economicMemory).toEqual([]);
+    expect(body.community.timeline).toEqual([]);
+    expect(body.community.health.treasuryUsd).toBe(body.community.impact.programBudgetUsd);
+  });
+
   test("protected community routes return 401 without auth", async ({ request }) => {
     const install = await request.post("/api/communities/independent-music/install");
     expect(install.status()).toBe(401);
@@ -408,14 +420,19 @@ test.describe("Community phases — surfaces", () => {
       { timeout: 45_000 },
     );
 
-    await expect(page.getByRole("button", { name: "Install on Independent Music" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Your communities" })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByRole("button", { name: "Install on Navidrome" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add a community" })).toBeVisible({
+      timeout: 30_000,
+    });
 
-    const openConsole = page.getByRole("link", { name: "Open console" });
-    if ((await openConsole.count()) > 0) {
-      await expect(openConsole.first()).toBeVisible();
+    const connectCommunity = page.getByRole("button", { name: /Connect community|Install on/i });
+    await expect(connectCommunity.first()).toBeVisible({ timeout: 30_000 });
+
+    const operate = page.getByRole("link", { name: "Operate" });
+    if ((await operate.count()) > 0) {
+      await expect(operate.first()).toBeVisible();
     }
 
     const health = page.getByText("Health");
@@ -492,7 +509,7 @@ test.describe("Community phases — surfaces", () => {
   test("communities hub loads and nav highlights Communities", async ({ page }) => {
     await page.goto("/communities", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
-    await expect(page.getByRole("main").getByText("Your operating rooms").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your communities" })).toBeVisible();
     await expect(
       page.getByRole("navigation").getByRole("link", { name: "Communities" }).first(),
     ).toBeVisible();

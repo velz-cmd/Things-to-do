@@ -54,7 +54,7 @@ function ProgramCard({
   onDeploy: (id: string) => void;
   onFund: (programId: string) => void;
   deploying: string | null;
-  readiness?: CommunitySurface["deployReadiness"];
+  readiness?: ProgramRecord["deployReadiness"];
   sourcesConnected?: boolean;
 }) {
   const isDeploying = deploying === program.id;
@@ -260,6 +260,7 @@ export function CommunityConsole({
             <Money amount={surface.health.treasuryUsd} />
           </p>
           <p className="text-[11px] text-resolve-muted">
+            Program pool total ·{" "}
             <Money amount={surface.health.communityObligationsUsd} size="sm" className="inline" />{" "}
             obligations
           </p>
@@ -394,7 +395,7 @@ export function CommunityConsole({
                 onDeploy={onRequestDeploy}
                 onFund={onFund}
                 deploying={deploying}
-                readiness={surface.deployReadiness}
+                readiness={p.deployReadiness ?? surface.deployReadiness}
                 sourcesConnected={sourcesConnected}
               />
             ))}

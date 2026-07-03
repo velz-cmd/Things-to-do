@@ -124,12 +124,18 @@ export function useCommunitiesHubQuery() {
   });
 }
 
-export function useCommunitySurfaceQuery(slug: string, options?: { pollWhenInstalled?: boolean }) {
+export function useCommunitySurfaceQuery(
+  slug: string,
+  options?: { lite?: boolean; pollWhenInstalled?: boolean; enabled?: boolean },
+) {
+  const lite = options?.lite ?? true;
+  const mode = lite ? "lite" : "full";
   return useQuery({
-    queryKey: queryKeys.communitySurface(slug),
+    queryKey: queryKeys.communitySurface(slug, mode),
+    enabled: options?.enabled ?? true,
     queryFn: ({ signal }) =>
       fetchJson<{ community: import("@/lib/communities/types").CommunitySurface }>(
-        `/api/communities/${slug}`,
+        `/api/communities/${slug}${lite ? "?lite=1" : ""}`,
         signal,
       ).then((data) => data.community),
     staleTime: 30_000,
@@ -144,12 +150,14 @@ export function useCommunitySurfaceQuery(slug: string, options?: { pollWhenInsta
 export function prefetchCommunitySurface(
   queryClient: ReturnType<typeof useQueryClient>,
   slug: string,
+  lite = true,
 ) {
+  const mode = lite ? "lite" : "full";
   void queryClient.prefetchQuery({
-    queryKey: queryKeys.communitySurface(slug),
+    queryKey: queryKeys.communitySurface(slug, mode),
     queryFn: () =>
       fetchJson<{ community: import("@/lib/communities/types").CommunitySurface }>(
-        `/api/communities/${slug}`,
+        `/api/communities/${slug}${lite ? "?lite=1" : ""}`,
       ).then((data) => data.community),
     staleTime: 30_000,
   });

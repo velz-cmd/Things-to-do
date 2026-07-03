@@ -19,8 +19,6 @@ const accentRing: Record<string, string> = {
 type Props = {
   community: Pick<CommunityCatalogEntry, "slug" | "name" | "tagline" | "accent" | "kind">;
   hubOps: CommunityHubOpsStats | null;
-  /** Profile-linked but not formally installed — show operate with vitals fallback */
-  linkedOnly?: boolean;
   programCountFallback?: number;
   pendingFallbackUsd?: number;
   treasuryFallbackUsd?: number;
@@ -29,7 +27,6 @@ type Props = {
 export function CommunityOperateCard({
   community,
   hubOps,
-  linkedOnly = false,
   programCountFallback = 0,
   pendingFallbackUsd = 0,
   treasuryFallbackUsd = 0,
@@ -59,7 +56,7 @@ export function CommunityOperateCard({
             <Layers className="h-5 w-5 text-white" />
           </div>
           <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-300">
-            {linkedOnly ? "Linked" : "Operating"}
+            Operating
           </span>
         </div>
 

@@ -5,15 +5,17 @@ import { getCommunityBySlug } from "@/lib/communities/catalog";
 
 type Params = { params: Promise<{ slug: string }> };
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: Request, { params }: Params) {
   const { slug } = await params;
   if (!getCommunityBySlug(slug)) {
     return NextResponse.json({ error: "Community not found" }, { status: 404 });
   }
 
+  const lite = new URL(req.url).searchParams.get("lite") === "1";
+
   const ready = await requireReadyUser();
   const userId = "error" in ready ? null : ready.user.id;
-  const surface = await buildCommunitySurface(userId, slug);
+  const surface = await buildCommunitySurface(userId, slug, { lite });
   if (!surface) {
     return NextResponse.json({ error: "Community not found" }, { status: 404 });
   }

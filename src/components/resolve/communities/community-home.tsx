@@ -40,6 +40,31 @@ export function CommunityHome({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
   const pageIntent = searchParams.get("intent");
   const tab = searchParams.get("tab") === "advanced" ? "advanced" : "console";
+
+  const consoleSurfaceQuery = useCommunitySurfaceQuery(slug, {
+    lite: true,
+    pollWhenInstalled: tab === "console",
+    enabled: tab === "console",
+  });
+  const advancedSurfaceQuery = useCommunitySurfaceQuery(slug, {
+    lite: false,
+    pollWhenInstalled: false,
+    enabled: tab === "advanced",
+  });
+
+  const surface =
+    tab === "advanced" ? advancedSurfaceQuery.data : consoleSurfaceQuery.data;
+  const loading =
+    tab === "advanced" ? advancedSurfaceQuery.isLoading : consoleSurfaceQuery.isLoading;
+
+  const refetch = useCallback(async () => {
+    if (tab === "advanced") {
+      await advancedSurfaceQuery.refetch();
+    } else {
+      await consoleSurfaceQuery.refetch();
+    }
+  }, [tab, advancedSurfaceQuery, consoleSurfaceQuery]);
+
   const [discoverRole, setDiscoverRole] = useState<DiscoverRole | null>(null);
   const { state: connections } = useUserConnections();
   const [deploying, setDeploying] = useState<string | null>(null);
@@ -48,12 +73,6 @@ export function CommunityHome({ slug }: { slug: string }) {
   const [pendingProgramId, setPendingProgramId] = useState<string | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const ops = useCommunityOperationsHandlers(slug);
-
-  const {
-    data: surface,
-    isLoading: loading,
-    refetch,
-  } = useCommunitySurfaceQuery(slug, { pollWhenInstalled: true });
 
   useEffect(() => {
     setDiscoverRole(loadPersistedDiscoverRole());
@@ -99,6 +118,7 @@ export function CommunityHome({ slug }: { slug: string }) {
   function openDeployConfirm(programId: string) {
     const program = surface?.programs.find((p) => p.id === programId);
     if (!program || !surface) return;
+    const readiness = program.deployReadiness ?? surface.deployReadiness;
     setPendingProgramId(programId);
     setConfirm({
       kind: "deploy",
@@ -106,16 +126,16 @@ export function CommunityHome({ slug }: { slug: string }) {
       detail:
         "Settles authorized obligations to mapped wallets — irreversible batch transfer from your program pool.",
       programName: program.name,
-      pendingUsd: surface.deployReadiness?.pendingObligationsUsd ?? 0,
-      payeeCount: surface.deployReadiness?.authorizedCount ?? 0,
-      canDeploy: surface.deployReadiness?.canDeploy ?? false,
-      blockReason: surface.deployReadiness?.reasons?.[0],
+      pendingUsd: readiness?.pendingObligationsUsd ?? 0,
+      payeeCount: readiness?.authorizedCount ?? 0,
+      canDeploy: readiness?.canDeploy ?? false,
+      blockReason: readiness?.reasons?.[0],
     });
   }
 
   function openApproveConfirm() {
     if (!surface || !primaryProgram) return;
-    const readiness = surface.deployReadiness;
+    const readiness = primaryProgram.deployReadiness ?? surface.deployReadiness;
     const needsFund =
       (readiness?.pendingObligationsUsd ?? 0) > 0.01 && !readiness?.canDeploy;
     setPendingProgramId(primaryProgram.id);
@@ -151,7 +171,8 @@ export function CommunityHome({ slug }: { slug: string }) {
         });
       }
       if (data.community) {
-        queryClient.setQueryData(queryKeys.communitySurface(slug), data.community);
+        const mode = tab === "advanced" ? "full" : "lite";
+        queryClient.setQueryData(queryKeys.communitySurface(slug, mode), data.community);
       } else await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Deploy failed");

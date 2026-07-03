@@ -1,28 +1,17 @@
 import type { TrendingValueGap } from "@/lib/discover/types";
 
-/** A "Solve with AI" request routed to the Agent Signal Market. */
+/** A Discover opportunity analysis request routed to Mission. */
 export type SolveIntent = {
-  /** Agent Signal Market service id (see service-registry.ts) */
   serviceId: string;
-  /** Founder-language prompt — "find who should be paid", not backend jargon */
   prompt: string;
-  /** Short button label */
   label: string;
 };
 
 function subjectForGap(gap: TrendingValueGap): string {
-  return (
-    gap.communitySlug ??
-    gap.productLabel ??
-    gap.headline ??
-    "this community"
-  );
+  return gap.communitySlug ?? gap.productLabel ?? gap.headline ?? "this community";
 }
 
-/**
- * Map a Discover opportunity to the right paid agent + a founder-language prompt.
- * Culminates the "Solve" workflow: problem → agent → recommendation → Approve.
- */
+/** Map a Discover opportunity to a Mission prompt with concrete next steps. */
 export function solveIntentForGap(gap: TrendingValueGap): SolveIntent {
   const subject = subjectForGap(gap);
 
@@ -30,29 +19,34 @@ export function solveIntentForGap(gap: TrendingValueGap): SolveIntent {
     case "oss":
       return {
         serviceId: "docs-review",
-        label: "Solve with AI",
-        prompt: `Find missing contributors and unpaid docs/maintainer work for ${subject} — who deserves a payout and roughly how much?`,
+        label: "Run contributor analysis",
+        prompt: `Find missing contributors and unpaid docs/maintainer work for ${subject}. Recommend payout rules, contributors, and an initial funding amount.`,
       };
     case "music":
       return {
         serviceId: "attribution-signal",
-        label: "Solve with AI",
-        prompt: `Find unrewarded artists and verified plays for ${subject} — who should the royalty pool pay first?`,
+        label: "Calculate revenue split",
+        prompt: `Find unrewarded artists and verified plays for ${subject}. Recommend an attribution split and the first royalty pool to launch.`,
       };
     case "research":
       return {
         serviceId: "citation-verify",
-        label: "Solve with AI",
-        prompt: `Find uncited or under-funded research for ${subject} — who deserves a citation-toll payout?`,
+        label: "Verify citations",
+        prompt: `Verify citation activity for ${subject}. Recommend who should receive a citation-toll payout and what grant pool should launch first.`,
       };
     case "dao":
+      return {
+        serviceId: "premium-research",
+        label: "Estimate reward pool",
+        prompt: `Analyze ${subject}: estimate the reward pool, expected impact, and first grant round to launch.`,
+      };
     case "community":
     case "protocol":
     default:
       return {
         serviceId: "premium-research",
-        label: "Solve with AI",
-        prompt: `Analyze ${subject}: where is value blocked, and who should be funded next? Return a ranked, fundable recommendation.`,
+        label: "Start analysis",
+        prompt: `Analyze ${subject}: where is value blocked, what program should be created, and who should be funded next? Return a ranked, fundable recommendation.`,
       };
   }
 }

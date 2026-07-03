@@ -43,7 +43,7 @@ export const CAPITAL_YIELD_COPY = {
     subtitle:
       "Sorted by pending obligations and where capital unlocks verified value — no insider knowledge required.",
     fundCta: "Fund match pool",
-    fundFulfillCta: "Fulfill program",
+    fundFulfillCta: "Fund now",
     viewCta: "View community",
     targetBadge: "2× target met",
     impactLabel: "Verified value",

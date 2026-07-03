@@ -1,6 +1,9 @@
 /** Lane purpose copy — action marketplace, not dashboard inspection. */
 
-export const DISCOVER_HERO_SUBTITLE = "Where should value move next?";
+export const DISCOVER_HERO_TITLE = "What value do you want to unlock?";
+
+export const DISCOVER_HERO_SUBTITLE =
+  "Find verified work, missing payout rules, unpaid creators, and underfunded communities. Act in one click: create programs, fund pools, run agents, connect sources, or claim earnings.";
 
 export const DISCOVER_SECTION = {
   /** Workspace tab + fulfillment queue — fund programs and community gaps */
@@ -12,11 +15,11 @@ export const DISCOVER_SECTION = {
 export const WORKSPACE_LANE_LABELS = {
   gaps: "Unpaid Value",
   radars: "Live Signals",
-  board: DISCOVER_SECTION.fundingBoard,
+  board: "Ready to Fund",
 } as const;
 
 export const LANE_PURPOSE = {
-  gaps: "Verified work with no reward program yet — create or fund in one click.",
-  radars: "Proof arriving right now — react, automate, or run analysis.",
-  board: "Ranked programs and fundable gaps — move Arc USDC, then operate in Communities.",
+  gaps: "Verified activity exists, but no payout rule is active yet.",
+  radars: "Recent proof signals that can trigger a rule, agent run, funding, or payout.",
+  board: "Ready-to-act programs and fundable gaps. Move Arc USDC or open Communities with context.",
 } as const;

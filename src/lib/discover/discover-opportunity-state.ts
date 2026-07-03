@@ -33,7 +33,14 @@ function hasActiveRule(gap: TrendingValueGap): boolean {
   const rules = gap.valueMetrics?.payoutRules ?? "";
   if (Boolean(gap.programId)) return true;
   const lower = rules.toLowerCase();
-  return lower.includes("active") && !lower.includes("missing") && !lower.includes("0");
+  if (!lower.includes("active") || lower.includes("missing")) return false;
+  // "0 active" means no rules; "10 active" must not match the zero check
+  if (/(^|\s)0(\s+active|\s+rules?|$)/.test(lower)) return false;
+  return true;
+}
+
+export function gapHasActiveRule(gap: TrendingValueGap): boolean {
+  return hasActiveRule(gap);
 }
 
 function isFunded(gap: TrendingValueGap): boolean {
@@ -47,6 +54,14 @@ function isFunded(gap: TrendingValueGap): boolean {
 function isSettled(gap: TrendingValueGap): boolean {
   const settlement = gap.valueMetrics?.settlement ?? "";
   return settlement.toLowerCase().includes("settled") || settlement.toLowerCase().includes("on arc");
+}
+
+export function gapIsFunded(gap: TrendingValueGap): boolean {
+  return isFunded(gap);
+}
+
+export function gapIsSettled(gap: TrendingValueGap): boolean {
+  return isSettled(gap);
 }
 
 function isClaimable(gap: TrendingValueGap): boolean {
@@ -145,11 +160,12 @@ function claimAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAct
 }
 
 function receiptAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
-  return (
+  const fromPool =
     findAction(pool, "share") ??
-    findActionMatching(pool, /receipt/i) ??
-    synthAction(gap, "receipt", "View receipt", "share", { href: gap.proofHref })
-  );
+    findActionMatching(pool, /receipt/i);
+  if (fromPool?.href) return fromPool;
+  if (!gap.proofHref) return undefined;
+  return synthAction(gap, "receipt", "View receipt", "share", { href: gap.proofHref });
 }
 
 /** Resolve 1 primary + up to 2 secondary real actions for the current state and role. */
@@ -175,7 +191,8 @@ export function resolveDiscoverActionSlots(input: ActionResolveInput): DiscoverA
   const scan = scanAction(pool, gap);
   const claim = claimAction(pool, gap);
   const receipt = receiptAction(pool, gap);
-  const connect = findAction(pool, "connect_sensor") ?? profileConnectAction(gap);
+  const install = findAction(pool, "install");
+  const connect = install ?? findAction(pool, "connect_sensor") ?? profileConnectAction(gap);
 
   const effectiveRole = role === "all" ? "funder" : role;
 
@@ -252,11 +269,7 @@ export function resolveDiscoverActionSlots(input: ActionResolveInput): DiscoverA
   }
 
   // funded — ready to settle or add more
-  if (effectiveRole === "funder" || effectiveRole === "dao") {
-    push({ action: fund, variant: "primary" });
-  } else {
-    push({ action: fund, variant: "primary" });
-  }
+  push({ action: fund, variant: "primary" });
   if (proof) push({ action: proof, variant: "secondary" });
   if (lane === "radars" && scan && slots.length < 3) push({ action: scan, variant: "secondary" });
 

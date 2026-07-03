@@ -38,8 +38,6 @@ export type DiscoverCardState = {
   advancedActions: DiscoverAction[];
 };
 
-const ADVANCED_KINDS = new Set<DiscoverAction["kind"]>(["console", "automate"]);
-
 function missingLabelForGap(gap: TrendingValueGap): string {
   const profile = gap.communitySlug ? getCommunityValueProfile(gap.communitySlug) : null;
   if (gap.templateId === "video-royalties") return "pay-per-minute rule";
@@ -125,13 +123,6 @@ export function deriveDiscoverCardState(
     spendableUsd: options?.spendableUsd ?? null,
   });
 
-  const slotIds = new Set(actionSlots.map((s) => `${s.action.kind}:${s.action.id}`));
-  const advancedActions = gap.actions.filter(
-    (a) =>
-      !slotIds.has(`${a.kind}:${a.id}`) &&
-      ADVANCED_KINDS.has(a.kind),
-  );
-
   const proofSource =
     gap.valueMetrics?.verifiedSource ??
     gap.proofSource ??
@@ -149,6 +140,6 @@ export function deriveDiscoverCardState(
     pipeline: buildPipeline(connected, hasRule, funded, settled),
     opportunityState,
     actionSlots,
-    advancedActions: advancedActions.slice(0, 3),
+    advancedActions: [],
   };
 }

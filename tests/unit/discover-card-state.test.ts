@@ -73,11 +73,11 @@ describe("deriveDiscoverCardState", () => {
     expect(state.actionSlots.every((s) => !EARNINGS_OPEN.test(s.action.label))).toBe(true);
   });
 
-  it("puts console in advanced", () => {
+  it("does not surface console as a Discover card action", () => {
     const state = deriveDiscoverCardState(baseGap(), null, "gaps", "founder", "trending-gaps", {
       signedIn: true,
     });
-    expect(state.advancedActions.some((a) => a.kind === "console")).toBe(true);
+    expect(state.advancedActions).toHaveLength(0);
     expect(state.actionSlots.some((a) => a.action.kind === "console")).toBe(false);
   });
 
@@ -134,7 +134,7 @@ describe("deriveDiscoverCardState", () => {
     expect(primarySlot(state)?.disabledReason).toMatch(/Arc USDC/i);
   });
 
-  it("shows install as primary for founder when community not set up", () => {
+  it("shows create community program as primary for founder when not set up", () => {
     const gap = baseGap({
       actions: [
         { id: "install", label: "Set up Navidrome", kind: "install", communitySlug: "navidrome" },

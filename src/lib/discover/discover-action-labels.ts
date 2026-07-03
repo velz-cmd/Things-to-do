@@ -29,13 +29,13 @@ export function friendlyDiscoverActionLabel(
   }
 
   if (action.kind === "connect_sensor") {
-    return "Link in Profile";
+    return "Connect source";
   }
 
   if (action.kind === "install") {
     return action.communitySlug
-      ? `Set up ${communityTitle(action.communitySlug)}`
-      : "Set up community";
+      ? `Create community program`
+      : "Create community program";
   }
 
   return action.label.trim();

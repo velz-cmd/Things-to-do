@@ -33,12 +33,14 @@ import { pushJellyfinWatchesFromBrowser } from "@/lib/integrations/jellyfin-clie
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
-import { useCommunityConsoleOptional } from "@/components/resolve/discover/discover-community-console-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
-import type { CommunityConsoleActionContext } from "@/components/resolve/discover/discover-community-console-provider";
 import { communitySlugFromDiscoverTarget } from "@/lib/discover/discover-inline-target";
+import {
+  communityConsolePath,
+  type CommunityIntent,
+} from "@/lib/communities/community-nav";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -75,7 +77,6 @@ export function DiscoverActionsProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const communityConsole = useCommunityConsoleOptional();
   const { balance, balanceLoading, refreshBalance } = useAuth();
   const { state: connections, reload: reloadConnections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
@@ -130,24 +131,11 @@ export function DiscoverActionsProvider({
     }
   }, [signedIn, balance, balanceLoading, refreshWallet]);
 
-  const openDiscoverConsole = useCallback(
-    (
-      communitySlug: string,
-      actionContext?: CommunityConsoleActionContext,
-      label?: string,
-    ) => {
-      if (!communityConsole) {
-        toast.error("Community console unavailable — refresh Discover");
-        return;
-      }
-      communityConsole.open({
-        communitySlug,
-        tab: "console",
-        actionContext,
-        label,
-      });
+  const navigateToCommunity = useCallback(
+    (communitySlug: string, intent?: CommunityIntent, options?: { tab?: "advanced" }) => {
+      router.push(communityConsolePath(communitySlug, intent, options));
     },
-    [communityConsole],
+    [router],
   );
 
   const ensureProgram = useCallback(
@@ -238,7 +226,7 @@ export function DiscoverActionsProvider({
         await refreshWallet();
         setFundSheet(null);
         if (req.communitySlug) {
-          openDiscoverConsole(req.communitySlug, "fund", req.label);
+          navigateToCommunity(req.communitySlug, "fund");
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Fund failed";
@@ -249,7 +237,7 @@ export function DiscoverActionsProvider({
         setBusy(false);
       }
     },
-    [signedIn, router, wallet, ensureProgram, refreshWallet, refreshBalance, reportActionStatus, openDiscoverConsole],
+    [signedIn, router, wallet, ensureProgram, refreshWallet, refreshBalance, reportActionStatus, navigateToCommunity],
   );
 
   const openFundSheet = useCallback(
@@ -308,10 +296,14 @@ export function DiscoverActionsProvider({
         router.push("/profile");
       } else if (result.action === "claim_value") {
         router.push(action.href ?? "/claim");
-      } else if (result.action === "create_rule" || result.action === "create_community_program") {
-        if (action.communitySlug && surface !== "community-console" && surface !== "bubble-operator-panel") {
-          openDiscoverConsole(action.communitySlug, "create_program", action.label);
-        }
+      } else if (action.communitySlug) {
+        const intent: CommunityIntent | undefined =
+          action.kind === "create_program" || result.action === "create_rule"
+            ? "create_program"
+            : action.kind === "install" || result.action === "create_community_program"
+              ? "install"
+              : undefined;
+        navigateToCommunity(action.communitySlug, intent);
       }
       setConfirmAction(null);
       await refreshDiscover();
@@ -327,7 +319,7 @@ export function DiscoverActionsProvider({
     reportActionStatus,
     router,
     refreshDiscover,
-    openDiscoverConsole,
+    navigateToCommunity,
   ]);
 
   const runAction = useCallback(
@@ -392,8 +384,8 @@ export function DiscoverActionsProvider({
             const inlineSlug =
               communitySlugFromDiscoverTarget(action.entityPath) ??
               communitySlugFromDiscoverTarget(action.href);
-            if (inlineSlug && communityConsole && action.label.toLowerCase().includes("proof")) {
-              openDiscoverConsole(inlineSlug, "observe", action.label);
+            if (inlineSlug && action.label.toLowerCase().includes("proof")) {
+              navigateToCommunity(inlineSlug, undefined, { tab: "advanced" });
               reportActionStatus(surface, action, "success");
               break;
             }
@@ -424,7 +416,7 @@ export function DiscoverActionsProvider({
           case "console": {
             const slug = action.communitySlug;
             if (!slug) break;
-            openDiscoverConsole(slug, "observe", action.label);
+            navigateToCommunity(slug);
             reportActionStatus(surface, action, "success");
             break;
           }
@@ -470,12 +462,8 @@ export function DiscoverActionsProvider({
             break;
 
           case "automate":
-            if (action.communitySlug && communityConsole) {
-              communityConsole.open({
-                communitySlug: action.communitySlug,
-                tab: "automate",
-                automationTrigger: action.automationTrigger,
-              });
+            if (action.communitySlug) {
+              navigateToCommunity(action.communitySlug, "review_obligations", { tab: "advanced" });
               reportActionStatus(surface, action, "success");
             } else if (action.href) {
               router.push(action.href);
@@ -501,7 +489,7 @@ export function DiscoverActionsProvider({
         }
       }
     },
-    [signedIn, router, executeFund, openFundSheet, reportActionStatus, communityConsole, connections, openDiscoverConsole, reloadConnections],
+    [signedIn, router, executeFund, openFundSheet, reportActionStatus, connections, navigateToCommunity, reloadConnections],
   );
 
   const value = useMemo(

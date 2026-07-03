@@ -30,7 +30,7 @@ const accentRing: Record<string, string> = {
   orange: "from-orange-500/20 to-amber-500/10",
 };
 
-const consoleHref = (slug: string) => `/communities/${slug}#health`;
+const consoleHref = (slug: string) => `/communities/${slug}`;
 
 export function InstallResolveCard({
   community,

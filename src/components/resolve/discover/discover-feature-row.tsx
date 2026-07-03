@@ -6,11 +6,11 @@ import type { DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
-import { formatDiscoverMoney } from "@/lib/discover/money-display";
+import { deriveDiscoverCardState, type DiscoverCardLane } from "@/lib/discover/discover-card-state";
 import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
-import { deriveDiscoverCardState, type DiscoverCardLane } from "@/lib/discover/discover-card-state";
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
+import { DiscoverCardNarrativeBlock } from "@/components/resolve/discover/discover-card-narrative";
 import { DiscoverActionBar } from "@/components/resolve/discover/discover-action-bar";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
@@ -55,13 +55,6 @@ export function DiscoverFeatureRow({
         spendableUsd,
       }),
     [gap, connections, lane, role, surface, signedIn, spendableUsd],
-  );
-
-  const needed = formatDiscoverMoney(
-    gap.amountNeededUsd,
-    gap.amountVerified,
-    gap.dataSource,
-    gap.amountKind,
   );
 
   const allVisible = useMemo(
@@ -117,33 +110,9 @@ export function DiscoverFeatureRow({
 
           <p className="mt-1 text-[13px] font-semibold leading-snug text-white">{card.title}</p>
 
-          <dl className="mt-2 grid gap-1 text-[10px] leading-snug sm:grid-cols-3">
-            <div>
-              <dt className="text-resolve-muted-dim">Proof</dt>
-              <dd className="font-medium text-resolve-muted">{card.proofSource}</dd>
-            </div>
-            <div>
-              <dt className="text-resolve-muted-dim">Missing</dt>
-              <dd className="font-medium text-resolve-muted">{card.missingStep}</dd>
-            </div>
-            <div>
-              <dt className="text-resolve-muted-dim">Status</dt>
-              <dd className="font-medium text-amber-100/90">{card.settlementStatus}</dd>
-            </div>
-          </dl>
+          <DiscoverCardNarrativeBlock narrative={card.narrative} />
 
           <DiscoverProofPipeline stages={card.pipeline} className="mt-2" />
-        </div>
-
-        <div className="flex shrink-0 flex-col items-end gap-0.5">
-          <span
-            className={clsx(
-              "text-right text-[11px] font-semibold leading-tight tabular-nums",
-              needed.tone === "verified" ? "text-amber-200" : "text-amber-200/60",
-            )}
-          >
-            {needed.label}
-          </span>
         </div>
       </div>
 

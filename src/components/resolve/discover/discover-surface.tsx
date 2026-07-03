@@ -46,7 +46,7 @@ import {
   persistDiscoverRole,
 } from "@/lib/discover/discover-role-persist";
 
-/** Discover — one workspace tab at a time; value graph always below. */
+/** Discover — workspace lanes above; relationship graph + operator console below. */
 export function DiscoverSurface() {
   const { user } = useAuth();
   return (

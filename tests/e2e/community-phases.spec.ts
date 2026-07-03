@@ -363,7 +363,7 @@ test.describe("Community phases — surfaces", () => {
 
     const board = page.locator("#opportunities");
     await board.scrollIntoViewIfNeeded();
-    await expect(board.getByRole("heading", { name: "Value graph" })).toBeVisible();
+    await expect(board.getByRole("heading", { name: "Funding board" })).toBeVisible();
     const sortOrSetup = board
       .getByText("Sort by")
       .or(board.getByText(/Set up React|Set up Navidrome|Explore music program|Connect GitHub/i));
@@ -380,7 +380,7 @@ test.describe("Community phases — surfaces", () => {
     await page.getByRole("button", { name: /Run my community/i }).click();
     await openDiscoverWorkspaceLane(page, "Value Graph");
     const board = page.locator("#opportunities");
-    await expect(board.getByRole("heading", { name: "Value graph" })).toBeVisible({
+    await expect(board.getByRole("heading", { name: "Funding board" })).toBeVisible({
       timeout: 15_000,
     });
   });
@@ -486,7 +486,7 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByRole("heading", { name: "Unpaid value" })).toBeVisible();
 
     await openDiscoverWorkspaceLane(page, "Value Graph");
-    await expect(page.locator("#opportunities").getByRole("heading", { name: "Value graph" })).toBeVisible();
+    await expect(page.locator("#opportunities").getByRole("heading", { name: "Funding board" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
   });
 

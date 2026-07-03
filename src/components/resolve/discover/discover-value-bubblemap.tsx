@@ -395,7 +395,7 @@ export function DiscoverValueBubblemap({
               expanded ? "h-auto" : "aspect-[18/5] max-h-[200px]",
             )}
             role="img"
-            aria-label="Value bubblemap"
+            aria-label="Value graph"
             preserveAspectRatio="xMidYMid meet"
           >
             <defs>

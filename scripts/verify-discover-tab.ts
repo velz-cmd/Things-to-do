@@ -125,8 +125,9 @@ async function hygieneChecks() {
   for (const token of forbiddenInDiscover) {
     assert(!html.includes(token), `discover HTML excludes "${token}"`);
   }
-  assert(html.includes("What do you want to do?"), "discover HTML includes job-first hero");
-  assert(html.includes("Fund where it matters"), "discover HTML includes primary jobs");
+  assert(html.includes("Where should value move next?"), "discover HTML includes action-marketplace hero");
+  assert(html.includes("Funding board"), "discover HTML includes funding board section");
+  assert(html.includes(">Fund<"), "discover HTML includes Fund job pill");
   assert(!html.includes("Earn from my work"), "discover HTML excludes removed earn job card");
   assert(!html.includes("owner/repo"), "discover HTML excludes global search bar");
   assert(html.includes("Value graph"), "discover HTML includes value graph");

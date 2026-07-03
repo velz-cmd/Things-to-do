@@ -15,7 +15,7 @@ export type BoardCommunityContext = {
   connections?: UserConnectionState | null;
 };
 
-/** One-line use case — who the Value Graph lane is for. */
+/** One-line use case — who the Funding board lane is for. */
 export function boardUseCaseLine(role: DiscoverRole): string {
   const copy: Partial<Record<DiscoverRole, string>> = {
     funder:
@@ -173,7 +173,7 @@ export function radarSubtitleForRole(role: DiscoverRole): string {
     founder: "Launch payout programs for this vertical",
     operator: "Connect sources — rows rank when activity is verified",
     dao: "Citations, grant pools, and treasury signals",
-    community: "Set up communities on Value Graph — earnings on Capital.",
+    community: "Set up communities on Discover — earnings on Capital.",
     all: "Real activity from connected sources — connect to extract more",
   };
   return byRole[role] ?? byRole.all!;

@@ -14,7 +14,6 @@ import { communityReadyForDiscover } from "@/lib/discover/community-profile-link
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 import { DiscoverCardNarrativeBlock } from "@/components/resolve/discover/discover-card-narrative";
 import { DiscoverActionBar } from "@/components/resolve/discover/discover-action-bar";
-import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
 
 type DiscoverBoardCommunityRowProps = {
   item: Extract<DiscoverBoardItem, { boardKind: "community" }>;
@@ -40,7 +39,6 @@ export function DiscoverBoardCommunityRow({
 
   const spendableUsd = wallet.loaded ? wallet.spendableUsd : null;
   const installed = communityReadyForDiscover(item.communitySlug, connections);
-  const profile = getCommunityValueProfile(item.communitySlug);
 
   const card = useMemo(
     () =>
@@ -90,9 +88,6 @@ export function DiscoverBoardCommunityRow({
               {installed ? "Source connected" : "Source needed"}
             </span>
           </div>
-          <p className="mt-0.5 text-[11px] leading-relaxed text-resolve-muted">
-            {profile?.unpaidSubtitle ?? item.communityTagline}
-          </p>
           <DiscoverCardNarrativeBlock narrative={card.narrative} />
           <DiscoverProofPipeline stages={card.pipeline} className="mt-2" />
         </div>

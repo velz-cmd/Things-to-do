@@ -30,5 +30,6 @@ describe("discover section naming — phase D", () => {
     expect(DISCOVER_SECTION.valueGraph).toBe("Value graph");
     expect(WORKSPACE_LANE_LABELS.board).toBe("Funding board");
     expect(WORKSPACE_LANE_LABELS.gaps).toBe("Unpaid Value");
+    expect(WORKSPACE_LANE_LABELS.radars).toBe("Live Signals");
   });
 });

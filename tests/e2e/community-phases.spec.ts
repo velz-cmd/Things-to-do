@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 async function openDiscoverWorkspaceLane(
   page: import("@playwright/test").Page,
-  lane: "Unpaid Value" | "Live Signals" | "Value Graph",
+  lane: "Unpaid Value" | "Live Signals" | "Funding board",
 ) {
   const nav = page.getByRole("navigation", { name: "Discover workspace" });
   await nav.getByRole("button", { name: lane, exact: true }).click();
@@ -358,7 +358,7 @@ test.describe("Community phases — surfaces", () => {
       (res) => res.url().includes("/api/capital/discover") && res.ok(),
       { timeout: 45_000 },
     );
-    await page.getByRole("button", { name: /Fund where it matters/i }).click();
+    await page.getByRole("button", { name: /^Fund$/ }).click();
     await boardReady;
 
     const board = page.locator("#opportunities");
@@ -377,8 +377,8 @@ test.describe("Community phases — surfaces", () => {
 
   test("discover founder role opens opportunity board", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /Run my community/i }).click();
-    await openDiscoverWorkspaceLane(page, "Value Graph");
+    await page.getByRole("button", { name: /^Build$/ }).click();
+    await openDiscoverWorkspaceLane(page, "Funding board");
     const board = page.locator("#opportunities");
     await expect(board.getByRole("heading", { name: "Funding board" })).toBeVisible({
       timeout: 15_000,
@@ -464,7 +464,7 @@ test.describe("Community phases — surfaces", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: /What do you want to do/i,
+        name: /Where should value move next/i,
       }),
     ).toBeVisible();
 
@@ -485,7 +485,7 @@ test.describe("Community phases — surfaces", () => {
     await openDiscoverWorkspaceLane(page, "Unpaid Value");
     await expect(page.getByRole("heading", { name: "Unpaid value" })).toBeVisible();
 
-    await openDiscoverWorkspaceLane(page, "Value Graph");
+    await openDiscoverWorkspaceLane(page, "Funding board");
     await expect(page.locator("#opportunities").getByRole("heading", { name: "Funding board" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
   });

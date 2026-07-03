@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { DISCOVER_JOBS, type DiscoverJobId } from "@/lib/discover/discover-jobs";
-import { DISCOVER_HERO_SUBTITLE } from "@/lib/discover/discover-lane-copy";
+import { DISCOVER_HERO_SUBTITLE, DISCOVER_HERO_TITLE } from "@/lib/discover/discover-lane-copy";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 export function DiscoverJobHero({
@@ -22,10 +22,10 @@ export function DiscoverJobHero({
             Discover
           </p>
           <h1 className="mt-0.5 text-lg font-semibold tracking-tight text-white sm:text-xl">
-            {DISCOVER_HERO_SUBTITLE}
+            {DISCOVER_HERO_TITLE}
           </h1>
-          <p className="mt-1 max-w-xl text-xs text-resolve-muted">
-            Find blocked value — pick one opportunity and take one action.
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-resolve-muted">
+            {DISCOVER_HERO_SUBTITLE}
           </p>
         </div>
       </div>

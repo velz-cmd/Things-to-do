@@ -106,22 +106,22 @@ export function DiscoverGlobalSearch({
         <input
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="owner/repo · @maintainer · artist · fund react · 0x…"
+          placeholder="owner/repo | @maintainer | artist | fund react | launch royalty pool | 0x..."
           className="w-full rounded-xl border border-resolve-accent/25 bg-[#060a12]/80 py-3 pl-11 pr-4 text-sm text-white shadow-[0_0_32px_rgba(96,165,250,0.06)] placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
         />
       </form>
 
       <p className="mt-2 text-[11px] text-resolve-muted-dim">
-        Enter runs the top result action — fund, open entity, install, or claim
+        Enter runs the top result action: create, fund, connect, claim, or run an agent.
       </p>
 
       {query.trim().length >= 2 && (
         <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-resolve-border/60 bg-[#0a0f18]/95 shadow-2xl backdrop-blur">
           {loading ? (
-            <p className="px-4 py-3 text-xs text-resolve-muted">Searching network…</p>
+            <p className="px-4 py-3 text-xs text-resolve-muted">Searching network...</p>
           ) : !results.length ? (
             <p className="px-4 py-3 text-xs text-resolve-muted">
-              No matches — try owner/repo, @username, or an artist name
+              No matches. Try owner/repo, @username, or an artist name.
             </p>
           ) : (
             <ul className="max-h-80 divide-y divide-resolve-border/40 overflow-y-auto">

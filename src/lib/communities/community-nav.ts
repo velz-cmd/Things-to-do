@@ -18,6 +18,18 @@ export function communityConsolePath(
   return qs ? `/communities/${slug}?${qs}` : `/communities/${slug}`;
 }
 
+/** Open Discover bubble operator panel — automate rules live on the value graph. */
+export function discoverAutomatePath(
+  communitySlug: string,
+  options?: { trigger?: string },
+): string {
+  const params = new URLSearchParams();
+  params.set("community", communitySlug);
+  params.set("panel", "automate");
+  if (options?.trigger) params.set("trigger", options.trigger);
+  return `/discover?${params.toString()}`;
+}
+
 export function profileConnectPath(returnTo: string): string {
   return `/profile?next=${encodeURIComponent(returnTo)}`;
 }

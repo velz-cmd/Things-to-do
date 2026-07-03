@@ -10,9 +10,22 @@ import { buildLiveTimeline } from "@/lib/mission/server/timeline";
 import { buildCommunityObservatory } from "@/lib/communities/observatory";
 import { buildEconomicMemory } from "@/lib/communities/economic-memory";
 import { computePlatformFee } from "@/lib/payment/platform-fee";
-import { resolvePayee } from "@/lib/registry/resolvers";
 import { entityIdToPath, payeeToEntityId } from "@/lib/entity/paths";
-import type { CommunityImpactChain, CommunitySurface } from "./types";
+import {
+  noAuthorizationsHint,
+  resolveAuthorizationPayee,
+} from "@/lib/communities/payee-resolve";
+import type {
+  CommunityImpactChain,
+  CommunitySurface,
+  ProgramDeployReadiness,
+  ProgramRecord,
+} from "./types";
+
+export type BuildCommunitySurfaceOptions = {
+  /** Skip observatory, economic memory, timeline, and global treasury fetch. */
+  lite?: boolean;
+};
 
 function buildImpactChain(input: {
   treasuryUsd: number;
@@ -40,7 +53,7 @@ function buildImpactChain(input: {
         id: "capital",
         label: "Capital",
         value: `$${input.treasuryUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-        sublabel: "Treasury",
+        sublabel: "Program pools",
       },
       {
         id: "program",
@@ -70,41 +83,172 @@ function buildImpactChain(input: {
   };
 }
 
+async function buildProgramDeployReadiness(input: {
+  program: ProgramRecord;
+  install: Awaited<ReturnType<typeof getInstall>>;
+  communityKind: string;
+  connectors: string[];
+  ownerDepositUsd: number;
+  userId: string | null;
+  resolveWallets: boolean;
+}): Promise<ProgramDeployReadiness> {
+  const deployReasons: string[] = [];
+  let authorizedForDeployUsd = 0;
+  const authorizedForDeploy: Array<{
+    payeeKey: string;
+    payeeKeyType: string;
+    amountUsd: number;
+  }> = [];
+
+  if (!input.install) {
+    deployReasons.push("Install RESOLVE on this community");
+  }
+
+  if (input.program.missionId) {
+    const summary = await getAuthorizationSummary({
+      missionId: input.program.missionId,
+      connectorId: input.program.rules.connectorId,
+    });
+    for (const a of summary.authorizations) {
+      if (a.status === "authorized" || a.status === "pending_funding") {
+        authorizedForDeployUsd += a.amountUsd;
+        authorizedForDeploy.push({
+          payeeKey: a.payeeKey,
+          payeeKeyType: a.payeeKeyType,
+          amountUsd: a.amountUsd,
+        });
+      }
+    }
+  }
+
+  if (authorizedForDeploy.length === 0) {
+    deployReasons.push(noAuthorizationsHint(input.communityKind, input.connectors));
+  }
+
+  const pendingObligationsUsd = Math.round(authorizedForDeployUsd * 10000) / 10000;
+  if (pendingObligationsUsd > 0.01) {
+    deployReasons.push(
+      `$${pendingObligationsUsd.toFixed(2)} owed — fund program pool or deposit before deploy`,
+    );
+  }
+
+  if (input.program.missionId) {
+    const summary = await getAuthorizationSummary({
+      missionId: input.program.missionId,
+      connectorId: input.program.rules.connectorId,
+    });
+    const programAuthorizedUsd = summary.authorizedUsd + summary.pendingFundingUsd;
+    if (
+      input.userId &&
+      input.ownerDepositUsd < programAuthorizedUsd &&
+      programAuthorizedUsd > 0
+    ) {
+      deployReasons.push("Deposit USDC to your account to cover program obligations");
+    }
+  }
+
+  let walletMappedCount = 0;
+  if (input.resolveWallets && authorizedForDeploy.length > 0) {
+    const payees = await Promise.all(
+      authorizedForDeploy.map((a) =>
+        resolveAuthorizationPayee({
+          communityKind: input.communityKind,
+          connectors: input.connectors,
+          payeeKey: a.payeeKey,
+          payeeKeyType: a.payeeKeyType,
+        }).catch(() => ({ wallet: null as string | null })),
+      ),
+    );
+    walletMappedCount = payees.filter((payee) => payee.wallet).length;
+  }
+
+  return {
+    canDeploy: deployReasons.length === 0 && authorizedForDeploy.length > 0,
+    authorizedCount: authorizedForDeploy.length,
+    authorizedUsd: Math.round(authorizedForDeployUsd * 10000) / 10000,
+    pendingObligationsUsd,
+    walletMappedCount,
+    reasons: deployReasons,
+  };
+}
+
+function aggregateDeployReadiness(
+  programs: ProgramRecord[],
+): CommunitySurface["deployReadiness"] {
+  const withReadiness = programs.filter((p) => p.deployReadiness);
+  const authorizedCount = withReadiness.reduce(
+    (s, p) => s + (p.deployReadiness?.authorizedCount ?? 0),
+    0,
+  );
+  const authorizedUsd = withReadiness.reduce(
+    (s, p) => s + (p.deployReadiness?.authorizedUsd ?? 0),
+    0,
+  );
+  const pendingObligationsUsd = withReadiness.reduce(
+    (s, p) => s + (p.deployReadiness?.pendingObligationsUsd ?? 0),
+    0,
+  );
+  const walletMappedCount = withReadiness.reduce(
+    (s, p) => s + (p.deployReadiness?.walletMappedCount ?? 0),
+    0,
+  );
+  const reasons = [...new Set(withReadiness.flatMap((p) => p.deployReadiness?.reasons ?? []))];
+  const canDeploy = withReadiness.some((p) => p.deployReadiness?.canDeploy);
+
+  return {
+    canDeploy,
+    authorizedCount,
+    authorizedUsd: Math.round(authorizedUsd * 10000) / 10000,
+    pendingObligationsUsd: Math.round(pendingObligationsUsd * 10000) / 10000,
+    walletMappedCount,
+    reasons,
+  };
+}
+
 export async function buildCommunitySurface(
   userId: string | null,
   slug: string,
+  options?: BuildCommunitySurfaceOptions,
 ): Promise<CommunitySurface | null> {
+  const lite = options?.lite ?? false;
   const community = getCommunityBySlug(slug);
   if (!community) return null;
 
   const [treasury, connectors, navidrome, ownerProfile] = await Promise.all([
-    getTreasurySnapshot().catch(() => ({
-      balanceUsd: 0,
-      obligationsUsd: 0,
-      availableUsd: 0,
-      canSettleGlobally: false,
-    })),
+    lite
+      ? Promise.resolve({
+          balanceUsd: 0,
+          obligationsUsd: 0,
+          availableUsd: 0,
+          canSettleGlobally: false,
+        })
+      : getTreasurySnapshot().catch(() => ({
+          balanceUsd: 0,
+          obligationsUsd: 0,
+          availableUsd: 0,
+          canSettleGlobally: false,
+        })),
     getConnectorLiveStatuses().catch(() => []),
     getNavidromeSyncStatus().catch(() => null),
-    userId ?
-      prisma.user.findUnique({ where: { id: userId }, select: { availableUsd: true } })
-    : Promise.resolve(null),
+    userId
+      ? prisma.user.findUnique({ where: { id: userId }, select: { availableUsd: true } })
+      : Promise.resolve(null),
   ]);
 
   const install = userId ? await getInstall(userId, slug) : null;
-  const programs = userId ? await listProgramsForCommunity(userId, slug) : [];
+  const rawPrograms = userId ? await listProgramsForCommunity(userId, slug) : [];
 
   let authorizedUsd = 0;
   let settledUsd = 0;
   let playCount = 0;
   let artistCount = 0;
-  const missionIds = programs.map((p) => p.missionId).filter(Boolean) as string[];
+  const missionIds = rawPrograms.map((p) => p.missionId).filter(Boolean) as string[];
   const authorizationPreviews: CommunitySurface["authorizations"] = [];
   if (missionIds.length) {
     const rows = await prisma.paymentAuthorization.findMany({
       where: { missionId: { in: missionIds } },
       orderBy: { createdAt: "desc" },
-      take: 12,
+      take: lite ? 8 : 12,
       select: {
         id: true,
         payeeKey: true,
@@ -142,9 +286,27 @@ export async function buildCommunitySurface(
     artistCount += new Set(summary.authorizations.map((a) => a.payeeKey)).size;
   }
 
-  const programBudgetUsd = programs.reduce((s, p) => s + p.budgetUsd, 0);
+  const programBudgetUsd = rawPrograms.reduce((s, p) => s + p.budgetUsd, 0);
   const communityObligationsUsd = authorizedUsd;
   const platformFeeUsd = computePlatformFee(authorizedUsd);
+  const ownerDepositUsd = ownerProfile?.availableUsd ?? 0;
+
+  const programs: ProgramRecord[] = await Promise.all(
+    rawPrograms.map(async (program) => ({
+      ...program,
+      deployReadiness: await buildProgramDeployReadiness({
+        program,
+        install,
+        communityKind: community.kind,
+        connectors: community.connectors,
+        ownerDepositUsd,
+        userId,
+        resolveWallets: !lite,
+      }),
+    })),
+  );
+
+  const deployReadiness = aggregateDeployReadiness(programs);
 
   const connectorStatus = community.connectors.map((id) => {
     const live = connectors.find((c) => c.id === id);
@@ -155,15 +317,16 @@ export async function buildCommunitySurface(
     };
   });
 
-  const timeline = userId
-    ? await buildLiveTimeline(userId, {
-        ecosystemId: install?.ecosystemId ?? undefined,
-        missionIds,
-      })
-    : [];
+  const timeline =
+    !lite && userId
+      ? await buildLiveTimeline(userId, {
+          ecosystemId: install?.ecosystemId ?? undefined,
+          missionIds,
+        })
+      : [];
 
   const observatory =
-    userId && install
+    !lite && userId && install
       ? await buildCommunityObservatory({
           userId,
           communitySlug: slug,
@@ -174,66 +337,13 @@ export async function buildCommunitySurface(
       : [];
 
   const economicMemory =
-    userId
+    !lite && userId
       ? await buildEconomicMemory({
           userId,
           ecosystemId: install?.ecosystemId ?? null,
           missionIds,
         })
       : [];
-
-  let walletMappedCount = 0;
-  let authorizedForDeployUsd = 0;
-  const authorizedForDeploy: Array<{
-    payeeKey: string;
-    status: string;
-    amountUsd: number;
-  }> = [];
-
-  for (const summary of missionSummaries) {
-    for (const a of summary.authorizations) {
-      if (a.status === "authorized" || a.status === "pending_funding") {
-        authorizedForDeployUsd += a.amountUsd;
-        authorizedForDeploy.push({
-          payeeKey: a.payeeKey,
-          status: a.status,
-          amountUsd: a.amountUsd,
-        });
-      }
-    }
-  }
-
-  if (authorizedForDeploy.length > 0) {
-    const payees = await Promise.all(
-      authorizedForDeploy.map((a) =>
-        resolvePayee({
-          platform: "navidrome",
-          payload: { exifArtist: a.payeeKey },
-        }).catch(() => ({ wallet: null as string | null })),
-      ),
-    );
-    walletMappedCount = payees.filter((payee) => payee.wallet).length;
-  }
-
-  const deployReasons: string[] = [];
-  const pendingObligationsUsd = Math.round(authorizedForDeployUsd * 10000) / 10000;
-  if (!install) deployReasons.push("Install RESOLVE on this community");
-  if (authorizedForDeploy.length === 0) {
-    deployReasons.push(
-      community.kind === "music"
-        ? "Connect ListenBrainz on Profile — plays sync automatically"
-        : "Run live sensors — authorizations appear when upstream activity is recognized",
-    );
-  }
-  if (pendingObligationsUsd > 0.01) {
-    deployReasons.push(
-      `$${pendingObligationsUsd.toFixed(2)} owed — fund program pool or deposit before deploy`,
-    );
-  }
-  const ownerDepositUsd = ownerProfile?.availableUsd ?? 0;
-  if (userId && ownerDepositUsd < authorizedUsd && authorizedUsd > 0) {
-    deployReasons.push("Deposit USDC to your account to cover program obligations");
-  }
 
   return {
     slug: community.slug,
@@ -248,7 +358,7 @@ export async function buildCommunitySurface(
     install,
     programs,
     health: {
-      treasuryUsd: treasury.balanceUsd,
+      treasuryUsd: programBudgetUsd,
       obligationsUsd: treasury.obligationsUsd,
       communityObligationsUsd,
       connectorStatus,
@@ -256,7 +366,7 @@ export async function buildCommunitySurface(
       lastScrobbleAt: navidrome?.cursor?.lastSubmissionTime ?? null,
     },
     impact: buildImpactChain({
-      treasuryUsd: treasury.balanceUsd,
+      treasuryUsd: programBudgetUsd,
       programBudgetUsd,
       communityObligationsUsd,
       authorizedUsd,
@@ -267,7 +377,7 @@ export async function buildCommunitySurface(
     }),
     observatory,
     economicMemory,
-    authorizations: authorizationPreviews.slice(0, 12),
+    authorizations: authorizationPreviews.slice(0, lite ? 8 : 12),
     timeline: timeline.slice(0, 20).map((t) => ({
       id: t.id,
       eventType: t.eventType,
@@ -275,14 +385,7 @@ export async function buildCommunitySurface(
       detail: t.detail,
       createdAt: t.createdAt,
     })),
-    deployReadiness: {
-      canDeploy: deployReasons.length === 0 && authorizedForDeploy.length > 0,
-      authorizedCount: authorizedForDeploy.length,
-      authorizedUsd: Math.round(authorizedForDeployUsd * 10000) / 10000,
-      pendingObligationsUsd,
-      walletMappedCount,
-      reasons: deployReasons,
-    },
+    deployReadiness,
   };
 }
 

@@ -6,5 +6,6 @@ export const queryKeys = {
   capitalWallet: ["capital", "wallet"] as const,
   profileEarnings: ["profile", "earnings"] as const,
   communities: ["communities", "list"] as const,
-  communitySurface: (slug: string) => ["communities", "surface", slug] as const,
+  communitySurface: (slug: string, mode: "lite" | "full" = "lite") =>
+    ["communities", "surface", slug, mode] as const,
 };

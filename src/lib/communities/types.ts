@@ -30,6 +30,15 @@ export type ProgramRules = {
   openCollectiveSlug?: string;
 };
 
+export type ProgramDeployReadiness = {
+  canDeploy: boolean;
+  authorizedCount: number;
+  authorizedUsd: number;
+  pendingObligationsUsd: number;
+  walletMappedCount: number;
+  reasons: string[];
+};
+
 export type ProgramRecord = {
   id: string;
   installId: string;
@@ -45,6 +54,7 @@ export type ProgramRecord = {
   lastSettlementId: string | null;
   createdAt: string;
   updatedAt: string;
+  deployReadiness?: ProgramDeployReadiness;
 };
 
 export type CommunityImpactChain = {

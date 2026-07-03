@@ -22,6 +22,7 @@ import { ArcTxLink } from "@/components/resolve/ui/arc-tx-link";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { apiFetchWallet } from "@/lib/discover/discover-action-engine";
 import { PLATFORM_LOOP_TAGLINE } from "@/lib/economy/platform-loop";
+import { useDiscoverSolveOptional } from "@/components/resolve/discover/discover-solve-provider";
 
 type AgentServiceCard = {
   id: string;
@@ -146,6 +147,29 @@ export function DiscoverAgentSignalMarket({
     if (svc) setServiceId(svc);
   }, [searchParams]);
 
+  // Card "Solve with AI" → prefill, scroll here, and auto-run the agent.
+  const solve = useDiscoverSolveOptional();
+  const solveToken = solve?.request?.token;
+  useEffect(() => {
+    const req = solve?.request;
+    if (!req) return;
+    setPrompt(req.prompt);
+    setServiceId(req.serviceId);
+    document
+      .getElementById("agent-market")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!signedIn) {
+      openSignIn();
+      return;
+    }
+    const timer = setTimeout(() => {
+      void runIntel({ prompt: req.prompt, serviceId: req.serviceId });
+    }, 400);
+    return () => clearTimeout(timer);
+    // Re-run only when a new Solve request arrives (token changes).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solveToken]);
+
   const selected = useMemo(
     () => catalog?.services.find((s) => s.id === serviceId) ?? catalog?.services[0],
     [catalog?.services, serviceId],
@@ -154,12 +178,14 @@ export function DiscoverAgentSignalMarket({
   const pricePreview = selected?.priceUsd ?? 0.001;
   const canAfford = walletUsd == null || walletUsd >= pricePreview;
 
-  async function runIntel() {
+  async function runIntel(override?: { prompt?: string; serviceId?: string }) {
     if (!signedIn) {
       openSignIn();
       return;
     }
-    if (!prompt.trim()) {
+    const activePrompt = (override?.prompt ?? prompt).trim();
+    const activeServiceId = override?.serviceId ?? serviceId;
+    if (!activePrompt) {
       toast.error("Enter an intel prompt");
       return;
     }
@@ -171,9 +197,9 @@ export function DiscoverAgentSignalMarket({
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          serviceId,
-          prompt: prompt.trim(),
-          text: prompt.trim(),
+          serviceId: activeServiceId,
+          prompt: activePrompt,
+          text: activePrompt,
           maxSpendUsd: budgetUsd,
         }),
       });

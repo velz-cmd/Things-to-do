@@ -22,11 +22,25 @@ const DiscoverValueBubblemap = dynamic(
     ),
   },
 );
+
+const DiscoverAgentSignalMarket = dynamic(
+  () =>
+    import("@/components/resolve/discover/discover-agent-signal-market").then(
+      (m) => m.DiscoverAgentSignalMarket,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 animate-pulse rounded-xl border border-white/[0.06] bg-white/[0.02]" />
+    ),
+  },
+);
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverCommunityConsoleProvider } from "@/components/resolve/discover/discover-community-console-provider";
 import { DiscoverUrlHandoff } from "@/components/resolve/discover/discover-url-handoff";
 import { DiscoverRadarFeedProvider } from "@/components/resolve/discover/discover-radar-feed-provider";
+import { DiscoverSolveProvider } from "@/components/resolve/discover/discover-solve-provider";
 import {
   DiscoverActionAuditPanel,
   DiscoverActionAuditProvider,
@@ -54,9 +68,11 @@ export function DiscoverSurface() {
       <DiscoverRadarFeedProvider>
         <DiscoverActionsProvider signedIn={Boolean(user)}>
           <DiscoverCommunityConsoleProvider>
-            <DiscoverUrlHandoff />
-            <DiscoverSurfaceContent user={user} />
-            <DiscoverActionAuditPanel />
+            <DiscoverSolveProvider>
+              <DiscoverUrlHandoff />
+              <DiscoverSurfaceContent user={user} />
+              <DiscoverActionAuditPanel />
+            </DiscoverSolveProvider>
           </DiscoverCommunityConsoleProvider>
         </DiscoverActionsProvider>
       </DiscoverRadarFeedProvider>
@@ -168,6 +184,10 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
             )}
           </div>
         </section>
+
+        <div className="discover-section-stack">
+          <DiscoverAgentSignalMarket signedIn={Boolean(user)} />
+        </div>
 
         <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">
           <DiscoverValueBubblemap

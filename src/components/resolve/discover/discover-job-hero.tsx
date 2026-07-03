@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { DISCOVER_JOBS, type DiscoverJobId } from "@/lib/discover/discover-jobs";
+import { DISCOVER_HERO_SUBTITLE } from "@/lib/discover/discover-lane-copy";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 export function DiscoverJobHero({
@@ -15,14 +16,17 @@ export function DiscoverJobHero({
 }) {
   return (
     <header className={clsx("discover-on-canvas relative mb-4", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="discover-eyebrow text-[10px] font-semibold uppercase tracking-[0.24em]">
             Discover
           </p>
           <h1 className="mt-0.5 text-lg font-semibold tracking-tight text-white sm:text-xl">
-            What do you want to do?
+            {DISCOVER_HERO_SUBTITLE}
           </h1>
+          <p className="mt-1 max-w-xl text-xs text-resolve-muted">
+            Find blocked value — pick one opportunity and take one action.
+          </p>
         </div>
       </div>
 
@@ -39,6 +43,7 @@ export function DiscoverJobHero({
               type="button"
               role="tab"
               aria-selected={selected}
+              title={job.title}
               onClick={() => onSelectJob(job.id, job.role, job.scrollTo)}
               className={clsx(
                 "rounded-full border px-3 py-1.5 text-[11px] font-medium transition",
@@ -47,7 +52,7 @@ export function DiscoverJobHero({
                   : "border-white/10 bg-white/[0.03] text-resolve-muted hover:border-white/20 hover:text-white",
               )}
             >
-              {job.title}
+              {job.who}
             </button>
           );
         })}

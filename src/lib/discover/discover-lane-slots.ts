@@ -6,10 +6,21 @@ import { platformConnected } from "@/lib/profile/connection-state-types";
 import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
 import type { DiscoverCardLane } from "@/lib/discover/types";
 import {
+  buildAgentAnalyzeActionForGap,
+  buildAutomateActionForGap,
+} from "@/lib/discover/need-types";
+import {
   getOpportunityState,
   type ActionResolveInput,
   type DiscoverActionSlot,
 } from "@/lib/discover/discover-opportunity-state";
+
+const MAX_SLOTS = 3;
+const MAX_ADVANCED = 5;
+
+function actionKey(action: DiscoverAction): string {
+  return `${action.kind}:${action.id}`;
+}
 
 function findAction(pool: DiscoverAction[], kind: DiscoverAction["kind"]): DiscoverAction | undefined {
   return pool.find((a) => a.kind === kind);
@@ -46,28 +57,29 @@ function profileConnectAction(gap: TrendingValueGap): DiscoverAction {
   });
 }
 
-function fundAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction {
-  return (
-    findAction(pool, "fund") ??
-    findAction(pool, "sponsor") ??
-    synthAction(gap, "fund", "Fund pool", "fund")
-  );
+function fundAction(pool: DiscoverAction[], gap: TrendingValueGap, label = "Fund pool"): DiscoverAction {
+  const fromPool = findAction(pool, "fund") ?? findAction(pool, "sponsor");
+  if (fromPool) return { ...fromPool, label: label === "Fund pool" ? fromPool.label : label };
+  return synthAction(gap, "fund", label, "fund");
+}
+
+function rewardAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction {
+  return fundAction(pool, gap, "Reward contributors");
 }
 
 function ruleAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction {
-  return (
-    findAction(pool, "create_program") ??
-    synthAction(gap, "rule", "Create payout rule", "create_program")
-  );
+  const fromPool = findAction(pool, "create_program");
+  if (fromPool) return { ...fromPool, label: "Create reward program" };
+  return synthAction(gap, "rule", "Create reward program", "create_program");
 }
 
 function proofAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
   const fromPool = findActionMatching(pool, /proof/i) ?? findAction(pool, "open");
   if (fromPool && (/proof/i.test(fromPool.label) || gap.proofHref || gap.entityPath)) {
-    return fromPool;
+    return { ...fromPool, label: "View live proof" };
   }
   if (gap.proofHref || gap.entityPath) {
-    return synthAction(gap, "proof", "View proof", "open", {
+    return synthAction(gap, "proof", "View live proof", "open", {
       href: gap.proofHref,
       entityPath: gap.entityPath ?? (gap.communitySlug ? `/communities/${gap.communitySlug}` : undefined),
     });
@@ -75,13 +87,13 @@ function proofAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAct
   return undefined;
 }
 
-function scanAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
-  return (
-    findAction(pool, "analyze") ??
-    (gap.communitySlug
-      ? synthAction(gap, "scan", "Scan activity", "analyze", { communitySlug: gap.communitySlug })
-      : undefined)
-  );
+function estimateImpactAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
+  const preview = findActionMatching(pool, /split|preview|simulat/i);
+  if (preview) return preview;
+  if (!gap.communitySlug) return undefined;
+  return synthAction(gap, "estimate-impact", "Estimate impact", "analyze", {
+    communitySlug: gap.communitySlug,
+  });
 }
 
 function mapIdentityAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
@@ -94,13 +106,14 @@ function mapIdentityAction(pool: DiscoverAction[], gap: TrendingValueGap): Disco
   );
 }
 
-function previewAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
-  return findActionMatching(pool, /split|preview/i);
-}
-
-function graphAction(gap: TrendingValueGap): DiscoverAction {
-  return synthAction(gap, "graph", "Open value graph", "open", {
-    href: "/discover#opportunities",
+function consoleAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
+  const fromPool = findAction(pool, "console");
+  if (fromPool) return fromPool;
+  if (!gap.communitySlug) return undefined;
+  const profile = getCommunityValueProfile(gap.communitySlug);
+  const name = profile?.product ?? gap.communitySlug.replace(/-/g, " ");
+  return synthAction(gap, "console", `Open ${name}`, "console", {
+    communitySlug: gap.communitySlug,
   });
 }
 
@@ -118,12 +131,17 @@ function receiptAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverA
 function setupAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction {
   const install = findAction(pool, "install");
   if (install) {
-    return {
-      ...install,
-      label: install.label.replace(/^Set up/i, "Create community program for"),
-    };
+    return { ...install, label: "Create community program" };
   }
   return findAction(pool, "connect_sensor") ?? profileConnectAction(gap);
+}
+
+function automateAction(gap: TrendingValueGap, pool: DiscoverAction[]): DiscoverAction | undefined {
+  return findAction(pool, "automate") ?? buildAutomateActionForGap(gap) ?? undefined;
+}
+
+function agentAnalyzeAction(gap: TrendingValueGap, pool: DiscoverAction[]): DiscoverAction | undefined {
+  return findAction(pool, "analyze") ?? buildAgentAnalyzeActionForGap(gap) ?? undefined;
 }
 
 function canClaimGap(
@@ -133,30 +151,45 @@ function canClaimGap(
   if (!connections?.signedIn) return false;
   if (!gap.amountVerified && !gap.proofAuthorizationId) return false;
   if (gap.domain === "oss" && !connections.githubUsername) return false;
-  if (gap.domain === "music" && !platformConnected(connections, "navidrome") && !platformConnected(connections, "listenbrainz")) {
+  if (
+    gap.domain === "music" &&
+    !platformConnected(connections, "navidrome") &&
+    !platformConnected(connections, "listenbrainz")
+  ) {
     return false;
   }
   return gap.actions.some((a) => a.kind === "claim") || Boolean(gap.proofAuthorizationId);
 }
 
 type SlotContext = {
-  input: ActionResolveInput;
-  pool: DiscoverAction[];
   gap: TrendingValueGap;
+  pool: DiscoverAction[];
   connected: boolean;
   state: ReturnType<typeof getOpportunityState>;
   effectiveRole: DiscoverRole;
   push: (slot: DiscoverActionSlot) => void;
   fund: DiscoverAction;
+  reward: DiscoverAction;
   rule: DiscoverAction;
   proof: DiscoverAction | undefined;
-  scan: DiscoverAction | undefined;
   claim: DiscoverAction;
   receipt: DiscoverAction | undefined;
   connect: DiscoverAction;
-  preview: DiscoverAction | undefined;
+  estimate: DiscoverAction | undefined;
   mapIdentity: DiscoverAction | undefined;
+  console: DiscoverAction | undefined;
+  automate: DiscoverAction | undefined;
+  agent: DiscoverAction | undefined;
 };
+
+function makePush(slots: DiscoverActionSlot[]) {
+  return (slot: DiscoverActionSlot) => {
+    if (slots.length >= MAX_SLOTS) return;
+    const key = actionKey(slot.action);
+    if (slots.some((s) => actionKey(s.action) === key)) return;
+    slots.push(slot);
+  };
+}
 
 function signedOutSlots(ctx: SlotContext) {
   ctx.push({
@@ -167,14 +200,37 @@ function signedOutSlots(ctx: SlotContext) {
   });
 }
 
-/** Live Signals — prove activity; fund only when obligation exists. */
+function terminalStates(ctx: SlotContext, connections: UserConnectionState | null | undefined): boolean {
+  if (ctx.state === "claimable" && canClaimGap(ctx.gap, connections)) {
+    ctx.push({ action: ctx.claim, variant: "primary" });
+    if (ctx.proof) ctx.push({ action: ctx.proof, variant: "secondary" });
+    return true;
+  }
+
+  if (ctx.state === "claimable") {
+    ctx.push({
+      action: ctx.claim,
+      variant: "primary",
+      disabled: true,
+      disabledReason: "Only creator can claim",
+    });
+    if (ctx.proof) ctx.push({ action: ctx.proof, variant: "secondary" });
+    return true;
+  }
+
+  if (ctx.state === "settled") {
+    if (ctx.receipt) ctx.push({ action: ctx.receipt, variant: "primary" });
+    else if (ctx.proof) ctx.push({ action: ctx.proof, variant: "primary" });
+    return true;
+  }
+
+  return false;
+}
+
+/** Live Signals — react to proof; no create-program primaries. */
 function resolveRadarsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   const slots: DiscoverActionSlot[] = [];
-  const push = (slot: DiscoverActionSlot) => {
-    if (slots.length >= 3) return;
-    if (slots.some((s) => s.action.id === slot.action.id && s.action.kind === slot.action.kind)) return;
-    slots.push(slot);
-  };
+  const push = makePush(slots);
 
   const { gap, connections, role, signedIn, spendableUsd } = input;
   const pool = gap.actions;
@@ -183,22 +239,24 @@ function resolveRadarsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   const effectiveRole = role === "all" ? "operator" : role;
 
   const ctx: SlotContext = {
-    input,
-    pool,
     gap,
+    pool,
     connected,
     state,
     effectiveRole,
     push,
     fund: fundAction(pool, gap),
+    reward: rewardAction(pool, gap),
     rule: ruleAction(pool, gap),
     proof: proofAction(pool, gap),
-    scan: scanAction(pool, gap),
     claim: claimAction(pool, gap),
     receipt: receiptAction(pool, gap),
     connect: setupAction(pool, gap),
-    preview: previewAction(pool, gap),
+    estimate: estimateImpactAction(pool, gap),
     mapIdentity: mapIdentityAction(pool, gap),
+    console: consoleAction(pool, gap),
+    automate: automateAction(gap, pool),
+    agent: agentAnalyzeAction(gap, pool),
   };
 
   if (!signedIn) {
@@ -206,23 +264,13 @@ function resolveRadarsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
     return slots;
   }
 
-  if (state === "claimable" && canClaimGap(gap, connections)) {
-    push({ action: ctx.claim, variant: "primary" });
-    if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
-    return slots;
-  }
-
-  if (state === "settled") {
-    if (ctx.receipt) push({ action: ctx.receipt, variant: "primary" });
-    else if (ctx.proof) push({ action: ctx.proof, variant: "primary" });
-    return slots;
-  }
+  if (terminalStates(ctx, connections)) return slots;
 
   if (state === "detected") {
     push({ action: ctx.connect, variant: "primary" });
-    if (ctx.scan) {
+    if (ctx.agent) {
       push({
-        action: ctx.scan,
+        action: ctx.agent,
         variant: "secondary",
         disabled: true,
         disabledReason: "Connect source first",
@@ -232,15 +280,12 @@ function resolveRadarsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   }
 
   if (state === "verified") {
-    if (ctx.scan) push({ action: ctx.scan, variant: "primary" });
-    else push({ action: ctx.rule, variant: "primary" });
-    if (effectiveRole === "operator" || effectiveRole === "founder") {
-      if (ctx.rule && slots[0]?.action.kind !== "create_program") {
-        push({ action: ctx.rule, variant: "secondary" });
-      }
-    }
-    if (ctx.proof && slots.length < 3) push({ action: ctx.proof, variant: "secondary" });
-    if (ctx.mapIdentity && slots.length < 3) push({ action: ctx.mapIdentity, variant: "secondary" });
+    if (ctx.automate) push({ action: ctx.automate, variant: "primary" });
+    else if (ctx.agent) push({ action: ctx.agent, variant: "primary" });
+    else if (ctx.reward) push({ action: ctx.reward, variant: "primary", disabled: true, disabledReason: "Create a reward program in Unpaid Value first" });
+
+    if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
+    else if (ctx.mapIdentity) push({ action: ctx.mapIdentity, variant: "secondary" });
     return slots;
   }
 
@@ -253,51 +298,56 @@ function resolveRadarsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
         disabled: lowBalance,
         disabledReason: lowBalance ? "Add Arc USDC first" : undefined,
       });
+    } else if (ctx.automate) {
+      push({ action: ctx.automate, variant: "primary" });
     } else {
-      push({ action: ctx.rule, variant: "primary" });
+      push({ action: ctx.reward, variant: "primary" });
     }
-    if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
+    if (ctx.agent && slots[0]?.action.kind !== "analyze") {
+      push({ action: ctx.agent, variant: "secondary" });
+    } else if (ctx.proof) {
+      push({ action: ctx.proof, variant: "secondary" });
+    }
     return slots;
   }
 
-  // funded
-  if (ctx.proof) push({ action: ctx.proof, variant: "primary" });
-  if (ctx.scan && slots.length < 3) push({ action: ctx.scan, variant: "secondary" });
+  // funded — reward + automate/agent
+  push({ action: ctx.reward, variant: "primary" });
+  if (ctx.automate) push({ action: ctx.automate, variant: "secondary" });
+  else if (ctx.agent) push({ action: ctx.agent, variant: "secondary" });
   return slots;
 }
 
-/** Unpaid Value — fund, rule, scan, preview, proof. */
+/** Unpaid Value — create economies; fund pools; no manual scan primaries. */
 function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   const slots: DiscoverActionSlot[] = [];
-  const push = (slot: DiscoverActionSlot) => {
-    if (slots.length >= 3) return;
-    if (slots.some((s) => s.action.id === slot.action.id && s.action.kind === slot.action.kind)) return;
-    slots.push(slot);
-  };
+  const push = makePush(slots);
 
   const { gap, connections, role, signedIn, spendableUsd } = input;
   const pool = gap.actions;
   const connected = gap.communitySlug != null && communityReadyForDiscover(gap.communitySlug, connections);
   const state = getOpportunityState(gap, connected);
-  const effectiveRole = role === "all" ? "funder" : role;
+  const effectiveRole = role === "all" ? "founder" : role;
 
   const ctx: SlotContext = {
-    input,
-    pool,
     gap,
+    pool,
     connected,
     state,
     effectiveRole,
     push,
     fund: fundAction(pool, gap),
+    reward: rewardAction(pool, gap),
     rule: ruleAction(pool, gap),
     proof: proofAction(pool, gap),
-    scan: scanAction(pool, gap),
     claim: claimAction(pool, gap),
     receipt: receiptAction(pool, gap),
     connect: setupAction(pool, gap),
-    preview: previewAction(pool, gap),
+    estimate: estimateImpactAction(pool, gap),
     mapIdentity: mapIdentityAction(pool, gap),
+    console: consoleAction(pool, gap),
+    automate: automateAction(gap, pool),
+    agent: agentAnalyzeAction(gap, pool),
   };
 
   if (!signedIn) {
@@ -305,27 +355,7 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
     return slots;
   }
 
-  if (state === "claimable") {
-    if (canClaimGap(gap, connections)) {
-      push({ action: ctx.claim, variant: "primary" });
-      if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
-    } else if (ctx.proof) {
-      push({
-        action: ctx.claim,
-        variant: "primary",
-        disabled: true,
-        disabledReason: "Only creator can claim",
-      });
-      push({ action: ctx.proof, variant: "secondary" });
-    }
-    return slots;
-  }
-
-  if (state === "settled") {
-    if (ctx.receipt) push({ action: ctx.receipt, variant: "primary" });
-    else if (ctx.proof) push({ action: ctx.proof, variant: "primary" });
-    return slots;
-  }
+  if (terminalStates(ctx, connections)) return slots;
 
   if (state === "detected") {
     if (effectiveRole === "funder" || effectiveRole === "dao") {
@@ -348,14 +378,94 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
         action: ctx.fund,
         variant: "primary",
         disabled: true,
-        disabledReason: "Program rule required",
+        disabledReason: "Reward program required first",
       });
-      if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
+      if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
+      else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
     } else {
       push({ action: ctx.rule, variant: "primary" });
-      if (ctx.scan) push({ action: ctx.scan, variant: "secondary" });
-      else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
+      if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
+      else if (ctx.fund) {
+        push({
+          action: { ...ctx.fund, label: "Fund initial pool" },
+          variant: "secondary",
+          disabled: spendableUsd != null && spendableUsd < 5,
+          disabledReason: spendableUsd != null && spendableUsd < 5 ? "Add Arc USDC first" : undefined,
+        });
+      }
     }
+    return slots;
+  }
+
+  if (state === "programmed") {
+    const lowBalance = spendableUsd != null && spendableUsd < 5;
+    push({
+      action: { ...ctx.fund, label: "Fund initial pool" },
+      variant: "primary",
+      disabled: lowBalance,
+      disabledReason: lowBalance ? "Add Arc USDC first" : undefined,
+    });
+    if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
+    else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
+    return slots;
+  }
+
+  // funded
+  push({ action: ctx.fund, variant: "primary" });
+  if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
+  else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
+  return slots;
+}
+
+/** Value graph board — fund gaps and open communities; creation lives in Unpaid Value. */
+function resolveGraphSlots(input: ActionResolveInput): DiscoverActionSlot[] {
+  const slots: DiscoverActionSlot[] = [];
+  const push = makePush(slots);
+
+  const { gap, connections, role, signedIn, spendableUsd } = input;
+  const pool = gap.actions;
+  const connected = gap.communitySlug != null && communityReadyForDiscover(gap.communitySlug, connections);
+  const state = getOpportunityState(gap, connected);
+  const effectiveRole = role === "all" ? "funder" : role;
+
+  const ctx: SlotContext = {
+    gap,
+    pool,
+    connected,
+    state,
+    effectiveRole,
+    push,
+    fund: fundAction(pool, gap, "Fund gap"),
+    reward: rewardAction(pool, gap),
+    rule: ruleAction(pool, gap),
+    proof: proofAction(pool, gap),
+    claim: claimAction(pool, gap),
+    receipt: receiptAction(pool, gap),
+    connect: setupAction(pool, gap),
+    estimate: estimateImpactAction(pool, gap),
+    mapIdentity: mapIdentityAction(pool, gap),
+    console: consoleAction(pool, gap),
+    automate: automateAction(gap, pool),
+    agent: agentAnalyzeAction(gap, pool),
+  };
+
+  if (!signedIn) {
+    signedOutSlots(ctx);
+    return slots;
+  }
+
+  if (terminalStates(ctx, connections)) return slots;
+
+  if (state === "detected") {
+    if (ctx.console) push({ action: ctx.console, variant: "primary" });
+    push({ action: ctx.connect, variant: "secondary" });
+    return slots;
+  }
+
+  if (state === "verified") {
+    if (ctx.console) push({ action: ctx.console, variant: "primary" });
+    if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
+    else if (ctx.agent) push({ action: ctx.agent, variant: "secondary" });
     return slots;
   }
 
@@ -367,28 +477,60 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
       disabled: lowBalance,
       disabledReason: lowBalance ? "Add Arc USDC first" : undefined,
     });
-    if (ctx.preview) push({ action: ctx.preview, variant: "secondary" });
-    else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
+    if (ctx.console) push({ action: ctx.console, variant: "secondary" });
     return slots;
   }
 
-  // funded
   push({ action: ctx.fund, variant: "primary" });
-  if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
-  else push({ action: graphAction(gap), variant: "secondary" });
+  if (ctx.console) push({ action: ctx.console, variant: "secondary" });
+  else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
   return slots;
 }
 
-/** Value Graph board rows — same money flow as gaps with graph context. */
-function resolveGraphSlots(input: ActionResolveInput): DiscoverActionSlot[] {
-  const slots = resolveGapsSlots(input);
-  if (slots.length < 3 && !slots.some((s) => s.action.id === "graph")) {
-    const graph = graphAction(input.gap);
-    if (slots.length < 3) {
-      slots.push({ action: graph, variant: slots.length === 0 ? "primary" : "secondary" });
+/** Learn / observe actions — never primary lane CTAs. */
+export function resolveLaneAdvancedActions(
+  input: ActionResolveInput,
+  slots: DiscoverActionSlot[],
+): DiscoverAction[] {
+  const used = new Set(slots.map((s) => actionKey(s.action)));
+  const { gap, lane } = input;
+  const pool = gap.actions;
+  const out: DiscoverAction[] = [];
+
+  const pushCandidate = (action: DiscoverAction | undefined) => {
+    if (!action || out.length >= MAX_ADVANCED) return;
+    const key = actionKey(action);
+    if (used.has(key) || out.some((a) => actionKey(a) === key)) return;
+    out.push(action);
+  };
+
+  pushCandidate(proofAction(pool, gap));
+  pushCandidate(mapIdentityAction(pool, gap));
+
+  if (lane === "gaps") {
+    pushCandidate(automateAction(gap, pool));
+    pushCandidate(agentAnalyzeAction(gap, pool));
+    pushCandidate(consoleAction(pool, gap));
+  }
+
+  if (lane === "radars") {
+    pushCandidate(agentAnalyzeAction(gap, pool));
+    pushCandidate(automateAction(gap, pool));
+  }
+
+  if (lane === "graph") {
+    pushCandidate(agentAnalyzeAction(gap, pool));
+    pushCandidate(automateAction(gap, pool));
+  }
+
+  for (const action of pool) {
+    if (out.length >= MAX_ADVANCED) break;
+    if (action.kind === "open" && /graph|explore ecosystem/i.test(action.label)) {
+      pushCandidate(action);
     }
   }
-  return slots.slice(0, 3);
+
+  return out;
 }
 
 /** Tab-specific action slots — Discover / Live Signals / Value Graph. */

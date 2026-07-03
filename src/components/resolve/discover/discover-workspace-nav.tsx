@@ -38,7 +38,8 @@ const LANES: {
 const JOB_LANE: Record<DiscoverJobId, DiscoverWorkspaceLane> = {
   earn: "gaps",
   fund: "board",
-  run: "board",
+  run: "gaps",
+  automate: "radars",
   grants: "radars",
   find: "gaps",
 };

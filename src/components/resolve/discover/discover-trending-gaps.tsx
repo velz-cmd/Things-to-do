@@ -9,6 +9,7 @@ import type { DiscoverIntent } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import { filterGapsByNeedType } from "@/lib/discover/need-types";
+import { LANE_PURPOSE } from "@/lib/discover/discover-lane-copy";
 import { sortByOpportunityScore, type OpportunitySortKey } from "@/lib/discover/opportunity-score";
 import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
@@ -73,8 +74,8 @@ export function DiscoverTrendingGaps({
 
   const subtitle =
     feed?.realSignalCount != null && feed.realSignalCount > 0
-      ? `${feed.realSignalCount} verified on ledger`
-      : undefined;
+      ? `${feed.realSignalCount} verified on ledger · ${LANE_PURPOSE.gaps}`
+      : LANE_PURPOSE.gaps;
 
   return (
     <DiscoverPremiumSection

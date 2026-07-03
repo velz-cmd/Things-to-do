@@ -127,7 +127,7 @@ function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): st
     artists: { fund: "Fund royalty pool", create_program: "Launch royalty pool" },
     researchers: { fund: "Fund citations", connect_sensor: "Explore research" },
     grants: { fund: "Fund grant pool", create_program: "Launch QF round" },
-    automation: { automate: "Auto-pay rule", analyze: "Run agent", connect_sensor: "Explore program" },
+    automation: { automate: "Automate payouts", analyze: "Run analysis", connect_sensor: "Explore program" },
   };
   return map[needType]?.[action.kind] ?? action.label;
 }
@@ -161,13 +161,73 @@ function automationAction(needType: DiscoverNeedType, gap: TrendingValueGap): Di
       : "Run agent signal on this opportunity";
   return {
     id: `agent-${serviceId}`,
-    label: needType === "automation" ? "Run agent" : "Automate",
+      label: needType === "automation" ? "Run analysis" : "Automate payouts",
     kind: "analyze",
     href: `/mission?service=${encodeURIComponent(serviceId)}&prompt=${encodeURIComponent(prompt)}`,
     communitySlug: gap.communitySlug,
     templateId: gap.templateId,
     serviceId,
   };
+}
+
+const DOMAIN_AGENT_LABEL: Partial<Record<TrendingValueGap["domain"], string>> = {
+  oss: "Run maintainer analysis",
+  music: "Run attribution analysis",
+  research: "Run citation analysis",
+  dao: "Run funding analysis",
+  community: "Run opportunity analysis",
+  protocol: "Run network analysis",
+};
+
+/** Founder-language agent CTA for Live Signals and advanced rows. */
+export function buildAgentAnalyzeActionForGap(gap: TrendingValueGap): DiscoverAction | null {
+  const needType = classifyNeedType({
+    domain: gap.domain,
+    templateId: gap.templateId,
+    connectorId: gap.proofConnectorId,
+    headline: gap.headline,
+    why: gap.why,
+  });
+
+  const serviceId = AGENT_SERVICE_BY_NEED[needType];
+  if (!serviceId) return null;
+
+  const label =
+    DOMAIN_AGENT_LABEL[gap.domain] ??
+    (needType === "docs"
+      ? "Run maintainer analysis"
+      : needType === "artists"
+        ? "Run attribution analysis"
+        : needType === "researchers"
+          ? "Run citation analysis"
+          : "Run analysis");
+
+  const prompt =
+    gap.headline.length > 12
+      ? `Analyze opportunity: ${gap.headline}`
+      : "Run analysis on this opportunity";
+
+  return {
+    id: `agent-${serviceId}-${gap.id}`,
+    label,
+    kind: "analyze",
+    href: `/mission?service=${encodeURIComponent(serviceId)}&prompt=${encodeURIComponent(prompt)}`,
+    communitySlug: gap.communitySlug,
+    templateId: gap.templateId,
+    serviceId,
+  };
+}
+
+/** Community-scoped automate rule — opens Discover bubble operator panel. */
+export function buildAutomateActionForGap(gap: TrendingValueGap): DiscoverAction | null {
+  const needType = classifyNeedType({
+    domain: gap.domain,
+    templateId: gap.templateId,
+    connectorId: gap.proofConnectorId,
+    headline: gap.headline,
+    why: gap.why,
+  });
+  return automationAction(needType, gap);
 }
 
 function reorderActionsForNeedType(

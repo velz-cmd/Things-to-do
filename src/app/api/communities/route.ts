@@ -3,6 +3,7 @@ import { requireReadyUser } from "@/lib/auth/session";
 import { listCommunitySummaries } from "@/lib/communities/surface";
 import { getCommunitySensorStatuses } from "@/lib/sensors/status";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
+import { cacheGetOrSet } from "@/lib/cache/kv";
 
 const SENSOR_TIMEOUT_MS = 1_200;
 const SUMMARY_TIMEOUT_MS = 4_000;
@@ -64,7 +65,9 @@ export async function GET() {
     );
     const fallback = catalogFallback();
     const communities = await withTimeout(
-      listCommunitySummaries(userId, { sensorStatuses: statuses, fast: true }),
+      cacheGetOrSet(`communities:list:${userId ?? "guest"}`, 60, () =>
+        listCommunitySummaries(userId, { sensorStatuses: statuses, fast: true }),
+      ),
       SUMMARY_TIMEOUT_MS,
       fallback,
     );

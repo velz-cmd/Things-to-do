@@ -41,7 +41,7 @@ type Overview = {
 };
 
 async function fetchCapitalWallet(): Promise<CapitalWalletResponse> {
-  const res = await fetch("/api/capital/wallet", {
+  const res = await fetch("/api/capital/state?refresh=1", {
     credentials: "include",
     cache: "no-store",
     signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
@@ -222,8 +222,8 @@ export function PaymentsOS() {
       setWalletSync("error");
       setSyncError(
         aborted ?
-          "Balance sync timed out. Tap Retry — Arc RPC can be slow on first load."
-        : "Could not sync Arc balance. Try again.",
+          "Balance sync timed out. Open Capital status or retry wallet sync."
+        : "Could not sync Arc balance. Retry sync or check wallet connection.",
       );
       if (fallbackWallet) {
         setWalletHealth({

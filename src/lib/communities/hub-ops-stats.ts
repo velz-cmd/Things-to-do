@@ -59,19 +59,65 @@ export async function buildUserHubOpsMap(
 ): Promise<Record<string, CommunityHubOpsStats>> {
   const installs = await prisma.resolveCommunityInstall.findMany({
     where: { userId },
-    select: { communitySlug: true },
+    select: {
+      communitySlug: true,
+      programs: {
+        select: {
+          missionId: true,
+          budgetUsd: true,
+        },
+      },
+    },
   });
 
-  const entries = await Promise.all(
-    installs.map(async (i) => {
-      const stats = await buildUserCommunityHubOps(userId, i.communitySlug);
-      return [i.communitySlug, stats] as const;
-    }),
-  );
-
+  const missionToSlug = new Map<string, string>();
   const out: Record<string, CommunityHubOpsStats> = {};
-  for (const [slug, stats] of entries) {
-    if (stats) out[slug] = stats;
+
+  for (const install of installs) {
+    let treasuryUsd = 0;
+    for (const program of install.programs) {
+      treasuryUsd += program.budgetUsd;
+      if (program.missionId) missionToSlug.set(program.missionId, install.communitySlug);
+    }
+    out[install.communitySlug] = {
+      programCount: install.programs.length,
+      treasuryUsd: Math.round(treasuryUsd * 100) / 100,
+      pendingObligationsUsd: 0,
+      pendingCount: 0,
+      builderCount: 0,
+    };
   }
+
+  const missionIds = [...missionToSlug.keys()];
+  const authRows = missionIds.length
+    ? await prisma.paymentAuthorization.findMany({
+        where: {
+          missionId: { in: missionIds },
+          status: { in: [...PENDING_STATUSES] },
+        },
+        select: {
+          missionId: true,
+          payeeKey: true,
+          amountUsd: true,
+        },
+      })
+    : [];
+
+  const buildersBySlug = new Map<string, Set<string>>();
+  for (const auth of authRows) {
+    const slug = missionToSlug.get(auth.missionId);
+    if (!slug || !out[slug]) continue;
+    out[slug].pendingObligationsUsd += auth.amountUsd;
+    out[slug].pendingCount += 1;
+    const builders = buildersBySlug.get(slug) ?? new Set<string>();
+    builders.add(auth.payeeKey);
+    buildersBySlug.set(slug, builders);
+  }
+
+  for (const [slug, stats] of Object.entries(out)) {
+    stats.pendingObligationsUsd = Math.round(stats.pendingObligationsUsd * 100) / 100;
+    stats.builderCount = buildersBySlug.get(slug)?.size ?? 0;
+  }
+
   return out;
 }

@@ -46,10 +46,13 @@ export function InstallResolveCard({
 
   async function install() {
     setBusy(true);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 12_000);
     try {
-      const res = await fetch(`/api/communities/${community.slug}/install`, {
+      const res = await fetch(`/api/communities/${community.slug}/install?minimal=1`, {
         method: "POST",
         credentials: "include",
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Install failed");
@@ -69,8 +72,16 @@ export function InstallResolveCard({
       onInstalled?.(narrative);
       void refreshSync().catch(() => null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not install RESOLVE");
+      const timedOut = err instanceof Error && err.name === "AbortError";
+      toast.error(
+        timedOut
+          ? "Community install is still taking too long. Retry, or open Profile to check the source connection."
+          : err instanceof Error
+            ? err.message
+            : "Could not install RESOLVE",
+      );
     } finally {
+      window.clearTimeout(timer);
       setBusy(false);
     }
   }

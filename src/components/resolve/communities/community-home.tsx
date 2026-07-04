@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, Music2 } from "lucide-react";
+import { CheckCircle2, Music2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
@@ -56,6 +56,8 @@ export function CommunityHome({ slug }: { slug: string }) {
     tab === "advanced" ? advancedSurfaceQuery.data : consoleSurfaceQuery.data;
   const loading =
     tab === "advanced" ? advancedSurfaceQuery.isLoading : consoleSurfaceQuery.isLoading;
+  const loadFailed =
+    !surface && (tab === "advanced" ? advancedSurfaceQuery.isError : consoleSurfaceQuery.isError);
 
   const refetch = useCallback(async () => {
     if (tab === "advanced") {
@@ -256,7 +258,7 @@ export function CommunityHome({ slug }: { slug: string }) {
       width="wide"
       accent="emerald"
       actions={
-        !installed ? (
+        loadFailed ? null : !installed ? (
           <InstallResolveCard community={catalog} installed={false} compact />
         ) : (
           <span className="flex items-center gap-1.5 text-xs text-emerald-400">
@@ -273,7 +275,31 @@ export function CommunityHome({ slug }: { slug: string }) {
         installed={installed}
       />
 
-      {!installed ? (
+      {loadFailed ? (
+        <div className="max-w-lg rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-5">
+          <p className="text-sm font-medium text-amber-100">Community console is taking too long.</p>
+          <p className="mt-1 text-sm text-resolve-muted">
+            We stopped waiting so the page does not hang. Retry now, or continue from Discover while
+            the community data catches up.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-300/15"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry console
+            </button>
+            <Link
+              href="/discover"
+              className="inline-flex items-center rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10"
+            >
+              Open Discover
+            </Link>
+          </div>
+        </div>
+      ) : !installed ? (
         <div className="max-w-lg space-y-6">
           {surfaceLoading ? (
             <CommunityConsoleSkeleton />

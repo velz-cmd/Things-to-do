@@ -48,6 +48,12 @@ function offlineIdentitiesForUser(userId: string): ProfileIdentityState[] {
       hint: "Optional — ListenBrainz covers most listeners",
     },
     {
+      id: "jellyfin",
+      connected: false,
+      hint: "Connect Jellyfin - one click",
+      authorizeUrl: "/connect/jellyfin",
+    },
+    {
       id: "listenbrainz",
       connected: false,
       hint: "Connect MusicBrainz — one click",
@@ -90,7 +96,19 @@ export function ProfileBootstrapProvider({ children }: { children: ReactNode }) 
       };
     }
     const body = query.data as Record<string, unknown> | undefined;
-    if (!body) return null;
+    if (!body) {
+      return {
+        signedIn: true,
+        email: user.email ?? null,
+        emailVerified: Boolean(user.email_confirmed_at ?? user.email),
+        identities: offlineIdentitiesForUser(user.id),
+        earnings: null,
+        communities: [],
+        wallet: offlineWalletForUser(user.id),
+        dbDegraded: query.isError,
+        error: query.error instanceof Error ? query.error.message : undefined,
+      };
+    }
 
     const wallet =
       (body.wallet as BootstrapData["wallet"]) ?? offlineWalletForUser(user.id);
@@ -116,13 +134,16 @@ export function ProfileBootstrapProvider({ children }: { children: ReactNode }) 
       signedIn: true,
       email: (body.email as string) ?? user.email ?? null,
       emailVerified: Boolean(body.emailVerified ?? user.email),
-      identities: (body.identities as ProfileIdentityState[]) ?? [],
+      identities:
+        Array.isArray(body.identities) && body.identities.length
+          ? (body.identities as ProfileIdentityState[])
+          : offlineIdentitiesForUser(user.id),
       earnings: (body.earnings as Record<string, unknown>) ?? null,
       communities: (body.communities as CommunitySummary[]) ?? [],
       wallet,
       dbDegraded: Boolean(body.dbDegraded),
     };
-  }, [user, query.data]);
+  }, [user, query.data, query.error, query.isError]);
 
   const reload = useCallback(() => {
     void query.refetch();
@@ -130,7 +151,7 @@ export function ProfileBootstrapProvider({ children }: { children: ReactNode }) 
 
   return (
     <ProfileBootstrapContext.Provider
-      value={{ data, loading: query.isLoading && Boolean(user), reload }}
+      value={{ data, loading: query.isLoading && Boolean(user) && !data, reload }}
     >
       {children}
     </ProfileBootstrapContext.Provider>

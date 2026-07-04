@@ -63,7 +63,7 @@ export function friendlyDiscoverActionLabel(
   }
 
   if (action.kind === "automate") {
-    return action.label.trim() || "Automate payouts";
+    return "Automate Program";
   }
 
   if (action.kind === "analyze") {

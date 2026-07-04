@@ -17,7 +17,7 @@ import type {
 } from "@/lib/capital/wallet-types";
 
 const WALLET_REFRESH_MS = 30_000;
-const CLIENT_TIMEOUT_MS = 25_000;
+const CLIENT_TIMEOUT_MS = 8_000;
 const ARC_CHAIN_ID = 5042002;
 
 type Overview = {
@@ -40,10 +40,10 @@ type Overview = {
   }[];
 };
 
-async function fetchCapitalWallet(): Promise<CapitalWalletResponse> {
-  const res = await fetch("/api/capital/state?refresh=1", {
+async function fetchCapitalWallet(refresh = false): Promise<CapitalWalletResponse> {
+  const res = await fetch(refresh ? "/api/capital/state?refresh=1" : "/api/capital/state", {
     credentials: "include",
-    cache: "no-store",
+    cache: refresh ? "no-store" : "default",
     signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
   });
   return (await res.json()) as CapitalWalletResponse;
@@ -183,7 +183,22 @@ export function PaymentsOS() {
 
   const payoutWallet = walletHealth?.address ?? fallbackWallet;
 
-  const loadWallet = useCallback(async (opts?: { silent?: boolean }) => {
+  useEffect(() => {
+    if (!user || !fallbackWallet || walletHealth) return;
+    setWalletHealth({
+      address: fallbackWallet,
+      shortAddress: `${fallbackWallet.slice(0, 6)}...${fallbackWallet.slice(-4)}`,
+      source: "server_wallet",
+      chainId: ARC_CHAIN_ID,
+      blockNumber: null,
+      syncedAt: null,
+      rpcStatus: "syncing",
+      nativeUsdc: null,
+      erc20Usdc: null,
+    });
+  }, [fallbackWallet, user, walletHealth]);
+
+  const loadWallet = useCallback(async (opts?: { silent?: boolean; refresh?: boolean }) => {
     if (!user) {
       setBanking(null);
       setWalletSync("no_wallet");
@@ -198,7 +213,7 @@ export function PaymentsOS() {
     }
 
     try {
-      const capital = await fetchCapitalWallet();
+      const capital = await fetchCapitalWallet(Boolean(opts?.refresh));
 
       if (capital.ok) {
         const snap = snapshotFromCapitalWallet(capital, user.id);
@@ -384,7 +399,7 @@ export function PaymentsOS() {
     <ResolveBanking
       account={banking}
       settlements={settlements}
-      initialLoading={walletSync === "loading"}
+      initialLoading={walletSync === "loading" && !fallbackWallet}
       refreshing={refreshing}
       signedIn={Boolean(user)}
       payoutWallet={payoutWallet}
@@ -396,7 +411,7 @@ export function PaymentsOS() {
       walletHealth={walletHealth}
       walletWarnings={walletWarnings}
       onClaim={() => void handleClaim()}
-      onRefresh={() => void loadWallet({ silent: false })}
+      onRefresh={() => void loadWallet({ silent: false, refresh: true })}
       onSignIn={openSignIn}
       onActivityOpen={() => void loadOverview()}
     />

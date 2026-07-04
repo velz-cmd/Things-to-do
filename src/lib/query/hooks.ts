@@ -14,9 +14,10 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-const DISCOVER_FEED_TIMEOUT_MS = 18_000;
-const COMMUNITY_HUB_TIMEOUT_MS = 8_000;
-const COMMUNITY_SURFACE_TIMEOUT_MS = 10_000;
+const PROFILE_BOOTSTRAP_TIMEOUT_MS = 5_000;
+const DISCOVER_FEED_TIMEOUT_MS = 9_000;
+const COMMUNITY_HUB_TIMEOUT_MS = 5_000;
+const COMMUNITY_SURFACE_TIMEOUT_MS = 6_000;
 
 async function fetchJsonWithTimeout<T>(
   url: string,
@@ -61,8 +62,11 @@ export function useProfileBootstrapQuery(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.profileBootstrap,
     enabled,
-    queryFn: ({ signal }) => fetchJson("/api/profile/bootstrap", signal),
+    queryFn: ({ signal }) =>
+      fetchJsonWithTimeout("/api/profile/bootstrap", PROFILE_BOOTSTRAP_TIMEOUT_MS, signal),
     staleTime: 45_000,
+    retry: 1,
+    retryDelay: 1_000,
   });
 }
 

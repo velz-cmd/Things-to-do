@@ -171,10 +171,10 @@ export function DiscoverActionsProvider({
         void reloadConnections();
       }
 
-      toast.loading(`Creating payout pool…`, { id: "discover-chain" });
+      toast.loading("Creating Program...", { id: "discover-chain" });
       const created = await apiCreateProgram(target.communitySlug, target.templateId);
       toast.dismiss("discover-chain");
-      if (!created.program?.id) throw new Error("Pool was not created — try again in a moment");
+      if (!created.program?.id) throw new Error("Program was not created - try again in a moment");
       return created.program.id;
     },
     [reloadConnections],
@@ -260,7 +260,12 @@ export function DiscoverActionsProvider({
         return;
       }
       if (wallet.loaded && wallet.spendableUsd <= 0) {
-        toast.error("No spendable USDC — add funds in Capital before funding");
+        toast.error("No spendable USDC - add funds in Capital before funding", {
+          action: {
+            label: "Open Capital",
+            onClick: () => router.push("/capital"),
+          },
+        });
         return;
       }
       setFundSheet(req);
@@ -346,6 +351,7 @@ export function DiscoverActionsProvider({
         "fund",
         "install",
         "create_program",
+        "automate",
         "claim",
         "connect_sensor",
         "sponsor",
@@ -479,7 +485,36 @@ export function DiscoverActionsProvider({
             break;
 
           case "automate":
-            if (action.communitySlug) {
+            if (action.communitySlug && action.templateId) {
+              setBusy(true);
+              try {
+                toast.loading("Analyzing proof...", { id: "discover-chain" });
+                const target = await apiResolveFundTarget({
+                  communitySlug: action.communitySlug,
+                  templateId: action.templateId,
+                });
+                const programId = await ensureProgram(target);
+                toast.loading("Preparing Arc settlement state...", { id: "discover-chain" });
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.communitySurface(action.communitySlug, "lite"),
+                  }),
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.communitySurface(action.communitySlug, "full"),
+                  }),
+                  queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
+                ]);
+                toast.success("Program Active", {
+                  id: "discover-chain",
+                  description: `Program ${programId} saved. Fund the pool to submit Arc settlement.`,
+                });
+                navigateToCommunity(action.communitySlug, "create_program");
+                reportActionStatus(surface, action, "success", `Program ${programId}`);
+              } finally {
+                setBusy(false);
+              }
+            } else if (action.communitySlug) {
               router.push(
                 discoverAutomatePath(action.communitySlug, {
                   trigger: action.automationTrigger,
@@ -510,7 +545,17 @@ export function DiscoverActionsProvider({
         }
       }
     },
-    [signedIn, router, executeFund, openFundSheet, reportActionStatus, connections, navigateToCommunity, reloadConnections],
+    [
+      signedIn,
+      router,
+      executeFund,
+      openFundSheet,
+      reportActionStatus,
+      connections,
+      navigateToCommunity,
+      ensureProgram,
+      queryClient,
+    ],
   );
 
   const value = useMemo(

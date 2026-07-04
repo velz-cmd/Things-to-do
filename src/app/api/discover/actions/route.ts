@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
 import { executeDiscoverAction } from "@/lib/discover/discover-action-server";
 import type { DiscoverActionKind } from "@/lib/discover/types";
+import { isDbPoolExhaustedError } from "@/lib/db/connection";
 
 export const maxDuration = 60;
 
@@ -49,9 +50,19 @@ export async function POST(req: Request) {
     return NextResponse.json(result, { status: result.ok ? 200 : status });
   } catch (e) {
     console.error("[discover/actions]", e);
-    const message = e instanceof Error ? e.message : "Action failed";
+    const poolBusy = isDbPoolExhaustedError(e);
+    const message = poolBusy
+      ? "Database is busy. Try again, or open the community and continue setup there."
+      : e instanceof Error
+        ? e.message
+        : "Action failed";
     return NextResponse.json(
-      { ok: false, code: "SERVER_ERROR", message },
+      {
+        ok: false,
+        code: poolBusy ? "DATABASE_BUSY" : "SERVER_ERROR",
+        message,
+        nextAction: poolBusy ? "retry" : undefined,
+      },
       { status: 500 },
     );
   }

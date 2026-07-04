@@ -204,7 +204,8 @@ export async function apiDiscoverAction(
       return {
         ok: false,
         code: "TIMEOUT",
-        message: "Request timed out — try again in a moment",
+        message:
+          "The action took too long. Retry, or open the community console to continue setup from there.",
         nextAction: "retry",
       };
     }

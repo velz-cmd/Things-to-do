@@ -6,6 +6,7 @@ import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
 import { emptyRadarFeedPayload } from "@/lib/discover/radar-feed-fallback";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
+import type { CapitalStateResponse } from "@/lib/capital/state";
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { credentials: "include", signal });
@@ -67,12 +68,12 @@ export function useProfileBootstrapQuery(enabled: boolean) {
 
 export function useUserConnectionsQuery(enabled: boolean) {
   return useQuery({
-    queryKey: queryKeys.userConnections,
+    queryKey: queryKeys.profileState,
     enabled,
     queryFn: async ({ signal }) => {
       try {
         return await fetchJson<UserConnectionState & { ok?: boolean }>(
-          "/api/profile/connections",
+          "/api/profile/state",
           signal,
         );
       } catch {
@@ -97,10 +98,22 @@ export function useDiscoverRadarFeedQuery(limit = 24) {
 
 export function useCapitalWalletQuery(enabled: boolean) {
   return useQuery({
-    queryKey: queryKeys.capitalWallet,
+    queryKey: queryKeys.capitalState,
     enabled,
-    queryFn: ({ signal }) => fetchJson("/api/capital/wallet", signal),
+    queryFn: ({ signal }) => fetchJson("/api/capital/state", signal),
     staleTime: 30_000,
+  });
+}
+
+export function useCapitalStateQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.capitalState,
+    enabled,
+    queryFn: ({ signal }) => fetchJson<CapitalStateResponse>("/api/capital/state", signal),
+    staleTime: 30_000,
+    gcTime: 300_000,
+    placeholderData: (prev) => prev,
+    retry: 1,
   });
 }
 
@@ -111,10 +124,10 @@ export function prefetchDiscoverTab(queryClient: ReturnType<typeof useQueryClien
     staleTime: 90_000,
   });
   void queryClient.prefetchQuery({
-    queryKey: queryKeys.userConnections,
+    queryKey: queryKeys.profileState,
     queryFn: async ({ signal }) => {
       try {
-        return await fetchJson("/api/profile/connections", signal);
+        return await fetchJson("/api/profile/state", signal);
       } catch {
         return { ok: false, ...emptyConnectionState() };
       }
@@ -199,8 +212,8 @@ export function prefetchProfileTab(queryClient: ReturnType<typeof useQueryClient
     staleTime: 90_000,
   });
   void queryClient.prefetchQuery({
-    queryKey: queryKeys.userConnections,
-    queryFn: () => fetchJson("/api/profile/connections"),
+    queryKey: queryKeys.profileState,
+    queryFn: () => fetchJson("/api/profile/state"),
     staleTime: 90_000,
   });
   void queryClient.prefetchQuery({

@@ -38,6 +38,8 @@ export function useCommunityOperationsHandlers(slug: string) {
   const invalidateSurface = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["communities", "surface", slug] });
     await queryClient.invalidateQueries({ queryKey: queryKeys.communities });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.capitalState });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.capitalWallet });
   }, [queryClient, slug]);
 
   const createProgram = useCallback(

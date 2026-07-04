@@ -50,6 +50,7 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
       method: "POST",
       credentials: "include",
     });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.profileState });
     await queryClient.invalidateQueries({ queryKey: queryKeys.userConnections });
     await queryClient.invalidateQueries({ queryKey: queryKeys.profileBootstrap });
     void query.refetch();

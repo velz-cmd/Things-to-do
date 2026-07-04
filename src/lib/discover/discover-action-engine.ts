@@ -71,7 +71,7 @@ export async function apiCreateProgram(slug: string, templateId?: string) {
 
 export async function apiFundProgram(programId: string, amountUsd: number) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 55_000);
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
     const res = await fetch("/api/capital/fund", {
       method: "POST",
@@ -85,7 +85,7 @@ export async function apiFundProgram(programId: string, amountUsd: number) {
     return data;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("Funding timed out — your wallet may still be syncing. Try Capital, then retry.");
+      throw new Error("Funding is still syncing. Open Capital status or retry in a moment.");
     }
     throw e;
   } finally {
@@ -122,28 +122,33 @@ export async function apiResolveFundTarget(input: {
 }
 
 export async function apiFetchWallet(): Promise<WalletSnapshot> {
-  const res = await fetch("/api/capital/wallet", { credentials: "include" });
+  const res = await fetch("/api/capital/state", { credentials: "include" });
   if (!res.ok) {
     return { spendableUsd: 0, totalUsdc: "0", loaded: true };
   }
   const data = await parseJsonResponse<{
-    wallet?: { address?: string; shortAddress?: string };
+    walletAddress?: string;
+    shortWalletAddress?: string;
+    spendableBalance?: number | null;
+    usdcBalance?: number | null;
+    arcNetwork?: { explorerUrl?: string };
     balance?: { spendableUsd?: string; totalUsdc?: string };
   }>(res);
   const spendable = Number(
-    data.balance?.spendableUsd ?? data.balance?.totalUsdc ?? 0,
+    data.spendableBalance ?? data.balance?.spendableUsd ?? data.balance?.totalUsdc ?? 0,
   );
-  const address = data.wallet?.address;
+  const total = data.usdcBalance ?? data.balance?.totalUsdc ?? "0";
+  const address = data.walletAddress;
   const explorerUrl =
     address && address.match(/^0x[a-fA-F0-9]{40}$/i)
-      ? `${process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app"}/address/${address}`
+      ? `${data.arcNetwork?.explorerUrl ?? process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app"}/address/${address}`
       : null;
   return {
     spendableUsd: Number.isFinite(spendable) ? spendable : 0,
-    totalUsdc: String(data.balance?.totalUsdc ?? "0"),
+    totalUsdc: String(total),
     loaded: true,
     address,
-    shortAddress: data.wallet?.shortAddress,
+    shortAddress: data.shortWalletAddress,
     explorerUrl,
   };
 }

@@ -10,7 +10,7 @@ export function offlineProfileBootstrap(authUser: SupabaseUser) {
     {
       id: "github",
       connected: false,
-      hint: "Install GitHub to claim code contributions",
+      hint: "Connect GitHub to claim code contributions",
       authorizeUrl: "/connect/github",
     },
     {
@@ -28,13 +28,13 @@ export function offlineProfileBootstrap(authUser: SupabaseUser) {
     {
       id: "jellyfin",
       connected: false,
-      hint: "Install Jellyfin — one click",
+      hint: "Connect Jellyfin — one click",
       authorizeUrl: "/connect/jellyfin",
     },
     {
       id: "listenbrainz",
       connected: false,
-      hint: "Install MusicBrainz — one click",
+      hint: "Connect MusicBrainz — one click",
       authorizeUrl: "/connect/listenbrainz",
     },
     {

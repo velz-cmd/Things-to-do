@@ -124,21 +124,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(async () => {
     setBalanceLoading(true);
     try {
-      const res = await fetch("/api/capital/wallet", {
+      const res = await fetch("/api/capital/state?refresh=1", {
         credentials: "include",
         cache: "no-store",
         signal: AbortSignal.timeout(25_000),
       });
       const data = await res.json();
-      if (data.ok && data.balance) {
+      if (data.ok && data.walletAddress) {
+        const spendableUsd = Number(data.spendableBalance ?? data.balance?.spendableUsd ?? 0);
+        const onChainUsd = Number(data.usdcBalance ?? data.balance?.totalUsdc ?? 0);
         setBalance({
-          availableUsd: Number(data.balance.spendableUsd),
-          onChainUsd: Number(data.balance.onChainUsd ?? data.balance.totalUsdc),
-          walletAddress: data.wallet?.address,
-          walletProvider: data.wallet?.provider,
+          availableUsd: Number.isFinite(spendableUsd) ? spendableUsd : 0,
+          onChainUsd: Number.isFinite(onChainUsd) ? onChainUsd : null,
+          walletAddress: data.walletAddress,
+          walletProvider: data.walletProvider ?? data.wallet?.provider,
           lockedUsd: 0,
           releasedUsd: 0,
-          recentActivity: [],
+          recentActivity: Array.isArray(data.pendingTransactions)
+            ? data.pendingTransactions.map(
+                (tx: { id: string; label?: string; amountUsd?: number; createdAt?: string; status?: string }) => ({
+                  id: tx.id,
+                  type: tx.status ?? "pending",
+                  label: tx.label ?? null,
+                  amountUsd: Number(tx.amountUsd ?? 0),
+                  createdAt: tx.createdAt ?? new Date().toISOString(),
+                }),
+              )
+            : [],
         });
       } else {
         setBalance(null);

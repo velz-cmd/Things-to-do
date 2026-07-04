@@ -11,10 +11,12 @@ export type CapitalWalletResponse =
         address: string;
         shortAddress: string;
         source: CapitalWalletSource;
+        provider?: "circle" | "embedded";
         externalAddress?: string;
       };
       balance: {
         totalUsdc: string;
+        onChainUsd?: string;
         nativeUsdc: string;
         erc20Usdc: string;
         chainId: number;
@@ -37,6 +39,7 @@ export type CapitalWalletResponse =
         address: string;
         shortAddress: string;
         source: string;
+        provider?: "circle" | "embedded";
       };
     };
 

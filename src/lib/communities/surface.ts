@@ -3,6 +3,7 @@ import { getCommunityBySlug } from "@/lib/communities/catalog";
 import { getInstall } from "@/lib/communities/installs";
 import { listProgramsForCommunity } from "@/lib/communities/programs";
 import { getAuthorizationSummary } from "@/lib/authorization/ledger";
+import type { AuthorizationSummary } from "@/lib/authorization/types";
 import { getTreasurySnapshot } from "@/lib/treasury/engine";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getNavidromeSyncStatus } from "@/lib/connectors/navidrome-sync";
@@ -91,6 +92,7 @@ async function buildProgramDeployReadiness(input: {
   ownerDepositUsd: number;
   userId: string | null;
   resolveWallets: boolean;
+  authorizationSummary?: AuthorizationSummary;
 }): Promise<ProgramDeployReadiness> {
   const deployReasons: string[] = [];
   let authorizedForDeployUsd = 0;
@@ -105,11 +107,14 @@ async function buildProgramDeployReadiness(input: {
   }
 
   if (input.program.missionId) {
-    const summary = await getAuthorizationSummary({
-      missionId: input.program.missionId,
-      connectorId: input.program.rules.connectorId,
-    });
+    const summary =
+      input.authorizationSummary ??
+      (await getAuthorizationSummary({
+        missionId: input.program.missionId,
+        connectorId: input.program.rules.connectorId,
+      }));
     for (const a of summary.authorizations) {
+      if (a.connectorId !== input.program.rules.connectorId) continue;
       if (a.status === "authorized" || a.status === "pending_funding") {
         authorizedForDeployUsd += a.amountUsd;
         authorizedForDeploy.push({
@@ -133,11 +138,15 @@ async function buildProgramDeployReadiness(input: {
   }
 
   if (input.program.missionId) {
-    const summary = await getAuthorizationSummary({
-      missionId: input.program.missionId,
-      connectorId: input.program.rules.connectorId,
-    });
-    const programAuthorizedUsd = summary.authorizedUsd + summary.pendingFundingUsd;
+    const summary =
+      input.authorizationSummary ??
+      (await getAuthorizationSummary({
+        missionId: input.program.missionId,
+        connectorId: input.program.rules.connectorId,
+      }));
+    const programAuthorizedUsd = input.authorizationSummary
+      ? authorizedForDeployUsd
+      : summary.authorizedUsd + summary.pendingFundingUsd;
     if (
       input.userId &&
       input.ownerDepositUsd < programAuthorizedUsd &&
@@ -228,8 +237,8 @@ export async function buildCommunitySurface(
           availableUsd: 0,
           canSettleGlobally: false,
         })),
-    getConnectorLiveStatuses().catch(() => []),
-    getNavidromeSyncStatus().catch(() => null),
+    lite ? Promise.resolve([]) : getConnectorLiveStatuses().catch(() => []),
+    lite ? Promise.resolve(null) : getNavidromeSyncStatus().catch(() => null),
     userId
       ? prisma.user.findUnique({ where: { id: userId }, select: { availableUsd: true } })
       : Promise.resolve(null),
@@ -278,6 +287,11 @@ export async function buildCommunitySurface(
   const missionSummaries = missionIds.length
     ? await Promise.all(missionIds.map((missionId) => getAuthorizationSummary({ missionId })))
     : [];
+  const summaryByMissionId = new Map(
+    missionSummaries
+      .filter((summary) => summary.missionId)
+      .map((summary) => [summary.missionId as string, summary]),
+  );
 
   for (const summary of missionSummaries) {
     authorizedUsd += summary.authorizedUsd + summary.pendingFundingUsd;
@@ -302,6 +316,9 @@ export async function buildCommunitySurface(
         ownerDepositUsd,
         userId,
         resolveWallets: !lite,
+        authorizationSummary: program.missionId
+          ? summaryByMissionId.get(program.missionId)
+          : undefined,
       }),
     })),
   );
@@ -393,7 +410,10 @@ import type { CommunityHubOpsStats } from "@/lib/communities/hub-ops-stats";
 
 export async function listCommunitySummaries(
   userId: string | null,
-  options?: { sensorStatuses?: import("@/lib/sensors/catalog-visibility").CommunitySensorStatus[] },
+  options?: {
+    sensorStatuses?: import("@/lib/sensors/catalog-visibility").CommunitySensorStatus[];
+    fast?: boolean;
+  },
 ) {
   const { COMMUNITY_CATALOG } = await import("@/lib/communities/catalog");
   const { listCommunityVitals } = await import("@/lib/communities/vitals");
@@ -406,7 +426,7 @@ export async function listCommunitySummaries(
 
   const sensorStatuses =
     options?.sensorStatuses ?? (await getCommunitySensorStatuses().catch(() => []));
-  const vitalsBySlug = await listCommunityVitals(sensorStatuses);
+  const vitalsBySlug = await listCommunityVitals(sensorStatuses, { fast: options?.fast });
 
   const hubOpsBySlug =
     userId && installSet.size > 0

@@ -275,7 +275,11 @@ export async function computeCommunityVitalsMap(
 
 export async function listCommunityVitals(
   sensorStatuses: CommunitySensorStatus[],
-  options?: { mode?: import("@/lib/connectors/ledger-stats").ConnectorHealthMode },
+  options?: {
+    mode?: import("@/lib/connectors/ledger-stats").ConnectorHealthMode;
+    /** Hub fast path: use cached vitals only, so the page never waits on live ledger scans. */
+    fast?: boolean;
+  },
 ): Promise<Record<string, CommunityVitals>> {
   try {
     const { loadCommunityVitalsSnapshots } = await import("@/lib/communities/vitals-snapshot");
@@ -287,5 +291,24 @@ export async function listCommunityVitals(
     /* fall through to live compute */
   }
 
+  if (options?.fast) {
+    return Object.fromEntries(COMMUNITY_CATALOG.map((c) => [c.slug, emptyVitals()]));
+  }
+
   return computeCommunityVitalsMap(sensorStatuses, options);
+}
+
+function emptyVitals(): CommunityVitals {
+  return {
+    healthPct: null,
+    healthLabel: "Observing",
+    fundingTotalUsd: 0,
+    fundingLabel: "Not synced",
+    openWorkCount: 0,
+    programCount: 0,
+    topBuilders: [],
+    sensor: { gated: false, live: true, ready: true, label: "Observing" },
+    observeNarrative: "Syncing value from your connected sources.",
+    hasLiveData: false,
+  };
 }

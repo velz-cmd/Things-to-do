@@ -14,6 +14,25 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 const DISCOVER_FEED_TIMEOUT_MS = 18_000;
+const COMMUNITY_HUB_TIMEOUT_MS = 8_000;
+const COMMUNITY_SURFACE_TIMEOUT_MS = 10_000;
+
+async function fetchJsonWithTimeout<T>(
+  url: string,
+  timeoutMs: number,
+  parentSignal?: AbortSignal,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const onParent = () => controller.abort();
+  parentSignal?.addEventListener("abort", onParent);
+  try {
+    return await fetchJson<T>(url, controller.signal);
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener("abort", onParent);
+  }
+}
 
 /** Shared queryFn — prefetch and provider must use the same logic (timeout + degraded fallback). */
 export async function discoverRadarFeedQueryFn(
@@ -107,7 +126,7 @@ export function prefetchDiscoverTab(queryClient: ReturnType<typeof useQueryClien
 export function prefetchCommunitiesTab(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.prefetchQuery({
     queryKey: queryKeys.communities,
-    queryFn: () => fetchJson("/api/communities"),
+    queryFn: () => fetchJsonWithTimeout("/api/communities", COMMUNITY_HUB_TIMEOUT_MS),
     staleTime: 60_000,
   });
 }
@@ -115,12 +134,17 @@ export function prefetchCommunitiesTab(queryClient: ReturnType<typeof useQueryCl
 export function useCommunitiesHubQuery() {
   return useQuery({
     queryKey: queryKeys.communities,
-    queryFn: ({ signal }) => fetchJson<{ communities: unknown[]; sensorStatuses?: unknown[] }>(
-      "/api/communities",
-      signal,
-    ),
-    staleTime: 60_000,
+    queryFn: ({ signal }) =>
+      fetchJsonWithTimeout<{ communities: unknown[]; sensorStatuses?: unknown[] }>(
+        "/api/communities",
+        COMMUNITY_HUB_TIMEOUT_MS,
+        signal,
+      ),
+    staleTime: 120_000,
+    gcTime: 600_000,
     placeholderData: (prev) => prev,
+    retry: 1,
+    retryDelay: 1_000,
   });
 }
 
@@ -134,12 +158,16 @@ export function useCommunitySurfaceQuery(
     queryKey: queryKeys.communitySurface(slug, mode),
     enabled: options?.enabled ?? true,
     queryFn: ({ signal }) =>
-      fetchJson<{ community: import("@/lib/communities/types").CommunitySurface }>(
+      fetchJsonWithTimeout<{ community: import("@/lib/communities/types").CommunitySurface }>(
         `/api/communities/${slug}${lite ? "?lite=1" : ""}`,
+        COMMUNITY_SURFACE_TIMEOUT_MS,
         signal,
       ).then((data) => data.community),
-    staleTime: 30_000,
+    staleTime: lite ? 90_000 : 30_000,
+    gcTime: 600_000,
     placeholderData: (prev) => prev,
+    retry: 1,
+    retryDelay: 1_000,
     refetchInterval: (query) => {
       if (!options?.pollWhenInstalled) return false;
       return query.state.data?.installed ? 30_000 : false;
@@ -156,10 +184,11 @@ export function prefetchCommunitySurface(
   void queryClient.prefetchQuery({
     queryKey: queryKeys.communitySurface(slug, mode),
     queryFn: () =>
-      fetchJson<{ community: import("@/lib/communities/types").CommunitySurface }>(
+      fetchJsonWithTimeout<{ community: import("@/lib/communities/types").CommunitySurface }>(
         `/api/communities/${slug}${lite ? "?lite=1" : ""}`,
+        COMMUNITY_SURFACE_TIMEOUT_MS,
       ).then((data) => data.community),
-    staleTime: 30_000,
+    staleTime: lite ? 90_000 : 30_000,
   });
 }
 

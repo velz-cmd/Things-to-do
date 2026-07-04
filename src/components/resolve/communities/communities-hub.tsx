@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ChevronDown, Layers, Plus, Search } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Layers, Plus, RefreshCw, Search } from "lucide-react";
 import clsx from "clsx";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
@@ -35,7 +35,7 @@ const KINDS = ["all", "music", "oss", "research", "protocol"] as const;
 export function CommunitiesHub() {
   const queryClient = useQueryClient();
   const { state: connections } = useUserConnections();
-  const { data: hubData, isLoading: loading } = useCommunitiesHubQuery();
+  const { data: hubData, isLoading: loading, refetch, isFetching } = useCommunitiesHubQuery();
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<(typeof KINDS)[number]>("all");
   const [browseOpen, setBrowseOpen] = useState(false);
@@ -49,6 +49,7 @@ export function CommunitiesHub() {
     () => (hubData?.sensorStatuses ?? []) as CommunitySensorStatus[],
     [hubData?.sensorStatuses],
   );
+  const degraded = Boolean((hubData as { degraded?: boolean } | undefined)?.degraded);
 
   const installedSlugs = useMemo(() => {
     const set = new Set<string>();
@@ -126,6 +127,23 @@ export function CommunitiesHub() {
         { label: "Capital", href: "/capital" },
       ]}
     >
+      {degraded && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3">
+          <p className="text-sm text-amber-100">
+            Communities loaded fast. Live metrics are still syncing in the background.
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-300/15 disabled:opacity-60"
+          >
+            <RefreshCw className={clsx("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            Refresh metrics
+          </button>
+        </div>
+      )}
+
       <section className="mb-10">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>

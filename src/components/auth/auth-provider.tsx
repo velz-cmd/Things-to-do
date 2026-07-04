@@ -124,10 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(async () => {
     setBalanceLoading(true);
     try {
-      const res = await fetch("/api/capital/state?refresh=1", {
+      const res = await fetch("/api/capital/state", {
         credentials: "include",
-        cache: "no-store",
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(8_000),
       });
       const data = await res.json();
       if (data.ok && data.walletAddress) {

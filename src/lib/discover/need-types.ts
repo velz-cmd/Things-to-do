@@ -127,7 +127,7 @@ function primaryCtaLabel(needType: DiscoverNeedType, action: DiscoverAction): st
     artists: { fund: "Fund royalty pool", create_program: "Launch royalty pool" },
     researchers: { fund: "Fund citations", connect_sensor: "Explore research" },
     grants: { fund: "Fund grant pool", create_program: "Launch QF round" },
-    automation: { automate: "Automate payouts", analyze: "Run analysis", connect_sensor: "Explore program" },
+    automation: { automate: "Automate Program", analyze: "Run analysis", connect_sensor: "Explore program" },
   };
   return map[needType]?.[action.kind] ?? action.label;
 }
@@ -145,7 +145,7 @@ function automationAction(needType: DiscoverNeedType, gap: TrendingValueGap): Di
     const trigger = TRIGGER_BY_NEED[needType] ?? "docs_merge";
     return {
       id: `automate-${trigger}`,
-      label: "Automate",
+      label: "Automate Program",
       kind: "automate",
       communitySlug: gap.communitySlug,
       templateId: gap.templateId,
@@ -161,7 +161,7 @@ function automationAction(needType: DiscoverNeedType, gap: TrendingValueGap): Di
       : "Start analysis on this opportunity";
   return {
     id: `agent-${serviceId}`,
-      label: needType === "automation" ? "Run analysis" : "Automate payouts",
+      label: needType === "automation" ? "Run analysis" : "Automate Program",
     kind: "analyze",
     href: `/mission?service=${encodeURIComponent(serviceId)}&prompt=${encodeURIComponent(prompt)}`,
     communitySlug: gap.communitySlug,

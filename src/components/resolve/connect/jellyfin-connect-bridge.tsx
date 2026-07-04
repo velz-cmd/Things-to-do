@@ -122,7 +122,7 @@ export function JellyfinConnectBridge({ returnTo = "/profile" }: { returnTo?: st
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Connecting…
               </>
-            : "Install Jellyfin"}
+            : "Connect Jellyfin"}
           </Button>
         </form>
 

@@ -78,27 +78,59 @@ function buildPipeline(
   funded: boolean,
   settled: boolean,
 ): PipelineStageState[] {
+  if (settled) {
+    return [
+      { id: "extract", label: "Proof", status: "Verified", done: true, active: false },
+      { id: "rule", label: "Program", status: "Settled on Arc", done: true, active: false },
+      { id: "settle", label: "Receipt", status: "Available", done: true, active: false },
+    ];
+  }
+
+  if (!connected) {
+    return [
+      { id: "extract", label: "Proof", status: "Source needed", done: false, active: true },
+      { id: "rule", label: "Program", status: "Waiting", done: false, active: false },
+      { id: "settle", label: "Settlement", status: "Blocked", done: false, active: false },
+    ];
+  }
+
+  if (!hasRule) {
+    return [
+      { id: "extract", label: "Proof", status: "Verified", done: true, active: false },
+      { id: "rule", label: "Program", status: "No payout rule", done: false, active: true },
+      { id: "settle", label: "Settlement", status: "Blocked", done: false, active: false },
+    ];
+  }
+
+  if (!funded) {
+    return [
+      { id: "extract", label: "Proof", status: "Verified", done: true, active: false },
+      { id: "rule", label: "Program", status: "Active", done: true, active: false },
+      { id: "settle", label: "Funding", status: "Needed", done: false, active: true },
+    ];
+  }
+
   return [
     {
       id: "extract",
       label: "Proof",
-      status: connected ? "Connected" : "Needed",
-      done: connected,
-      active: !connected,
+      status: "Verified",
+      done: true,
+      active: false,
     },
     {
       id: "rule",
-      label: "Payout",
-      status: hasRule ? "Rule active" : "No payout rule",
-      done: hasRule,
-      active: connected && !hasRule,
+      label: "Program",
+      status: "Funded",
+      done: true,
+      active: false,
     },
     {
       id: "settle",
-      label: "Settle",
-      status: settled ? "Settled" : funded ? "Funded" : "Unfunded",
-      done: settled || funded,
-      active: hasRule && !funded && !settled,
+      label: "Settlement",
+      status: "Ready to settle",
+      done: false,
+      active: true,
     },
   ];
 }

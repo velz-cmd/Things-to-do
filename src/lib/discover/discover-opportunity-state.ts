@@ -44,7 +44,11 @@ export function gapHasActiveRule(gap: TrendingValueGap): boolean {
 
 function isFunded(gap: TrendingValueGap): boolean {
   const settlement = gap.valueMetrics?.settlement ?? "";
-  if (settlement.toLowerCase().includes("active") || settlement.toLowerCase().includes("funded")) {
+  const lower = settlement.toLowerCase();
+  if (lower.includes("unfunded") || lower.includes("funding needed") || lower.includes("blocked")) {
+    return false;
+  }
+  if (lower.includes("active") || lower.includes("funded") || lower.includes("ready to settle")) {
     return true;
   }
   return gap.amountVerified && (gap.moneyCanMoveUsd > 0 || gap.amountNeededUsd > 0);

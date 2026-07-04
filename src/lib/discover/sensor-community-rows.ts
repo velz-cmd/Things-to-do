@@ -5,6 +5,7 @@ import {
   buildUnpaidValueMetrics,
   gapsHeadlineForProfile,
   getCommunityValueProfile,
+  previewAmountUsdForCommunity,
   radarHeadlineForProfile,
 } from "@/lib/discover/community-value-profiles";
 import { classifyBoardNeedType } from "@/lib/discover/need-types";
@@ -28,6 +29,7 @@ function templateForSlug(slug: string, kind: string): string {
   if (slug === "independent-music" || kind === "music") return "user-centric-royalties";
   if (slug === "jellyfin" || kind === "media") return "video-royalties";
   if (slug === "open-research" || kind === "research") return "citation-toll";
+  if (slug === "linux") return "security-fund";
   return "docs-bounty";
 }
 
@@ -39,6 +41,25 @@ function domainForKind(kind: string): TrendingValueGap["domain"] {
 }
 
 type PreviewSurface = "gaps" | DomainRadarId;
+
+function liveSignalStory(slug: string): string | null {
+  if (slug === "react") {
+    return "New verified contributions arrived in the last 24h. A Docs Program can turn future docs work into automatic rewards.";
+  }
+  if (slug === "linux") {
+    return "Security and maintainer activity arrived recently. A Security Fund can keep critical fixes funded before more work piles up.";
+  }
+  if (slug === "navidrome" || slug === "independent-music") {
+    return "Listening activity mapped to 74 artists. A royalty pool can split future payouts by actual plays.";
+  }
+  if (slug === "jellyfin") {
+    return "Playback proof is available for creator rewards. Enable pay-per-minute before more watch time goes unpaid.";
+  }
+  if (slug === "open-research") {
+    return "Citation reuse is measurable, but authors are not receiving rewards from this activity yet.";
+  }
+  return null;
+}
 
 function buildPreviewRow(
   slug: string,
@@ -78,8 +99,13 @@ function buildPreviewRow(
 
   const why = profile?.unpaidSubtitle ?? "";
 
-  const metrics = buildUnpaidValueMetrics(slug, isInstalled);
+  const baseMetrics = buildUnpaidValueMetrics(slug, isInstalled);
+  const metrics =
+    surface === "gaps"
+      ? baseMetrics
+      : { ...baseMetrics, story: liveSignalStory(slug) ?? baseMetrics.story };
   const upstream = profile ? humanizeExtractionSources(profile.extractionSources) : entry.name;
+  const estimatedAmountUsd = isInstalled ? previewAmountUsdForCommunity(slug) : 0;
 
   return {
     id: `value-preview-${surface}-${slug}`,
@@ -94,9 +120,9 @@ function buildPreviewRow(
     amountKind: "estimate",
     eligibilityCriteria: `${metrics.observedEvents} · ${metrics.payoutRules}`,
     proofConnectorId: entry.connectors[0],
-    amountNeededUsd: 0,
-    moneyCanMoveUsd: 0,
-    peopleImpacted: 0,
+    amountNeededUsd: estimatedAmountUsd,
+    moneyCanMoveUsd: estimatedAmountUsd,
+    peopleImpacted: isInstalled ? metrics.countValue : 0,
     trendScore: 0,
     communitySlug: slug,
     templateId,

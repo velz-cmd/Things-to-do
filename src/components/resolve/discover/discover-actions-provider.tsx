@@ -70,6 +70,18 @@ function missingFields(action: DiscoverAction): string[] {
   return missing;
 }
 
+function actionFailureDescription(action: DiscoverAction, code?: string, nextAction?: string): string | undefined {
+  if (code === "DATABASE_BUSY") {
+    return action.communitySlug
+      ? "The database connection is busy. Retry, or open the community console and continue setup there."
+      : "The database connection is busy. Retry in a moment from Discover.";
+  }
+  if (nextAction === "add_funds") return "Open Capital to add USDC, then return to Discover.";
+  if (nextAction === "connect_source") return "Open Profile to connect the proof source, then return to Discover.";
+  if (nextAction === "create_rule") return "No payout rule exists yet. Create one in Communities.";
+  return undefined;
+}
+
 export function DiscoverActionsProvider({
   signedIn,
   children,
@@ -274,7 +286,9 @@ export function DiscoverActionsProvider({
       const result = await apiDiscoverAction(action, { amountUsd, surface });
       if (!result.ok) {
         reportActionStatus(surface, action, "error", result.message);
-        toast.error(result.message);
+        toast.error(result.message, {
+          description: actionFailureDescription(action, result.code, result.nextAction),
+        });
         if (result.nextAction === "add_funds") router.push("/capital");
         if (result.nextAction === "connect_source") router.push("/profile");
         return;

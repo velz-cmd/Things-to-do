@@ -17,7 +17,10 @@ const accentRing: Record<string, string> = {
 };
 
 type Props = {
-  community: Pick<CommunityCatalogEntry, "slug" | "name" | "tagline" | "accent" | "kind">;
+  community: Pick<
+    CommunityCatalogEntry,
+    "slug" | "name" | "tagline" | "accent" | "kind" | "upstream"
+  >;
   hubOps: CommunityHubOpsStats | null;
   programCountFallback?: number;
   pendingFallbackUsd?: number;
@@ -40,6 +43,13 @@ export function CommunityOperateCard({
       : programCount > 0
         ? communityConsolePath(community.slug)
         : communityConsolePath(community.slug, "create_program");
+  const payeeCount = hubOps?.builderCount ?? 0;
+  const primaryLabel =
+    pendingUsd > 0.01
+      ? `Review $${pendingUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} pending`
+      : programCount > 0
+        ? "Open Console"
+        : "Create first program";
 
   return (
     <BlueGlowCard className="relative overflow-hidden" hover>
@@ -62,10 +72,13 @@ export function CommunityOperateCard({
 
         <div>
           <h3 className="text-lg font-semibold text-white">{community.name}</h3>
+          <p className="mt-0.5 text-[11px] uppercase tracking-[0.12em] text-resolve-muted-dim">
+            {community.kind} - {community.upstream}
+          </p>
           <p className="mt-1 line-clamp-2 text-sm text-resolve-muted">{community.tagline}</p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
           <div className="rounded-lg border border-white/[0.06] bg-black/25 px-2 py-2">
             <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Treasury</p>
             <p className="mt-0.5 text-sm font-semibold text-white">
@@ -73,7 +86,7 @@ export function CommunityOperateCard({
             </p>
           </div>
           <div className="rounded-lg border border-white/[0.06] bg-black/25 px-2 py-2">
-            <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Pending</p>
+            <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Pending payouts</p>
             <p className="mt-0.5 text-sm font-semibold text-amber-100">
               <Money amount={pendingUsd} size="sm" className="inline" />
             </p>
@@ -82,13 +95,17 @@ export function CommunityOperateCard({
             <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Programs</p>
             <p className="mt-0.5 text-sm font-semibold text-white">{programCount}</p>
           </div>
+          <div className="rounded-lg border border-white/[0.06] bg-black/25 px-2 py-2">
+            <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Payees</p>
+            <p className="mt-0.5 text-sm font-semibold text-white">{payeeCount}</p>
+          </div>
         </div>
 
         <Link
           href={operateHref}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-resolve-accent/35 bg-resolve-accent/10 py-2.5 text-sm font-medium text-resolve-accent transition hover:bg-resolve-accent/15"
         >
-          Operate
+          {primaryLabel}
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>

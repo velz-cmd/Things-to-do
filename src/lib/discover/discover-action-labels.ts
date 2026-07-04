@@ -20,25 +20,24 @@ function communityTitle(slug?: string): string {
 function programActionLabel(templateId?: string): string {
   if (!templateId) return "Create payout rule";
   const labels: Record<string, string> = {
-    "citation-toll": "Create citation toll",
-    "docs-bounty": "Create docs bounty",
-    "quadratic-funding": "Launch grant pool",
-    "security-fund": "Create security fund",
-    "user-centric-royalties": "Create royalty pool",
-    "video-royalties": "Create pay-per-minute rule",
+    "citation-toll": "Create Citation Toll",
+    "docs-bounty": "Create Docs Program",
+    "quadratic-funding": "Launch Grant Round",
+    "security-fund": "Create Security Fund",
+    "user-centric-royalties": "Create Royalty Pool",
+    "video-royalties": "Create Pay-per-Minute Rule",
   };
   return labels[templateId] ?? "Create payout rule";
 }
 
 function agentActionLabel(action: DiscoverAction): string {
   const templateId = action.templateId ?? "";
-  if (templateId === "citation-toll") return "Verify citations";
-  if (templateId === "security-fund") return "Start security analysis";
-  if (templateId === "docs-bounty") return "Run contributor analysis";
-  if (templateId === "user-centric-royalties" || templateId === "video-royalties") {
-    return "Calculate revenue split";
-  }
-  if (/budget|impact|estimate/i.test(action.label)) return "Estimate budget";
+  if (templateId === "citation-toll") return "Verify Citations";
+  if (templateId === "security-fund") return "Analyze Security Work";
+  if (templateId === "docs-bounty") return "Analyze Contributors";
+  if (templateId === "user-centric-royalties") return "Run Attribution Agent";
+  if (templateId === "video-royalties") return "Analyze Watch Time";
+  if (/budget|impact|estimate/i.test(action.label)) return "Estimate Budget";
   return action.label.trim() || "Start analysis";
 }
 

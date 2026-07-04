@@ -12,6 +12,7 @@ import { useUserConnections } from "@/components/resolve/profile/user-connection
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 import { DiscoverCardNarrativeBlock } from "@/components/resolve/discover/discover-card-narrative";
 import { DiscoverActionBar } from "@/components/resolve/discover/discover-action-bar";
+import { DiscoverCommunityLogo } from "@/components/resolve/discover/discover-community-logo";
 import { DiscoverSolveButton } from "@/components/resolve/discover/discover-solve-button";
 import {
   DiscoverQuickActions,
@@ -91,6 +92,7 @@ export function DiscoverFeatureRow({
     onAction: handleAction,
     solve: null,
   });
+  const hasAnalysisAction = allVisible.some((a) => a.kind === "analyze");
 
   return (
     <li
@@ -105,7 +107,9 @@ export function DiscoverFeatureRow({
       }}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <DiscoverCommunityLogo gap={gap} />
+          <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             {rank != null && (
               <span className="text-[10px] font-semibold tabular-nums text-resolve-muted-dim">
@@ -144,6 +148,7 @@ export function DiscoverFeatureRow({
           <DiscoverCardNarrativeBlock narrative={card.narrative} />
 
           <DiscoverProofPipeline stages={card.pipeline} className="mt-2" />
+          </div>
         </div>
 
         <DiscoverQuickActions
@@ -161,7 +166,7 @@ export function DiscoverFeatureRow({
         showAdvanced={showAdvanced}
         onToggleAdvanced={() => setShowAdvanced((v) => !v)}
         onAction={handleAction}
-        trailing={<DiscoverSolveButton gap={gap} />}
+        trailing={hasAnalysisAction ? null : <DiscoverSolveButton gap={gap} />}
       />
     </li>
   );

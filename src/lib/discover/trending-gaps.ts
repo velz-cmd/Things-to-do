@@ -74,7 +74,7 @@ async function buildPendingAuthGap(r: AuthRow): Promise<TrendingValueGap> {
     proofSource: formatProofSource({
       connectorId: r.connectorId,
       authorizationId: r.id,
-      fallback: "Supabase ledger",
+      fallback: "RESOLVE ledger",
     }),
     dataSource,
     amountVerified: true,
@@ -126,7 +126,7 @@ function buildMusicAggregateGap(
     proofSource: formatProofSource({
       connectorId: latest.connectorId,
       authorizationId: latest.id,
-      fallback: "Supabase ledger",
+      fallback: "RESOLVE ledger",
     }),
     dataSource: "musicbrainz",
     amountVerified: true,
@@ -173,7 +173,7 @@ function buildResearchGap(r: AuthRow, communitySlug = "open-research"): Trending
     proofSource: formatProofSource({
       connectorId: r.connectorId,
       authorizationId: r.id,
-      fallback: "Supabase ledger",
+      fallback: "RESOLVE ledger",
     }),
     dataSource,
     amountVerified: true,

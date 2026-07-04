@@ -131,29 +131,12 @@ async function buildProgramDeployReadiness(input: {
   }
 
   const pendingObligationsUsd = Math.round(authorizedForDeployUsd * 10000) / 10000;
-  if (pendingObligationsUsd > 0.01) {
+  const availableForProgramUsd = input.program.budgetUsd + input.ownerDepositUsd;
+  const fundingGapUsd = Math.max(0, pendingObligationsUsd - availableForProgramUsd);
+  if (fundingGapUsd > 0.01) {
     deployReasons.push(
-      `$${pendingObligationsUsd.toFixed(2)} owed — fund program pool or deposit before deploy`,
+      `$${pendingObligationsUsd.toFixed(2)} authorized but only $${availableForProgramUsd.toFixed(2)} funded. Add $${fundingGapUsd.toFixed(2)} before settlement.`,
     );
-  }
-
-  if (input.program.missionId) {
-    const summary =
-      input.authorizationSummary ??
-      (await getAuthorizationSummary({
-        missionId: input.program.missionId,
-        connectorId: input.program.rules.connectorId,
-      }));
-    const programAuthorizedUsd = input.authorizationSummary
-      ? authorizedForDeployUsd
-      : summary.authorizedUsd + summary.pendingFundingUsd;
-    if (
-      input.userId &&
-      input.ownerDepositUsd < programAuthorizedUsd &&
-      programAuthorizedUsd > 0
-    ) {
-      deployReasons.push("Deposit USDC to your account to cover program obligations");
-    }
   }
 
   let walletMappedCount = 0;
@@ -176,6 +159,7 @@ async function buildProgramDeployReadiness(input: {
     authorizedCount: authorizedForDeploy.length,
     authorizedUsd: Math.round(authorizedForDeployUsd * 10000) / 10000,
     pendingObligationsUsd,
+    fundingGapUsd: Math.round(fundingGapUsd * 10000) / 10000,
     walletMappedCount,
     reasons: deployReasons,
   };
@@ -197,6 +181,10 @@ function aggregateDeployReadiness(
     (s, p) => s + (p.deployReadiness?.pendingObligationsUsd ?? 0),
     0,
   );
+  const fundingGapUsd = withReadiness.reduce(
+    (s, p) => s + (p.deployReadiness?.fundingGapUsd ?? 0),
+    0,
+  );
   const walletMappedCount = withReadiness.reduce(
     (s, p) => s + (p.deployReadiness?.walletMappedCount ?? 0),
     0,
@@ -209,6 +197,7 @@ function aggregateDeployReadiness(
     authorizedCount,
     authorizedUsd: Math.round(authorizedUsd * 10000) / 10000,
     pendingObligationsUsd: Math.round(pendingObligationsUsd * 10000) / 10000,
+    fundingGapUsd: Math.round(fundingGapUsd * 10000) / 10000,
     walletMappedCount,
     reasons,
   };

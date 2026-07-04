@@ -38,6 +38,26 @@ function programRulesLabel(program: ProgramRecord): string {
   return program.templateId;
 }
 
+function programFundLabel(program: ProgramRecord): string {
+  if (program.templateId === "docs-bounty") return "Fund Docs Pool";
+  if (program.templateId === "security-fund") return "Fund Security Pool";
+  if (program.templateId === "citation-toll") return "Fund Citation Pool";
+  if (program.templateId === "video-royalties") return "Fund Creator Pool";
+  if (program.templateId === "user-centric-royalties") return "Fund Royalty Pool";
+  return "Fund Program Pool";
+}
+
+function fundingGapLabel(amountUsd: number): string {
+  return `Fund $${amountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} gap`;
+}
+
+const CONSOLE_SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "obligations", label: "Obligations" },
+  { id: "programs", label: "Programs" },
+  { id: "sources", label: "Sources" },
+];
+
 function ProgramCard({
   program,
   slug,
@@ -52,14 +72,23 @@ function ProgramCard({
   slug: string;
   communityKind: string;
   onDeploy: (id: string) => void;
-  onFund: (programId: string) => void;
+  onFund: (programId: string, label?: string, amountUsd?: number) => void;
   deploying: string | null;
   readiness?: ProgramRecord["deployReadiness"];
   sourcesConnected?: boolean;
 }) {
   const isDeploying = deploying === program.id;
   const canRedeploy = (readiness?.authorizedCount ?? 0) > 0;
-  const deployDisabled = isDeploying || (program.status === "deployed" && !canRedeploy);
+  const fundingGapUsd = readiness?.fundingGapUsd ?? 0;
+  const needsFunding = fundingGapUsd > 0.01;
+  const deployDisabled =
+    isDeploying || needsFunding || (program.status === "deployed" && !canRedeploy);
+  const deployLabel =
+    readiness?.pendingObligationsUsd && readiness.pendingObligationsUsd > 0
+      ? `Settle $${readiness.pendingObligationsUsd.toLocaleString(undefined, {
+          maximumFractionDigits: 0,
+        })} on Arc`
+      : "Settle on Arc";
 
   return (
     <div id={`program-${program.id}`}>
@@ -108,8 +137,18 @@ function ProgramCard({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="secondary" onClick={() => onFund(program.id)}>
-          Fund pool
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() =>
+            onFund(
+              program.id,
+              needsFunding ? fundingGapLabel(fundingGapUsd) : programFundLabel(program),
+              needsFunding ? Math.max(5, fundingGapUsd) : undefined,
+            )
+          }
+        >
+          {needsFunding ? fundingGapLabel(fundingGapUsd) : programFundLabel(program)}
         </Button>
         <Button
           size="sm"
@@ -119,7 +158,7 @@ function ProgramCard({
           {isDeploying ? (
             <>
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Deploying on Arc…
+              Settling on Arc...
             </>
           ) : program.status === "deployed" && !canRedeploy ? (
             <>
@@ -127,7 +166,7 @@ function ProgramCard({
               Deployed
             </>
           ) : (
-            "Approve payouts on Arc"
+            deployLabel
           )}
         </Button>
         <Link
@@ -151,7 +190,7 @@ function ProgramCard({
       {readiness?.reasons && readiness.reasons.length > 0 && !readiness.canDeploy && (
         <ul className="space-y-1 text-[11px] text-amber-200/90">
           {readiness.reasons.map((r) => (
-            <li key={r}>· {r}</li>
+            <li key={r}>- {r}</li>
           ))}
         </ul>
       )}
@@ -170,7 +209,7 @@ type Props = {
   obligationsFilter: "all" | "pending";
   onObligationsFilterChange: (f: "all" | "pending") => void;
   onRequestDeploy: (programId: string) => void;
-  onFund: (programId: string) => void;
+  onFund: (programId: string, label?: string, amountUsd?: number) => void;
   onRequestCreateProgram: () => void;
   onRequestApprovePayouts: () => void;
   onRefresh: () => void;
@@ -229,20 +268,27 @@ export function CommunityConsole({
 
   function quickActionDisabled(actionId: CommunityQuickActionId): { disabled: boolean; reason?: string } {
     if (actionId === "create_program" && busy) {
-      return { disabled: true, reason: "Creating program…" };
+      return { disabled: true, reason: "Creating payout program..." };
     }
     if (actionId === "connect_source" && sourcesConnected) {
       return { disabled: true, reason: "Source linked via Profile" };
     }
     if (actionId === "review_obligations" && (surface.authorizations?.length ?? 0) === 0) {
-      return { disabled: true, reason: "No obligations yet — run sensors first" };
+      return { disabled: true, reason: "No obligations yet - sync sources first" };
     }
     if (actionId === "approve_payouts") {
+      const fundingGapUsd = surface.deployReadiness?.fundingGapUsd ?? 0;
       if (!surface.programs.length) {
-        return { disabled: true, reason: "Create a program first" };
+        return { disabled: true, reason: "Create a payout program before settlement" };
+      }
+      if (fundingGapUsd > 0.01) {
+        return {
+          disabled: true,
+          reason: `$${fundingGapUsd.toFixed(2)} more funding is required before Arc settlement.`,
+        };
       }
       if (pendingUsd < 0.01 && !surface.deployReadiness?.canDeploy) {
-        return { disabled: true, reason: "No pending payouts — sync sensors for activity" };
+        return { disabled: true, reason: "No pending payouts - sync sources for activity" };
       }
     }
     return { disabled: false };
@@ -250,7 +296,20 @@ export function CommunityConsole({
 
   return (
     <div id="console" className="scroll-mt-24 space-y-8">
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <nav className="flex flex-wrap gap-2 rounded-2xl border border-white/[0.08] bg-[#07111f]/70 p-1">
+        {CONSOLE_SECTIONS.map((section) => (
+          <button
+            key={section.id}
+            type="button"
+            onClick={() => scrollTo(section.id)}
+            className="rounded-xl px-3 py-2 text-xs font-medium text-resolve-muted transition hover:bg-white/[0.06] hover:text-white"
+          >
+            {section.label}
+          </button>
+        ))}
+      </nav>
+
+      <section id="overview" className="grid scroll-mt-24 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <BlueGlowCard variant="subtle" className="space-y-1.5">
           <div className="flex items-center gap-2 text-resolve-muted">
             <Wallet className="h-4 w-4" />
@@ -260,7 +319,7 @@ export function CommunityConsole({
             <Money amount={surface.health.treasuryUsd} />
           </p>
           <p className="text-[11px] text-resolve-muted">
-            Program pool total ·{" "}
+            Available program funding -{" "}
             <Money amount={surface.health.communityObligationsUsd} size="sm" className="inline" />{" "}
             obligations
           </p>
@@ -293,33 +352,39 @@ export function CommunityConsole({
             <Money amount={pendingUsd} />
           </p>
           <p className="text-[11px] text-resolve-muted">
-            {surface.deployReadiness?.authorizedCount ?? 0} awaiting Arc deploy
+            {surface.deployReadiness?.authorizedCount ?? 0} payouts waiting for settlement
           </p>
         </BlueGlowCard>
       </section>
 
       <section>
         <h2 className="text-sm font-semibold text-white">Quick actions</h2>
-        <p className="mt-1 text-xs text-resolve-muted">Daily ops — each action uses live APIs and ledger state.</p>
+        <p className="mt-1 text-xs text-resolve-muted">
+          Manage programs, funding, and payouts using live community proof.
+        </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {quickActions.map((action) => {
             const gate = quickActionDisabled(action.id);
             return (
-              <button
-                key={action.id}
-                type="button"
-                disabled={gate.disabled || busy}
-                title={gate.reason}
-                onClick={() => void runQuickAction(action.id)}
-                className={clsx(
-                  "rounded-xl border px-4 py-2.5 text-xs font-medium transition",
-                  gate.disabled || busy
-                    ? "cursor-not-allowed border-white/[0.06] bg-white/[0.02] text-resolve-muted-dim"
-                    : "border-resolve-accent/30 bg-resolve-accent/10 text-resolve-accent hover:bg-resolve-accent/15",
-                )}
-              >
-                {action.label}
-              </button>
+              <div key={action.id} className="flex max-w-[220px] flex-col gap-1">
+                <button
+                  type="button"
+                  disabled={gate.disabled || busy}
+                  title={gate.reason}
+                  onClick={() => void runQuickAction(action.id)}
+                  className={clsx(
+                    "rounded-xl border px-4 py-2.5 text-xs font-medium transition",
+                    gate.disabled || busy
+                      ? "cursor-not-allowed border-white/[0.06] bg-white/[0.02] text-resolve-muted-dim"
+                      : "border-resolve-accent/30 bg-resolve-accent/10 text-resolve-accent hover:bg-resolve-accent/15",
+                  )}
+                >
+                  {action.label}
+                </button>
+                <span className="text-[10px] leading-snug text-resolve-muted-dim">
+                  {gate.reason ?? action.description}
+                </span>
+              </div>
             );
           })}
         </div>
@@ -330,7 +395,7 @@ export function CommunityConsole({
           <div>
             <h2 className="text-sm font-semibold text-white">Obligations</h2>
             <p className="mt-1 text-xs text-resolve-muted">
-              Verified activity from sensors — fund pools, then deploy on Arc to settle.
+              Verified activity from sources - fund programs, then settle payouts on Arc.
             </p>
           </div>
           <div className="flex gap-1 rounded-lg border border-white/[0.08] p-0.5">
@@ -358,7 +423,7 @@ export function CommunityConsole({
                 <div className="min-w-0">
                   <p className="truncate text-sm text-white">{a.contextLabel ?? a.payeeKey}</p>
                   <p className="mt-0.5 text-[11px] text-resolve-muted">
-                    {a.payeeKey} · {a.status}
+                    {a.payeeKey} - {a.status}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
@@ -373,16 +438,16 @@ export function CommunityConsole({
         ) : (
           <p className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-resolve-muted">
             {obligationsFilter === "pending"
-              ? "No pending obligations — sync sensors or switch to All."
+              ? "No pending obligations - sync sources or switch to All."
               : "No authorizations yet. Connect sources in Profile and sync sensors below."}
           </p>
         )}
       </section>
 
       <section id="programs" className="scroll-mt-24">
-        <h2 className="text-sm font-semibold text-white">Active programs</h2>
+        <h2 className="text-sm font-semibold text-white">Programs</h2>
         <p className="mt-1 text-xs text-resolve-muted">
-          Fund pools, review rules, deploy Arc batches when obligations are ready.
+          Fund active programs, review verified obligations, and settle payouts on Arc when ready.
         </p>
         {surface.programs.length > 0 ? (
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -402,20 +467,25 @@ export function CommunityConsole({
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center">
-            <p className="text-sm text-resolve-muted">No programs yet.</p>
+            <p className="text-sm text-resolve-muted">
+              No payout programs yet. Create a draft rule before funding or settlement.
+            </p>
             <Button
               size="sm"
               className="mt-3"
               disabled={busy}
               onClick={() => onRequestCreateProgram()}
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create program"}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Payout Program"}
             </Button>
           </div>
         )}
       </section>
 
-      <section className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/40">
+      <section
+        id="sources"
+        className="scroll-mt-24 rounded-xl border border-white/[0.08] bg-[#0a0f18]/40"
+      >
         <button
           type="button"
           onClick={() => setSensorsOpen((o) => !o)}

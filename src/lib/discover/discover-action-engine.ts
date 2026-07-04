@@ -1,6 +1,7 @@
 import type { DiscoverAction } from "@/lib/discover/types";
 import { parseJsonResponse } from "@/lib/http/parse-json-response";
 import type { DiscoverActionResponse } from "@/lib/discover/discover-action-response";
+import type { ProgramRecord } from "@/lib/communities/types";
 
 export type FundSheetRequest = {
   programId?: string;
@@ -53,11 +54,11 @@ export async function apiCreateProgram(slug: string, templateId?: string) {
       body: JSON.stringify({ templateId }),
       signal: controller.signal,
     });
-    const data = await parseJsonResponse<{ error?: string; program?: { id: string; name: string } }>(
+    const data = await parseJsonResponse<{ error?: string; program?: ProgramRecord }>(
       res,
     );
     if (!res.ok) throw new Error(data.error ?? "Could not create program");
-    return data as { program?: { id: string; name: string } };
+    return data as { program?: ProgramRecord };
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
       throw new Error("Creating the pool timed out — try again");

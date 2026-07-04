@@ -35,6 +35,7 @@ export type ProgramDeployReadiness = {
   authorizedCount: number;
   authorizedUsd: number;
   pendingObligationsUsd: number;
+  fundingGapUsd: number;
   walletMappedCount: number;
   reasons: string[];
 };
@@ -146,6 +147,7 @@ export type CommunitySurface = {
     authorizedCount: number;
     authorizedUsd: number;
     pendingObligationsUsd: number;
+    fundingGapUsd: number;
     walletMappedCount: number;
     reasons: string[];
   };

@@ -32,7 +32,8 @@ import {
   type CommunityIntent,
 } from "@/lib/communities/community-nav";
 import { defaultProgramTemplateForCommunity } from "@/lib/discover/community-strip-actions";
-import { apiDiscoverAction } from "@/lib/discover/discover-action-engine";
+import { apiCreateProgram } from "@/lib/discover/discover-action-engine";
+import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
 
 export function CommunityHome({ slug }: { slug: string }) {
   const catalog = getCommunityBySlug(slug);
@@ -101,6 +102,35 @@ export function CommunityHome({ slug }: { slug: string }) {
     await queryClient.invalidateQueries({ queryKey: queryKeys.communities });
   }, [refetch, queryClient]);
 
+  const insertProgramIntoCache = useCallback(
+    (program: ProgramRecord) => {
+      (["lite", "full"] as const).forEach((mode) => {
+        queryClient.setQueryData<CommunitySurface | undefined>(
+          queryKeys.communitySurface(slug, mode),
+          (current) => {
+            if (!current) return current;
+            if (current.programs.some((p) => p.id === program.id)) return current;
+            return {
+              ...current,
+              installed: true,
+              programs: [...current.programs, program],
+              deployReadiness: current.deployReadiness ?? {
+                canDeploy: false,
+                authorizedCount: 0,
+                authorizedUsd: 0,
+                pendingObligationsUsd: 0,
+                fundingGapUsd: 0,
+                walletMappedCount: 0,
+                reasons: [],
+              },
+            };
+          },
+        );
+      });
+    },
+    [queryClient, slug],
+  );
+
   const primaryProgram = surface?.programs[0];
 
   function openCreateConfirm() {
@@ -111,7 +141,7 @@ export function CommunityHome({ slug }: { slug: string }) {
       title: "Create payout program",
       detail:
         template?.description ??
-        "Creates a program with budget and rules on your account — audited on the mission timeline.",
+        "Creates a draft payout rule and saves it to this community account.",
       communityName: catalog?.name ?? slug,
       templateLabel: template?.name ?? templateId,
     });
@@ -124,9 +154,9 @@ export function CommunityHome({ slug }: { slug: string }) {
     setPendingProgramId(programId);
     setConfirm({
       kind: "deploy",
-      title: "Deploy on Arc",
+      title: "Settle on Arc",
       detail:
-        "Settles authorized obligations to mapped wallets — irreversible batch transfer from your program pool.",
+        "Settles authorized obligations to mapped wallets from your program pool.",
       programName: program.name,
       pendingUsd: readiness?.pendingObligationsUsd ?? 0,
       payeeCount: readiness?.authorizedCount ?? 0,
@@ -138,18 +168,19 @@ export function CommunityHome({ slug }: { slug: string }) {
   function openApproveConfirm() {
     if (!surface || !primaryProgram) return;
     const readiness = primaryProgram.deployReadiness ?? surface.deployReadiness;
-    const needsFund =
-      (readiness?.pendingObligationsUsd ?? 0) > 0.01 && !readiness?.canDeploy;
+    const fundingGapUsd = readiness?.fundingGapUsd ?? 0;
+    const needsFund = fundingGapUsd > 0.01;
     setPendingProgramId(primaryProgram.id);
     setConfirm({
       kind: "approve_payouts",
-      title: "Approve payouts",
+      title: needsFund ? "Fund payout gap" : "Approve payouts",
       detail: needsFund
-        ? "Pool balance is short — fund the program, then deploy the Arc batch."
-        : "Deploy the authorized batch on Arc to settle payees.",
+        ? `This program has verified obligations, but needs $${fundingGapUsd.toFixed(2)} more funding before settlement.`
+        : "Settle the authorized Arc batch and record receipts for payees.",
       programName: primaryProgram.name,
       pendingUsd: readiness?.pendingObligationsUsd ?? 0,
       needsFund,
+      fundingGapUsd,
       canDeploy: readiness?.canDeploy ?? false,
     });
   }
@@ -191,24 +222,27 @@ export function CommunityHome({ slug }: { slug: string }) {
     try {
       if (confirm.kind === "create_program") {
         const templateId = defaultProgramTemplateForCommunity(slug);
-        const result = await apiDiscoverAction(
-          {
-            id: "community-create-program",
-            label: confirm.templateLabel,
-            kind: "create_program",
-            communitySlug: slug,
-            templateId,
-          },
-          { surface: "community-console" },
-        );
-        if (!result.ok) {
-          toast.error(result.message);
-          return;
+        try {
+          const created = await apiCreateProgram(slug, templateId);
+          if (!created.program) throw new Error("Program was not created");
+          insertProgramIntoCache(created.program);
+          toast.success(`${created.program.name} created as draft`, {
+            description: "Fund the pool or edit rules before settlement.",
+          });
+          setConfirm(null);
+          void queryClient.invalidateQueries({ queryKey: queryKeys.communities });
+          void refetch();
+          window.setTimeout(() => {
+            document.getElementById(`program-${created.program?.id}`)?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }, 50);
+        } catch (err) {
+          toast.error("Program was not created", {
+            description: err instanceof Error ? err.message : "Unknown API error",
+          });
         }
-        toast.success(result.message ?? "Program created");
-        setConfirm(null);
-        await refresh();
-        document.getElementById("programs")?.scrollIntoView({ behavior: "smooth" });
         return;
       }
 
@@ -216,7 +250,12 @@ export function CommunityHome({ slug }: { slug: string }) {
 
       if (confirm.kind === "approve_payouts" && confirm.needsFund) {
         setConfirm(null);
-        ops.fundProgram(pendingProgramId, slug, "Fund before deploy");
+        ops.fundProgram(
+          pendingProgramId,
+          slug,
+          `Fund $${confirm.fundingGapUsd.toFixed(2)} gap`,
+          Math.max(5, confirm.fundingGapUsd),
+        );
         return;
       }
 
@@ -251,7 +290,7 @@ export function CommunityHome({ slug }: { slug: string }) {
       description={catalog.tagline}
       workflows={[
         { label: "Console", href: consoleHref, active: tab === "console" },
-        { label: "Advanced", href: advancedHref, active: tab === "advanced" },
+        { label: "Sources", href: advancedHref, active: tab === "advanced" },
         { label: "Discover", href: "/discover" },
         { label: "Capital", href: "/capital" },
       ]}
@@ -335,7 +374,9 @@ export function CommunityHome({ slug }: { slug: string }) {
           obligationsFilter={obligationsFilter}
           onObligationsFilterChange={setObligationsFilter}
           onRequestDeploy={openDeployConfirm}
-          onFund={(programId) => ops.fundProgram(programId, slug)}
+          onFund={(programId, label, amountUsd) =>
+            ops.fundProgram(programId, slug, label, amountUsd)
+          }
           onRequestCreateProgram={openCreateConfirm}
           onRequestApprovePayouts={openApproveConfirm}
           onRefresh={() => void refresh()}

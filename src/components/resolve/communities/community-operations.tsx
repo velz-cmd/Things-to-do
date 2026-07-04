@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -22,14 +22,18 @@ export function useCommunityOperationsHandlers(slug: string) {
   const [busy, setBusy] = useState(false);
   const [fundSheet, setFundSheet] = useState<FundSheetRequest | null>(null);
 
-  const wallet: WalletSnapshot = balance
-    ? {
-        spendableUsd: balance.availableUsd,
-        totalUsdc: String(balance.onChainUsd ?? balance.availableUsd),
-        loaded: true,
-        address: balance.walletAddress,
-      }
-    : { spendableUsd: 0, totalUsdc: "0", loaded: false };
+  const wallet: WalletSnapshot = useMemo(
+    () =>
+      balance
+        ? {
+            spendableUsd: balance.availableUsd,
+            totalUsdc: String(balance.onChainUsd ?? balance.availableUsd),
+            loaded: true,
+            address: balance.walletAddress,
+          }
+        : { spendableUsd: 0, totalUsdc: "0", loaded: false },
+    [balance],
+  );
 
   const invalidateSurface = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["communities", "surface", slug] });
@@ -108,11 +112,12 @@ export function useCommunityOperationsHandlers(slug: string) {
   }, []);
 
   const fundProgram = useCallback(
-    (programId: string, communitySlug: string, label?: string) => {
+    (programId: string, communitySlug: string, label?: string, amountUsd?: number) => {
       openFundSheet({
         programId,
         communitySlug,
         label: label ?? "Fund program",
+        amountUsd,
       });
     },
     [openFundSheet],

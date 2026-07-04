@@ -29,6 +29,7 @@ export type CommunityConfirmRequest =
       programName: string;
       pendingUsd: number;
       needsFund: boolean;
+      fundingGapUsd: number;
       canDeploy: boolean;
     };
 
@@ -58,12 +59,12 @@ export function CommunityConfirmSheet({
 
   const confirmLabel =
     request.kind === "create_program"
-      ? "Create program"
+      ? "Create Draft Program"
       : request.kind === "deploy"
-        ? "Deploy on Arc"
+        ? "Settle on Arc"
         : request.needsFund
-          ? "Fund pool first"
-          : "Deploy on Arc";
+          ? `Fund $${request.fundingGapUsd.toFixed(2)} Gap`
+          : "Settle on Arc";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
@@ -76,9 +77,18 @@ export function CommunityConfirmSheet({
         <p className="mt-2 text-xs leading-relaxed text-resolve-muted">{request.detail}</p>
 
         {request.kind === "create_program" && (
-          <p className="mt-2 text-[11px] text-resolve-muted-dim">
-            {request.communityName} · {request.templateLabel}
-          </p>
+          <div className="mt-3 grid gap-2 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2.5 text-xs">
+            <p className="text-resolve-muted">
+              Community: <span className="text-white">{request.communityName}</span>
+            </p>
+            <p className="text-resolve-muted">
+              Draft rule: <span className="text-white">{request.templateLabel}</span>
+            </p>
+            <p className="text-resolve-muted">
+              Next step:{" "}
+              <span className="text-white">fund pool or edit rules before settlement</span>
+            </p>
+          </div>
         )}
 
         {(request.kind === "deploy" || request.kind === "approve_payouts") && (
@@ -90,9 +100,15 @@ export function CommunityConfirmSheet({
               Pending:{" "}
               <Money amount={request.pendingUsd} size="sm" className="inline text-amber-100" />
               {request.kind === "deploy" && (
-                <span className="ml-2 text-resolve-muted-dim">· {request.payeeCount} payee(s)</span>
+                <span className="ml-2 text-resolve-muted-dim">- {request.payeeCount} payee(s)</span>
               )}
             </p>
+            {request.kind === "approve_payouts" && request.needsFund && (
+              <p className="mt-1 text-amber-100">
+                Funding gap:{" "}
+                <Money amount={request.fundingGapUsd} size="sm" className="inline" />
+              </p>
+            )}
           </div>
         )}
 
@@ -101,7 +117,7 @@ export function CommunityConfirmSheet({
         )}
 
         <p className="mt-3 text-[10px] text-resolve-muted-dim">
-          Writes to ledger and mission timeline — same audit trail as Discover actions.
+          Writes to the RESOLVE ledger and mission timeline with the same audit trail as Discover.
         </p>
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">

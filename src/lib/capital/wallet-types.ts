@@ -4,6 +4,15 @@ export type CapitalWalletSource =
   | "profile"
   | "server_wallet";
 
+export type CapitalWalletActivity = {
+  id: string;
+  label: string;
+  amountUsd: number | null;
+  status: string;
+  createdAt: string;
+  kind: string;
+};
+
 export type CapitalWalletResponse =
   | {
       ok: true;
@@ -30,6 +39,10 @@ export type CapitalWalletResponse =
         displayName: string | null;
       } | null;
       warnings: string[];
+      syncStatus?: "live" | "cached" | "syncing" | "error" | "unknown" | "no_wallet";
+      syncError?: string | null;
+      lastKnownBalance?: number | null;
+      activity?: CapitalWalletActivity[];
     }
   | {
       ok: false;
@@ -43,7 +56,7 @@ export type CapitalWalletResponse =
       };
     };
 
-export type WalletSyncState = "loading" | "synced" | "error" | "no_wallet";
+export type WalletSyncState = "loading" | "synced" | "cached" | "error" | "no_wallet";
 
 export type WalletHealth = {
   address: string;
@@ -52,7 +65,7 @@ export type WalletHealth = {
   chainId: number;
   blockNumber: number | null;
   syncedAt: string | null;
-  rpcStatus: "live" | "error" | "syncing";
+  rpcStatus: "live" | "cached" | "error" | "syncing";
   nativeUsdc: string | null;
   erc20Usdc: string | null;
   externalAddress?: string;

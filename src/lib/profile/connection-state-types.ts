@@ -5,13 +5,25 @@ export type ConnectionPlatformId =
   | "navidrome"
   | "gmail"
   | "musicbrainz"
-  | "wallet";
+  | "wallet"
+  | "mastodon"
+  | "peertube";
+
+export type ConnectionSyncStatus = "connected" | "syncing" | "error" | "not_connected";
 
 export type PlatformConnection = {
   id: ConnectionPlatformId;
   label: string;
   connected: boolean;
   displayValue?: string;
+  providerUserId?: string | null;
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  lastSyncAt?: string | null;
+  syncStatus?: ConnectionSyncStatus;
+  error?: string | null;
+  scopes?: string[];
   authorizeUrl?: string;
 };
 

@@ -367,8 +367,10 @@ export function ResolveBanking({
   const reserved = balances?.reservedUsd ?? 0;
   const onChainUsd = balances?.onChainUsdcUsd ?? null;
 
-  const showBalanceAmount = balanceKnown && walletSync === "synced";
-  const showSyncError = walletSync === "error" || (!balanceKnown && walletSync !== "loading");
+  const showBalanceAmount = balanceKnown && walletSync !== "error";
+  const showCachedBalance = walletSync === "cached";
+  const showSyncError =
+    walletSync === "error" || (!balanceKnown && walletSync !== "loading" && walletSync !== "cached");
   const showNoWallet = walletSync === "no_wallet";
 
   const statementLines: StatementLine[] = account?.statement ?? [];
@@ -471,7 +473,11 @@ export function ResolveBanking({
                       <p className="mt-2 text-4xl font-semibold tabular-nums text-white">
                         <Money amount={yourDeposits} size="lg" />
                       </p>
-                      <p className="mt-1 text-xs text-resolve-muted">{BANKING_UI.balanceHint}</p>
+                      <p className="mt-1 text-xs text-resolve-muted">
+                        {showCachedBalance
+                          ? (syncError ?? "Using last known Arc balance while the network syncs.")
+                          : BANKING_UI.balanceHint}
+                      </p>
                     </>
                   : <p className="mt-2 text-sm text-resolve-muted">{BANKING_UI.syncingBalance}</p>
                   }

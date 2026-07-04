@@ -130,7 +130,7 @@ export async function GET() {
         hint:
           jellyfinConnected ?
             undefined
-          : "Install Jellyfin — one click",
+          : "Connect Jellyfin — one click",
         authorizeUrl: "/connect/jellyfin",
       },
       {

@@ -32,7 +32,7 @@ function offlineIdentitiesForUser(userId: string): ProfileIdentityState[] {
     {
       id: "github",
       connected: false,
-      hint: "Install GitHub to claim code contributions",
+      hint: "Connect GitHub to claim code contributions",
       authorizeUrl: "/connect/github",
     },
     {
@@ -50,7 +50,7 @@ function offlineIdentitiesForUser(userId: string): ProfileIdentityState[] {
     {
       id: "listenbrainz",
       connected: false,
-      hint: "Install MusicBrainz — one click",
+      hint: "Connect MusicBrainz — one click",
       authorizeUrl: "/connect/listenbrainz",
     },
     {

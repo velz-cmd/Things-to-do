@@ -419,7 +419,7 @@ export function ProfileSettings() {
         return (
           <div className="space-y-2">
             <Button size="sm" onClick={() => connectGithub()}>
-              Install GitHub
+              Connect GitHub
             </Button>
             <p className="text-[11px] text-resolve-muted-dim">
               Opens GitHub authorization — RESOLVE stores only your @username for code attribution.
@@ -466,10 +466,10 @@ export function ProfileSettings() {
         return (
           <div className="space-y-2">
             <Button size="sm" onClick={() => connectJellyfin()}>
-              Install Jellyfin
+              Connect Jellyfin
             </Button>
             <p className="text-[11px] text-resolve-muted-dim">
-              Sign in with your Jellyfin account — RESOLVE installs the community and syncs watches
+              Sign in with your Jellyfin account — RESOLVE connects playback proof and syncs watches
               automatically.
             </p>
           </div>
@@ -478,7 +478,7 @@ export function ProfileSettings() {
         return (
           <div className="space-y-2">
             <Button size="sm" onClick={() => connectListenBrainz()}>
-              Install MusicBrainz
+              Connect MusicBrainz
             </Button>
             <p className="text-[11px] text-resolve-muted-dim">
               Opens MusicBrainz authorization (same account as ListenBrainz). One-time — sync runs

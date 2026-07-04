@@ -5,6 +5,16 @@ import { fundCommunityProgram } from "@/lib/capital/fund-program";
 
 export const maxDuration = 60;
 
+function publicFundError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Fund failed";
+  if (
+    /connection pool|prisma|timeout|timed out|database|ECONNRESET|fetch failed/i.test(message)
+  ) {
+    return "Funding is still syncing. Open Capital for status, then retry if it does not appear.";
+  }
+  return message;
+}
+
 const bodySchema = z.object({
   programId: z.string().min(1),
   amountUsd: z.number().positive(),
@@ -44,7 +54,6 @@ export async function POST(req: Request) {
     return NextResponse.json(result);
   } catch (e) {
     console.error("[capital/fund]", e);
-    const msg = e instanceof Error ? e.message : "Fund failed";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: publicFundError(e) }, { status: 500 });
   }
 }

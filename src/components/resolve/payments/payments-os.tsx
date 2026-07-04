@@ -56,6 +56,19 @@ function snapshotFromCapitalWallet(
   const spendable = Number(data.balance.spendableUsd);
   const total = Number(data.balance.totalUsdc);
   const wallet = data.wallet.address;
+  const statement = (data.activity ?? []).map((item) => {
+    const amount = item.amountUsd ?? 0;
+    return {
+      id: item.id,
+      at: item.createdAt,
+      type: item.kind === "fund_program" ? "program_reserve" as const : "adjustment" as const,
+      direction: amount < 0 ? "debit" as const : "credit" as const,
+      amountUsd: Math.abs(amount),
+      balanceAfterUsd: null,
+      label: item.label,
+      reference: item.status,
+    };
+  });
 
   return {
     ok: true,
@@ -77,7 +90,7 @@ function snapshotFromCapitalWallet(
       onChainUsdcUsd: total,
     },
     programs: [],
-    statement: [],
+    statement,
     network: {
       authorizedUsd: 0,
       claimableUsd: 0,
@@ -134,6 +147,7 @@ function healthFromResponse(
   if (!data.ok && !data.wallet) return null;
   const wallet = data.ok ? data.wallet : data.wallet!;
   if (data.ok) {
+    const cached = data.syncStatus === "cached";
     return {
       address: wallet.address,
       shortAddress: wallet.shortAddress,
@@ -141,7 +155,7 @@ function healthFromResponse(
       chainId: data.balance.chainId,
       blockNumber: data.balance.blockNumber,
       syncedAt: data.balance.syncedAt,
-      rpcStatus: syncing ? "syncing" : "live",
+      rpcStatus: syncing ? "syncing" : cached ? "cached" : "live",
       nativeUsdc: data.balance.nativeUsdc,
       erc20Usdc: data.balance.erc20Usdc,
       externalAddress: data.wallet.externalAddress,
@@ -219,8 +233,8 @@ export function PaymentsOS() {
         const snap = snapshotFromCapitalWallet(capital, user.id);
         setBanking(snap);
         setWalletHealth(healthFromResponse(capital, false));
-        setWalletSync("synced");
-        setSyncError(null);
+        setWalletSync(capital.syncStatus === "cached" ? "cached" : "synced");
+        setSyncError(capital.syncStatus === "cached" ? (capital.syncError ?? "Using last known Arc balance.") : null);
         setWalletWarnings(capital.warnings);
         setLastRefreshedAt(new Date(capital.balance.syncedAt));
       } else if (capital.code === "WALLET_NOT_FOUND") {
@@ -328,7 +342,7 @@ export function PaymentsOS() {
   }, [loadWallet, user]);
 
   useEffect(() => {
-    if (!user || walletSync !== "synced") return;
+    if (!user || (walletSync !== "synced" && walletSync !== "cached")) return;
     const t = setTimeout(() => void loadBankingMeta(), 2_000);
     return () => clearTimeout(t);
   }, [loadBankingMeta, user, walletSync]);
@@ -393,7 +407,7 @@ export function PaymentsOS() {
     return rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [overview]);
 
-  const balanceKnown = walletSync === "synced";
+  const balanceKnown = walletSync === "synced" || walletSync === "cached";
 
   return (
     <ResolveBanking

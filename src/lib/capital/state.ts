@@ -6,6 +6,7 @@ import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
 import { resolveUserWallet, shortWalletAddress } from "@/lib/wallet/resolve-user-wallet";
 import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 import type { CapitalWalletResponse } from "@/lib/capital/wallet-types";
+import { runWithFallback } from "@/lib/providers/provider-router";
 
 const ARC_CHAIN_ID = 5042002;
 const ARC_EXPLORER_URL = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app";
@@ -17,7 +18,9 @@ type ProfileLight = {
   walletAddress: string | null;
   scanWalletAddress: string | null;
   embeddedWallet: boolean;
+  availableUsd: number;
   taskMemoryJson: string | null;
+  updatedAt: Date;
 };
 
 export type CapitalStateResponse = {
@@ -35,6 +38,7 @@ export type CapitalStateResponse = {
   };
   usdcBalance: number | null;
   spendableBalance: number | null;
+  lastKnownBalance: number | null;
   treasuryBalance: number;
   programBalances: Array<{
     id: string;
@@ -51,13 +55,21 @@ export type CapitalStateResponse = {
   }>;
   claimableAmount: number;
   lastSyncedAt: string | null;
-  syncStatus: "synced" | "error" | "no_wallet";
+  syncStatus: "live" | "cached" | "syncing" | "error" | "unknown" | "no_wallet";
   syncError: string | null;
   account: {
     email: string | null;
     displayName: string | null;
   } | null;
   warnings: string[];
+  activity: Array<{
+    id: string;
+    label: string;
+    amountUsd: number | null;
+    status: string;
+    createdAt: string;
+    kind: string;
+  }>;
   wallet?: CapitalWalletResponse["wallet"];
   balance?: Extract<CapitalWalletResponse, { ok: true }>["balance"];
   code?: string;
@@ -74,7 +86,9 @@ async function loadProfileLight(userId: string): Promise<ProfileLight | null> {
       walletAddress: true,
       scanWalletAddress: true,
       embeddedWallet: true,
+      availableUsd: true,
       taskMemoryJson: true,
+      updatedAt: true,
     },
   });
 }
@@ -115,28 +129,98 @@ async function getProgramBalances(userId: string) {
 }
 
 async function getPendingTransactions(userId: string) {
-  const rows = await prisma.paymentAuthorization.findMany({
-    where: {
-      founderUserId: userId,
-      status: { in: ["authorized", "pending_funding", "claimable"] },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 12,
-    select: {
-      id: true,
-      contextLabel: true,
-      amountUsd: true,
-      status: true,
-      createdAt: true,
-    },
-  });
-  return rows.map((row) => ({
-    id: row.id,
-    label: row.contextLabel ?? "Authorized payout",
-    amountUsd: row.amountUsd,
-    status: row.status,
-    createdAt: row.createdAt.toISOString(),
-  }));
+  const [authorizations, walletTransactions] = await Promise.all([
+    prisma.paymentAuthorization.findMany({
+      where: {
+        founderUserId: userId,
+        status: { in: ["authorized", "pending_funding", "claimable", "ready_to_settle"] },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        contextLabel: true,
+        amountUsd: true,
+        status: true,
+        createdAt: true,
+      },
+    }),
+    prisma.walletTransaction.findMany({
+      where: { userId, status: { in: ["pending", "pending_sync", "syncing"] } },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        label: true,
+        amountUsd: true,
+        status: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+
+  return [
+    ...walletTransactions.map((row) => ({
+      id: row.id,
+      label: row.label ?? "Funding submitted",
+      amountUsd: Math.abs(row.amountUsd),
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+    })),
+    ...authorizations.map((row) => ({
+      id: row.id,
+      label: row.contextLabel ?? "Authorized payout",
+      amountUsd: row.amountUsd,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+    })),
+  ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 12);
+}
+
+async function getActivity(userId: string): Promise<CapitalStateResponse["activity"]> {
+  const [walletRows, timelineRows] = await Promise.all([
+    prisma.walletTransaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: { id: true, type: true, label: true, amountUsd: true, status: true, createdAt: true },
+    }),
+    prisma.resolveTimelineEvent.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: { id: true, eventType: true, title: true, severity: true, createdAt: true },
+    }),
+  ]);
+
+  return [
+    ...walletRows.map((row) => ({
+      id: row.id,
+      label: row.label ?? row.type,
+      amountUsd: row.amountUsd,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+      kind: row.type,
+    })),
+    ...timelineRows.map((row) => ({
+      id: row.id,
+      label: row.title,
+      amountUsd: null,
+      status: row.severity,
+      createdAt: row.createdAt.toISOString(),
+      kind: row.eventType,
+    })),
+  ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 12);
+}
+
+function cachedBalanceFromProfile(profile: ProfileLight | null): number | null {
+  if (!profile) return null;
+  const value = Number(profile.availableUsd);
+  return Number.isFinite(value) ? Math.max(0, Math.round(value * 100) / 100) : null;
 }
 
 export async function loadCapitalState(authUser: SupabaseUser): Promise<CapitalStateResponse> {
@@ -153,7 +237,9 @@ export async function loadCapitalState(authUser: SupabaseUser): Promise<CapitalS
         walletAddress: ensured.walletAddress,
         scanWalletAddress: ensured.scanWalletAddress,
         embeddedWallet: Boolean(ensured.embeddedWallet),
+        availableUsd: ensured.availableUsd,
         taskMemoryJson: ensured.taskMemoryJson,
+        updatedAt: ensured.updatedAt,
       };
     } catch {
       warnings.push("Could not provision RESOLVE wallet.");
@@ -161,7 +247,7 @@ export async function loadCapitalState(authUser: SupabaseUser): Promise<CapitalS
   }
 
   if (profile) {
-    await syncIdentityBalance(profile.id).catch(() => null);
+    void syncIdentityBalance(profile.id).catch(() => null);
   }
 
   const walletResolved = resolveUserWallet(authUser.id, profile, authUser);
@@ -191,13 +277,44 @@ export async function loadCapitalState(authUser: SupabaseUser): Promise<CapitalS
     warnings,
   };
 
+  const cachedBalance = cachedBalanceFromProfile(profile);
+  const cachedSyncedAt = profile?.updatedAt?.toISOString() ?? null;
+  const [reservedUsd, programBalances, pendingTransactions, activity] = await Promise.all([
+    profile ? getReservedUsd(profile.id).catch(() => 0) : Promise.resolve(0),
+    profile ? getProgramBalances(profile.id).catch(() => []) : Promise.resolve([]),
+    profile ? getPendingTransactions(profile.id).catch(() => []) : Promise.resolve([]),
+    profile ? getActivity(profile.id).catch(() => []) : Promise.resolve([]),
+  ]);
+
+  if (!walletResolved.address) {
+    return {
+      ok: false,
+      ...base,
+      usdcBalance: null,
+      spendableBalance: null,
+      lastKnownBalance: cachedBalance,
+      programBalances,
+      pendingTransactions,
+      claimableAmount: 0,
+      lastSyncedAt: cachedSyncedAt,
+      syncStatus: "no_wallet",
+      syncError: "Connect an Arc wallet in Profile or Capital to fund programs.",
+      activity,
+      code: "WALLET_NOT_FOUND",
+      message: "Connect an Arc wallet in Profile or Capital to fund programs.",
+    };
+  }
+
   try {
-    const [chainBalance, reservedUsd, programBalances, pendingTransactions] = await Promise.all([
-      getArcUsdcBalance(walletResolved.address),
-      profile ? getReservedUsd(profile.id).catch(() => 0) : Promise.resolve(0),
-      profile ? getProgramBalances(profile.id).catch(() => []) : Promise.resolve([]),
-      profile ? getPendingTransactions(profile.id).catch(() => []) : Promise.resolve([]),
-    ]);
+    const chainBalance = await runWithFallback({
+      feature: "capital_state",
+      providers: [{ name: "arc_rpc", run: () => getArcUsdcBalance(walletResolved.address) }],
+      timeoutMs: 3_500,
+      fallback: null,
+    });
+    if (!chainBalance) {
+      throw new ArcRpcUnavailableError("Arc confirmation is still syncing.");
+    }
     const total = Number(chainBalance.totalUsdc);
     const spendable = Math.max(0, total - reservedUsd);
 
@@ -206,13 +323,15 @@ export async function loadCapitalState(authUser: SupabaseUser): Promise<CapitalS
       ...base,
       usdcBalance: Number.isFinite(total) ? total : 0,
       spendableBalance: spendable,
+      lastKnownBalance: cachedBalance,
       treasuryBalance: total,
       programBalances,
       pendingTransactions,
       claimableAmount: 0,
       lastSyncedAt: chainBalance.syncedAt,
-      syncStatus: "synced",
+      syncStatus: "live",
       syncError: null,
+      activity,
       wallet: {
         address: walletResolved.address,
         shortAddress: shortWalletAddress(walletResolved.address),
@@ -233,27 +352,40 @@ export async function loadCapitalState(authUser: SupabaseUser): Promise<CapitalS
       },
     };
   } catch (e) {
-    const message =
-      e instanceof ArcRpcUnavailableError
-        ? e.message
-        : "Could not sync Arc balance. Retry sync or check wallet connection.";
+    const message = cachedBalance !== null
+      ? "Using last known Arc balance."
+      : "Arc balance is still syncing. Refresh Capital before funding.";
     return {
-      ok: false,
+      ok: cachedBalance !== null,
       ...base,
-      usdcBalance: null,
-      spendableBalance: null,
-      programBalances: profile ? await getProgramBalances(profile.id).catch(() => []) : [],
-      pendingTransactions: profile ? await getPendingTransactions(profile.id).catch(() => []) : [],
+      usdcBalance: cachedBalance,
+      spendableBalance: cachedBalance,
+      lastKnownBalance: cachedBalance,
+      programBalances,
+      pendingTransactions,
       claimableAmount: 0,
-      lastSyncedAt: null,
-      syncStatus: "error",
+      lastSyncedAt: cachedSyncedAt,
+      syncStatus: cachedBalance !== null ? "cached" : "error",
       syncError: message,
+      activity,
       code: e instanceof ArcRpcUnavailableError ? e.code : "ARC_RPC_UNAVAILABLE",
       message,
       wallet: {
         address: walletResolved.address,
         shortAddress: shortWalletAddress(walletResolved.address),
         source: walletResolved.source,
+        provider: walletProvider === "circle" ? "circle" : "embedded",
+      },
+      balance: {
+        totalUsdc: (cachedBalance ?? 0).toFixed(2),
+        onChainUsd: (cachedBalance ?? 0).toFixed(2),
+        nativeUsdc: "0.00",
+        erc20Usdc: "0.00",
+        chainId: ARC_CHAIN_ID,
+        blockNumber: 0,
+        syncedAt: cachedSyncedAt ?? new Date().toISOString(),
+        reservedUsd,
+        spendableUsd: (cachedBalance ?? 0).toFixed(2),
       },
     };
   }

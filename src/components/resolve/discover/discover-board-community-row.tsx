@@ -14,6 +14,7 @@ import { communityReadyForDiscover } from "@/lib/discover/community-profile-link
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 import { DiscoverCardNarrativeBlock } from "@/components/resolve/discover/discover-card-narrative";
 import { DiscoverActionBar } from "@/components/resolve/discover/discover-action-bar";
+import { DiscoverCommunityLogo } from "@/components/resolve/discover/discover-community-logo";
 import { DiscoverSolveButton } from "@/components/resolve/discover/discover-solve-button";
 import {
   DiscoverQuickActions,
@@ -84,6 +85,7 @@ export function DiscoverBoardCommunityRow({
     onAction: handleAction,
     solve: null,
   });
+  const hasAnalysisAction = allVisible.some((a) => a.kind === "analyze");
 
   return (
     <li
@@ -98,7 +100,9 @@ export function DiscoverBoardCommunityRow({
       }}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <DiscoverCommunityLogo gap={gap} />
+          <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-white">{card.title}</p>
             <span
@@ -117,11 +121,12 @@ export function DiscoverBoardCommunityRow({
                   : "border-white/10 bg-white/[0.04] text-resolve-muted",
               )}
             >
-              {installed ? "Source connected" : "Source needed"}
+              {installed ? "Proof connected" : "Connect proof source"}
             </span>
           </div>
           <DiscoverCardNarrativeBlock narrative={card.narrative} />
           <DiscoverProofPipeline stages={card.pipeline} className="mt-2" />
+          </div>
         </div>
 
         <DiscoverQuickActions
@@ -139,7 +144,7 @@ export function DiscoverBoardCommunityRow({
         showAdvanced={showAdvanced}
         onToggleAdvanced={() => setShowAdvanced((v) => !v)}
         onAction={handleAction}
-        trailing={<DiscoverSolveButton gap={gap} />}
+        trailing={hasAnalysisAction ? null : <DiscoverSolveButton gap={gap} />}
       />
     </li>
   );

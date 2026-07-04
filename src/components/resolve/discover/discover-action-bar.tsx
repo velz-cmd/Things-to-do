@@ -29,9 +29,20 @@ export function DiscoverActionBar({
   trailing,
 }: DiscoverActionBarProps) {
   const primary = slots.find((s) => s.variant === "primary");
-  const secondary = slots.filter((s) => s.variant === "secondary");
+  const primaryLabel = primary ? normalizeLabel(friendlyDiscoverActionLabel(primary.action, connections)) : null;
+  const secondary = dedupeSlotsByLabel(slots.filter((s) => s.variant === "secondary"), connections)
+    .filter((s) => normalizeLabel(friendlyDiscoverActionLabel(s.action, connections)) !== primaryLabel)
+    .slice(0, 2);
+  const visibleLabels = new Set(
+    [primary, ...secondary]
+      .filter(Boolean)
+      .map((s) => normalizeLabel(friendlyDiscoverActionLabel(s!.action, connections))),
+  );
+  const advancedActions = dedupeActionsByLabel(advanced, connections).filter(
+    (a) => !visibleLabels.has(normalizeLabel(friendlyDiscoverActionLabel(a, connections))),
+  );
 
-  if (!primary && secondary.length === 0 && advanced.length === 0 && !trailing) {
+  if (!primary && secondary.length === 0 && advancedActions.length === 0 && !trailing) {
     return null;
   }
 
@@ -53,7 +64,7 @@ export function DiscoverActionBar({
         />
       ))}
       {trailing}
-      {advanced.length > 0 && onToggleAdvanced && (
+      {advancedActions.length > 0 && onToggleAdvanced && (
         <button
           type="button"
           onClick={onToggleAdvanced}
@@ -63,7 +74,7 @@ export function DiscoverActionBar({
         </button>
       )}
       {showAdvanced &&
-        advanced.map((action, index) => (
+        advancedActions.map((action, index) => (
           <button
             key={`adv-${action.id}-${index}`}
             type="button"
@@ -75,6 +86,40 @@ export function DiscoverActionBar({
         ))}
     </div>
   );
+}
+
+function normalizeLabel(label: string): string {
+  return label.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function dedupeSlotsByLabel(
+  slots: DiscoverActionSlot[],
+  connections: UserConnectionState | null | undefined,
+): DiscoverActionSlot[] {
+  const seen = new Set<string>();
+  const out: DiscoverActionSlot[] = [];
+  for (const slot of slots) {
+    const key = normalizeLabel(friendlyDiscoverActionLabel(slot.action, connections));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(slot);
+  }
+  return out;
+}
+
+function dedupeActionsByLabel(
+  actions: DiscoverAction[],
+  connections: UserConnectionState | null | undefined,
+): DiscoverAction[] {
+  const seen = new Set<string>();
+  const out: DiscoverAction[] = [];
+  for (const action of actions) {
+    const key = normalizeLabel(friendlyDiscoverActionLabel(action, connections));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(action);
+  }
+  return out;
 }
 
 function ActionButton({

@@ -19,25 +19,25 @@ export function solveIntentForGap(gap: TrendingValueGap): SolveIntent {
     case "oss":
       return {
         serviceId: "docs-review",
-        label: "Run contributor analysis",
+        label: "Analyze Contributors",
         prompt: `Find missing contributors and unpaid docs/maintainer work for ${subject}. Recommend payout rules, contributors, and an initial funding amount.`,
       };
     case "music":
       return {
         serviceId: "attribution-signal",
-        label: "Calculate revenue split",
+        label: gap.templateId === "video-royalties" ? "Analyze Watch Time" : "Run Attribution Agent",
         prompt: `Find unrewarded artists and verified plays for ${subject}. Recommend an attribution split and the first royalty pool to launch.`,
       };
     case "research":
       return {
         serviceId: "citation-verify",
-        label: "Verify citations",
+        label: "Verify Citations",
         prompt: `Verify citation activity for ${subject}. Recommend who should receive a citation-toll payout and what grant pool should launch first.`,
       };
     case "dao":
       return {
         serviceId: "premium-research",
-        label: "Estimate reward pool",
+        label: "Run Risk Check",
         prompt: `Analyze ${subject}: estimate the reward pool, expected impact, and first grant round to launch.`,
       };
     case "community":

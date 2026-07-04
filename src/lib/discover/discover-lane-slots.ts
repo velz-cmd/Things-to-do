@@ -49,9 +49,61 @@ function synthAction(
   };
 }
 
+function firstSourceLabel(value: string | undefined): string {
+  return value?.split(/\s*(?:\+|\u00b7|\u00c2\u00b7)\s*/)[0]?.trim() || "source";
+}
+
+function programLabelForGap(gap: TrendingValueGap): string {
+  const labels: Record<string, string> = {
+    "citation-toll": "Create Citation Toll",
+    "docs-bounty": "Create Docs Program",
+    "quadratic-funding": "Launch Grant Round",
+    "security-fund": "Create Security Fund",
+    "user-centric-royalties": "Create Royalty Pool",
+    "video-royalties": "Create Pay-per-Minute Rule",
+  };
+  return gap.templateId ? (labels[gap.templateId] ?? "Create Payout Rule") : "Create Payout Rule";
+}
+
+function fundLabelForGap(gap: TrendingValueGap, fallback = "Fund Now"): string {
+  if (gap.templateId === "docs-bounty") return "Fund Maintainers";
+  if (gap.templateId === "security-fund") return "Fund Security Pool";
+  if (gap.templateId === "user-centric-royalties") return "Fund Royalty Pool";
+  if (gap.templateId === "video-royalties") return "Fund Creator Pool";
+  if (gap.templateId === "citation-toll") return "Fund Research Pool";
+  if (gap.templateId === "quadratic-funding") return "Create QF Pool";
+  return fallback;
+}
+
+function rewardLabelForGap(gap: TrendingValueGap): string {
+  if (gap.domain === "music") return "Pay Artists";
+  if (gap.templateId === "video-royalties") return "Pay Creators";
+  if (gap.domain === "research") return "Reward Authors";
+  if (gap.domain === "dao") return "Launch Grant";
+  return "Reward Contributors";
+}
+
+function estimateLabelForGap(gap: TrendingValueGap): string {
+  if (gap.templateId === "docs-bounty") return "Analyze Contributors";
+  if (gap.templateId === "security-fund") return "Analyze Security Work";
+  if (gap.templateId === "user-centric-royalties") return "Simulate Artist Split";
+  if (gap.templateId === "video-royalties") return "Calculate Creator Split";
+  if (gap.templateId === "citation-toll") return "Verify Citations";
+  if (gap.templateId === "quadratic-funding") return "Run Risk Check";
+  return "Estimate Budget";
+}
+
+function proofLabelForGap(gap: TrendingValueGap): string {
+  if (gap.domain === "oss") return "View GitHub Proof";
+  if (gap.templateId === "user-centric-royalties") return "View Attribution Proof";
+  if (gap.templateId === "video-royalties") return "View Playback Proof";
+  if (gap.domain === "research") return "View Citation Proof";
+  return "View Proof";
+}
+
 function profileConnectAction(gap: TrendingValueGap): DiscoverAction {
   const profile = gap.communitySlug ? getCommunityValueProfile(gap.communitySlug) : null;
-  const source = profile?.upstream.split(" · ")[0] ?? "source";
+  const source = firstSourceLabel(profile?.upstream);
   return synthAction(gap, "connect-profile", `Connect ${source}`, "connect_sensor", {
     href: "/profile",
   });
@@ -59,27 +111,29 @@ function profileConnectAction(gap: TrendingValueGap): DiscoverAction {
 
 function fundAction(pool: DiscoverAction[], gap: TrendingValueGap, label = "Fund pool"): DiscoverAction {
   const fromPool = findAction(pool, "fund") ?? findAction(pool, "sponsor");
-  if (fromPool) return { ...fromPool, label: label === "Fund pool" ? fromPool.label : label };
-  return synthAction(gap, "fund", label, "fund");
+  const resolvedLabel = label === "Fund pool" ? fundLabelForGap(gap, fromPool?.label) : label;
+  if (fromPool) return { ...fromPool, label: resolvedLabel };
+  return synthAction(gap, "fund", resolvedLabel, "fund");
 }
 
 function rewardAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction {
-  return fundAction(pool, gap, "Reward contributors");
+  return fundAction(pool, gap, rewardLabelForGap(gap));
 }
 
 function ruleAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction {
   const fromPool = findAction(pool, "create_program");
-  if (fromPool) return { ...fromPool, label: "Create reward program" };
-  return synthAction(gap, "rule", "Create reward program", "create_program");
+  const label = programLabelForGap(gap);
+  if (fromPool) return { ...fromPool, label };
+  return synthAction(gap, "rule", label, "create_program");
 }
 
 function proofAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
   const fromPool = findActionMatching(pool, /proof/i) ?? findAction(pool, "open");
   if (fromPool && (/proof/i.test(fromPool.label) || gap.proofHref || gap.entityPath)) {
-    return { ...fromPool, label: "View live proof" };
+    return { ...fromPool, label: proofLabelForGap(gap) };
   }
   if (gap.proofHref || gap.entityPath) {
-    return synthAction(gap, "proof", "View live proof", "open", {
+    return synthAction(gap, "proof", proofLabelForGap(gap), "open", {
       href: gap.proofHref,
       entityPath: gap.entityPath ?? (gap.communitySlug ? `/communities/${gap.communitySlug}` : undefined),
     });
@@ -89,17 +143,19 @@ function proofAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAct
 
 function estimateImpactAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
   const preview = findActionMatching(pool, /split|preview|simulat/i);
-  if (preview) return preview;
+  if (preview) return { ...preview, label: estimateLabelForGap(gap) };
   if (!gap.communitySlug) return undefined;
-  return synthAction(gap, "estimate-impact", "Estimate impact", "analyze", {
+  return synthAction(gap, "estimate-impact", estimateLabelForGap(gap), "analyze", {
     communitySlug: gap.communitySlug,
   });
 }
 
 function mapIdentityAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAction | undefined {
+  const fromPool = findActionMatching(pool, /map|identity/i);
+  const label = gap.domain === "music" || gap.templateId === "video-royalties" ? "Verify Creators" : "Verify Identity";
   return (
-    findActionMatching(pool, /map|identity/i) ??
-    synthAction(gap, "map-identity", "Map identity", "open", {
+    (fromPool ? { ...fromPool, label } : undefined) ??
+    synthAction(gap, "map-identity", label, "open", {
       href: "/profile",
       entityPath: "/profile",
     })
@@ -273,7 +329,7 @@ function resolveRadarsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
         action: ctx.agent,
         variant: "secondary",
         disabled: true,
-        disabledReason: "Connect source first",
+        disabledReason: "Connect the proof source in Profile first.",
       });
     }
     return slots;
@@ -282,7 +338,7 @@ function resolveRadarsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   if (state === "verified") {
     if (ctx.automate) push({ action: ctx.automate, variant: "primary" });
     else if (ctx.agent) push({ action: ctx.agent, variant: "primary" });
-    else if (ctx.reward) push({ action: ctx.reward, variant: "primary", disabled: true, disabledReason: "Create a reward program in Unpaid Value first" });
+    else if (ctx.reward) push({ action: ctx.reward, variant: "primary", disabled: true, disabledReason: "Create a payout program from Unpaid Value first." });
 
     if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
     else if (ctx.mapIdentity) push({ action: ctx.mapIdentity, variant: "secondary" });
@@ -296,7 +352,7 @@ function resolveRadarsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
         action: ctx.fund,
         variant: "primary",
         disabled: lowBalance,
-        disabledReason: lowBalance ? "Add Arc USDC first" : undefined,
+        disabledReason: lowBalance ? "Wallet required: add Arc USDC in Capital." : undefined,
       });
     } else if (ctx.automate) {
       push({ action: ctx.automate, variant: "primary" });
@@ -363,7 +419,7 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
         action: ctx.fund,
         variant: "primary",
         disabled: true,
-        disabledReason: "Connect source in Profile first",
+        disabledReason: "Connect the proof source in Profile first.",
       });
       push({ action: ctx.connect, variant: "secondary" });
     } else {
@@ -378,7 +434,7 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
         action: ctx.fund,
         variant: "primary",
         disabled: true,
-        disabledReason: "Reward program required first",
+        disabledReason: "Create a payout program before funding.",
       });
       if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
       else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
@@ -387,10 +443,10 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
       if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
       else if (ctx.fund) {
         push({
-          action: { ...ctx.fund, label: "Fund initial pool" },
+          action: { ...ctx.fund, label: "Fund Initial Pool" },
           variant: "secondary",
           disabled: spendableUsd != null && spendableUsd < 5,
-          disabledReason: spendableUsd != null && spendableUsd < 5 ? "Add Arc USDC first" : undefined,
+          disabledReason: spendableUsd != null && spendableUsd < 5 ? "Wallet required: add Arc USDC in Capital." : undefined,
         });
       }
     }
@@ -400,10 +456,10 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   if (state === "programmed") {
     const lowBalance = spendableUsd != null && spendableUsd < 5;
     push({
-      action: { ...ctx.fund, label: "Fund initial pool" },
+      action: { ...ctx.fund, label: "Fund Initial Pool" },
       variant: "primary",
       disabled: lowBalance,
-      disabledReason: lowBalance ? "Add Arc USDC first" : undefined,
+      disabledReason: lowBalance ? "Wallet required: add Arc USDC in Capital." : undefined,
     });
     if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
     else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
@@ -435,7 +491,7 @@ function resolveGraphSlots(input: ActionResolveInput): DiscoverActionSlot[] {
     state,
     effectiveRole,
     push,
-    fund: fundAction(pool, gap, "Fund gap"),
+    fund: fundAction(pool, gap, "Fund Now"),
     reward: rewardAction(pool, gap),
     rule: ruleAction(pool, gap),
     proof: proofAction(pool, gap),
@@ -475,7 +531,7 @@ function resolveGraphSlots(input: ActionResolveInput): DiscoverActionSlot[] {
       action: ctx.fund,
       variant: "primary",
       disabled: lowBalance,
-      disabledReason: lowBalance ? "Add Arc USDC first" : undefined,
+      disabledReason: lowBalance ? "Wallet required: add Arc USDC in Capital." : undefined,
     });
     if (ctx.console) push({ action: ctx.console, variant: "secondary" });
     return slots;

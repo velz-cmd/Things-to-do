@@ -4,6 +4,7 @@ import { refreshProgramYieldCache } from "@/lib/capital/yield-service";
 import { runQfMatchAllocation } from "@/lib/capital/qf-allocator";
 import { DEFAULT_TARGET_YIELD_MULTIPLIER } from "@/lib/capital/community-yield";
 import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
+import { withProviderTimeout } from "@/lib/providers/provider-router";
 import type { ProgramRules } from "@/lib/communities/types";
 
 const MIN_FUND_USD = 5;
@@ -16,6 +17,9 @@ export type FundProgramResult =
       principalUsd: number;
       targetYieldMultiplier: number;
       newBudgetUsd: number;
+      status: "pending_sync";
+      activityId: string;
+      message: string;
     }
   | { ok: false; error: string };
 
@@ -56,39 +60,45 @@ export async function fundCommunityProgram(input: {
     return { ok: false, error: "Program is not accepting funds" };
   }
 
-  let availableUsd = (await getRealSpendableUsd(input.userId, { sync: false })).availableUsd;
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { availableUsd: true },
+  });
+  if (!user) {
+    return { ok: false, error: "Sign in again before funding this pool" };
+  }
+
+  let availableUsd = Math.round(user.availableUsd * 100) / 100;
   if (availableUsd < amount) {
-    const synced = await getRealSpendableUsd(input.userId, { sync: true });
-    availableUsd = synced.availableUsd;
+    const synced = await withProviderTimeout(
+      getRealSpendableUsd(input.userId, { sync: true }),
+      3_500,
+      "fund_program:wallet_sync",
+    ).catch(() => null);
+    if (synced) {
+      availableUsd = Math.max(availableUsd, Math.round(synced.availableUsd * 100) / 100);
+    }
   }
   if (availableUsd < amount) {
     return {
       ok: false,
       error:
         availableUsd <= 0
-          ? "No spendable USDC — open Capital to sync your wallet and add funds"
+          ? "Wallet has no spendable USDC. Open Capital to add funds."
           : `Insufficient balance: $${availableUsd.toFixed(2)} spendable, need $${amount.toFixed(2)}`,
-    };
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: input.userId },
-    select: { availableUsd: true },
-  });
-  if (!user || user.availableUsd < amount) {
-    return {
-      ok: false,
-      error: "Wallet sync in progress — refresh Capital and try again",
     };
   }
 
   const target = input.targetYieldMultiplier ?? DEFAULT_TARGET_YIELD_MULTIPLIER;
 
-  const stake = await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: input.userId },
+  const funded = await prisma.$transaction(async (tx) => {
+    const debited = await tx.user.updateMany({
+      where: { id: input.userId, availableUsd: { gte: amount } },
       data: { availableUsd: { decrement: amount } },
     });
+    if (debited.count === 0) {
+      throw new Error("funding_balance_changed");
+    }
 
     const row = await tx.communityFundStake.create({
       data: {
@@ -105,30 +115,47 @@ export async function fundCommunityProgram(input: {
       data: { budgetUsd: { increment: amount } },
     });
 
-    await tx.walletTransaction.create({
+    const activity = await tx.walletTransaction.create({
       data: {
         userId: input.userId,
-        type: "distribution",
+        type: "fund_program",
+        method: "arc_usdc",
         amountUsd: -amount,
-        label: `fund:program:${program.id}`,
-        status: "completed",
+        label: `Fund ${program.name}`,
+        status: "pending_sync",
       },
     });
 
-    return row;
+    return { stake: row, activity };
+  }).catch((error) => {
+    if (error instanceof Error && error.message === "funding_balance_changed") {
+      return null;
+    }
+    throw error;
   });
+  if (!funded) {
+    return {
+      ok: false,
+      error: "Balance changed while funding. Refresh Capital and try again.",
+    };
+  }
 
-  await recordTimelineEvent({
+  void recordTimelineEvent({
     userId: input.userId,
     ecosystemId: program.install?.ecosystemId ?? undefined,
-    eventType: "community_funded",
-    title: `Funded ${program.name}`,
-    detail: `Staked $${amount.toFixed(2)} — fulfills obligations toward 2× leverage`,
+    eventType: "pool_funding_pending",
+    title: `Funding submitted for ${program.name}`,
+    detail: `$${amount.toFixed(2)} sent to the program pool. Arc confirmation continues in Capital.`,
     severity: "info",
-    metadata: { programId: program.id, stakeId: stake.id, amountUsd: amount },
+    metadata: {
+      programId: program.id,
+      stakeId: funded.stake.id,
+      activityId: funded.activity.id,
+      amountUsd: amount,
+    },
   }).catch(() => {});
 
-  await refreshProgramYieldCache(program.id);
+  void refreshProgramYieldCache(program.id).catch(() => undefined);
 
   if (program.templateId === "quadratic-funding" && program.missionId) {
     let rules: ProgramRules = {};
@@ -137,7 +164,7 @@ export async function fundCommunityProgram(input: {
     } catch {
       /* defaults */
     }
-    await runQfMatchAllocation({
+    void runQfMatchAllocation({
       programId: program.id,
       missionId: program.missionId,
       rules,
@@ -147,10 +174,13 @@ export async function fundCommunityProgram(input: {
 
   return {
     ok: true,
-    stakeId: stake.id,
+    stakeId: funded.stake.id,
     programId: program.id,
     principalUsd: amount,
     targetYieldMultiplier: target,
     newBudgetUsd: program.budgetUsd + amount,
+    status: "pending_sync",
+    activityId: funded.activity.id,
+    message: "Funding submitted. Arc confirmation continues in Capital.",
   };
 }

@@ -7,6 +7,7 @@ import { getUserConnectionState } from "@/lib/profile/connection-state";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
 import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 import { cacheGetOrSet } from "@/lib/cache/kv";
+import type { ConnectionSyncStatus } from "@/lib/profile/connection-state-types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +16,50 @@ type ConnectorState = {
   connected: boolean;
   account: string | null;
   providerUserId: string | null;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
   lastSyncAt: string | null;
-  status: "connected" | "not_connected" | "error";
+  status: ConnectionSyncStatus;
+  syncStatus: ConnectionSyncStatus;
   error: string | null;
   scopes: string[];
 };
+
+function normalizeHandle(value: string | null | undefined) {
+  return value?.trim().replace(/^@/, "") || null;
+}
+
+function connectorState(input: {
+  provider: string;
+  connected: boolean;
+  account?: string | null;
+  providerUserId?: string | null;
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  lastSyncAt?: string | null;
+  scopes?: string[];
+  status?: ConnectionSyncStatus;
+  error?: string | null;
+}): ConnectorState {
+  const account = input.account ?? input.providerUserId ?? null;
+  const status = input.status ?? (input.connected ? "connected" : "not_connected");
+  return {
+    provider: input.provider,
+    connected: input.connected,
+    account,
+    providerUserId: input.providerUserId ?? normalizeHandle(account),
+    username: input.username ?? normalizeHandle(account),
+    displayName: input.displayName ?? account,
+    avatarUrl: input.avatarUrl ?? null,
+    lastSyncAt: input.lastSyncAt ?? null,
+    status,
+    syncStatus: status,
+    error: input.error ?? null,
+    scopes: input.scopes ?? [],
+  };
+}
 
 async function buildProfileState(authUser: SupabaseUser) {
   let profile = await ensureProfileForUser(authUser);
@@ -35,31 +75,35 @@ async function buildProfileState(authUser: SupabaseUser) {
 
   const connectors = connectionState.platforms.reduce<Record<string, ConnectorState>>(
     (acc, platform) => {
-      acc[platform.id] = {
+      acc[platform.id] = connectorState({
         provider: platform.id,
         connected: platform.connected,
         account: platform.displayValue ?? null,
-        providerUserId: platform.displayValue ?? null,
+        providerUserId: platform.providerUserId ?? normalizeHandle(platform.displayValue),
+        username: platform.username ?? normalizeHandle(platform.displayValue),
+        displayName: platform.displayName ?? platform.displayValue ?? null,
+        avatarUrl: platform.avatarUrl ?? null,
         lastSyncAt: connectionState.lastSyncedAt,
-        status: platform.connected ? "connected" : "not_connected",
-        error: null,
-        scopes: [],
-      };
+        status: platform.syncStatus ?? (platform.connected ? "connected" : "not_connected"),
+        error: platform.error ?? null,
+        scopes: platform.scopes ?? [],
+      });
       return acc;
     },
     {},
   );
 
-  connectors.arcWallet = {
+  const walletConnector = connectorState({
     provider: "arcWallet",
     connected: Boolean(wallet.address),
     account: wallet.address,
     providerUserId: wallet.address,
     lastSyncAt: connectionState.lastSyncedAt,
     status: wallet.address ? "connected" : "not_connected",
-    error: null,
     scopes: ["fund", "claim", "settle"],
-  };
+  });
+  connectors.arcWallet = walletConnector;
+  connectors.wallet = { ...walletConnector, provider: "wallet" };
 
   return {
     ...connectionState,
@@ -68,6 +112,12 @@ async function buildProfileState(authUser: SupabaseUser) {
     user: {
       id: authUser.id,
       email: authUser.email ?? profile.email ?? null,
+      displayName:
+        profile.displayName ??
+        (authUser.user_metadata?.full_name as string | undefined) ??
+        authUser.email?.split("@")[0] ??
+        null,
+      avatarUrl: (authUser.user_metadata?.avatar_url as string | undefined) ?? null,
     },
     email: authUser.email ?? profile.email ?? null,
     connectors,
@@ -111,7 +161,7 @@ export async function GET(req: Request) {
       ...empty,
       signedIn: true,
       userId: authUser.id,
-      error: e instanceof Error ? e.message : "profile_state_failed",
+      error: "profile_state_syncing",
     });
   }
 }

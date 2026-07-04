@@ -38,6 +38,14 @@ export type UnpaidValueMetrics = {
   payoutRules: string;
   settlement: string;
   verifiedSource: string;
+  story: string;
+  valueLabel: string;
+  countLabel: string;
+  countValue: number;
+  confidence: number;
+  blocker: string;
+  lastActivity: string;
+  primarySubtext: string;
 };
 
 export type CommunityValueProfile = {
@@ -60,10 +68,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Video",
     product: "Jellyfin server",
     upstream: "Jellyfin",
-    unpaidTitle: "Jellyfin watch time is not paying creators",
+    unpaidTitle: "Jellyfin watch time is ready for creator rewards.",
     unpaidSubtitle:
       "Connect play history, create a pay-per-minute rule, then fund the pool.",
-    liveSignalTitle: "Self-hosted video watch activity",
+    liveSignalTitle: "430 Jellyfin watch sessions were verified.",
     extractionSources: ["Jellyfin", "Playback events"],
     valueEvents: [
       {
@@ -90,10 +98,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Music",
     product: "Navidrome library",
     upstream: "Navidrome · MusicBrainz",
-    unpaidTitle: "Navidrome listens are unpaid artist value",
+    unpaidTitle: "Navidrome listens can pay artists directly.",
     unpaidSubtitle:
       "Connect play history, map artists with MusicBrainz, then create a royalty pool.",
-    liveSignalTitle: "Navidrome play activity",
+    liveSignalTitle: "2,843 new plays detected in Navidrome.",
     extractionSources: ["Navidrome", "MusicBrainz"],
     valueEvents: [
       {
@@ -120,10 +128,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Music",
     product: "Independent music graph",
     upstream: "ListenBrainz · MusicBrainz · Navidrome",
-    unpaidTitle: "Cross-platform listens with no royalty program",
+    unpaidTitle: "Independent music royalties are ready to fund.",
     unpaidSubtitle:
       "Listens across connected music sources can split to artists — no payout rule is funding claims yet.",
-    liveSignalTitle: "User-centric royalty opportunities",
+    liveSignalTitle: "2,843 new plays detected across music sources.",
     extractionSources: ["ListenBrainz", "MusicBrainz", "Navidrome"],
     valueEvents: [
       {
@@ -150,10 +158,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Open source",
     product: "React ecosystem",
     upstream: "GitHub · Open Collective",
-    unpaidTitle: "React docs and security work has no payout program",
+    unpaidTitle: "React documentation work is verified but unpaid.",
     unpaidSubtitle:
       "GitHub activity proves contributor work — docs bounties and maintainer pools are not active yet.",
-    liveSignalTitle: "React maintainer and docs contributions",
+    liveSignalTitle: "12 documentation PRs landed in React.",
     extractionSources: ["GitHub", "Open Collective"],
     valueEvents: [
       {
@@ -180,10 +188,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Open source",
     product: "Linux commons",
     upstream: "GitHub · kernel.org",
-    unpaidTitle: "Linux commons work is underfunded vs measured impact",
+    unpaidTitle: "Linux security work is underfunded.",
     unpaidSubtitle:
       "Kernel patches and security fixes are verifiable on GitHub — funding pools lag verified work.",
-    liveSignalTitle: "Kernel and security contribution activity",
+    liveSignalTitle: "Security fixes landed across Linux maintainers.",
     extractionSources: ["GitHub", "Security advisories"],
     valueEvents: [
       {
@@ -210,10 +218,10 @@ const PROFILES: Record<string, CommunityValueProfile> = {
     ecosystem: "Research",
     product: "Open science graph",
     upstream: "OpenAlex · Crossref",
-    unpaidTitle: "Research citations are not settling to authors",
+    unpaidTitle: "Research citations can become author rewards.",
     unpaidSubtitle:
       "OpenAlex and Crossref track when work is cited and reused — citation tolls and grant pools await setup.",
-    liveSignalTitle: "Citation and reproducibility activity",
+    liveSignalTitle: "20 new OpenAlex citations detected.",
     extractionSources: ["OpenAlex", "Crossref"],
     valueEvents: [
       {
@@ -237,6 +245,94 @@ const PROFILES: Record<string, CommunityValueProfile> = {
   },
 };
 
+const PREVIEW_METRICS: Record<
+  string,
+  Omit<UnpaidValueMetrics, "payoutRules" | "settlement" | "verifiedSource">
+> = {
+  react: {
+    observedEvents: "31 documentation and security contributions",
+    story:
+      "GitHub found 31 documentation and security contributions across 18 contributors. No Docs Program exists, so rewards cannot be authorized yet.",
+    valueLabel: "Estimated unpaid value",
+    countLabel: "Contributors affected",
+    countValue: 18,
+    confidence: 88,
+    blocker: "No Docs Program",
+    lastActivity: "updated 12m ago",
+    primarySubtext: "Unlock estimated $2,430 in rewards",
+  },
+  linux: {
+    observedEvents: "security advisories and maintainer activity",
+    story:
+      "Security advisories and maintainer activity show verified infrastructure work, but no Security Fund is active for this community.",
+    valueLabel: "Estimated funding need",
+    countLabel: "Maintainers affected",
+    countValue: 24,
+    confidence: 91,
+    blocker: "No Security Fund",
+    lastActivity: "updated 18m ago",
+    primarySubtext: "Start funding critical fixes",
+  },
+  navidrome: {
+    observedEvents: "4,210 verified plays",
+    story:
+      "Play history is connected and MusicBrainz can map artists, but no Royalty Pool is distributing payouts yet.",
+    valueLabel: "Estimated unpaid royalties",
+    countLabel: "Artists affected",
+    countValue: 74,
+    confidence: 92,
+    blocker: "No Royalty Pool",
+    lastActivity: "updated 45m ago",
+    primarySubtext: "Start per-play artist rewards",
+  },
+  "independent-music": {
+    observedEvents: "2,843 verified plays",
+    story:
+      "Listening activity mapped to 74 artists. A royalty pool can split future payouts by actual plays.",
+    valueLabel: "Estimated royalties",
+    countLabel: "Artists affected",
+    countValue: 74,
+    confidence: 92,
+    blocker: "No Royalty Pool",
+    lastActivity: "updated 45m ago",
+    primarySubtext: "Start per-play artist rewards",
+  },
+  jellyfin: {
+    observedEvents: "1,284 watch minutes",
+    story:
+      "Playback events prove watch minutes, but no pay-per-minute rule exists for creator payouts.",
+    valueLabel: "Estimated creator rewards",
+    countLabel: "Creators affected",
+    countValue: 37,
+    confidence: 76,
+    blocker: "No Pay-per-Minute Rule",
+    lastActivity: "updated 1h ago",
+    primarySubtext: "Reward creators by verified watch time",
+  },
+  "open-research": {
+    observedEvents: "214 citations detected",
+    story:
+      "OpenAlex and Crossref detected citation activity, but no Citation Toll or research grant pool is active.",
+    valueLabel: "Estimated funding need",
+    countLabel: "Authors affected",
+    countValue: 42,
+    confidence: 85,
+    blocker: "No Citation Program",
+    lastActivity: "updated 3h ago",
+    primarySubtext: "Pay authors when research is reused",
+  },
+};
+
+export function previewAmountUsdForCommunity(slug: string): number {
+  if (slug === "react") return 2430;
+  if (slug === "linux") return 5120;
+  if (slug === "navidrome") return 183;
+  if (slug === "independent-music") return 183;
+  if (slug === "jellyfin") return 721;
+  if (slug === "open-research") return 3120;
+  return 0;
+}
+
 export function getCommunityValueProfile(slug: string): CommunityValueProfile | null {
   return PROFILES[slug] ?? null;
 }
@@ -249,10 +345,26 @@ export function buildUnpaidValueMetrics(
   const source = profile
     ? humanizeExtractionSources(profile.extractionSources)
     : "Your connected sources";
+  const preview = PREVIEW_METRICS[slug];
+  const fallback: Omit<UnpaidValueMetrics, "payoutRules" | "settlement" | "verifiedSource"> = {
+    observedEvents: connected ? "Verified upstream activity" : "Source not connected",
+    story: connected
+      ? "Verified activity is available, but no payout rule exists yet."
+      : "Connect the proof source before RESOLVE can estimate unpaid value.",
+    valueLabel: connected ? "Estimated unpaid value" : "Estimate unavailable",
+    countLabel: "People affected",
+    countValue: 0,
+    confidence: connected ? 70 : 0,
+    blocker: connected ? "No payout rule" : "Proof source not connected",
+    lastActivity: connected ? "updated recently" : "connect source",
+    primarySubtext: connected ? "Create the payout rule" : "Connect proof source",
+  };
+  const base = connected ? (preview ?? fallback) : fallback;
   return {
-    observedEvents: connected ? "Activity verified" : "Source not connected",
+    ...base,
+    observedEvents: base.observedEvents,
     payoutRules: "No payout rule",
-    settlement: "Pool unfunded",
+    settlement: "Settlement blocked",
     verifiedSource: source,
   };
 }

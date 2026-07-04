@@ -2,7 +2,10 @@ import type { DiscoverBoardItem } from "@/lib/discover/opportunity-board";
 import type { TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { boardCommunityActions } from "@/lib/discover/board-actions-for-role";
-import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
+import {
+  buildUnpaidValueMetrics,
+  getCommunityValueProfile,
+} from "@/lib/discover/community-value-profiles";
 import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
@@ -25,6 +28,8 @@ export function boardCommunityItemToGap(
 ): TrendingValueGap {
   const profile = getCommunityValueProfile(item.communitySlug);
   const installed = communityReadyForDiscover(item.communitySlug, connections);
+  const previewMetrics = buildUnpaidValueMetrics(item.communitySlug, installed);
+  const payeeCount = previewMetrics.countValue || 0;
   const effectiveRole = role === "all" ? "funder" : role;
   const actions = boardCommunityActions(effectiveRole, {
     communitySlug: item.communitySlug,
@@ -47,7 +52,7 @@ export function boardCommunityItemToGap(
     amountVerified: false,
     amountNeededUsd: item.fundingGapUsd,
     moneyCanMoveUsd: 0,
-    peopleImpacted: 0,
+    peopleImpacted: payeeCount,
     trendScore: item.score,
     communitySlug: item.communitySlug,
     templateId: item.templateId,
@@ -55,10 +60,26 @@ export function boardCommunityItemToGap(
     productLabel: profile?.product,
     ecosystem: profile?.ecosystem,
     valueMetrics: {
-      observedEvents: installed ? "Activity verified" : "Source not connected",
-      payoutRules: "No payout rule",
-      settlement: item.fundingGapUsd > 0 ? "Pool unfunded" : "Pool unfunded",
+      observedEvents: installed
+        ? `${payeeCount} payees with verified activity`
+        : "Source not connected",
+      payoutRules: item.programName,
+      settlement: item.fundingGapUsd > 0 ? "Funding needed" : "Ready to settle",
       verifiedSource: profile?.upstream ?? item.communityName,
+      story:
+        item.fundingGapUsd > 0
+          ? `${payeeCount} payees are waiting for ${item.programName} to be funded.`
+          : `${item.programName} is funded and ready for payout review.`,
+      valueLabel: "Funding needed",
+      countLabel: item.templateId === "user-centric-royalties" ? "Artists" : "Payees",
+      countValue: payeeCount,
+      confidence: previewMetrics.confidence || Math.round(item.score * 100),
+      blocker: item.fundingGapUsd > 0 ? "Funding needed" : "Ready to settle",
+      lastActivity: "updated recently",
+      primarySubtext:
+        item.fundingGapUsd > 0
+          ? `Suggested first fund: $${Math.max(25, Math.min(item.fundingGapUsd, 250)).toLocaleString()}`
+          : "Review payout queue",
     },
     actions,
     opportunityScorecard: item.opportunityScorecard,

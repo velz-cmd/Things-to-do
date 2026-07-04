@@ -15,7 +15,7 @@ import {
   type DiscoverActionSlot,
 } from "@/lib/discover/discover-opportunity-state";
 
-const MAX_SLOTS = 3;
+const MAX_SLOTS = 4;
 const MAX_ADVANCED = 5;
 
 function actionKey(action: DiscoverAction): string {
@@ -437,11 +437,12 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
         disabledReason: "Create a payout program before funding.",
       });
       if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
+      if (ctx.console) push({ action: ctx.console, variant: "secondary" });
       else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
     } else {
       push({ action: ctx.rule, variant: "primary" });
       if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
-      else if (ctx.fund) {
+      if (ctx.fund) {
         push({
           action: { ...ctx.fund, label: "Fund Initial Pool" },
           variant: "secondary",
@@ -449,6 +450,7 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
           disabledReason: spendableUsd != null && spendableUsd < 5 ? "Wallet required: add Arc USDC in Capital." : undefined,
         });
       }
+      if (ctx.console) push({ action: ctx.console, variant: "secondary" });
     }
     return slots;
   }

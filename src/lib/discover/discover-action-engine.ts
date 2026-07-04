@@ -45,7 +45,7 @@ export async function apiInstallCommunity(slug: string) {
 
 export async function apiCreateProgram(slug: string, templateId?: string) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25_000);
+  const timer = setTimeout(() => controller.abort(), 12_000);
   try {
     const res = await fetch(`/api/communities/${slug}/programs`, {
       method: "POST",
@@ -61,7 +61,7 @@ export async function apiCreateProgram(slug: string, templateId?: string) {
     return data as { program?: ProgramRecord };
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("Creating the pool timed out — try again");
+      throw new Error("Creating the program is still syncing. Open Communities or retry in a moment.");
     }
     throw e;
   } finally {

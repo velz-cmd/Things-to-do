@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Music2, RefreshCw } from "lucide-react";
@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { ProductPage } from "@/components/resolve/layout/product-page";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import { CommunityIntentBanner } from "@/components/resolve/communities/community-intent-banner";
-import { CommunityConsoleSkeleton } from "@/components/resolve/communities/communities-skeletons";
 import { CommunityConsole } from "@/components/resolve/communities/community-console";
 import { CommunityAdvancedPanel } from "@/components/resolve/communities/community-advanced-panel";
 import {
@@ -21,7 +20,7 @@ import {
 } from "@/components/resolve/communities/community-operations";
 import { CommunitySensorPanel } from "@/components/resolve/communities/community-sensor-panel";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
-import { useCommunitySurfaceQuery } from "@/lib/query/hooks";
+import { useCommunitiesHubQuery, useCommunitySurfaceQuery } from "@/lib/query/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
 import { loadPersistedDiscoverRole } from "@/lib/discover/discover-role-persist";
@@ -34,6 +33,29 @@ import {
 import { defaultProgramTemplateForCommunity } from "@/lib/discover/community-strip-actions";
 import { apiCreateProgram } from "@/lib/discover/discover-action-engine";
 import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
+import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
+
+type CachedCommunitySummary = {
+  slug: string;
+  installed?: boolean;
+  vitals?: {
+    fundingTotalUsd?: number;
+    programCount?: number;
+  };
+  hubOps?: {
+    treasuryUsd?: number;
+    pendingObligationsUsd?: number;
+    programCount?: number;
+    builderCount?: number;
+  } | null;
+};
+
+type CommunitiesCache = { communities?: CachedCommunitySummary[] };
+
+function numeric(value: unknown): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export function CommunityHome({ slug }: { slug: string }) {
   const catalog = getCommunityBySlug(slug);
@@ -52,6 +74,7 @@ export function CommunityHome({ slug }: { slug: string }) {
     pollWhenInstalled: false,
     enabled: tab === "advanced",
   });
+  const communitiesHubQuery = useCommunitiesHubQuery();
 
   const surface =
     tab === "advanced" ? advancedSurfaceQuery.data : consoleSurfaceQuery.data;
@@ -76,26 +99,106 @@ export function CommunityHome({ slug }: { slug: string }) {
   const [pendingProgramId, setPendingProgramId] = useState<string | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const ops = useCommunityOperationsHandlers(slug);
+  const cachedHub =
+    (communitiesHubQuery.data as CommunitiesCache | undefined) ??
+    queryClient.getQueryData<CommunitiesCache>(queryKeys.communities);
+  const cachedSummary = cachedHub?.communities?.find((community) => community.slug === slug);
+  const inferredInstalled =
+    Boolean(cachedSummary?.installed) ||
+    communityLinkedViaProfile(slug, connections) ||
+    ["approve_payouts", "review_obligations", "fund", "create_program"].includes(pageIntent ?? "");
+
+  const cachedSurface = useMemo<CommunitySurface | null>(() => {
+    if (!catalog || surface || tab === "advanced") return null;
+    if (!cachedSummary && !inferredInstalled) return null;
+
+    const treasuryUsd = numeric(cachedSummary?.hubOps?.treasuryUsd ?? cachedSummary?.vitals?.fundingTotalUsd);
+    const pendingUsd = numeric(cachedSummary?.hubOps?.pendingObligationsUsd);
+    const builderCount = numeric(cachedSummary?.hubOps?.builderCount);
+    const programBudgetUsd = numeric(cachedSummary?.vitals?.fundingTotalUsd ?? treasuryUsd);
+    const now = new Date().toISOString();
+
+    return {
+      slug,
+      name: catalog.name,
+      tagline: catalog.tagline,
+      kind: catalog.kind,
+      upstream: catalog.upstream,
+      doctrine: catalog.doctrine,
+      connectors: catalog.connectors,
+      accent: catalog.accent,
+      installed: inferredInstalled,
+      install: null,
+      programs: [],
+      health: {
+        treasuryUsd,
+        obligationsUsd: pendingUsd,
+        communityObligationsUsd: pendingUsd,
+        connectorStatus: catalog.connectors.map((id) => ({
+          id,
+          label: id,
+          health: "syncing",
+        })),
+        scrobbleBridge: false,
+        lastScrobbleAt: null,
+      },
+      impact: {
+        treasuryUsd,
+        programBudgetUsd,
+        communityObligationsUsd: pendingUsd,
+        authorizedUsd: pendingUsd,
+        settledUsd: 0,
+        platformFeeUsd: 0,
+        playCount: 0,
+        artistCount: builderCount,
+        estimatedReach: builderCount,
+        stages: [],
+      },
+      observatory: [],
+      economicMemory: [],
+      authorizations: [],
+      timeline: [
+        {
+          id: `cached-${slug}`,
+          eventType: "syncing",
+          title: "Live community metrics are syncing",
+          detail: "Cached operating totals are visible while program and obligation rows load.",
+          createdAt: now,
+        },
+      ],
+      deployReadiness: {
+        canDeploy: false,
+        authorizedCount: builderCount,
+        authorizedUsd: pendingUsd,
+        pendingObligationsUsd: pendingUsd,
+        fundingGapUsd: pendingUsd,
+        walletMappedCount: 0,
+        reasons: pendingUsd > 0 ? ["Live obligation rows are still syncing."] : [],
+      },
+    };
+  }, [cachedSummary, catalog, inferredInstalled, slug, surface, tab]);
+
+  const activeSurface = surface ?? cachedSurface;
 
   useEffect(() => {
     setDiscoverRole(loadPersistedDiscoverRole());
   }, []);
 
   useEffect(() => {
-    if (pageIntent === "review_obligations") {
+    if (pageIntent === "review_obligations" || pageIntent === "approve_payouts") {
       setObligationsFilter("pending");
     }
   }, [pageIntent]);
 
   useEffect(() => {
-    if (!pageIntent || loading) return;
+    if (!pageIntent || (loading && !activeSurface)) return;
     const anchor = COMMUNITY_INTENT_ANCHOR[pageIntent as CommunityIntent];
     if (!anchor) return;
     const timer = window.setTimeout(() => {
       document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [pageIntent, loading, surface]);
+  }, [pageIntent, loading, activeSurface]);
 
   const refresh = useCallback(async () => {
     await refetch();
@@ -277,7 +380,7 @@ export function CommunityHome({ slug }: { slug: string }) {
     );
   }
 
-  const installed = surface?.installed ?? false;
+  const installed = activeSurface?.installed ?? false;
   const surfaceLoading = loading && !surface;
 
   const consoleHref = `/communities/${slug}`;
@@ -297,7 +400,7 @@ export function CommunityHome({ slug }: { slug: string }) {
       width="wide"
       accent="emerald"
       actions={
-        loadFailed ? null : !installed ? (
+        loadFailed && !activeSurface ? null : !installed ? (
           <InstallResolveCard community={catalog} installed={false} compact />
         ) : (
           <span className="flex items-center gap-1.5 text-xs text-emerald-400">
@@ -314,7 +417,7 @@ export function CommunityHome({ slug }: { slug: string }) {
         installed={installed}
       />
 
-      {loadFailed ? (
+      {loadFailed && !activeSurface ? (
         <div className="max-w-lg rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-5">
           <p className="text-sm font-medium text-amber-100">Community console is taking too long.</p>
           <p className="mt-1 text-sm text-resolve-muted">
@@ -340,47 +443,67 @@ export function CommunityHome({ slug }: { slug: string }) {
         </div>
       ) : !installed ? (
         <div className="max-w-lg space-y-6">
-          {surfaceLoading ? (
-            <CommunityConsoleSkeleton />
-          ) : (
-            <>
-              <InstallResolveCard community={catalog} onInstalled={() => void refresh()} />
-              <CommunitySensorPanel slug={slug} installed={false} />
-              <p className="text-xs text-resolve-muted">
-                After install,{" "}
-                <Link
-                  href={`/communities/${slug}?intent=install`}
-                  className="text-resolve-accent hover:underline"
-                >
-                  open the console
-                </Link>{" "}
-                to create programs and operate payouts.
-              </p>
-            </>
+          {surfaceLoading && (
+            <p className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-sm text-amber-100">
+              Checking live install state in the background. You can connect this community now.
+            </p>
           )}
+          <InstallResolveCard community={catalog} onInstalled={() => void refresh()} />
+          <CommunitySensorPanel slug={slug} installed={false} />
+          <p className="text-xs text-resolve-muted">
+            After install,{" "}
+            <Link
+              href={`/communities/${slug}?intent=install`}
+              className="text-resolve-accent hover:underline"
+            >
+              open the console
+            </Link>{" "}
+            to create programs and operate payouts.
+          </p>
         </div>
-      ) : surfaceLoading || !surface ? (
-        <CommunityConsoleSkeleton />
+      ) : !activeSurface ? (
+        <div className="max-w-lg rounded-xl border border-white/10 bg-white/[0.04] p-5">
+          <p className="text-sm font-medium text-white">Opening community console...</p>
+          <p className="mt-1 text-sm text-resolve-muted">
+            Live metrics are syncing. Retry if this takes more than a moment.
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry metrics
+          </button>
+        </div>
       ) : tab === "advanced" ? (
-        <CommunityAdvancedPanel slug={slug} surface={surface} onRefresh={() => void refresh()} />
+        <CommunityAdvancedPanel slug={slug} surface={activeSurface} onRefresh={() => void refresh()} />
       ) : (
-        <CommunityConsole
-          slug={slug}
-          catalog={catalog}
-          surface={surface}
-          connections={connections}
-          busy={ops.busy || Boolean(deploying) || confirmBusy}
-          deploying={deploying}
-          obligationsFilter={obligationsFilter}
-          onObligationsFilterChange={setObligationsFilter}
-          onRequestDeploy={openDeployConfirm}
-          onFund={(programId, label, amountUsd) =>
-            ops.fundProgram(programId, slug, label, amountUsd)
-          }
-          onRequestCreateProgram={openCreateConfirm}
-          onRequestApprovePayouts={openApproveConfirm}
-          onRefresh={() => void refresh()}
-        />
+        <div className="space-y-4">
+          {surfaceLoading && (
+            <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-sm text-amber-100">
+              Console opened from cached state. Live programs and obligation rows are syncing in
+              the background.
+            </div>
+          )}
+          <CommunityConsole
+            slug={slug}
+            catalog={catalog}
+            surface={activeSurface}
+            connections={connections}
+            busy={ops.busy || Boolean(deploying) || confirmBusy}
+            deploying={deploying}
+            obligationsFilter={obligationsFilter}
+            onObligationsFilterChange={setObligationsFilter}
+            onRequestDeploy={openDeployConfirm}
+            onFund={(programId, label, amountUsd) =>
+              ops.fundProgram(programId, slug, label, amountUsd)
+            }
+            onRequestCreateProgram={openCreateConfirm}
+            onRequestApprovePayouts={openApproveConfirm}
+            onRefresh={() => void refresh()}
+          />
+        </div>
       )}
 
       <CommunityFundSheetHost slug={slug} ops={ops} />

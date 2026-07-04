@@ -23,7 +23,7 @@ export type WalletSnapshot = {
 
 export async function apiInstallCommunity(slug: string) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
     const res = await fetch(`/api/communities/${slug}/install?minimal=1`, {
       method: "POST",
@@ -45,7 +45,7 @@ export async function apiInstallCommunity(slug: string) {
 
 export async function apiCreateProgram(slug: string, templateId?: string) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12_000);
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
     const res = await fetch(`/api/communities/${slug}/programs`, {
       method: "POST",
@@ -71,7 +71,7 @@ export async function apiCreateProgram(slug: string, templateId?: string) {
 
 export async function apiFundProgram(programId: string, amountUsd: number) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
     const res = await fetch("/api/capital/fund", {
       method: "POST",
@@ -182,7 +182,7 @@ export async function apiDiscoverAction(
   opts?: { amountUsd?: number; role?: string; surface?: string },
 ): Promise<DiscoverActionResponse> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 55_000);
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
     const res = await fetch("/api/discover/actions", {
       method: "POST",
@@ -211,7 +211,7 @@ export async function apiDiscoverAction(
         ok: false,
         code: "TIMEOUT",
         message:
-          "The action took too long. Retry, or open the community console to continue setup from there.",
+          "The action is still syncing. Open the community console or Capital status to continue.",
         nextAction: "retry",
       };
     }

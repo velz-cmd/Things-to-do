@@ -272,6 +272,8 @@ export function DiscoverActionsProvider({
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.profileState }),
       reloadConnections(),
       refreshWallet(),
     ]);

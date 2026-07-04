@@ -9,6 +9,7 @@ import { normalizeGithubLogin } from "@/lib/identity/github-login";
 import { ensureContributorFromGithub } from "@/lib/identity/contributors";
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 import { syncUserSensors } from "@/lib/connectors/user-sensor-sync";
+import { cacheDelete } from "@/lib/cache/kv";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,13 @@ function clearOAuthCookies(response: NextResponse) {
   response.cookies.set("gh_oauth_state", "", clear);
   response.cookies.set("gh_oauth_user", "", clear);
   response.cookies.set("gh_oauth_return", "", clear);
+}
+
+async function clearConnectorState(userId: string) {
+  await Promise.all([
+    cacheDelete(`profile:state:${userId}`),
+    cacheDelete(`communities:list:${userId}`),
+  ]);
 }
 
 /** GitHub OAuth callback → store verified GitHub login on user profile. */
@@ -77,6 +85,7 @@ export async function GET(req: Request) {
     });
 
     await ensureContributorFromGithub({ login, githubId: String(ghUser.id) });
+    await clearConnectorState(userId);
     void autoInstallCommunitiesForUser(userId, { githubUsername: login }).catch(() => undefined);
     void syncUserSensors(userId).catch(() => undefined);
 

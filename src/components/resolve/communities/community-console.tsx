@@ -273,7 +273,11 @@ export function CommunityConsole({
     if (actionId === "connect_source" && sourcesConnected) {
       return { disabled: true, reason: "Source linked via Profile" };
     }
-    if (actionId === "review_obligations" && (surface.authorizations?.length ?? 0) === 0) {
+    if (
+      actionId === "review_obligations" &&
+      (surface.authorizations?.length ?? 0) === 0 &&
+      pendingUsd < 0.01
+    ) {
       return { disabled: true, reason: "No obligations yet - sync sources first" };
     }
     if (actionId === "approve_payouts") {
@@ -438,7 +442,9 @@ export function CommunityConsole({
         ) : (
           <p className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-resolve-muted">
             {obligationsFilter === "pending"
-              ? "No pending obligations - sync sources or switch to All."
+              ? pendingUsd > 0.01
+                ? `$${pendingUsd.toFixed(2)} pending is known. Payee rows are still syncing - refresh metrics in a moment.`
+                : "No pending obligations - sync sources or switch to All."
               : "No authorizations yet. Connect sources in Profile and sync sensors below."}
           </p>
         )}

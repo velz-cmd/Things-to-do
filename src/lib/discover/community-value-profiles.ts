@@ -251,7 +251,7 @@ export function buildUnpaidValueMetrics(
     : "Your connected sources";
   return {
     observedEvents: connected ? "Activity verified" : "Source not connected",
-    payoutRules: "Rule missing",
+    payoutRules: "No payout rule",
     settlement: "Pool unfunded",
     verifiedSource: source,
   };
@@ -358,17 +358,17 @@ export function operationalActionsForCommunity(
           reason: "Extract watch sessions before creating payout rules",
         });
       }
-      push("scan", "Scan watch activity", "analyze", {
+      push("scan", "Analyze Watch Time", "analyze", {
         entityPath: `/communities/${slug}`,
         reason: "Import playback events from your server",
       });
-      push("program", "Create pay-per-minute rule", "create_program", {
+      push("program", "Create Pay-per-Minute Rule", "create_program", {
         templateId: "video-royalties",
       });
-      push("fund", "Fund creator pool", "fund", {
+      push("fund", "Fund Creator Pool", "fund", {
         reason: "Settle video.watch authorizations on Arc",
       });
-      push("proof", "View watch proof", "open", {
+      push("proof", "View Playback Proof", "open", {
         entityPath: `/communities/${slug}`,
       });
       if (input.installed) {
@@ -384,15 +384,15 @@ export function operationalActionsForCommunity(
           href: connectHrefForSlug(slug),
         });
       }
-      push("scan", "Scan play activity", "analyze", {
+      push("scan", "Calculate Artist Earnings", "analyze", {
         entityPath: `/communities/${slug}`,
       });
-      push("program", "Create royalty pool", "create_program", { templateId });
-      push("preview", "Preview split", "open", {
+      push("program", "Create Royalty Pool", "create_program", { templateId });
+      push("preview", "Simulate Artist Split", "open", {
         href: "/capital",
         reason: "See user-centric royalty allocation",
       });
-      push("fund", "Fund artist pool", "fund");
+      push("fund", "Fund Royalty Pool", "fund");
       if (input.installed) {
         push("console", "Advanced console", "console");
       }
@@ -402,13 +402,13 @@ export function operationalActionsForCommunity(
         push("connect-lb", "Connect ListenBrainz", "connect_sensor", {
           href: "/connect/listenbrainz",
         });
-        push("connect-mb", "Map artists (MusicBrainz)", "connect_sensor", {
+        push("connect-mb", "Connect MusicBrainz", "connect_sensor", {
           href: "/profile",
         });
       }
-      push("program", "Create royalty program", "create_program", { templateId });
-      push("preview", "Preview split", "open", { href: "/capital" });
-      push("fund", "Fund royalties", "fund");
+      push("program", "Create Royalty Pool", "create_program", { templateId });
+      push("preview", "Simulate Artist Split", "open", { href: "/capital" });
+      push("fund", "Fund Royalty Pool", "fund");
       push("graph", "View artist graph", "open", { href: "/capital" });
       break;
     case "react":
@@ -417,10 +417,10 @@ export function operationalActionsForCommunity(
           href: "/connect/github",
         });
       }
-      push("scan", "Scan GitHub activity", "analyze", {
+      push("scan", "Find Contributors", "analyze", {
         entityPath: `/communities/${slug}`,
       });
-      push("program", "Create docs bounty", "create_program", {
+      push("program", "Create Docs Program", "create_program", {
         templateId: "docs-bounty",
       });
       push("fund", "Fund maintainers", "fund", {
@@ -436,13 +436,13 @@ export function operationalActionsForCommunity(
           href: "/connect/github",
         });
       }
-      push("scan", "Scan dependency graph", "analyze", {
+      push("scan", "Analyze Security Work", "analyze", {
         entityPath: `/communities/${slug}`,
       });
-      push("program", "Create security fund", "create_program", {
+      push("program", "Create Security Fund", "create_program", {
         templateId: "security-fund",
       });
-      push("fund", "Fund security pool", "fund");
+      push("fund", "Fund Security Pool", "fund");
       push("graph", "View maintainer graph", "open", {
         entityPath: `/communities/${slug}`,
       });
@@ -454,14 +454,14 @@ export function operationalActionsForCommunity(
         });
       }
       if (role === "dao" || role === "all") {
-        push("grant", "Create grant round", "create_program", {
+        push("grant", "Launch Grant Round", "create_program", {
           templateId: "quadratic-funding",
         });
       }
-      push("program", "Create citation toll", "create_program", {
+      push("program", "Create Citation Toll", "create_program", {
         templateId: "citation-toll",
       });
-      push("fund", "Fund research pool", "fund");
+      push("fund", "Fund Research Pool", "fund");
       push("graph", "View citation graph", "open", {
         entityPath: `/communities/${slug}`,
       });

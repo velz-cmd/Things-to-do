@@ -1,7 +1,7 @@
-import type { DiscoverAction } from "@/lib/discover/types";
-import type { UserConnectionState } from "@/lib/profile/connection-state-types";
-import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
+import type { DiscoverAction } from "@/lib/discover/types";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
+import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
 export function discoverActionSummary(
   action: DiscoverAction,
@@ -16,35 +16,35 @@ export function discoverActionSummary(
     case "fund":
     case "sponsor":
       return {
-        headline: `${label} — USDC moves from your Arc wallet into this pool.`,
+        headline: `${label} - USDC moves from your Arc wallet into this pool.`,
         requirement:
           walletUsd != null && walletUsd < 5
-            ? "Add Arc USDC first"
+            ? "Wallet required: add Arc USDC in Capital."
             : connected
               ? undefined
-              : "Connect source in Profile first",
+              : "Connect the proof source in Profile first.",
       };
     case "create_program":
       return {
-        headline: `${label} — creates a payout rule and saves it to your account.`,
-        requirement: connected ? undefined : "Connect source in Profile first",
+        headline: `${label} - creates a payout rule and saves it to your account.`,
+        requirement: connected ? undefined : "Connect the proof source in Profile first.",
       };
     case "install":
       return {
-        headline: `${label} — starts a community program you can fund and settle.`,
+        headline: `${label} - starts a community program you can fund and settle.`,
       };
     case "analyze":
       return {
-        headline: `${label} — reads activity from your connected proof source.`,
-        requirement: connected ? undefined : "Connect source first",
+        headline: `${label} - reads activity from your connected proof source.`,
+        requirement: connected ? undefined : "Connect the proof source in Profile first.",
       };
     case "connect_sensor":
       return {
-        headline: "Connect once in Profile — syncs across Discover, Communities, and Capital.",
+        headline: "Connect once in Profile - syncs across Discover, Communities, and Capital.",
       };
     case "claim":
       return {
-        headline: `${label} — requires identity proof linked in Profile.`,
+        headline: `${label} - requires identity proof linked in Profile.`,
       };
     case "share":
       return {

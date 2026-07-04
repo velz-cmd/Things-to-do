@@ -67,7 +67,7 @@ function settlementStatusLabel(
   if (!connected) return "Source not connected";
   if (gap.amountVerified && gap.moneyCanMoveUsd > 0) return "Ready to settle";
   if (hasRule && !funded) return "Pool unfunded";
-  if (connected && !hasRule) return "Rule missing";
+  if (connected && !hasRule) return "No payout rule";
   if (connected) return "Activity verified";
   return "Proof found, payout rule missing";
 }
@@ -88,8 +88,8 @@ function buildPipeline(
     },
     {
       id: "rule",
-      label: "Rule",
-      status: hasRule ? "Active" : "Missing",
+      label: "Payout",
+      status: hasRule ? "Rule active" : "No payout rule",
       done: hasRule,
       active: connected && !hasRule,
     },

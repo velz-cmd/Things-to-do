@@ -5,7 +5,7 @@ export const SOURCE_BADGE_LABELS: Record<DiscoverDataSource, string> = {
   musicbrainz: "MusicBrainz",
   openalex: "OpenAlex",
   arc: "Arc",
-  supabase_ledger: "Supabase ledger",
+  supabase_ledger: "RESOLVE ledger",
   community_catalog: "Preview",
   catalog_preview: "Preview",
   local_seed: "Local seed",

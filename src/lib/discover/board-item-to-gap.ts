@@ -56,7 +56,7 @@ export function boardCommunityItemToGap(
     ecosystem: profile?.ecosystem,
     valueMetrics: {
       observedEvents: installed ? "Activity verified" : "Source not connected",
-      payoutRules: "Rule missing",
+      payoutRules: "No payout rule",
       settlement: item.fundingGapUsd > 0 ? "Pool unfunded" : "Pool unfunded",
       verifiedSource: profile?.upstream ?? item.communityName,
     },

@@ -109,11 +109,12 @@ export function DiscoverQuickActions({
         aria-label={label}
         onClick={() => onOpenChange(!open)}
         className={clsx(
-          "inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-resolve-muted-dim transition hover:bg-white/[0.08] hover:text-white",
+          "inline-flex h-8 items-center justify-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 text-[11px] font-medium text-resolve-muted-dim transition hover:bg-white/[0.08] hover:text-white",
           triggerClassName,
         )}
       >
         <Command className="h-3.5 w-3.5" />
+        More
       </button>
 
       {open && (
@@ -170,9 +171,17 @@ export function buildCardQuickActions(input: {
   solve?: { label: string; onSelect: () => void } | null;
 }): QuickAction[] {
   const items: QuickAction[] = [];
+  const seen = new Set<string>();
+
+  function push(item: QuickAction) {
+    const key = item.label.trim().toLowerCase().replace(/\s+/g, " ");
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push(item);
+  }
 
   for (const slot of input.card.actionSlots) {
-    items.push({
+    push({
       id: `${slot.action.id}-${slot.action.kind}`,
       label: friendlyDiscoverActionLabel(slot.action, input.connections),
       hint: slot.variant === "primary" ? "Primary" : undefined,
@@ -183,7 +192,7 @@ export function buildCardQuickActions(input: {
   }
 
   for (const action of input.card.advancedActions) {
-    items.push({
+    push({
       id: `adv-${action.id}-${action.kind}`,
       label: friendlyDiscoverActionLabel(action, input.connections),
       onSelect: () => input.onAction(action),
@@ -191,7 +200,7 @@ export function buildCardQuickActions(input: {
   }
 
   if (input.solve) {
-    items.push({
+    push({
       id: "solve-ai",
       label: input.solve.label,
       hint: "AI",

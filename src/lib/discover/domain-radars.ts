@@ -138,7 +138,7 @@ export async function buildDomainRadars(opts?: DomainRadarsOpts): Promise<{
       proofSource: formatProofSource({
         connectorId: r.connectorId,
         authorizationId: r.id,
-        fallback: "Supabase ledger",
+        fallback: "RESOLVE ledger",
       }),
       dataSource: "supabase_ledger",
       amountVerified: true,

@@ -1,8 +1,7 @@
-import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import { getCommunityValueProfile } from "@/lib/discover/community-value-profiles";
+import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import type { OpportunityState } from "@/lib/discover/discover-opportunity-state";
-import type { DiscoverCardLane } from "@/lib/discover/types";
-import type { TrendingValueGap } from "@/lib/discover/types";
+import type { DiscoverCardLane, TrendingValueGap } from "@/lib/discover/types";
 
 export type DiscoverCardNarrative = {
   evidence: string;
@@ -14,14 +13,29 @@ export type DiscoverCardNarrative = {
 
 function missingProgramLabel(gap: TrendingValueGap): string {
   const profile = gap.communitySlug ? getCommunityValueProfile(gap.communitySlug) : null;
-  if (gap.templateId === "video-royalties") return "pay-per-minute program";
+  if (gap.templateId === "video-royalties") return "pay-per-minute rule";
   if (gap.templateId === "user-centric-royalties") return "royalty pool";
-  if (gap.templateId === "citation-toll") return "citation toll program";
+  if (gap.templateId === "citation-toll") return "citation toll";
   if (gap.templateId === "quadratic-funding") return "grant pool";
   if (gap.templateId === "security-fund") return "security fund";
-  if (gap.templateId === "docs-bounty") return "docs bounty program";
-  if (profile?.product) return `reward program for ${profile.product}`;
-  return "reward program";
+  if (gap.templateId === "docs-bounty") return "docs program";
+  if (profile?.product) return `payout rule for ${profile.product}`;
+  return "payout rule";
+}
+
+function domainPeopleLabel(gap: TrendingValueGap, count: number): string {
+  if (gap.domain === "music") return count === 1 ? "artist" : "artists";
+  if (gap.domain === "research") return count === 1 ? "author" : "authors";
+  if (gap.templateId === "video-royalties") return count === 1 ? "creator" : "creators";
+  if (gap.domain === "oss") return count === 1 ? "contributor" : "contributors";
+  if (gap.domain === "dao") return count === 1 ? "member" : "members";
+  return count === 1 ? "person" : "people";
+}
+
+function observedActivity(gap: TrendingValueGap): string | null {
+  const observed = gap.valueMetrics?.observedEvents?.trim();
+  if (!observed || observed === "Source not connected" || observed === "Needed") return null;
+  return observed;
 }
 
 function evidenceLine(
@@ -31,18 +45,22 @@ function evidenceLine(
   connected: boolean,
 ): string {
   const profile = gap.communitySlug ? getCommunityValueProfile(gap.communitySlug) : null;
-  const observed = gap.valueMetrics?.observedEvents;
+  const observed = observedActivity(gap);
 
-  if (lane === "radars") {
-    if (profile?.liveSignalTitle && connected) {
-      return `${proofSource} — ${profile.liveSignalTitle.toLowerCase()} is arriving on the ledger now.`;
-    }
-    if (gap.why?.trim()) return gap.why.trim();
-    return `${proofSource} detected verified activity — react while the signal is fresh.`;
+  if (lane === "radars" && profile?.liveSignalTitle && connected) {
+    if (gap.domain === "oss") return `${proofSource} is showing fresh PRs, docs work, commits, or security fixes.`;
+    if (gap.domain === "music") return `${proofSource} is showing fresh plays, scrobbles, and artist attribution.`;
+    if (gap.templateId === "video-royalties") return `${proofSource} is showing watch minutes and playback events.`;
+    if (gap.domain === "research") return `${proofSource} is showing citations, DOI records, and author proof.`;
+    return `${proofSource} is showing ${profile.liveSignalTitle.toLowerCase()}.`;
   }
 
-  if (observed && observed !== "Source not connected" && observed !== "Needed") {
-    return `${proofSource} — ${observed.toLowerCase()}.`;
+  if (observed) {
+    if (gap.domain === "oss") return `${proofSource} verified ${observed.toLowerCase()} across maintainers and contributors.`;
+    if (gap.domain === "music") return `${proofSource} mapped ${observed.toLowerCase()} to artists and royalty splits.`;
+    if (gap.templateId === "video-royalties") return `${proofSource} verified ${observed.toLowerCase()} from playback events.`;
+    if (gap.domain === "research") return `${proofSource} verified ${observed.toLowerCase()} across papers and authors.`;
+    return `${proofSource} verified ${observed.toLowerCase()}.`;
   }
 
   if (profile?.unpaidSubtitle && !connected) {
@@ -51,11 +69,53 @@ function evidenceLine(
 
   if (gap.why?.trim()) return gap.why.trim();
 
-  const sources = profile?.extractionSources?.join(" · ") ?? proofSource;
+  const sources = profile?.extractionSources?.join(" + ") ?? proofSource;
   if (connected) {
-    return `${sources} verified upstream activity — economics are not wired yet.`;
+    if (gap.domain === "oss") return `${sources} verified upstream work - payout programs are not wired yet.`;
+    if (gap.domain === "music") return `${sources} verified upstream listening - royalty payouts are not wired yet.`;
+    if (gap.templateId === "video-royalties") return `${sources} verified playback activity - creator payouts are not wired yet.`;
+    if (gap.domain === "research") return `${sources} verified citation activity - author payouts are not wired yet.`;
+    return `${sources} verified upstream activity - economics are not wired yet.`;
   }
-  return `Connect ${sources.split(" · ")[0] ?? "source"} on Profile so RESOLVE can ingest proof.`;
+  return `Connect ${sources.split(" + ")[0] ?? "source"} in Profile so RESOLVE can ingest proof.`;
+}
+
+function missingProgramProblem(gap: TrendingValueGap, lane: DiscoverCardLane, program: string): string {
+  const profile = gap.communitySlug ? getCommunityValueProfile(gap.communitySlug) : null;
+  const product = profile?.product ?? gap.communitySlug?.replace(/-/g, " ") ?? "this community";
+  const observed = observedActivity(gap);
+  const people = gap.peopleImpacted;
+  const peopleLabel = people > 0 ? `${people.toLocaleString()} ${domainPeopleLabel(gap, people)}` : null;
+
+  if (gap.templateId === "docs-bounty") {
+    return `${observed ?? "Documentation PRs and maintainer work"} are visible in ${product}, but no docs program is active.`;
+  }
+
+  if (gap.templateId === "security-fund") {
+    return `${observed ?? "Security fixes and dependency work"} are visible in ${product}, but no security fund is active.`;
+  }
+
+  if (gap.templateId === "user-centric-royalties") {
+    return `${observed ?? "Listening activity"} mapped to ${peopleLabel ?? "artists"}, but no royalty pool is distributing payouts.`;
+  }
+
+  if (gap.templateId === "video-royalties") {
+    return `${observed ?? "Watch minutes"} are verified for ${product}, but no pay-per-minute rule is paying creators.`;
+  }
+
+  if (gap.templateId === "citation-toll") {
+    return `${observed ?? "Citation activity"} is visible in research sources, but no citation toll is active.`;
+  }
+
+  if (gap.templateId === "quadratic-funding" || gap.domain === "dao") {
+    return "Grant and governance activity is visible, but no reviewer payroll or QF match pool is configured.";
+  }
+
+  if (lane === "graph") {
+    return `Capital is waiting for ${product}, but no ${program} exists yet.`;
+  }
+
+  return `Verified activity is visible, but no ${program} exists yet.`;
 }
 
 function problemLine(input: {
@@ -71,11 +131,11 @@ function problemLine(input: {
   const program = missingProgramLabel(gap);
 
   if (settled || opportunityState === "settled") {
-    return "Obligations settled on Arc — share receipts or fund the next cycle.";
+    return "Obligations settled on Arc - share receipts or fund the next cycle.";
   }
 
   if (opportunityState === "claimable") {
-    return "Verified earnings are ready — connect identity or claim on Capital.";
+    return "Verified earnings are ready - connect identity or claim on Capital.";
   }
 
   if (!connected) {
@@ -83,33 +143,20 @@ function problemLine(input: {
   }
 
   if (lane === "radars") {
-    if (!hasRule) {
-      return `New signal — no ${program} is active to reward this activity automatically.`;
-    }
-    if (!funded) {
-      return "Program rule exists but the pool is unfunded — payouts cannot deploy yet.";
-    }
-    return "Live proof is ready — reward, automate, or run analysis before it ages out.";
+    if (!hasRule) return missingProgramProblem(gap, lane, program);
+    if (!funded) return "Payout rule exists but the pool is unfunded - payouts cannot deploy yet.";
+    return "Live proof is ready - reward, automate, or run analysis before it ages out.";
   }
 
   if (lane === "graph") {
-    if (!hasRule) {
-      return `Money is blocked — no ${program} exists on this community yet.`;
-    }
-    if (!funded) {
-      return "Program pool is unfunded — obligations are queued but cannot settle on Arc.";
-    }
+    if (!hasRule) return missingProgramProblem(gap, lane, program);
+    if (!funded) return "Program pool is unfunded - obligations are queued but cannot settle on Arc.";
     return "Fund this gap or open the community console to operate payouts.";
   }
 
-  // gaps — unpaid value
-  if (!hasRule) {
-    return `Verified work is happening. No ${program} exists — money cannot settle yet.`;
-  }
-  if (!funded) {
-    return `${program.charAt(0).toUpperCase() + program.slice(1)} is active but unfunded — deploy is blocked.`;
-  }
-  return "Pool is funded — approve payouts on Arc when obligations are ready.";
+  if (!hasRule) return missingProgramProblem(gap, lane, program);
+  if (!funded) return `${program.charAt(0).toUpperCase() + program.slice(1)} is active but unfunded - deploy is blocked.`;
+  return "Pool is funded - approve payouts on Arc when obligations are ready.";
 }
 
 function opportunityLine(gap: TrendingValueGap, moneyLabel: string): string {
@@ -119,19 +166,19 @@ function opportunityLine(gap: TrendingValueGap, moneyLabel: string): string {
   if (moneyLabel && moneyLabel !== "Unpaid") {
     parts.push(`${moneyLabel} potential impact`);
   } else {
-    parts.push("Impact unlocks when proof and a reward rule connect");
+    parts.push("Impact unlocks when proof and a payout rule connect");
   }
 
   if (people > 0) {
-    parts.push(`${people.toLocaleString()} ${people === 1 ? "person" : "people"} affected`);
+    parts.push(`${people.toLocaleString()} ${domainPeopleLabel(gap, people)} affected`);
   } else if (gap.moneyCanMoveUsd > 0.01) {
     parts.push("Obligations ready to move on Arc");
   }
 
-  return parts.join(" · ");
+  return parts.join(" + ");
 }
 
-/** Evidence → problem → opportunity story for Discover cards. */
+/** Evidence -> problem -> opportunity story for Discover cards. */
 export function buildDiscoverCardNarrative(input: {
   gap: TrendingValueGap;
   lane: DiscoverCardLane;

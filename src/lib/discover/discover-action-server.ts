@@ -7,6 +7,7 @@ import { syncUserJellyfinSensors } from "@/lib/connectors/user-jellyfin-sync";
 import { refreshOssOpportunityStore } from "@/lib/github/oss-scan-store";
 import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
 import { buildPublicReceipt } from "@/lib/ledger/receipt";
+import { isDbPoolExhaustedError } from "@/lib/db/connection";
 import type { DiscoverActionKind } from "@/lib/discover/types";
 import {
   discoverActionError,
@@ -340,8 +341,17 @@ export async function executeDiscoverAction(
     await auditDiscoverAction(userId, input, response);
     return response;
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Action failed";
-    const failure = discoverActionError("ACTION_FAILED", message);
+    const poolBusy = isDbPoolExhaustedError(e);
+    const message = poolBusy
+      ? "Database is busy. Try again, or open the community and continue setup there."
+      : e instanceof Error
+        ? e.message
+        : "Action failed";
+    const failure = discoverActionError(
+      poolBusy ? "DATABASE_BUSY" : "ACTION_FAILED",
+      message,
+      poolBusy ? "retry" : undefined,
+    );
     await auditDiscoverAction(userId, input, failure);
     return failure;
   }

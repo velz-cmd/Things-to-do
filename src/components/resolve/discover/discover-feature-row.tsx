@@ -166,6 +166,7 @@ export function DiscoverFeatureRow({
         showAdvanced={showAdvanced}
         onToggleAdvanced={() => setShowAdvanced((v) => !v)}
         onAction={handleAction}
+        primarySubtext={card.narrative.primarySubtext}
         trailing={hasAnalysisAction ? null : <DiscoverSolveButton gap={gap} />}
       />
     </li>

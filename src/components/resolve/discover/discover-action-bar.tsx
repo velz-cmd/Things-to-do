@@ -16,6 +16,7 @@ type DiscoverActionBarProps = {
   onToggleAdvanced?: () => void;
   /** Extra CTA rendered alongside primary/secondary — e.g. "Solve with AI". */
   trailing?: ReactNode;
+  primarySubtext?: string;
 };
 
 /** Real action buttons — primary CTA + secondary, not hashtag pills. */
@@ -27,12 +28,13 @@ export function DiscoverActionBar({
   showAdvanced,
   onToggleAdvanced,
   trailing,
+  primarySubtext,
 }: DiscoverActionBarProps) {
   const primary = slots.find((s) => s.variant === "primary");
   const primaryLabel = primary ? normalizeLabel(friendlyDiscoverActionLabel(primary.action, connections)) : null;
   const secondary = dedupeSlotsByLabel(slots.filter((s) => s.variant === "secondary"), connections)
     .filter((s) => normalizeLabel(friendlyDiscoverActionLabel(s.action, connections)) !== primaryLabel)
-    .slice(0, 2);
+    .slice(0, 3);
   const visibleLabels = new Set(
     [primary, ...secondary]
       .filter(Boolean)
@@ -52,6 +54,7 @@ export function DiscoverActionBar({
         <ActionButton
           slot={primary}
           connections={connections}
+          subtext={primarySubtext}
           onClick={() => onAction(primary.action)}
         />
       )}
@@ -125,10 +128,12 @@ function dedupeActionsByLabel(
 function ActionButton({
   slot,
   connections,
+  subtext,
   onClick,
 }: {
   slot: DiscoverActionSlot;
   connections: UserConnectionState | null | undefined;
+  subtext?: string;
   onClick: () => void;
 }) {
   const label = friendlyDiscoverActionLabel(slot.action, connections);
@@ -153,9 +158,15 @@ function ActionButton({
       >
         {label}
       </button>
-      {slot.disabled && slot.disabledReason && (
-        <span className="text-[10px] text-amber-200/80">{slot.disabledReason}</span>
-      )}
+      {slot.disabled && slot.disabledReason ? (
+        <span className="max-w-[260px] text-[10px] leading-snug text-amber-200/80">
+          {slot.disabledReason}
+        </span>
+      ) : subtext ? (
+        <span className="max-w-[260px] text-[10px] leading-snug text-resolve-muted">
+          {subtext}
+        </span>
+      ) : null}
     </div>
   );
 }

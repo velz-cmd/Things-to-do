@@ -9,6 +9,14 @@ export type DiscoverCardNarrative = {
   opportunity: string;
   opportunityAmount: string;
   opportunityTone: "verified" | "estimate" | "not_synced" | "zero";
+  valueLabel: string;
+  valueText: string;
+  countLabel: string;
+  countText: string;
+  confidenceText: string;
+  blockerText: string;
+  updatedText: string;
+  primarySubtext: string;
 };
 
 function missingProgramLabel(gap: TrendingValueGap): string {
@@ -38,6 +46,36 @@ function observedActivity(gap: TrendingValueGap): string | null {
   return observed;
 }
 
+function valueLabelForGap(gap: TrendingValueGap): string {
+  if (gap.valueMetrics?.valueLabel) return gap.valueMetrics.valueLabel;
+  if (gap.amountVerified) return "Authorized value";
+  if (gap.amountKind === "estimate" || gap.amountNeededUsd > 0 || gap.moneyCanMoveUsd > 0) {
+    if (gap.domain === "music") return "Estimated royalties";
+    if (gap.templateId === "video-royalties") return "Estimated creator rewards";
+    if (gap.domain === "research") return "Estimated funding need";
+    return "Estimated unpaid value";
+  }
+  return "Estimate unavailable";
+}
+
+function countLabelForGap(gap: TrendingValueGap): string {
+  if (gap.valueMetrics?.countLabel) return gap.valueMetrics.countLabel;
+  if (gap.domain === "music") return "Artists affected";
+  if (gap.templateId === "video-royalties") return "Creators affected";
+  if (gap.domain === "research") return "Authors affected";
+  if (gap.templateId === "security-fund") return "Maintainers affected";
+  if (gap.domain === "oss") return "Contributors affected";
+  return "People affected";
+}
+
+function confidenceForGap(gap: TrendingValueGap): number {
+  if (typeof gap.valueMetrics?.confidence === "number") return gap.valueMetrics.confidence;
+  return (
+    gap.opportunityScorecard?.chips.find((chip) => chip.dimension === "confidence")?.value ??
+    (gap.amountVerified ? 96 : gap.amountNeededUsd > 0 ? 82 : 0)
+  );
+}
+
 function evidenceLine(
   gap: TrendingValueGap,
   lane: DiscoverCardLane,
@@ -56,10 +94,10 @@ function evidenceLine(
   }
 
   if (observed) {
-    if (gap.domain === "oss") return `${proofSource} verified ${observed.toLowerCase()} across maintainers and contributors.`;
-    if (gap.domain === "music") return `${proofSource} mapped ${observed.toLowerCase()} to artists and royalty splits.`;
+    if (gap.domain === "oss") return `${proofSource} found ${observed.toLowerCase()}.`;
+    if (gap.domain === "music") return `${proofSource} mapped ${observed.toLowerCase()} to artist attribution.`;
     if (gap.templateId === "video-royalties") return `${proofSource} verified ${observed.toLowerCase()} from playback events.`;
-    if (gap.domain === "research") return `${proofSource} verified ${observed.toLowerCase()} across papers and authors.`;
+    if (gap.domain === "research") return `${proofSource} detected ${observed.toLowerCase()} across papers and authors.`;
     return `${proofSource} verified ${observed.toLowerCase()}.`;
   }
 
@@ -81,6 +119,8 @@ function evidenceLine(
 }
 
 function missingProgramProblem(gap: TrendingValueGap, lane: DiscoverCardLane, program: string): string {
+  if (gap.valueMetrics?.story) return gap.valueMetrics.story;
+
   const profile = gap.communitySlug ? getCommunityValueProfile(gap.communitySlug) : null;
   const product = profile?.product ?? gap.communitySlug?.replace(/-/g, " ") ?? "this community";
   const observed = observedActivity(gap);
@@ -164,9 +204,9 @@ function opportunityLine(gap: TrendingValueGap, moneyLabel: string): string {
   const parts: string[] = [];
 
   if (moneyLabel && moneyLabel !== "Unpaid") {
-    parts.push(`${moneyLabel} potential impact`);
+    parts.push(`${valueLabelForGap(gap)}: ${moneyLabel}`);
   } else {
-    parts.push("Impact unlocks when proof and a payout rule connect");
+    parts.push("Estimate unavailable - connect or sync the proof source");
   }
 
   if (people > 0) {
@@ -176,6 +216,12 @@ function opportunityLine(gap: TrendingValueGap, moneyLabel: string): string {
   }
 
   return parts.join(" + ");
+}
+
+function countTextForGap(gap: TrendingValueGap): string {
+  const count = gap.valueMetrics?.countValue ?? gap.peopleImpacted;
+  if (!count) return "Sync required";
+  return count.toLocaleString();
 }
 
 /** Evidence -> problem -> opportunity story for Discover cards. */
@@ -202,5 +248,16 @@ export function buildDiscoverCardNarrative(input: {
     opportunity: opportunityLine(input.gap, money.label),
     opportunityAmount: money.label,
     opportunityTone: money.tone,
+    valueLabel: valueLabelForGap(input.gap),
+    valueText:
+      money.label === "Unpaid"
+        ? "Estimate unavailable"
+        : money.label,
+    countLabel: countLabelForGap(input.gap),
+    countText: countTextForGap(input.gap),
+    confidenceText: confidenceForGap(input.gap) > 0 ? `${confidenceForGap(input.gap)}%` : "Sync required",
+    blockerText: input.gap.valueMetrics?.blocker ?? missingProgramLabel(input.gap),
+    updatedText: input.gap.valueMetrics?.lastActivity ?? (input.gap.updatedAt ? "updated recently" : "sync required"),
+    primarySubtext: input.gap.valueMetrics?.primarySubtext ?? "Continue in RESOLVE",
   };
 }

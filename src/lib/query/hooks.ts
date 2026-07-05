@@ -70,10 +70,14 @@ export function useProfileBootstrapQuery(enabled: boolean) {
   });
 }
 
-export function useUserConnectionsQuery(enabled: boolean) {
+export function useUserConnectionsQuery(
+  enabled: boolean,
+  initialData?: UserConnectionState | null,
+) {
   return useQuery({
     queryKey: queryKeys.profileState,
     enabled,
+    initialData: initialData?.signedIn ? initialData : undefined,
     queryFn: async ({ signal }) => {
       try {
         return await fetchJson<UserConnectionState & { ok?: boolean }>(

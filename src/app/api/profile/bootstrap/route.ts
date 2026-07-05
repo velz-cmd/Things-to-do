@@ -1,24 +1,71 @@
 import { NextResponse } from "next/server";
-import { getSessionUser, ensureProfileForUser } from "@/lib/auth/session";
-import { sanitizeConnectorIdentities } from "@/lib/identity/sanitize-profile";
+import { getSessionUser } from "@/lib/auth/session";
 import { getProfileEarningsSummaryCached } from "@/lib/earn/earnings-snapshot";
 import { listCommunitySummaries } from "@/lib/communities/surface";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getConnectorStatuses } from "@/lib/connectors/connector-service";
-import { userListenBrainzConfigured, userNavidromeConfigured, userJellyfinConfigured } from "@/lib/profile/user-connections";
-import { safeUrlHostname } from "@/lib/profile/safe-url";
-import { normalizeGithubLogin } from "@/lib/identity/github-login";
+import { userJellyfinConfigured } from "@/lib/profile/user-connections";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
 import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 import { isDbPoolExhaustedError } from "@/lib/db/connection";
 import { offlineProfileBootstrap } from "@/lib/profile/bootstrap-fallback";
-import type { ProfileIdentityState } from "@/app/api/profile/identities/route";
+import { loadProfileFast } from "@/lib/profile/load-profile-fast";
+import { buildFastIdentities } from "@/lib/profile/build-fast-identities";
+import type { ProfileIdentityState } from "@/lib/profile/identity-types";
 
 export const dynamic = "force-dynamic";
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+function enrichIdentities(
+  identities: ProfileIdentityState[],
+  liveConnectors: Awaited<ReturnType<typeof getConnectorLiveStatuses>>,
+  connectorStatuses: Awaited<ReturnType<typeof getConnectorStatuses>>,
+): ProfileIdentityState[] {
+  const githubLive = liveConnectors.find((c) => c.id === "github");
+  const navidromeLive = liveConnectors.find((c) => c.id === "navidrome");
+  const gmailStatus = connectorStatuses.find((c) => c.id === "gmail");
+
+  return identities.map((row) => {
+    if (row.id === "github" && githubLive) {
+      return { ...row, health: githubLive.health, eventsToday: githubLive.eventsToday };
+    }
+    if (row.id === "navidrome" && navidromeLive) {
+      return {
+        ...row,
+        connected: row.connected || (navidromeLive.installed ?? false),
+        health: navidromeLive.health,
+        eventsToday: navidromeLive.eventsToday,
+      };
+    }
+    if (row.id === "gmail" && gmailStatus?.state === "connected") {
+      return { ...row, connected: true };
+    }
+    return row;
+  });
+}
+
+async function fastBootstrapPayload(authUser: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>) {
+  const profile = await loadProfileFast(authUser);
+  const walletResolved = resolveUserWallet(authUser.id, profile);
+  const identities = buildFastIdentities(profile);
+  const jellyfinConnected = userJellyfinConfigured(profile);
+
+  return {
+    profile,
+    walletResolved,
+    identities,
+    jellyfinConnected,
+  };
+}
+
 /**
- * Single profile load — one DB session instead of 5+ parallel API calls.
- * Returns offline fallbacks when Postgres pool is saturated (never 500 for signed-in users).
+ * Single profile load — connector fields from Postgres first (fast), enrich in parallel with timeouts.
  */
 export async function GET() {
   const authUser = await getSessionUser();
@@ -27,88 +74,21 @@ export async function GET() {
   }
 
   try {
-    let profile = await ensureProfileForUser(authUser);
-    profile = await sanitizeConnectorIdentities(authUser.id, profile);
-
-    const walletResolved = resolveUserWallet(authUser.id, profile);
-    const walletAddress = walletResolved.address;
-
-    const githubUsername = normalizeGithubLogin(profile.githubUsername);
-    const listenbrainzConnected = userListenBrainzConfigured(profile);
-    const navidromeConnected = userNavidromeConfigured(profile);
-    const jellyfinConnected = userJellyfinConfigured(profile);
+    const { profile, walletResolved, identities: fastIdentities, jellyfinConnected } =
+      await fastBootstrapPayload(authUser);
 
     const [liveConnectors, connectorStatuses, earnings, communities] = await Promise.all([
-      getConnectorLiveStatuses().catch(() => []),
-      getConnectorStatuses(authUser.id).catch(() => []),
-      getProfileEarningsSummaryCached({ userId: authUser.id, profile }).catch(() => null),
-      listCommunitySummaries(authUser.id).catch(() => []),
+      withTimeout(getConnectorLiveStatuses().catch(() => []), 1_500, []),
+      withTimeout(getConnectorStatuses(authUser.id).catch(() => []), 1_500, []),
+      withTimeout(
+        getProfileEarningsSummaryCached({ userId: authUser.id, profile }).catch(() => null),
+        2_000,
+        null,
+      ),
+      withTimeout(listCommunitySummaries(authUser.id, { fast: true }).catch(() => []), 2_500, []),
     ]);
 
-    const githubLive = liveConnectors.find((c) => c.id === "github");
-    const navidromeLive = liveConnectors.find((c) => c.id === "navidrome");
-    const gmailStatus = connectorStatuses.find((c) => c.id === "gmail");
-    const arcStatus = connectorStatuses.find((c) => c.id === "arc");
-    const navidromeHost = safeUrlHostname(profile.navidromeUrl);
-    const jellyfinHost = safeUrlHostname(profile.jellyfinUrl);
-
-    const identities: ProfileIdentityState[] = [
-      {
-        id: "github",
-        connected: Boolean(githubUsername),
-        displayValue: githubUsername ? `@${githubUsername}` : undefined,
-        hint: githubUsername ? undefined : "Connect once on Profile — communities attach automatically",
-        health: githubLive?.health,
-        eventsToday: githubLive?.eventsToday,
-        authorizeUrl: githubUsername ? undefined : "/connect/github",
-      },
-      {
-        id: "wallet",
-        connected: true,
-        displayValue: `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`,
-        hint: "Your RESOLVE wallet on Arc — unique to your account",
-        health: arcStatus?.state === "connected" ? "healthy" : "healthy",
-      },
-      {
-        id: "navidrome",
-        connected: navidromeConnected || (navidromeLive?.installed ?? false),
-        displayValue:
-          navidromeHost ?? (navidromeLive?.installed ? "Instance syncing" : undefined),
-        hint:
-          navidromeConnected || navidromeLive?.installed ?
-            undefined
-          : "Optional — ListenBrainz covers most listeners",
-        health: navidromeLive?.health,
-        eventsToday: navidromeLive?.eventsToday,
-      },
-      {
-        id: "jellyfin",
-        connected: jellyfinConnected,
-        displayValue:
-          jellyfinHost ??
-          (profile.jellyfinUsername ? `@${profile.jellyfinUsername}` : undefined),
-        hint:
-          jellyfinConnected ?
-            undefined
-          : "Optional — connect on Profile once",
-        authorizeUrl: jellyfinConnected ? undefined : "/connect/jellyfin",
-      },
-      {
-        id: "listenbrainz",
-        connected: listenbrainzConnected,
-        displayValue:
-          profile.listenbrainzUsername ? `@${profile.listenbrainzUsername}` : undefined,
-        hint: listenbrainzConnected ? undefined : "Connect once on Profile — music communities attach automatically",
-        authorizeUrl: listenbrainzConnected ? undefined : "/connect/listenbrainz",
-      },
-      {
-        id: "gmail",
-        connected: profile.gmailConnected || gmailStatus?.state === "connected",
-        displayValue: profile.gmailConnected ? "Inbox connected" : undefined,
-        hint: profile.gmailConnected ? undefined : "Optional — receipt-based claims",
-        authorizeUrl: "/api/connectors/gmail/authorize?returnTo=/profile",
-      },
-    ];
+    const identities = enrichIdentities(fastIdentities, liveConnectors, connectorStatuses);
 
     return NextResponse.json(
       {
@@ -121,7 +101,7 @@ export async function GET() {
         earnings,
         communities,
         wallet: {
-          address: walletAddress,
+          address: walletResolved.address,
           embedded: profile.embeddedWallet || true,
           provider: appWalletProvider(profile),
         },
@@ -142,17 +122,38 @@ export async function GET() {
     );
   } catch (e) {
     console.error("[profile/bootstrap]", e);
-    if (isDbPoolExhaustedError(e)) {
+    try {
+      const { profile, walletResolved, identities, jellyfinConnected } =
+        await fastBootstrapPayload(authUser);
+      return NextResponse.json({
+        ok: true,
+        signedIn: true,
+        userId: authUser.id,
+        email: authUser.email ?? null,
+        emailVerified: Boolean(authUser.email_confirmed_at ?? authUser.email),
+        identities,
+        earnings: null,
+        communities: [],
+        wallet: {
+          address: walletResolved.address,
+          embedded: profile.embeddedWallet || true,
+          provider: appWalletProvider(profile),
+        },
+        jellyfinSync:
+          jellyfinConnected && profile.jellyfinUrl && profile.jellyfinAccessToken
+            ? {
+                url: profile.jellyfinUrl,
+                accessToken: profile.jellyfinAccessToken,
+              }
+            : null,
+        dbDegraded: true,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch {
+      if (isDbPoolExhaustedError(e)) {
+        return NextResponse.json(offlineProfileBootstrap(authUser));
+      }
       return NextResponse.json(offlineProfileBootstrap(authUser));
     }
-    const message = e instanceof Error ? e.message : "profile_load_failed";
-    if (
-      message.includes("prisma") ||
-      message.includes("database") ||
-      message.includes("connect")
-    ) {
-      return NextResponse.json(offlineProfileBootstrap(authUser));
-    }
-    return NextResponse.json(offlineProfileBootstrap(authUser));
   }
 }

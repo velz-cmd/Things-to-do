@@ -8,8 +8,8 @@ import { rateLimitHeaders } from "@/lib/api/cache-headers";
 import { reportApiError } from "@/lib/api/report-error";
 import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
 
-const SENSOR_TIMEOUT_MS = 2_000;
-const SUMMARY_TIMEOUT_MS = 8_000;
+const SENSOR_TIMEOUT_MS = 1_500;
+const SUMMARY_TIMEOUT_MS = 5_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -89,7 +89,7 @@ export async function GET(req: Request) {
     );
     const fallback = catalogFallback();
     const communities = await withTimeout(
-      cacheGetOrSet(`communities:list:${userId ?? "guest"}`, 20, () =>
+      cacheGetOrSet(`communities:list:${userId ?? "guest"}`, 45, () =>
         listCommunitySummaries(userId, { sensorStatuses: statuses, fast: true }),
       ),
       SUMMARY_TIMEOUT_MS,

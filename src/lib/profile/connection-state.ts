@@ -55,6 +55,7 @@ export async function getUserConnectionState(input: {
     | "updatedAt"
   >;
   walletAddress?: string;
+  fast?: boolean;
 }): Promise<UserConnectionState> {
   const githubUsername = normalizeGithubLogin(input.profile.githubUsername);
   const listenbrainzConnected = userListenBrainzConfigured(input.profile);
@@ -75,7 +76,9 @@ export async function getUserConnectionState(input: {
         select: { communitySlug: true },
       })
       .catch(() => []),
-    musicbrainzLinked(wallet),
+    input.fast
+      ? Promise.resolve({ connected: false as const })
+      : musicbrainzLinked(wallet),
   ]);
 
   const installedCommunitySlugs = installs.map((i) => i.communitySlug);
@@ -118,7 +121,7 @@ export async function getUserConnectionState(input: {
       id: "musicbrainz",
       label: "MusicBrainz",
       connected: mbLink.connected,
-      displayValue: mbLink.displayValue,
+      displayValue: "displayValue" in mbLink ? mbLink.displayValue : undefined,
       authorizeUrl: "/communities/navidrome",
     },
     {

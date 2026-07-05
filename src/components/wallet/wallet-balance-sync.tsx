@@ -7,8 +7,7 @@ const FAST_POLL_MS = 45_000;
 const LIVE_POLL_MS = 90_000;
 
 /**
- * Single coordinated wallet balance sync — avoids duplicate pollers stampeding Arc RPC.
- * Fast polls use ledger cache; periodic live polls refresh on-chain reads.
+ * Balance sync — Stripe-style: show ledger/cached balance immediately, refresh Arc RPC in background.
  */
 export function WalletBalanceSync() {
   const { user, refreshBalance } = useAuth();
@@ -18,7 +17,10 @@ export function WalletBalanceSync() {
   useEffect(() => {
     if (!user) return;
 
-    void refreshBalance({ mode: "live", silent: false });
+    void refreshBalance({ mode: "fast", silent: true });
+    const liveTimerId = window.setTimeout(() => {
+      void refreshBalance({ mode: "live", silent: true });
+    }, 400);
 
     fastTimer.current = setInterval(() => {
       void refreshBalance({ mode: "fast", silent: true });
@@ -29,6 +31,7 @@ export function WalletBalanceSync() {
     }, LIVE_POLL_MS);
 
     return () => {
+      window.clearTimeout(liveTimerId);
       if (fastTimer.current) clearInterval(fastTimer.current);
       if (liveTimer.current) clearInterval(liveTimer.current);
     };

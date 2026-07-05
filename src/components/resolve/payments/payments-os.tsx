@@ -17,8 +17,12 @@ import type {
 } from "@/lib/capital/wallet-types";
 
 const WALLET_REFRESH_MS = 30_000;
-const CLIENT_TIMEOUT_MS = 12_000;
+const CLIENT_TIMEOUT_MS = 20_000;
 const ARC_CHAIN_ID = 5042002;
+
+type CapitalStatePayload =
+  | (Extract<CapitalWalletResponse, { ok: true }> & { claimableAmount?: number })
+  | (Extract<CapitalWalletResponse, { ok: false }> & { claimableAmount?: number });
 
 type Overview = {
   recentAuthorizations: {
@@ -40,18 +44,19 @@ type Overview = {
   }[];
 };
 
-async function fetchCapitalWallet(refresh = true): Promise<CapitalWalletResponse> {
+async function fetchCapitalWallet(refresh = true): Promise<CapitalStatePayload> {
   const res = await fetch(refresh ? "/api/capital/state" : "/api/capital/state?fast=1", {
     credentials: "include",
     cache: "no-store",
     signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
   });
-  return (await res.json()) as CapitalWalletResponse;
+  return (await res.json()) as CapitalStatePayload;
 }
 
 function snapshotFromCapitalWallet(
   data: Extract<CapitalWalletResponse, { ok: true }>,
   userId: string,
+  claimableAmount = 0,
 ): BankingAccountSnapshot {
   const spendable = Number(data.balance.spendableUsd);
   const total = Number(data.balance.totalUsdc);
@@ -61,8 +66,8 @@ function snapshotFromCapitalWallet(
     return {
       id: item.id,
       at: item.createdAt,
-      type: item.kind === "fund_program" ? "program_reserve" as const : "adjustment" as const,
-      direction: amount < 0 ? "debit" as const : "credit" as const,
+      type: item.kind === "fund_program" ? ("program_reserve" as const) : ("adjustment" as const),
+      direction: amount < 0 ? ("debit" as const) : ("credit" as const),
       amountUsd: Math.abs(amount),
       balanceAfterUsd: null,
       label: item.label,
@@ -83,7 +88,7 @@ function snapshotFromCapitalWallet(
     balances: {
       availableUsd: spendable,
       reservedUsd: data.balance.reservedUsd,
-      earnedClaimableUsd: 0,
+      earnedClaimableUsd: claimableAmount,
       earnedAuthorizedUsd: 0,
       earnedSettledUsd: 0,
       totalDepositedUsd: total,
@@ -93,7 +98,7 @@ function snapshotFromCapitalWallet(
     statement,
     network: {
       authorizedUsd: 0,
-      claimableUsd: 0,
+      claimableUsd: claimableAmount,
       settledUsd: 0,
       pendingFundingUsd: 0,
     },
@@ -174,8 +179,35 @@ function healthFromResponse(
   };
 }
 
+function mergeBankingSnapshots(
+  live: BankingAccountSnapshot | null,
+  meta: BankingAccountSnapshot,
+): BankingAccountSnapshot {
+  if (!live) return meta;
+  return {
+    ...meta,
+    balances: {
+      ...meta.balances,
+      availableUsd: live.balances.availableUsd,
+      onChainUsdcUsd: live.balances.onChainUsdcUsd ?? meta.balances.onChainUsdcUsd,
+      reservedUsd: Math.max(meta.balances.reservedUsd, live.balances.reservedUsd),
+      earnedClaimableUsd: Math.max(
+        meta.balances.earnedClaimableUsd,
+        live.balances.earnedClaimableUsd,
+      ),
+    },
+    walletAddress: live.walletAddress ?? meta.walletAddress,
+    arc: {
+      ...meta.arc,
+      live: live.arc.live,
+      identityWallet: live.arc.identityWallet ?? meta.arc.identityWallet,
+    },
+    statement: meta.statement.length > 0 ? meta.statement : live.statement,
+  };
+}
+
 export function PaymentsOS() {
-  const { user } = useAuth();
+  const { user, refreshBalance } = useAuth();
   const { openSignIn } = useSignInModal();
   const account = useResolveAccount();
 
@@ -188,10 +220,8 @@ export function PaymentsOS() {
   const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
-  const [metaLoaded, setMetaLoaded] = useState(false);
 
-  const walletSyncRef = useRef(walletSync);
-  walletSyncRef.current = walletSync;
+  const lastLiveBalanceRef = useRef<number | null>(null);
 
   const fallbackWallet = account.appWalletAddress ?? account.walletAddress ?? null;
 
@@ -212,127 +242,148 @@ export function PaymentsOS() {
     });
   }, [fallbackWallet, user, walletHealth]);
 
-  const loadWallet = useCallback(async (opts?: { silent?: boolean; refresh?: boolean }) => {
-    if (!user) {
-      setBanking(null);
-      setWalletSync("no_wallet");
-      setWalletHealth(null);
-      setSyncError(null);
-      return;
-    }
+  const applyCapitalResponse = useCallback(
+    (capital: CapitalStatePayload, userId: string) => {
+      if (!capital.ok) return false;
 
-    if (!opts?.silent) {
-      setRefreshing(true);
-      setWalletSync("loading");
-    }
+      const claimable = Number(capital.claimableAmount ?? 0);
+      const snap = snapshotFromCapitalWallet(capital, userId, claimable);
+      const spendable = Number(capital.balance.spendableUsd);
 
-    try {
-      const capital = await fetchCapitalWallet(Boolean(opts?.refresh));
-
-      if (capital.ok) {
-        const snap = snapshotFromCapitalWallet(capital, user.id);
-        setBanking(snap);
-        setWalletHealth(healthFromResponse(capital, false));
-        setWalletSync(capital.syncStatus === "cached" ? "cached" : "synced");
-        setSyncError(capital.syncStatus === "cached" ? (capital.syncError ?? "Using last known Arc balance.") : null);
-        setWalletWarnings(capital.warnings);
-        setLastRefreshedAt(new Date(capital.balance.syncedAt));
-      } else if (capital.code === "WALLET_NOT_FOUND") {
-        await fetch("/api/wallet/provision", { method: "POST", credentials: "include" }).catch(
-          () => null,
+      if (capital.syncStatus === "live" && Number.isFinite(spendable)) {
+        lastLiveBalanceRef.current = spendable;
+      } else if (
+        lastLiveBalanceRef.current !== null &&
+        spendable < lastLiveBalanceRef.current &&
+        capital.syncStatus === "cached"
+      ) {
+        snap.balances.availableUsd = lastLiveBalanceRef.current;
+        snap.balances.onChainUsdcUsd = Math.max(
+          snap.balances.onChainUsdcUsd ?? 0,
+          lastLiveBalanceRef.current,
         );
-        const retry = await fetchCapitalWallet(true);
-        if (retry.ok) {
-          const snap = snapshotFromCapitalWallet(retry, user.id);
-          setBanking(snap);
-          setWalletHealth(healthFromResponse(retry, false));
-          setWalletSync(retry.syncStatus === "cached" ? "cached" : "synced");
-          setSyncError(
-            retry.syncStatus === "cached" ? (retry.syncError ?? "Using last known Arc balance.") : null,
-          );
-          setWalletWarnings(retry.warnings);
-          setLastRefreshedAt(new Date(retry.balance.syncedAt));
+      }
+
+      setBanking((prev) => (prev ? mergeBankingSnapshots(snap, prev) : snap));
+      setWalletHealth(healthFromResponse(capital, false));
+      setWalletSync(capital.syncStatus === "cached" ? "cached" : "synced");
+      setSyncError(
+        capital.syncStatus === "cached"
+          ? (capital.syncError ?? "Using last known Arc balance.")
+          : null,
+      );
+      setWalletWarnings(capital.warnings);
+      setLastRefreshedAt(new Date(capital.balance.syncedAt));
+      void refreshBalance().catch(() => null);
+      return true;
+    },
+    [refreshBalance],
+  );
+
+  const loadWallet = useCallback(
+    async (opts?: { silent?: boolean; refresh?: boolean }) => {
+      if (!user) {
+        setBanking(null);
+        setWalletSync("no_wallet");
+        setWalletHealth(null);
+        setSyncError(null);
+        return;
+      }
+
+      if (!opts?.silent) {
+        setRefreshing(true);
+        setWalletSync("loading");
+      }
+
+      try {
+        const capital = await fetchCapitalWallet(opts?.refresh !== false);
+
+        if (applyCapitalResponse(capital, user.id)) {
           return;
         }
-        setWalletSync("no_wallet");
-        setSyncError(capital.message);
-        setWalletHealth(null);
-      } else {
-        setWalletSync("error");
-        setSyncError(capital.message);
-        setWalletHealth(healthFromResponse(capital, false));
+
+        if (!capital.ok && capital.code === "WALLET_NOT_FOUND") {
+          await fetch("/api/wallet/provision", { method: "POST", credentials: "include" }).catch(
+            () => null,
+          );
+          const retry = await fetchCapitalWallet(true);
+          if (applyCapitalResponse(retry, user.id)) {
+            return;
+          }
+          setWalletSync("no_wallet");
+          setSyncError(capital.message);
+          setWalletHealth(null);
+        } else if (!capital.ok) {
+          setWalletSync("error");
+          setSyncError(capital.message);
+          setWalletHealth(healthFromResponse(capital, false));
+        } else {
+          setWalletSync("error");
+          setSyncError("Could not load wallet state.");
+        }
+      } catch (e) {
+        const aborted = e instanceof DOMException && e.name === "AbortError";
+        setWalletSync(lastLiveBalanceRef.current !== null ? "cached" : "error");
+        setSyncError(
+          aborted
+            ? "Balance sync timed out — showing last known balance."
+            : "Could not sync Arc balance. Retry sync or check wallet connection.",
+        );
+        if (fallbackWallet) {
+          setWalletHealth({
+            address: fallbackWallet,
+            shortAddress: `${fallbackWallet.slice(0, 6)}…${fallbackWallet.slice(-4)}`,
+            source: "server_wallet",
+            chainId: ARC_CHAIN_ID,
+            blockNumber: null,
+            syncedAt: null,
+            rpcStatus: lastLiveBalanceRef.current !== null ? "cached" : "error",
+            nativeUsdc: null,
+            erc20Usdc: null,
+          });
+        }
+        if (lastLiveBalanceRef.current !== null) {
+          setBanking((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  balances: {
+                    ...prev.balances,
+                    availableUsd: lastLiveBalanceRef.current!,
+                  },
+                }
+              : prev,
+          );
+        }
+      } finally {
+        setRefreshing(false);
       }
-    } catch (e) {
-      const aborted = e instanceof DOMException && e.name === "AbortError";
-      setWalletSync("error");
-      setSyncError(
-        aborted ?
-          "Balance sync timed out. Open Capital status or retry wallet sync."
-        : "Could not sync Arc balance. Retry sync or check wallet connection.",
-      );
-      if (fallbackWallet) {
-        setWalletHealth({
-          address: fallbackWallet,
-          shortAddress: `${fallbackWallet.slice(0, 6)}…${fallbackWallet.slice(-4)}`,
-          source: "server_wallet",
-          chainId: ARC_CHAIN_ID,
-          blockNumber: null,
-          syncedAt: null,
-          rpcStatus: "error",
-          nativeUsdc: null,
-          erc20Usdc: null,
-        });
-      }
-    } finally {
-      setRefreshing(false);
-    }
-  }, [fallbackWallet, user]);
+    },
+    [applyCapitalResponse, fallbackWallet, user],
+  );
 
   const loadBankingMeta = useCallback(async () => {
-    if (!user || metaLoaded) return;
+    if (!user) return;
 
     try {
       const bankRes = await fetch("/api/banking/account?light=1", {
         credentials: "include",
         signal: AbortSignal.timeout(20_000),
       });
-      if (!bankRes.ok) {
-        setWalletWarnings((w) =>
-          w.includes("Account metadata unavailable") ? w : [...w, "Account metadata unavailable"],
-        );
-        return;
-      }
+      if (!bankRes.ok) return;
+
       const raw = await bankRes.json();
       const snapshot = normalizeBankingSnapshot(raw);
       if (!snapshot) return;
 
-      setBanking((prev) => {
-        if (!prev || walletSyncRef.current !== "synced") return snapshot;
-        return {
-          ...snapshot,
-          balances: {
-            ...snapshot.balances,
-            availableUsd: prev.balances.availableUsd,
-            onChainUsdcUsd: prev.balances.onChainUsdcUsd,
-            reservedUsd: Math.max(snapshot.balances.reservedUsd, prev.balances.reservedUsd),
-          },
-          walletAddress: prev.walletAddress ?? snapshot.walletAddress,
-          arc: {
-            ...snapshot.arc,
-            identityWallet: prev.arc.identityWallet ?? snapshot.arc.identityWallet,
-          },
-        };
-      });
-      setMetaLoaded(true);
+      setBanking((prev) => mergeBankingSnapshots(prev, snapshot));
     } catch {
-      setWalletWarnings((w) =>
-        w.includes("Account metadata unavailable") ? w : [...w, "Account metadata unavailable"],
-      );
+      /* earnings/activity metadata is optional */
     }
-  }, [metaLoaded, user]);
+  }, [user]);
 
   const loadOverview = useCallback(async () => {
-    if (!user || overview) return;
+    if (!user) return;
     try {
       const ovRes = await fetch("/api/payments/overview", {
         credentials: "include",
@@ -348,20 +399,19 @@ export function PaymentsOS() {
     } catch {
       /* optional */
     }
-  }, [overview, user]);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
     void loadWallet({ silent: false, refresh: true });
-    const t = setInterval(() => void loadWallet({ silent: true }), WALLET_REFRESH_MS);
+    void loadBankingMeta();
+    void loadOverview();
+    const t = setInterval(
+      () => void loadWallet({ silent: true, refresh: true }),
+      WALLET_REFRESH_MS,
+    );
     return () => clearInterval(t);
-  }, [loadWallet, user]);
-
-  useEffect(() => {
-    if (!user || (walletSync !== "synced" && walletSync !== "cached")) return;
-    const t = setTimeout(() => void loadBankingMeta(), 2_000);
-    return () => clearTimeout(t);
-  }, [loadBankingMeta, user, walletSync]);
+  }, [loadBankingMeta, loadOverview, loadWallet, user]);
 
   async function handleClaim() {
     if (!payoutWallet) {
@@ -391,7 +441,8 @@ export function PaymentsOS() {
         return;
       }
       toast.success(`${BANKING_UI.claimSuccess} — $${total.toFixed(2)}`);
-      void loadWallet({ silent: true });
+      void loadWallet({ silent: true, refresh: true });
+      void loadBankingMeta();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Claim failed");
     } finally {
@@ -423,13 +474,17 @@ export function PaymentsOS() {
     return rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
   }, [overview]);
 
-  const balanceKnown = walletSync === "synced" || walletSync === "cached";
+  const balanceKnown =
+    walletSync === "synced" ||
+    walletSync === "cached" ||
+    lastLiveBalanceRef.current !== null ||
+    Boolean(fallbackWallet);
 
   return (
     <ResolveBanking
       account={banking}
       settlements={settlements}
-      initialLoading={walletSync === "loading" && !fallbackWallet}
+      initialLoading={walletSync === "loading" && !fallbackWallet && !banking}
       refreshing={refreshing}
       signedIn={Boolean(user)}
       payoutWallet={payoutWallet}

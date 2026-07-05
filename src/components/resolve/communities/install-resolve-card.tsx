@@ -5,6 +5,8 @@ import Link from "next/link";
 import { CheckCircle2, Loader2, Plug, ArrowRight } from "lucide-react";
 import clsx from "clsx";
 import { toast } from "sonner";
+import { apiInstallCommunity } from "@/lib/discover/discover-action-engine";
+import { ACTION_STATUS } from "@/lib/copy/action-status";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Button } from "@/components/resolve/ui/button";
 import { CommunityVitalsRow } from "@/components/resolve/communities/community-vitals-row";
@@ -48,42 +50,28 @@ export function InstallResolveCard({
 
   async function install() {
     setBusy(true);
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 12_000);
     try {
-      const res = await fetch(`/api/communities/${community.slug}/install?minimal=1`, {
-        method: "POST",
-        credentials: "include",
-        signal: controller.signal,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Install failed");
+      const data = await apiInstallCommunity(community.slug);
 
       const narrative =
-        data.observeNarrative ??
-        vitals?.observeNarrative ??
-        `Connected to ${community.name}.`;
+        vitals?.observeNarrative ?? `Connected to ${community.name}.`;
 
       setObserveNarrative(narrative);
       toast.success(
         data.alreadyInstalled
           ? `Already connected to ${community.name}`
           : `Connected to ${community.name}`,
-        { description: "Syncs from Profile across all tabs" },
+        { description: "Available across Capital, Discover, and Communities" },
       );
       onInstalled?.(narrative);
       void refreshSync().catch(() => null);
     } catch (err) {
-      const timedOut = err instanceof Error && err.name === "AbortError";
-      toast.error(
-        timedOut
-          ? "Community install is still taking too long. Retry, or open Profile to check the source connection."
-          : err instanceof Error
-            ? err.message
-            : "Could not install RESOLVE",
+      toast.message(
+        err instanceof Error ? err.message : ACTION_STATUS.workingInstall,
+        { description: "Check Communities — attach may already be complete" },
       );
+      void refreshSync().catch(() => null);
     } finally {
-      window.clearTimeout(timer);
       setBusy(false);
     }
   }

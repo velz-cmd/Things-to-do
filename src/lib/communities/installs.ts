@@ -6,7 +6,6 @@ import {
 import { programTemplatesForCommunity } from "@/lib/connectors/phase3-tracks";
 import { ensureSeedEcosystems } from "@/lib/mission/server/ecosystems";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
-import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import type { CommunityInstallRecord } from "./types";
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
@@ -114,6 +113,13 @@ export async function ensureCommunityPrograms(userId: string, communitySlug: str
   return { created };
 }
 
+/** Heavy ecosystem seeding — run after install response (cron or `after()`). */
+export function deferInstallBackgroundWork(userId: string, communitySlug: string) {
+  void ensureSeedEcosystems(userId)
+    .then(() => ensureCommunityPrograms(userId, communitySlug))
+    .catch(() => undefined);
+}
+
 export async function installCommunity(userId: string, communitySlug: string) {
   const community = getCommunityBySlug(communitySlug);
   if (!community) {
@@ -125,11 +131,14 @@ export async function installCommunity(userId: string, communitySlug: string) {
     include: { programs: true },
   });
   if (existing) {
-    await ensureCommunityPrograms(userId, communitySlug);
-    const programs = await prisma.resolveProgram.findMany({
-      where: { installId: existing.id },
-      orderBy: { createdAt: "asc" },
-    });
+    const programs =
+      existing.programs.length > 0
+        ? existing.programs
+        : await prisma.resolveProgram.findMany({
+            where: { installId: existing.id },
+            orderBy: { createdAt: "asc" },
+          });
+    void ensureCommunityPrograms(userId, communitySlug).catch(() => undefined);
     return {
       ok: true as const,
       install: toInstallRecord(existing),
@@ -138,7 +147,6 @@ export async function installCommunity(userId: string, communitySlug: string) {
     };
   }
 
-  await ensureSeedEcosystems(userId);
   let ecosystem = await prisma.resolveEcosystem.findFirst({
     where: { userId, name: community.name },
   });
@@ -155,18 +163,12 @@ export async function installCommunity(userId: string, communitySlug: string) {
     });
   }
 
-  const liveConnectors = (await getConnectorLiveStatuses().catch(() => []))
-    .filter((c) => community.connectors.includes(c.id) && c.health === "healthy")
-    .map((c) => c.id);
-
   const install = await prisma.resolveCommunityInstall.create({
     data: {
       userId,
       communitySlug,
       ecosystemId: ecosystem?.id,
-      connectorIdsJson: JSON.stringify(
-        liveConnectors.length ? liveConnectors : community.connectors,
-      ),
+      connectorIdsJson: JSON.stringify(community.connectors),
       doctrineJson: JSON.stringify({
         text: community.doctrine,
         attachShape: community.attachShape,
@@ -176,15 +178,13 @@ export async function installCommunity(userId: string, communitySlug: string) {
   });
 
   const templateIds = programTemplatesForCommunity(communitySlug);
-  const programs = [];
-  let primaryMissionId: string | null = null;
+  const primaryTemplateId = templateIds[0] ?? "user-centric-royalties";
+  const primaryMissionId = `program-${install.id}-${primaryTemplateId.slice(0, 8)}`;
 
-  for (const templateId of templateIds) {
-    const template = PROGRAM_TEMPLATES[templateId];
-    const missionId = `program-${install.id}-${templateId.slice(0, 8)}`;
-    if (!primaryMissionId) primaryMissionId = missionId;
-    const program = await prisma.resolveProgram.create({
-      data: {
+  await prisma.resolveProgram.createMany({
+    data: templateIds.map((templateId) => {
+      const template = PROGRAM_TEMPLATES[templateId];
+      return {
         userId,
         installId: install.id,
         templateId,
@@ -192,14 +192,19 @@ export async function installCommunity(userId: string, communitySlug: string) {
         status: "active",
         budgetUsd: template.defaultBudgetUsd,
         rulesJson: JSON.stringify(template.defaultRules),
-        missionId,
+        missionId: `program-${install.id}-${templateId.slice(0, 8)}`,
         metadataJson: JSON.stringify({ communitySlug }),
-      },
-    });
-    programs.push(program);
-  }
+      };
+    }),
+    skipDuplicates: true,
+  });
 
-  const defaultTemplate = PROGRAM_TEMPLATES[templateIds[0] ?? "user-centric-royalties"];
+  const programs = await prisma.resolveProgram.findMany({
+    where: { installId: install.id },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const defaultTemplate = PROGRAM_TEMPLATES[primaryTemplateId];
   const missionId = primaryMissionId ?? `program-${install.id}-${defaultTemplate.id.slice(0, 8)}`;
 
   await prisma.resolveCommunityInstall.update({
@@ -217,7 +222,7 @@ export async function installCommunity(userId: string, communitySlug: string) {
     },
   });
 
-  await recordTimelineEvent({
+  void recordTimelineEvent({
     userId,
     ecosystemId: ecosystem?.id ?? undefined,
     eventType: "community_installed",
@@ -225,7 +230,9 @@ export async function installCommunity(userId: string, communitySlug: string) {
     detail: community.doctrine,
     severity: "info",
     metadata: { communitySlug, installId: install.id },
-  });
+  }).catch(() => undefined);
+
+  void ensureSeedEcosystems(userId).catch(() => undefined);
 
   return {
     ok: true as const,

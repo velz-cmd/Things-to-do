@@ -28,6 +28,7 @@ import {
   type EmailPasswordResult,
 } from "@/lib/auth/email-password";
 import { toast } from "sonner";
+import { mergeArcBalanceSnapshot } from "@/lib/wallet/arc-balance-snapshot";
 
 export interface WalletBalance {
   availableUsd: number;
@@ -202,6 +203,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               : Number.isFinite(ledgerSpendable)
                 ? ledgerSpendable
                 : 0;
+
+        mergeArcBalanceSnapshot({
+          appAddress: appWalletAddress ?? undefined,
+          externalAddress: externalWalletAddress ?? undefined,
+          appOnChainUsd: Number.isFinite(appOnChainUsd ?? NaN) ? appOnChainUsd! : undefined,
+          externalOnChainUsd:
+            Number.isFinite(externalOnChainUsd ?? NaN) ? externalOnChainUsd! : undefined,
+          allowZero: data.syncStatus === "live",
+        });
 
         setBalance({
           availableUsd: combinedSpendableUsd,

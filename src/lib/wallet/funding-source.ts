@@ -18,6 +18,15 @@ export function affordableFundingSources(
   return out;
 }
 
+/** Wallets the user may select in the picker (independent of affordance). */
+export function selectableFundingSources(
+  hasLinkedExternal: boolean,
+): FundingSource[] {
+  const out: FundingSource[] = ["app"];
+  if (hasLinkedExternal) out.push("external");
+  return out;
+}
+
 /** Default when user has not picked — first affordable source (external before app when both work). */
 export function pickFundingSource(
   amountUsd: number,
@@ -34,8 +43,10 @@ export function pickFundingSource(
 export function maxSpendableUsd(
   balances: FundingBalances,
   externalReady: boolean,
+  externalLinked = false,
 ): number {
-  const ext = externalReady ? balances.externalSpendableUsd : 0;
+  const ext =
+    externalReady || externalLinked ? balances.externalSpendableUsd : 0;
   return Math.max(balances.appSpendableUsd, ext);
 }
 

@@ -35,11 +35,16 @@ export function useWalletActions() {
 
   const linkedExternal = account.externalWalletAddress?.toLowerCase();
   const connectedAddr = address?.toLowerCase();
-  const walletLinked =
-    Boolean(linkedExternal) && Boolean(connectedAddr) && linkedExternal === connectedAddr;
 
-  const canPayWithConnectedWallet =
-    isWalletConnectEnabled() && isConnected && walletLinked && Boolean(user);
+  const externalConnected =
+    isWalletConnectEnabled() && isConnected && Boolean(connectedAddr) && Boolean(user);
+
+  const walletLinked =
+    Boolean(linkedExternal) &&
+    Boolean(connectedAddr) &&
+    linkedExternal === connectedAddr;
+
+  const canPayWithConnectedWallet = externalConnected && (walletLinked || !linkedExternal);
 
   useEffect(() => {
     if (!user) return;
@@ -68,19 +73,38 @@ export function useWalletActions() {
     }
   }, [chainId, switchChainAsync]);
 
+  const ensureExternalLinked = useCallback(async (): Promise<boolean> => {
+    if (!connectedAddr) return false;
+    if (walletLinked) return true;
+
+    const res = await fetch("/api/wallet/link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ walletAddress: connectedAddr }),
+    });
+    return res.ok;
+  }, [connectedAddr, walletLinked]);
+
   const openConnectWallet = useCallback(() => {
     open({ view: "Connect" });
   }, [open]);
 
   const fundProgramWithWallet = useCallback(
     async (programId: string, amountUsd: number): Promise<void> => {
-      if (!canPayWithConnectedWallet || !address) {
-        throw new Error("Connect your Arc wallet from the account menu first");
+      if (!externalConnected || !address) {
+        throw new Error("Connect your wallet from Profile or the account menu");
+      }
+
+      if (linkedExternal && connectedAddr && linkedExternal !== connectedAddr) {
+        throw new Error(
+          "Connected wallet does not match your linked address — reconnect or change wallet in Profile",
+        );
       }
 
       if (connectedBalance.usdc < amountUsd) {
         throw new Error(
-          `Insufficient wallet balance: $${connectedBalance.usdc.toFixed(2)} on Arc, need $${amountUsd.toFixed(2)}`,
+          `Insufficient connected wallet balance: $${connectedBalance.usdc.toFixed(2)} on Arc, need $${amountUsd.toFixed(2)}`,
         );
       }
 
@@ -95,6 +119,11 @@ export function useWalletActions() {
 
       signingRef.current = true;
       try {
+        const linked = await ensureExternalLinked();
+        if (!linked) {
+          throw new Error("Could not link wallet to your account — try again from Profile");
+        }
+
         await ensureArc();
 
         toast.loading("Confirm in your wallet…", { id: "wallet-fund" });
@@ -134,11 +163,14 @@ export function useWalletActions() {
       }
     },
     [
-      canPayWithConnectedWallet,
+      externalConnected,
       address,
+      linkedExternal,
+      connectedAddr,
       connectedBalance,
       account.appWalletAddress,
       ensureArc,
+      ensureExternalLinked,
       sendTransactionAsync,
       publicClient,
       refreshBalance,

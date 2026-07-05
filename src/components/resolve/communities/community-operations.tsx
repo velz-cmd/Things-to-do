@@ -20,13 +20,15 @@ import { queryKeys } from "@/lib/query/keys";
 export function useCommunityOperationsHandlers(slug: string) {
   const queryClient = useQueryClient();
   const spendable = useSpendableUsd();
-  const { externalWalletReady, fundProgramWithWallet } = useResolveAccess();
+  const { externalWalletReady, fundProgramWithWallet, pickFundingSource } = useResolveAccess();
   const [busy, setBusy] = useState(false);
   const [fundSheet, setFundSheet] = useState<FundSheetRequest | null>(null);
 
   const wallet: WalletSnapshot = useMemo(
     () => ({
       spendableUsd: spendable.spendableUsd,
+      appSpendableUsd: spendable.appSpendableUsd,
+      externalSpendableUsd: spendable.externalSpendableUsd,
       totalUsdc: String(spendable.totalUsdc),
       loaded: spendable.loaded,
       address: spendable.walletAddress,
@@ -65,14 +67,13 @@ export function useCommunityOperationsHandlers(slug: string) {
       if (req.amountUsd < 5) {
         throw new Error("Amount can't be less than $5");
       }
+      const source = pickFundingSource(req.amountUsd);
       const walletSpendable = spendable.spendableUsd;
       const walletReady = spendable.loaded;
-      if (walletReady && walletSpendable < req.amountUsd) {
+      if (!source && walletReady) {
         throw new Error(
           walletSpendable <= 0
-            ? externalWalletReady
-              ? "No USDC in your connected wallet on Arc testnet"
-              : "No spendable USDC — connect your wallet or add funds in Capital"
+            ? "No spendable USDC — add funds in Capital or connect a wallet with Arc USDC"
             : `Insufficient balance: $${walletSpendable.toFixed(2)} available`,
         );
       }
@@ -97,7 +98,10 @@ export function useCommunityOperationsHandlers(slug: string) {
         }
         if (!programId) throw new Error("No program to fund");
 
-        if (externalWalletReady) {
+        const fundingSource = source ?? pickFundingSource(req.amountUsd);
+        if (!fundingSource) throw new Error("No wallet with enough USDC for this amount");
+
+        if (fundingSource === "external") {
           await fundProgramWithWallet(programId, req.amountUsd);
         } else {
           await apiFundProgram(programId, req.amountUsd);
@@ -113,7 +117,7 @@ export function useCommunityOperationsHandlers(slug: string) {
         setBusy(false);
       }
     },
-    [spendable, slug, invalidateSurface, externalWalletReady, fundProgramWithWallet],
+    [spendable, slug, invalidateSurface, externalWalletReady, fundProgramWithWallet, pickFundingSource],
   );
 
   const openFundSheet = useCallback((req: FundSheetRequest) => {

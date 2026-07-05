@@ -161,12 +161,13 @@ export async function ensureAppWalletForUser(user: DbUser): Promise<DbUser> {
   if (
     user.walletAddress &&
     user.walletAddress.toLowerCase() !== deterministic &&
-    !user.embeddedWallet
+    !user.embeddedWallet &&
+    !user.scanWalletAddress
   ) {
     return prisma.user.update({
       where: { id: user.id },
       data: {
-        scanWalletAddress: user.scanWalletAddress ?? user.walletAddress,
+        scanWalletAddress: user.walletAddress.toLowerCase(),
         walletAddress: deterministic,
         embeddedWallet: true,
         taskMemoryJson: writeMeta(user.taskMemoryJson, {

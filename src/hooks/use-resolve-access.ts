@@ -4,12 +4,14 @@ import { useAccount } from "wagmi";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { useWalletActions } from "@/hooks/use-wallet-actions";
+import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 
 export function useResolveAccess() {
   const { loading: authLoading, supabaseConfigured } = useAuth();
   const account = useResolveAccount();
   const { isConnected } = useAccount();
   const wallet = useWalletActions();
+  const spendable = useSpendableUsd();
 
   const signedIn =
     account.authMethod === "email" ||
@@ -17,13 +19,12 @@ export function useResolveAccess() {
     account.authMethod === "github" ||
     account.authMethod === "both";
 
-  const externalReady = wallet.canPayWithConnectedWallet;
-  const walletConnected =
-    Boolean(account.walletAddress) || (isConnected && Boolean(account.externalWalletAddress)) || externalReady;
+  const externalReady = spendable.externalReady && wallet.canPayWithConnectedWallet;
+  const hasAppWallet = Boolean(account.appWalletAddress);
+  const walletConnected = hasAppWallet || externalReady || (isConnected && Boolean(account.externalWalletAddress));
 
-  /** Email/Google users can assign/lock/deploy after sign-in (embedded wallet auto-created). */
   const ready = signedIn;
-  const cryptoReady = signedIn && (externalReady || Boolean(account.walletAddress));
+  const cryptoReady = signedIn && (hasAppWallet || externalReady);
 
   let message: string | null = null;
   if (!supabaseConfigured && process.env.NODE_ENV === "development") {
@@ -36,13 +37,17 @@ export function useResolveAccess() {
     ready,
     cryptoReady,
     externalWalletReady: externalReady,
-    connectedWalletUsd: wallet.connectedBalanceUsd,
+    connectedWalletUsd: spendable.externalSpendableUsd,
+    appWalletUsd: spendable.appSpendableUsd,
     walletSigning: wallet.walletSigning,
-    spendableUsd: externalReady ? wallet.connectedBalanceUsd : undefined,
+    spendableUsd: spendable.spendableUsd,
+    pickFundingSource: spendable.pickSource,
     fundProgramWithWallet: wallet.fundProgramWithWallet,
     openConnectWallet: wallet.openConnectWallet,
     authLoading: authLoading || account.loading,
-    address: externalReady ? account.externalWalletAddress : account.walletAddress,
+    address: account.appWalletAddress ?? account.externalWalletAddress ?? account.walletAddress,
+    appWalletAddress: account.appWalletAddress,
+    externalWalletAddress: account.externalWalletAddress,
     isAuthenticated: account.isAuthenticated,
     account,
     message,

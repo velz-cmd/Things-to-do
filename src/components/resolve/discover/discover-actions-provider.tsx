@@ -43,6 +43,7 @@ import {
   discoverAutomatePath,
   type CommunityIntent,
 } from "@/lib/communities/community-nav";
+import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -96,6 +97,7 @@ export function DiscoverActionsProvider({
     externalWalletReady,
     fundProgramWithWallet,
     openConnectWallet,
+    pickFundingSource,
   } = useResolveAccess();
   const { state: connections, reload: reloadConnections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
@@ -191,16 +193,15 @@ export function DiscoverActionsProvider({
         throw new Error("Amount can't be less than $5");
       }
 
+      const source = pickFundingSource(req.amountUsd);
       const walletSpendable = spendable.spendableUsd;
       const walletReady = spendable.loaded;
 
-      if (walletReady && walletSpendable < req.amountUsd) {
+      if (!source && walletReady) {
         throw new Error(
           walletSpendable <= 0
-            ? externalWalletReady
-              ? "No USDC in your connected wallet on Arc testnet"
-              : "No spendable USDC — connect your wallet or add funds in Capital"
-            : `Insufficient wallet balance: $${walletSpendable.toFixed(2)} spendable, need $${req.amountUsd.toFixed(2)}`,
+            ? "No spendable USDC — add funds in Capital or connect a wallet with Arc USDC"
+            : `Insufficient balance: $${walletSpendable.toFixed(2)} available across your wallets, need $${req.amountUsd.toFixed(2)}`,
         );
       }
 
@@ -231,19 +232,24 @@ export function DiscoverActionsProvider({
           programId = await ensureProgram(target);
         }
 
+        const fundingSource = source ?? pickFundingSource(req.amountUsd);
+        if (!fundingSource) {
+          throw new Error("No wallet with enough USDC for this amount");
+        }
+
         toast.loading(
-          externalWalletReady
+          fundingSource === "external"
             ? `Confirm $${req.amountUsd.toFixed(2)} USDC in your wallet…`
-            : `Sending $${req.amountUsd.toFixed(2)} USDC to pool…`,
+            : `Funding $${req.amountUsd.toFixed(2)} from your RESOLVE wallet…`,
           { id: "discover-chain" },
         );
 
-        if (externalWalletReady) {
+        if (fundingSource === "external") {
           await fundProgramWithWallet(programId, req.amountUsd);
         } else {
           await apiFundProgram(programId, req.amountUsd);
         }
-        const fundedMessage = `You funded this pool $${req.amountUsd.toFixed(2)}`;
+        const fundedMessage = `You funded this pool $${req.amountUsd.toFixed(2)} via ${fundingSourceLabel(fundingSource)}`;
         toast.success(fundedMessage, {
           id: "discover-chain",
           description: "Arc USDC is pending confirmation in Capital",
@@ -272,9 +278,8 @@ export function DiscoverActionsProvider({
     [
       signedIn,
       router,
-      wallet,
-      externalWalletReady,
       spendable,
+      pickFundingSource,
       fundProgramWithWallet,
       ensureProgram,
       refreshWallet,
@@ -603,7 +608,7 @@ export function DiscoverActionsProvider({
       wallet: {
         ...wallet,
         spendableUsd: effectiveSpendable,
-        loaded: spendable.loaded || externalWalletReady,
+        loaded: spendable.loaded,
       },
       busy,
       runAction,
@@ -612,17 +617,23 @@ export function DiscoverActionsProvider({
       executeFund,
       openConnectWallet,
       externalWalletReady,
+      pickFundingSource,
+      appWalletUsd: spendable.appSpendableUsd,
+      externalWalletUsd: spendable.externalSpendableUsd,
     }),
-    [signedIn, wallet, busy, runAction, openFundSheet, refreshWallet, executeFund, effectiveSpendable, externalWalletReady, openConnectWallet],
+    [signedIn, wallet, busy, runAction, openFundSheet, refreshWallet, executeFund, effectiveSpendable, externalWalletReady, openConnectWallet, spendable.loaded, spendable.appSpendableUsd, spendable.externalSpendableUsd, pickFundingSource],
   );
 
   const displayWallet = useMemo(
     () => ({
       ...wallet,
       spendableUsd: effectiveSpendable,
-      loaded: externalWalletReady || wallet.loaded,
+      appSpendableUsd: spendable.appSpendableUsd,
+      externalSpendableUsd: spendable.externalSpendableUsd,
+      loaded: spendable.loaded,
+      fundingSource: pickFundingSource(25),
     }),
-    [wallet, effectiveSpendable, externalWalletReady],
+    [wallet, effectiveSpendable, spendable.appSpendableUsd, spendable.externalSpendableUsd, spendable.loaded, pickFundingSource],
   );
 
   return (

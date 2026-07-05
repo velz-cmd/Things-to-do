@@ -20,6 +20,7 @@ const bodySchema = z.object({
   href: z.string().optional(),
   role: z.string().optional(),
   surface: z.string().optional(),
+  automationTrigger: z.enum(["docs_merge", "play", "citation", "view"]).optional(),
 });
 
 /** Unified Discover action endpoint — always returns JSON. */

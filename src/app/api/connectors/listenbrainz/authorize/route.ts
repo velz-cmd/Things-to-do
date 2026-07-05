@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { requireSessionUser } from "@/lib/auth/session";
 import {
   buildMusicBrainzAuthorizeUrl,
+  appOrigin,
   createPkcePair,
   listenBrainzOAuthRedirectUri,
   musicBrainzOAuthConfigured,
@@ -18,20 +19,51 @@ const COOKIE_OPTS = {
   path: "/",
 };
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | "timeout"> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), ms);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function redirectToProfile(origin: string, error: string) {
+  return NextResponse.redirect(
+    `${origin}/profile?listenbrainz_error=${encodeURIComponent(error)}`,
+  );
+}
+
+function redirectToCanonical(req: Request, origin: string, canonicalOrigin: string) {
+  if (origin === canonicalOrigin) return null;
+  const current = new URL(req.url);
+  const target = new URL(current.pathname + current.search, canonicalOrigin);
+  return NextResponse.redirect(target.toString());
+}
+
 /** Redirect user to MusicBrainz OAuth — same identity as ListenBrainz. */
 export async function GET(req: Request) {
   const origin = new URL(req.url).origin;
+  const canonicalOrigin = appOrigin(origin);
+  const canonicalRedirect = redirectToCanonical(req, origin, canonicalOrigin);
+  if (canonicalRedirect) return canonicalRedirect;
 
   try {
-    const session = await requireSessionUser();
+    const session = await withTimeout(requireSessionUser(), 4_000);
+    if (session === "timeout") {
+      return redirectToProfile(canonicalOrigin, "session_timeout");
+    }
     if ("error" in session) {
       return NextResponse.redirect(
-        `${origin}/?auth_error=${encodeURIComponent(session.error)}`,
+        `${canonicalOrigin}/?auth_error=${encodeURIComponent(session.error)}`,
       );
     }
 
     if (!musicBrainzOAuthConfigured()) {
-      return NextResponse.redirect(`${origin}/profile?listenbrainz_error=not_configured`);
+      return redirectToProfile(canonicalOrigin, "not_configured");
     }
 
     const { searchParams } = new URL(req.url);
@@ -39,7 +71,7 @@ export async function GET(req: Request) {
     const state = randomBytes(16).toString("hex");
     const { verifier, challenge } = createPkcePair();
 
-    const target = buildMusicBrainzAuthorizeUrl(state, challenge, origin);
+    const target = buildMusicBrainzAuthorizeUrl(state, challenge, canonicalOrigin);
     const response = NextResponse.redirect(target);
 
     response.cookies.set("lb_oauth_state", state, COOKIE_OPTS);
@@ -53,9 +85,7 @@ export async function GET(req: Request) {
   } catch (e) {
     console.error("[listenbrainz/authorize]", e);
     const message = e instanceof Error ? e.message : "authorize_failed";
-    return NextResponse.redirect(
-      `${origin}/profile?listenbrainz_error=${encodeURIComponent(message.slice(0, 80))}`,
-    );
+    return redirectToProfile(canonicalOrigin, message.slice(0, 80));
   }
 }
 
@@ -65,7 +95,7 @@ export async function HEAD() {
 }
 
 export async function POST(req: Request) {
-  const origin = new URL(req.url).origin;
+  const origin = appOrigin(new URL(req.url).origin);
   return NextResponse.json({
     ok: musicBrainzOAuthConfigured(),
     redirectUri: listenBrainzOAuthRedirectUri(origin),

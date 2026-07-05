@@ -14,6 +14,9 @@ Enable **Production**, **Preview**, and **Development** for each.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
 | `NEXT_PUBLIC_APP_URL` | `https://things-to-do-eta.vercel.app` |
 | `APP_URL` | `https://things-to-do-eta.vercel.app` |
+| `OAUTH_REDIRECT_ORIGIN` | `https://things-to-do-eta.vercel.app` |
+
+`OAUTH_REDIRECT_ORIGIN`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, and every external OAuth app callback must use the same canonical host. For GitHub, set the OAuth app callback exactly to `https://things-to-do-eta.vercel.app/api/connectors/github/callback`.
 
 ## Arc + Circle (live settlement)
 

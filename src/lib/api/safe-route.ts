@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { API_CACHE, rateLimitHeaders } from "@/lib/api/cache-headers";
+import { fetchResilient } from "@/lib/api/fetch-resilient";
 import { reportApiError } from "@/lib/api/report-error";
+import { cacheGetOrSetResilient, cacheReadStale } from "@/lib/cache/kv";
 import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
 
 export type SafeGetOptions<T> = {
@@ -10,6 +12,8 @@ export type SafeGetOptions<T> = {
   rateLimit?: { limit: number; windowSeconds: number; keyPrefix: string; userId?: string | null };
   /** Return 429 when rate limited (default: serve fallback with 200) */
   rateLimitStrict?: boolean;
+  /** Redis cache with stale fallback on upstream failure */
+  redisCache?: { key: string; ttlSeconds: number; staleSeconds?: number };
 };
 
 /**
@@ -54,14 +58,36 @@ export async function safeApiGet<T extends Record<string, unknown>>(
     }
   }
 
+  const runHandler = async (): Promise<T> => {
+    if (options.redisCache) {
+      const { key, ttlSeconds, staleSeconds } = options.redisCache;
+      return cacheGetOrSetResilient(key, ttlSeconds, handler, { staleSeconds });
+    }
+    return handler();
+  };
+
   try {
-    const body = await handler();
+    const body = await runHandler();
     return NextResponse.json(body, {
       status: 200,
       headers: { "Cache-Control": cacheControl },
     });
   } catch (error) {
     reportApiError(scope, error);
+
+    if (options.redisCache) {
+      const stale = await cacheReadStale<T>(options.redisCache.key);
+      if (stale) {
+        return NextResponse.json(
+          { ...stale, degraded: true, stale: true, error: "upstream_unavailable" },
+          {
+            status: 200,
+            headers: { "Cache-Control": cacheControl },
+          },
+        );
+      }
+    }
+
     return NextResponse.json(
       { ...fallback, degraded: true, error: "upstream_unavailable" },
       {
@@ -72,23 +98,12 @@ export async function safeApiGet<T extends Record<string, unknown>>(
   }
 }
 
-/** Server-side fetch with AbortController timeout — returns null on failure. */
+/** @deprecated Use fetchResilient — kept for backward compatibility */
 export async function fetchWithTimeout(
   url: string,
   init: RequestInit & { timeoutMs?: number } = {},
 ): Promise<Response | null> {
-  const { timeoutMs = 12_000, signal: parentSignal, ...rest } = init;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const onParentAbort = () => controller.abort();
-  parentSignal?.addEventListener("abort", onParentAbort);
-
-  try {
-    return await fetch(url, { ...rest, signal: controller.signal });
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-    parentSignal?.removeEventListener("abort", onParentAbort);
-  }
+  return fetchResilient(url, init);
 }
+
+export { fetchResilient };

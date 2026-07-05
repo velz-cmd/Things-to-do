@@ -414,7 +414,7 @@ export async function listCommunitySummaries(
   const installSet = new Set(installs.map((i) => i.communitySlug));
 
   let operativeSlugs = installSet;
-  if (userId) {
+  if (userId && !options?.fast) {
     try {
       const { getUserConnectionState } = await import("@/lib/profile/connection-state");
       const { profileLinkedCommunitySlugs } = await import(
@@ -439,7 +439,7 @@ export async function listCommunitySummaries(
         },
       });
       if (profile) {
-        const state = await getUserConnectionState({ userId, profile });
+        const state = await getUserConnectionState({ userId, profile, fast: true });
         operativeSlugs = new Set([
           ...installSet,
           ...profileLinkedCommunitySlugs(state),
@@ -447,6 +447,35 @@ export async function listCommunitySummaries(
       }
     } catch {
       /* keep DB installs only */
+    }
+  } else if (userId && options?.fast) {
+    try {
+      const { profileLinkedCommunitySlugsFromProfile } = await import(
+        "@/lib/discover/community-profile-link-fast"
+      );
+      const profile = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          githubUsername: true,
+          listenbrainzUsername: true,
+          jellyfinUrl: true,
+          jellyfinUsername: true,
+          jellyfinAccessToken: true,
+          jellyfinPassword: true,
+          navidromeUrl: true,
+          navidromeUsername: true,
+          navidromePassword: true,
+          gmailConnected: true,
+        },
+      });
+      if (profile) {
+        operativeSlugs = new Set([
+          ...installSet,
+          ...profileLinkedCommunitySlugsFromProfile(profile),
+        ]);
+      }
+    } catch {
+      /* installs only */
     }
   }
 

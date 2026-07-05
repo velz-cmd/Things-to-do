@@ -5,6 +5,7 @@ import { withCapitalStateInflight } from "@/lib/capital/state-inflight";
 import { API_CACHE } from "@/lib/api/cache-headers";
 import { reportApiError } from "@/lib/api/report-error";
 import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
+import { cacheGetOrSet } from "@/lib/cache/kv";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -69,7 +70,11 @@ export async function GET(req: Request) {
 
   try {
     const state = await withCapitalStateInflight(authUser.id, liveSync, () =>
-      loadCapitalState(authUser, { liveSync }),
+      liveSync
+        ? loadCapitalState(authUser, { liveSync: true })
+        : cacheGetOrSet(`capital:state:fast:${authUser.id}`, 20, () =>
+            loadCapitalState(authUser, { liveSync: false }),
+          ),
     );
 
     return NextResponse.json(state, {

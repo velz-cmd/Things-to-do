@@ -52,6 +52,11 @@ export type ProgramPoolState = {
   settledUsd: number;
   claimableUsd: number;
   funderCount: number;
+  /** Distinct payees with authorizations on this program mission */
+  contributorCount: number;
+  authorizationCount: number;
+  /** One-line hook for Discover — sourced from pool + ledger counts */
+  sourcedHook: string;
   checkpoints: PoolCheckpointRow[];
   nextCheckpointUsd: number | null;
   progressToNextPct: number;

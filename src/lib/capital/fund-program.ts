@@ -198,6 +198,17 @@ export async function fundCommunityProgram(input: {
     m.tryCheckpointBatchSettle(input.userId, program.id).catch(() => null),
   );
 
+  void import("@/lib/capital/deliver-funder-intel").then((m) =>
+    m
+      .deliverFunderIntelBrief({
+        userId: input.userId,
+        programId: program.id,
+        stakeUsd: amount,
+        trigger: "fund",
+      })
+      .catch(() => null),
+  );
+
   if (program.templateId === "quadratic-funding" && program.missionId) {
     let rules: ProgramRules = {};
     try {

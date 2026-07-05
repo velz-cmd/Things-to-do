@@ -83,6 +83,28 @@ export async function tryCheckpointBatchSettle(
     status: "paid",
   });
 
+  void import("@/lib/capital/checkpoint-funder-bonus").then((m) =>
+    m
+      .distributeCheckpointFunderBonus({
+        programId,
+        thresholdUsd: target.thresholdUsd,
+        settlementId: deployed.settlementId,
+      })
+      .catch(() => null),
+  );
+
+  void import("@/lib/capital/deliver-funder-intel").then((m) =>
+    m
+      .deliverFunderIntelBrief({
+        userId,
+        programId,
+        stakeUsd: settledUsd,
+        trigger: "checkpoint",
+        checkpointThresholdUsd: target.thresholdUsd,
+      })
+      .catch(() => null),
+  );
+
   return {
     ok: true,
     programId,

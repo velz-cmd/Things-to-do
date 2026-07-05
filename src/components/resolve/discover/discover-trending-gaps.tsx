@@ -95,7 +95,7 @@ export function DiscoverTrendingGaps({
         <DiscoverDegradedHint onRefresh={() => void refresh()} className="mb-3" />
       )}
 
-      {loading && !feed ? (
+      {loading ? (
         <DiscoverTrendingSkeleton />
       ) : error && !feed ? (
         <DiscoverStatePanel variant="error">
@@ -162,8 +162,9 @@ export function DiscoverTrendingGaps({
             {displayRows.length === 0 && (
               <DiscoverStatePanel variant="empty">
                 <p className="text-sm text-resolve-muted">
-                  Connect a source to extract plays, watches, PRs, or citations.
+                  Warming up value signals — refresh in a moment or attach a community below.
                 </p>
+                <DiscoverRetryButton onClick={() => void refresh()} />
               </DiscoverStatePanel>
             )}
           </div>

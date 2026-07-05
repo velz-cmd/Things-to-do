@@ -101,9 +101,10 @@ export function useDiscoverRadarFeedQuery(limit = 24) {
     queryFn: ({ signal }) => discoverRadarFeedQueryFn(limit, signal),
     staleTime: 90_000,
     gcTime: 300_000,
-    placeholderData: emptyRadarFeedPayload(),
-    retry: 1,
-    retryDelay: 1_500,
+    placeholderData: undefined,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1_500 * 2 ** attempt, 6_000),
+    refetchOnMount: "always",
   });
 }
 

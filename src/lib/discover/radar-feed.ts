@@ -13,8 +13,9 @@ import {
   emptyRadarFeedPayload,
   safeFeedPart,
 } from "@/lib/discover/radar-feed-fallback";
+import { hydrateDiscoverGaps, isUsefulDiscoverFeed } from "@/lib/discover/feed-hydration";
 import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
-import { cacheGetOrSet } from "@/lib/cache/kv";
+import { cacheGetOrSet, cacheDelete, cacheReadStale } from "@/lib/cache/kv";
 import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 function startOfToday() {
@@ -30,7 +31,8 @@ const CONNECTORS_TIMEOUT_MS = 4_000;
 const TRENDING_TIMEOUT_MS = 6_000;
 const DOMAIN_RADARS_TIMEOUT_MS = 6_000;
 const EVENTS_TIMEOUT_MS = 2_000;
-const FEED_BUILD_TIMEOUT_MS = 12_000;
+const FEED_BUILD_TIMEOUT_MS =
+  process.env.VERCEL === "1" ? 25_000 : 12_000;
 
 /** Single Discover data source — gaps, pulse, radars, claim hint. Never throws. */
 export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarFeedPayload> {
@@ -141,7 +143,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
     degraded.push("intelligence");
   }
 
-  const gaps = trending.gaps;
+  const gaps = hydrateDiscoverGaps(trending.gaps, gapLimit);
   const radars = {
     oss: domainRadars.oss.cards.slice(0, 4),
     music: domainRadars.music.cards.slice(0, 4),
@@ -177,29 +179,43 @@ const FEED_CACHE_SECONDS = 90;
 
 export async function buildDiscoverRadarFeedSafe(limit = 24): Promise<DiscoverRadarFeedPayload> {
   const bounded = Math.min(Math.max(limit, 1), 48);
+  const cacheKey = `resolve:discover:radar-feed:${bounded}`;
 
-  return cacheGetOrSet(
-    `resolve:discover:radar-feed:${bounded}`,
-    FEED_CACHE_SECONDS,
-    async () => {
-      try {
-        return await withTimeout(
-          buildDiscoverRadarFeed(bounded),
-          FEED_BUILD_TIMEOUT_MS,
-          emptyRadarFeedPayload({
-            ok: true,
-            degraded: true,
-            degradedParts: ["timeout"],
-          }),
-        );
-      } catch (e) {
-        console.error("[discover/radar-feed] catastrophic:", e);
-        return emptyRadarFeedPayload({
+  const stale = await cacheReadStale<DiscoverRadarFeedPayload>(cacheKey);
+  if (stale && !isUsefulDiscoverFeed(stale)) {
+    await cacheDelete(cacheKey);
+  }
+
+  const buildOnce = async (): Promise<DiscoverRadarFeedPayload> => {
+    try {
+      const payload = await withTimeout(
+        buildDiscoverRadarFeed(bounded),
+        FEED_BUILD_TIMEOUT_MS,
+        emptyRadarFeedPayload({
+          ok: true,
+          degraded: true,
+          degradedParts: ["timeout"],
+        }),
+      );
+      return {
+        ...payload,
+        gaps: hydrateDiscoverGaps(payload.gaps ?? [], bounded),
+      };
+    } catch (e) {
+      console.error("[discover/radar-feed] catastrophic:", e);
+      return {
+        ...emptyRadarFeedPayload({
           ok: true,
           degraded: true,
           degradedParts: ["fatal"],
-        });
-      }
-    },
-  );
+        }),
+        gaps: hydrateDiscoverGaps([], bounded),
+      };
+    }
+  };
+
+  return cacheGetOrSet(cacheKey, FEED_CACHE_SECONDS, buildOnce, {
+    shouldCache: isUsefulDiscoverFeed,
+    validateCached: isUsefulDiscoverFeed,
+  });
 }

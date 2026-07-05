@@ -32,6 +32,7 @@ export type FundOutcomeDetail = {
   programName?: string;
   communitySlug?: string;
   programId?: string;
+  activityId?: string;
   txHash?: string;
   whyFund?: string;
   whoBenefits?: string;
@@ -61,12 +62,20 @@ export function buildFundOutcomeSummary(input: FundOutcomeDetail): string {
 export function fundOutcomeSteps(input: FundOutcomeDetail): DiscoverOutcomeStep[] {
   const steps: DiscoverOutcomeStep[] = [];
 
-  if (input.communitySlug && input.programId) {
+  if (input.activityId) {
     steps.push({
       id: "proof",
       label: "View proof",
-      description: "Pool balance, checkpoints, and program rules",
-      href: `/communities/${input.communitySlug}?intent=fund&program=${encodeURIComponent(input.programId)}`,
+      description: "Activity receipt, pool balance, and settlement trail",
+      href: `/receipt/${encodeURIComponent(input.activityId)}`,
+      primary: true,
+    });
+  } else if (input.communitySlug && input.programId) {
+    steps.push({
+      id: "proof",
+      label: "View proof",
+      description: "Pool balance, checkpoints, and your stake on Arc",
+      href: `/communities/${input.communitySlug}?intent=fund&program=${encodeURIComponent(input.programId)}#pool-checkpoints`,
       primary: true,
     });
   }
@@ -75,17 +84,16 @@ export function fundOutcomeSteps(input: FundOutcomeDetail): DiscoverOutcomeStep[
     id: "capital",
     label: "Capital · Your contribution",
     description: `${input.amountUsd.toFixed(2)} stake, balance, and activity receipt`,
-    href: "/capital",
+    href: "/capital?tab=activity",
     primary: steps.length === 0,
   });
 
-  if (input.communitySlug) {
-    const programQ = input.programId ? `&program=${encodeURIComponent(input.programId)}` : "";
+  if (input.communitySlug && input.programId) {
     steps.push({
       id: "program",
       label: "Program · Rules and payees",
       description: "Who gets paid and how this pool spends",
-      href: `/communities/${input.communitySlug}?intent=fund${programQ}`,
+      href: `/communities/${input.communitySlug}?tab=advanced&program=${encodeURIComponent(input.programId)}#programs`,
     });
   }
 
@@ -99,7 +107,7 @@ export function fundOutcomeSteps(input: FundOutcomeDetail): DiscoverOutcomeStep[
     });
   }
 
-  return steps.slice(0, 3);
+  return steps.slice(0, 4);
 }
 
 /** One next step per completed action — no generic Discover clutter. */

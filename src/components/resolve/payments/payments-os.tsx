@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -251,6 +252,8 @@ export function PaymentsOS() {
   const { openSignIn } = useSignInModal();
   const account = useResolveAccount();
   const { view: walletView } = useActiveWalletView();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "activity" ? "activity" : "overview";
 
   const [banking, setBanking] = useState<BankingAccountSnapshot | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -644,6 +647,7 @@ export function PaymentsOS() {
       onRefresh={() => void loadWallet({ silent: false, refresh: true })}
       onSignIn={openSignIn}
       onActivityOpen={() => void loadOverview()}
+      initialTab={initialTab}
       walletViewProps={{
         appAddress: account.appWalletAddress,
         externalAddress: account.externalWalletAddress,

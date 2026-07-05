@@ -1,6 +1,6 @@
 /** Client-side fund action cache — instant badges before server refetch. */
 
-import { dispatchCapitalRefresh } from "@/lib/capital/refresh-events";
+import { dispatchPoolRefresh } from "@/lib/capital/refresh-events";
 
 export type StoredFundAction = {
   id: string;
@@ -42,7 +42,7 @@ export function recordFundAction(action: Omit<StoredFundAction, "id" | "at"> & {
   const prev = readAll().filter((r) => r.id !== row.id);
   writeAll([row, ...prev]);
   window.dispatchEvent(new CustomEvent(FUND_ACTION_RECORDED_EVENT, { detail: row }));
-  dispatchCapitalRefresh({ reason: "fund" });
+  dispatchPoolRefresh({ programId: row.programId, communitySlug: row.communitySlug });
   return row;
 }
 

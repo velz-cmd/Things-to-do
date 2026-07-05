@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ExternalLink, Wallet } from "lucide-react";
+import { ArrowRight, CheckCircle2, ExternalLink, Wallet, X } from "lucide-react";
 import type { DiscoverOutcomeStep } from "@/lib/discover/discover-action-outcomes";
 import { Button } from "@/components/resolve/ui/button";
 
@@ -19,6 +19,7 @@ type DiscoverActionOutcomePanelProps = {
   deploying?: boolean;
   deployLabel?: string;
   onDone?: () => void;
+  onClose?: () => void;
 };
 
 export function DiscoverActionOutcomePanel({
@@ -35,7 +36,9 @@ export function DiscoverActionOutcomePanel({
   deploying,
   deployLabel = "Settle authorizations on Arc",
   onDone,
+  onClose,
 }: DiscoverActionOutcomePanelProps) {
+  const dismiss = onClose ?? onDone;
   const primary = steps.find((s) => s.primary) ?? steps[0];
   const secondary = steps.filter((s) => s !== primary);
 
@@ -45,7 +48,19 @@ export function DiscoverActionOutcomePanel({
         <div className="flex items-start gap-3">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
           <div className="min-w-0 flex-1">
-            <p className="text-base font-semibold leading-snug text-white">{title}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-base font-semibold leading-snug text-white">{title}</p>
+              {dismiss && (
+                <button
+                  type="button"
+                  onClick={dismiss}
+                  className="shrink-0 rounded-md p-1 text-resolve-muted transition hover:bg-white/10 hover:text-white"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <p className="mt-2 text-xs leading-relaxed text-emerald-100/95">{summary}</p>
           </div>
         </div>

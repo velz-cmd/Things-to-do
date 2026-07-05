@@ -156,6 +156,7 @@ export function DiscoverFundSheet({
               onDeployArc={fundOutcome.onDeployArc}
               deploying={fundOutcome.deployingArc}
               onDone={onClose}
+              onClose={onClose}
             />
             {fundOutcome.programId && fundOutcome.communitySlug ? (
               <div className="mt-4">

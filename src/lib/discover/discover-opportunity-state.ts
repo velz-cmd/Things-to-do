@@ -78,12 +78,13 @@ function isClaimable(gap: TrendingValueGap): boolean {
 export function getOpportunityState(
   gap: TrendingValueGap,
   connected: boolean,
+  options?: { poolBalanceUsd?: number },
 ): OpportunityState {
   if (isClaimable(gap)) return "claimable";
   if (isSettled(gap)) return "settled";
   if (!connected) return "detected";
   if (!hasActiveRule(gap)) return "verified";
-  if (!isFunded(gap)) return "programmed";
+  if ((options?.poolBalanceUsd ?? 0) <= 0 && !isFunded(gap)) return "programmed";
   return "funded";
 }
 

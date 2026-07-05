@@ -9,7 +9,8 @@ import { normalizeGithubLogin } from "@/lib/identity/github-login";
 import { ensureContributorFromGithub } from "@/lib/identity/contributors";
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 import { syncUserSensors } from "@/lib/connectors/user-sensor-sync";
-import { cacheDelete } from "@/lib/cache/kv";
+import { appOrigin } from "@/lib/integrations/musicbrainz-oauth";
+import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -33,16 +34,10 @@ function clearOAuthCookies(response: NextResponse) {
   response.cookies.set("gh_oauth_return", "", clear);
 }
 
-async function clearConnectorState(userId: string) {
-  await Promise.all([
-    cacheDelete(`profile:state:${userId}`),
-    cacheDelete(`communities:list:${userId}`),
-  ]);
-}
-
 /** GitHub OAuth callback → store verified GitHub login on user profile. */
 export async function GET(req: Request) {
-  const { searchParams, origin } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
+  const origin = appOrigin(new URL(req.url).origin);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const error = searchParams.get("error");
@@ -85,8 +80,8 @@ export async function GET(req: Request) {
     });
 
     await ensureContributorFromGithub({ login, githubId: String(ghUser.id) });
-    await clearConnectorState(userId);
-    void autoInstallCommunitiesForUser(userId, { githubUsername: login }).catch(() => undefined);
+    await invalidateConnectorCaches(userId);
+    await autoInstallCommunitiesForUser(userId, { githubUsername: login }).catch(() => undefined);
     void syncUserSensors(userId).catch(() => undefined);
 
     const response = redirectWith(origin, returnTo, { github_connected: "1" });

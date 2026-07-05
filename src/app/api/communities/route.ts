@@ -5,8 +5,8 @@ import { getCommunitySensorStatuses } from "@/lib/sensors/status";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { cacheGetOrSet } from "@/lib/cache/kv";
 
-const SENSOR_TIMEOUT_MS = 1_200;
-const SUMMARY_TIMEOUT_MS = 4_000;
+const SENSOR_TIMEOUT_MS = 2_000;
+const SUMMARY_TIMEOUT_MS = 8_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -65,18 +65,19 @@ export async function GET() {
     );
     const fallback = catalogFallback();
     const communities = await withTimeout(
-      cacheGetOrSet(`communities:list:${userId ?? "guest"}`, 60, () =>
+      cacheGetOrSet(`communities:list:${userId ?? "guest"}`, 20, () =>
         listCommunitySummaries(userId, { sensorStatuses: statuses, fast: true }),
       ),
       SUMMARY_TIMEOUT_MS,
       fallback,
     );
+    const usedFallback = communities === fallback;
     return communitiesJson({
       ok: true,
       communities,
       sensorStatuses: statuses,
-      degraded: communities === fallback,
-      metricsSyncing: statuses.length === 0,
+      degraded: usedFallback,
+      metricsSyncing: usedFallback && statuses.length === 0,
     });
   } catch (e) {
     console.error("[api/communities]", e);

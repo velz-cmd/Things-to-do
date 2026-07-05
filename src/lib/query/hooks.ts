@@ -14,10 +14,10 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-const PROFILE_BOOTSTRAP_TIMEOUT_MS = 5_000;
+const PROFILE_BOOTSTRAP_TIMEOUT_MS = 8_000;
 const DISCOVER_FEED_TIMEOUT_MS = 9_000;
-const COMMUNITY_HUB_TIMEOUT_MS = 5_000;
-const COMMUNITY_SURFACE_TIMEOUT_MS = 6_000;
+const COMMUNITY_HUB_TIMEOUT_MS = 8_000;
+const COMMUNITY_SURFACE_TIMEOUT_MS = 10_000;
 
 async function fetchJsonWithTimeout<T>(
   url: string,
@@ -64,7 +64,7 @@ export function useProfileBootstrapQuery(enabled: boolean) {
     enabled,
     queryFn: ({ signal }) =>
       fetchJsonWithTimeout("/api/profile/bootstrap", PROFILE_BOOTSTRAP_TIMEOUT_MS, signal),
-    staleTime: 45_000,
+    staleTime: 15_000,
     retry: 1,
     retryDelay: 1_000,
   });
@@ -84,10 +84,10 @@ export function useUserConnectionsQuery(enabled: boolean) {
         return { ok: false, ...emptyConnectionState() };
       }
     },
-    staleTime: 5_000,
+    staleTime: 10_000,
     gcTime: 120_000,
     refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -160,11 +160,12 @@ export function useCommunitiesHubQuery() {
         COMMUNITY_HUB_TIMEOUT_MS,
         signal,
       ),
-    staleTime: 120_000,
-    gcTime: 600_000,
+    staleTime: 30_000,
+    gcTime: 300_000,
     placeholderData: (prev) => prev,
     retry: 1,
     retryDelay: 1_000,
+    refetchOnWindowFocus: false,
   });
 }
 

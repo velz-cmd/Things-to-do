@@ -83,7 +83,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   const [role, setRole] = useState<DiscoverRole>("funder");
   const [activeJob, setActiveJob] = useState<DiscoverJobId | null>("fund");
   const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
-  const [lane, setLane] = useState<DiscoverWorkspaceLane>("gaps");
+  const [lane, setLane] = useState<DiscoverWorkspaceLane>(laneForJob("fund"));
   const [query, setQuery] = useState("");
   const intent = roleToIntent(role);
   const { feed } = useDiscoverRadarFeed();

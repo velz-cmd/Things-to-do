@@ -16,6 +16,7 @@ import {
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { UserConnectionsProvider } from "@/components/resolve/profile/user-connections-provider";
 import { SensorBackgroundSync } from "@/components/resolve/connectors/sensor-background-sync";
+import { ConnectionWarmup } from "@/components/resolve/profile/connection-warmup";
 import { SignInProvider } from "@/components/auth/sign-in-context";
 import { SignInModal } from "@/components/auth/sign-in-modal";
 import { AuthErrorEffect } from "@/components/auth/auth-error-effect";
@@ -59,6 +60,7 @@ export function Providers({
           <SignInProvider>
             <AddFundsProvider>
               <SendFundsProvider>
+              <ConnectionWarmup />
               <WalletLinkEffect />
               <JellyfinBackgroundSync />
               <SensorBackgroundSync />

@@ -1,6 +1,6 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { embeddedWalletFor } from "@/lib/wallet/embedded";
-import type { ProfileIdentityState } from "@/app/api/profile/identities/route";
+import type { ProfileIdentityState } from "@/lib/profile/identity-types";
 
 /** Profile payload when Postgres is unavailable — no DB required. */
 export function offlineProfileBootstrap(authUser: SupabaseUser) {

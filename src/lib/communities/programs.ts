@@ -5,6 +5,7 @@ import {
   listProgramTemplatesForKind,
   type ProgramTemplateId,
 } from "@/lib/communities/catalog";
+import { DEFAULT_POOL_CHECKPOINT_THRESHOLDS_USD } from "@/lib/capital/pool-checkpoint-defaults";
 import type { ProgramRecord, ProgramRules } from "./types";
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
@@ -126,7 +127,12 @@ export async function createProgram(
       name: input.name ?? template.name,
       status: "draft",
       budgetUsd: input.budgetUsd ?? template.defaultBudgetUsd,
-      rulesJson: JSON.stringify({ ...template.defaultRules, ...input.rules }),
+      rulesJson: JSON.stringify({
+        ...template.defaultRules,
+        autoSettleCheckpoints: true,
+        checkpointThresholdsUsd: DEFAULT_POOL_CHECKPOINT_THRESHOLDS_USD,
+        ...input.rules,
+      }),
       missionId: `program-${crypto.randomUUID().slice(0, 12)}`,
       metadataJson: JSON.stringify({ communitySlug }),
     },

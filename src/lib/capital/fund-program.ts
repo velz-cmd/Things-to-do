@@ -194,6 +194,10 @@ export async function fundCommunityProgram(input: {
 
   void refreshProgramYieldCache(program.id).catch(() => undefined);
 
+  void import("@/lib/capital/checkpoint-settle").then((m) =>
+    m.tryCheckpointBatchSettle(input.userId, program.id).catch(() => null),
+  );
+
   if (program.templateId === "quadratic-funding" && program.missionId) {
     let rules: ProgramRules = {};
     try {

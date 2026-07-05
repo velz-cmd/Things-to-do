@@ -216,7 +216,7 @@ export function AuthHeader() {
               )}
               {(balanceLoading || (!balance && account.appWalletAddress)) && hasEmailSession && (
                 <p className="mt-2 text-xs text-slate-500">
-                  {balanceLoading ? "Syncing Arc balance…" : "Loading wallet balance…"}
+                  {balanceLoading ? "Loading Arc balance…" : "Loading wallet balance…"}
                 </p>
               )}
               {!balanceLoading && hasEmailSession && !balance && !account.appWalletAddress && (

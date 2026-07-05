@@ -283,7 +283,7 @@ export async function executeDiscoverAction(
           entityId: slug,
           status: "pending",
           nextState: "verified",
-          message: "Reading activity — proof updates when the connector syncs",
+          message: "Reading activity from connected sources — proof updates when new events arrive.",
         };
         break;
       }
@@ -294,7 +294,7 @@ export async function executeDiscoverAction(
           action: "connect_source",
           entityId: input.communitySlug,
           status: "redirect",
-          message: "Connect proof source in Profile — syncs everywhere",
+          message: "Connect proof source in Profile — applies across communities.",
         };
         break;
       }

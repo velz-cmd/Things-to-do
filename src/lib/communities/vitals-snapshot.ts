@@ -84,7 +84,7 @@ function emptyVitals(): CommunityVitals {
     programCount: 0,
     topBuilders: [],
     sensor: { gated: true, live: false, ready: false, label: "Observing" },
-    observeNarrative: "Syncing value from your connected sources.",
+    observeNarrative: "Loading metrics from your connected sources.",
     hasLiveData: false,
   };
 }

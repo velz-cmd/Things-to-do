@@ -41,7 +41,7 @@ export const DISCOVER_ROLES: {
   {
     id: "operator",
     label: "Operator",
-    hint: "Install communities and keep value rails syncing in the background",
+    hint: "Install communities and keep connectors active in the background",
   },
   {
     id: "dao",

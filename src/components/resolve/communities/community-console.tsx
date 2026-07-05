@@ -28,6 +28,7 @@ import {
 import { profileConnectPath } from "@/lib/communities/community-nav";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
+import { ACTION_ERRORS } from "@/lib/copy/action-errors";
 
 function programRulesLabel(program: ProgramRecord): string {
   const t = PROGRAM_TEMPLATES[program.templateId as keyof typeof PROGRAM_TEMPLATES];
@@ -443,7 +444,7 @@ export function CommunityConsole({
           <p className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-resolve-muted">
             {obligationsFilter === "pending"
               ? pendingUsd > 0.01
-                ? `$${pendingUsd.toFixed(2)} pending is known. Payee rows are still syncing - refresh metrics in a moment.`
+                ? `$${pendingUsd.toFixed(2)} pending is known. ${ACTION_ERRORS.obligationsLoading}`
                 : "No pending obligations - sync sources or switch to All."
               : "No authorizations yet. Connect sources in Profile and sync sensors below."}
           </p>

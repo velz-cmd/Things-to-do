@@ -44,7 +44,7 @@ function catalogFallback() {
       programCount: 0,
       topBuilders: [],
       sensor: { gated: false, live: true, ready: true, label: "Observing" },
-      observeNarrative: "Syncing value from your connected sources.",
+      observeNarrative: "Loading metrics from your connected sources.",
       hasLiveData: false,
     },
     hubOps: null,

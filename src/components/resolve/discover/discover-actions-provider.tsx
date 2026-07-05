@@ -195,7 +195,7 @@ export function DiscoverActionsProvider({
         void reloadConnections();
       }
 
-      toast.loading("Creating Program...", { id: "discover-chain" });
+      toast.loading("Creating program…", { id: "discover-chain" });
       const created = await apiCreateProgram(target.communitySlug, target.templateId);
       toast.dismiss("discover-chain");
       if (!created.program?.id) throw new Error("Program was not created - try again in a moment");

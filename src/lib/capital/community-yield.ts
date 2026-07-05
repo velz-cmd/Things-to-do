@@ -184,7 +184,7 @@ export function whyFundCopy(input: {
       `$${input.pendingFundingUsd!.toFixed(0)} already authorized, waiting for fulfillment.`
     : input.fundingGapUsd > 0 ?
       `$${input.fundingGapUsd.toFixed(0)} more clears owed authorizations at 2× fulfillment.`
-    : "Authorizations are building — fund to clear the queue.";
+    : "Authorizations are queued — fund to clear them.";
 
   const whoBenefits =
     input.templateId.includes("royalt") || input.templateId.includes("music") ?

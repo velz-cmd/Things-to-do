@@ -1,5 +1,9 @@
 import type { DiscoverAction, TrendingValueGap } from "@/lib/discover/types";
 import type { AutomationTrigger } from "@/lib/automation/types";
+import {
+  automateLabelFor,
+  defaultTriggerForTemplate,
+} from "@/lib/discover/automate-action-labels";
 
 /** Cross-cutting opportunity need — orthogonal to domain (oss/music/dao/research). */
 export type DiscoverNeedType =
@@ -142,10 +146,14 @@ const TRIGGER_BY_NEED: Partial<Record<DiscoverNeedType, AutomationTrigger>> = {
 
 function automationAction(needType: DiscoverNeedType, gap: TrendingValueGap): DiscoverAction | null {
   if (gap.communitySlug) {
-    const trigger = TRIGGER_BY_NEED[needType] ?? "docs_merge";
+    const trigger = TRIGGER_BY_NEED[needType] ?? defaultTriggerForTemplate(gap.templateId);
+    const label = automateLabelFor({
+      templateId: gap.templateId,
+      automationTrigger: trigger,
+    });
     return {
-      id: `automate-${trigger}`,
-      label: "Automate Program",
+      id: `automate-${trigger}-${gap.templateId ?? "default"}`,
+      label,
       kind: "automate",
       communitySlug: gap.communitySlug,
       templateId: gap.templateId,

@@ -9,6 +9,13 @@ import { refreshOssOpportunityStore } from "@/lib/github/oss-scan-store";
 import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
 import { buildPublicReceipt } from "@/lib/ledger/receipt";
 import { isDbPoolExhaustedError } from "@/lib/db/connection";
+import { prisma } from "@/lib/db";
+import { createAutomationRule } from "@/lib/automation/rules";
+import {
+  defaultTriggerForTemplate,
+  automateLabelFor,
+} from "@/lib/discover/automate-action-labels";
+import type { AutomationTrigger } from "@/lib/automation/types";
 import type { DiscoverActionKind } from "@/lib/discover/types";
 import {
   discoverActionError,
@@ -28,6 +35,7 @@ export type DiscoverActionRequest = {
   href?: string;
   role?: string;
   surface?: string;
+  automationTrigger?: import("@/lib/automation/types").AutomationTrigger;
 };
 
 async function auditDiscoverAction(
@@ -287,6 +295,86 @@ export async function executeDiscoverAction(
           entityId: input.communitySlug,
           status: "redirect",
           message: "Connect proof source in Profile — syncs everywhere",
+        };
+        break;
+      }
+
+      case "automate": {
+        if (!input.communitySlug) {
+          response = discoverActionError("MISSING_SLUG", "Community required");
+          break;
+        }
+
+        const trigger: AutomationTrigger =
+          input.automationTrigger ?? defaultTriggerForTemplate(input.templateId);
+
+        const installed = await installCommunity(userId, input.communitySlug);
+        if (!installed.ok && !installed.alreadyInstalled) {
+          response = discoverActionError("INSTALL_FAILED", installed.error ?? "Install failed");
+          break;
+        }
+
+        let programId = input.programId;
+        if (!programId) {
+          const target = await resolveFundTarget({
+            programId: input.programId,
+            communitySlug: input.communitySlug,
+            templateId: input.templateId,
+            missionId: input.missionId,
+            userId,
+          });
+          if (!target) {
+            response = discoverActionError("PROGRAM_NOT_FOUND", "Program rule required", "create_rule");
+            break;
+          }
+          programId = await ensureProgramId(userId, target);
+        }
+
+        const profile = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true },
+        });
+        const notifyEmail = profile?.email;
+        if (!notifyEmail) {
+          response = discoverActionError(
+            "EMAIL_REQUIRED",
+            "Add an email to your account to receive automation notifications",
+          );
+          break;
+        }
+
+        const ruleResult = await createAutomationRule(userId, input.communitySlug, {
+          triggerEvent: trigger,
+          authorizeUsd:
+            trigger === "play"
+              ? 0.0004
+              : trigger === "view"
+                ? 0.002
+                : trigger === "citation"
+                  ? 0.05
+                  : 25,
+          notifyChannel: "email",
+          notifyTarget: notifyEmail,
+          programId,
+          enable: true,
+          name: automateLabelFor({ templateId: input.templateId, automationTrigger: trigger }),
+        });
+
+        if (!ruleResult.ok) {
+          response = discoverActionError(
+            "AUTOMATE_FAILED",
+            ruleResult.error ?? "Could not enable automation",
+          );
+          break;
+        }
+
+        response = {
+          ok: true,
+          action: "automate_rule",
+          entityId: ruleResult.rule.id,
+          status: "rule_live",
+          nextState: "programmed",
+          message: `${ruleResult.rule.name} is live — pays on Arc when proof arrives`,
         };
         break;
       }

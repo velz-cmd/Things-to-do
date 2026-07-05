@@ -43,9 +43,9 @@ const TRUTH: Record<DiscoverAction["kind"], ActionExecutionTruth> = {
     arcSettlement: false,
   },
   automate: {
-    badge: "",
-    detail: "Pay automatically when verified activity arrives",
-    arcSettlement: false,
+    badge: "Arc",
+    detail: "Authorize USDC automatically when verified proof arrives",
+    arcSettlement: true,
   },
   open: {
     badge: "",

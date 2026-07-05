@@ -3,7 +3,7 @@ import { getGlobalAuthorizationSummary } from "@/lib/authorization/ledger";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
 import { buildNetworkIntelligence } from "@/lib/workspace/intelligence";
-import { listFundableOpportunities } from "@/lib/capital/funder-discovery";
+import type { FundableOpportunity } from "@/lib/capital/community-yield";
 import { getTreasurySnapshot } from "@/lib/treasury/engine";
 import { buildTrendingValueGaps } from "@/lib/discover/trending-gaps";
 import { buildDomainRadars } from "@/lib/discover/domain-radars";
@@ -23,15 +23,14 @@ function startOfToday() {
   return d;
 }
 
-const GITHUB_TIMEOUT_MS = 10_000;
-const TREASURY_TIMEOUT_MS = 6_000;
-const FUNDABLE_TIMEOUT_MS = 10_000;
-const LEDGER_TIMEOUT_MS = 5_000;
-const CONNECTORS_TIMEOUT_MS = 5_000;
-const TRENDING_TIMEOUT_MS = 8_000;
-const DOMAIN_RADARS_TIMEOUT_MS = 8_000;
-const EVENTS_TIMEOUT_MS = 3_000;
-const FEED_BUILD_TIMEOUT_MS = 18_000;
+const GITHUB_TIMEOUT_MS = 8_000;
+const TREASURY_TIMEOUT_MS = 4_000;
+const LEDGER_TIMEOUT_MS = 4_000;
+const CONNECTORS_TIMEOUT_MS = 4_000;
+const TRENDING_TIMEOUT_MS = 6_000;
+const DOMAIN_RADARS_TIMEOUT_MS = 6_000;
+const EVENTS_TIMEOUT_MS = 2_000;
+const FEED_BUILD_TIMEOUT_MS = 12_000;
 
 /** Single Discover data source — gaps, pulse, radars, claim hint. Never throws. */
 export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarFeedPayload> {
@@ -48,7 +47,6 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 
   const [
     ossOpportunities,
-    fundable,
     ledger,
     connectors,
     eventsToday,
@@ -62,11 +60,6 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
             withTimeout(cachedScanAllOpportunities(), GITHUB_TIMEOUT_MS, []).catch(() => []),
           [],
         ),
-    safeFeedPart(
-      "fundable",
-      () => withTimeout(listFundableOpportunities(48), FUNDABLE_TIMEOUT_MS, []),
-      [],
-    ),
     safeFeedPart(
       "ledger",
       () => withTimeout(getGlobalAuthorizationSummary(), LEDGER_TIMEOUT_MS, null),
@@ -103,7 +96,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
     degraded.push("github");
   }
 
-  const sharedOpts = { ossOpportunities, fundable };
+  const sharedOpts = { ossOpportunities, fundable: [] as FundableOpportunity[] };
 
   const [trending, domainRadars] = await Promise.all([
     safeFeedPart(
@@ -170,7 +163,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
     domainRadars,
     emptyStates,
     intelligence,
-    fundableCount: fundable.filter((f) => f.fundingGapUsd > 0).length,
+    fundableCount: 0,
     ossSignalCount: ossOpportunities.length,
     realSignalCount: trending.realSignalCount,
     githubScanAt: trending.githubScanAt,
@@ -180,7 +173,7 @@ export async function buildDiscoverRadarFeed(limit = 24): Promise<DiscoverRadarF
 }
 
 /** Safe wrapper for API route — returns empty payload only on total failure. */
-const FEED_CACHE_SECONDS = 45;
+const FEED_CACHE_SECONDS = 90;
 
 export async function buildDiscoverRadarFeedSafe(limit = 24): Promise<DiscoverRadarFeedPayload> {
   const bounded = Math.min(Math.max(limit, 1), 48);

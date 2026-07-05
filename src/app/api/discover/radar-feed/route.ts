@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const feed = await buildDiscoverRadarFeedSafe(Math.min(Math.max(limit, 1), 48));
   return NextResponse.json(feed, {
     headers: {
-      "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
     },
   });
 }

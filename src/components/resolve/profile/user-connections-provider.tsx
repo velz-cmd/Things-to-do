@@ -15,6 +15,10 @@ import { queryKeys } from "@/lib/query/keys";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
 import { PROFILE_REFRESH_EVENT } from "@/lib/profile/refresh-events";
+import {
+  readConnectionSnapshot,
+  writeConnectionSnapshot,
+} from "@/lib/profile/connection-snapshot-client";
 
 type UserConnectionsContextValue = {
   state: UserConnectionState;
@@ -33,13 +37,27 @@ const UserConnectionsContext = createContext<UserConnectionsContextValue>({
 export function UserConnectionsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const query = useUserConnectionsQuery(Boolean(user));
+  const snapshot = useMemo(
+    () => (user ? readConnectionSnapshot(user.id) : null),
+    [user],
+  );
+
+  const query = useUserConnectionsQuery(Boolean(user), snapshot);
 
   const state = useMemo((): UserConnectionState => {
     if (!user) return emptyConnectionState();
     const body = query.data as (UserConnectionState & { ok?: boolean }) | undefined;
-    if (!body?.signedIn) return emptyConnectionState();
-    return body;
+    if (body?.signedIn) return body;
+    if (snapshot?.signedIn) return snapshot;
+    return emptyConnectionState();
+  }, [user, query.data, snapshot]);
+
+  useEffect(() => {
+    if (!user || !query.data) return;
+    const body = query.data as UserConnectionState & { ok?: boolean };
+    if (body.signedIn) {
+      writeConnectionSnapshot(user.id, body);
+    }
   }, [user, query.data]);
 
   const reload = useCallback(() => {
@@ -77,7 +95,7 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
     <UserConnectionsContext.Provider
       value={{
         state,
-        loading: query.isLoading && Boolean(user),
+        loading: query.isLoading && Boolean(user) && !state.signedIn,
         refreshSync,
         reload,
       }}

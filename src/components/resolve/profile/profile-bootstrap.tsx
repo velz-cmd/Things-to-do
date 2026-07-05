@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
-import type { ProfileIdentityState } from "@/app/api/profile/identities/route";
+import type { ProfileIdentityState } from "@/lib/profile/identity-types";
 import { embeddedWalletFor } from "@/lib/wallet/embedded";
 import { useProfileBootstrapQuery } from "@/lib/query/hooks";
 

@@ -30,13 +30,49 @@ import {
   type CommunityKind,
   type IdentityPlatformId,
 } from "@/lib/profile/community-identities";
-import type { ProfileIdentityState } from "@/app/api/profile/identities/route";
+import type { ProfileIdentityState } from "@/lib/profile/identity-types";
 import { WALLET_LINKED_EVENT } from "@/components/wallet/wallet-link-effect";
 import {
   PROFILE_REFRESH_EVENT,
   dispatchProfileRefresh,
 } from "@/lib/profile/refresh-events";
 import { useProfileBootstrap } from "@/components/resolve/profile/profile-bootstrap";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import type { UserConnectionState } from "@/lib/profile/connection-state-types";
+
+const PROFILE_PLATFORM_IDS = new Set<IdentityPlatformId>([
+  "github",
+  "wallet",
+  "listenbrainz",
+  "navidrome",
+  "jellyfin",
+  "gmail",
+  "email",
+]);
+
+function identityMapFromConnections(
+  connections: UserConnectionState,
+): Map<IdentityPlatformId, ProfileIdentityState> {
+  const map = new Map<IdentityPlatformId, ProfileIdentityState>();
+  for (const platform of connections.platforms) {
+    if (!PROFILE_PLATFORM_IDS.has(platform.id as IdentityPlatformId)) continue;
+    map.set(platform.id as IdentityPlatformId, {
+      id: platform.id as IdentityPlatformId,
+      connected: platform.connected,
+      displayValue: platform.displayValue,
+      authorizeUrl: platform.authorizeUrl,
+      health: platform.syncStatus === "connected" ? "healthy" : platform.syncStatus ?? undefined,
+    });
+  }
+  if (connections.githubUsername) {
+    map.set("github", {
+      id: "github",
+      connected: true,
+      displayValue: `@${connections.githubUsername}`,
+    });
+  }
+  return map;
+}
 
 const PLATFORM_ICONS: Record<
   IdentityPlatformId,
@@ -189,6 +225,7 @@ export function ProfileSettings() {
   const { openSignIn } = useSignInModal();
   const { data: bootstrap, loading: bootstrapLoading, reload: reloadBootstrap } =
     useProfileBootstrap();
+  const { state: connections, loading: connectionsLoading } = useUserConnections();
   const account = useResolveAccount();
   const capabilities = useAuthCapabilities();
   const { open } = useAppKit();
@@ -228,6 +265,21 @@ export function ProfileSettings() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!connections.signedIn) return;
+    const fromConnections = identityMapFromConnections(connections);
+    if (fromConnections.size > 0) {
+      setIdentityMap((prev) => {
+        const next = new Map(prev);
+        for (const [id, row] of fromConnections) {
+          next.set(id, { ...next.get(id), ...row });
+        }
+        return next;
+      });
+      setLoading(false);
+    }
+  }, [connections]);
 
   useEffect(() => {
     if (bootstrapLoading) return;
@@ -345,6 +397,12 @@ export function ProfileSettings() {
     dispatchProfileRefresh();
     void load();
   }
+
+  const hasInstantConnections =
+    connections.signedIn &&
+    (connections.hasAnyConnector || identityMap.size > 0 || Boolean(connections.githubUsername));
+  const showProfileLoading =
+    (loading || bootstrapLoading || connectionsLoading) && !hasInstantConnections;
 
   function profileReturnTo() {
     const next = searchParams.get("next");
@@ -539,7 +597,7 @@ export function ProfileSettings() {
             : undefined
           }
         />
-        {loading || bootstrapLoading ?
+        {showProfileLoading ?
           <div className="flex items-center gap-2 text-sm text-resolve-muted">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading…

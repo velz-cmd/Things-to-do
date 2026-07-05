@@ -1,80 +1,50 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { ensureProfileForUser } from "@/lib/auth/session";
+import { listEcosystems } from "@/lib/mission/server/ecosystems";
 import { getConnectorLiveStatuses } from "@/lib/connectors/live-stats";
 import { getConnectorStatuses } from "@/lib/connectors/connector-service";
-import { listEcosystems } from "@/lib/mission/server/ecosystems";
-import {
-  userListenBrainzConfigured,
-  userNavidromeConfigured,
-  userJellyfinConfigured,
-} from "@/lib/profile/user-connections";
-import { safeUrlHostname } from "@/lib/profile/safe-url";
-import { sanitizeConnectorIdentities } from "@/lib/identity/sanitize-profile";
-import { normalizeGithubLogin } from "@/lib/identity/github-login";
-import type { IdentityPlatformId } from "@/lib/profile/community-identities";
+import { loadProfileFast } from "@/lib/profile/load-profile-fast";
+import { buildFastIdentities } from "@/lib/profile/build-fast-identities";
+import type { ProfileIdentityState } from "@/lib/profile/identity-types";
+
+export type { ProfileIdentityState } from "@/lib/profile/identity-types";
 
 export const dynamic = "force-dynamic";
 
-export type ProfileIdentityState = {
-  id: IdentityPlatformId;
-  connected: boolean;
-  displayValue?: string;
-  hint?: string;
-  health?: string;
-  eventsToday?: number;
-  authorizeUrl?: string;
-};
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
 
-/** Profile identity cards — GitHub, ListenBrainz, wallet, Gmail, Navidrome. */
+/** Profile identity cards — Postgres-first for instant connector display. */
 export async function GET() {
   try {
     const supabase = await createClient();
     const { data } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
     const authUser = data.user;
 
-    let userId: string | null = null;
-    let email: string | null = null;
-    let emailVerified = false;
-    let githubUsername: string | null = null;
-    let walletAddress: string | null = null;
-    let gmailConnected = false;
-    let profileRow: Awaited<ReturnType<typeof ensureProfileForUser>> | null = null;
-
-    if (authUser) {
-      userId = authUser.id;
-      email = authUser.email ?? null;
-      emailVerified = Boolean(authUser.email_confirmed_at ?? authUser.email);
-      profileRow = await ensureProfileForUser(authUser);
-      profileRow = await sanitizeConnectorIdentities(authUser.id, profileRow);
-      githubUsername = normalizeGithubLogin(profileRow.githubUsername);
-      walletAddress =
-        profileRow.walletAddress ??
-        profileRow.scanWalletAddress ??
-        null;
-      gmailConnected = profileRow.gmailConnected;
+    if (!authUser) {
+      return NextResponse.json({
+        ok: true,
+        signedIn: false,
+        email: null,
+        emailVerified: false,
+        identities: [],
+        ecosystems: [],
+        updatedAt: new Date().toISOString(),
+      });
     }
 
-    const [liveConnectors, connectorStatuses] = await Promise.all([
-      getConnectorLiveStatuses().catch(() => []),
-      getConnectorStatuses(userId).catch(() => []),
-    ]);
+    const profileRow = await loadProfileFast(authUser);
+    const identities = buildFastIdentities(profileRow);
 
-    const githubLive = liveConnectors.find((c) => c.id === "github");
-    const navidromeLive = liveConnectors.find((c) => c.id === "navidrome");
-    const gmailStatus = connectorStatuses.find((c) => c.id === "gmail");
-    const arcStatus = connectorStatuses.find((c) => c.id === "arc");
-
-    const listenbrainzConnected =
-      profileRow ? userListenBrainzConfigured(profileRow) : false;
-    const navidromeConnected = profileRow ? userNavidromeConfigured(profileRow) : false;
-    const navidromeHost = safeUrlHostname(profileRow?.navidromeUrl);
-    const jellyfinConnected = profileRow ? userJellyfinConfigured(profileRow) : false;
-    const jellyfinHost = safeUrlHostname(profileRow?.jellyfinUrl);
-
-    const ecosystems =
-      userId ?
-        await listEcosystems(userId).then((rows) =>
+    const [liveConnectors, connectorStatuses, ecosystems] = await Promise.all([
+      withTimeout(getConnectorLiveStatuses().catch(() => []), 1_200, []),
+      withTimeout(getConnectorStatuses(authUser.id).catch(() => []), 1_200, []),
+      withTimeout(
+        listEcosystems(authUser.id).then((rows) =>
           rows.map((e) => ({
             id: e.id,
             name: e.name,
@@ -82,86 +52,46 @@ export async function GET() {
             connectors: e.connectors,
             repoCount: e.repos.length,
           })),
-        )
-      : [];
+        ),
+        2_000,
+        [],
+      ),
+    ]);
 
-    const identities: ProfileIdentityState[] = [
-      {
-        id: "github",
-        connected: Boolean(githubUsername),
-        displayValue: githubUsername ? `@${githubUsername}` : undefined,
-        hint: githubUsername ? undefined : "Connect GitHub to claim code contributions",
-        health: githubLive?.health,
-        eventsToday: githubLive?.eventsToday,
-        authorizeUrl: "/api/connectors/github/authorize?returnTo=/profile",
-      },
-      {
-        id: "wallet",
-        connected: Boolean(walletAddress),
-        displayValue:
-          walletAddress ?
-            `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
-          : undefined,
-        hint:
-          walletAddress ?
-            "Auto-provisioned RESOLVE wallet on Arc"
-          : "Connect to receive USDC on Arc",
-        health: arcStatus?.state === "connected" ? "healthy" : walletAddress ? "healthy" : "waiting",
-      },
-      {
-        id: "navidrome",
-        connected: navidromeConnected || (navidromeLive?.installed ?? false),
-        displayValue:
-          navidromeHost ??
-          (navidromeLive?.installed ? "Instance syncing" : undefined),
-        hint:
-          navidromeConnected || navidromeLive?.installed ?
-            undefined
-          : "Optional — ListenBrainz sign-in covers most music listeners",
-        health: navidromeLive?.health,
-        eventsToday: navidromeLive?.eventsToday,
-      },
-      {
-        id: "jellyfin",
-        connected: jellyfinConnected,
-        displayValue:
-          jellyfinHost ??
-          (profileRow?.jellyfinUsername ? `@${profileRow.jellyfinUsername}` : undefined),
-        hint:
-          jellyfinConnected ?
-            undefined
-          : "Connect Jellyfin — one click",
-        authorizeUrl: "/connect/jellyfin",
-      },
-      {
-        id: "listenbrainz",
-        connected: listenbrainzConnected,
-        displayValue:
-          profileRow?.listenbrainzUsername ?
-            `@${profileRow.listenbrainzUsername}`
-          : undefined,
-        hint:
-          listenbrainzConnected ?
-            undefined
-          : "Sign in with MusicBrainz — one click, no token",
-        authorizeUrl: "/api/connectors/listenbrainz/authorize?returnTo=/profile",
-      },
-      {
-        id: "gmail",
-        connected: gmailConnected || gmailStatus?.state === "connected",
-        displayValue: gmailConnected ? "Inbox connected" : undefined,
-        hint: gmailConnected ? undefined : "Optional — for receipt-based claims",
-        authorizeUrl: "/api/connectors/gmail/authorize?returnTo=/profile",
-      },
-    ];
+    const githubLive = liveConnectors.find((c) => c.id === "github");
+    const navidromeLive = liveConnectors.find((c) => c.id === "navidrome");
+    const gmailStatus = connectorStatuses.find((c) => c.id === "gmail");
+    const arcStatus = connectorStatuses.find((c) => c.id === "arc");
+
+    const enriched: ProfileIdentityState[] = identities.map((row) => {
+      if (row.id === "github" && githubLive) {
+        return { ...row, health: githubLive.health, eventsToday: githubLive.eventsToday };
+      }
+      if (row.id === "navidrome" && navidromeLive) {
+        return {
+          ...row,
+          connected: row.connected || (navidromeLive.installed ?? false),
+          displayValue: row.displayValue ?? (navidromeLive.installed ? "Instance syncing" : undefined),
+          health: navidromeLive.health,
+          eventsToday: navidromeLive.eventsToday,
+        };
+      }
+      if (row.id === "gmail" && gmailStatus?.state === "connected") {
+        return { ...row, connected: true };
+      }
+      if (row.id === "wallet" && arcStatus?.state === "connected") {
+        return { ...row, health: "healthy" };
+      }
+      return row;
+    });
 
     return NextResponse.json(
       {
         ok: true,
-        signedIn: Boolean(authUser),
-        email,
-        emailVerified,
-        identities,
+        signedIn: true,
+        email: authUser.email ?? null,
+        emailVerified: Boolean(authUser.email_confirmed_at ?? authUser.email),
+        identities: enriched,
         ecosystems,
         updatedAt: new Date().toISOString(),
       },

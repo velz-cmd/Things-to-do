@@ -50,7 +50,7 @@ export async function GET(req: Request) {
   if (canonicalRedirect) return canonicalRedirect;
 
   try {
-    const session = await withTimeout(requireSessionUser(), 10_000);
+    const session = await withTimeout(requireSessionUser(), 15_000);
     if (session === "timeout") {
       return redirectToProfile(canonicalOrigin, "session_timeout");
     }

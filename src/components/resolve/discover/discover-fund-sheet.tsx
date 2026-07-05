@@ -62,14 +62,17 @@ export function DiscoverFundSheet({
 
   const appUsd = wallet.appSpendableUsd ?? spendable.appSpendableUsd;
   const extUsd = wallet.externalSpendableUsd ?? spendable.externalSpendableUsd;
-  const balances = { appSpendableUsd: appUsd, externalSpendableUsd: extUsd };
+  const balances = useMemo(
+    () => ({ appSpendableUsd: appUsd, externalSpendableUsd: extUsd }),
+    [appUsd, extUsd],
+  );
 
   const affordable = useMemo(
     () =>
       Number.isFinite(amountUsd)
         ? affordableFundingSources(amountUsd, balances, externalWalletReady)
         : [],
-    [amountUsd, appUsd, extUsd, externalWalletReady],
+    [amountUsd, balances, externalWalletReady],
   );
 
   const fundingSource = useMemo(() => {

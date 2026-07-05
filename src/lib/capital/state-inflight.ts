@@ -3,15 +3,13 @@ import type { CapitalStateResponse } from "@/lib/capital/state";
 
 const inflight = new Map<string, Promise<CapitalStateResponse>>();
 
-/** Collapse concurrent live capital loads for the same user (prevents RPC/DB stampedes). */
+/** Collapse concurrent capital loads for the same user (prevents RPC/DB stampedes). */
 export function withCapitalStateInflight(
   userId: string,
   liveSync: boolean,
   factory: () => Promise<CapitalStateResponse>,
 ): Promise<CapitalStateResponse> {
-  if (!liveSync) return factory();
-
-  const key = `live:${userId}`;
+  const key = `${liveSync ? "live" : "fast"}:${userId}`;
   const pending = inflight.get(key);
   if (pending) return pending;
 

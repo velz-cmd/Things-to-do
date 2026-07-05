@@ -22,6 +22,7 @@ import { DiscoverAttachRail } from "@/components/resolve/discover/discover-attac
 import { DiscoverFeatureRow } from "@/components/resolve/discover/discover-feature-row";
 import { collectGapsRows, GAPS_MAX_ROWS } from "@/lib/discover/discover-row-limits";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { ACTION_ERRORS } from "@/lib/copy/action-errors";
 
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
@@ -162,7 +163,7 @@ export function DiscoverTrendingGaps({
             {displayRows.length === 0 && (
               <DiscoverStatePanel variant="empty">
                 <p className="text-sm text-resolve-muted">
-                  Warming up value signals — refresh in a moment or attach a community below.
+                  {ACTION_ERRORS.discoveryEmpty}
                 </p>
                 <DiscoverRetryButton onClick={() => void refresh()} />
               </DiscoverStatePanel>

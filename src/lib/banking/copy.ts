@@ -30,7 +30,7 @@ export const BANKING_UI = {
   claimWorking: "Sending to your wallet…",
   refresh: "Refresh",
   refreshing: "Updating…",
-  syncingBalance: "Syncing Arc wallet…",
+  syncingBalance: "Loading Arc balance…",
   refreshHint: "Sync faucet deposits from Arc testnet",
   lastUpdated: "Updated",
   autoRefresh: "Auto-refresh every 30s",

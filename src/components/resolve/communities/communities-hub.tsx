@@ -152,7 +152,7 @@ export function CommunitiesHub() {
       )}
       {!degraded && metricsSyncing && communities.length > 0 && (
         <p className="mb-4 text-xs text-resolve-muted-dim">
-          Live metrics are refreshing in the background.
+          Live metrics are loading.
         </p>
       )}
 

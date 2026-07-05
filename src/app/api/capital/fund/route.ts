@@ -2,15 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";
+import { ACTION_ERRORS, honestInfraError } from "@/lib/copy/action-errors";
 
 export const maxDuration = 60;
 
 function publicFundError(error: unknown) {
   const message = error instanceof Error ? error.message : "Fund failed";
-  if (
-    /connection pool|prisma|timeout|timed out|database|ECONNRESET|fetch failed/i.test(message)
-  ) {
-    return "Funding is still syncing. Open Capital for status, then retry if it does not appear.";
+  if (/connection pool|prisma|timeout|timed out|database|ECONNRESET|fetch failed|Arc RPC/i.test(message)) {
+    return honestInfraError(message, ACTION_ERRORS.fundingFailedRetry);
   }
   return message;
 }

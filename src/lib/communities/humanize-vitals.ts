@@ -15,8 +15,8 @@ export function humanizeSensorLabel(label: string): string {
 
 export function humanizeHealthLabel(label: string): string {
   const lower = label.toLowerCase();
-  if (lower.includes("observing")) return "Syncing activity";
-  if (lower.includes("warming")) return "Warming up";
+  if (lower.includes("observing")) return "Loading activity";
+  if (lower.includes("warming")) return "Loading";
   if (lower.includes("healthy")) return "Healthy";
   if (lower.includes("awaiting")) return "Needs connection";
   return label;

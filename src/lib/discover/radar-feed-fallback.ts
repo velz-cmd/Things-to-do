@@ -18,7 +18,7 @@ export function emptyNetworkIntelligence(): NetworkIntelligence {
     criticalGaps: 0,
     sensorsOnline: 0,
     eventsToday: 0,
-    headline: "Value discovery warming up — public programs and ledger rows appear as they rank",
+    headline: "No ranked network activity yet — public programs and ledger rows appear as they rank",
   };
 }
 

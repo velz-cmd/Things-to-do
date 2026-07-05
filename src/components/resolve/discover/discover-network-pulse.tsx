@@ -12,6 +12,7 @@ import {
   DiscoverRetryButton,
   DiscoverStatePanel,
 } from "@/components/resolve/discover/discover-state-panel";
+import { ACTION_ERRORS } from "@/lib/copy/action-errors";
 
 export function DiscoverNetworkPulse({
   className,
@@ -63,7 +64,7 @@ export function DiscoverNetworkPulse({
   } else if (!feed?.intelligence) {
     body = (
       <p className="text-xs text-resolve-muted">
-        Network pulse warming up — public programs and ledger rows appear as they rank.
+        {ACTION_ERRORS.networkPulseEmpty}
       </p>
     );
   } else {

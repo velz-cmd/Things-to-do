@@ -26,6 +26,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { loadPersistedDiscoverRole } from "@/lib/discover/discover-role-persist";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { getCommunityBySlug, PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
+import { ACTION_ERRORS } from "@/lib/copy/action-errors";
 import {
   COMMUNITY_INTENT_ANCHOR,
   type CommunityIntent,
@@ -163,7 +164,7 @@ export function CommunityHome({ slug }: { slug: string }) {
         {
           id: `cached-${slug}`,
           eventType: "syncing",
-          title: "Live community metrics are syncing",
+          title: "Loading community metrics",
           detail: "Cached operating totals are visible while program and obligation rows load.",
           createdAt: now,
         },
@@ -175,7 +176,7 @@ export function CommunityHome({ slug }: { slug: string }) {
         pendingObligationsUsd: pendingUsd,
         fundingGapUsd: pendingUsd,
         walletMappedCount: 0,
-        reasons: pendingUsd > 0 ? ["Live obligation rows are still syncing."] : [],
+        reasons: pendingUsd > 0 ? ["Obligation payee rows are still loading."] : [],
       },
     };
   }, [cachedSummary, catalog, dbInstalled, intentBypass, profileLinked, slug, surface, tab]);
@@ -487,7 +488,7 @@ export function CommunityHome({ slug }: { slug: string }) {
         <div className="max-w-lg rounded-xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm font-medium text-white">Opening community console...</p>
           <p className="mt-1 text-sm text-resolve-muted">
-            Live metrics are syncing. Retry if this takes more than a moment.
+            Live metrics are loading. Retry if this takes more than a moment.
           </p>
           <button
             type="button"
@@ -504,8 +505,7 @@ export function CommunityHome({ slug }: { slug: string }) {
         <div className="space-y-4">
           {surfaceLoading && (
             <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-sm text-amber-100">
-              Console opened from cached state. Live programs and obligation rows are syncing in
-              the background.
+              Console opened from cached state. {ACTION_ERRORS.metricsCachedBanner}
             </div>
           )}
           <CommunityConsole

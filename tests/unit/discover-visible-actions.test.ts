@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { dedupeTrendingGaps } from "../../src/lib/discover/gap-dedupe";
 import { visibleDiscoverActions } from "../../src/lib/discover/discover-visible-actions";
+import {
+  DISCOVER_HIDDEN_ACTION_KINDS,
+  filterValueReceiptActions,
+  fulfillPoolLabel,
+} from "../../src/lib/discover/discover-receipt-actions";
 import type { DiscoverAction, TrendingValueGap } from "../../src/lib/discover/types";
 
 function gap(partial: Partial<TrendingValueGap> & Pick<TrendingValueGap, "id">): TrendingValueGap {
@@ -46,19 +51,44 @@ describe("dedupeTrendingGaps", () => {
 });
 
 describe("visibleDiscoverActions", () => {
-  it("shows fund before share on trending gaps", () => {
+  it("prioritizes fund and caps at 3 actions", () => {
     const visible = visibleDiscoverActions(
-      [action("share"), action("fund"), action("open")],
+      [
+        action("share"),
+        action("fund"),
+        { id: "proof", kind: "open", label: "View proof", href: "/receipt/abc" },
+        action("connect_sensor"),
+        action("analyze"),
+      ],
       "trending-gaps",
     );
-    expect(visible.map((a) => a.kind)).toEqual(["fund", "open", "share"]);
+    expect(visible.map((a) => a.kind)).toEqual(["fund", "connect_sensor", "open"]);
   });
 
-  it("strips claim on funder lanes but keeps fund", () => {
+  it("strips claim and hidden kinds on funder lanes", () => {
     const visible = visibleDiscoverActions(
-      [action("claim"), action("fund"), action("share")],
+      [action("claim"), action("fund"), action("install"), action("automate")],
       "trending-gaps",
     );
-    expect(visible.map((a) => a.kind)).toEqual(["fund", "share"]);
+    expect(visible.map((a) => a.kind)).toEqual(["fund"]);
+  });
+});
+
+describe("discover-receipt-actions", () => {
+  it("filters cosmetic action kinds", () => {
+    const filtered = filterValueReceiptActions([
+      action("fund"),
+      action("create_program"),
+      action("analyze"),
+      action("connect_sensor"),
+    ]);
+    expect(filtered.map((a) => a.kind)).toEqual(["fund", "connect_sensor"]);
+    for (const kind of DISCOVER_HIDDEN_ACTION_KINDS) {
+      expect(filtered.some((a) => a.kind === kind)).toBe(false);
+    }
+  });
+
+  it("uses unified fulfill pool label", () => {
+    expect(fulfillPoolLabel("docs-bounty")).toBe("Fulfill pool");
   });
 });

@@ -76,6 +76,14 @@ export type PublicReceipt = {
   currency?: string;
   payeeCount?: number;
   earningCount?: number;
+  /** Pool checkpoint summary when program is linked to this receipt's mission */
+  poolSummary?: {
+    poolBalanceUsd: number;
+    owedToCreatorsUsd: number;
+    nextCheckpointUsd: number | null;
+    progressToNextPct: number;
+    payeeCategory: string;
+  };
 };
 
 /** @deprecated use PublicReceiptLineItem */

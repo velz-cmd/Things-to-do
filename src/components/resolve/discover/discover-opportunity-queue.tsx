@@ -5,9 +5,6 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/resolve/ui/button";
-import { Money } from "@/components/resolve/ui/money";
-import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { dedupeQueueWithTrending } from "@/lib/discover/queue-dedupe";
@@ -21,10 +18,8 @@ import {
   DiscoverRetryButton,
   DiscoverStatePanel,
 } from "@/components/resolve/discover/discover-state-panel";
-import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import type { DiscoverBoardItem } from "@/lib/discover/opportunity-board";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
-import { needTypeBadgeClass, needTypeLabel, primaryBoardCtaLabel } from "@/lib/discover/need-types";
 import { boardSubtitleForRole } from "@/lib/discover/board-actions-for-role";
 import { DISCOVER_SECTION, LANE_PURPOSE } from "@/lib/discover/discover-lane-copy";
 import {
@@ -33,6 +28,7 @@ import {
 } from "@/lib/discover/opportunity-score";
 import { DiscoverAttachRail } from "@/components/resolve/discover/discover-attach-rail";
 import { DiscoverBoardCommunityRow } from "@/components/resolve/discover/discover-board-community-row";
+import { ValueReceiptCard } from "@/components/resolve/discover/value-receipt-card";
 import { BOARD_MAX_ROWS } from "@/lib/discover/discover-row-limits";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
@@ -335,116 +331,24 @@ export function DiscoverOpportunityQueue({
         <ul className="divide-y divide-white/[0.06]">
           {boardProgramRows.map((o) => {
             const program = o as FundableOpportunity & { needType?: import("@/lib/discover/need-types").DiscoverNeedType };
-            const programNeed = program.needType ?? "funding";
-            const fundLabel = primaryBoardCtaLabel(programNeed, {
-              boardKind: "program",
-              templateId: program.templateId,
-            });
             return (
             <li
               key={program.programId}
               className="resolve-signal-service-row px-1 py-3 first:pt-0 last:pb-0"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium text-white">{program.programName}</p>
-                    <span
-                      className={clsx(
-                        "rounded border px-1.5 py-0.5 text-[9px] font-medium uppercase",
-                        needTypeBadgeClass(programNeed),
-                      )}
-                    >
-                      {needTypeLabel(programNeed)}
-                    </span>
-                    <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-violet-300">
-                      {program.templateLabel}
-                    </span>
-                    <DiscoverSourceBadge source="supabase_ledger" />
-                    {program.yieldMultiplier >= program.targetMultiplier && (
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-emerald-300">
-                        {CAPITAL_YIELD_COPY.discover.targetBadge}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-resolve-muted">
-                    {program.communityName} — {program.communityTagline}
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-resolve-muted-dim">{program.whyFund}</p>
-                </div>
-                <div className="shrink-0 text-right text-xs">
-                  <p className="text-[10px] uppercase text-resolve-muted-dim">
-                    {program.metricKind === "match_leverage"
-                      ? CAPITAL_YIELD_COPY.discover.qfLabel
-                      : CAPITAL_YIELD_COPY.discover.fulfillmentLabel}
-                  </p>
-                  <p className="text-lg font-semibold tabular-nums text-emerald-300">
-                    {program.yieldMultiplier > 0 ? `${program.yieldMultiplier.toFixed(2)}×` : "—"}
-                  </p>
-                  <p className="mt-1 text-resolve-muted">
-                    <Money amount={program.fundingGapUsd} size="sm" className="inline" /> gap
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3">
-                {signedIn ? (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-resolve-muted">$</span>
-                      <input
-                        type="number"
-                        min={5}
-                        step="0.01"
-                        value={amountByProgram[program.programId] ?? "25"}
-                        onChange={(e) =>
-                          setAmountByProgram((prev) => ({
-                            ...prev,
-                            [program.programId]: e.target.value,
-                          }))
-                        }
-                        onBlur={() => {
-                          const raw = amountByProgram[program.programId] ?? "25";
-                          const n = Number(raw);
-                          if (raw !== "" && Number.isFinite(n) && n < 5) {
-                            toast.error("Amount can't be less than $5");
-                          }
-                        }}
-                        className="w-20 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
-                      />
-                    </div>
-                    <Button
-                      size="sm"
-                      disabled={fundingId === program.programId || busy}
-                      onClick={() => void fundRow(program)}
-                    >
-                      {fundingId === program.programId || busy ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        fundLabel
-                      )}
-                    </Button>
-                  </>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold tabular-nums text-amber-200">
-                      ${program.fundingGapUsd.toFixed(0)} gap
-                    </span>
-                    <Link
-                      href={`/login?next=${encodeURIComponent(RETURN_URL)}`}
-                      className="rounded-lg border border-resolve-accent/30 bg-resolve-accent/10 px-3 py-1.5 text-[11px] font-medium text-resolve-accent hover:bg-resolve-accent/15"
-                    >
-                      Sign in to fund
-                    </Link>
-                  </div>
-                )}
-                <Link
-                  href={`/communities/${program.communitySlug}`}
-                  className="text-[11px] text-resolve-muted hover:text-resolve-accent"
-                >
-                  {CAPITAL_YIELD_COPY.discover.viewCta} →
-                </Link>
-              </div>
+              <ValueReceiptCard
+                source={{ kind: "program", program }}
+                signedIn={signedIn}
+                role={role}
+                surface="opportunity-board"
+                lane="graph"
+                fundAmountUsd={amountByProgram[program.programId] ?? "25"}
+                onFundAmountChange={(value) =>
+                  setAmountByProgram((prev) => ({ ...prev, [program.programId]: value }))
+                }
+                onFund={() => void fundRow(program)}
+                fundingBusy={fundingId === program.programId || busy}
+              />
             </li>
             );
           })}

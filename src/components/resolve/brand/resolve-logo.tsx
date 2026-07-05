@@ -27,8 +27,7 @@ function ResolveLogoFallback({ className }: { className?: string }) {
 
 export function ResolveLogo({ className, size = "nav" }: ResolveLogoProps) {
   const [broken, setBroken] = useState(false);
-  const height = size === "signin" ? 40 : 32;
-  const width = size === "signin" ? 160 : 128;
+  const dim = size === "signin" ? 40 : 32;
 
   return (
     <Link href="/" className={clsx("group inline-flex items-center gap-2.5", className)}>
@@ -41,12 +40,12 @@ export function ResolveLogo({ className, size = "nav" }: ResolveLogoProps) {
         <Image
           src={BRAND_LOGO_PATH}
           alt="RESOLVE"
-          width={width}
-          height={height}
+          width={dim}
+          height={dim}
           priority
           className={clsx(
-            "w-auto object-contain object-left transition group-hover:opacity-95",
-            size === "signin" ? "h-10" : "h-8",
+            "shrink-0 rounded-lg object-contain transition group-hover:opacity-95",
+            size === "signin" ? "h-10 w-10" : "h-8 w-8",
           )}
           onError={() => setBroken(true)}
         />

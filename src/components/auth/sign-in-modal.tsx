@@ -267,9 +267,9 @@ export function SignInModal() {
               <Image
                 src={BRAND_LOGO_PATH}
                 alt="RESOLVE"
-                width={160}
+                width={40}
                 height={40}
-                className="mb-3 h-9 w-auto object-contain object-left"
+                className="mb-3 h-10 w-10 rounded-lg object-contain"
                 priority
               />
               <h2 id="sign-in-title" className="text-2xl font-semibold text-white">

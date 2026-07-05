@@ -16,12 +16,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
+
 export const metadata: Metadata = {
   title: "RESOLVE — Outcome network on Arc",
   description:
     "Mission control for outcome-backed payments. Bounties, distribution, and verified settlement on Arc USDC.",
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    icon: [{ url: BRAND_LOGO_PATH, type: "image/png" }],
+    apple: [{ url: BRAND_LOGO_PATH, type: "image/png" }],
   },
 };
 

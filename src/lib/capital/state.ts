@@ -1,7 +1,8 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { prisma } from "@/lib/db";
 import { ensureProfileForUser } from "@/lib/auth/session";
-import { ArcRpcUnavailableError, getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
+import { ArcRpcUnavailableError } from "@/lib/wallet/arc-usdc-balance";
+import { getCachedArcUsdcBalance } from "@/lib/cache/arc-balance-cache";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
 import { resolveUserWallet, shortWalletAddress, listOnChainReadAddresses } from "@/lib/wallet/resolve-user-wallet";
 import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
@@ -248,7 +249,7 @@ async function readAddressBalanceWithFallback(
   cachedUsd?: number | null,
 ): Promise<ArcUsdcBalance> {
   try {
-    return await getArcUsdcBalance(address);
+    return await getCachedArcUsdcBalance(address);
   } catch {
     if (cachedUsd != null && cachedUsd > 0) {
       return {

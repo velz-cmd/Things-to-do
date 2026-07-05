@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { exchangeGoogleCode } from "@/lib/google/oauth";
+import { appOrigin } from "@/lib/integrations/musicbrainz-oauth";
+import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +28,8 @@ function clearOAuthCookies(response: NextResponse) {
 }
 
 export async function GET(req: Request) {
-  const { searchParams, origin } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
+  const origin = appOrigin(new URL(req.url).origin);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const error = searchParams.get("error");
@@ -58,6 +61,8 @@ export async function GET(req: Request) {
         ...(tokens.refresh_token ? { gmailRefreshToken: tokens.refresh_token } : {}),
       },
     });
+
+    await invalidateConnectorCaches(userId);
 
     const response = redirectWith(origin, returnTo, { gmail_connected: "1" });
     clearOAuthCookies(response);

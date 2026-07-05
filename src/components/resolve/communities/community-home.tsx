@@ -103,14 +103,16 @@ export function CommunityHome({ slug }: { slug: string }) {
     (communitiesHubQuery.data as CommunitiesCache | undefined) ??
     queryClient.getQueryData<CommunitiesCache>(queryKeys.communities);
   const cachedSummary = cachedHub?.communities?.find((community) => community.slug === slug);
-  const inferredInstalled =
-    Boolean(cachedSummary?.installed) ||
-    communityLinkedViaProfile(slug, connections) ||
-    ["approve_payouts", "review_obligations", "fund", "create_program"].includes(pageIntent ?? "");
+  const profileLinked = communityLinkedViaProfile(slug, connections);
+  const intentBypass = ["approve_payouts", "review_obligations", "fund", "create_program"].includes(
+    pageIntent ?? "",
+  );
+  const dbInstalled = Boolean(cachedSummary?.installed) || Boolean(surface?.installed);
+  const installed = dbInstalled || intentBypass;
 
   const cachedSurface = useMemo<CommunitySurface | null>(() => {
     if (!catalog || surface || tab === "advanced") return null;
-    if (!cachedSummary && !inferredInstalled) return null;
+    if (!cachedSummary?.installed && !intentBypass) return null;
 
     const treasuryUsd = numeric(cachedSummary?.hubOps?.treasuryUsd ?? cachedSummary?.vitals?.fundingTotalUsd);
     const pendingUsd = numeric(cachedSummary?.hubOps?.pendingObligationsUsd);
@@ -127,7 +129,7 @@ export function CommunityHome({ slug }: { slug: string }) {
       doctrine: catalog.doctrine,
       connectors: catalog.connectors,
       accent: catalog.accent,
-      installed: inferredInstalled,
+      installed: dbInstalled || intentBypass,
       install: null,
       programs: [],
       health: {
@@ -176,13 +178,33 @@ export function CommunityHome({ slug }: { slug: string }) {
         reasons: pendingUsd > 0 ? ["Live obligation rows are still syncing."] : [],
       },
     };
-  }, [cachedSummary, catalog, inferredInstalled, slug, surface, tab]);
+  }, [cachedSummary, catalog, dbInstalled, intentBypass, slug, surface, tab]);
 
   const activeSurface = surface ?? cachedSurface;
+  const installedSlugsKey = connections.installedCommunitySlugs.join(",");
 
   useEffect(() => {
     setDiscoverRole(loadPersistedDiscoverRole());
   }, []);
+
+  useEffect(() => {
+    if (!connections.signedIn) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.communities });
+    void communitiesHubQuery.refetch();
+    if (dbInstalled || intentBypass) {
+      void refetch();
+    }
+  }, [
+    connections.githubUsername,
+    connections.hasAnyConnector,
+    installedSlugsKey,
+    connections.signedIn,
+    dbInstalled,
+    intentBypass,
+    queryClient,
+    communitiesHubQuery,
+    refetch,
+  ]);
 
   useEffect(() => {
     if (pageIntent === "review_obligations" || pageIntent === "approve_payouts") {
@@ -380,7 +402,6 @@ export function CommunityHome({ slug }: { slug: string }) {
     );
   }
 
-  const installed = activeSurface?.installed ?? false;
   const surfaceLoading = loading && !surface;
 
   const consoleHref = `/communities/${slug}`;
@@ -440,6 +461,15 @@ export function CommunityHome({ slug }: { slug: string }) {
               Open Discover
             </Link>
           </div>
+        </div>
+      ) : profileLinked && !installed ? (
+        <div className="max-w-lg space-y-6">
+          <div className="rounded-xl border border-resolve-accent/20 bg-resolve-accent/[0.06] px-4 py-3 text-sm text-resolve-muted">
+            Profile is linked for this community. Install RESOLVE here to operate programs and sync
+            live metrics across tabs.
+          </div>
+          <InstallResolveCard community={catalog} onInstalled={() => void refresh()} />
+          <CommunitySensorPanel slug={slug} installed={false} />
         </div>
       ) : !installed ? (
         <div className="max-w-lg space-y-6">

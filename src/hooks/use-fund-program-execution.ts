@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { recordFundAction } from "@/lib/capital/fund-action-store";
-import { dispatchCapitalRefresh } from "@/lib/capital/refresh-events";
+import { dispatchPoolRefresh } from "@/lib/capital/refresh-events";
 import type { FundProgressState } from "@/lib/capital/fund-progress";
 import {
   apiCreateProgram,
@@ -107,6 +107,7 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
         }));
 
         let txHash: string | undefined;
+        let activityId: string | undefined;
 
         if (source === "external") {
           setFundProgress((p) => ({ ...p, stage: "awaiting_signature" }));
@@ -120,13 +121,16 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
             },
           });
           txHash = result.txHash;
+          activityId = result.activityId;
         } else {
           setFundProgress((p) => ({ ...p, stage: "recording_stake" }));
-          await apiFundProgram(programId, req.amountUsd);
+          const fundResult = await apiFundProgram(programId, req.amountUsd);
+          activityId = fundResult.activityId;
           setFundProgress((p) => ({ ...p, stage: "arc_confirming" }));
         }
 
         recordFundAction({
+          id: activityId,
           programId,
           communitySlug,
           programName: req.label,
@@ -143,7 +147,7 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
         }));
 
         await spendable.refresh().catch(() => null);
-        dispatchCapitalRefresh({ reason: "fund" });
+        dispatchPoolRefresh({ programId, communitySlug });
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
           queryClient.invalidateQueries({ queryKey: queryKeys.myPoolStakes }),
@@ -161,6 +165,7 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
           amountUsd: req.amountUsd,
           fundingSource: source,
           txHash,
+          activityId,
           message: `You funded this pool $${req.amountUsd.toFixed(2)}`,
         };
       } catch (e) {

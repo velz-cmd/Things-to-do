@@ -24,7 +24,7 @@ Enable **Production**, **Preview**, and **Development** for each.
 |------|-------|
 | `CIRCLE_API_KEY` | From Circle Developer Console |
 | `CIRCLE_ENTITY_SECRET` | From Circle Developer Console |
-| `ARC_RPC_URL` | `https://rpc.testnet.arc.network` |
+| `ARC_RPC_URL` | `https://rpc.testnet.arc.network` (public fallback; Alchemy preferred when key is set) |
 | `ARC_CHAIN_ID` | `5042002` |
 | `ARC_EXPLORER_URL` | `https://testnet.arcscan.app` |
 | `ARC_AGENTIC_COMMERCE_CONTRACT` | `0x0747EEf0706327138c69792bF28Cd525089e4583` |
@@ -100,7 +100,7 @@ These should match `/api/health/env` and `.env.example`.
 | `TAVILY_API_KEY` or `SERPER_API_KEY` | Search-backed discovery and research. |
 | `RESEND_API_KEY` or `BREVO_API_KEY` | Email login codes and notifications. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Optional cache for production stability. |
-| `ALCHEMY_API_KEY` or `ALCHEMY_ARC_RPC_URL` | More reliable Arc RPC reads. |
+| `ALCHEMY_API_KEY` or `ALCHEMY_ARC_RPC_URL` | **Recommended for Capital balance.** Set `ALCHEMY_API_KEY` to your Arc testnet key only (server builds `https://arc-testnet.g.alchemy.com/v2/<key>`). Or set full `ALCHEMY_ARC_RPC_URL`. Never `NEXT_PUBLIC_`. After deploy: `GET /api/health/arc-rpc` → `alchemyConfigured: true`, `blockNumber` > 0. Optional server proxy: `POST /api/rpc` with `x-chain: arc-testnet`. |
 | `NAVIDROME_SYNC_SECRET`, `JELLYFIN_SYNC_SECRET` | Protect media connector ingest endpoints. |
 
 `NAVIDROME_PROGRAM_MISSION_ID` is **auto-generated per install** and shown on `/communities/independent-music` after install — set it on the Navidrome bridge host, not necessarily as a global Vercel var unless you have one primary program.

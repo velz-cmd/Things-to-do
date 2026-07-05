@@ -1,5 +1,6 @@
 import { createPublicClient, http } from "viem";
 import { arcTestnet } from "@/lib/arc/config";
+import { resolveArcRpcUrl } from "@/lib/wallet/arc-rpc-url";
 import {
   ArcRpcUnavailableError,
   getArcUsdcBalance as readArcUsdcBalance,
@@ -12,12 +13,7 @@ export type { ArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 
 const arcPublicClient = createPublicClient({
   chain: arcTestnet,
-  transport: http(
-    process.env.ARC_RPC_URL?.trim() ||
-      process.env.ARC_TESTNET_RPC_URL?.trim() ||
-      "https://rpc.testnet.arc.network",
-    { timeout: 8_000 },
-  ),
+  transport: http(resolveArcRpcUrl(), { timeout: 8_000 }),
 });
 
 /** @deprecated prefer getArcUsdcBalance from arc-usdc-balance — kept for legacy callers */

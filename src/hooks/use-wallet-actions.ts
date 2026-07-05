@@ -19,6 +19,10 @@ import { useConnectedArcBalance } from "@/hooks/use-connected-arc-balance";
 import { parseJsonResponse } from "@/lib/http/parse-json-response";
 import { isWalletConnectEnabled } from "@/lib/reown/config";
 
+import type { FundProgressStage } from "@/lib/capital/fund-progress";
+
+export type WalletFundResult = { txHash: string };
+
 export function useWalletActions() {
   const { user, refreshBalance } = useAuth();
   const account = useResolveAccount();
@@ -91,7 +95,13 @@ export function useWalletActions() {
   }, [open]);
 
   const fundProgramWithWallet = useCallback(
-    async (programId: string, amountUsd: number): Promise<void> => {
+    async (
+      programId: string,
+      amountUsd: number,
+      opts?: {
+        onStage?: (stage: FundProgressStage, txHash?: string) => void;
+      },
+    ): Promise<WalletFundResult> => {
       if (!externalConnected || !address) {
         throw new Error("Connect your wallet from Profile or the account menu");
       }
@@ -119,14 +129,15 @@ export function useWalletActions() {
 
       signingRef.current = true;
       try {
+        opts?.onStage?.("checking_wallet");
+
         const linked = await ensureExternalLinked();
         if (!linked) {
           throw new Error("Could not link wallet to your account — try again from Profile");
         }
 
         await ensureArc();
-
-        toast.loading("Confirm in your wallet…", { id: "wallet-fund" });
+        opts?.onStage?.("awaiting_signature");
 
         const hash = await sendTransactionAsync({
           chainId: arcTestnet.id,
@@ -134,11 +145,14 @@ export function useWalletActions() {
           value: usdcToWei(amountUsd),
         });
 
-        toast.loading("Confirming on Arc…", { id: "wallet-fund" });
+        opts?.onStage?.("arc_broadcast", hash);
+        opts?.onStage?.("arc_confirming", hash);
 
         if (publicClient) {
           await publicClient.waitForTransactionReceipt({ hash });
         }
+
+        opts?.onStage?.("recording_stake", hash);
 
         const res = await fetch("/api/capital/fund-with-tx", {
           method: "POST",
@@ -155,6 +169,7 @@ export function useWalletActions() {
 
         await refreshBalance().catch(() => null);
         connectedBalance.refetch();
+        return { txHash: hash };
       } catch (e) {
         toast.dismiss("wallet-fund");
         throw e;

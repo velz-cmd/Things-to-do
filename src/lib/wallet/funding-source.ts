@@ -5,18 +5,30 @@ export type FundingBalances = {
   externalSpendableUsd: number;
 };
 
-/** Pick whichever wallet can pay — external first when connected (user choice over auto Gmail path). */
+/** Wallets that can cover this amount (user may choose any). */
+export function affordableFundingSources(
+  amountUsd: number,
+  balances: FundingBalances,
+  externalReady: boolean,
+): FundingSource[] {
+  if (amountUsd <= 0) return [];
+  const out: FundingSource[] = [];
+  if (externalReady && balances.externalSpendableUsd >= amountUsd) out.push("external");
+  if (balances.appSpendableUsd >= amountUsd) out.push("app");
+  return out;
+}
+
+/** Default when user has not picked — first affordable source (external before app when both work). */
 export function pickFundingSource(
   amountUsd: number,
   balances: FundingBalances,
   externalReady: boolean,
+  preferred?: FundingSource | null,
 ): FundingSource | null {
-  if (amountUsd <= 0) return null;
-  const extOk = externalReady && balances.externalSpendableUsd >= amountUsd;
-  const appOk = balances.appSpendableUsd >= amountUsd;
-  if (extOk) return "external";
-  if (appOk) return "app";
-  return null;
+  const options = affordableFundingSources(amountUsd, balances, externalReady);
+  if (!options.length) return null;
+  if (preferred && options.includes(preferred)) return preferred;
+  return options[0] ?? null;
 }
 
 export function maxSpendableUsd(

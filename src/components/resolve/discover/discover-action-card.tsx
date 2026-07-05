@@ -9,6 +9,8 @@ import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-a
 import { DiscoverSourceBadge } from "@/components/resolve/discover/discover-source-badge";
 import { formatDiscoverMoney } from "@/lib/discover/money-display";
 import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
+import { PoolFundedBadge } from "@/components/resolve/fund/pool-funded-badge";
+import { useMyPoolStakes } from "@/hooks/use-my-pool-stakes";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
@@ -45,7 +47,9 @@ export function DiscoverActionCard({
 }: DiscoverActionCardProps) {
   const { runAction } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
+  const { fundedUsdForProgram } = useMyPoolStakes();
   const { state: connections } = useUserConnections();
+  const fundedUsd = fundedUsdForProgram(gap.programId);
   const actions = tailorDiscoverActionsForUser(
     visibleDiscoverActions(gap.actions, surface),
     connections,
@@ -109,6 +113,7 @@ export function DiscoverActionCard({
               source={gap.dataSource}
               estimate={!gap.amountVerified && Boolean(gap.proofGithubScanAt)}
             />
+            {fundedUsd >= 5 && <PoolFundedBadge amountUsd={fundedUsd} compact />}
           </div>
           <h3 className={clsx("mt-1 font-medium text-white", compact ? "text-sm" : "text-base")}>
             {gap.headline}

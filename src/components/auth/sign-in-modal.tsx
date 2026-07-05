@@ -15,6 +15,8 @@ import {
   setRememberedEmail,
 } from "@/lib/auth/remember";
 import { detectInjectedWallets } from "@/lib/wallet/detect";
+import Image from "next/image";
+import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
 
 type Step = "welcome" | "wallet-picker" | "forgot-password";
 type AuthAction = "email" | "forgot" | "wallet" | "guest" | null;
@@ -262,10 +264,15 @@ export function SignInModal() {
 
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-400">
-                RESOLVE
-              </p>
-              <h2 id="sign-in-title" className="mt-1 text-2xl font-semibold text-white">
+              <Image
+                src={BRAND_LOGO_PATH}
+                alt="RESOLVE"
+                width={160}
+                height={40}
+                className="mb-3 h-9 w-auto object-contain object-left"
+                priority
+              />
+              <h2 id="sign-in-title" className="text-2xl font-semibold text-white">
                 {step === "wallet-picker"
                   ? "Choose wallet"
                   : step === "forgot-password"

@@ -2,6 +2,7 @@ import { sepolia } from "viem/chains";
 import { cookieStorage, createStorage } from "@wagmi/core";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { AppKitNetwork } from "@reown/appkit/networks";
+import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
 
 export const sepoliaNetwork: AppKitNetwork = {
   id: sepolia.id,
@@ -54,5 +55,7 @@ export const appKitMetadata = {
   name: "RESOLVE",
   description: "Assign the problem. Pay only on proof.",
   url: process.env.NEXT_PUBLIC_APP_URL ?? "https://things-to-do-eta.vercel.app",
-  icons: ["https://things-to-do-eta.vercel.app/favicon.ico"],
+  icons: [
+    `${process.env.NEXT_PUBLIC_APP_URL ?? "https://things-to-do-eta.vercel.app"}${BRAND_LOGO_PATH}`,
+  ],
 };

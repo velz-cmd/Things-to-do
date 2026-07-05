@@ -6,19 +6,9 @@ import clsx from "clsx";
 import { Command } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuthHeader } from "@/components/auth/auth-header";
+import { ResolveLogo } from "@/components/resolve/brand/resolve-logo";
 import { PRODUCT_NAV } from "@/components/resolve/layout/nav";
 import { prefetchDiscoverTab, prefetchProfileTab, prefetchCommunitiesTab } from "@/lib/query/hooks";
-
-export function ResolveLogo({ className }: { className?: string }) {
-  return (
-    <Link href="/" className={clsx("group flex items-center gap-2.5", className)}>
-      <span className="relative flex h-8 w-8 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow transition group-hover:scale-105">
-        <span className="text-xs font-bold text-white">R</span>
-      </span>
-      <span className="text-sm font-semibold tracking-[0.08em] text-white">RESOLVE</span>
-    </Link>
-  );
-}
 
 function isActive(pathname: string, href: string) {
   if (href === "/mission") {

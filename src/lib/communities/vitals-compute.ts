@@ -107,7 +107,7 @@ export function computeCommunityHealth(input: {
   } else if (raw >= 80) {
     healthLabel = "Healthy";
   } else if (raw >= 50) {
-    healthLabel = "Warming up";
+    healthLabel = "Early signal";
   } else if (raw > 0) {
     healthLabel = "Needs signal";
   } else {

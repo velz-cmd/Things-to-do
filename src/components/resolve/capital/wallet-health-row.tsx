@@ -51,7 +51,7 @@ export function WalletHealthRow({ health, onRetry, retrying }: WalletHealthRowPr
               : syncing ?
                 <RefreshCw className="h-3 w-3 animate-spin" />
               : <WifiOff className="h-3 w-3" />}
-              {live ? "Arc RPC live" : syncing ? "Syncing Arc wallet…" : "Arc sync failed"}
+              {live ? "Arc RPC live" : syncing ? "Loading Arc wallet…" : "Arc connection failed"}
             </span>
             <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-resolve-muted">
               Arc testnet · chain {health.chainId}

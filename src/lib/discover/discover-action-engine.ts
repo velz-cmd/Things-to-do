@@ -1,3 +1,4 @@
+import { ACTION_ERRORS } from "@/lib/copy/action-errors";
 import type { DiscoverAction } from "@/lib/discover/types";
 import { parseJsonResponse } from "@/lib/http/parse-json-response";
 import type { DiscoverActionResponse } from "@/lib/discover/discover-action-response";
@@ -38,7 +39,7 @@ export async function apiInstallCommunity(slug: string) {
     return data;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error(`Attach timed out — try again or attach from Communities`);
+      throw new Error(ACTION_ERRORS.attachCommunityTimeout);
     }
     throw e;
   } finally {
@@ -64,7 +65,7 @@ export async function apiCreateProgram(slug: string, templateId?: string) {
     return data as { program?: ProgramRecord };
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("Creating the program is still syncing. Open Communities or retry in a moment.");
+      throw new Error(ACTION_ERRORS.programCreateTimeout);
     }
     throw e;
   } finally {
@@ -93,7 +94,7 @@ export async function apiDeployProgramOnArc(slug: string, programId: string) {
     return data;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("Arc settlement is still processing — check Capital activity.");
+      throw new Error(ACTION_ERRORS.arcSettlementTimeout);
     }
     throw e;
   } finally {
@@ -117,7 +118,7 @@ export async function apiFundProgram(programId: string, amountUsd: number) {
     return data;
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
-      throw new Error("Funding is still syncing. Open Capital status or retry in a moment.");
+      throw new Error(ACTION_ERRORS.fundTimeout);
     }
     throw e;
   } finally {
@@ -255,8 +256,7 @@ export async function apiDiscoverAction(
       return {
         ok: false,
         code: "TIMEOUT",
-        message:
-          "The action is still syncing. Open the community console or Capital status to continue.",
+        message: ACTION_ERRORS.discoverActionTimeout,
         nextAction: "retry",
       };
     }

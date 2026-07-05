@@ -8,7 +8,8 @@ import {
 } from "@/lib/integrations/musicbrainz-oauth";
 import { syncUserSensors } from "@/lib/connectors/user-sensor-sync";
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
-import { cacheDelete } from "@/lib/cache/kv";
+import { appOrigin } from "@/lib/integrations/musicbrainz-oauth";
+import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -33,16 +34,10 @@ function clearOAuthCookies(response: NextResponse) {
   response.cookies.set("lb_oauth_return", "", clear);
 }
 
-async function clearConnectorState(userId: string) {
-  await Promise.all([
-    cacheDelete(`profile:state:${userId}`),
-    cacheDelete(`communities:list:${userId}`),
-  ]);
-}
-
 /** MusicBrainz OAuth callback → store ListenBrainz username + sync plays. */
 export async function GET(req: Request) {
-  const { searchParams, origin } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
+  const origin = appOrigin(new URL(req.url).origin);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const error = searchParams.get("error");
@@ -85,8 +80,8 @@ export async function GET(req: Request) {
       },
     });
 
-    await clearConnectorState(userId);
-    void autoInstallCommunitiesForUser(userId, { listenbrainzUsername: username }).catch(
+    await invalidateConnectorCaches(userId);
+    await autoInstallCommunitiesForUser(userId, { listenbrainzUsername: username }).catch(
       () => undefined,
     );
     void syncUserSensors(userId).catch(() => undefined);

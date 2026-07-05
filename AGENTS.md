@@ -22,7 +22,17 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
  is ever missing, recreate it with `DEPUTY_DEMO_MODE=true` and the local `DATABASE_URL` above.
 - After changing the Prisma schema, run `npx prisma db push` (dev) to sync the local DB.
 - The wallet SDK (Reown/wagmi) logs harmless `api.web3modal.org ... 403` fetch errors when
-  `NEXT_PUBLIC_REOWN_PROJECT_ID` is unset — these are non-fatal and do not affect the server.
+ `NEXT_PUBLIC_REOWN_PROJECT_ID` is unset — these are non-fatal and do not affect the server.
+- With `NEXT_PUBLIC_REOWN_PROJECT_ID` set (Reown/AppKit), users connect an external wallet from
+ the account menu. `ConnectedWalletSync` switches to Arc testnet, reads native USDC from the
+ linked address, and POSTs `/api/wallet/sync-connected`. Fund actions in Discover/Communities
+ use a single wallet signature (`/api/capital/fund-with-tx`) when the connected address matches
+ the linked profile wallet. `useSpendableUsd()` is the shared balance hook across tabs (on-chain
+ wallet first, ledger fallback).
+- Profile connector state hydrates Discover/Communities via `UserConnectionsProvider` +
+ `sessionStorage` snapshot (`connection-snapshot-client.ts`). `ProfileLinkedInstallSync` silently
+ creates community install rows when Profile already links upstream sources — users should not
+ re-install or re-connect GitHub per tab.
 
 ### Authentication is Supabase-gated (important)
 - All **authenticated write flows** (create task/mission, settlement, distribute, most

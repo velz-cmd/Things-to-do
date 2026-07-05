@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(async () => {
     setBalanceLoading(true);
     try {
-      const res = await fetch("/api/capital/state", {
+      const res = await fetch("/api/capital/state?refresh=1", {
         credentials: "include",
         cache: "no-store",
         signal: AbortSignal.timeout(4_000),

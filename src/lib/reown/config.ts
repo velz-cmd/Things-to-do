@@ -37,6 +37,10 @@ export const projectId =
   process.env.NEXT_PUBLIC_PROJECT_ID ??
   "";
 
+export function isWalletConnectEnabled(): boolean {
+  return Boolean(projectId?.trim());
+}
+
 export const wagmiAdapter = new WagmiAdapter({
   storage: createStorage({ storage: cookieStorage }),
   ssr: true,

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getCommunityBySlug, type ProgramTemplateId } from "@/lib/communities/catalog";
+import { ensureProfileLinkedInstall } from "@/lib/communities/profile-linked-install";
 
 export type FundTargetResolution = {
   ok: true;
@@ -64,7 +65,7 @@ export async function resolveFundTarget(input: {
   const templateId = (input.templateId ?? "docs-bounty") as ProgramTemplateId;
 
   if (input.userId) {
-    const install = await prisma.resolveCommunityInstall.findUnique({
+    let install = await prisma.resolveCommunityInstall.findUnique({
       where: { userId_communitySlug: { userId: input.userId, communitySlug } },
       include: {
         programs: {
@@ -74,6 +75,20 @@ export async function resolveFundTarget(input: {
         },
       },
     });
+
+    if (!install) {
+      await ensureProfileLinkedInstall(input.userId, communitySlug).catch(() => false);
+      install = await prisma.resolveCommunityInstall.findUnique({
+        where: { userId_communitySlug: { userId: input.userId, communitySlug } },
+        include: {
+          programs: {
+            where: { templateId, status: { in: ["active", "deployed", "draft"] } },
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+          },
+        },
+      });
+    }
 
     if (install?.programs[0]) {
       const p = install.programs[0];

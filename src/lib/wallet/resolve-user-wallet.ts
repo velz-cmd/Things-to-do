@@ -23,12 +23,27 @@ function normalize(addr: string): `0x${string}` {
  * Single canonical RESOLVE wallet resolver — one persisted address per user id.
  * Database walletAddress is the source of truth (Circle Arc wallet when provisioned).
  */
+type WalletProfile = Pick<
+  DbUser,
+  "walletAddress" | "scanWalletAddress" | "embeddedWallet" | "taskMemoryJson"
+>;
+
+/**
+ * Address used for on-chain balance reads and wallet-signed actions.
+ * When the user linked an external wallet (Reown), that address is authoritative.
+ */
+export function resolveBalanceWalletAddress(
+  userId: string,
+  profile?: WalletProfile | null,
+): `0x${string}` {
+  const external = profile?.scanWalletAddress?.trim();
+  if (external) return normalize(external);
+  return resolveUserWallet(userId, profile).address;
+}
+
 export function resolveUserWallet(
   userId: string,
-  profile?: Pick<
-    DbUser,
-    "walletAddress" | "scanWalletAddress" | "embeddedWallet" | "taskMemoryJson"
-  > | null,
+  profile?: WalletProfile | null,
   _session?: Pick<SupabaseUser, "id"> | null,
 ): ResolvedUserWallet {
   const deterministic = embeddedWalletFor(userId);

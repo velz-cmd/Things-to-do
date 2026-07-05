@@ -10,24 +10,71 @@ import type { BankingAccountSnapshot } from "@/lib/banking/types";
 import { normalizeBankingSnapshot } from "@/lib/banking/normalize-snapshot";
 import { BANKING_UI } from "@/lib/banking/copy";
 import { BANKING_POLICY } from "@/lib/banking/types";
+import type { WalletBalanceSlice } from "@/lib/capital/state";
 import type {
   CapitalWalletResponse,
   WalletHealth,
   WalletSyncState,
 } from "@/lib/capital/wallet-types";
+import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
+import type { WalletView } from "@/lib/wallet/active-wallet-view";
 
 const WALLET_REFRESH_MS = 30_000;
 const CLIENT_TIMEOUT_MS = 20_000;
 const ARC_CHAIN_ID = 5042002;
 
 type CapitalStatePayload =
-  | (Extract<CapitalWalletResponse, { ok: true }> & { claimableAmount?: number })
+  | (Extract<CapitalWalletResponse, { ok: true }> & {
+      claimableAmount?: number;
+      walletSlices?: WalletBalanceSlice[];
+    })
   | (Extract<CapitalWalletResponse, { ok: false }> & {
       claimableAmount?: number;
       syncStatus?: WalletSyncState | "live" | "cached" | "error" | "unknown" | "no_wallet";
       syncError?: string | null;
       balance?: Extract<CapitalWalletResponse, { ok: true }>["balance"];
+      walletSlices?: WalletBalanceSlice[];
     });
+
+function buildHealthFromCapital(
+  data: CapitalStatePayload,
+  view: WalletView,
+): WalletHealth | null {
+  const slices = "walletSlices" in data ? data.walletSlices : undefined;
+  const slice =
+    slices?.find((s) => s.kind === view) ?? slices?.find((s) => s.kind === "app");
+  const wallet = data.ok ? data.wallet : data.wallet;
+  if (!wallet && !slice) return null;
+
+  const syncStatus = "syncStatus" in data ? data.syncStatus : data.ok ? data.syncStatus : undefined;
+  const balance = data.ok ? data.balance : "balance" in data ? data.balance : undefined;
+
+  const rpcStatus: WalletHealth["rpcStatus"] =
+    syncStatus === "live"
+      ? "live"
+      : syncStatus === "cached"
+        ? "cached"
+        : syncStatus === "error"
+          ? "error"
+          : balance
+            ? "cached"
+            : "live";
+
+  const address = slice?.address ?? wallet!.address;
+  return {
+    address,
+    shortAddress: slice?.shortAddress ?? wallet!.shortAddress,
+    source: slice?.kind === "external" ? "external_wallet" : wallet!.source,
+    chainId: balance?.chainId ?? ARC_CHAIN_ID,
+    blockNumber: balance?.blockNumber ?? null,
+    syncedAt: balance?.syncedAt ?? null,
+    rpcStatus,
+    nativeUsdc: slice?.nativeUsdc ?? balance?.nativeUsdc ?? null,
+    erc20Usdc: slice?.erc20Usdc ?? balance?.erc20Usdc ?? null,
+    externalAddress:
+      data.ok && data.wallet.externalAddress ? data.wallet.externalAddress : undefined,
+  };
+}
 
 type Overview = {
   recentAuthorizations: {
@@ -62,10 +109,16 @@ function snapshotFromCapitalWallet(
   data: Extract<CapitalWalletResponse, { ok: true }>,
   userId: string,
   claimableAmount = 0,
+  view: WalletView = "app",
+  walletSlices?: WalletBalanceSlice[],
 ): BankingAccountSnapshot {
-  const spendable = Number(data.balance.spendableUsd);
-  const total = Number(data.balance.totalUsdc);
-  const wallet = data.wallet.address;
+  const slice =
+    walletSlices?.find((s) => s.kind === view) ?? walletSlices?.find((s) => s.kind === "app");
+  const spendable = slice ? Number(slice.spendableUsd) : Number(data.balance.spendableUsd);
+  const total = slice ? Number(slice.onChainUsd) : Number(data.balance.totalUsdc);
+  const wallet = slice?.address ?? data.wallet.address;
+  const shortLabel = slice?.shortAddress ?? data.wallet.shortAddress;
+  const walletSource = slice?.kind === "external" ? "external_wallet" : data.wallet.source;
   const statement = (data.activity ?? []).map((item) => {
     const amount = item.amountUsd ?? 0;
     return {
@@ -88,7 +141,7 @@ function snapshotFromCapitalWallet(
     email: data.account?.email ?? null,
     memberSince: new Date().toISOString(),
     walletAddress: wallet,
-    walletLabel: data.wallet.shortAddress,
+    walletLabel: shortLabel,
     policy: BANKING_POLICY,
     balances: {
       availableUsd: spendable,
@@ -132,8 +185,11 @@ function snapshotFromCapitalWallet(
       stats: { nanoPaymentsSettled: 0, recentMemoCount: 0 },
       identityWallet: {
         address: wallet,
-        label: data.wallet.shortAddress,
-        provider: data.wallet.source === "circle_embedded" ? "circle" : "embedded",
+        label: shortLabel,
+        provider:
+          walletSource === "circle_embedded" || data.wallet.source === "circle_embedded"
+            ? "circle"
+            : "embedded",
         circleWalletId: null,
         depositAddress: wallet,
         onChainUsdcUsd: total,
@@ -147,66 +203,6 @@ function snapshotFromCapitalWallet(
       gmailOperatorLive: false,
     },
     updatedAt: data.balance.syncedAt,
-  };
-}
-
-function healthFromResponse(
-  data: CapitalWalletResponse,
-  syncing: boolean,
-): WalletHealth | null {
-  const wallet = data.ok ? data.wallet : data.wallet;
-  if (!wallet) return null;
-
-  const syncStatus =
-    "syncStatus" in data ? data.syncStatus : data.ok ? data.syncStatus : undefined;
-  type BalanceShape = Extract<CapitalWalletResponse, { ok: true }>["balance"];
-  const balance: BalanceShape | undefined = data.ok
-    ? data.balance
-    : "balance" in data && data.balance
-      ? (data.balance as BalanceShape)
-      : undefined;
-
-  const rpcStatus: WalletHealth["rpcStatus"] = syncing
-    ? "syncing"
-    : syncStatus === "live"
-      ? "live"
-      : syncStatus === "cached"
-        ? "cached"
-        : syncStatus === "error"
-          ? "error"
-          : balance
-            ? "cached"
-            : "live";
-
-  if (data.ok && data.balance) {
-    return {
-      address: wallet.address,
-      shortAddress: wallet.shortAddress,
-      source: wallet.source,
-      chainId: data.balance.chainId,
-      blockNumber: data.balance.blockNumber,
-      syncedAt: data.balance.syncedAt,
-      rpcStatus,
-      nativeUsdc: data.balance.nativeUsdc,
-      erc20Usdc: data.balance.erc20Usdc,
-      externalAddress: data.wallet.externalAddress,
-    };
-  }
-
-  return {
-    address: wallet.address,
-    shortAddress: wallet.shortAddress,
-    source: wallet.source,
-    chainId: ARC_CHAIN_ID,
-    blockNumber: balance?.blockNumber ?? null,
-    syncedAt: balance?.syncedAt ?? null,
-    rpcStatus,
-    nativeUsdc: balance?.nativeUsdc ?? null,
-    erc20Usdc: balance?.erc20Usdc ?? null,
-    externalAddress:
-      data.ok && data.wallet.externalAddress
-        ? data.wallet.externalAddress
-        : undefined,
   };
 }
 
@@ -238,9 +234,10 @@ function mergeBankingSnapshots(
 }
 
 export function PaymentsOS() {
-  const { user, refreshBalance } = useAuth();
+  const { user, refreshBalance, balance } = useAuth();
   const { openSignIn } = useSignInModal();
   const account = useResolveAccount();
+  const { view: walletView } = useActiveWalletView();
 
   const [banking, setBanking] = useState<BankingAccountSnapshot | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -253,6 +250,7 @@ export function PaymentsOS() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
   const lastLiveBalanceRef = useRef<number | null>(null);
+  const lastCapitalRef = useRef<CapitalStatePayload | null>(null);
 
   const fallbackWallet =
     account.appWalletAddress ??
@@ -282,8 +280,17 @@ export function PaymentsOS() {
       if (!capital.ok) return false;
 
       const claimable = Number(capital.claimableAmount ?? 0);
-      const snap = snapshotFromCapitalWallet(capital, userId, claimable);
-      const spendable = Number(capital.balance.spendableUsd);
+      const snap = snapshotFromCapitalWallet(
+        capital,
+        userId,
+        claimable,
+        walletView,
+        capital.walletSlices,
+      );
+      const viewSlice = capital.walletSlices?.find((s) => s.kind === walletView);
+      const spendable = viewSlice
+        ? Number(viewSlice.spendableUsd)
+        : Number(capital.balance.spendableUsd);
 
       if (capital.syncStatus === "live" && Number.isFinite(spendable)) {
         lastLiveBalanceRef.current = spendable;
@@ -300,7 +307,8 @@ export function PaymentsOS() {
       }
 
       setBanking((prev) => (prev ? mergeBankingSnapshots(snap, prev) : snap));
-      setWalletHealth(healthFromResponse(capital, false));
+      lastCapitalRef.current = capital;
+      setWalletHealth(buildHealthFromCapital(capital, walletView));
       const sync = capital.syncStatus;
       setWalletSync(
         sync === "live"
@@ -321,8 +329,42 @@ export function PaymentsOS() {
       void refreshBalance().catch(() => null);
       return true;
     },
-    [refreshBalance],
+    [refreshBalance, walletView],
   );
+
+  useEffect(() => {
+    const capital = lastCapitalRef.current;
+    if (!capital?.ok || !user) return;
+
+    const claimable = Number(capital.claimableAmount ?? 0);
+    const snap = snapshotFromCapitalWallet(
+      capital,
+      user.id,
+      claimable,
+      walletView,
+      capital.walletSlices,
+    );
+    const viewSlice = capital.walletSlices?.find((s) => s.kind === walletView);
+    const spendable = viewSlice
+      ? Number(viewSlice.spendableUsd)
+      : Number(capital.balance.spendableUsd);
+
+    if (
+      lastLiveBalanceRef.current !== null &&
+      spendable < lastLiveBalanceRef.current &&
+      capital.syncStatus === "cached" &&
+      walletView === "app"
+    ) {
+      snap.balances.availableUsd = lastLiveBalanceRef.current;
+      snap.balances.onChainUsdcUsd = Math.max(
+        snap.balances.onChainUsdcUsd ?? 0,
+        lastLiveBalanceRef.current,
+      );
+    }
+
+    setBanking((prev) => (prev ? mergeBankingSnapshots(snap, prev) : snap));
+    setWalletHealth(buildHealthFromCapital(capital, walletView));
+  }, [walletView, user]);
 
   const loadWallet = useCallback(
     async (opts?: { silent?: boolean; refresh?: boolean }) => {
@@ -360,7 +402,7 @@ export function PaymentsOS() {
         } else if (!capital.ok) {
           setWalletSync("error");
           setSyncError(capital.message);
-          setWalletHealth(healthFromResponse(capital, false));
+          setWalletHealth(buildHealthFromCapital(capital, walletView));
         } else {
           setWalletSync("error");
           setSyncError("Could not load wallet state.");
@@ -543,6 +585,12 @@ export function PaymentsOS() {
       onRefresh={() => void loadWallet({ silent: false, refresh: true })}
       onSignIn={openSignIn}
       onActivityOpen={() => void loadOverview()}
+      walletViewProps={{
+        appAddress: account.appWalletAddress,
+        externalAddress: account.externalWalletAddress,
+        appUsd: balance?.appOnChainUsd ?? balance?.appSpendableUsd ?? null,
+        externalUsd: balance?.externalOnChainUsd ?? balance?.externalSpendableUsd ?? null,
+      }}
     />
   );
 }

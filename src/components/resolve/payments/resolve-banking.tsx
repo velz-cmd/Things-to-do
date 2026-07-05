@@ -19,6 +19,7 @@ import { Button } from "@/components/resolve/ui/button";
 import { MoneyFlowExplainer } from "@/components/resolve/capital/money-flow-explainer";
 import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-truth";
 import { WalletHealthRow } from "@/components/resolve/capital/wallet-health-row";
+import { WalletViewSelector } from "@/components/resolve/fund/wallet-view-selector";
 import type { WalletHealth, WalletSyncState } from "@/lib/capital/wallet-types";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
@@ -56,6 +57,12 @@ type ResolveBankingProps = {
   onRefresh?: () => void;
   onSignIn: () => void;
   onActivityOpen?: () => void;
+  walletViewProps?: {
+    appAddress?: string | null;
+    externalAddress?: string | null;
+    appUsd?: number | null;
+    externalUsd?: number | null;
+  };
 };
 
 function formatDate(iso: string) {
@@ -350,6 +357,7 @@ export function ResolveBanking({
   onRefresh,
   onSignIn,
   onActivityOpen,
+  walletViewProps,
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
   const { openSendFunds } = useSendFunds();
@@ -429,6 +437,12 @@ export function ResolveBanking({
               onRetry={onRefresh}
               retrying={refreshing}
             />
+          )}
+
+          {signedIn && walletViewProps && (
+            <div className="mb-4">
+              <WalletViewSelector {...walletViewProps} />
+            </div>
           )}
 
           {signedIn && walletWarnings.length > 0 && (

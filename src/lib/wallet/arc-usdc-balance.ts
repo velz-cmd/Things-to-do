@@ -15,8 +15,8 @@ const ARC_ALCHEMY_BASE =
     ? `https://arc-testnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY.trim()}`
     : null);
 
-const RPC_TIMEOUT_MS = 12_000;
-const RPC_RETRIES = 2;
+const RPC_TIMEOUT_MS = 4_500;
+const RPC_RETRIES = 1;
 
 export type ArcUsdcBalance = {
   address: string;

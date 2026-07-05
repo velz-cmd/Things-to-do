@@ -198,7 +198,14 @@ export function AuthHeader() {
                 </p>
               )}
               {!balanceLoading && hasEmailSession && !balance && (
-                <p className="mt-2 text-xs text-amber-300/90">Balance syncing…</p>
+                <p className="mt-2 text-xs text-amber-300/90">
+                  Balance will appear after wallet sync. Capital can retry without blocking this page.
+                </p>
+              )}
+              {balanceLoading && hasEmailSession && balance && (
+                <p className="mt-2 text-[10px] text-slate-500">
+                  Refreshing balance in background
+                </p>
               )}
             </div>
 

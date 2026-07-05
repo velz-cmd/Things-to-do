@@ -72,6 +72,35 @@ export async function apiCreateProgram(slug: string, templateId?: string) {
   }
 }
 
+export async function apiDeployProgramOnArc(slug: string, programId: string) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(`/api/communities/${slug}/programs/${programId}/deploy`, {
+      method: "POST",
+      credentials: "include",
+      signal: controller.signal,
+    });
+    const data = await parseJsonResponse<{
+      ok?: boolean;
+      error?: string;
+      message?: string;
+      settlementId?: string;
+      settledUsd?: number;
+      explorerUrls?: string[];
+    }>(res);
+    if (!res.ok) throw new Error(data.error ?? data.message ?? "Arc settlement failed");
+    return data;
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("Arc settlement is still processing — check Capital activity.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function apiFundProgram(programId: string, amountUsd: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8_000);
@@ -215,6 +244,7 @@ export async function apiDiscoverAction(
         amountUsd: opts?.amountUsd ?? action.amountUsd,
         entityId: action.entityPath,
         href: action.href,
+        automationTrigger: action.automationTrigger,
         role: opts?.role,
         surface: opts?.surface,
       }),

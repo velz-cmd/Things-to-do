@@ -1,4 +1,6 @@
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
+import { confirmNextStepHint } from "@/lib/discover/discover-action-outcomes";
+import { automateHintFor } from "@/lib/discover/automate-action-labels";
 import type { DiscoverAction } from "@/lib/discover/types";
 import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
@@ -26,7 +28,7 @@ export function discoverActionSummary(
       };
     case "create_program":
       return {
-        headline: `${label} - creates a payout rule and saves it to your account.`,
+        headline: `${label} — creates a payout rule on Arc and saves it to your account.`,
         requirement: connected ? undefined : "Connect the proof source in Profile first.",
       };
     case "install":
@@ -50,9 +52,21 @@ export function discoverActionSummary(
       return {
         headline: "Copy a verifiable settlement receipt link.",
       };
+    case "automate":
+      return {
+        headline: automateHintFor({
+          templateId: action.templateId,
+          automationTrigger: action.automationTrigger,
+        }),
+        requirement: connected ? undefined : "Connect the proof source in Profile first.",
+      };
     default:
       return { headline: label };
   }
+}
+
+export function discoverActionNextHint(action: DiscoverAction): string | undefined {
+  return confirmNextStepHint(action);
 }
 
 /** Actions that mutate state and need confirm before POST /api/discover/actions. */
@@ -60,7 +74,7 @@ export function discoverActionNeedsConfirm(action: DiscoverAction): boolean {
   if (action.kind === "fund" || action.kind === "sponsor") {
     return Boolean(action.amountUsd && action.amountUsd >= 5 && action.programId);
   }
-  return ["install", "create_program", "analyze", "claim", "share"].includes(action.kind);
+  return ["install", "create_program", "analyze", "automate", "claim", "share"].includes(action.kind);
 }
 
 /** Route through Discover API (not pure navigation). */

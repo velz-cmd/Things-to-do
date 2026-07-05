@@ -1,6 +1,10 @@
 import type { AutomationTrigger } from "@/lib/automation/types";
 import { defaultTriggerForCommunityKind } from "@/lib/automation/simulate";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
+import {
+  automateLabelFor,
+  defaultTriggerForTemplate,
+} from "@/lib/discover/automate-action-labels";
 import type { DiscoverGraphEdge, DiscoverGraphNode } from "./radar";
 import { hasFundingGapEdge } from "./graph-domain";
 import type { DiscoverAction, DiscoverDataSource, DiscoverIntent } from "./types";
@@ -144,6 +148,17 @@ export function bubbleOperatorActions(
         templateId,
       });
       actions.push({
+        id: "automate",
+        label: automateLabelFor({
+          templateId,
+          automationTrigger: defaultAutomationTriggerForNode(node),
+        }),
+        kind: "automate",
+        communitySlug: slug,
+        templateId,
+        automationTrigger: defaultAutomationTriggerForNode(node),
+      });
+      actions.push({
         id: "connect",
         label: "Connect source",
         kind: "connect_sensor",
@@ -181,6 +196,19 @@ export function bubbleOperatorActions(
       entityPath: `/communities/${slug}`,
       communitySlug: slug,
     });
+    if (slug) {
+      actions.push({
+        id: `automate-${templateId}`,
+        label: automateLabelFor({
+          templateId,
+          automationTrigger: defaultTriggerForTemplate(templateId),
+        }),
+        kind: "automate",
+        communitySlug: slug,
+        templateId,
+        automationTrigger: defaultTriggerForTemplate(templateId),
+      });
+    }
     actions.push({
       id: "settle-queue",
       label: "Settle queue",

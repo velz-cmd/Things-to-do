@@ -18,7 +18,16 @@ import {
 } from "@/lib/wallet/funding-source";
 import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel";
 import { WalletSourcePicker } from "@/components/resolve/fund/wallet-source-picker";
+import { DiscoverActionOutcomePanel } from "@/components/resolve/discover/discover-action-outcome-panel";
 import type { FundProgressState } from "@/lib/capital/fund-progress";
+
+type FundOutcomeProps = {
+  title: string;
+  summary: string;
+  steps: import("@/lib/discover/discover-action-outcomes").DiscoverOutcomeStep[];
+  onDeployArc?: () => void;
+  deployingArc?: boolean;
+};
 
 type DiscoverFundSheetProps = {
   open: boolean;
@@ -26,6 +35,7 @@ type DiscoverFundSheetProps = {
   wallet: WalletSnapshot;
   busy: boolean;
   fundProgress?: FundProgressState;
+  fundOutcome?: FundOutcomeProps | null;
   onClose: () => void;
   onConfirm: (amountUsd: number, fundingSource: FundingSource) => void;
 };
@@ -36,6 +46,7 @@ export function DiscoverFundSheet({
   wallet,
   busy,
   fundProgress,
+  fundOutcome,
   onClose,
   onConfirm,
 }: DiscoverFundSheetProps) {
@@ -253,13 +264,22 @@ export function DiscoverFundSheet({
           </form>
         )}
 
-        {fundProgress?.stage === "complete" && (
+        {fundProgress?.stage === "complete" && fundOutcome ? (
+          <DiscoverActionOutcomePanel
+            title={fundOutcome.title}
+            summary={fundOutcome.summary}
+            steps={fundOutcome.steps}
+            onDeployArc={fundOutcome.onDeployArc}
+            deploying={fundOutcome.deployingArc}
+            onDone={onClose}
+          />
+        ) : fundProgress?.stage === "complete" ? (
           <div className="mt-4 flex justify-end">
             <Button type="button" size="sm" onClick={onClose}>
               Done
             </Button>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

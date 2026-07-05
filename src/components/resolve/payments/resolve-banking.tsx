@@ -16,11 +16,7 @@ import {
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
-import { CapitalCommunityPrograms } from "@/components/resolve/capital/capital-community-programs";
-import { FunderDiscoveryPanel } from "@/components/resolve/capital/funder-discovery-panel";
-import { EcosystemBenefitsProgram } from "@/components/resolve/capital/ecosystem-benefits-program";
 import { MoneyFlowExplainer } from "@/components/resolve/capital/money-flow-explainer";
-import { FunderYieldPortfolio } from "@/components/resolve/capital/funder-yield-portfolio";
 import { CapitalSettlementRow } from "@/components/resolve/capital/settlement-truth";
 import { WalletHealthRow } from "@/components/resolve/capital/wallet-health-row";
 import type { WalletHealth, WalletSyncState } from "@/lib/capital/wallet-types";
@@ -40,7 +36,7 @@ type SettlementRow = {
   kind?: "settlement" | "authorization" | "statement";
 };
 
-type Tab = "overview" | "activity" | "programs";
+type Tab = "overview" | "activity";
 
 type ResolveBankingProps = {
   account: BankingAccountSnapshot | null;
@@ -416,9 +412,6 @@ export function ResolveBanking({
         <TabButton active={tab === "activity"} onClick={() => { setTab("activity"); onActivityOpen?.(); }}>
           {BANKING_UI.activity}
         </TabButton>
-        <TabButton active={tab === "programs"} onClick={() => setTab("programs")}>
-          {BANKING_UI.programs}
-        </TabButton>
       </div>
 
       {!signedIn && tab === "overview" && <GuestLanding onSignIn={onSignIn} />}
@@ -548,6 +541,27 @@ export function ResolveBanking({
 
           {signedIn && <PendingAuthorizationsPanel signedIn={signedIn} />}
 
+          {signedIn && yourClaimable > 0 && (
+            <BlueGlowCard className="mb-6">
+              <p className="text-sm font-semibold text-white">Earnings ready to collect</p>
+              <p className="mt-1 text-sm text-resolve-muted">
+                Verified value from your connected ecosystems — collect to your Arc wallet.
+              </p>
+              <p className="mt-3 text-2xl font-semibold text-emerald-300">
+                <Money amount={yourClaimable} size="lg" className="inline" />
+              </p>
+              <Button
+                className="mt-4 gap-2"
+                onClick={onClaim}
+                disabled={claiming || !payoutWallet}
+              >
+                {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}
+              </Button>
+            </BlueGlowCard>
+          )}
+
+          {signedIn && <MoneyFlowExplainer />}
+
           {!initialLoading && network && network.pendingFundingUsd > 0 && (
             <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100/90">
               {BANKING_UI.pendingFunding}
@@ -567,43 +581,6 @@ export function ResolveBanking({
             </div>
           )}
 
-          {signedIn && account?.programs && account.programs.length > 0 && (
-            <section className="mb-6">
-              <p className="mb-3 text-sm font-semibold text-white">Your programs</p>
-              <ul className="space-y-2">
-                {account.programs.slice(0, 4).map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between rounded-lg border border-white/[0.06] px-4 py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-white">{p.name}</p>
-                      <p className="text-[11px] text-resolve-muted">{p.communitySlug}</p>
-                    </div>
-                    <div className="text-right text-xs">
-                      <p className="text-resolve-muted">
-                        Budget{" "}
-                        <Money amount={p.budgetUsd} size="sm" className="inline text-white" />
-                      </p>
-                      <p className="text-resolve-muted">
-                        Held{" "}
-                        <Money amount={p.committedUsd} size="sm" className="inline text-white" />
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {account.programs.length > 4 && (
-                <button
-                  type="button"
-                  onClick={() => setTab("programs")}
-                  className="mt-2 text-xs text-resolve-accent hover:underline"
-                >
-                  View all programs
-                </button>
-              )}
-            </section>
-          )}
         </>
       )}
 
@@ -649,40 +626,6 @@ export function ResolveBanking({
                   ))}
               </ul>
             </div>
-          )}
-        </section>
-      )}
-
-      {tab === "programs" && (
-        <section className="space-y-8 py-2">
-          <EcosystemBenefitsProgram variant="compact" defaultRole="funder" />
-          {signedIn && <PendingAuthorizationsPanel signedIn={signedIn} variant="programs" />}
-          {signedIn && <FunderYieldPortfolio />}
-          <FunderDiscoveryPanel signedIn={signedIn} />
-          <CapitalCommunityPrograms />
-          {signedIn && account?.programs && account.programs.length > 0 && (
-            <ul className="mt-6 space-y-2">
-              {account.programs.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center justify-between rounded-lg border border-white/[0.06] px-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-white">{p.name}</p>
-                    <p className="text-[11px] text-resolve-muted">
-                      {p.communitySlug} · {friendlyStatus(p.status)}
-                    </p>
-                  </div>
-                  <Link
-                    href={`/communities/${p.communitySlug}`}
-                    className="inline-flex items-center gap-1 text-xs text-resolve-accent hover:underline"
-                  >
-                    Open
-                    <ArrowUpRight className="h-3 w-3" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
           )}
         </section>
       )}

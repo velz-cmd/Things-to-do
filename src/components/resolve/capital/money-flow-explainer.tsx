@@ -20,8 +20,8 @@ export function MoneyFlowExplainer({ compact = false }: { compact?: boolean }) {
         <p className="mt-1">
           Connectors authorize what is already owed → funders fulfill → creators claim.
           Founders operate programs; they do not invent value.{" "}
-          <Link href="/capital?tab=programs" className="text-resolve-accent hover:underline">
-            Fulfill obligations
+          <Link href="/communities" className="text-resolve-accent hover:underline">
+            Operate communities
           </Link>
         </p>
       </BlueGlowCard>

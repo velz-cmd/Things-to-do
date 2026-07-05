@@ -39,6 +39,9 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
  immediately on sign-in (`POST /api/wallet/provision`). `AppWalletOnChainSync` polls Arc RPC via
  `/api/capital/state` (live by default). Capital and Profile read the same `walletAddress` on-chain
  balance; optional Reown connect adds wallet-signed actions via `ConnectedWalletSync`.
+ Capital UI is treasury-focused (balance, claim earnings, activity) — program funding lives under
+ Communities, not Capital. Background refresh always uses live Arc RPC (not `?fast=1`) so balances
+ do not snap back to zero.
 
 ### Authentication is Supabase-gated (important)
 - All **authenticated write flows** (create task/mission, settlement, distribute, most

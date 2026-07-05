@@ -7,6 +7,7 @@ import { resolveOnChainReadAddress, resolveUserWallet, shortWalletAddress } from
 import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
 import { loadProfileFast } from "@/lib/profile/load-profile-fast";
 import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
+import { getProfileEarningsSummary } from "@/lib/earn/summary";
 import type { CapitalWalletResponse } from "@/lib/capital/wallet-types";
 import { runWithFallback } from "@/lib/providers/provider-router";
 
@@ -19,6 +20,8 @@ type ProfileLight = {
   displayName: string | null;
   walletAddress: string | null;
   scanWalletAddress: string | null;
+  githubUsername: string | null;
+  listenbrainzUsername: string | null;
   embeddedWallet: boolean;
   availableUsd: number;
   taskMemoryJson: string | null;
@@ -87,6 +90,8 @@ async function loadProfileLight(userId: string): Promise<ProfileLight | null> {
       displayName: true,
       walletAddress: true,
       scanWalletAddress: true,
+      githubUsername: true,
+      listenbrainzUsername: true,
       embeddedWallet: true,
       availableUsd: true,
       taskMemoryJson: true,
@@ -241,6 +246,8 @@ export async function loadCapitalState(
         displayName: ensured.displayName,
         walletAddress: ensured.walletAddress,
         scanWalletAddress: ensured.scanWalletAddress,
+        githubUsername: ensured.githubUsername,
+        listenbrainzUsername: ensured.listenbrainzUsername,
         embeddedWallet: Boolean(ensured.embeddedWallet),
         availableUsd: ensured.availableUsd,
         taskMemoryJson: ensured.taskMemoryJson,
@@ -261,6 +268,8 @@ export async function loadCapitalState(
         displayName: ensured.displayName,
         walletAddress: ensured.walletAddress,
         scanWalletAddress: ensured.scanWalletAddress,
+        githubUsername: ensured.githubUsername,
+        listenbrainzUsername: ensured.listenbrainzUsername,
         embeddedWallet: Boolean(ensured.embeddedWallet),
         availableUsd: ensured.availableUsd,
         taskMemoryJson: ensured.taskMemoryJson,
@@ -271,7 +280,9 @@ export async function loadCapitalState(
     }
   }
 
-  if (profile) {
+  if (profile && opts.liveSync) {
+    /* live path syncs after RPC — fast path reads ledger only */
+  } else if (profile) {
     void syncIdentityBalance(profile.id).catch(() => null);
   }
 
@@ -307,12 +318,39 @@ export async function loadCapitalState(
 
   const cachedBalance = cachedBalanceFromProfile(profile);
   const cachedSyncedAt = profile?.updatedAt?.toISOString() ?? null;
-  const [reservedUsd, programBalances, pendingTransactions, activity] = await Promise.all([
+  const [reservedUsd, programBalances, pendingTransactions, activity, earnings] =
+    await Promise.all([
     profile ? getReservedUsd(profile.id).catch(() => 0) : Promise.resolve(0),
     profile ? getProgramBalances(profile.id).catch(() => []) : Promise.resolve([]),
     profile ? getPendingTransactions(profile.id).catch(() => []) : Promise.resolve([]),
     profile ? getActivity(profile.id).catch(() => []) : Promise.resolve([]),
+    profile
+      ? getProfileEarningsSummary({ profile }).catch(() => ({
+          claimableUsd: 0,
+          authorizedUsd: 0,
+          settledUsd: 0,
+          youEarnedUsd: 0,
+          pendingUsd: 0,
+          authorizationCount: 0,
+          identities: [],
+          stalestClaimableAt: null,
+          notifyUrgency: 0,
+          githubLinked: false,
+        }))
+      : Promise.resolve({
+          claimableUsd: 0,
+          authorizedUsd: 0,
+          settledUsd: 0,
+          youEarnedUsd: 0,
+          pendingUsd: 0,
+          authorizationCount: 0,
+          identities: [],
+          stalestClaimableAt: null,
+          notifyUrgency: 0,
+          githubLinked: false,
+        }),
   ]);
+  const claimableAmount = Math.round((earnings.claimableUsd ?? 0) * 100) / 100;
 
   if (!walletResolved.address) {
     return {
@@ -323,7 +361,7 @@ export async function loadCapitalState(
       lastKnownBalance: cachedBalance,
       programBalances,
       pendingTransactions,
-      claimableAmount: 0,
+      claimableAmount,
       lastSyncedAt: cachedSyncedAt,
       syncStatus: "no_wallet",
       syncError: "Connect an Arc wallet in Profile or Capital to fund programs.",
@@ -344,7 +382,7 @@ export async function loadCapitalState(
       treasuryBalance: fastBalance,
       programBalances,
       pendingTransactions,
-      claimableAmount: 0,
+      claimableAmount,
       lastSyncedAt: cachedSyncedAt,
       syncStatus: cachedBalance !== null ? "cached" : "unknown",
       syncError: cachedBalance !== null ? null : "Live Arc balance is syncing in the background.",
@@ -383,6 +421,10 @@ export async function loadCapitalState(
     const total = Number(chainBalance.totalUsdc);
     const spendable = Math.max(0, total - reservedUsd);
 
+    if (profile) {
+      await syncIdentityBalance(profile.id).catch(() => null);
+    }
+
     return {
       ok: true,
       ...base,
@@ -392,7 +434,7 @@ export async function loadCapitalState(
       treasuryBalance: total,
       programBalances,
       pendingTransactions,
-      claimableAmount: 0,
+      claimableAmount,
       lastSyncedAt: chainBalance.syncedAt,
       syncStatus: "live",
       syncError: null,
@@ -428,7 +470,7 @@ export async function loadCapitalState(
       lastKnownBalance: cachedBalance,
       programBalances,
       pendingTransactions,
-      claimableAmount: 0,
+      claimableAmount,
       lastSyncedAt: cachedSyncedAt,
       syncStatus: cachedBalance !== null ? "cached" : "error",
       syncError: message,

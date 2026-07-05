@@ -17,7 +17,7 @@ import { DiscoverActionBar } from "@/components/resolve/discover/discover-action
 import { Money } from "@/components/resolve/ui/money";
 import { needTypeBadgeClass, needTypeLabel } from "@/lib/discover/need-types";
 import { rfbBadgeForTemplate } from "@/lib/discover/rfb-badges";
-import { formatDiscoverMoney } from "@/lib/discover/money-display";
+import { buildPoolPeopleLine } from "@/lib/discover/pool-discover-copy";
 import { useMyPoolStakes } from "@/hooks/use-my-pool-stakes";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { useProgramPoolState } from "@/components/resolve/communities/pool-checkpoint-panel";
@@ -176,12 +176,19 @@ export function ValueReceiptCard({
   const estimateUsd =
     pool?.funder.estimatedShareOfOwedUsd ??
     (gap.amountVerified ? gap.moneyCanMoveUsd : 0);
-  const needed = formatDiscoverMoney(
-    owedUsd,
-    Boolean(pool || gap.amountVerified),
-    gap.dataSource,
-    gap.amountKind,
-  );
+  const heroUsd = poolBalanceUsd > 0 ? poolBalanceUsd : owedUsd;
+  const heroLabel = poolBalanceUsd > 0 ? "Pool funded" : "Owed to creators";
+  const peopleLine =
+    pool ?
+      buildPoolPeopleLine({
+        contributorCount: pool.contributorCount,
+        funderCount: pool.funderCount,
+        payeeCategory: pool.payeeCategory,
+      })
+    : gap.peopleImpacted ?
+      `${gap.peopleImpacted} people impacted`
+    : null;
+  const sourcedHook = pool?.sourcedHook ?? null;
   const rfb = rfbBadgeForTemplate(gap.templateId);
   const proofHref =
     gap.proofHref ??
@@ -236,27 +243,37 @@ export function ValueReceiptCard({
               />
             </div>
             <h3 className="mt-1 text-[13px] font-semibold leading-snug text-white">{card.title}</h3>
-            <p className="mt-1 text-[11px] leading-relaxed text-resolve-muted-dim">{gap.why}</p>
+            {peopleLine && (
+              <p className="mt-1 text-[10px] font-medium text-emerald-200/90">{peopleLine}</p>
+            )}
+            {sourcedHook ? (
+              <p className="mt-1 text-[11px] leading-relaxed text-resolve-muted">{sourcedHook}</p>
+            ) : (
+              <p className="mt-1 text-[11px] leading-relaxed text-resolve-muted-dim">{gap.why}</p>
+            )}
           </div>
         </div>
 
         <div className="shrink-0 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-right">
           <p className="text-[9px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-            Value receipt
+            {heroLabel}
           </p>
-          <p
-            className={clsx(
-              "mt-0.5 text-lg font-semibold tabular-nums",
-              needed.tone === "verified" ? "text-amber-200" : "text-amber-200/70",
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-300">
+            {poolLoading && !pool && poolBalanceUsd <= 0 ? (
+              <Loader2 className="inline h-4 w-4 animate-spin" />
+            ) : (
+              <Money amount={heroUsd} size="sm" className="inline" />
             )}
-          >
-            {needed.label}
           </p>
-          <p className="text-[10px] text-resolve-muted-dim">owed</p>
+          {poolBalanceUsd > 0 && owedUsd > 0 && poolBalanceUsd !== owedUsd && (
+            <p className="text-[10px] tabular-nums text-amber-200/80">
+              <Money amount={owedUsd} size="sm" className="inline" /> owed
+            </p>
+          )}
         </div>
       </div>
 
-      <dl className="mt-3 grid grid-cols-3 gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5 text-[11px]">
+      <dl className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5 text-[11px] sm:grid-cols-4">
         <div>
           <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Pool</dt>
           <dd className="mt-0.5 font-semibold tabular-nums text-emerald-300">
@@ -278,8 +295,16 @@ export function ValueReceiptCard({
           </dd>
         </div>
         <div>
-          <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Status</dt>
-          <dd className="mt-0.5 font-medium text-resolve-muted">{card.settlementStatus}</dd>
+          <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Owed</dt>
+          <dd className="mt-0.5 font-semibold tabular-nums text-amber-200">
+            <Money amount={owedUsd} size="sm" className="inline" />
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Contributors</dt>
+          <dd className="mt-0.5 font-semibold tabular-nums text-white">
+            {pool?.contributorCount ?? "—"}
+          </dd>
         </div>
       </dl>
 

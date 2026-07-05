@@ -93,6 +93,18 @@ export async function apiFundProgram(programId: string, amountUsd: number) {
   }
 }
 
+export async function apiSyncConnectedWallet(walletAddress: string) {
+  const res = await fetch("/api/wallet/sync-connected", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ walletAddress }),
+  });
+  const data = await parseJsonResponse<{ error?: string }>(res);
+  if (!res.ok) throw new Error(data.error ?? "Wallet sync failed");
+  return data;
+}
+
 export type FundTargetPayload = {
   programId: string | null;
   programName: string | null;

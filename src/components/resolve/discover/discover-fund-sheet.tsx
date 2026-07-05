@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
 import type { FundSheetRequest, WalletSnapshot } from "@/lib/discover/discover-action-engine";
 import { Button } from "@/components/resolve/ui/button";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
@@ -27,6 +28,7 @@ export function DiscoverFundSheet({
   onConfirm,
 }: DiscoverFundSheetProps) {
   const { state: connections } = useUserConnections();
+  const { externalWalletReady, openConnectWallet } = useResolveAccess();
 
   const defaultAmount =
     request?.amountUsd && request.amountUsd >= 5 ? request.amountUsd.toFixed(2) : "25";
@@ -78,21 +80,29 @@ export function DiscoverFundSheet({
             <Wallet className="h-3.5 w-3.5 text-resolve-accent" />
             {wallet.loaded ? (
               <span>
-                Spendable:{" "}
+                {externalWalletReady ? "Connected wallet" : "Spendable"}:{" "}
                 <span className="font-medium tabular-nums text-white">
                   ${wallet.spendableUsd.toFixed(2)}
                 </span>
+                {externalWalletReady && (
+                  <span className="text-resolve-muted-dim"> · Arc testnet USDC</span>
+                )}
               </span>
             ) : (
               <span>Loading wallet...</span>
             )}
           </div>
-          <Link
-            href="/capital?returnUrl=/discover"
-            className="text-[11px] font-medium text-resolve-accent hover:underline"
-          >
-            Add funds / sync wallet
-          </Link>
+          {externalWalletReady ? (
+            <span className="text-[11px] font-medium text-emerald-300">Wallet actions enabled</span>
+          ) : (
+            <button
+              type="button"
+              onClick={openConnectWallet}
+              className="text-[11px] font-medium text-resolve-accent hover:underline"
+            >
+              Connect wallet for on-chain fund
+            </button>
+          )}
         </div>
         {insufficientBalance && (
           <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-xs text-amber-100">
@@ -166,7 +176,13 @@ export function DiscoverFundSheet({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={busy || insufficientBalance}>
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Confirm fund"}
+              {busy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : externalWalletReady ? (
+                "Confirm in wallet"
+              ) : (
+                "Confirm fund"
+              )}
             </Button>
           </div>
         </form>

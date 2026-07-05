@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { ensureProfileForUser } from "@/lib/auth/session";
 import { ArcRpcUnavailableError, getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
-import { resolveUserWallet, shortWalletAddress } from "@/lib/wallet/resolve-user-wallet";
+import { resolveBalanceWalletAddress, resolveUserWallet, shortWalletAddress } from "@/lib/wallet/resolve-user-wallet";
 import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 import type { CapitalWalletResponse } from "@/lib/capital/wallet-types";
 import { runWithFallback } from "@/lib/providers/provider-router";
@@ -254,13 +254,19 @@ export async function loadCapitalState(
   }
 
   const walletResolved = resolveUserWallet(authUser.id, profile, authUser);
+  const balanceAddress = profile
+    ? resolveBalanceWalletAddress(authUser.id, profile)
+    : walletResolved.address;
+  const usesExternalBalance =
+    Boolean(profile?.scanWalletAddress) &&
+    balanceAddress.toLowerCase() === profile!.scanWalletAddress!.toLowerCase();
   const walletProvider =
     profile ? appWalletProvider(profile as Parameters<typeof appWalletProvider>[0]) : "embedded";
   const base = {
     walletConnected: Boolean(walletResolved.address),
     walletAddress: walletResolved.address,
     shortWalletAddress: shortWalletAddress(walletResolved.address),
-    walletSource: walletResolved.source,
+    walletSource: usesExternalBalance ? "external_wallet" : walletResolved.source,
     walletProvider: walletProvider === "circle" ? ("circle" as const) : ("embedded" as const),
     arcNetwork: {
       name: "Arc Testnet" as const,
@@ -348,7 +354,7 @@ export async function loadCapitalState(
   try {
     const chainBalance = await runWithFallback({
       feature: "capital_state",
-      providers: [{ name: "arc_rpc", run: () => getArcUsdcBalance(walletResolved.address) }],
+      providers: [{ name: "arc_rpc", run: () => getArcUsdcBalance(balanceAddress) }],
       timeoutMs: 3_500,
       fallback: null,
     });

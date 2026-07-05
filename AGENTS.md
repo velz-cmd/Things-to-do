@@ -71,6 +71,13 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   allowed **unauthenticated** (see `authorizeCronRequest`), so it is a reliable way to exercise
   the full API→Prisma→Postgres write path and populate Discover data without signing in.
 
+### Playwright fund E2E (CI with Supabase secrets)
+- `tests/e2e/discover-fund-receipt.spec.ts` — sign in → Fulfill pool $5 → pool bar → Capital
+  Activity → `/receipt/[id]`. Skips locally when Supabase is not configured.
+- `POST /api/test/e2e/credit-balance` and `POST /api/test/e2e/proof-receipt` only work when
+  `PLAYWRIGHT_ENABLED=true` (set in `.github/workflows/playwright-e2e.yml` and `playwright.config.ts`
+  webServer env). Proof receipt seeds an authorization when the ledger has none yet.
+
 ### Performance / cache (non-obvious)
 - **Upstash Redis** (`UPSTASH_REDIS_REST_URL` + token): shared cache via `src/lib/cache/kv.ts`.
   Verify with `GET /api/health/cache`. Arc balances cache 20s (`resolve:arc:balance:*`).

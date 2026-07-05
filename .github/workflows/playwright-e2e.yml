@@ -14,6 +14,19 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_ENABLED: "true"
+      CI: "true"
+      NODE_OPTIONS: "--max-old-space-size=4096"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+      E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -31,10 +44,11 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Sync database schema
+        run: npx prisma db push --skip-generate
+
       - name: Build application
         run: npm run build
-        env:
-          PLAYWRIGHT_ENABLED: "true"
 
       - name: Verify Discover tab smoke
         run: |
@@ -49,15 +63,9 @@ jobs:
           done
           npx tsx scripts/verify-discover-tab.ts http://localhost:3000
           bash scripts/stop-dev-server.sh
-        env:
-          PLAYWRIGHT_ENABLED: "true"
 
       - name: Free port before Playwright
         run: bash scripts/stop-dev-server.sh
 
       - name: Run Playwright tests
         run: npm run test:e2e
-        env:
-          PLAYWRIGHT_ENABLED: "true"
-          CI: "true"
-          NODE_OPTIONS: "--max-old-space-size=4096"

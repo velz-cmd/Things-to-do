@@ -25,7 +25,7 @@ import {
 } from "@/lib/discover/discover-action-engine";
 import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-sheet";
 import { DiscoverActionConfirmSheet } from "@/components/resolve/discover/discover-action-confirm-sheet";
-import { useCommunityConsole } from "@/components/resolve/discover/discover-community-console-provider";
+import { useCommunityConsoleOptional } from "@/components/resolve/discover/discover-community-console-provider";
 import {
   fundOutcomeSteps,
   whereFundGoes,
@@ -110,7 +110,13 @@ export function DiscoverActionsProvider({
     useFundProgramExecution();
   const { state: connections, reload: reloadConnections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
-  const { open: openCommunityConsole } = useCommunityConsole();
+  const communityConsole = useCommunityConsoleOptional();
+  const openCommunityConsole = useCallback(
+    (options: Parameters<NonNullable<typeof communityConsole>["open"]>[0]) => {
+      communityConsole?.open(options);
+    },
+    [communityConsole],
+  );
   const queryClient = useQueryClient();
   const [wallet, setWallet] = useState<WalletSnapshot>({
     spendableUsd: 0,

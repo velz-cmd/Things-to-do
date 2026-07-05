@@ -12,6 +12,8 @@ import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
 import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
+import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
+import { walletViewLabel } from "@/lib/wallet/active-wallet-view";
 import { clearGuestExploring } from "@/lib/auth/guest";
 import { ArcWalletLink } from "@/components/resolve/ui/arc-wallet-link";
 
@@ -29,6 +31,7 @@ export function AuthHeader() {
   const { signOut, balance, balanceLoading } = useAuth();
   const account = useResolveAccount();
   const spendable = useSpendableUsd();
+  const { view: walletView } = useActiveWalletView();
   const { openSignIn } = useSignInModal();
   const { openAddFunds } = useAddFunds();
   const { openSendFunds } = useSendFunds();
@@ -42,6 +45,14 @@ export function AuthHeader() {
     Boolean(account.externalWalletAddress) &&
     account.externalWalletAddress?.toLowerCase() !==
       account.appWalletAddress?.toLowerCase();
+
+  const activeWalletUsd =
+    walletView === "external" && hasExternal
+      ? spendable.externalSpendableUsd
+      : spendable.appSpendableUsd;
+  const activeWalletLabel = walletViewLabel(
+    walletView === "external" && hasExternal ? "external" : "app",
+  );
 
   function copyAddress(addr: string) {
     void navigator.clipboard.writeText(addr);
@@ -186,18 +197,19 @@ export function AuthHeader() {
                   Your wallet · {shortAddress(account.externalWalletAddress!)}
                 </p>
               )}
-              {!balanceLoading && hasEmailSession && (balance || spendable.externalSpendableUsd > 0) && (
+              {!balanceLoading && hasEmailSession && (balance || activeWalletUsd > 0) && (
                 <p className="mt-2 text-xs text-deputy-accent">
-                  $
-                  {(
-                    balance?.availableUsd ??
-                    spendable.appSpendableUsd
-                  ).toFixed(2)}{" "}
-                  USDC · RESOLVE wallet
-                  {spendable.externalReady && spendable.externalSpendableUsd > 0.001 && (
+                  ${activeWalletUsd.toFixed(2)} USDC · {activeWalletLabel}
+                  {hasExternal && spendable.externalSpendableUsd > 0.001 && walletView === "app" && (
                     <span className="text-slate-500">
                       {" "}
                       · yours ${spendable.externalSpendableUsd.toFixed(2)}
+                    </span>
+                  )}
+                  {hasExternal && spendable.appSpendableUsd > 0.001 && walletView === "external" && (
+                    <span className="text-slate-500">
+                      {" "}
+                      · RESOLVE ${spendable.appSpendableUsd.toFixed(2)}
                     </span>
                   )}
                 </p>
@@ -238,7 +250,7 @@ export function AuthHeader() {
                 </MenuItem>
               )}
 
-              {hasEmailSession && (balance?.availableUsd ?? 0) > 0 && (
+              {hasEmailSession && activeWalletUsd > 0 && (
                 <MenuItem
                   onClick={() => {
                     openSendFunds();

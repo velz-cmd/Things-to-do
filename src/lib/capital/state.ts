@@ -79,6 +79,17 @@ export type CapitalStateResponse = {
   balance?: Extract<CapitalWalletResponse, { ok: true }>["balance"];
   code?: string;
   message?: string;
+  walletSlices?: WalletBalanceSlice[];
+};
+
+export type WalletBalanceSlice = {
+  kind: "app" | "external";
+  address: string;
+  shortAddress: string;
+  onChainUsd: number;
+  spendableUsd: number;
+  nativeUsdc: string;
+  erc20Usdc: string;
 };
 
 async function loadProfileLight(userId: string): Promise<ProfileLight | null> {
@@ -275,6 +286,47 @@ function cachedBalanceFromProfile(profile: ProfileLight | null): number | null {
   return Number.isFinite(value) ? Math.max(0, Math.round(value * 100) / 100) : null;
 }
 
+function buildWalletSlices(input: {
+  profile: ProfileLight | null;
+  walletResolved: ReturnType<typeof resolveUserWallet>;
+  perWallet?: ArcUsdcBalance[];
+  reservedUsd: number;
+  cachedAppUsd?: number | null;
+}): WalletBalanceSlice[] {
+  const appAddr =
+    input.profile?.walletAddress?.trim().toLowerCase() ?? input.walletResolved.address;
+  const extAddr = input.profile?.scanWalletAddress?.trim().toLowerCase();
+  const slices: WalletBalanceSlice[] = [];
+
+  const appChain = input.perWallet?.find((b) => b.address === appAddr);
+  const appOnChain = appChain ? Number(appChain.totalUsdc) : (input.cachedAppUsd ?? 0);
+  slices.push({
+    kind: "app",
+    address: appAddr,
+    shortAddress: shortWalletAddress(appAddr),
+    onChainUsd: roundUsd(appOnChain),
+    spendableUsd: roundUsd(Math.max(0, appOnChain - input.reservedUsd)),
+    nativeUsdc: appChain?.nativeUsdc ?? formatUsd(appOnChain),
+    erc20Usdc: appChain?.erc20Usdc ?? "0.00",
+  });
+
+  if (extAddr && extAddr !== appAddr) {
+    const extChain = input.perWallet?.find((b) => b.address === extAddr);
+    const extOnChain = extChain ? Number(extChain.totalUsdc) : 0;
+    slices.push({
+      kind: "external",
+      address: extAddr,
+      shortAddress: shortWalletAddress(extAddr),
+      onChainUsd: roundUsd(extOnChain),
+      spendableUsd: roundUsd(extOnChain),
+      nativeUsdc: extChain?.nativeUsdc ?? "0.00",
+      erc20Usdc: extChain?.erc20Usdc ?? "0.00",
+    });
+  }
+
+  return slices;
+}
+
 export async function loadCapitalState(
   authUser: SupabaseUser,
   opts: { liveSync?: boolean } = {},
@@ -418,6 +470,12 @@ export async function loadCapitalState(
 
   if (!opts.liveSync) {
     const fastBalance = cachedBalance ?? 0;
+    const walletSlices = buildWalletSlices({
+      profile,
+      walletResolved,
+      reservedUsd,
+      cachedAppUsd: fastBalance,
+    });
     return {
       ok: true,
       ...base,
@@ -432,6 +490,7 @@ export async function loadCapitalState(
       syncStatus: cachedBalance !== null ? "cached" : "unknown",
       syncError: cachedBalance !== null ? null : "Live Arc balance is syncing in the background.",
       activity,
+      walletSlices,
       wallet: {
         address: walletResolved.address,
         shortAddress: shortWalletAddress(walletResolved.address),
@@ -469,6 +528,12 @@ export async function loadCapitalState(
     const totalOnChain = Number(chainBalance.totalUsdc);
     const appSpendable = Math.max(0, appOnChain - reservedUsd);
     const spendable = roundUsd(appSpendable + extOnChain);
+    const walletSlices = buildWalletSlices({
+      profile,
+      walletResolved,
+      perWallet,
+      reservedUsd,
+    });
 
     if (profile) {
       await syncIdentityBalance(profile.id).catch(() => null);
@@ -488,6 +553,7 @@ export async function loadCapitalState(
       syncStatus: "live",
       syncError: null,
       activity,
+      walletSlices,
       wallet: {
         address: walletResolved.address,
         shortAddress: shortWalletAddress(walletResolved.address),
@@ -511,6 +577,12 @@ export async function loadCapitalState(
     const message = cachedBalance !== null
       ? "Using last known Arc balance."
       : "Arc balance is still syncing. Refresh Capital before funding.";
+    const walletSlices = buildWalletSlices({
+      profile,
+      walletResolved,
+      reservedUsd,
+      cachedAppUsd: cachedBalance ?? 0,
+    });
     return {
       ok: true,
       ...base,
@@ -524,6 +596,7 @@ export async function loadCapitalState(
       syncStatus: cachedBalance !== null ? "cached" : "error",
       syncError: message,
       activity,
+      walletSlices,
       code: e instanceof ArcRpcUnavailableError ? e.code : "ARC_RPC_UNAVAILABLE",
       message,
       wallet: {

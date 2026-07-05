@@ -38,6 +38,10 @@ import {
 } from "@/lib/profile/refresh-events";
 import { useProfileBootstrap } from "@/components/resolve/profile/profile-bootstrap";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { WalletViewSelector } from "@/components/resolve/fund/wallet-view-selector";
+import { useSpendableUsd } from "@/hooks/use-spendable-usd";
+import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
+import { walletViewLabel } from "@/lib/wallet/active-wallet-view";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
 const PROFILE_PLATFORM_IDS = new Set<IdentityPlatformId>([
@@ -227,6 +231,8 @@ export function ProfileSettings() {
     useProfileBootstrap();
   const { state: connections, loading: connectionsLoading } = useUserConnections();
   const account = useResolveAccount();
+  const spendable = useSpendableUsd();
+  const { view: walletView } = useActiveWalletView();
   const capabilities = useAuthCapabilities();
   const { open } = useAppKit();
   const { disconnect } = useDisconnect();
@@ -750,16 +756,37 @@ export function ProfileSettings() {
                       verified={connected && def.status === "live"}
                     />
                     {def.id === "wallet" && connected && walletFromAccount && (
-                      <p className="text-sm font-medium text-white">
-                        {balanceLoading ?
-                          "Loading RESOLVE wallet balance…"
-                        : <>
-                            RESOLVE wallet:{" "}
-                            <Money amount={balance?.availableUsd ?? 0} size="sm" className="inline" />{" "}
-                            spendable
-                          </>
-                        }
-                      </p>
+                      <div className="space-y-3">
+                        {account.externalWalletAddress && (
+                          <WalletViewSelector
+                            appAddress={account.appWalletAddress}
+                            externalAddress={account.externalWalletAddress}
+                            appUsd={spendable.appOnChainUsd ?? spendable.appSpendableUsd}
+                            externalUsd={
+                              spendable.externalOnChainUsd ?? spendable.externalSpendableUsd
+                            }
+                            compact
+                          />
+                        )}
+                        <p className="text-sm font-medium text-white">
+                          {balanceLoading || !spendable.loaded ?
+                            `Loading ${walletViewLabel(walletView).toLowerCase()} balance…`
+                          : <>
+                              {walletViewLabel(walletView)}:{" "}
+                              <Money
+                                amount={
+                                  walletView === "external" && account.externalWalletAddress
+                                    ? spendable.externalSpendableUsd
+                                    : spendable.appSpendableUsd
+                                }
+                                size="sm"
+                                className="inline"
+                              />{" "}
+                              on Arc
+                            </>
+                          }
+                        </p>
+                      </div>
                     )}
                     {(state?.eventsToday ?? 0) > 0 && (
                       <p className="text-[11px] text-resolve-muted-dim">

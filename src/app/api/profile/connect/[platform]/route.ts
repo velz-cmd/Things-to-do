@@ -10,6 +10,7 @@ import {
 import { syncUserMusicSensors } from "@/lib/connectors/user-music-sync";
 import { syncUserJellyfinSensors, connectJellyfinForUser } from "@/lib/connectors/user-jellyfin-sync";
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
+import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
 
 const navidromeSchema = z.object({
   url: z.string().url().max(512),
@@ -52,6 +53,8 @@ async function finalizeJellyfinConnect(
 
   void syncUserJellyfinSensors(userId).catch(() => undefined);
 
+  await invalidateConnectorCaches(userId);
+
   return NextResponse.json({ ok: true, message });
 }
 
@@ -73,7 +76,9 @@ export async function POST(
   if (platform === "github") {
     const returnTo = new URL(req.url).searchParams.get("returnTo") ?? "/profile";
     const safeReturn = returnTo.startsWith("/") ? returnTo : "/profile";
-    return NextResponse.redirect(new URL("/connect/github", req.url));
+    return NextResponse.redirect(
+      new URL(`/connect/github?returnTo=${encodeURIComponent(safeReturn)}`, req.url),
+    );
   }
 
   if (platform === "gmail") {
@@ -90,7 +95,9 @@ export async function POST(
   if (platform === "listenbrainz") {
     const returnTo = new URL(req.url).searchParams.get("returnTo") ?? "/profile";
     const safeReturn = returnTo.startsWith("/") ? returnTo : "/profile";
-    return NextResponse.redirect(new URL("/connect/listenbrainz", req.url));
+    return NextResponse.redirect(
+      new URL(`/connect/listenbrainz?returnTo=${encodeURIComponent(safeReturn)}`, req.url),
+    );
   }
 
   if (platform === "jellyfin" && !contentTypeIncludesJson(req)) {
@@ -135,6 +142,8 @@ export async function POST(
 
     void syncUserMusicSensors(ready.user.id).catch(() => undefined);
 
+    await invalidateConnectorCaches(ready.user.id);
+
     return NextResponse.json({ ok: true, message: check.message });
   }
 
@@ -153,6 +162,10 @@ export async function POST(
   }
 
   return NextResponse.json({ error: "Unsupported platform" }, { status: 400 });
+}
+
+async function invalidateAfterDisconnect(userId: string) {
+  await invalidateConnectorCaches(userId);
 }
 
 export async function DELETE(
@@ -174,6 +187,8 @@ export async function DELETE(
     where: { id: ready.user.id },
     data: DISCONNECT_FIELDS[platform],
   });
+
+  await invalidateAfterDisconnect(ready.user.id);
 
   return NextResponse.json({ ok: true });
 }

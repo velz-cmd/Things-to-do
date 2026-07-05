@@ -50,6 +50,9 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
     const onProfileRefresh = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.profileState });
       void queryClient.invalidateQueries({ queryKey: queryKeys.userConnections });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profileBootstrap });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.communities });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed(24) });
       void query.refetch();
     };
     window.addEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
@@ -65,6 +68,8 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
     await queryClient.invalidateQueries({ queryKey: queryKeys.profileState });
     await queryClient.invalidateQueries({ queryKey: queryKeys.userConnections });
     await queryClient.invalidateQueries({ queryKey: queryKeys.profileBootstrap });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.communities });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed(24) });
     void query.refetch();
   }, [user, queryClient, query]);
 

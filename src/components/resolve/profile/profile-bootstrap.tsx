@@ -95,6 +95,11 @@ export function ProfileBootstrapProvider({ children }: { children: ReactNode }) 
         wallet: null,
       };
     }
+
+    if (query.isLoading && !query.data) {
+      return null;
+    }
+
     const body = query.data as Record<string, unknown> | undefined;
     if (!body) {
       return {
@@ -143,7 +148,7 @@ export function ProfileBootstrapProvider({ children }: { children: ReactNode }) 
       wallet,
       dbDegraded: Boolean(body.dbDegraded),
     };
-  }, [user, query.data, query.error, query.isError]);
+  }, [user, query.data, query.error, query.isError, query.isLoading]);
 
   const reload = useCallback(() => {
     void query.refetch();
@@ -151,7 +156,7 @@ export function ProfileBootstrapProvider({ children }: { children: ReactNode }) 
 
   return (
     <ProfileBootstrapContext.Provider
-      value={{ data, loading: query.isLoading && Boolean(user) && !data, reload }}
+      value={{ data, loading: Boolean(user) && data === null, reload }}
     >
       {children}
     </ProfileBootstrapContext.Provider>

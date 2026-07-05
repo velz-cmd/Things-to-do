@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -141,6 +141,7 @@ function ConnectNavidromeForm({ onConnected }: { onConnected: () => void }) {
       if (!res.ok) throw new Error(data.error ?? "Connection failed");
       toast.success("Navidrome connected");
       onConnected();
+      dispatchProfileRefresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not connect Navidrome");
     } finally {
@@ -203,6 +204,7 @@ export function ProfileSettings() {
     Array<{ id: string; name: string; kind: string; connectors: string[]; repoCount: number }>
   >([]);
   const [connectingPlatform, setConnectingPlatform] = useState<IdentityPlatformId | null>(null);
+  const oauthHandledRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -239,84 +241,94 @@ export function ProfileSettings() {
         }
         setIdentityMap(map);
       }
-      setLoading(false);
-      return;
     }
     void load();
   }, [bootstrap, bootstrapLoading, load, user?.email]);
 
   const refreshAfterOAuth = useCallback(async () => {
     dispatchProfileRefresh();
-    reloadBootstrap();
-    await load();
+    await Promise.all([reloadBootstrap(), load()]);
   }, [load, reloadBootstrap]);
 
   useEffect(() => {
-    const onWalletLinked = () => reloadBootstrap();
-    const onProfileRefresh = () => reloadBootstrap();
+    const onWalletLinked = () => {
+      void refreshAfterOAuth();
+    };
     window.addEventListener(WALLET_LINKED_EVENT, onWalletLinked);
-    window.addEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
     return () => {
       window.removeEventListener(WALLET_LINKED_EVENT, onWalletLinked);
-      window.removeEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
     };
-  }, [reloadBootstrap]);
+  }, [refreshAfterOAuth]);
 
   useEffect(() => {
-    if (searchParams.get("github_connected") === "1") {
-      toast.success("GitHub connected — RESOLVE will sync your open-source activity");
-      router.replace("/profile");
-      void refreshAfterOAuth();
-    }
+    const oauthKey = searchParams.toString();
+    if (!oauthKey) return;
+    if (oauthHandledRef.current === oauthKey) return;
+
+    const githubConnected = searchParams.get("github_connected");
     const githubError = searchParams.get("github_error");
-    if (githubError) {
-      toast.error(
-        githubError === "not_configured"
-          ? "GitHub install is not available yet — server needs GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET"
-          : githubError === "session_timeout"
-            ? "GitHub connect timed out while checking your session. Refresh Profile and try again."
-          : githubError.includes("redirect") || githubError === "redirect_uri_mismatch"
-            ? "GitHub redirect URI mismatch. Register the callback shown by /api/health/oauth, then try again."
-            : `GitHub: ${githubError}`,
-      );
-      router.replace("/profile");
-    }
-    if (searchParams.get("gmail_connected") === "1") {
-      toast.success("Gmail connected");
-      router.replace("/profile");
-      void refreshAfterOAuth();
-    }
-    if (searchParams.get("github_linked") === "1") {
-      toast.success("GitHub linked");
-      router.replace("/profile");
-      void refreshAfterOAuth();
-    }
+    const gmailConnected = searchParams.get("gmail_connected");
     const gmailError = searchParams.get("gmail_error");
-    if (gmailError) {
-      toast.error(`Gmail: ${gmailError}`);
-      router.replace("/profile");
-    }
-    if (searchParams.get("listenbrainz_connected") === "1") {
-      toast.success("ListenBrainz connected — RESOLVE will sync your listens automatically");
-      router.replace("/profile");
-      void refreshAfterOAuth();
-    }
-    if (searchParams.get("jellyfin_connected") === "1") {
-      toast.success("Jellyfin connected — RESOLVE will sync your watches automatically");
-      router.replace("/profile");
-      void refreshAfterOAuth();
-    }
+    const githubLinked = searchParams.get("github_linked");
+    const listenbrainzConnected = searchParams.get("listenbrainz_connected");
+    const jellyfinConnected = searchParams.get("jellyfin_connected");
     const lbError = searchParams.get("listenbrainz_error");
-    if (lbError) {
-      toast.error(
-        lbError === "not_configured"
-          ? "ListenBrainz sign-in is not configured on the server yet"
-          : lbError === "session_timeout"
-            ? "ListenBrainz connect timed out while checking your session. Refresh Profile and try again."
-          : `ListenBrainz: ${lbError}`,
-      );
+
+    const hasOAuthSignal =
+      githubConnected ||
+      githubError ||
+      gmailConnected ||
+      gmailError ||
+      githubLinked ||
+      listenbrainzConnected ||
+      jellyfinConnected ||
+      lbError;
+    if (!hasOAuthSignal) return;
+
+    oauthHandledRef.current = oauthKey;
+
+    const finish = async () => {
+      if (githubConnected === "1") {
+        toast.success("GitHub connected — RESOLVE will sync your open-source activity");
+      } else if (githubError) {
+        toast.error(
+          githubError === "not_configured"
+            ? "GitHub install is not available yet — server needs GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET"
+            : githubError === "session_timeout"
+              ? "GitHub connect timed out while checking your session. Refresh Profile and try again."
+              : githubError === "invalid_state"
+                ? "GitHub session expired before return. Try Connect GitHub again from Profile."
+              : githubError.includes("redirect") || githubError === "redirect_uri_mismatch"
+                ? "GitHub redirect URI mismatch. Register the callback shown by /api/health/oauth, then try again."
+                : `GitHub: ${githubError}`,
+        );
+      } else if (gmailConnected === "1") {
+        toast.success("Gmail connected");
+      } else if (gmailError) {
+        toast.error(`Gmail: ${gmailError}`);
+      } else if (githubLinked === "1") {
+        toast.success("GitHub linked");
+      } else if (listenbrainzConnected === "1") {
+        toast.success("ListenBrainz connected — RESOLVE will sync your listens automatically");
+      } else if (jellyfinConnected === "1") {
+        toast.success("Jellyfin connected — RESOLVE will sync your watches automatically");
+      } else if (lbError) {
+        toast.error(
+          lbError === "not_configured"
+            ? "ListenBrainz sign-in is not configured on the server yet"
+            : lbError === "session_timeout"
+              ? "ListenBrainz connect timed out while checking your session. Refresh Profile and try again."
+              : lbError === "invalid_state"
+                ? "ListenBrainz session expired before return. Try again from Profile."
+              : `ListenBrainz: ${lbError}`,
+        );
+      }
+
+      await refreshAfterOAuth();
       router.replace("/profile");
-    }
+    };
+
+    void finish();
   }, [searchParams, router, refreshAfterOAuth]);
 
   async function disconnectPlatform(platform: IdentityPlatformId) {
@@ -330,11 +342,19 @@ export function ProfileSettings() {
       return;
     }
     toast.success("Disconnected");
+    dispatchProfileRefresh();
     void load();
   }
 
+  function profileReturnTo() {
+    const next = searchParams.get("next");
+    if (next?.startsWith("/")) return next;
+    return "/profile";
+  }
+
   function connectGithub() {
-    window.location.href = "/connect/github";
+    const returnTo = encodeURIComponent(profileReturnTo());
+    window.location.href = `/connect/github?returnTo=${returnTo}`;
   }
 
   async function linkGitHubAccount() {
@@ -351,11 +371,13 @@ export function ProfileSettings() {
   }
 
   function connectListenBrainz() {
-    window.location.href = "/connect/listenbrainz";
+    const returnTo = encodeURIComponent(profileReturnTo());
+    window.location.href = `/connect/listenbrainz?returnTo=${returnTo}`;
   }
 
   function connectJellyfin() {
-    window.location.href = "/connect/jellyfin";
+    const returnTo = encodeURIComponent(profileReturnTo());
+    window.location.href = `/connect/jellyfin?returnTo=${returnTo}`;
   }
 
   const byCommunity = useMemo(() => platformsByCommunity(), []);
@@ -449,7 +471,7 @@ export function ProfileSettings() {
             <ConnectNavidromeForm
               onConnected={() => {
                 setConnectingPlatform(null);
-                void load();
+                void refreshAfterOAuth();
               }}
             />
           : <div className="flex flex-wrap items-center gap-2">

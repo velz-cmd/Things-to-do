@@ -1,21 +1,19 @@
 import type { DiscoverAction, DiscoverActionKind } from "@/lib/discover/types";
 import { stripCreatorClaimActions } from "@/lib/discover/need-types";
+import {
+  DISCOVER_HIDDEN_ACTION_KINDS,
+  VALUE_RECEIPT_ACTION_LIMIT,
+  filterValueReceiptActions,
+} from "@/lib/discover/discover-receipt-actions";
 
 const ACTION_PRIORITY: DiscoverActionKind[] = [
   "fund",
-  "sponsor",
-  "install",
-  "create_program",
-  "claim",
-  "console",
-  "automate",
-  "analyze",
   "connect_sensor",
   "open",
-  "share",
+  "console",
 ];
 
-/** Discover shows real actions on every card — job pills do not hide Fund / Attach. */
+/** Discover primary surfaces — max 3 value-receipt actions (fulfill / connect / proof). */
 export function visibleDiscoverActions(
   actions: DiscoverAction[],
   surface: string,
@@ -28,8 +26,10 @@ export function visibleDiscoverActions(
 
   const base = funderLanes ? stripCreatorClaimActions(actions) : actions;
 
+  const withoutHidden = base.filter((a) => !DISCOVER_HIDDEN_ACTION_KINDS.includes(a.kind));
+
   const seen = new Set<string>();
-  const sorted = [...base].sort(
+  const sorted = [...withoutHidden].sort(
     (a, b) => ACTION_PRIORITY.indexOf(a.kind) - ACTION_PRIORITY.indexOf(b.kind),
   );
 
@@ -40,5 +40,5 @@ export function visibleDiscoverActions(
     return true;
   });
 
-  return unique.slice(0, 6);
+  return filterValueReceiptActions(unique).slice(0, VALUE_RECEIPT_ACTION_LIMIT);
 }

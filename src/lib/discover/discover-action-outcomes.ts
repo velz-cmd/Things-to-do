@@ -57,17 +57,27 @@ export function buildFundOutcomeSummary(input: FundOutcomeDetail): string {
   return `Your ${input.amountUsd.toFixed(2)} USDC is reserved in ${dest} on Arc testnet. It pays verified contributors when authorizations settle.`;
 }
 
-/** Capital-first — max 2 in-app steps; only what matters after funding. */
+/** Capital-first — proof link, then Capital activity. */
 export function fundOutcomeSteps(input: FundOutcomeDetail): DiscoverOutcomeStep[] {
-  const steps: DiscoverOutcomeStep[] = [
-    {
-      id: "capital",
-      label: "Capital · Your contribution",
-      description: `${input.amountUsd.toFixed(2)} stake, balance, and activity receipt`,
-      href: "/capital",
+  const steps: DiscoverOutcomeStep[] = [];
+
+  if (input.communitySlug && input.programId) {
+    steps.push({
+      id: "proof",
+      label: "View proof",
+      description: "Pool balance, checkpoints, and program rules",
+      href: `/communities/${input.communitySlug}?intent=fund&program=${encodeURIComponent(input.programId)}`,
       primary: true,
-    },
-  ];
+    });
+  }
+
+  steps.push({
+    id: "capital",
+    label: "Capital · Your contribution",
+    description: `${input.amountUsd.toFixed(2)} stake, balance, and activity receipt`,
+    href: "/capital",
+    primary: steps.length === 0,
+  });
 
   if (input.communitySlug) {
     const programQ = input.programId ? `&program=${encodeURIComponent(input.programId)}` : "";

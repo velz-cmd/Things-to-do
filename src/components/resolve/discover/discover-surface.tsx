@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
+import { DiscoverLiveArcStrip } from "@/components/resolve/discover/discover-live-arc-strip";
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
@@ -138,6 +139,8 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
         </div>
 
         <DiscoverJobHero activeJob={activeJob} onSelectJob={handleJobSelect} />
+
+        <DiscoverLiveArcStrip className="discover-section-stack" />
 
         {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
 

@@ -62,28 +62,32 @@ export function CommunitiesHub() {
     return set;
   }, [communities]);
 
-  const profileLinkedOnly = useMemo(
-    () =>
-      COMMUNITY_CATALOG.filter(
-        (c) => !installedSlugs.has(c.slug) && communityLinkedViaProfile(c.slug, connections),
-      ),
-    [installedSlugs, connections],
-  );
+  const operativeSlugs = useMemo(() => {
+    const set = new Set(installedSlugs);
+    if (connections.signedIn) {
+      for (const c of COMMUNITY_CATALOG) {
+        if (communityLinkedViaProfile(c.slug, connections)) {
+          set.add(c.slug);
+        }
+      }
+    }
+    return set;
+  }, [installedSlugs, connections]);
 
   const operating = useMemo(
     () =>
-      COMMUNITY_CATALOG.filter((c) => installedSlugs.has(c.slug)).map((meta) => ({
+      COMMUNITY_CATALOG.filter((c) => operativeSlugs.has(c.slug)).map((meta) => ({
         meta,
         summary: communities.find((s) => s.slug === meta.slug),
       })),
-    [communities, installedSlugs],
+    [communities, operativeSlugs],
   );
 
   const browse = useMemo(() => {
     const q = query.trim().toLowerCase();
     const catalog = listBrowsableCommunities(sensorStatuses);
     return catalog.filter((c) => {
-      if (installedSlugs.has(c.slug)) return false;
+      if (operativeSlugs.has(c.slug)) return false;
       if (kind !== "all" && c.kind !== kind) return false;
       if (!q) return true;
       return (
@@ -92,7 +96,7 @@ export function CommunitiesHub() {
         c.keywords.some((k) => k.includes(q))
       );
     });
-  }, [query, kind, sensorStatuses, installedSlugs]);
+  }, [query, kind, sensorStatuses, operativeSlugs]);
 
   const gatedCount = sensorStatuses.filter((s) => s.sensorGated && !s.sensorLive).length;
   const showBrowseExpanded = browseOpen || operating.length === 0;
@@ -187,7 +191,7 @@ export function CommunitiesHub() {
               </div>
             ))}
           </div>
-        ) : loading ? (
+        ) : loading && !connections.signedIn ? (
           <CommunityHubSkeleton count={3} />
         ) : (
           <div className="rounded-xl border border-dashed border-white/10 bg-[#0a0f18]/40 px-4 py-5">
@@ -201,30 +205,6 @@ export function CommunitiesHub() {
           </div>
         )}
       </section>
-
-      {profileLinkedOnly.length > 0 && (
-        <section className="mb-10">
-          <div className="mb-5">
-            <h2 className="text-lg font-semibold text-white">Connect RESOLVE</h2>
-            <p className="mt-1 max-w-xl text-sm text-resolve-muted">
-              Profile is linked — install RESOLVE on these communities to operate programs and payouts.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {profileLinkedOnly.map((c) => (
-              <InstallResolveCard
-                key={c.slug}
-                community={c}
-                installed={false}
-                vitals={vitalsFor(c.slug)}
-                onInstalled={() => {
-                  void queryClient.invalidateQueries({ queryKey: queryKeys.communities });
-                }}
-              />
-            ))}
-          </div>
-        </section>
-      )}
 
       {browse.length > 0 && (
         <section>

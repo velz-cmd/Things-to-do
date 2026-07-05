@@ -9,6 +9,7 @@ import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Button } from "@/components/resolve/ui/button";
 import { CommunityVitalsRow } from "@/components/resolve/communities/community-vitals-row";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { CommunityVitalsSummary } from "@/lib/communities/types";
 
@@ -40,9 +41,10 @@ export function InstallResolveCard({
   onInstalled,
 }: InstallResolveCardProps) {
   const [busy, setBusy] = useState(false);
-  const { refreshSync } = useUserConnections();
+  const { refreshSync, state: connections } = useUserConnections();
   const [observeNarrative, setObserveNarrative] = useState<string | null>(null);
-  const showInstalled = installed || Boolean(observeNarrative);
+  const profileReady = communityLinkedViaProfile(community.slug, connections);
+  const showInstalled = installed || profileReady || Boolean(observeNarrative);
 
   async function install() {
     setBusy(true);
@@ -149,7 +151,7 @@ export function InstallResolveCard({
             href={consoleHref(community.slug)}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/15"
           >
-            Manage community
+            {profileReady && !installed ? "Open console" : "Manage community"}
             <ArrowRight className="h-4 w-4" />
           </Link>
         ) : (

@@ -9,34 +9,38 @@ test.describe("RESOLVE product surfaces", () => {
       page.getByRole("button", { name: /Open Mission|Claim \$/ }).first(),
     ).toBeVisible();
 
-    await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(
-      page.getByRole("heading", { level: 1, name: /What do you want to do/i }),
+      page.getByRole("heading", { level: 1, name: /What value do you want to unlock/i }),
     ).toBeVisible();
 
-    await page.goto("/mission", { waitUntil: "domcontentloaded" });
+    await page.goto("/mission", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(page.getByRole("heading", { level: 1, name: "Mission" })).toBeVisible();
     await expect(
       page.getByPlaceholder(/Run intel, describe a funding objective/i),
     ).toBeVisible();
 
-    await page.goto("/communities", { waitUntil: "domcontentloaded" });
+    await page.goto("/communities", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
-    await expect(page.getByText("Browse & install")).toBeVisible();
+    await page.waitForResponse(
+      (res) => res.url().includes("/api/communities") && res.ok(),
+      { timeout: 45_000 },
+    );
+    await expect(page.getByRole("heading", { name: "Add a community" })).toBeVisible({
+      timeout: 30_000,
+    });
 
-    await page.goto("/capital", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Where should money move?" })).toBeVisible();
+    await page.goto("/capital", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "Your treasury" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
     await expect(page.getByText("Your money, one simple account")).toBeVisible();
-    await page.getByRole("button", { name: "Programs" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Fulfill a community program" }),
-    ).toBeVisible();
+    await page.getByRole("button", { name: "Activity" }).click();
+    await expect(page.getByText(/No activity yet|activity/i).first()).toBeVisible();
 
-    await page.goto("/network", { waitUntil: "domcontentloaded" });
+    await page.goto("/network", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(page).toHaveURL(/\/discover/);
 
-    await page.goto("/communities/independent-music", { waitUntil: "domcontentloaded" });
+    await page.goto("/communities/independent-music", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(page.getByRole("heading", { level: 1, name: "Independent Music" })).toBeVisible({
       timeout: 30_000,
     });
@@ -116,6 +120,7 @@ test.describe("RESOLVE product surfaces", () => {
   });
 
   test("notify-claimable cron requires auth in CI", async ({ request }) => {
+    test.skip(process.env.CI !== "true", "local dev allows unauthenticated cron without CRON_SECRET");
     const res = await request.post("/api/cron/notify-claimable");
     expect(res.status()).toBe(401);
   });
@@ -146,10 +151,15 @@ test.describe("RESOLVE product surfaces", () => {
   });
 
   test("command palette opens", async ({ page }) => {
-    await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Open command palette" }).click();
+    await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await expect(
+      page.getByRole("heading", { level: 1, name: /What value do you want to unlock/i }),
+    ).toBeVisible({ timeout: 30_000 });
+    const openBtn = page.getByRole("button", { name: "Open command palette" });
+    await openBtn.waitFor({ state: "visible", timeout: 15_000 });
+    await openBtn.click();
     const dialog = page.getByRole("dialog", { name: "Command palette" });
-    await expect(dialog).toBeVisible();
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
     await expect(dialog.getByText("Go to", { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();

@@ -18,12 +18,17 @@ export function WalletLinkEffect() {
     void fetch("/api/wallet/link", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ walletAddress: address }),
     })
       .then(async (res) => {
         if (!res.ok) return;
         window.dispatchEvent(new Event(WALLET_LINKED_EVENT));
-        toast.success("Your wallet is connected to this account");
+        const toastKey = `resolve.wallet.linked.${address.toLowerCase()}`;
+        if (!sessionStorage.getItem(toastKey)) {
+          sessionStorage.setItem(toastKey, "1");
+          toast.success("External wallet linked — your RESOLVE wallet is unchanged");
+        }
       })
       .catch(() => {
         /* non-fatal */

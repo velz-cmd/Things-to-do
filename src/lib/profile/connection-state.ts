@@ -60,10 +60,12 @@ export async function getUserConnectionState(input: {
   const listenbrainzConnected = userListenBrainzConfigured(input.profile);
   const navidromeConnected = userNavidromeConfigured(input.profile);
   const jellyfinConnected = userJellyfinConfigured(input.profile);
+  const appWallet = input.profile.walletAddress?.trim().toLowerCase() ?? null;
+  const externalWallet = input.profile.scanWalletAddress?.trim().toLowerCase() ?? null;
   const wallet =
-    input.profile.scanWalletAddress?.trim().toLowerCase() ??
+    appWallet ??
+    externalWallet ??
     input.walletAddress?.trim().toLowerCase() ??
-    input.profile.walletAddress?.trim().toLowerCase() ??
     null;
 
   const [installs, mbLink] = await Promise.all([
@@ -129,8 +131,15 @@ export async function getUserConnectionState(input: {
     {
       id: "wallet",
       label: "Arc wallet",
-      connected: Boolean(wallet),
-      displayValue: wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : undefined,
+      connected: Boolean(appWallet || externalWallet),
+      displayValue:
+        appWallet && externalWallet
+          ? `RESOLVE ${appWallet.slice(0, 6)}…${appWallet.slice(-4)} · yours ${externalWallet.slice(0, 6)}…${externalWallet.slice(-4)}`
+          : appWallet
+            ? `RESOLVE ${appWallet.slice(0, 6)}…${appWallet.slice(-4)}`
+            : externalWallet
+              ? `Yours ${externalWallet.slice(0, 6)}…${externalWallet.slice(-4)}`
+              : undefined,
     },
   ];
 

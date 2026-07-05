@@ -367,7 +367,7 @@ export function ResolveBanking({
   const showCachedBalance = walletSync === "cached";
   const showSyncError =
     walletSync === "error" || (!balanceKnown && walletSync !== "loading" && walletSync !== "cached");
-  const showNoWallet = walletSync === "no_wallet";
+  const showNoWallet = walletSync === "no_wallet" && !payoutWallet;
 
   const statementLines: StatementLine[] = account?.statement ?? [];
   const activityItems = [

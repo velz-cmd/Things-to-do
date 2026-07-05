@@ -7,17 +7,17 @@ type ButtonSize = "sm" | "md" | "lg";
 const variants: Record<ButtonVariant, string> = {
   primary: clsx(
     "resolve-accent-gradient resolve-btn-shine text-white",
-    "border border-white/15 shadow-resolve-accent",
-    "hover:shadow-resolve-glow hover:scale-[1.02] active:scale-[0.98]",
+    "border border-white/20 shadow-[0_4px_20px_rgba(92,96,159,0.35)]",
+    "hover:shadow-[0_6px_28px_rgba(0,119,179,0.4)] hover:scale-[1.02] active:scale-[0.98]",
   ),
   glow: clsx(
     "resolve-accent-gradient resolve-btn-shine text-white",
-    "border border-resolve-accent/30 shadow-resolve-glow",
-    "hover:shadow-[0_0_50px_rgba(0,122,255,0.4)] hover:scale-[1.03] active:scale-[0.98]",
+    "border border-resolve-brand-periwinkle/40 shadow-[0_0_32px_rgba(125,140,196,0.35)]",
+    "hover:shadow-[0_0_44px_rgba(0,119,179,0.45)] hover:scale-[1.03] active:scale-[0.98]",
   ),
   secondary: clsx(
-    "resolve-glass resolve-btn-shine text-white",
-    "hover:border-white/20 hover:bg-white/[0.08] hover:scale-[1.01] active:scale-[0.99]",
+    "border border-resolve-border-strong bg-resolve-raised text-white",
+    "hover:border-resolve-brand-periwinkle/40 hover:bg-resolve-hover hover:scale-[1.01] active:scale-[0.99]",
   ),
   ghost: "text-resolve-muted hover:text-white hover:bg-white/[0.06]",
   danger:

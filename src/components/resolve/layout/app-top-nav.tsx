@@ -6,16 +6,17 @@ import clsx from "clsx";
 import { Command } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuthHeader } from "@/components/auth/auth-header";
+import { ResolveLogoMark } from "@/components/resolve/brand/resolve-logo-mark";
 import { PRODUCT_NAV } from "@/components/resolve/layout/nav";
 import { prefetchDiscoverTab, prefetchProfileTab, prefetchCommunitiesTab } from "@/lib/query/hooks";
 
 export function ResolveLogo({ className }: { className?: string }) {
   return (
     <Link href="/" className={clsx("group flex items-center gap-2.5", className)}>
-      <span className="relative flex h-8 w-8 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow transition group-hover:scale-105">
-        <span className="text-xs font-bold text-white">R</span>
+      <span className="relative flex h-8 w-8 items-center justify-center rounded-xl shadow-[0_0_20px_rgba(92,96,159,0.35)] transition group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(0,119,179,0.4)]">
+        <ResolveLogoMark size={32} className="rounded-xl" />
       </span>
-      <span className="text-sm font-semibold tracking-[0.08em] text-white">RESOLVE</span>
+      <span className="text-sm font-semibold tracking-[0.1em] text-white">RESOLVE</span>
     </Link>
   );
 }
@@ -74,8 +75,8 @@ export function ProductNav({ compact = false }: { compact?: boolean }) {
             className={clsx(
               "relative flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-all duration-300",
               active
-                ? "bg-resolve-accent/15 text-white ring-1 ring-resolve-accent/25"
-                : "text-resolve-muted hover:bg-resolve-accent/10 hover:text-white",
+                ? "bg-resolve-accent-muted text-white ring-1 ring-resolve-brand-periwinkle/35"
+                : "text-resolve-muted hover:bg-resolve-accent-muted/60 hover:text-white",
             )}
           >
             <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />

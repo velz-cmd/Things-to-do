@@ -243,14 +243,41 @@ function formatUsd(amount: number): string {
   return roundUsd(amount).toFixed(2);
 }
 
-/** Read Arc USDC for every wallet on the account (app + external) — best-effort per address. */
+async function readAddressBalanceWithFallback(
+  address: string,
+  cachedUsd?: number | null,
+): Promise<ArcUsdcBalance> {
+  try {
+    return await getArcUsdcBalance(address);
+  } catch {
+    if (cachedUsd != null && cachedUsd > 0) {
+      return {
+        address: address.toLowerCase(),
+        chainId: ARC_CHAIN_ID as 5042002,
+        nativeUsdc: cachedUsd.toFixed(2),
+        erc20Usdc: "0.00",
+        totalUsdc: cachedUsd.toFixed(2),
+        blockNumber: 0,
+        source: "arc_rpc",
+        syncedAt: new Date().toISOString(),
+      };
+    }
+    throw new ArcRpcUnavailableError(`Could not read Arc balance for ${address.slice(0, 8)}…`);
+  }
+}
+
 async function readAggregatedArcBalance(
   addresses: string[],
+  cachedByAddress?: Map<string, number>,
 ): Promise<{ combined: ArcUsdcBalance; perWallet: ArcUsdcBalance[] } | null> {
   const unique = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter(Boolean))];
   if (!unique.length) return null;
 
-  const results = await Promise.allSettled(unique.map((addr) => getArcUsdcBalance(addr)));
+  const results = await Promise.allSettled(
+    unique.map((addr) =>
+      readAddressBalanceWithFallback(addr, cachedByAddress?.get(addr) ?? null),
+    ),
+  );
   const perWallet = results
     .filter((r): r is PromiseFulfilledResult<ArcUsdcBalance> => r.status === "fulfilled")
     .map((r) => r.value);
@@ -513,14 +540,17 @@ export async function loadCapitalState(
   }
 
   try {
-    const aggregated = await readAggregatedArcBalance(onChainAddresses);
+    const cachedByAddress = new Map<string, number>();
+    const appAddr =
+      profile?.walletAddress?.trim().toLowerCase() ?? walletResolved.address;
+    const extAddr = profile?.scanWalletAddress?.trim().toLowerCase();
+    if (appAddr && cachedBalance != null) cachedByAddress.set(appAddr, cachedBalance);
+    const aggregated = await readAggregatedArcBalance(onChainAddresses, cachedByAddress);
     if (!aggregated) {
       throw new ArcRpcUnavailableError("Arc RPC did not return a balance for your wallet(s).");
     }
 
     const { combined: chainBalance, perWallet } = aggregated;
-    const appAddr = profile?.walletAddress?.trim().toLowerCase() ?? walletResolved.address;
-    const extAddr = profile?.scanWalletAddress?.trim().toLowerCase();
     const appChain = perWallet.find((b) => b.address === appAddr);
     const extChain = extAddr ? perWallet.find((b) => b.address === extAddr) : undefined;
     const appOnChain = appChain ? Number(appChain.totalUsdc) : 0;

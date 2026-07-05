@@ -61,9 +61,9 @@ export async function getUserConnectionState(input: {
   const navidromeConnected = userNavidromeConfigured(input.profile);
   const jellyfinConnected = userJellyfinConfigured(input.profile);
   const wallet =
-    input.walletAddress ??
-    input.profile.walletAddress?.toLowerCase() ??
-    input.profile.scanWalletAddress?.toLowerCase() ??
+    input.profile.scanWalletAddress?.trim().toLowerCase() ??
+    input.walletAddress?.trim().toLowerCase() ??
+    input.profile.walletAddress?.trim().toLowerCase() ??
     null;
 
   const [installs, mbLink] = await Promise.all([

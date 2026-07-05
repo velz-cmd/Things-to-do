@@ -3,7 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/components/auth/auth-provider";
+import { useSpendableUsd } from "@/hooks/use-spendable-usd";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-sheet";
 import {
   apiCreateProgram,
@@ -18,21 +19,19 @@ import { queryKeys } from "@/lib/query/keys";
 
 export function useCommunityOperationsHandlers(slug: string) {
   const queryClient = useQueryClient();
-  const { balance, refreshBalance } = useAuth();
+  const spendable = useSpendableUsd();
+  const { externalWalletReady, fundProgramWithWallet } = useResolveAccess();
   const [busy, setBusy] = useState(false);
   const [fundSheet, setFundSheet] = useState<FundSheetRequest | null>(null);
 
   const wallet: WalletSnapshot = useMemo(
-    () =>
-      balance
-        ? {
-            spendableUsd: balance.availableUsd,
-            totalUsdc: String(balance.onChainUsd ?? balance.availableUsd),
-            loaded: true,
-            address: balance.walletAddress,
-          }
-        : { spendableUsd: 0, totalUsdc: "0", loaded: false },
-    [balance],
+    () => ({
+      spendableUsd: spendable.spendableUsd,
+      totalUsdc: String(spendable.totalUsdc),
+      loaded: spendable.loaded,
+      address: spendable.walletAddress,
+    }),
+    [spendable],
   );
 
   const invalidateSurface = useCallback(async () => {
@@ -66,11 +65,15 @@ export function useCommunityOperationsHandlers(slug: string) {
       if (req.amountUsd < 5) {
         throw new Error("Amount can't be less than $5");
       }
-      if (wallet.loaded && wallet.spendableUsd < req.amountUsd) {
+      const walletSpendable = spendable.spendableUsd;
+      const walletReady = spendable.loaded;
+      if (walletReady && walletSpendable < req.amountUsd) {
         throw new Error(
-          wallet.spendableUsd <= 0
-            ? "No spendable USDC — add funds in Capital first"
-            : `Insufficient balance: $${wallet.spendableUsd.toFixed(2)} available`,
+          walletSpendable <= 0
+            ? externalWalletReady
+              ? "No USDC in your connected wallet on Arc testnet"
+              : "No spendable USDC — connect your wallet or add funds in Capital"
+            : `Insufficient balance: $${walletSpendable.toFixed(2)} available`,
         );
       }
 
@@ -94,10 +97,14 @@ export function useCommunityOperationsHandlers(slug: string) {
         }
         if (!programId) throw new Error("No program to fund");
 
-        await apiFundProgram(programId, req.amountUsd);
+        if (externalWalletReady) {
+          await fundProgramWithWallet(programId, req.amountUsd);
+        } else {
+          await apiFundProgram(programId, req.amountUsd);
+        }
         toast.success(`$${req.amountUsd.toFixed(2)} added to pool`);
         setFundSheet(null);
-        await refreshBalance().catch(() => null);
+        await spendable.refresh().catch(() => null);
         await invalidateSurface();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Fund failed");
@@ -106,7 +113,7 @@ export function useCommunityOperationsHandlers(slug: string) {
         setBusy(false);
       }
     },
-    [wallet, slug, refreshBalance, invalidateSurface],
+    [spendable, slug, invalidateSurface, externalWalletReady, fundProgramWithWallet],
   );
 
   const openFundSheet = useCallback((req: FundSheetRequest) => {

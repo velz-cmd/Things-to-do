@@ -5,6 +5,7 @@ import { listSearchProviders, isSearchConfigured } from "@/lib/search";
 import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
 import { getArcReadiness } from "@/lib/treasury/arc-readiness";
 import { isAlchemyConfigured } from "@/lib/wallet/alchemy";
+import { isWalletConnectEnabled } from "@/lib/reown/config";
 import { isWalletLabelsConfigured } from "@/lib/wallet/wallet-labels";
 import { googleOAuthConfigured } from "@/lib/google/oauth";
 import {
@@ -27,6 +28,7 @@ export async function GET() {
   return NextResponse.json({
     demoMode: isDeputyDemoMode(),
     cardOnRamp: isCardOnRampEnabled(),
+    walletConnectEnabled: isWalletConnectEnabled(),
     escrowDeployed: Boolean(process.env.NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS),
     resendEnabled: Boolean(process.env.RESEND_API_KEY),
     llmEnabled: hasLlm,

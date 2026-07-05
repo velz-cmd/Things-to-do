@@ -40,6 +40,48 @@ export async function verifyArcIdentityDeposit(params: {
   return { ok: true as const, amountUsd: sentUsd };
 }
 
+/** Verify native USDC transfer from a linked external wallet to the identity deposit address. */
+export async function verifyArcTransferFromWallet(params: {
+  txHash: `0x${string}`;
+  expectedUsd: number;
+  depositAddress: string;
+  fromWallet: string;
+}) {
+  const receipt = await client.getTransactionReceipt({ hash: params.txHash });
+  if (receipt.status !== "success") {
+    return { ok: false as const, error: "Transaction failed on-chain" };
+  }
+
+  const tx = await client.getTransaction({ hash: params.txHash });
+  if (!tx.to) {
+    return { ok: false as const, error: "Invalid transaction" };
+  }
+
+  if (tx.to.toLowerCase() !== params.depositAddress.toLowerCase()) {
+    return {
+      ok: false as const,
+      error: "Send USDC to your RESOLVE Arc wallet address",
+    };
+  }
+
+  if (tx.from.toLowerCase() !== params.fromWallet.toLowerCase()) {
+    return {
+      ok: false as const,
+      error: "Transaction must be signed by your connected wallet",
+    };
+  }
+
+  const sentUsd = Number(formatUnits(tx.value, 18));
+  if (sentUsd + 0.000001 < params.expectedUsd) {
+    return {
+      ok: false as const,
+      error: `Expected at least $${params.expectedUsd.toFixed(2)} USDC`,
+    };
+  }
+
+  return { ok: true as const, amountUsd: sentUsd };
+}
+
 /** @deprecated Legacy shared escrow — prefer verifyArcIdentityDeposit */
 export async function verifyAgentEscrowDeposit(params: {
   txHash: `0x${string}`;

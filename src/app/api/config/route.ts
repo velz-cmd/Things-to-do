@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { API_CACHE } from "@/lib/api/cache-headers";
+import { reportApiError } from "@/lib/api/report-error";
 import { describeSwarmCapabilities, listConfiguredProviders } from "@/lib/ai/gateway";
 import { isCardOnRampEnabled, isDeputyDemoMode } from "@/lib/config/demo-mode";
 import { listSearchProviders, isSearchConfigured } from "@/lib/search";
@@ -17,15 +19,24 @@ import {
 } from "@/lib/agent/gateway-config";
 import { ARC_MEMO_CONTRACT } from "@/lib/arc/memo-abi";
 
-export async function GET() {
-  const ai = listConfiguredProviders();
-  const swarm = describeSwarmCapabilities();
-  const search = listSearchProviders();
-  const hasLlm =
-    ai.gemini || ai.groq || ai.openrouter || Boolean(process.env.DASHSCOPE_API_KEY);
-  const arcReadiness = await getArcReadiness();
+const CONFIG_FALLBACK = {
+  degraded: true,
+  demoMode: true,
+  llmEnabled: false,
+  walletConnectEnabled: false,
+  message: "Config temporarily unavailable — core pages still work.",
+};
 
-  return NextResponse.json({
+export async function GET() {
+  try {
+    const ai = listConfiguredProviders();
+    const swarm = describeSwarmCapabilities();
+    const search = listSearchProviders();
+    const hasLlm =
+      ai.gemini || ai.groq || ai.openrouter || Boolean(process.env.DASHSCOPE_API_KEY);
+    const arcReadiness = await getArcReadiness();
+
+    return NextResponse.json({
     demoMode: isDeputyDemoMode(),
     cardOnRamp: isCardOnRampEnabled(),
     walletConnectEnabled: isWalletConnectEnabled(),
@@ -127,5 +138,14 @@ export async function GET() {
     swarmFlow: swarm.flow,
     liveArc: isLiveArcEnabled(),
     arcTreasury: arcReadiness,
-  });
+  },
+  { headers: { "Cache-Control": API_CACHE.publicShort } },
+);
+  } catch (error) {
+    reportApiError("config", error);
+    return NextResponse.json(CONFIG_FALLBACK, {
+      status: 200,
+      headers: { "Cache-Control": API_CACHE.noStore },
+    });
+  }
 }

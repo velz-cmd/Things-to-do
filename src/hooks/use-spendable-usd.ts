@@ -111,9 +111,8 @@ export function useSpendableUsd(): SpendableUsdSnapshot {
     }
 
     const loaded =
-      !balanceLoading &&
       Boolean(appWalletAddress) &&
-      (balance != null || !account.walletsLoading);
+      (balance != null || !balanceLoading || !account.walletsLoading);
 
     return {
       spendableUsd: combinedSpendable,
@@ -139,7 +138,7 @@ export function useSpendableUsd(): SpendableUsdSnapshot {
       externalLinked: hasLinkedExternal,
       pickSource: (amountUsd: number, preferred?: FundingSource | null) =>
         pickFundingSource(amountUsd, balances, externalReady, preferred),
-      refresh: () => refreshBalance({ mode: "live", silent: false }),
+      refresh: () => refreshBalance({ mode: "fast", silent: false }),
     };
   }, [
     balance,

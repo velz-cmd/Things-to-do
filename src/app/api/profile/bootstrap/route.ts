@@ -117,6 +117,36 @@ export async function GET(req: Request) {
   }
 
   try {
+    const fast = new URL(req.url).searchParams.get("fast") === "1";
+    if (fast) {
+      const { profile, walletResolved, identities, jellyfinConnected } =
+        await fastBootstrapPayload(authUser);
+      return NextResponse.json(
+        {
+          ok: true,
+          signedIn: true,
+          userId: authUser.id,
+          email: authUser.email ?? null,
+          emailVerified: Boolean(authUser.email_confirmed_at ?? authUser.email),
+          identities,
+          earnings: null,
+          communities: [],
+          wallet: {
+            address: walletResolved.address,
+            embedded: profile.embeddedWallet || true,
+            provider: appWalletProvider(profile),
+          },
+          jellyfinSync:
+            jellyfinConnected && profile.jellyfinUrl && profile.jellyfinAccessToken
+              ? { url: profile.jellyfinUrl, accessToken: profile.jellyfinAccessToken }
+              : null,
+          fast: true,
+          updatedAt: new Date().toISOString(),
+        },
+        { headers: { "Cache-Control": API_CACHE.privateShort } },
+      );
+    }
+
     const payload = await cacheGetOrSet(`profile:bootstrap:${authUser.id}`, 30, async () => {
       const { profile, walletResolved, identities: fastIdentities, jellyfinConnected } =
         await fastBootstrapPayload(authUser);

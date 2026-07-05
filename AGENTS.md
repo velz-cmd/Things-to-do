@@ -77,6 +77,10 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
 - **One wallet balance poller** (`WalletBalanceSync`): fast ledger poll ~45s, live Arc RPC ~90s.
   Do not add more `setInterval` callers to full `/api/capital/state` without `?fast=1`.
 - Background refresh uses `refreshBalance({ mode: "fast", silent: true })` to avoid UI loading flashes.
+- **Profile / connections reads:** `GET /api/profile/state?fast=1` and `GET /api/profile/bootstrap?fast=1`
+  skip slow enrichment; `ConnectionWarmup` prefetches wallet + connections at sign-in.
+  Session snapshot (`connection-snapshot-client`) + Arc balance snapshot hydrate tabs instantly.
+- **Communities hub** uses profile-only slug linking in fast mode — no duplicate full connection-state query.
 
 ### User actions (non-obvious)
 - **Mutations use `mutationFetch`** (`src/lib/api/mutation-fetch.ts`) — 55s client wait aligned

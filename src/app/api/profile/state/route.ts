@@ -60,7 +60,7 @@ function connectorState(input: {
   };
 }
 
-async function buildProfileState(authUser: SupabaseUser) {
+async function buildProfileState(authUser: SupabaseUser, fast = false) {
   const profile = await loadProfileFast(authUser);
 
   const wallet = resolveUserWallet(authUser.id, profile);
@@ -69,6 +69,7 @@ async function buildProfileState(authUser: SupabaseUser) {
     userId: authUser.id,
     profile,
     walletAddress: balanceWallet,
+    fast,
   });
 
   const connectors = connectionState.platforms.reduce<Record<string, ConnectorState>>(
@@ -137,14 +138,13 @@ export async function GET(req: Request) {
   }
 
   try {
-    const state = await cacheGetOrSet(
-      `profile:state:${authUser.id}`,
-      45,
-      () => buildProfileState(authUser),
-    );
+    const fast = new URL(req.url).searchParams.get("fast") === "1";
+    const cacheKey = fast ? `profile:state:fast:${authUser.id}` : `profile:state:${authUser.id}`;
+    const ttl = fast ? 30 : 45;
+    const state = await cacheGetOrSet(cacheKey, ttl, () => buildProfileState(authUser, fast));
     return NextResponse.json(state, {
       headers: {
-        "Cache-Control": "no-store, max-age=0",
+        "Cache-Control": fast ? "private, max-age=10, stale-while-revalidate=60" : "no-store, max-age=0",
       },
     });
   } catch (e) {

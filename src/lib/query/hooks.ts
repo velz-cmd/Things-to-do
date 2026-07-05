@@ -14,10 +14,12 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-const PROFILE_BOOTSTRAP_TIMEOUT_MS = 8_000;
+const PROFILE_FAST_TIMEOUT_MS = 5_000;
+const PROFILE_BOOTSTRAP_TIMEOUT_MS = 12_000;
 const DISCOVER_FEED_TIMEOUT_MS = 12_000;
-const COMMUNITY_HUB_TIMEOUT_MS = 8_000;
+const COMMUNITY_HUB_TIMEOUT_MS = 6_000;
 const COMMUNITY_SURFACE_TIMEOUT_MS = 10_000;
+const CAPITAL_FAST_TIMEOUT_MS = 6_000;
 
 async function fetchJsonWithTimeout<T>(
   url: string,
@@ -63,10 +65,18 @@ export function useProfileBootstrapQuery(enabled: boolean) {
     queryKey: queryKeys.profileBootstrap,
     enabled,
     queryFn: ({ signal }) =>
-      fetchJsonWithTimeout("/api/profile/bootstrap", PROFILE_BOOTSTRAP_TIMEOUT_MS, signal),
-    staleTime: 15_000,
+      fetchJsonWithTimeout(
+        "/api/profile/bootstrap?fast=1",
+        PROFILE_FAST_TIMEOUT_MS,
+        signal,
+      ),
+    staleTime: 60_000,
+    gcTime: 300_000,
+    placeholderData: (prev) => prev,
     retry: 1,
-    retryDelay: 1_000,
+    retryDelay: 800,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -78,18 +88,21 @@ export function useUserConnectionsQuery(
     queryKey: queryKeys.profileState,
     enabled,
     initialData: initialData?.signedIn ? initialData : undefined,
+    placeholderData: (prev) => prev ?? (initialData?.signedIn ? initialData : undefined),
     queryFn: async ({ signal }) => {
       try {
-        return await fetchJson<UserConnectionState & { ok?: boolean }>(
-          "/api/profile/state",
+        return await fetchJsonWithTimeout<UserConnectionState & { ok?: boolean }>(
+          "/api/profile/state?fast=1",
+          PROFILE_FAST_TIMEOUT_MS,
           signal,
         );
       } catch {
+        if (initialData?.signedIn) return initialData;
         return { ok: false, ...emptyConnectionState() };
       }
     },
-    staleTime: 10_000,
-    gcTime: 120_000,
+    staleTime: 45_000,
+    gcTime: 300_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
@@ -112,9 +125,17 @@ export function useCapitalWalletQuery(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.capitalState,
     enabled,
-    queryFn: ({ signal }) => fetchJson("/api/capital/state", signal),
-    staleTime: 15_000,
-    refetchOnMount: "always",
+    queryFn: ({ signal }) =>
+      fetchJsonWithTimeout<CapitalStateResponse>(
+        "/api/capital/state?fast=1",
+        CAPITAL_FAST_TIMEOUT_MS,
+        signal,
+      ),
+    staleTime: 30_000,
+    gcTime: 300_000,
+    placeholderData: (prev) => prev,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -122,12 +143,18 @@ export function useCapitalStateQuery(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.capitalState,
     enabled,
-    queryFn: ({ signal }) => fetchJson<CapitalStateResponse>("/api/capital/state?refresh=1", signal),
-    staleTime: 15_000,
-    refetchOnMount: "always",
+    queryFn: ({ signal }) =>
+      fetchJsonWithTimeout<CapitalStateResponse>(
+        "/api/capital/state?fast=1",
+        CAPITAL_FAST_TIMEOUT_MS,
+        signal,
+      ),
+    staleTime: 30_000,
+    refetchOnMount: false,
     gcTime: 300_000,
     placeholderData: (prev) => prev,
     retry: 1,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -143,7 +170,28 @@ export function prefetchCommunitiesTab(queryClient: ReturnType<typeof useQueryCl
   void queryClient.prefetchQuery({
     queryKey: queryKeys.communities,
     queryFn: () => fetchJsonWithTimeout("/api/communities", COMMUNITY_HUB_TIMEOUT_MS),
-    staleTime: 60_000,
+    staleTime: 90_000,
+  });
+}
+
+export function prefetchWalletAndConnections(queryClient: ReturnType<typeof useQueryClient>) {
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.capitalState,
+    queryFn: () =>
+      fetchJsonWithTimeout<CapitalStateResponse>(
+        "/api/capital/state?fast=1",
+        CAPITAL_FAST_TIMEOUT_MS,
+      ),
+    staleTime: 30_000,
+  });
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.profileState,
+    queryFn: () =>
+      fetchJsonWithTimeout<UserConnectionState & { ok?: boolean }>(
+        "/api/profile/state?fast=1",
+        PROFILE_FAST_TIMEOUT_MS,
+      ),
+    staleTime: 45_000,
   });
 }
 
@@ -156,11 +204,12 @@ export function useCommunitiesHubQuery() {
         COMMUNITY_HUB_TIMEOUT_MS,
         signal,
       ),
-    staleTime: 30_000,
-    gcTime: 300_000,
+    staleTime: 90_000,
+    gcTime: 600_000,
     placeholderData: (prev) => prev,
     retry: 1,
-    retryDelay: 1_000,
+    retryDelay: 800,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
 }
@@ -212,13 +261,14 @@ export function prefetchCommunitySurface(
 export function prefetchProfileTab(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileBootstrap,
-    queryFn: () => fetchJsonWithTimeout("/api/profile/bootstrap", PROFILE_BOOTSTRAP_TIMEOUT_MS),
+    queryFn: () =>
+      fetchJsonWithTimeout("/api/profile/bootstrap?fast=1", PROFILE_FAST_TIMEOUT_MS),
     staleTime: 90_000,
   });
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileState,
-    queryFn: ({ signal }) =>
-      fetchJsonWithTimeout("/api/profile/state", PROFILE_BOOTSTRAP_TIMEOUT_MS, signal),
+    queryFn: () =>
+      fetchJsonWithTimeout("/api/profile/state?fast=1", PROFILE_FAST_TIMEOUT_MS),
     staleTime: 90_000,
   });
   void queryClient.prefetchQuery({

@@ -29,7 +29,7 @@ import {
   type EmailPasswordResult,
 } from "@/lib/auth/email-password";
 import { toast } from "sonner";
-import { mergeArcBalanceSnapshot } from "@/lib/wallet/arc-balance-snapshot";
+import { mergeArcBalanceSnapshot, readArcBalanceSnapshot } from "@/lib/wallet/arc-balance-snapshot";
 
 export interface WalletBalance {
   availableUsd: number;
@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshBalance = useCallback(async (opts?: { mode?: "fast" | "live"; silent?: boolean }) => {
     const silent = opts?.silent ?? false;
-    const mode = opts?.mode ?? "live";
+    const mode = opts?.mode ?? "fast";
     const inflightKey = mode;
 
     const pending = balanceInflight.current.get(inflightKey);
@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch(`/api/capital/state${query}`, {
           credentials: "include",
           cache: "no-store",
-          signal: AbortSignal.timeout(mode === "fast" ? 12_000 : 20_000),
+          signal: AbortSignal.timeout(mode === "fast" ? 8_000 : 22_000),
         });
         const data = await res.json();
         let walletAddress =
@@ -170,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const retry = await fetch(`/api/capital/state${query}`, {
             credentials: "include",
             cache: "no-store",
-            signal: AbortSignal.timeout(mode === "fast" ? 12_000 : 20_000),
+            signal: AbortSignal.timeout(mode === "fast" ? 8_000 : 22_000),
           });
           const retryData = await retry.json();
           walletAddress =
@@ -308,6 +308,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       balanceInflight.current.delete(inflightKey);
     }
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setBalance(null);
+      return;
+    }
+    const snap = readArcBalanceSnapshot();
+    const app = snap.appOnChainUsd;
+    const ext = snap.externalOnChainUsd;
+    if ((app != null && app >= 0) || (ext != null && ext >= 0)) {
+      setBalance((current) => {
+        if (current?.syncStatus === "live") return current;
+        const combined = Math.round(((app ?? 0) + (ext ?? 0)) * 100) / 100;
+        return {
+          availableUsd: combined,
+          onChainUsd: combined,
+          walletAddress: snap.appAddress,
+          appWalletAddress: snap.appAddress,
+          externalWalletAddress: snap.externalAddress,
+          appOnChainUsd: app ?? null,
+          externalOnChainUsd: ext ?? null,
+          combinedOnChainUsd: combined,
+          combinedSpendableUsd: combined,
+          syncStatus: "cached",
+          lastSyncedAt: snap.updatedAt || null,
+          lockedUsd: current?.lockedUsd ?? 0,
+          releasedUsd: current?.releasedUsd ?? 0,
+          recentActivity: current?.recentActivity ?? [],
+        };
+      });
+    }
+  }, [user?.id]);
 
   const provisionWallet = useCallback(async () => {
     const res = await fetch("/api/wallet/provision", {

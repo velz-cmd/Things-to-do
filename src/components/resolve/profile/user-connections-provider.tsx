@@ -95,7 +95,11 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
     <UserConnectionsContext.Provider
       value={{
         state,
-        loading: query.isFetching && Boolean(user) && !state.signedIn && !snapshot?.signedIn,
+        loading:
+          Boolean(user) &&
+          query.isLoading &&
+          !snapshot?.signedIn &&
+          !(query.data as UserConnectionState | undefined)?.signedIn,
         refreshSync,
         reload,
       }}

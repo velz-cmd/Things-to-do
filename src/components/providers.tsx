@@ -23,6 +23,7 @@ import { AuthErrorEffect } from "@/components/auth/auth-error-effect";
 import { GmailAfterAuthEffect } from "@/components/auth/gmail-after-auth-effect";
 import { WalletLinkEffect } from "@/components/wallet/wallet-link-effect";
 import { ConnectedWalletSync } from "@/components/wallet/connected-wallet-sync";
+import { ProfileLinkedInstallSync } from "@/components/wallet/profile-linked-install-sync";
 import { JellyfinBackgroundSync } from "@/components/resolve/connectors/jellyfin-background-sync";
 import { AddFundsProvider } from "@/components/wallet/add-funds-context";
 import { SendFundsProvider } from "@/components/wallet/send-funds-context";
@@ -64,6 +65,7 @@ export function Providers({
               <ConnectionWarmup />
               <WalletLinkEffect />
               <ConnectedWalletSync />
+              <ProfileLinkedInstallSync />
               <JellyfinBackgroundSync />
               <SensorBackgroundSync />
               <GmailAfterAuthEffect />

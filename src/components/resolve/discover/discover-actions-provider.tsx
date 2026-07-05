@@ -15,7 +15,6 @@ import type { DiscoverAction } from "@/lib/discover/types";
 import {
   apiCreateProgram,
   apiDiscoverAction,
-  apiFetchWallet,
   apiFundProgram,
   apiInstallCommunity,
   apiResolveFundTarget,
@@ -33,8 +32,9 @@ import { pushJellyfinWatchesFromBrowser } from "@/lib/integrations/jellyfin-clie
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
-import { useAuth } from "@/components/auth/auth-provider";
+import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
+import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 import { communitySlugFromDiscoverTarget } from "@/lib/discover/discover-inline-target";
@@ -91,10 +91,9 @@ export function DiscoverActionsProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const { balance, balanceLoading, refreshBalance } = useAuth();
+  const spendable = useSpendableUsd();
   const {
     externalWalletReady,
-    connectedWalletUsd,
     fundProgramWithWallet,
     openConnectWallet,
   } = useResolveAccess();
@@ -119,37 +118,27 @@ export function DiscoverActionsProvider({
       setWallet({ spendableUsd: 0, totalUsdc: "0", loaded: true });
       return;
     }
-    if (balance) {
-      setWallet({
-        spendableUsd: balance.availableUsd,
-        totalUsdc: String(balance.onChainUsd ?? balance.availableUsd),
-        loaded: true,
-        address: balance.walletAddress,
-      });
-      return;
-    }
-    const snap = await apiFetchWallet();
-    setWallet(snap);
-  }, [signedIn, balance]);
+    setWallet({
+      spendableUsd: spendable.spendableUsd,
+      totalUsdc: String(spendable.totalUsdc),
+      loaded: spendable.loaded,
+      address: spendable.walletAddress,
+    });
+    await spendable.refresh().catch(() => null);
+  }, [signedIn, spendable]);
 
   useEffect(() => {
     if (!signedIn) {
       setWallet({ spendableUsd: 0, totalUsdc: "0", loaded: true });
       return;
     }
-    if (balance) {
-      setWallet({
-        spendableUsd: balance.availableUsd,
-        totalUsdc: String(balance.onChainUsd ?? balance.availableUsd),
-        loaded: true,
-        address: balance.walletAddress,
-      });
-      return;
-    }
-    if (!balanceLoading) {
-      void refreshWallet();
-    }
-  }, [signedIn, balance, balanceLoading, refreshWallet]);
+    setWallet({
+      spendableUsd: spendable.spendableUsd,
+      totalUsdc: String(spendable.totalUsdc),
+      loaded: spendable.loaded,
+      address: spendable.walletAddress,
+    });
+  }, [signedIn, spendable.spendableUsd, spendable.totalUsdc, spendable.loaded, spendable.walletAddress]);
 
   const navigateToCommunity = useCallback(
     (communitySlug: string, intent?: CommunityIntent, options?: { tab?: "advanced" }) => {
@@ -168,7 +157,9 @@ export function DiscoverActionsProvider({
       if (target.programId) return target.programId;
 
       if (target.needsInstall) {
-        toast.loading(`Setting up ${target.communitySlug}…`, { id: "discover-chain" });
+        if (!communityReadyForDiscover(target.communitySlug, connections)) {
+          toast.loading(`Setting up ${target.communitySlug}…`, { id: "discover-chain" });
+        }
         try {
           await apiInstallCommunity(target.communitySlug);
         } catch (e) {
@@ -187,9 +178,7 @@ export function DiscoverActionsProvider({
     [reloadConnections],
   );
 
-  const effectiveSpendable = externalWalletReady
-    ? connectedWalletUsd
-    : wallet.spendableUsd;
+  const effectiveSpendable = spendable.spendableUsd;
 
   const executeFund = useCallback(
     async (req: FundSheetRequest & { amountUsd: number }, surface = "fund-sheet") => {
@@ -202,16 +191,16 @@ export function DiscoverActionsProvider({
         throw new Error("Amount can't be less than $5");
       }
 
-      const spendable = externalWalletReady ? connectedWalletUsd : wallet.spendableUsd;
-      const walletReady = externalWalletReady || wallet.loaded;
+      const walletSpendable = spendable.spendableUsd;
+      const walletReady = spendable.loaded;
 
-      if (walletReady && spendable < req.amountUsd) {
+      if (walletReady && walletSpendable < req.amountUsd) {
         throw new Error(
-          spendable <= 0
+          walletSpendable <= 0
             ? externalWalletReady
               ? "No USDC in your connected wallet on Arc testnet"
-              : "No spendable USDC — add funds in Capital before funding programs"
-            : `Insufficient wallet balance: $${spendable.toFixed(2)} spendable, need $${req.amountUsd.toFixed(2)}`,
+              : "No spendable USDC — connect your wallet or add funds in Capital"
+            : `Insufficient wallet balance: $${walletSpendable.toFixed(2)} spendable, need $${req.amountUsd.toFixed(2)}`,
         );
       }
 
@@ -260,7 +249,7 @@ export function DiscoverActionsProvider({
           description: "Arc USDC is pending confirmation in Capital",
         });
         reportActionStatus(surface, auditAction, "success", fundedMessage);
-        await refreshBalance().catch(() => null);
+        await spendable.refresh().catch(() => null);
         await refreshWallet();
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
@@ -285,11 +274,10 @@ export function DiscoverActionsProvider({
       router,
       wallet,
       externalWalletReady,
-      connectedWalletUsd,
+      spendable,
       fundProgramWithWallet,
       ensureProgram,
       refreshWallet,
-      refreshBalance,
       reportActionStatus,
       queryClient,
       navigateToCommunity,
@@ -495,6 +483,14 @@ export function DiscoverActionsProvider({
             break;
 
           case "connect_sensor": {
+            if (
+              action.communitySlug &&
+              communityReadyForDiscover(action.communitySlug, connections)
+            ) {
+              navigateToCommunity(action.communitySlug);
+              reportActionStatus(surface, action, "success", "Profile already linked");
+              break;
+            }
             const target = action.href ?? "/profile";
             router.push(target);
             void apiDiscoverAction(action, { surface }).catch(() => null);
@@ -607,7 +603,7 @@ export function DiscoverActionsProvider({
       wallet: {
         ...wallet,
         spendableUsd: effectiveSpendable,
-        loaded: externalWalletReady || wallet.loaded,
+        loaded: spendable.loaded || externalWalletReady,
       },
       busy,
       runAction,

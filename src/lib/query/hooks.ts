@@ -111,8 +111,9 @@ export function useCapitalWalletQuery(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.capitalState,
     enabled,
-    queryFn: ({ signal }) => fetchJson("/api/capital/state", signal),
-    staleTime: 30_000,
+    queryFn: ({ signal }) => fetchJson("/api/capital/state?refresh=1", signal),
+    staleTime: 15_000,
+    refetchOnMount: "always",
   });
 }
 
@@ -120,8 +121,9 @@ export function useCapitalStateQuery(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.capitalState,
     enabled,
-    queryFn: ({ signal }) => fetchJson<CapitalStateResponse>("/api/capital/state", signal),
-    staleTime: 30_000,
+    queryFn: ({ signal }) => fetchJson<CapitalStateResponse>("/api/capital/state?refresh=1", signal),
+    staleTime: 15_000,
+    refetchOnMount: "always",
     gcTime: 300_000,
     placeholderData: (prev) => prev,
     retry: 1,

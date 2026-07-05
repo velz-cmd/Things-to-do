@@ -64,10 +64,13 @@ async function buildProfileState(authUser: SupabaseUser) {
   const profile = await loadProfileFast(authUser);
 
   const wallet = resolveUserWallet(authUser.id, profile);
+  const balanceWallet = profile.scanWalletAddress?.trim()
+    ? (profile.scanWalletAddress.trim().toLowerCase() as `0x${string}`)
+    : wallet.address;
   const connectionState = await getUserConnectionState({
     userId: authUser.id,
     profile,
-    walletAddress: wallet.address,
+    walletAddress: balanceWallet,
   });
 
   const connectors = connectionState.platforms.reduce<Record<string, ConnectorState>>(

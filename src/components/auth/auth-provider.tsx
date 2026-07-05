@@ -191,7 +191,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           lastSyncedAt: data.lastSyncedAt ?? data.balance?.syncedAt ?? null,
           lockedUsd: 0,
           releasedUsd: 0,
-          recentActivity: Array.isArray(data.pendingTransactions)
+          recentActivity: Array.isArray(data.activity)
+            ? data.activity.map(
+                (tx: {
+                  id: string;
+                  label?: string;
+                  amountUsd?: number | null;
+                  createdAt?: string;
+                  status?: string;
+                  kind?: string;
+                }) => ({
+                  id: tx.id,
+                  type: tx.kind ?? tx.status ?? "activity",
+                  label: tx.label ?? null,
+                  amountUsd: Number(tx.amountUsd ?? 0),
+                  createdAt: tx.createdAt ?? new Date().toISOString(),
+                }),
+              )
+            : Array.isArray(data.pendingTransactions)
             ? data.pendingTransactions.map(
                 (tx: {
                   id: string;

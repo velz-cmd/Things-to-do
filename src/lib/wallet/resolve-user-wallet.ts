@@ -51,6 +51,23 @@ export function resolveBalanceWalletAddress(
   return resolveUserWallet(userId, profile).address;
 }
 
+/** All Arc addresses to read for Capital / balance (app + linked external). */
+export function listOnChainReadAddresses(
+  userId: string,
+  profile?: WalletProfile | null,
+): `0x${string}`[] {
+  const app = profile?.walletAddress?.trim();
+  const external = profile?.scanWalletAddress?.trim();
+  const out: `0x${string}`[] = [];
+  if (app) out.push(normalize(app));
+  if (external) {
+    const ext = normalize(external);
+    if (!out.includes(ext)) out.push(ext);
+  }
+  if (out.length) return out;
+  return [resolveUserWallet(userId, profile).address];
+}
+
 export function resolveUserWallet(
   userId: string,
   profile?: WalletProfile | null,

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { resolveArcAlchemyRpcUrl } from "@/lib/wallet/arc-rpc-url";
+import {
+  listArcRpcFallbackUrls,
+  resolveArcAlchemyRpcUrl,
+  resolveArcRpcUrl,
+} from "@/lib/wallet/arc-rpc-url";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
@@ -13,9 +17,15 @@ const ALLOWED_METHODS = new Set([
   "eth_getTransactionReceipt",
 ]);
 
+function rpcUpstreamUrls(): string[] {
+  const alchemy = resolveArcAlchemyRpcUrl();
+  const primary = resolveArcRpcUrl();
+  return [...new Set([alchemy, primary, ...listArcRpcFallbackUrls()].filter(Boolean))] as string[];
+}
+
 /**
- * Server-safe JSON-RPC proxy for Arc testnet (Alchemy key stays on server).
- * Optional header: x-chain: arc-testnet (default).
+ * Server-safe JSON-RPC proxy for Arc testnet (Alchemy key stays on server when set).
+ * Falls back to public Arc RPC when Alchemy is not configured.
  */
 export async function POST(req: Request) {
   const chain = req.headers.get("x-chain")?.trim().toLowerCase() ?? "arc-testnet";
@@ -23,14 +33,6 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "Only arc-testnet is supported" },
       { status: 400 },
-    );
-  }
-
-  const upstream = resolveArcAlchemyRpcUrl();
-  if (!upstream) {
-    return NextResponse.json(
-      { error: "Alchemy Arc RPC not configured (set ALCHEMY_API_KEY or ALCHEMY_ARC_RPC_URL)" },
-      { status: 503 },
     );
   }
 
@@ -46,25 +48,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Method not allowed: ${method ?? "(missing)"}` }, { status: 400 });
   }
 
-  try {
-    const res = await fetch(upstream, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", accept: "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: body.id ?? 1,
-        method,
-        params: body.params ?? [],
-      }),
-      signal: AbortSignal.timeout(12_000),
-    });
+  const payload = JSON.stringify({
+    jsonrpc: "2.0",
+    id: body.id ?? 1,
+    method,
+    params: body.params ?? [],
+  });
 
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.ok ? 200 : 502 });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "RPC proxy failed" },
-      { status: 502 },
-    );
+  let lastError: string | null = null;
+  for (const upstream of rpcUpstreamUrls()) {
+    try {
+      const res = await fetch(upstream, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "application/json" },
+        body: payload,
+        signal: AbortSignal.timeout(12_000),
+      });
+
+      const data = await res.json();
+      if (res.ok && !data.error) {
+        return NextResponse.json(data, { status: 200 });
+      }
+      lastError = data.error?.message ?? `HTTP ${res.status}`;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : "RPC proxy failed";
+    }
   }
+
+  return NextResponse.json(
+    { error: lastError ?? "All Arc RPC endpoints failed" },
+    { status: 502 },
+  );
 }

@@ -22,7 +22,12 @@ const ARC_CHAIN_ID = 5042002;
 
 type CapitalStatePayload =
   | (Extract<CapitalWalletResponse, { ok: true }> & { claimableAmount?: number })
-  | (Extract<CapitalWalletResponse, { ok: false }> & { claimableAmount?: number });
+  | (Extract<CapitalWalletResponse, { ok: false }> & {
+      claimableAmount?: number;
+      syncStatus?: WalletSyncState | "live" | "cached" | "error" | "unknown" | "no_wallet";
+      syncError?: string | null;
+      balance?: Extract<CapitalWalletResponse, { ok: true }>["balance"];
+    });
 
 type Overview = {
   recentAuthorizations: {
@@ -149,10 +154,31 @@ function healthFromResponse(
   data: CapitalWalletResponse,
   syncing: boolean,
 ): WalletHealth | null {
-  if (!data.ok && !data.wallet) return null;
-  const wallet = data.ok ? data.wallet : data.wallet!;
-  if (data.ok) {
-    const cached = data.syncStatus === "cached";
+  const wallet = data.ok ? data.wallet : data.wallet;
+  if (!wallet) return null;
+
+  const syncStatus =
+    "syncStatus" in data ? data.syncStatus : data.ok ? data.syncStatus : undefined;
+  type BalanceShape = Extract<CapitalWalletResponse, { ok: true }>["balance"];
+  const balance: BalanceShape | undefined = data.ok
+    ? data.balance
+    : "balance" in data && data.balance
+      ? (data.balance as BalanceShape)
+      : undefined;
+
+  const rpcStatus: WalletHealth["rpcStatus"] = syncing
+    ? "syncing"
+    : syncStatus === "live"
+      ? "live"
+      : syncStatus === "cached"
+        ? "cached"
+        : syncStatus === "error"
+          ? "error"
+          : balance
+            ? "cached"
+            : "live";
+
+  if (data.ok && data.balance) {
     return {
       address: wallet.address,
       shortAddress: wallet.shortAddress,
@@ -160,22 +186,27 @@ function healthFromResponse(
       chainId: data.balance.chainId,
       blockNumber: data.balance.blockNumber,
       syncedAt: data.balance.syncedAt,
-      rpcStatus: syncing ? "syncing" : cached ? "cached" : "live",
+      rpcStatus,
       nativeUsdc: data.balance.nativeUsdc,
       erc20Usdc: data.balance.erc20Usdc,
       externalAddress: data.wallet.externalAddress,
     };
   }
+
   return {
     address: wallet.address,
     shortAddress: wallet.shortAddress,
     source: wallet.source,
     chainId: ARC_CHAIN_ID,
-    blockNumber: null,
-    syncedAt: null,
-    rpcStatus: syncing ? "syncing" : "error",
-    nativeUsdc: null,
-    erc20Usdc: null,
+    blockNumber: balance?.blockNumber ?? null,
+    syncedAt: balance?.syncedAt ?? null,
+    rpcStatus,
+    nativeUsdc: balance?.nativeUsdc ?? null,
+    erc20Usdc: balance?.erc20Usdc ?? null,
+    externalAddress:
+      data.ok && data.wallet.externalAddress
+        ? data.wallet.externalAddress
+        : undefined,
   };
 }
 
@@ -223,7 +254,11 @@ export function PaymentsOS() {
 
   const lastLiveBalanceRef = useRef<number | null>(null);
 
-  const fallbackWallet = account.appWalletAddress ?? account.walletAddress ?? null;
+  const fallbackWallet =
+    account.appWalletAddress ??
+    account.externalWalletAddress ??
+    account.walletAddress ??
+    null;
 
   const payoutWallet = walletHealth?.address ?? fallbackWallet;
 
@@ -266,10 +301,19 @@ export function PaymentsOS() {
 
       setBanking((prev) => (prev ? mergeBankingSnapshots(snap, prev) : snap));
       setWalletHealth(healthFromResponse(capital, false));
-      setWalletSync(capital.syncStatus === "cached" ? "cached" : "synced");
+      const sync = capital.syncStatus;
+      setWalletSync(
+        sync === "live"
+          ? "synced"
+          : sync === "cached"
+            ? "cached"
+            : sync === "error"
+              ? "error"
+              : "synced",
+      );
       setSyncError(
-        capital.syncStatus === "cached"
-          ? (capital.syncError ?? "Using last known Arc balance.")
+        sync === "cached" || sync === "error"
+          ? (capital.syncError ?? null)
           : null,
       );
       setWalletWarnings(capital.warnings);

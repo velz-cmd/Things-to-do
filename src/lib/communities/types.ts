@@ -28,6 +28,10 @@ export type ProgramRules = {
   matchPoolUsd?: number;
   qfExponent?: number;
   openCollectiveSlug?: string;
+  /** Pool funding milestones (USD) — batch payouts unlock as deposits cross each */
+  checkpointThresholdsUsd?: number[];
+  /** Auto-run Arc batch when a checkpoint is reached and obligations exist */
+  autoSettleCheckpoints?: boolean;
 };
 
 export type ProgramDeployReadiness = {

@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [tasks, userSensors, sensors, notify, claimableRelease, earningsSnapshots, vitalsSnapshots, ossScan, fundReconcile] =
+  const [tasks, userSensors, sensors, notify, claimableRelease, earningsSnapshots, vitalsSnapshots, ossScan, fundReconcile, checkpointSettle] =
     await Promise.all([
     processScheduledTasks(),
     syncAllUsersSensors().catch((e) => ({
@@ -42,6 +42,11 @@ export async function GET(req: Request) {
     reconcilePendingFundTransactions().catch((e) => ({
       error: e instanceof Error ? e.message : "fund_reconcile_failed",
     })),
+    import("@/lib/capital/checkpoint-settle").then((m) =>
+      m.runCheckpointSettleSweep(6).catch((e) => ({
+        error: e instanceof Error ? e.message : "checkpoint_settle_failed",
+      })),
+    ),
   ]);
 
   return NextResponse.json({
@@ -57,6 +62,7 @@ export async function GET(req: Request) {
     vitalsSnapshots,
     ossScan,
     fundReconcile,
+    checkpointSettle,
   });
 }
 

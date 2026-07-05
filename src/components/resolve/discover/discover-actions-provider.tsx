@@ -707,6 +707,7 @@ export function DiscoverActionsProvider({
                 amountUsd: fundOutcome.amountUsd,
                 programName: fundOutcome.programName ?? fundOutcome.label,
                 communitySlug: fundOutcome.communitySlug,
+                programId: fundOutcome.programId,
                 whoBenefits: fundOutcome.whoBenefits,
                 whyFund: fundOutcome.whyFund,
                 steps: fundOutcomeSteps({

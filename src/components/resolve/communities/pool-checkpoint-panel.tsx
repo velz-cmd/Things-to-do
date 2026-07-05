@@ -1,0 +1,241 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import clsx from "clsx";
+import { CheckCircle2, Flag, Loader2, Users, Wallet } from "lucide-react";
+import { Money } from "@/components/resolve/ui/money";
+import { Button } from "@/components/resolve/ui/button";
+import type { ProgramPoolState } from "@/lib/capital/pool-checkpoint-types";
+
+type PoolCheckpointPanelProps = {
+  communitySlug: string;
+  programId: string;
+  compact?: boolean;
+  className?: string;
+};
+
+export function useProgramPoolState(communitySlug: string, programId: string | null) {
+  const [pool, setPool] = useState<ProgramPoolState | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!programId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/communities/${encodeURIComponent(communitySlug)}/programs/${programId}/pool`,
+        { credentials: "include", cache: "no-store" },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setPool(data.pool ?? null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [communitySlug, programId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  return { pool, loading, refresh };
+}
+
+function formatUsd(n: number) {
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function PoolCheckpointPanel({
+  communitySlug,
+  programId,
+  compact = false,
+  className,
+}: PoolCheckpointPanelProps) {
+  const { pool, loading, refresh } = useProgramPoolState(communitySlug, programId);
+  const [settling, setSettling] = useState(false);
+
+  async function runCheckpointBatch() {
+    setSettling(true);
+    try {
+      const res = await fetch(
+        `/api/communities/${encodeURIComponent(communitySlug)}/programs/${programId}/checkpoint-settle`,
+        { method: "POST", credentials: "include" },
+      );
+      await res.json();
+      await refresh();
+    } finally {
+      setSettling(false);
+    }
+  }
+
+  if (loading && !pool) {
+    return (
+      <div className={clsx("flex items-center gap-2 text-xs text-resolve-muted", className)}>
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Loading pool…
+      </div>
+    );
+  }
+
+  if (!pool) return null;
+
+  const readyCheckpoint = pool.checkpoints.find((c) => c.status === "reached");
+  const canBatch =
+    pool.owedToCreatorsUsd > 0 &&
+    pool.availableUsd >= pool.owedToCreatorsUsd &&
+    readyCheckpoint != null;
+
+  return (
+    <div
+      className={clsx(
+        "rounded-xl border border-white/[0.08] bg-black/25",
+        compact ? "p-3 space-y-3" : "p-4 space-y-4",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-resolve-accent">
+            Pool balance
+          </p>
+          <p className="mt-0.5 text-2xl font-semibold tabular-nums text-white">
+            ${formatUsd(pool.poolBalanceUsd)}
+          </p>
+          <p className="mt-0.5 text-[11px] text-resolve-muted">
+            Real USDC deposited · {pool.funderCount} funder{pool.funderCount === 1 ? "" : "s"}
+          </p>
+        </div>
+        {!compact && (
+          <div className="text-right text-[11px] text-resolve-muted">
+            <p>
+              Owed to {pool.payeeCategory}:{" "}
+              <span className="font-medium text-amber-100">
+                ${formatUsd(pool.owedToCreatorsUsd)}
+              </span>
+            </p>
+            <p className="mt-0.5">
+              Settled:{" "}
+              <span className="text-emerald-300">${formatUsd(pool.settledUsd)}</span>
+            </p>
+          </div>
+        )}
+      </div>
+
+      {pool.funder.yourDepositUsd > 0 && (
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+            <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-resolve-muted">
+              <Wallet className="h-3 w-3" />
+              Your deposit
+            </p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              ${formatUsd(pool.funder.yourDepositUsd)}
+            </p>
+            <p className="text-[10px] text-resolve-muted-dim">
+              {pool.funder.yourSharePct.toFixed(1)}% of pool
+            </p>
+          </div>
+          <div className="rounded-lg border border-dashed border-amber-500/25 bg-amber-500/5 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-amber-200/80">
+              Est. share of owed
+            </p>
+            <p className="mt-1 text-sm font-semibold text-amber-100">
+              ${formatUsd(pool.funder.estimatedShareOfOwedUsd)}
+            </p>
+            <p className="text-[10px] text-resolve-muted-dim">Projection · not guaranteed</p>
+          </div>
+          <div className="rounded-lg border border-dashed border-violet-500/20 bg-violet-500/5 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-violet-200/80">
+              Projected impact
+            </p>
+            <p className="mt-1 text-sm font-semibold text-violet-100">
+              ${formatUsd(pool.funder.projectedImpactUsd)}
+            </p>
+            <p className="text-[10px] text-resolve-muted-dim">Model · if pool fulfills</p>
+          </div>
+        </div>
+      )}
+
+      {pool.nextCheckpointUsd != null && (
+        <div>
+          <div className="mb-1.5 flex items-center justify-between text-[11px]">
+            <span className="text-resolve-muted">
+              Next checkpoint: ${formatUsd(pool.nextCheckpointUsd)}
+            </span>
+            <span className="font-medium text-white">{pool.progressToNextPct}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-resolve-accent to-emerald-400 transition-all"
+              style={{ width: `${pool.progressToNextPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <ol className="flex flex-wrap gap-2">
+        {pool.checkpoints.slice(0, compact ? 6 : 10).map((cp) => (
+          <li
+            key={cp.thresholdUsd}
+            className={clsx(
+              "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+              cp.status === "paid" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+              cp.status === "reached" && "border-resolve-accent/40 bg-resolve-accent/10 text-resolve-accent",
+              cp.status === "active" && "border-white/15 text-white",
+              cp.status === "locked" && "border-white/5 text-resolve-muted-dim",
+            )}
+          >
+            {cp.status === "paid" ? (
+              <CheckCircle2 className="h-3 w-3" />
+            ) : (
+              <Flag className="h-3 w-3" />
+            )}
+            ${cp.thresholdUsd >= 1000 ? `${cp.thresholdUsd / 1000}k` : cp.thresholdUsd}
+            {cp.paidUsd != null && cp.paidUsd > 0 && (
+              <span className="text-resolve-muted-dim">· ${formatUsd(cp.paidUsd)}</span>
+            )}
+          </li>
+        ))}
+      </ol>
+
+      {pool.recentBatches.length > 0 && !compact && (
+        <div className="space-y-1 border-t border-white/[0.06] pt-3">
+          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">
+            Recent batches
+          </p>
+          {pool.recentBatches.map((b) => (
+            <p key={b.id} className="flex items-center gap-2 text-[11px] text-resolve-muted">
+              <Users className="h-3 w-3 shrink-0" />
+              <Money amount={b.settledUsd} size="sm" className="inline text-white" />
+              <span>→ {b.payeeCount} {pool.payeeCategory}</span>
+              {b.checkpointThresholdUsd != null && (
+                <span className="text-resolve-muted-dim">
+                  @ ${formatUsd(b.checkpointThresholdUsd)} checkpoint
+                </span>
+              )}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {canBatch && (
+        <Button size="sm" variant="secondary" disabled={settling} onClick={() => void runCheckpointBatch()}>
+          {settling ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Paying batch…
+            </>
+          ) : (
+            <>
+              Pay ${formatUsd(pool.owedToCreatorsUsd)} to {pool.payeeCategory} at checkpoint
+            </>
+          )}
+        </Button>
+      )}
+    </div>
+  );
+}

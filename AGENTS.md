@@ -99,5 +99,9 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   App-wallet funds debit ledger then best-effort Circle transfer to treasury when live Arc is on.
   Set `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `CIRCLE_WALLET_SET_ID`, and treasury env vars on
   Vercel — never commit secrets to the repo.
+- **Pool checkpoints** (`src/lib/capital/pool-checkpoints.ts`): program pools show **real USD**
+  deposited balance + checkpoint ladder ($50…$5k). Funder position separates real deposit vs
+  projected share/impact. Auto batch payout via `tryCheckpointBatchSettle` when pool crosses a
+  checkpoint and obligations are fully funded — `GET .../programs/[id]/pool` for UI state.
 - Foundry toolchain (`forge build` / `forge test`); not needed to run the web app. Requires a
   separate Foundry install (not part of the web-app update script).

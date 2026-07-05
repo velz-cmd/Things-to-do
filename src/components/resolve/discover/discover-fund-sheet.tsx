@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useSpendableUsd } from "@/hooks/use-spendable-usd";
@@ -10,15 +10,24 @@ import type { FundSheetRequest, WalletSnapshot } from "@/lib/discover/discover-a
 import { Button } from "@/components/resolve/ui/button";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
-import { fundingSourceLabel, pickFundingSource } from "@/lib/wallet/funding-source";
+import {
+  affordableFundingSources,
+  fundingSourceLabel,
+  pickFundingSource,
+  type FundingSource,
+} from "@/lib/wallet/funding-source";
+import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel";
+import { WalletSourcePicker } from "@/components/resolve/fund/wallet-source-picker";
+import type { FundProgressState } from "@/lib/capital/fund-progress";
 
 type DiscoverFundSheetProps = {
   open: boolean;
   request: FundSheetRequest | null;
   wallet: WalletSnapshot;
   busy: boolean;
+  fundProgress?: FundProgressState;
   onClose: () => void;
-  onConfirm: (amountUsd: number) => void;
+  onConfirm: (amountUsd: number, fundingSource: FundingSource) => void;
 };
 
 export function DiscoverFundSheet({
@@ -26,34 +35,56 @@ export function DiscoverFundSheet({
   request,
   wallet,
   busy,
+  fundProgress,
   onClose,
   onConfirm,
 }: DiscoverFundSheetProps) {
   const { state: connections } = useUserConnections();
   const spendable = useSpendableUsd();
-  const { externalWalletReady, openConnectWallet, pickFundingSource: pickSource } =
-    useResolveAccess();
+  const { externalWalletReady, openConnectWallet } = useResolveAccess();
 
   const defaultAmount =
     request?.amountUsd && request.amountUsd >= 5 ? request.amountUsd.toFixed(2) : "25";
   const [amount, setAmount] = useState(defaultAmount);
+  const [chosenWallet, setChosenWallet] = useState<FundingSource | null>(null);
   const amountUsd = Number(amount);
 
   const appUsd = wallet.appSpendableUsd ?? spendable.appSpendableUsd;
   const extUsd = wallet.externalSpendableUsd ?? spendable.externalSpendableUsd;
-  const fundingSource = Number.isFinite(amountUsd)
-    ? pickSource(amountUsd) ?? pickFundingSource(amountUsd, { appSpendableUsd: appUsd, externalSpendableUsd: extUsd }, externalWalletReady)
-    : null;
+  const balances = { appSpendableUsd: appUsd, externalSpendableUsd: extUsd };
+
+  const affordable = useMemo(
+    () =>
+      Number.isFinite(amountUsd)
+        ? affordableFundingSources(amountUsd, balances, externalWalletReady)
+        : [],
+    [amountUsd, appUsd, extUsd, externalWalletReady],
+  );
+
+  const fundingSource = useMemo(() => {
+    if (!Number.isFinite(amountUsd) || amountUsd < 5) return null;
+    return pickFundingSource(amountUsd, balances, externalWalletReady, chosenWallet);
+  }, [amountUsd, balances, externalWalletReady, chosenWallet]);
+
+  useEffect(() => {
+    if (affordable.length === 1) {
+      setChosenWallet(affordable[0]);
+    } else if (chosenWallet && !affordable.includes(chosenWallet)) {
+      setChosenWallet(affordable[0] ?? null);
+    }
+  }, [affordable, chosenWallet]);
 
   const hasLinkedExternal =
     Boolean(spendable.externalWalletAddress) && !externalWalletReady;
   const insufficientBalance =
     wallet.loaded && Number.isFinite(amountUsd) && !fundingSource && amountUsd >= 5;
   const canUseBalance = wallet.loaded && wallet.spendableUsd >= 5;
+  const inProgress = busy && fundProgress && fundProgress.stage !== "idle";
 
   useEffect(() => {
     setAmount(defaultAmount);
-  }, [defaultAmount, request?.programId, request?.communitySlug]);
+    setChosenWallet(null);
+  }, [defaultAmount, request?.programId, request?.communitySlug, open]);
 
   if (!open || !request) return null;
 
@@ -66,6 +97,8 @@ export function DiscoverFundSheet({
       : slug
         ? `Creates the pool and funds it in one step`
         : "Fund this program";
+
+  const progressSource = fundProgress?.fundingSource ?? fundingSource ?? "app";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
@@ -84,145 +117,149 @@ export function DiscoverFundSheet({
             Network: <span className="font-medium text-white">Arc Testnet USDC</span>
           </span>
           <span>
-            Fee estimate: <span className="font-medium text-white">shown before settlement</span>
+            Min: <span className="font-medium text-white">$5 USDC</span>
           </span>
         </div>
 
-        <div className="mt-4 space-y-2 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-resolve-muted">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-3.5 w-3.5 text-resolve-accent" />
-            {wallet.loaded ? (
-              <span className="font-medium text-white">Available to fund</span>
-            ) : (
-              <span>Loading wallets…</span>
-            )}
-          </div>
-          {wallet.loaded && (
-            <ul className="space-y-1 pl-5 text-[11px]">
-              <li>
-                RESOLVE wallet (Gmail):{" "}
-                <span className="tabular-nums text-white">${appUsd.toFixed(2)}</span>
-              </li>
-              {externalWalletReady && (
-                <li>
-                  Your connected wallet:{" "}
-                  <span className="tabular-nums text-white">${extUsd.toFixed(2)}</span>
-                </li>
-              )}
-              {hasLinkedExternal && (
-                <li className="text-amber-200">
-                  External wallet linked — reconnect from the account menu to sign on-chain
-                </li>
-              )}
-              {fundingSource && Number.isFinite(amountUsd) && amountUsd >= 5 && (
-                <li className="text-emerald-300">
-                  Will pay from {fundingSourceLabel(fundingSource)}
-                </li>
-              )}
-            </ul>
-          )}
-          {wallet.loaded && appUsd < 5 && !externalWalletReady && !hasLinkedExternal && (
-            <button
-              type="button"
-              onClick={openConnectWallet}
-              className="text-[11px] font-medium text-resolve-accent hover:underline"
-            >
-              Or connect your own wallet for on-chain fund
-            </button>
-          )}
-        </div>
-
-        {insufficientBalance && (
-          <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-xs text-amber-100">
-            Not enough USDC across your wallets for this amount.
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Link
-                href="/capital?returnUrl=/discover"
-                className="font-medium text-resolve-accent hover:underline"
-              >
-                Add funds in Capital
-              </Link>
-              {!externalWalletReady && (
-                <button
-                  type="button"
-                  onClick={openConnectWallet}
-                  className="font-medium text-resolve-accent hover:underline"
-                >
-                  {hasLinkedExternal ? "Reconnect external wallet" : "Connect external wallet"}
-                </button>
-              )}
-              {canUseBalance && (
-                <button
-                  type="button"
-                  onClick={() => setAmount(wallet.spendableUsd.toFixed(2))}
-                  className="font-medium text-resolve-accent hover:underline"
-                >
-                  Use max ${wallet.spendableUsd.toFixed(2)}
-                </button>
+        {inProgress && fundProgress ? (
+          <FundProgressPanel
+            stage={fundProgress.stage}
+            fundingSource={progressSource}
+            amountUsd={fundProgress.amountUsd ?? amountUsd}
+            txHash={fundProgress.txHash}
+          />
+        ) : (
+          <>
+            <div className="mt-4 space-y-2 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-resolve-muted">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-3.5 w-3.5 text-resolve-accent" />
+                {wallet.loaded ? (
+                  <span className="font-medium text-white">Choose any wallet with USDC</span>
+                ) : (
+                  <span>Loading wallets…</span>
+                )}
+              </div>
+              {wallet.loaded && (
+                <ul className="space-y-1 pl-5 text-[11px]">
+                  <li>
+                    RESOLVE wallet:{" "}
+                    <span className="tabular-nums text-white">${appUsd.toFixed(2)}</span>
+                  </li>
+                  <li>
+                    Your connected wallet:{" "}
+                    <span className="tabular-nums text-white">
+                      {externalWalletReady ? `$${extUsd.toFixed(2)}` : "not connected"}
+                    </span>
+                  </li>
+                  {hasLinkedExternal && (
+                    <li className="text-amber-200">
+                      Reconnect from the account menu to sign on Arc
+                    </li>
+                  )}
+                  {fundingSource && Number.isFinite(amountUsd) && amountUsd >= 5 && (
+                    <li className="text-emerald-300">
+                      Will pay from {fundingSourceLabel(fundingSource)}
+                    </li>
+                  )}
+                </ul>
               )}
             </div>
-          </div>
-        )}
-        {busy && (
-          <ol className="mt-3 space-y-1 rounded-lg border border-resolve-accent/20 bg-resolve-accent/[0.05] px-3 py-2 text-[11px] text-resolve-muted">
-            <li className="text-emerald-300">Wallet checked</li>
-            <li className="text-emerald-300">Funding request sent</li>
-            <li className="flex items-center gap-1.5 text-resolve-accent">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Waiting for Arc or ledger confirmation
-            </li>
-          </ol>
+
+            <WalletSourcePicker
+              appUsd={appUsd}
+              extUsd={extUsd}
+              amountUsd={amountUsd}
+              externalReady={externalWalletReady}
+              value={chosenWallet ?? fundingSource}
+              onChange={setChosenWallet}
+              disabled={busy}
+            />
+
+            {insufficientBalance && (
+              <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-xs text-amber-100">
+                Not enough USDC on either wallet for this amount.
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link
+                    href="/capital?returnUrl=/discover"
+                    className="font-medium text-resolve-accent hover:underline"
+                  >
+                    Add funds in Capital
+                  </Link>
+                  {!externalWalletReady && (
+                    <button
+                      type="button"
+                      onClick={openConnectWallet}
+                      className="font-medium text-resolve-accent hover:underline"
+                    >
+                      {hasLinkedExternal ? "Reconnect wallet" : "Connect wallet"}
+                    </button>
+                  )}
+                  {canUseBalance && (
+                    <button
+                      type="button"
+                      onClick={() => setAmount(wallet.spendableUsd.toFixed(2))}
+                      className="font-medium text-resolve-accent hover:underline"
+                    >
+                      Use max ${wallet.spendableUsd.toFixed(2)}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
-        <form
-          className="mt-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!Number.isFinite(amountUsd) || amountUsd < 5) {
-              toast.error("Amount can't be less than $5");
-              return;
-            }
-            if (insufficientBalance) {
-              toast.error("Add funds or lower the amount", {
-                description: `Max across wallets: $${wallet.spendableUsd.toFixed(2)}`,
-              });
-              return;
-            }
-            onConfirm(amountUsd);
-          }}
-        >
-          <label className="text-[11px] text-resolve-muted" htmlFor="fund-amount">
-            Amount (USD)
-          </label>
-          <p className="mt-0.5 text-[10px] text-resolve-muted-dim">Minimum fund is $5 USDC</p>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="text-sm text-resolve-muted">$</span>
-            <input
-              id="fund-amount"
-              name="amountUsd"
-              type="number"
-              min={5}
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.currentTarget.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div className="mt-5 flex justify-end gap-2">
-            <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={onClose}>
-              Cancel
+        {!inProgress && (
+          <form
+            className="mt-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!Number.isFinite(amountUsd) || amountUsd < 5) {
+                toast.error("Amount can't be less than $5");
+                return;
+              }
+              if (!fundingSource) {
+                toast.error("Pick a wallet with enough USDC");
+                return;
+              }
+              onConfirm(amountUsd, fundingSource);
+            }}
+          >
+            <label className="text-[11px] text-resolve-muted" htmlFor="fund-amount">
+              Amount (USD)
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-sm text-resolve-muted">$</span>
+              <input
+                id="fund-amount"
+                name="amountUsd"
+                type="number"
+                min={5}
+                step="0.01"
+                value={amount}
+                disabled={busy}
+                onChange={(e) => setAmount(e.currentTarget.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white disabled:opacity-50"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={busy || insufficientBalance || !fundingSource}>
+                {fundingSource === "external" ? "Confirm in wallet" : "Fund on Arc"}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {fundProgress?.stage === "complete" && (
+          <div className="mt-4 flex justify-end">
+            <Button type="button" size="sm" onClick={onClose}>
+              Done
             </Button>
-            <Button type="submit" size="sm" disabled={busy || insufficientBalance}>
-              {busy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : fundingSource === "external" ? (
-                "Confirm in wallet"
-              ) : (
-                "Confirm fund"
-              )}
-            </Button>
           </div>
-        </form>
+        )}
       </div>
     </div>
   );

@@ -54,13 +54,13 @@ export function DiscoverSurface() {
   return (
     <DiscoverActionAuditProvider>
       <DiscoverRadarFeedProvider>
-        <DiscoverActionsProvider signedIn={Boolean(user)}>
-          <DiscoverCommunityConsoleProvider>
+        <DiscoverCommunityConsoleProvider>
+          <DiscoverActionsProvider signedIn={Boolean(user)}>
             <DiscoverUrlHandoff />
             <DiscoverSurfaceContent user={user} />
             <DiscoverActionAuditPanel />
-          </DiscoverCommunityConsoleProvider>
-        </DiscoverActionsProvider>
+          </DiscoverActionsProvider>
+        </DiscoverCommunityConsoleProvider>
       </DiscoverRadarFeedProvider>
     </DiscoverActionAuditProvider>
   );

@@ -192,7 +192,7 @@ export function DiscoverOpportunityQueue({
   }, [exploreFiltered, boardProgramRows.length]);
 
   async function fundRow(o: FundableOpportunity) {
-    const raw = amountByProgram[o.programId] ?? "25";
+    const raw = amountByProgram[o.programId] ?? "5";
     const amountUsd = Number(raw);
     if (!Number.isFinite(amountUsd) || amountUsd < 5) {
       toast.error("Amount can't be less than $5");

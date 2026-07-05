@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowDownLeft,
@@ -57,6 +57,7 @@ type ResolveBankingProps = {
   onRefresh?: () => void;
   onSignIn: () => void;
   onActivityOpen?: () => void;
+  initialTab?: Tab;
   walletViewProps?: {
     appAddress?: string | null;
     externalAddress?: string | null;
@@ -357,11 +358,17 @@ export function ResolveBanking({
   onRefresh,
   onSignIn,
   onActivityOpen,
+  initialTab = "overview",
   walletViewProps,
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
   const { openSendFunds } = useSendFunds();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(initialTab);
+
+  useEffect(() => {
+    setTab(initialTab);
+    if (initialTab === "activity") onActivityOpen?.();
+  }, [initialTab, onActivityOpen]);
 
   const balances = account?.balances;
   const network = account?.network;

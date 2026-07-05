@@ -91,7 +91,12 @@ export async function apiFundProgram(programId: string, amountUsd: number) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ programId, amountUsd }),
     });
-    const data = await parseJsonResponse<{ error?: string }>(res);
+    const data = await parseJsonResponse<{
+      error?: string;
+      activityId?: string;
+      programId?: string;
+      message?: string;
+    }>(res);
     if (!res.ok) throw new Error(data.error ?? "Fund failed");
     return data;
   } catch (e) {

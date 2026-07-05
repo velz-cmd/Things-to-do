@@ -229,4 +229,31 @@ describe("deriveDiscoverCardState", () => {
     expect(primarySlot(state)?.action.kind).toBe("fund");
     expect(primarySlot(state)?.disabled).toBeFalsy();
   });
+
+  it("marks card funded when live pool balance is present", () => {
+    const gap = baseGap({
+      valueMetrics: {
+        observedEvents: "Verified",
+        payoutRules: "1 active",
+        settlement: "Pool unfunded",
+        verifiedSource: "Navidrome",
+      },
+      programId: "prog-live",
+    });
+    const connections = {
+      signedIn: true,
+      installedCommunitySlugs: ["navidrome"],
+      githubUsername: null,
+      platforms: { navidrome: { connected: true } },
+      hasAnyConnector: true,
+    } as import("../../src/lib/profile/connection-state-types").UserConnectionState;
+
+    const state = deriveDiscoverCardState(gap, connections, "gaps", "funder", "trending-gaps", {
+      signedIn: true,
+      poolBalanceUsd: 5,
+      yourDepositUsd: 5,
+    });
+    expect(state.settlementStatus).not.toMatch(/unfunded/i);
+    expect(state.opportunityState).toBe("funded");
+  });
 });

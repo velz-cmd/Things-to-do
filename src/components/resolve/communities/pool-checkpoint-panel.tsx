@@ -6,6 +6,12 @@ import { CheckCircle2, Flag, Loader2, Users, Wallet } from "lucide-react";
 import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
 import type { ProgramPoolState } from "@/lib/capital/pool-checkpoint-types";
+import {
+  CAPITAL_REFRESH_EVENT,
+  POOL_REFRESH_EVENT,
+  type CapitalRefreshDetail,
+} from "@/lib/capital/refresh-events";
+import { FUND_ACTION_RECORDED_EVENT, type StoredFundAction } from "@/lib/capital/fund-action-store";
 
 type PoolCheckpointPanelProps = {
   communitySlug: string;
@@ -38,6 +44,37 @@ export function useProgramPoolState(communitySlug: string, programId: string | n
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!programId) return;
+
+    const shouldRefresh = (eventProgramId?: string) =>
+      !eventProgramId || eventProgramId === programId;
+
+    const onPoolRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ programId?: string }>).detail;
+      if (shouldRefresh(detail?.programId)) void refresh();
+    };
+
+    const onCapitalRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<CapitalRefreshDetail>).detail;
+      if (shouldRefresh(detail?.programId)) void refresh();
+    };
+
+    const onFundRecorded = (event: Event) => {
+      const action = (event as CustomEvent<StoredFundAction>).detail;
+      if (action?.programId && shouldRefresh(action.programId)) void refresh();
+    };
+
+    window.addEventListener(POOL_REFRESH_EVENT, onPoolRefresh);
+    window.addEventListener(CAPITAL_REFRESH_EVENT, onCapitalRefresh);
+    window.addEventListener(FUND_ACTION_RECORDED_EVENT, onFundRecorded);
+    return () => {
+      window.removeEventListener(POOL_REFRESH_EVENT, onPoolRefresh);
+      window.removeEventListener(CAPITAL_REFRESH_EVENT, onCapitalRefresh);
+      window.removeEventListener(FUND_ACTION_RECORDED_EVENT, onFundRecorded);
+    };
+  }, [programId, refresh]);
 
   return { pool, loading, refresh };
 }
@@ -91,11 +128,13 @@ export function PoolCheckpointPanel({
 
   return (
     <div
+      id="pool-checkpoints"
       className={clsx(
-        "rounded-xl border border-white/[0.08] bg-black/25",
+        "scroll-mt-24 rounded-xl border border-white/[0.08] bg-black/25",
         compact ? "p-3 space-y-3" : "p-4 space-y-4",
         className,
       )}
+      data-testid="pool-checkpoint-panel"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>

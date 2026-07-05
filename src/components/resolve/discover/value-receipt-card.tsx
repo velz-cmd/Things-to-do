@@ -147,13 +147,23 @@ export function ValueReceiptCard({
   );
 
   const spendableUsd = wallet.loaded ? wallet.spendableUsd : null;
+  const poolBalanceUsd = Math.max(
+    pool?.poolBalanceUsd ?? 0,
+    fundedUsdForProgram(programId),
+  );
+  const yourDepositUsd = Math.max(
+    pool?.funder.yourDepositUsd ?? 0,
+    fundedUsdForProgram(programId),
+  );
   const card = useMemo(
     () =>
       deriveDiscoverCardState(gap, connections, lane, role, surface, {
         signedIn,
         spendableUsd,
+        poolBalanceUsd,
+        yourDepositUsd,
       }),
-    [gap, connections, lane, role, surface, signedIn, spendableUsd],
+    [gap, connections, lane, role, surface, signedIn, spendableUsd, poolBalanceUsd, yourDepositUsd],
   );
 
   useEffect(() => {
@@ -171,8 +181,6 @@ export function ValueReceiptCard({
   };
 
   const owedUsd = pool?.owedToCreatorsUsd ?? gap.amountNeededUsd;
-  const poolBalanceUsd = pool?.poolBalanceUsd ?? fundedUsdForProgram(programId);
-  const yourDepositUsd = pool?.funder.yourDepositUsd ?? fundedUsdForProgram(programId);
   const estimateUsd =
     pool?.funder.estimatedShareOfOwedUsd ??
     (gap.amountVerified ? gap.moneyCanMoveUsd : 0);
@@ -334,7 +342,7 @@ export function ValueReceiptCard({
                   type="number"
                   min={5}
                   step="0.01"
-                  value={fundAmountUsd ?? "25"}
+                  value={fundAmountUsd ?? "5"}
                   onChange={(e) => onFundAmountChange?.(e.target.value)}
                   className="w-20 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
                 />

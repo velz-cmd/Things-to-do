@@ -55,7 +55,7 @@ import {
 import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 import type { FundingSource } from "@/lib/wallet/funding-source";
 import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
-import { dispatchCapitalRefresh } from "@/lib/capital/refresh-events";
+import { dispatchCapitalRefresh, dispatchPoolRefresh } from "@/lib/capital/refresh-events";
 import { dispatchProfileRefresh } from "@/lib/profile/refresh-events";
 
 type DiscoverActionsContextValue = {
@@ -139,6 +139,7 @@ export function DiscoverActionsProvider({
     amountUsd: number;
     programId?: string;
     communitySlug?: string;
+    activityId?: string;
     txHash?: string;
     label?: string;
     programName?: string;
@@ -270,11 +271,30 @@ export function DiscoverActionsProvider({
           amountUsd: req.amountUsd,
           programId: result.programId,
           communitySlug: req.communitySlug,
+          activityId: result.activityId,
           txHash: result.txHash,
           label: req.label,
           programName: req.programName ?? req.label,
           whyFund: req.whyFund,
           whoBenefits: req.whoBenefits,
+        });
+        setFundSheet((prev) =>
+          prev ??
+          ({
+            programId: result.programId ?? req.programId,
+            communitySlug: req.communitySlug,
+            templateId: req.templateId,
+            missionId: req.missionId,
+            label: req.label ?? req.programName ?? "Fund program",
+            programName: req.programName ?? req.label,
+            whyFund: req.whyFund,
+            whoBenefits: req.whoBenefits,
+            amountUsd: req.amountUsd,
+          } satisfies FundSheetRequest),
+        );
+        dispatchPoolRefresh({
+          programId: result.programId ?? req.programId,
+          communitySlug: req.communitySlug,
         });
         await refreshWallet();
         await refreshDiscover();
@@ -714,6 +734,7 @@ export function DiscoverActionsProvider({
                   amountUsd: fundOutcome.amountUsd,
                   communitySlug: fundOutcome.communitySlug,
                   programId: fundOutcome.programId,
+                  activityId: fundOutcome.activityId,
                   txHash: fundOutcome.txHash,
                   programName: fundOutcome.programName ?? fundOutcome.label,
                   whyFund: fundOutcome.whyFund,

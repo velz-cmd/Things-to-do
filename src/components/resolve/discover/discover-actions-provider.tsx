@@ -34,6 +34,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
 import { useDiscoverActionAudit } from "@/components/resolve/discover/discover-action-audit-panel";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 import { communitySlugFromDiscoverTarget } from "@/lib/discover/discover-inline-target";
@@ -91,6 +92,12 @@ export function DiscoverActionsProvider({
 }) {
   const router = useRouter();
   const { balance, balanceLoading, refreshBalance } = useAuth();
+  const {
+    externalWalletReady,
+    connectedWalletUsd,
+    fundProgramWithWallet,
+    openConnectWallet,
+  } = useResolveAccess();
   const { state: connections, reload: reloadConnections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
   const queryClient = useQueryClient();
@@ -180,6 +187,10 @@ export function DiscoverActionsProvider({
     [reloadConnections],
   );
 
+  const effectiveSpendable = externalWalletReady
+    ? connectedWalletUsd
+    : wallet.spendableUsd;
+
   const executeFund = useCallback(
     async (req: FundSheetRequest & { amountUsd: number }, surface = "fund-sheet") => {
       if (!signedIn) {
@@ -191,11 +202,16 @@ export function DiscoverActionsProvider({
         throw new Error("Amount can't be less than $5");
       }
 
-      if (wallet.loaded && wallet.spendableUsd < req.amountUsd) {
+      const spendable = externalWalletReady ? connectedWalletUsd : wallet.spendableUsd;
+      const walletReady = externalWalletReady || wallet.loaded;
+
+      if (walletReady && spendable < req.amountUsd) {
         throw new Error(
-          wallet.spendableUsd <= 0
-            ? "No spendable USDC — add funds in Capital before funding programs"
-            : `Insufficient wallet balance: $${wallet.spendableUsd.toFixed(2)} spendable, need $${req.amountUsd.toFixed(2)} — add USDC in Capital`,
+          spendable <= 0
+            ? externalWalletReady
+              ? "No USDC in your connected wallet on Arc testnet"
+              : "No spendable USDC — add funds in Capital before funding programs"
+            : `Insufficient wallet balance: $${spendable.toFixed(2)} spendable, need $${req.amountUsd.toFixed(2)}`,
         );
       }
 
@@ -226,10 +242,18 @@ export function DiscoverActionsProvider({
           programId = await ensureProgram(target);
         }
 
-        toast.loading(`Sending $${req.amountUsd.toFixed(2)} USDC to pool…`, {
-          id: "discover-chain",
-        });
-        await apiFundProgram(programId, req.amountUsd);
+        toast.loading(
+          externalWalletReady
+            ? `Confirm $${req.amountUsd.toFixed(2)} USDC in your wallet…`
+            : `Sending $${req.amountUsd.toFixed(2)} USDC to pool…`,
+          { id: "discover-chain" },
+        );
+
+        if (externalWalletReady) {
+          await fundProgramWithWallet(programId, req.amountUsd);
+        } else {
+          await apiFundProgram(programId, req.amountUsd);
+        }
         const fundedMessage = `You funded this pool $${req.amountUsd.toFixed(2)}`;
         toast.success(fundedMessage, {
           id: "discover-chain",
@@ -260,6 +284,9 @@ export function DiscoverActionsProvider({
       signedIn,
       router,
       wallet,
+      externalWalletReady,
+      connectedWalletUsd,
+      fundProgramWithWallet,
       ensureProgram,
       refreshWallet,
       refreshBalance,
@@ -577,14 +604,29 @@ export function DiscoverActionsProvider({
   const value = useMemo(
     () => ({
       signedIn,
-      wallet,
+      wallet: {
+        ...wallet,
+        spendableUsd: effectiveSpendable,
+        loaded: externalWalletReady || wallet.loaded,
+      },
       busy,
       runAction,
       openFundSheet,
       refreshWallet,
       executeFund,
+      openConnectWallet,
+      externalWalletReady,
     }),
-    [signedIn, wallet, busy, runAction, openFundSheet, refreshWallet, executeFund],
+    [signedIn, wallet, busy, runAction, openFundSheet, refreshWallet, executeFund, effectiveSpendable, externalWalletReady, openConnectWallet],
+  );
+
+  const displayWallet = useMemo(
+    () => ({
+      ...wallet,
+      spendableUsd: effectiveSpendable,
+      loaded: externalWalletReady || wallet.loaded,
+    }),
+    [wallet, effectiveSpendable, externalWalletReady],
   );
 
   return (
@@ -593,7 +635,7 @@ export function DiscoverActionsProvider({
       <DiscoverFundSheet
         open={Boolean(fundSheet)}
         request={fundSheet}
-        wallet={wallet}
+        wallet={displayWallet}
         busy={busy}
         onClose={() => setFundSheet(null)}
         onConfirm={(amountUsd) => {

@@ -10,6 +10,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { clearGuestExploring } from "@/lib/auth/guest";
 import { ArcWalletLink } from "@/components/resolve/ui/arc-wallet-link";
@@ -27,6 +28,7 @@ function shortAddress(address: string) {
 export function AuthHeader() {
   const { signOut, balance, balanceLoading } = useAuth();
   const account = useResolveAccount();
+  const { externalWalletReady, connectedWalletUsd } = useResolveAccess();
   const { openSignIn } = useSignInModal();
   const { openAddFunds } = useAddFunds();
   const { openSendFunds } = useSendFunds();
@@ -184,10 +186,17 @@ export function AuthHeader() {
                   Your wallet · {shortAddress(account.externalWalletAddress!)}
                 </p>
               )}
-              {!balanceLoading && hasEmailSession && balance && (
+              {!balanceLoading && hasEmailSession && (balance || externalWalletReady) && (
                 <p className="mt-2 text-xs text-deputy-accent">
-                  ${balance.availableUsd.toFixed(2)} USDC on Arc testnet
-                  {balance.onChainUsd != null &&
+                  $
+                  {(externalWalletReady ? connectedWalletUsd : balance!.availableUsd).toFixed(2)}{" "}
+                  USDC on Arc testnet
+                  {externalWalletReady && (
+                    <span className="text-slate-500"> · from connected wallet</span>
+                  )}
+                  {!externalWalletReady &&
+                    balance &&
+                    balance.onChainUsd != null &&
                     Math.abs(balance.onChainUsd - balance.availableUsd) > 0.001 && (
                       <span className="text-slate-500">
                         {" "}

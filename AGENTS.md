@@ -8,14 +8,18 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
 ### Services
 - **Next.js web app** — the product. Dev: `npm run dev` (binds `0.0.0.0:3000`). Lint: `npm run lint`.
   Build: `npm run build`. See `package.json` scripts for the rest (Playwright e2e, tsx scripts).
-- **PostgreSQL** — required. The startup update script provisions a local cluster and a `resolve`
-  database, and `.env` points `DATABASE_URL` at `postgresql://postgres:postgres@127.0.0.1:5432/resolve`.
-  If Postgres is not running, start it with `sudo pg_ctlcluster 16 main start`.
+- **PostgreSQL** — required. PostgreSQL 16 is pre-installed in the VM snapshot with a local cluster
+ and a `resolve` database; `.env` points `DATABASE_URL` at
+ `postgresql://postgres:postgres@127.0.0.1:5432/resolve` (user `postgres`, password `postgres`).
+ It does **not** auto-start on boot — if Postgres is not running, start it with
+ `sudo pg_ctlcluster 16 main start`. The startup update script only refreshes app deps
+ (`npm install` + `npx prisma generate`); it does not start services or touch the DB.
 
 ### Local env / demo mode (non-obvious)
-- `.env` is gitignored and is created fresh by the update script if missing. It sets
-  `DEPUTY_DEMO_MODE=true`, which lets the product run **without** external services
-  (Supabase auth, AI providers, Circle/Arc, Resend). Everything degrades gracefully.
+- `.env` is gitignored and baked into the VM snapshot (created during environment setup). It sets
+ `DEPUTY_DEMO_MODE=true`, which lets the product run **without** external services
+ (Supabase auth, AI providers, Circle/Arc, Resend). Everything degrades gracefully. If `.env`
+ is ever missing, recreate it with `DEPUTY_DEMO_MODE=true` and the local `DATABASE_URL` above.
 - After changing the Prisma schema, run `npx prisma db push` (dev) to sync the local DB.
 - The wallet SDK (Reown/wagmi) logs harmless `api.web3modal.org ... 403` fetch errors when
   `NEXT_PUBLIC_REOWN_PROJECT_ID` is unset — these are non-fatal and do not affect the server.

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { loadCapitalState } from "@/lib/capital/state";
+import { withCapitalStateInflight } from "@/lib/capital/state-inflight";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -43,7 +44,10 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const fast = url.searchParams.get("fast") === "1";
-  const state = await loadCapitalState(authUser, { liveSync: !fast });
+  const liveSync = !fast;
+  const state = await withCapitalStateInflight(authUser.id, liveSync, () =>
+    loadCapitalState(authUser, { liveSync }),
+  );
 
   return NextResponse.json(state, {
     status: 200,

@@ -326,7 +326,7 @@ export function PaymentsOS() {
       );
       setWalletWarnings(capital.warnings);
       setLastRefreshedAt(new Date(capital.balance.syncedAt));
-      void refreshBalance().catch(() => null);
+      void refreshBalance({ mode: "fast", silent: true }).catch(() => null);
       return true;
     },
     [refreshBalance, walletView],
@@ -493,7 +493,7 @@ export function PaymentsOS() {
     void loadBankingMeta();
     void loadOverview();
     const t = setInterval(
-      () => void loadWallet({ silent: true, refresh: true }),
+      () => void loadWallet({ silent: true, refresh: false }),
       WALLET_REFRESH_MS,
     );
     return () => clearInterval(t);

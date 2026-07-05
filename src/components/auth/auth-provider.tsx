@@ -96,7 +96,7 @@ interface AuthContextValue {
     { ok: true } | { ok: false; message: string; cooldownSeconds?: number }
   >;
   signOut: () => Promise<void>;
-  refreshBalance: () => Promise<void>;
+  refreshBalance: (opts?: { mode?: "fast" | "live"; silent?: boolean }) => Promise<void>;
   provisionWallet: () => Promise<void>;
 }
 
@@ -132,14 +132,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   }, [supabase, capabilities.publicConfig]);
 
-  const refreshBalance = useCallback(async () => {
-    setBalanceLoading(true);
+  const refreshBalance = useCallback(async (opts?: { mode?: "fast" | "live"; silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    const mode = opts?.mode ?? "live";
+    if (!silent) setBalanceLoading(true);
     try {
       const loadOnce = async (): Promise<boolean> => {
-        const res = await fetch("/api/capital/state", {
+        const query = mode === "fast" ? "?fast=1" : "";
+        const res = await fetch(`/api/capital/state${query}`, {
           credentials: "include",
           cache: "no-store",
-          signal: AbortSignal.timeout(20_000),
+          signal: AbortSignal.timeout(mode === "fast" ? 12_000 : 20_000),
         });
         const data = await res.json();
         let walletAddress =
@@ -152,10 +155,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             method: "POST",
             credentials: "include",
           }).catch(() => null);
-          const retry = await fetch("/api/capital/state", {
+          const retry = await fetch(`/api/capital/state${query}`, {
             credentials: "include",
             cache: "no-store",
-            signal: AbortSignal.timeout(20_000),
+            signal: AbortSignal.timeout(mode === "fast" ? 12_000 : 20_000),
           });
           const retryData = await retry.json();
           walletAddress =
@@ -282,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setBalance((current) => current);
     } finally {
-      setBalanceLoading(false);
+      if (!silent) setBalanceLoading(false);
     }
   }, []);
 
@@ -366,7 +369,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase, capabilities.loaded, refreshBalance]);
 
   useEffect(() => {
-    if (user) void refreshBalance();
+    if (user) void refreshBalance({ mode: "live", silent: false });
   }, [user, refreshBalance]);
 
   const signInWithGoogle = useCallback(async () => {

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
+import { getCachedArcUsdcBalance } from "@/lib/cache/arc-balance-cache";
 import {
   resolveOnChainReadAddress,
   resolveUserWallet,
@@ -55,7 +55,7 @@ export async function syncIdentityBalance(userId: string): Promise<IdentityBalan
 
   let onChainUsd: number;
   try {
-    const bal = await getArcUsdcBalance(walletAddress);
+    const bal = await getCachedArcUsdcBalance(walletAddress);
     onChainUsd = round(Number(bal.totalUsdc));
   } catch {
     return {

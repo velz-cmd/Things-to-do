@@ -51,13 +51,17 @@ export function useWalletActions() {
   const canPayWithConnectedWallet = externalConnected && (walletLinked || !linkedExternal);
 
   useEffect(() => {
+    depositAddressRef.current = null;
+  }, [user?.id]);
+
+  useEffect(() => {
     if (!user) return;
-    void fetch("/api/banking/account", { credentials: "include" })
+    void fetch("/api/capital/payment-route?action=deposit", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        const addr =
-          data?.arc?.identityWallet?.depositAddress ?? data?.walletAddress ?? null;
-        if (addr) depositAddressRef.current = addr;
+        if (data?.ok && data.address) {
+          depositAddressRef.current = data.address;
+        }
       })
       .catch(() => {
         /* optional */
@@ -118,10 +122,20 @@ export function useWalletActions() {
         );
       }
 
-      const depositAddress = depositAddressRef.current ?? account.appWalletAddress;
-      if (!depositAddress) {
-        throw new Error("RESOLVE wallet not ready — wait a moment and retry");
+      const routeRes = await fetch("/api/capital/payment-route?action=program_fund", {
+        credentials: "include",
+      });
+      const route = await parseJsonResponse<{
+        ok?: boolean;
+        address?: string;
+        label?: string;
+        error?: string;
+      }>(routeRes);
+      if (!routeRes.ok || !route.ok || !route.address) {
+        throw new Error(route.error ?? "Could not resolve treasury destination");
       }
+
+      const depositAddress = route.address;
 
       if (signingRef.current) {
         throw new Error("Wallet transaction already in progress");
@@ -138,6 +152,10 @@ export function useWalletActions() {
 
         await ensureArc();
         opts?.onStage?.("awaiting_signature");
+
+        toast.message(`Sign to send $${amountUsd.toFixed(2)} USDC to ${route.label ?? "settlement treasury"}`, {
+          id: "wallet-fund",
+        });
 
         const hash = await sendTransactionAsync({
           chainId: arcTestnet.id,

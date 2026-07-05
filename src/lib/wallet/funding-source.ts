@@ -51,5 +51,5 @@ export function maxSpendableUsd(
 }
 
 export function fundingSourceLabel(source: FundingSource): string {
-  return source === "app" ? "RESOLVE wallet" : "your connected wallet";
+  return source === "app" ? "RESOLVE wallet" : "connected wallet → treasury";
 }

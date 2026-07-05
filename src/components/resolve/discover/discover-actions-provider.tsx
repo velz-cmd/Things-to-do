@@ -15,7 +15,6 @@ import type { DiscoverAction } from "@/lib/discover/types";
 import {
   apiCreateProgram,
   apiDiscoverAction,
-  apiFundProgram,
   apiInstallCommunity,
   apiResolveFundTarget,
   apiVerifyAndShareReceipt,
@@ -44,6 +43,8 @@ import {
   type CommunityIntent,
 } from "@/lib/communities/community-nav";
 import { fundingSourceLabel } from "@/lib/wallet/funding-source";
+import type { FundingSource } from "@/lib/wallet/funding-source";
+import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -95,10 +96,11 @@ export function DiscoverActionsProvider({
   const spendable = useSpendableUsd();
   const {
     externalWalletReady,
-    fundProgramWithWallet,
     openConnectWallet,
     pickFundingSource,
   } = useResolveAccess();
+  const { fundProgress, resetFundProgress, executeFund: runFundExecution } =
+    useFundProgramExecution();
   const { state: connections, reload: reloadConnections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
   const queryClient = useQueryClient();
@@ -183,26 +185,14 @@ export function DiscoverActionsProvider({
   const effectiveSpendable = spendable.spendableUsd;
 
   const executeFund = useCallback(
-    async (req: FundSheetRequest & { amountUsd: number }, surface = "fund-sheet") => {
+    async (
+      req: FundSheetRequest & { amountUsd: number },
+      surface = "fund-sheet",
+      chosenSource?: FundingSource,
+    ) => {
       if (!signedIn) {
         router.push("/login?next=/discover");
         return;
-      }
-
-      if (req.amountUsd < 5) {
-        throw new Error("Amount can't be less than $5");
-      }
-
-      const source = pickFundingSource(req.amountUsd);
-      const walletSpendable = spendable.spendableUsd;
-      const walletReady = spendable.loaded;
-
-      if (!source && walletReady) {
-        throw new Error(
-          walletSpendable <= 0
-            ? "No spendable USDC — add funds in Capital or connect a wallet with Arc USDC"
-            : `Insufficient balance: $${walletSpendable.toFixed(2)} available across your wallets, need $${req.amountUsd.toFixed(2)}`,
-        );
       }
 
       setBusy(true);
@@ -219,50 +209,16 @@ export function DiscoverActionsProvider({
       reportActionStatus(surface, auditAction, "pending");
 
       try {
-        let programId = req.programId;
-
-        if (!programId) {
-          toast.loading("Preparing pool…", { id: "discover-chain" });
-          const target = await apiResolveFundTarget({
-            programId: req.programId,
-            communitySlug: req.communitySlug,
-            templateId: req.templateId,
-            missionId: req.missionId,
-          });
-          programId = await ensureProgram(target);
-        }
-
-        const fundingSource = source ?? pickFundingSource(req.amountUsd);
-        if (!fundingSource) {
-          throw new Error("No wallet with enough USDC for this amount");
-        }
-
-        toast.loading(
-          fundingSource === "external"
-            ? `Confirm $${req.amountUsd.toFixed(2)} USDC in your wallet…`
-            : `Funding $${req.amountUsd.toFixed(2)} from your RESOLVE wallet…`,
-          { id: "discover-chain" },
-        );
-
-        if (fundingSource === "external") {
-          await fundProgramWithWallet(programId, req.amountUsd);
-        } else {
-          await apiFundProgram(programId, req.amountUsd);
-        }
-        const fundedMessage = `You funded this pool $${req.amountUsd.toFixed(2)} via ${fundingSourceLabel(fundingSource)}`;
+        const result = await runFundExecution(req, chosenSource);
+        const fundedMessage = `${result.message} via ${fundingSourceLabel(result.fundingSource)}`;
         toast.success(fundedMessage, {
           id: "discover-chain",
-          description: "Arc USDC is pending confirmation in Capital",
+          description: result.txHash
+            ? "Confirmed on Arc testnet — view tx in Capital activity"
+            : "Recorded on Arc testnet — see Capital activity",
         });
         reportActionStatus(surface, auditAction, "success", fundedMessage);
-        await spendable.refresh().catch(() => null);
         await refreshWallet();
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
-        ]).catch(() => null);
-        setFundSheet(null);
         if (req.communitySlug) {
           navigateToCommunity(req.communitySlug, "fund");
         }
@@ -278,13 +234,9 @@ export function DiscoverActionsProvider({
     [
       signedIn,
       router,
-      spendable,
-      pickFundingSource,
-      fundProgramWithWallet,
-      ensureProgram,
+      runFundExecution,
       refreshWallet,
       reportActionStatus,
-      queryClient,
       navigateToCommunity,
     ],
   );
@@ -644,10 +596,14 @@ export function DiscoverActionsProvider({
         request={fundSheet}
         wallet={displayWallet}
         busy={busy}
-        onClose={() => setFundSheet(null)}
-        onConfirm={(amountUsd) => {
+        fundProgress={fundProgress}
+        onClose={() => {
+          setFundSheet(null);
+          resetFundProgress();
+        }}
+        onConfirm={(amountUsd, fundingSource) => {
           if (!fundSheet) return;
-          void executeFund({ ...fundSheet, amountUsd });
+          void executeFund({ ...fundSheet, amountUsd }, "fund-sheet", fundingSource);
         }}
       />
       <DiscoverActionConfirmSheet

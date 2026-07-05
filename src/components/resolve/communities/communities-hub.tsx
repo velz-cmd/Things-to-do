@@ -50,6 +50,9 @@ export function CommunitiesHub() {
     [hubData?.sensorStatuses],
   );
   const degraded = Boolean((hubData as { degraded?: boolean } | undefined)?.degraded);
+  const metricsSyncing = Boolean(
+    (hubData as { metricsSyncing?: boolean } | undefined)?.metricsSyncing,
+  );
 
   const installedSlugs = useMemo(() => {
     const set = new Set<string>();
@@ -127,10 +130,10 @@ export function CommunitiesHub() {
         { label: "Capital", href: "/capital" },
       ]}
     >
-      {degraded && (
+      {degraded && communities.length === 0 && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3">
           <p className="text-sm text-amber-100">
-            Communities loaded fast. Live metrics are still syncing in the background.
+            Showing the community catalog while live metrics reconnect.
           </p>
           <button
             type="button"
@@ -142,6 +145,11 @@ export function CommunitiesHub() {
             Refresh metrics
           </button>
         </div>
+      )}
+      {!degraded && metricsSyncing && communities.length > 0 && (
+        <p className="mb-4 text-xs text-resolve-muted-dim">
+          Live metrics are refreshing in the background.
+        </p>
       )}
 
       <section className="mb-10">

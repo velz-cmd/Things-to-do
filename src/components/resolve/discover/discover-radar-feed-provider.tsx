@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { DiscoverRadarFeedPayload } from "@/lib/discover/types";
 import { useDiscoverRadarFeedQuery } from "@/lib/query/hooks";
+import { isUsefulDiscoverFeed } from "@/lib/discover/feed-hydration";
 
 type DiscoverRadarFeedContextValue = {
   feed: DiscoverRadarFeedPayload | null;
@@ -26,19 +27,23 @@ export function DiscoverRadarFeedProvider({ children }: { children: ReactNode })
     await query.refetch();
   }, [query]);
 
+  const feed = query.data ?? null;
+  const stillWarming =
+    !query.isFetched || (query.isFetching && feed != null && !isUsefulDiscoverFeed(feed));
+
   const value = useMemo(
     () => ({
-      feed: query.data ?? null,
-      loading: query.isPending && !query.data,
+      feed,
+      loading: stillWarming,
       error:
         query.isError ? "Could not load trending radar"
-        : query.data?.degradedParts?.includes("client_timeout") ||
-            query.data?.degradedParts?.includes("timeout") ?
+        : feed?.degradedParts?.includes("client_timeout") ||
+            feed?.degradedParts?.includes("timeout") ?
           "Some signals timed out — showing partial data"
         : null,
       refresh,
     }),
-    [query.data, query.isPending, query.isError, refresh],
+    [feed, stillWarming, query.isError, refresh],
   );
 
   return (

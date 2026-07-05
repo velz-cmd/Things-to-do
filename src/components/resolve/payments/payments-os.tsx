@@ -19,7 +19,7 @@ import type {
 import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
 import type { WalletView } from "@/lib/wallet/active-wallet-view";
 
-const WALLET_REFRESH_MS = 30_000;
+const WALLET_REFRESH_MS = 60_000;
 const CLIENT_TIMEOUT_MS = 20_000;
 const ARC_CHAIN_ID = 5042002;
 
@@ -234,7 +234,7 @@ function mergeBankingSnapshots(
 }
 
 export function PaymentsOS() {
-  const { user, refreshBalance, balance } = useAuth();
+  const { user, balance } = useAuth();
   const { openSignIn } = useSignInModal();
   const account = useResolveAccount();
   const { view: walletView } = useActiveWalletView();
@@ -326,10 +326,9 @@ export function PaymentsOS() {
       );
       setWalletWarnings(capital.warnings);
       setLastRefreshedAt(new Date(capital.balance.syncedAt));
-      void refreshBalance({ mode: "fast", silent: true }).catch(() => null);
       return true;
     },
-    [refreshBalance, walletView],
+    [walletView],
   );
 
   useEffect(() => {

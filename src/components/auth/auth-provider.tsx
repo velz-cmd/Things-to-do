@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { createBrowserClient } from "@supabase/ssr";
@@ -112,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<WalletBalance | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const balanceInflight = useRef<Map<string, Promise<void>>>(new Map());
 
   const supabaseConfigured =
     capabilities.supabase ||
@@ -135,7 +137,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(async (opts?: { mode?: "fast" | "live"; silent?: boolean }) => {
     const silent = opts?.silent ?? false;
     const mode = opts?.mode ?? "live";
+    const inflightKey = mode;
+
+    const pending = balanceInflight.current.get(inflightKey);
+    if (pending) {
+      await pending;
+      return;
+    }
+
     if (!silent) setBalanceLoading(true);
+
+    const work = (async () => {
     try {
       const loadOnce = async (): Promise<boolean> => {
         const query = mode === "fast" ? "?fast=1" : "";
@@ -287,6 +299,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (!silent) setBalanceLoading(false);
     }
+    })();
+
+    balanceInflight.current.set(inflightKey, work);
+    try {
+      await work;
+    } finally {
+      balanceInflight.current.delete(inflightKey);
+    }
   }, []);
 
   const provisionWallet = useCallback(async () => {
@@ -367,10 +387,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [supabase, capabilities.loaded, refreshBalance]);
-
-  useEffect(() => {
-    if (user) void refreshBalance({ mode: "live", silent: false });
-  }, [user, refreshBalance]);
 
   const signInWithGoogle = useCallback(async () => {
     if (!googleEnabled) {

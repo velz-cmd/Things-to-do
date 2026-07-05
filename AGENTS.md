@@ -78,6 +78,11 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   Do not add more `setInterval` callers to full `/api/capital/state` without `?fast=1`.
 - Background refresh uses `refreshBalance({ mode: "fast", silent: true })` to avoid UI loading flashes.
 
-### Contracts (`contracts/`)
+### User actions (non-obvious)
+- **Mutations use `mutationFetch`** (`src/lib/api/mutation-fetch.ts`) — 55s client wait aligned
+  with route `maxDuration`, not 8s aborts. Install defers heavy ecosystem seeding to `after()`.
+- App-wallet **fund** writes `completed` immediately (ledger debit); cron reconciles legacy
+  `pending_sync` rows via `reconcilePendingFundTransactions` in `/api/cron/tick`.
+- Program **create** is idempotent for duplicate draft within 2 minutes (same template).
 - Foundry toolchain (`forge build` / `forge test`); not needed to run the web app. Requires a
   separate Foundry install (not part of the web-app update script).

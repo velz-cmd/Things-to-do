@@ -402,7 +402,6 @@ export function CommunityHome({ slug }: { slug: string }) {
     );
   }
 
-  const installed = activeSurface?.installed ?? false;
   const surfaceLoading = loading && !surface;
 
   const consoleHref = `/communities/${slug}`;

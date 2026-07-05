@@ -5,15 +5,17 @@ export type FundingBalances = {
   externalSpendableUsd: number;
 };
 
-/** Prefer RESOLVE app wallet (ledger) — no extra signature when it can cover the amount. */
+/** Pick whichever wallet can pay — external first when connected (user choice over auto Gmail path). */
 export function pickFundingSource(
   amountUsd: number,
   balances: FundingBalances,
   externalReady: boolean,
 ): FundingSource | null {
   if (amountUsd <= 0) return null;
-  if (balances.appSpendableUsd >= amountUsd) return "app";
-  if (externalReady && balances.externalSpendableUsd >= amountUsd) return "external";
+  const extOk = externalReady && balances.externalSpendableUsd >= amountUsd;
+  const appOk = balances.appSpendableUsd >= amountUsd;
+  if (extOk) return "external";
+  if (appOk) return "app";
   return null;
 }
 

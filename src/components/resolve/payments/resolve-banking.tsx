@@ -363,10 +363,15 @@ export function ResolveBanking({
   const reserved = balances?.reservedUsd ?? 0;
   const onChainUsd = balances?.onChainUsdcUsd ?? null;
 
-  const showBalanceAmount = balanceKnown && walletSync !== "error";
+  const showBalanceAmount =
+    balanceKnown &&
+    (walletSync !== "error" || yourDeposits > 0 || (onChainUsd ?? 0) > 0);
   const showCachedBalance = walletSync === "cached";
   const showSyncError =
-    walletSync === "error" || (!balanceKnown && walletSync !== "loading" && walletSync !== "cached");
+    walletSync === "error" &&
+    yourDeposits <= 0 &&
+    (onChainUsd ?? 0) <= 0 &&
+    !balanceKnown;
   const showNoWallet = walletSync === "no_wallet" && !payoutWallet;
 
   const statementLines: StatementLine[] = account?.statement ?? [];

@@ -88,5 +88,9 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
 - App-wallet **fund** writes `completed` immediately (ledger debit); cron reconciles legacy
   `pending_sync` rows via `reconcilePendingFundTransactions` in `/api/cron/tick`.
 - Program **create** is idempotent for duplicate draft within 2 minutes (same template).
+- **Cross-tab activity:** Discover/Communities dispatch `resolve.capital.refresh` after actions.
+  Capital (`payments-os.tsx`) listens and refetches `/api/capital/state?refresh=1` (busts Redis).
+  Fund actions also emit `resolve.fund.recorded` with optimistic statement rows in localStorage.
+  `mergeBankingSnapshots` unions activity by id — it no longer keeps stale statement rows.
 - Foundry toolchain (`forge build` / `forge test`); not needed to run the web app. Requires a
   separate Foundry install (not part of the web-app update script).

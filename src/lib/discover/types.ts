@@ -38,6 +38,10 @@ export type DiscoverAction = {
   templateId?: string;
   entityPath?: string;
   amountUsd?: number;
+  /** Shown on fund success — from opportunity card */
+  whyFund?: string;
+  whoBenefits?: string;
+  programName?: string;
   /** Agent signal catalog id when CTA routes to Mission rails */
   serviceId?: string;
   /** Phase 7 — prefill automation rule builder */

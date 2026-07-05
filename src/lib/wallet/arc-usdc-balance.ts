@@ -1,22 +1,15 @@
 import { createPublicClient, erc20Abi, formatUnits, http, type PublicClient } from "viem";
 import { arcTestnet } from "@/lib/arc/config";
 import { ARC_CHAIN_ID, ARC_USDC_CONTRACT } from "@/lib/settlement/arc-config";
+import {
+  isArcAlchemyConfigured,
+  listArcRpcFallbackUrls,
+  resolveArcAlchemyRpcUrl,
+  resolveArcRpcUrl,
+} from "@/lib/wallet/arc-rpc-url";
 
-const ARC_RPC_URLS = [
-  process.env.ARC_RPC_URL?.trim(),
-  process.env.ARC_TESTNET_RPC_URL?.trim(),
-  "https://rpc.testnet.arc.network",
-  "https://arc-testnet.drpc.org",
-].filter((url): url is string => Boolean(url));
-
-const ARC_ALCHEMY_BASE =
-  process.env.ALCHEMY_ARC_RPC_URL?.trim() ||
-  (process.env.ALCHEMY_API_KEY?.trim()
-    ? `https://arc-testnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY.trim()}`
-    : null);
-
-const RPC_TIMEOUT_MS = 4_500;
-const RPC_RETRIES = 1;
+const RPC_TIMEOUT_MS = 8_000;
+const RPC_RETRIES = 2;
 
 export type ArcUsdcBalance = {
   address: string;
@@ -41,6 +34,10 @@ function formatUsd(amount: number): string {
   return (Math.round(amount * 100) / 100).toFixed(2);
 }
 
+function rpcUrls(): string[] {
+  return [resolveArcRpcUrl(), ...listArcRpcFallbackUrls()];
+}
+
 function makeClient(rpcUrl: string): PublicClient {
   return createPublicClient({
     chain: arcTestnet,
@@ -56,7 +53,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
     } catch (e) {
       lastError = e;
       if (attempt < RPC_RETRIES - 1) {
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
       }
     }
   }
@@ -66,11 +63,12 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
 }
 
 async function alchemyRpc<T>(method: string, params: unknown[]): Promise<T> {
-  if (!ARC_ALCHEMY_BASE) throw new ArcRpcUnavailableError("Alchemy not configured");
+  const base = resolveArcAlchemyRpcUrl();
+  if (!base) throw new ArcRpcUnavailableError("Alchemy not configured");
 
-  const res = await fetch(ARC_ALCHEMY_BASE, {
+  const res = await fetch(base, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", accept: "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
   });
@@ -83,18 +81,18 @@ async function alchemyRpc<T>(method: string, params: unknown[]): Promise<T> {
 }
 
 async function readNativeUsdc(address: string): Promise<number> {
-  if (ARC_ALCHEMY_BASE) {
+  if (isArcAlchemyConfigured()) {
     try {
       const hex = await alchemyRpc<string>("eth_getBalance", [address, "latest"]);
       return Number(formatUnits(BigInt(hex), 18));
     } catch {
-      /* fall through to public RPCs */
+      /* fall through to viem over primary + public RPCs */
     }
   }
 
   return withRetry(async () => {
     let lastErr: unknown;
-    for (const rpcUrl of ARC_RPC_URLS) {
+    for (const rpcUrl of rpcUrls()) {
       try {
         const client = makeClient(rpcUrl);
         const wei = await client.getBalance({ address: address as `0x${string}` });
@@ -108,9 +106,24 @@ async function readNativeUsdc(address: string): Promise<number> {
 }
 
 async function readErc20Usdc(address: string): Promise<number> {
+  if (isArcAlchemyConfigured()) {
+    try {
+      const hex = await alchemyRpc<string>("eth_call", [
+        {
+          to: ARC_USDC_CONTRACT,
+          data: `0x70a08231${address.slice(2).padStart(64, "0")}`,
+        },
+        "latest",
+      ]);
+      return Number(formatUnits(BigInt(hex), 6));
+    } catch {
+      /* fall through */
+    }
+  }
+
   return withRetry(async () => {
     let lastErr: unknown;
-    for (const rpcUrl of ARC_RPC_URLS) {
+    for (const rpcUrl of rpcUrls()) {
       try {
         const client = makeClient(rpcUrl);
         const wei = await client.readContract({
@@ -129,7 +142,7 @@ async function readErc20Usdc(address: string): Promise<number> {
 }
 
 async function readBlockNumber(): Promise<number> {
-  if (ARC_ALCHEMY_BASE) {
+  if (isArcAlchemyConfigured()) {
     try {
       const hex = await alchemyRpc<string>("eth_blockNumber", []);
       return Number(BigInt(hex));
@@ -138,7 +151,7 @@ async function readBlockNumber(): Promise<number> {
     }
   }
 
-  for (const rpcUrl of ARC_RPC_URLS) {
+  for (const rpcUrl of rpcUrls()) {
     try {
       const client = makeClient(rpcUrl);
       const block = await client.getBlockNumber();
@@ -152,7 +165,7 @@ async function readBlockNumber(): Promise<number> {
 
 /**
  * Read Arc testnet USDC from RPC — native (18 dec) + ERC-20 (6 dec).
- * Public Arc RPC first with retries; throws on total failure (never fake zero).
+ * Uses Alchemy when ALCHEMY_API_KEY / ALCHEMY_ARC_RPC_URL is set (server-only).
  */
 export async function getArcUsdcBalance(address: string): Promise<ArcUsdcBalance> {
   const normalized = address.trim().toLowerCase();
@@ -188,11 +201,11 @@ export async function getArcUsdcBalance(address: string): Promise<ArcUsdcBalance
 }
 
 export function isAlchemyConfigured(): boolean {
-  return Boolean(ARC_ALCHEMY_BASE);
+  return isArcAlchemyConfigured();
 }
 
 export async function getArcTransactionCount(address: string): Promise<number> {
-  if (ARC_ALCHEMY_BASE) {
+  if (isArcAlchemyConfigured()) {
     try {
       const hex = await alchemyRpc<string>("eth_getTransactionCount", [address, "latest"]);
       return Number(BigInt(hex));
@@ -200,7 +213,7 @@ export async function getArcTransactionCount(address: string): Promise<number> {
       /* fall through */
     }
   }
-  for (const rpcUrl of ARC_RPC_URLS) {
+  for (const rpcUrl of rpcUrls()) {
     try {
       const client = makeClient(rpcUrl);
       const hex = await client.getTransactionCount({

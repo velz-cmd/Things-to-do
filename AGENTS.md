@@ -41,7 +41,8 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
  balance; optional Reown connect adds wallet-signed actions via `ConnectedWalletSync`.
  Capital UI is treasury-focused (balance, claim earnings, activity) — program funding lives under
  Communities, not Capital. Background refresh always uses live Arc RPC (not `?fast=1`) so balances
- do not snap back to zero.
+ do not snap back to zero. Set `ALCHEMY_API_KEY` on Vercel for reliable Arc reads; verify with
+ `GET /api/health/arc-rpc` (`alchemyConfigured: true`).
 
 ### Authentication is Supabase-gated (important)
 - All **authenticated write flows** (create task/mission, settlement, distribute, most

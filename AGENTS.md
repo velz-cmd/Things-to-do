@@ -92,5 +92,12 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   Capital (`payments-os.tsx`) listens and refetches `/api/capital/state?refresh=1` (busts Redis).
   Fund actions also emit `resolve.fund.recorded` with optimistic statement rows in localStorage.
   `mergeBankingSnapshots` unions activity by id — it no longer keeps stale statement rows.
+- **Wallet payment routes** (`src/lib/wallet/payment-routes.ts`): `deposit` → user's RESOLVE
+  identity wallet; `program_fund` → `ARC_CLIENT_WALLET_ADDRESS` (settlement treasury); `agent_signal`
+  → `RESOLVE_PLATFORM_FEE_WALLET` / `ARC_PROVIDER_WALLET_ADDRESS`. Connected-wallet program
+  funds use `GET /api/capital/payment-route?action=program_fund` — never the Gmail identity wallet.
+  App-wallet funds debit ledger then best-effort Circle transfer to treasury when live Arc is on.
+  Set `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `CIRCLE_WALLET_SET_ID`, and treasury env vars on
+  Vercel — never commit secrets to the repo.
 - Foundry toolchain (`forge build` / `forge test`); not needed to run the web app. Requires a
   separate Foundry install (not part of the web-app update script).

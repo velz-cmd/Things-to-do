@@ -40,12 +40,13 @@ export async function verifyArcIdentityDeposit(params: {
   return { ok: true as const, amountUsd: sentUsd };
 }
 
-/** Verify native USDC transfer from a linked external wallet to the identity deposit address. */
+/** Verify native USDC transfer from a linked external wallet to the expected destination. */
 export async function verifyArcTransferFromWallet(params: {
   txHash: `0x${string}`;
   expectedUsd: number;
   depositAddress: string;
   fromWallet: string;
+  destinationLabel?: string;
 }) {
   const receipt = await client.getTransactionReceipt({ hash: params.txHash });
   if (receipt.status !== "success") {
@@ -58,9 +59,10 @@ export async function verifyArcTransferFromWallet(params: {
   }
 
   if (tx.to.toLowerCase() !== params.depositAddress.toLowerCase()) {
+    const dest = params.destinationLabel ?? "the expected Arc address";
     return {
       ok: false as const,
-      error: "Send USDC to your RESOLVE Arc wallet address",
+      error: `Send USDC to ${dest}, not your RESOLVE identity wallet`,
     };
   }
 

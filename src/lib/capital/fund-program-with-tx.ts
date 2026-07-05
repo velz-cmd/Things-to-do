@@ -2,14 +2,15 @@ import { isHash } from "viem";
 import { prisma } from "@/lib/db";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";
 import { verifyArcTransferFromWallet } from "@/lib/wallet/verify-crypto-deposit";
+import { resolvePaymentRoute } from "@/lib/wallet/payment-routes";
 
 export type FundProgramWithTxResult =
   | Awaited<ReturnType<typeof fundCommunityProgram>>
   | { ok: false; error: string };
 
 /**
- * Credit a wallet-signed Arc USDC transfer, then stake on a community program.
- * One on-chain signature from the user's linked external wallet.
+ * Verify a wallet-signed Arc USDC transfer to the settlement treasury, then stake on a program.
+ * Connected wallet pays treasury directly — not the user's RESOLVE identity wallet.
  */
 export async function fundCommunityProgramWithTx(input: {
   userId: string;
@@ -26,7 +27,6 @@ export async function fundCommunityProgramWithTx(input: {
     select: {
       walletAddress: true,
       scanWalletAddress: true,
-      availableUsd: true,
     },
   });
 
@@ -50,39 +50,46 @@ export async function fundCommunityProgramWithTx(input: {
     return { ok: false, error: "This transaction was already used to fund a pool" };
   }
 
+  const route = resolvePaymentRoute("program_fund", profile.walletAddress);
+  if ("error" in route) {
+    return { ok: false, error: route.error };
+  }
+
   const verified = await verifyArcTransferFromWallet({
     txHash: input.txHash as `0x${string}`,
     expectedUsd: input.amountUsd,
-    depositAddress: profile.walletAddress,
+    depositAddress: route.address,
     fromWallet,
+    destinationLabel:
+      route.kind === "treasury"
+        ? "RESOLVE settlement treasury"
+        : "your RESOLVE Arc wallet",
   });
 
   if (!verified.ok) {
     return { ok: false, error: verified.error };
   }
 
-  const credit = Math.round(verified.amountUsd * 100) / 100;
-
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: input.userId },
-      data: { availableUsd: { increment: credit } },
-    }),
-    prisma.walletTransaction.create({
-      data: {
-        userId: input.userId,
-        type: "deposit",
-        method: "crypto",
-        amountUsd: credit,
-        label: refLabel,
-        status: "completed",
-      },
-    }),
-  ]);
-
-  return fundCommunityProgram({
+  const result = await fundCommunityProgram({
     userId: input.userId,
     programId: input.programId,
     amountUsd: input.amountUsd,
+    settleFrom: "treasury_on_chain",
+    txHash: input.txHash,
   });
+
+  if (result.ok) {
+    await prisma.walletTransaction.create({
+      data: {
+        userId: input.userId,
+        type: "adjustment",
+        method: "crypto",
+        amountUsd: 0,
+        label: refLabel,
+        status: "completed",
+      },
+    });
+  }
+
+  return result;
 }

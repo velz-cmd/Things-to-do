@@ -12,6 +12,10 @@ import { offlineProfileBootstrap } from "@/lib/profile/bootstrap-fallback";
 import { loadProfileFast } from "@/lib/profile/load-profile-fast";
 import { buildFastIdentities } from "@/lib/profile/build-fast-identities";
 import type { ProfileIdentityState } from "@/lib/profile/identity-types";
+import { API_CACHE } from "@/lib/api/cache-headers";
+import { reportApiError } from "@/lib/api/report-error";
+import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
+import { cacheGetOrSet } from "@/lib/cache/kv";
 
 export const dynamic = "force-dynamic";
 
@@ -67,31 +71,70 @@ async function fastBootstrapPayload(authUser: NonNullable<Awaited<ReturnType<typ
 /**
  * Single profile load — connector fields from Postgres first (fast), enrich in parallel with timeouts.
  */
-export async function GET() {
+export async function GET(req: Request) {
   const authUser = await getSessionUser();
   if (!authUser) {
     return NextResponse.json({ ok: true, signedIn: false });
   }
 
+  const rl = await rateLimitRequest(
+    `profile:bootstrap:${getRequestClientId(req, authUser.id)}`,
+    30,
+    60,
+  );
+  if (!rl.success) {
+    try {
+      const { profile, walletResolved, identities, jellyfinConnected } =
+        await fastBootstrapPayload(authUser);
+      return NextResponse.json(
+        {
+          ok: true,
+          signedIn: true,
+          userId: authUser.id,
+          email: authUser.email ?? null,
+          emailVerified: Boolean(authUser.email_confirmed_at ?? authUser.email),
+          identities,
+          earnings: null,
+          communities: [],
+          wallet: {
+            address: walletResolved.address,
+            embedded: profile.embeddedWallet || true,
+            provider: appWalletProvider(profile),
+          },
+          jellyfinSync:
+            jellyfinConnected && profile.jellyfinUrl && profile.jellyfinAccessToken
+              ? { url: profile.jellyfinUrl, accessToken: profile.jellyfinAccessToken }
+              : null,
+          rateLimited: true,
+          dbDegraded: true,
+          updatedAt: new Date().toISOString(),
+        },
+        { headers: { "Cache-Control": API_CACHE.noStore } },
+      );
+    } catch {
+      return NextResponse.json(offlineProfileBootstrap(authUser));
+    }
+  }
+
   try {
-    const { profile, walletResolved, identities: fastIdentities, jellyfinConnected } =
-      await fastBootstrapPayload(authUser);
+    const payload = await cacheGetOrSet(`profile:bootstrap:${authUser.id}`, 30, async () => {
+      const { profile, walletResolved, identities: fastIdentities, jellyfinConnected } =
+        await fastBootstrapPayload(authUser);
 
-    const [liveConnectors, connectorStatuses, earnings, communities] = await Promise.all([
-      withTimeout(getConnectorLiveStatuses().catch(() => []), 1_500, []),
-      withTimeout(getConnectorStatuses(authUser.id).catch(() => []), 1_500, []),
-      withTimeout(
-        getProfileEarningsSummaryCached({ userId: authUser.id, profile }).catch(() => null),
-        2_000,
-        null,
-      ),
-      withTimeout(listCommunitySummaries(authUser.id, { fast: true }).catch(() => []), 2_500, []),
-    ]);
+      const [liveConnectors, connectorStatuses, earnings, communities] = await Promise.all([
+        withTimeout(getConnectorLiveStatuses().catch(() => []), 1_500, []),
+        withTimeout(getConnectorStatuses(authUser.id).catch(() => []), 1_500, []),
+        withTimeout(
+          getProfileEarningsSummaryCached({ userId: authUser.id, profile }).catch(() => null),
+          2_000,
+          null,
+        ),
+        withTimeout(listCommunitySummaries(authUser.id, { fast: true }).catch(() => []), 2_500, []),
+      ]);
 
-    const identities = enrichIdentities(fastIdentities, liveConnectors, connectorStatuses);
+      const identities = enrichIdentities(fastIdentities, liveConnectors, connectorStatuses);
 
-    return NextResponse.json(
-      {
+      return {
         ok: true,
         signedIn: true,
         userId: authUser.id,
@@ -113,15 +156,14 @@ export async function GET() {
               }
             : null,
         updatedAt: new Date().toISOString(),
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store, max-age=0",
-        },
-      },
-    );
+      };
+    });
+
+    return NextResponse.json(payload, {
+      headers: { "Cache-Control": API_CACHE.privateShort },
+    });
   } catch (e) {
-    console.error("[profile/bootstrap]", e);
+    reportApiError("profile/bootstrap", e, { userId: authUser.id });
     try {
       const { profile, walletResolved, identities, jellyfinConnected } =
         await fastBootstrapPayload(authUser);

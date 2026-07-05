@@ -57,6 +57,12 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   `GET /api/discover/search?q=...`, `GET /api/github/opportunities`, and the Discover UI
   ("Find opportunities" → Opportunity board).
 
+### Resilience (non-obvious)
+- **Upstash Redis** — `cacheGetOrSet` + `@upstash/ratelimit` in `src/lib/cache/`. Expensive GET routes use `safeApiGet` (`src/lib/api/safe-route.ts`) for try/catch + degraded JSON.
+- **Sentry** — set `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` on Vercel (org `resolve-n2`, project `javascript-nextjs`). Disabled when unset.
+- **Health** — `GET /api/health/cache` confirms Redis + documents cache/rate-limit keys.
+- API failures return **200 + degraded payload** where possible so the UI never hard-crashes on one downstream.
+
 ### Cron / background jobs (non-obvious)
 - `GET|POST /api/cron/tick` runs the core scheduler + snapshot refresh and **writes to the DB**
   (e.g. `CommunityVitalsSnapshot`, `GithubOssScan`). In dev with no `CRON_SECRET` set it is

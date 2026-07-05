@@ -6,6 +6,8 @@ import { getCommunityBySlug } from "@/lib/communities/catalog";
 
 type Params = { params: Promise<{ slug: string }> };
 
+export const maxDuration = 60;
+
 const createSchema = z.object({
   templateId: z
     .enum([

@@ -9,8 +9,10 @@ import {
   apiFundProgram,
   apiInstallCommunity,
   apiResolveFundTarget,
+  isAcceptedBackgroundError,
   type FundSheetRequest,
 } from "@/lib/discover/discover-action-engine";
+import { ACTION_STATUS } from "@/lib/copy/action-status";
 import { queryKeys } from "@/lib/query/keys";
 import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
@@ -160,6 +162,24 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
           message: `You funded this pool $${req.amountUsd.toFixed(2)}`,
         };
       } catch (e) {
+        if (isAcceptedBackgroundError(e)) {
+          setFundProgress((p) => ({
+            ...p,
+            stage: "complete",
+            message: ACTION_STATUS.acceptedBackground,
+          }));
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
+          ]).catch(() => null);
+          return {
+            programId: req.programId ?? "",
+            amountUsd: req.amountUsd,
+            fundingSource: source!,
+            message: ACTION_STATUS.acceptedBackground,
+          };
+        }
         setFundProgress((p) => ({
           ...p,
           stage: "error",

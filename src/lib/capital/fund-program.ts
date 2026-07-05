@@ -17,7 +17,7 @@ export type FundProgramResult =
       principalUsd: number;
       targetYieldMultiplier: number;
       newBudgetUsd: number;
-      status: "pending_sync";
+      status: "completed";
       activityId: string;
       message: string;
     }
@@ -71,9 +71,9 @@ export async function fundCommunityProgram(input: {
   let availableUsd = Math.round(user.availableUsd * 100) / 100;
   if (availableUsd < amount) {
     const synced = await withProviderTimeout(
-      getRealSpendableUsd(input.userId, { sync: true }),
-      3_500,
-      "fund_program:wallet_sync",
+      getRealSpendableUsd(input.userId, { sync: false }),
+      1_500,
+      "fund_program:wallet_read",
     ).catch(() => null);
     if (synced) {
       availableUsd = Math.max(availableUsd, Math.round(synced.availableUsd * 100) / 100);
@@ -122,7 +122,7 @@ export async function fundCommunityProgram(input: {
         method: "arc_usdc",
         amountUsd: -amount,
         label: `You funded ${program.name}`,
-        status: "pending_sync",
+        status: "completed",
       },
     });
 
@@ -145,7 +145,7 @@ export async function fundCommunityProgram(input: {
     ecosystemId: program.install?.ecosystemId ?? undefined,
     eventType: "pool_funding_pending",
     title: `You funded ${program.name}`,
-    detail: `You funded this pool $${amount.toFixed(2)}. Arc confirmation continues in Capital.`,
+    detail: `You funded this pool $${amount.toFixed(2)}.`,
     severity: "info",
     metadata: {
       programId: program.id,
@@ -179,8 +179,8 @@ export async function fundCommunityProgram(input: {
     principalUsd: amount,
     targetYieldMultiplier: target,
     newBudgetUsd: program.budgetUsd + amount,
-    status: "pending_sync",
+    status: "completed",
     activityId: funded.activity.id,
-    message: `You funded this pool $${amount.toFixed(2)}. Arc confirmation continues in Capital.`,
+    message: `You funded this pool $${amount.toFixed(2)}.`,
   };
 }

@@ -1,3 +1,4 @@
+import { installCommunity } from "@/lib/communities/installs";
 import { ensureProfileLinkedInstall } from "@/lib/communities/profile-linked-install";
 import { createProgram } from "@/lib/communities/programs";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
-import { cacheGetOrSet } from "@/lib/cache/kv";
 import { loadCapitalState } from "@/lib/capital/state";
 
 export const dynamic = "force-dynamic";
@@ -44,15 +43,12 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const refresh = url.searchParams.get("refresh") === "1";
-  const key = `capital:state:${authUser.id}`;
-  const state = refresh
-    ? await loadCapitalState(authUser)
-    : await cacheGetOrSet(key, 25, () => loadCapitalState(authUser));
+  const state = await loadCapitalState(authUser, { liveSync: refresh });
 
   return NextResponse.json(state, {
     status: 200,
     headers: {
-      "Cache-Control": "private, max-age=15, stale-while-revalidate=30",
+      "Cache-Control": "private, no-store, max-age=0",
     },
   });
 }

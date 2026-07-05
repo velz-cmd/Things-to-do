@@ -17,7 +17,7 @@ import type {
 } from "@/lib/capital/wallet-types";
 
 const WALLET_REFRESH_MS = 30_000;
-const CLIENT_TIMEOUT_MS = 8_000;
+const CLIENT_TIMEOUT_MS = 6_000;
 const ARC_CHAIN_ID = 5042002;
 
 type Overview = {
@@ -43,7 +43,7 @@ type Overview = {
 async function fetchCapitalWallet(refresh = false): Promise<CapitalWalletResponse> {
   const res = await fetch(refresh ? "/api/capital/state?refresh=1" : "/api/capital/state", {
     credentials: "include",
-    cache: refresh ? "no-store" : "default",
+    cache: "no-store",
     signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
   });
   return (await res.json()) as CapitalWalletResponse;
@@ -102,10 +102,10 @@ function snapshotFromCapitalWallet(
       chainId: data.balance.chainId,
       currency: "USDC",
       usdcGas: true,
-      live: true,
+      live: data.syncStatus !== "cached",
       canDistribute: false,
       blockers: [],
-      message: "Wallet synced from Arc RPC",
+      message: data.syncStatus === "cached" ? "Showing last known balance" : "Wallet synced from Arc RPC",
       contracts: { usdc: "", memo: "" },
       agentWallet: null,
       settlementWallet: null,

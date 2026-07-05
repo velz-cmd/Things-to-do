@@ -223,7 +223,10 @@ function cachedBalanceFromProfile(profile: ProfileLight | null): number | null {
   return Number.isFinite(value) ? Math.max(0, Math.round(value * 100) / 100) : null;
 }
 
-export async function loadCapitalState(authUser: SupabaseUser): Promise<CapitalStateResponse> {
+export async function loadCapitalState(
+  authUser: SupabaseUser,
+  opts: { liveSync?: boolean } = {},
+): Promise<CapitalStateResponse> {
   const warnings: string[] = [];
   let profile = await loadProfileLight(authUser.id);
 
@@ -302,6 +305,43 @@ export async function loadCapitalState(authUser: SupabaseUser): Promise<CapitalS
       activity,
       code: "WALLET_NOT_FOUND",
       message: "Connect an Arc wallet in Profile or Capital to fund programs.",
+    };
+  }
+
+  if (!opts.liveSync) {
+    const fastBalance = cachedBalance ?? 0;
+    return {
+      ok: true,
+      ...base,
+      usdcBalance: fastBalance,
+      spendableBalance: fastBalance,
+      lastKnownBalance: cachedBalance,
+      treasuryBalance: fastBalance,
+      programBalances,
+      pendingTransactions,
+      claimableAmount: 0,
+      lastSyncedAt: cachedSyncedAt,
+      syncStatus: cachedBalance !== null ? "cached" : "unknown",
+      syncError: cachedBalance !== null ? null : "Live Arc balance is syncing in the background.",
+      activity,
+      wallet: {
+        address: walletResolved.address,
+        shortAddress: shortWalletAddress(walletResolved.address),
+        source: walletResolved.source,
+        provider: walletProvider === "circle" ? "circle" : "embedded",
+        ...(walletResolved.externalAddress ? { externalAddress: walletResolved.externalAddress } : {}),
+      },
+      balance: {
+        totalUsdc: fastBalance.toFixed(2),
+        onChainUsd: fastBalance.toFixed(2),
+        nativeUsdc: fastBalance.toFixed(2),
+        erc20Usdc: "0.00",
+        chainId: ARC_CHAIN_ID,
+        blockNumber: 0,
+        syncedAt: cachedSyncedAt ?? new Date().toISOString(),
+        reservedUsd,
+        spendableUsd: fastBalance.toFixed(2),
+      },
     };
   }
 

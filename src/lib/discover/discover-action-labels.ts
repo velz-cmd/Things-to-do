@@ -1,6 +1,7 @@
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
+import { automateLabelFor } from "@/lib/discover/automate-action-labels";
 
 const COMMUNITY_NAMES: Record<string, string> = {
   react: "React",
@@ -63,7 +64,10 @@ export function friendlyDiscoverActionLabel(
   }
 
   if (action.kind === "automate") {
-    return "Automate Program";
+    return action.label.trim() || automateLabelFor({
+      templateId: action.templateId,
+      automationTrigger: action.automationTrigger,
+    });
   }
 
   if (action.kind === "analyze") {

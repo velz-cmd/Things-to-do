@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import type { DiscoverAction } from "@/lib/discover/types";
 import {
   apiCreateProgram,
+  apiDeployProgramOnArc,
   apiDiscoverAction,
   apiInstallCommunity,
   apiResolveFundTarget,
@@ -24,6 +25,13 @@ import {
 } from "@/lib/discover/discover-action-engine";
 import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-sheet";
 import { DiscoverActionConfirmSheet } from "@/components/resolve/discover/discover-action-confirm-sheet";
+import { useCommunityConsole } from "@/components/resolve/discover/discover-community-console-provider";
+import {
+  fundOutcomeSteps,
+  whereFundGoes,
+} from "@/lib/discover/discover-action-outcomes";
+import { automateOutcomeSteps } from "@/lib/discover/discover-action-outcomes";
+import { defaultTriggerForTemplate } from "@/lib/discover/automate-action-labels";
 import {
   discoverActionNeedsConfirm,
 } from "@/lib/discover/discover-action-copy";
@@ -39,7 +47,6 @@ import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-
 import { communitySlugFromDiscoverTarget } from "@/lib/discover/discover-inline-target";
 import {
   communityConsolePath,
-  discoverAutomatePath,
   type CommunityIntent,
 } from "@/lib/communities/community-nav";
 import { fundingSourceLabel } from "@/lib/wallet/funding-source";
@@ -103,6 +110,7 @@ export function DiscoverActionsProvider({
     useFundProgramExecution();
   const { state: connections, reload: reloadConnections } = useUserConnections();
   const { reportActionStatus } = useDiscoverActionAudit();
+  const { open: openCommunityConsole } = useCommunityConsole();
   const queryClient = useQueryClient();
   const [wallet, setWallet] = useState<WalletSnapshot>({
     spendableUsd: 0,
@@ -116,6 +124,14 @@ export function DiscoverActionsProvider({
     surface: string;
     amountUsd?: number;
   } | null>(null);
+  const [fundOutcome, setFundOutcome] = useState<{
+    amountUsd: number;
+    programId?: string;
+    communitySlug?: string;
+    txHash?: string;
+    label?: string;
+  } | null>(null);
+  const [deployingArc, setDeployingArc] = useState(false);
 
   const refreshWallet = useCallback(async () => {
     if (!signedIn) {
@@ -184,6 +200,17 @@ export function DiscoverActionsProvider({
 
   const effectiveSpendable = spendable.spendableUsd;
 
+  const refreshDiscover = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.profileState }),
+      reloadConnections(),
+      refreshWallet(),
+    ]);
+  }, [queryClient, reloadConnections, refreshWallet]);
+
   const executeFund = useCallback(
     async (
       req: FundSheetRequest & { amountUsd: number },
@@ -214,14 +241,19 @@ export function DiscoverActionsProvider({
         toast.success(fundedMessage, {
           id: "discover-chain",
           description: result.txHash
-            ? "Confirmed on Arc testnet — view tx in Capital activity"
+            ? "Confirmed on Arc testnet — see where it went below"
             : "Recorded on Arc testnet — see Capital activity",
         });
         reportActionStatus(surface, auditAction, "success", fundedMessage);
+        setFundOutcome({
+          amountUsd: req.amountUsd,
+          programId: result.programId,
+          communitySlug: req.communitySlug,
+          txHash: result.txHash,
+          label: req.label,
+        });
         await refreshWallet();
-        if (req.communitySlug) {
-          navigateToCommunity(req.communitySlug, "fund");
-        }
+        await refreshDiscover();
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Fund failed";
         reportActionStatus(surface, auditAction, "error", msg);
@@ -237,7 +269,7 @@ export function DiscoverActionsProvider({
       runFundExecution,
       refreshWallet,
       reportActionStatus,
-      navigateToCommunity,
+      refreshDiscover,
     ],
   );
 
@@ -261,17 +293,6 @@ export function DiscoverActionsProvider({
     [signedIn, router, wallet.loaded, wallet.spendableUsd],
   );
 
-  const refreshDiscover = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.profileState }),
-      reloadConnections(),
-      refreshWallet(),
-    ]);
-  }, [queryClient, reloadConnections, refreshWallet]);
-
   const executeConfirmedAction = useCallback(async () => {
     if (!confirmAction) return;
     const { action, surface, amountUsd } = confirmAction;
@@ -290,6 +311,39 @@ export function DiscoverActionsProvider({
       }
       reportActionStatus(surface, action, "success", result.message);
       toast.success(result.message ?? "Action completed");
+
+      if (action.kind === "create_program" && result.entityId && action.communitySlug) {
+        setConfirmAction(null);
+        openFundSheet({
+          programId: result.entityId,
+          communitySlug: action.communitySlug,
+          templateId: action.templateId,
+          label: `Fund ${action.label}`,
+        });
+        toast.message("Next: fund the pool on Arc", {
+          description: "Min $5 USDC — pool balance appears in Capital and Communities",
+        });
+        await refreshDiscover();
+        return;
+      }
+
+      if (action.kind === "automate" && action.communitySlug) {
+        setConfirmAction(null);
+        openCommunityConsole({
+          communitySlug: action.communitySlug,
+          label: action.label,
+          tab: "automate",
+          automationTrigger:
+            action.automationTrigger ?? defaultTriggerForTemplate(action.templateId),
+          actionContext: "automate",
+        });
+        toast.message("Auto-pay rule live", {
+          description: automateOutcomeSteps({ communitySlug: action.communitySlug })[1]?.description,
+        });
+        await refreshDiscover();
+        return;
+      }
+
       if (result.status === "browser_sync" && action.communitySlug === "jellyfin") {
         try {
           const browser = await pushJellyfinWatchesFromBrowser();
@@ -330,6 +384,8 @@ export function DiscoverActionsProvider({
     router,
     refreshDiscover,
     navigateToCommunity,
+    openFundSheet,
+    openCommunityConsole,
   ]);
 
   const runAction = useCallback(
@@ -481,44 +537,18 @@ export function DiscoverActionsProvider({
             break;
 
           case "automate":
-            if (action.communitySlug && action.templateId) {
-              setBusy(true);
-              try {
-                toast.loading("Analyzing proof...", { id: "discover-chain" });
-                const target = await apiResolveFundTarget({
-                  communitySlug: action.communitySlug,
-                  templateId: action.templateId,
-                });
-                const programId = await ensureProgram(target);
-                toast.loading("Preparing Arc settlement state...", { id: "discover-chain" });
-                await Promise.all([
-                  queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
-                  queryClient.invalidateQueries({
-                    queryKey: queryKeys.communitySurface(action.communitySlug, "lite"),
-                  }),
-                  queryClient.invalidateQueries({
-                    queryKey: queryKeys.communitySurface(action.communitySlug, "full"),
-                  }),
-                  queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
-                ]);
-                toast.success("Program Active", {
-                  id: "discover-chain",
-                  description: `Program ${programId} saved. Fund the pool to submit Arc settlement.`,
-                });
-                navigateToCommunity(action.communitySlug, "create_program");
-                reportActionStatus(surface, action, "success", `Program ${programId}`);
-              } finally {
-                setBusy(false);
-              }
-            } else if (action.communitySlug) {
-              router.push(
-                discoverAutomatePath(action.communitySlug, {
-                  trigger: action.automationTrigger,
-                }),
-              );
-              reportActionStatus(surface, action, "success");
-            } else if (action.href) {
+            if (action.href) {
               router.push(action.href);
+              reportActionStatus(surface, action, "success");
+            } else if (action.communitySlug) {
+              openCommunityConsole({
+                communitySlug: action.communitySlug,
+                label: action.label,
+                tab: "automate",
+                automationTrigger:
+                  action.automationTrigger ?? defaultTriggerForTemplate(action.templateId),
+                actionContext: "automate",
+              });
               reportActionStatus(surface, action, "success");
             } else {
               reportActionStatus(surface, action, "blocked", "Community required for automation");
@@ -551,8 +581,31 @@ export function DiscoverActionsProvider({
       navigateToCommunity,
       ensureProgram,
       queryClient,
+      openCommunityConsole,
     ],
   );
+
+  const handleDeployFromFundOutcome = useCallback(async () => {
+    if (!fundOutcome?.communitySlug || !fundOutcome.programId) return;
+    setDeployingArc(true);
+    try {
+      const result = await apiDeployProgramOnArc(
+        fundOutcome.communitySlug,
+        fundOutcome.programId,
+      );
+      toast.success(result.message ?? "Settlement submitted on Arc", {
+        description:
+          result.explorerUrls?.[0] ? "View receipt in Capital activity" : undefined,
+      });
+      await refreshDiscover();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Arc settlement failed", {
+        description: "Authorizations may still be pending — run analysis or wait for ingest",
+      });
+    } finally {
+      setDeployingArc(false);
+    }
+  }, [fundOutcome, refreshDiscover]);
 
   const value = useMemo(
     () => ({
@@ -599,8 +652,30 @@ export function DiscoverActionsProvider({
         fundProgress={fundProgress}
         onClose={() => {
           setFundSheet(null);
+          setFundOutcome(null);
           resetFundProgress();
         }}
+        fundOutcome={
+          fundOutcome
+            ? {
+                title: `You funded ${fundOutcome.label ?? "this pool"}`,
+                summary: whereFundGoes({
+                  communitySlug: fundOutcome.communitySlug,
+                  amountUsd: fundOutcome.amountUsd,
+                }),
+                steps: fundOutcomeSteps({
+                  communitySlug: fundOutcome.communitySlug,
+                  programId: fundOutcome.programId,
+                  txHash: fundOutcome.txHash,
+                }),
+                onDeployArc:
+                  fundOutcome.communitySlug && fundOutcome.programId
+                    ? () => void handleDeployFromFundOutcome()
+                    : undefined,
+                deployingArc,
+              }
+            : null
+        }
         onConfirm={(amountUsd, fundingSource) => {
           if (!fundSheet) return;
           void executeFund({ ...fundSheet, amountUsd }, "fund-sheet", fundingSource);

@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import type { WalletSnapshot } from "@/lib/discover/discover-action-engine";
-import { discoverActionSummary } from "@/lib/discover/discover-action-copy";
+import { discoverActionSummary, discoverActionNextHint } from "@/lib/discover/discover-action-copy";
 import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labels";
 import { Button } from "@/components/resolve/ui/button";
 
@@ -39,6 +39,8 @@ export function DiscoverActionConfirmSheet({
     wallet.loaded ? wallet.spendableUsd : null,
   );
 
+  const nextHint = discoverActionNextHint(action);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
       <div
@@ -51,6 +53,10 @@ export function DiscoverActionConfirmSheet({
 
         {requirement && (
           <p className="mt-2 text-[11px] font-medium text-amber-200/90">{requirement}</p>
+        )}
+
+        {nextHint && (
+          <p className="mt-2 text-[11px] text-resolve-accent/90">{nextHint}</p>
         )}
 
         {(action.kind === "fund" || action.kind === "sponsor") && wallet.loaded && (

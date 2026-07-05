@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSessionUserId, ensureUserProfile } from "@/lib/wallet/service";
 import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
 import { getRealSpendableUsd, syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
-import { resolveBalanceWalletAddress, resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
+import { resolveOnChainReadAddress, resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 
 export async function GET(req: Request) {
   const userId = await getSessionUserId();
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   }
 
   const balance = await getRealSpendableUsd(userId, { sync: false });
-  const walletAddress = resolveBalanceWalletAddress(userId, profile);
+  const walletAddress = resolveOnChainReadAddress(userId, profile);
 
   const tasks = await prisma.task.findMany({ where: { userId } });
   const lockedUsd = tasks

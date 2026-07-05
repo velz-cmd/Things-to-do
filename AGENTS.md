@@ -32,7 +32,13 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
 - Profile connector state hydrates Discover/Communities via `UserConnectionsProvider` +
  `sessionStorage` snapshot (`connection-snapshot-client.ts`). `ProfileLinkedInstallSync` silently
  creates community install rows when Profile already links upstream sources — users should not
- re-install or re-connect GitHub per tab.
+ re-install or re-connect GitHub per tab. Communities hub and Discover strip treat
+ `communityLinkedViaProfile()` as operative immediately (operate cards / Open console); `/api/communities`
+ marks `installed: true` for the same slugs via `profileLinkedCommunitySlugs()`.
+- **Gmail/Google sign-in wallets:** `WalletProvisionEffect` provisions the RESOLVE Arc app wallet
+ immediately on sign-in (`POST /api/wallet/provision`). `AppWalletOnChainSync` polls Arc RPC via
+ `/api/capital/state` (live by default). Capital and Profile read the same `walletAddress` on-chain
+ balance; optional Reown connect adds wallet-signed actions via `ConnectedWalletSync`.
 
 ### Authentication is Supabase-gated (important)
 - All **authenticated write flows** (create task/mission, settlement, distribute, most

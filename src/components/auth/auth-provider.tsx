@@ -126,41 +126,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(async () => {
     setBalanceLoading(true);
     try {
-      const res = await fetch("/api/capital/state?refresh=1", {
+      const res = await fetch("/api/capital/state", {
         credentials: "include",
         cache: "no-store",
-        signal: AbortSignal.timeout(4_000),
+        signal: AbortSignal.timeout(12_000),
       });
       const data = await res.json();
-      if (data.ok && data.walletAddress) {
-        const spendableUsd = Number(
-          data.spendableBalance ?? data.balance?.spendableUsd ?? data.lastKnownBalance ?? 0,
-        );
-        const onChainUsd = Number(data.usdcBalance ?? data.balance?.totalUsdc ?? data.lastKnownBalance ?? 0);
-        setBalance({
-          availableUsd: Number.isFinite(spendableUsd) ? spendableUsd : 0,
-          onChainUsd: Number.isFinite(onChainUsd) ? onChainUsd : null,
-          walletAddress: data.walletAddress,
-          walletProvider: data.walletProvider ?? data.wallet?.provider,
-          syncStatus: data.syncStatus,
-          lastSyncedAt: data.lastSyncedAt ?? null,
-          lockedUsd: 0,
-          releasedUsd: 0,
-          recentActivity: Array.isArray(data.pendingTransactions)
-            ? data.pendingTransactions.map(
-                (tx: { id: string; label?: string; amountUsd?: number; createdAt?: string; status?: string }) => ({
-                  id: tx.id,
-                  type: tx.status ?? "pending",
-                  label: tx.label ?? null,
-                  amountUsd: Number(tx.amountUsd ?? 0),
-                  createdAt: tx.createdAt ?? new Date().toISOString(),
-                }),
-              )
-            : [],
-        });
-      } else {
+      const walletAddress =
+        data.walletAddress ??
+        data.wallet?.address ??
+        null;
+      if (!walletAddress) {
         setBalance((current) => current);
+        return;
       }
+
+      const onChainUsd = Number(
+        data.usdcBalance ?? data.balance?.totalUsdc ?? data.balance?.onChainUsd ?? NaN,
+      );
+      const spendableFromChain = Number(
+        data.spendableBalance ?? data.balance?.spendableUsd ?? NaN,
+      );
+      const ledgerSpendable = Number(data.lastKnownBalance ?? NaN);
+      const live =
+        data.syncStatus === "live" ||
+        data.syncStatus === "cached" ||
+        Number.isFinite(onChainUsd);
+
+      const spendableUsd = live && Number.isFinite(spendableFromChain)
+        ? spendableFromChain
+        : live && Number.isFinite(onChainUsd)
+          ? onChainUsd
+          : Number.isFinite(ledgerSpendable)
+            ? ledgerSpendable
+            : 0;
+
+      setBalance({
+        availableUsd: spendableUsd,
+        onChainUsd: Number.isFinite(onChainUsd) ? onChainUsd : null,
+        walletAddress,
+        walletProvider: data.walletProvider ?? data.wallet?.provider,
+        syncStatus: data.syncStatus,
+        lastSyncedAt: data.lastSyncedAt ?? data.balance?.syncedAt ?? null,
+        lockedUsd: 0,
+        releasedUsd: 0,
+        recentActivity: Array.isArray(data.pendingTransactions)
+          ? data.pendingTransactions.map(
+              (tx: { id: string; label?: string; amountUsd?: number; createdAt?: string; status?: string }) => ({
+                id: tx.id,
+                type: tx.status ?? "pending",
+                label: tx.label ?? null,
+                amountUsd: Number(tx.amountUsd ?? 0),
+                createdAt: tx.createdAt ?? new Date().toISOString(),
+              }),
+            )
+          : [],
+      });
     } catch {
       setBalance((current) => current);
     } finally {
@@ -234,18 +255,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         void syncLocalEcosystemsToServer(userId).catch(() => {
           /* non-fatal */
         });
-
-        // Defer wallet DB writes — profile bootstrap handles display; avoids pool storms on sign-in.
-        window.setTimeout(() => {
-          void fetch("/api/wallet/provision", {
-            method: "POST",
-            credentials: "include",
-          })
-            .then(() => refreshBalance())
-            .catch(() => {
-              /* non-fatal */
-            });
-        }, 12_000);
       } else if (event === "SIGNED_OUT") {
         setBalance(null);
       } else {

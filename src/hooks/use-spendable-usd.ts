@@ -8,12 +8,27 @@ export type SpendableUsdSnapshot = {
   spendableUsd: number;
   totalUsdc: number;
   loaded: boolean;
-  source: "onchain_wallet" | "ledger";
+  source: "onchain_wallet" | "onchain_app" | "ledger";
   walletAddress?: string;
   refresh: () => Promise<void>;
 };
 
-/** Single spendable balance for Discover, Communities, Capital — on-chain wallet first. */
+function spendableFromAuthBalance(balance: NonNullable<ReturnType<typeof useAuth>["balance"]>) {
+  if (balance.onChainUsd != null && balance.syncStatus !== "no_wallet") {
+    return {
+      spendableUsd: balance.availableUsd,
+      totalUsdc: balance.onChainUsd,
+      source: "onchain_app" as const,
+    };
+  }
+  return {
+    spendableUsd: balance.availableUsd,
+    totalUsdc: balance.onChainUsd ?? balance.availableUsd,
+    source: "ledger" as const,
+  };
+}
+
+/** Single spendable balance for Discover, Communities, Capital — on-chain first. */
 export function useSpendableUsd(): SpendableUsdSnapshot {
   const { balance, balanceLoading, refreshBalance } = useAuth();
   const { externalWalletReady, connectedWalletUsd, account } = useResolveAccess();
@@ -25,26 +40,34 @@ export function useSpendableUsd(): SpendableUsdSnapshot {
         totalUsdc: connectedWalletUsd,
         loaded: true,
         source: "onchain_wallet",
-        walletAddress: account.externalWalletAddress,
+        walletAddress: account.externalWalletAddress ?? account.appWalletAddress,
         refresh: refreshBalance,
       };
     }
 
-    const spendable = balance?.availableUsd ?? 0;
-    const total = balance?.onChainUsd ?? balance?.availableUsd ?? 0;
+    if (balance) {
+      const fromChain = spendableFromAuthBalance(balance);
+      return {
+        ...fromChain,
+        loaded: true,
+        walletAddress: balance.walletAddress ?? account.appWalletAddress,
+        refresh: refreshBalance,
+      };
+    }
 
     return {
-      spendableUsd: spendable,
-      totalUsdc: typeof total === "number" ? total : Number(total) || 0,
-      loaded: Boolean(balance) || !balanceLoading,
+      spendableUsd: 0,
+      totalUsdc: 0,
+      loaded: !balanceLoading,
       source: "ledger",
-      walletAddress: balance?.walletAddress,
+      walletAddress: account.appWalletAddress,
       refresh: refreshBalance,
     };
   }, [
     externalWalletReady,
     connectedWalletUsd,
     account.externalWalletAddress,
+    account.appWalletAddress,
     balance,
     balanceLoading,
     refreshBalance,

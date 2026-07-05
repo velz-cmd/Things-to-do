@@ -9,6 +9,8 @@ import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-p
 import { DiscoverSectionRefresh } from "@/components/resolve/discover/discover-section-refresh";
 import { communityStripActions } from "@/lib/discover/community-strip-actions";
 import type { CommunityVitalsSummary } from "@/lib/communities/types";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 
 type CommunitySummary = {
@@ -42,6 +44,7 @@ export function DiscoverCommunities({
   signedIn = false,
   role: _role = "all",
 }: DiscoverCommunitiesProps = {}) {
+  const { state: connections } = useUserConnections();
   const [installed, setInstalled] = useState<Record<string, boolean>>({});
   const [vitalsBySlug, setVitalsBySlug] = useState<Record<string, CommunityVitalsSummary>>({});
   const [sensorStatuses, setSensorStatuses] = useState<CommunitySensorStatus[]>([]);
@@ -154,7 +157,8 @@ export function DiscoverCommunities({
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {filtered.map((c) => {
-          const isInstalled = Boolean(installed[c.slug]);
+          const isInstalled =
+            Boolean(installed[c.slug]) || communityLinkedViaProfile(c.slug, connections);
           const actions = communityStripActions({ slug: c.slug, installed: isInstalled });
           return (
             <div key={c.slug} className="space-y-2">

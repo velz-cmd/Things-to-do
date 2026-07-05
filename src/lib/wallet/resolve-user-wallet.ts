@@ -29,8 +29,18 @@ type WalletProfile = Pick<
 >;
 
 /**
- * Address used for on-chain balance reads and wallet-signed actions.
- * When the user linked an external wallet (Reown), that address is authoritative.
+ * RESOLVE app wallet (walletAddress) — used for Capital, Profile, and Arc RPC balance reads.
+ * Same address for Gmail, Google, and email sign-in after provision.
+ */
+export function resolveOnChainReadAddress(
+  userId: string,
+  profile?: WalletProfile | null,
+): `0x${string}` {
+  return resolveUserWallet(userId, profile).address;
+}
+
+/**
+ * External linked wallet — only for verifying wallet-signed transfers from Reown.
  */
 export function resolveBalanceWalletAddress(
   userId: string,

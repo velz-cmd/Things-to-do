@@ -3,13 +3,13 @@ import { prisma } from "@/lib/db";
 import { ensureProfileForUser } from "@/lib/auth/session";
 import { ArcRpcUnavailableError, getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
-import { resolveOnChainReadAddress, resolveUserWallet, shortWalletAddress } from "@/lib/wallet/resolve-user-wallet";
+import { resolveUserWallet, shortWalletAddress, listOnChainReadAddresses } from "@/lib/wallet/resolve-user-wallet";
 import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
 import { loadProfileFast } from "@/lib/profile/load-profile-fast";
 import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 import { getProfileEarningsSummary } from "@/lib/earn/summary";
 import type { CapitalWalletResponse } from "@/lib/capital/wallet-types";
-import { runWithFallback } from "@/lib/providers/provider-router";
+import type { ArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 
 const ARC_CHAIN_ID = 5042002;
 const ARC_EXPLORER_URL = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app";
@@ -224,6 +224,51 @@ async function getActivity(userId: string): Promise<CapitalStateResponse["activi
     .slice(0, 12);
 }
 
+function roundUsd(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function formatUsd(amount: number): string {
+  return roundUsd(amount).toFixed(2);
+}
+
+/** Read Arc USDC for every wallet on the account (app + external) — best-effort per address. */
+async function readAggregatedArcBalance(
+  addresses: string[],
+): Promise<{ combined: ArcUsdcBalance; perWallet: ArcUsdcBalance[] } | null> {
+  const unique = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter(Boolean))];
+  if (!unique.length) return null;
+
+  const results = await Promise.allSettled(unique.map((addr) => getArcUsdcBalance(addr)));
+  const perWallet = results
+    .filter((r): r is PromiseFulfilledResult<ArcUsdcBalance> => r.status === "fulfilled")
+    .map((r) => r.value);
+
+  if (!perWallet.length) return null;
+
+  const totalNative = perWallet.reduce((s, b) => s + Number(b.nativeUsdc), 0);
+  const totalErc20 = perWallet.reduce((s, b) => s + Number(b.erc20Usdc), 0);
+  const totalUsd = perWallet.reduce((s, b) => s + Number(b.totalUsdc), 0);
+  const bestBlock = Math.max(...perWallet.map((b) => b.blockNumber), 0);
+  const primary =
+    perWallet.reduce((best, cur) =>
+      Number(cur.totalUsdc) > Number(best.totalUsdc) ? cur : best,
+    ) ?? perWallet[0];
+
+  return {
+    perWallet,
+    combined: {
+      ...primary,
+      address: primary.address,
+      nativeUsdc: formatUsd(totalNative),
+      erc20Usdc: formatUsd(totalErc20),
+      totalUsdc: formatUsd(totalUsd),
+      blockNumber: bestBlock,
+      syncedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function cachedBalanceFromProfile(profile: ProfileLight | null): number | null {
   if (!profile) return null;
   const value = Number(profile.availableUsd);
@@ -287,9 +332,9 @@ export async function loadCapitalState(
   }
 
   const walletResolved = resolveUserWallet(authUser.id, profile, authUser);
-  const onChainAddress = profile
-    ? resolveOnChainReadAddress(authUser.id, profile)
-    : walletResolved.address;
+  const onChainAddresses = profile
+    ? listOnChainReadAddresses(authUser.id, profile)
+    : [walletResolved.address];
   const walletProvider =
     profile ? appWalletProvider(profile as Parameters<typeof appWalletProvider>[0]) : "embedded";
   const base = {
@@ -409,17 +454,21 @@ export async function loadCapitalState(
   }
 
   try {
-    const chainBalance = await runWithFallback({
-      feature: "capital_state",
-      providers: [{ name: "arc_rpc", run: () => getArcUsdcBalance(onChainAddress) }],
-      timeoutMs: 8_000,
-      fallback: null,
-    });
-    if (!chainBalance) {
-      throw new ArcRpcUnavailableError("Arc confirmation is still syncing.");
+    const aggregated = await readAggregatedArcBalance(onChainAddresses);
+    if (!aggregated) {
+      throw new ArcRpcUnavailableError("Arc RPC did not return a balance for your wallet(s).");
     }
-    const total = Number(chainBalance.totalUsdc);
-    const spendable = Math.max(0, total - reservedUsd);
+
+    const { combined: chainBalance, perWallet } = aggregated;
+    const appAddr = profile?.walletAddress?.trim().toLowerCase() ?? walletResolved.address;
+    const extAddr = profile?.scanWalletAddress?.trim().toLowerCase();
+    const appChain = perWallet.find((b) => b.address === appAddr);
+    const extChain = extAddr ? perWallet.find((b) => b.address === extAddr) : undefined;
+    const appOnChain = appChain ? Number(appChain.totalUsdc) : 0;
+    const extOnChain = extChain ? Number(extChain.totalUsdc) : 0;
+    const totalOnChain = Number(chainBalance.totalUsdc);
+    const appSpendable = Math.max(0, appOnChain - reservedUsd);
+    const spendable = roundUsd(appSpendable + extOnChain);
 
     if (profile) {
       await syncIdentityBalance(profile.id).catch(() => null);
@@ -428,10 +477,10 @@ export async function loadCapitalState(
     return {
       ok: true,
       ...base,
-      usdcBalance: Number.isFinite(total) ? total : 0,
+      usdcBalance: Number.isFinite(totalOnChain) ? totalOnChain : 0,
       spendableBalance: spendable,
       lastKnownBalance: cachedBalance,
-      treasuryBalance: total,
+      treasuryBalance: totalOnChain,
       programBalances,
       pendingTransactions,
       claimableAmount,
@@ -463,10 +512,10 @@ export async function loadCapitalState(
       ? "Using last known Arc balance."
       : "Arc balance is still syncing. Refresh Capital before funding.";
     return {
-      ok: cachedBalance !== null,
+      ok: true,
       ...base,
-      usdcBalance: cachedBalance,
-      spendableBalance: cachedBalance,
+      usdcBalance: cachedBalance ?? 0,
+      spendableBalance: cachedBalance ?? 0,
       lastKnownBalance: cachedBalance,
       programBalances,
       pendingTransactions,
@@ -482,6 +531,7 @@ export async function loadCapitalState(
         shortAddress: shortWalletAddress(walletResolved.address),
         source: walletResolved.source,
         provider: walletProvider === "circle" ? "circle" : "embedded",
+        ...(walletResolved.externalAddress ? { externalAddress: walletResolved.externalAddress } : {}),
       },
       balance: {
         totalUsdc: (cachedBalance ?? 0).toFixed(2),

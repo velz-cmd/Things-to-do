@@ -25,6 +25,11 @@ type FundOutcomeProps = {
   title: string;
   summary: string;
   steps: import("@/lib/discover/discover-action-outcomes").DiscoverOutcomeStep[];
+  amountUsd?: number;
+  programName?: string;
+  communitySlug?: string;
+  whoBenefits?: string;
+  whyFund?: string;
   onDeployArc?: () => void;
   deployingArc?: boolean;
 };
@@ -96,6 +101,13 @@ export function DiscoverFundSheet({
     wallet.loaded && Number.isFinite(amountUsd) && !fundingSource && amountUsd >= 5;
   const canUseBalance = wallet.loaded && wallet.spendableUsd >= 5;
   const inProgress = busy && fundProgress && fundProgress.stage !== "idle";
+  const isComplete = fundProgress?.stage === "complete" && Boolean(fundOutcome);
+
+  useEffect(() => {
+    if (isComplete) {
+      document.getElementById("discover-fund-outcome")?.scrollIntoView({ block: "start" });
+    }
+  }, [isComplete]);
 
   useEffect(() => {
     setAmount(defaultAmount);
@@ -122,8 +134,30 @@ export function DiscoverFundSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby="discover-fund-title"
-        className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0f18] p-5 shadow-2xl"
+        className="max-h-[min(90vh,640px)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0f18] p-5 shadow-2xl"
       >
+        {isComplete && fundOutcome ? (
+          <div id="discover-fund-outcome">
+            <p id="discover-fund-title" className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+              Contribution recorded
+            </p>
+            <DiscoverActionOutcomePanel
+              variant="fund"
+              title={fundOutcome.title}
+              summary={fundOutcome.summary}
+              steps={fundOutcome.steps}
+              amountUsd={fundOutcome.amountUsd}
+              programName={fundOutcome.programName}
+              communitySlug={fundOutcome.communitySlug}
+              whoBenefits={fundOutcome.whoBenefits}
+              whyFund={fundOutcome.whyFund}
+              onDeployArc={fundOutcome.onDeployArc}
+              deploying={fundOutcome.deployingArc}
+              onDone={onClose}
+            />
+          </div>
+        ) : (
+          <>
         <p id="discover-fund-title" className="text-sm font-semibold text-white">
           {request.label ?? "Fund program"}
         </p>
@@ -136,6 +170,18 @@ export function DiscoverFundSheet({
             Min: <span className="font-medium text-white">$5 USDC</span>
           </span>
         </div>
+
+        {request.whoBenefits && !inProgress && (
+          <div className="mt-3 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
+              How your contribution helps
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-white/90">{request.whoBenefits}</p>
+            {request.whyFund && request.whyFund !== request.whoBenefits && (
+              <p className="mt-1 text-[11px] text-resolve-muted">{request.whyFund}</p>
+            )}
+          </div>
+        )}
 
         {inProgress && fundProgress ? (
           <FundProgressPanel
@@ -281,23 +327,8 @@ export function DiscoverFundSheet({
             </div>
           </form>
         )}
-
-        {fundProgress?.stage === "complete" && fundOutcome ? (
-          <DiscoverActionOutcomePanel
-            title={fundOutcome.title}
-            summary={fundOutcome.summary}
-            steps={fundOutcome.steps}
-            onDeployArc={fundOutcome.onDeployArc}
-            deploying={fundOutcome.deployingArc}
-            onDone={onClose}
-          />
-        ) : fundProgress?.stage === "complete" ? (
-          <div className="mt-4 flex justify-end">
-            <Button type="button" size="sm" onClick={onClose}>
-              Done
-            </Button>
-          </div>
-        ) : null}
+          </>
+        )}
       </div>
     </div>
   );

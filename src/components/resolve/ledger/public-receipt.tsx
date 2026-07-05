@@ -243,6 +243,45 @@ export function PublicEarnReceipt({ receipt }: { receipt: PublicReceipt }) {
           </div>
         )}
 
+        {receipt.poolSummary && (
+          <div className="border-t border-white/[0.06] bg-emerald-500/[0.04] px-5 py-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-emerald-300/90">
+              Program pool
+            </p>
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <div className="flex justify-between gap-3">
+                <dt className="text-resolve-muted">Pool balance (real USDC)</dt>
+                <dd>
+                  <Money amount={receipt.poolSummary.poolBalanceUsd} size="sm" className="text-emerald-300" />
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-resolve-muted">Owed to {receipt.poolSummary.payeeCategory}</dt>
+                <dd>
+                  <Money amount={receipt.poolSummary.owedToCreatorsUsd} size="sm" className="text-amber-200" />
+                </dd>
+              </div>
+            </dl>
+            {receipt.poolSummary.nextCheckpointUsd != null && (
+              <div className="mt-3">
+                <div className="flex justify-between text-[10px] text-resolve-muted-dim">
+                  <span>Next checkpoint</span>
+                  <span>
+                    ${receipt.poolSummary.poolBalanceUsd.toFixed(0)} / $
+                    {receipt.poolSummary.nextCheckpointUsd.toFixed(0)}
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                  <div
+                    className="h-full rounded-full bg-emerald-400/80"
+                    style={{ width: `${Math.min(100, receipt.poolSummary.progressToNextPct)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="border-t border-white/[0.06] bg-[#070b12]/60 px-5 py-4">
           <div className="flex items-center gap-2">
             <Receipt className="h-3.5 w-3.5 text-resolve-muted" />

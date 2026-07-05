@@ -17,7 +17,7 @@ import type {
 } from "@/lib/capital/wallet-types";
 
 const WALLET_REFRESH_MS = 30_000;
-const CLIENT_TIMEOUT_MS = 6_000;
+const CLIENT_TIMEOUT_MS = 12_000;
 const ARC_CHAIN_ID = 5042002;
 
 type Overview = {
@@ -40,8 +40,8 @@ type Overview = {
   }[];
 };
 
-async function fetchCapitalWallet(refresh = false): Promise<CapitalWalletResponse> {
-  const res = await fetch(refresh ? "/api/capital/state?refresh=1" : "/api/capital/state", {
+async function fetchCapitalWallet(refresh = true): Promise<CapitalWalletResponse> {
+  const res = await fetch(refresh ? "/api/capital/state" : "/api/capital/state?fast=1", {
     credentials: "include",
     cache: "no-store",
     signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
@@ -238,6 +238,22 @@ export function PaymentsOS() {
         setWalletWarnings(capital.warnings);
         setLastRefreshedAt(new Date(capital.balance.syncedAt));
       } else if (capital.code === "WALLET_NOT_FOUND") {
+        await fetch("/api/wallet/provision", { method: "POST", credentials: "include" }).catch(
+          () => null,
+        );
+        const retry = await fetchCapitalWallet(true);
+        if (retry.ok) {
+          const snap = snapshotFromCapitalWallet(retry, user.id);
+          setBanking(snap);
+          setWalletHealth(healthFromResponse(retry, false));
+          setWalletSync(retry.syncStatus === "cached" ? "cached" : "synced");
+          setSyncError(
+            retry.syncStatus === "cached" ? (retry.syncError ?? "Using last known Arc balance.") : null,
+          );
+          setWalletWarnings(retry.warnings);
+          setLastRefreshedAt(new Date(retry.balance.syncedAt));
+          return;
+        }
         setWalletSync("no_wallet");
         setSyncError(capital.message);
         setWalletHealth(null);
@@ -336,7 +352,7 @@ export function PaymentsOS() {
 
   useEffect(() => {
     if (!user) return;
-    void loadWallet({ silent: false });
+    void loadWallet({ silent: false, refresh: true });
     const t = setInterval(() => void loadWallet({ silent: true }), WALLET_REFRESH_MS);
     return () => clearInterval(t);
   }, [loadWallet, user]);

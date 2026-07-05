@@ -121,7 +121,7 @@ export async function fundCommunityProgram(input: {
         type: "fund_program",
         method: "arc_usdc",
         amountUsd: -amount,
-        label: `Fund ${program.name}`,
+        label: `You funded ${program.name}`,
         status: "pending_sync",
       },
     });
@@ -144,8 +144,8 @@ export async function fundCommunityProgram(input: {
     userId: input.userId,
     ecosystemId: program.install?.ecosystemId ?? undefined,
     eventType: "pool_funding_pending",
-    title: `Funding submitted for ${program.name}`,
-    detail: `$${amount.toFixed(2)} sent to the program pool. Arc confirmation continues in Capital.`,
+    title: `You funded ${program.name}`,
+    detail: `You funded this pool $${amount.toFixed(2)}. Arc confirmation continues in Capital.`,
     severity: "info",
     metadata: {
       programId: program.id,
@@ -181,6 +181,6 @@ export async function fundCommunityProgram(input: {
     newBudgetUsd: program.budgetUsd + amount,
     status: "pending_sync",
     activityId: funded.activity.id,
-    message: "Funding submitted. Arc confirmation continues in Capital.",
+    message: `You funded this pool $${amount.toFixed(2)}. Arc confirmation continues in Capital.`,
   };
 }

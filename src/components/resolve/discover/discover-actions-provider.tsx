@@ -230,13 +230,19 @@ export function DiscoverActionsProvider({
           id: "discover-chain",
         });
         await apiFundProgram(programId, req.amountUsd);
-        toast.success(`$${req.amountUsd.toFixed(2)} added to pool`, {
+        const fundedMessage = `You funded this pool $${req.amountUsd.toFixed(2)}`;
+        toast.success(fundedMessage, {
           id: "discover-chain",
-          description: "Obligations clear as verified activity arrives",
+          description: "Arc USDC is pending confirmation in Capital",
         });
-        reportActionStatus(surface, auditAction, "success");
+        reportActionStatus(surface, auditAction, "success", fundedMessage);
         await refreshBalance().catch(() => null);
         await refreshWallet();
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
+        ]).catch(() => null);
         setFundSheet(null);
         if (req.communitySlug) {
           navigateToCommunity(req.communitySlug, "fund");
@@ -250,7 +256,17 @@ export function DiscoverActionsProvider({
         setBusy(false);
       }
     },
-    [signedIn, router, wallet, ensureProgram, refreshWallet, refreshBalance, reportActionStatus, navigateToCommunity],
+    [
+      signedIn,
+      router,
+      wallet,
+      ensureProgram,
+      refreshWallet,
+      refreshBalance,
+      reportActionStatus,
+      queryClient,
+      navigateToCommunity,
+    ],
   );
 
   const openFundSheet = useCallback(

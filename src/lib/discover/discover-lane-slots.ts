@@ -429,25 +429,31 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   }
 
   if (state === "verified") {
+    const lowBalance = spendableUsd != null && spendableUsd < 5;
+    const lowBalanceReason = lowBalance
+      ? "Minimum funding is $5 USDC. Add funds in Capital or connect your wallet."
+      : undefined;
+
     if (effectiveRole === "funder" || effectiveRole === "dao") {
       push({
         action: ctx.fund,
         variant: "primary",
-        disabled: true,
-        disabledReason: "Create a payout program before funding.",
+        disabled: lowBalance,
+        disabledReason: lowBalanceReason,
       });
-      if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
+      push({ action: ctx.rule, variant: "secondary" });
       if (ctx.console) push({ action: ctx.console, variant: "secondary" });
+      else if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
       else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });
     } else {
       push({ action: ctx.rule, variant: "primary" });
       if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
       if (ctx.fund) {
         push({
-          action: { ...ctx.fund, label: "Fund Initial Pool" },
+          action: ctx.fund,
           variant: "secondary",
-          disabled: spendableUsd != null && spendableUsd < 5,
-          disabledReason: spendableUsd != null && spendableUsd < 5 ? "Wallet required: add Arc USDC in Capital." : undefined,
+          disabled: lowBalance,
+          disabledReason: lowBalanceReason,
         });
       }
       if (ctx.console) push({ action: ctx.console, variant: "secondary" });
@@ -458,10 +464,12 @@ function resolveGapsSlots(input: ActionResolveInput): DiscoverActionSlot[] {
   if (state === "programmed") {
     const lowBalance = spendableUsd != null && spendableUsd < 5;
     push({
-      action: { ...ctx.fund, label: "Fund Initial Pool" },
+      action: ctx.fund,
       variant: "primary",
       disabled: lowBalance,
-      disabledReason: lowBalance ? "Wallet required: add Arc USDC in Capital." : undefined,
+      disabledReason: lowBalance
+        ? "Minimum funding is $5 USDC. Add funds in Capital or connect your wallet."
+        : undefined,
     });
     if (ctx.estimate) push({ action: ctx.estimate, variant: "secondary" });
     else if (ctx.proof) push({ action: ctx.proof, variant: "secondary" });

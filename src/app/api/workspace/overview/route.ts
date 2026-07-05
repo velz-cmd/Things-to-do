@@ -14,12 +14,16 @@ import {
 import { eventTypeLabel, explainRecognition } from "@/lib/workspace/events";
 import { buildEvidenceActions } from "@/lib/workspace/advisors/evidence-actions";
 import { getCapitalFlowSnapshot } from "@/lib/capital-flow/engine";
-import { scanAllOpportunities } from "@/lib/github/opportunities";
+import { cachedScanAllOpportunities } from "@/lib/github/opportunity-cache";
+import { getCachedIntegrationHealthCheck } from "@/lib/integrations/health-cache";
 import { runIntegrationHealthCheck } from "@/lib/integrations/health";
 import { buildDomainIntelligence } from "@/lib/workspace/domain-intelligence";
 import { buildNetworkIntelligence } from "@/lib/workspace/intelligence";
 import { RESOLVE_MISSION } from "@/lib/resolve/pillars";
 import type { WorkspaceEvidence } from "@/lib/workspace/context";
+import { API_CACHE, rateLimitHeaders } from "@/lib/api/cache-headers";
+import { reportApiError } from "@/lib/api/report-error";
+import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
 
 function startOfToday() {
   const d = new Date();
@@ -37,7 +41,34 @@ type RecommendedAction = {
 };
 
 /** Universal Workspace OS — open ecosystems, one timeline, real APIs only */
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = await rateLimitRequest(
+    `workspace:overview:${getRequestClientId(req)}`,
+    40,
+    60,
+  );
+  if (!rl.success) {
+    return NextResponse.json(
+      {
+        ok: true,
+        degraded: true,
+        rateLimited: true,
+        message: "Workspace overview throttled — retry shortly.",
+        timeline: [],
+        sources: [],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        status: 200,
+        headers: {
+          ...rateLimitHeaders(rl.remaining, rl.resetAt),
+          "Cache-Control": API_CACHE.noStore,
+        },
+      },
+    );
+  }
+
+  try {
   const sinceToday = startOfToday();
   const [ledger, treasury, connectors, todayRows, recentRows, opportunities, integrations] =
     await Promise.all([
@@ -74,8 +105,8 @@ export async function GET() {
       .catch(() => []),
     process.env.CI === "true"
       ? Promise.resolve([])
-      : scanAllOpportunities().catch(() => []),
-    runIntegrationHealthCheck().catch(() => null),
+      : cachedScanAllOpportunities().catch(() => []),
+    getCachedIntegrationHealthCheck().catch(() => runIntegrationHealthCheck().catch(() => null)),
   ]);
 
   const capitalFlow = await getCapitalFlowSnapshot(ledger?.count ?? 0);
@@ -339,4 +370,18 @@ export async function GET() {
           : null,
     updatedAt: new Date().toISOString(),
   });
+  } catch (error) {
+    reportApiError("workspace/overview", error);
+    return NextResponse.json(
+      {
+        ok: true,
+        degraded: true,
+        message: "Workspace overview temporarily unavailable",
+        timeline: [],
+        sources: [],
+        updatedAt: new Date().toISOString(),
+      },
+      { status: 200, headers: { "Cache-Control": API_CACHE.noStore } },
+    );
+  }
 }

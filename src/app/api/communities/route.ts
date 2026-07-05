@@ -4,6 +4,9 @@ import { listCommunitySummaries } from "@/lib/communities/surface";
 import { getCommunitySensorStatuses } from "@/lib/sensors/status";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { cacheGetOrSet } from "@/lib/cache/kv";
+import { rateLimitHeaders } from "@/lib/api/cache-headers";
+import { reportApiError } from "@/lib/api/report-error";
+import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
 
 const SENSOR_TIMEOUT_MS = 2_000;
 const SUMMARY_TIMEOUT_MS = 8_000;
@@ -48,13 +51,34 @@ function catalogFallback() {
   }));
 }
 
-function communitiesJson(payload: Record<string, unknown>) {
+function communitiesJson(payload: Record<string, unknown>, extraHeaders?: Record<string, string>) {
   const response = NextResponse.json(payload);
   response.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=120");
+  if (extraHeaders) {
+    for (const [key, value] of Object.entries(extraHeaders)) {
+      response.headers.set(key, value);
+    }
+  }
   return response;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = await rateLimitRequest(`communities:${getRequestClientId(req)}`, 80, 60);
+  if (!rl.success) {
+    const communities = catalogFallback();
+    return communitiesJson(
+      {
+        ok: true,
+        communities,
+        sensorStatuses: [],
+        degraded: true,
+        rateLimited: true,
+        metricsSyncing: true,
+      },
+      rateLimitHeaders(rl.remaining, rl.resetAt),
+    );
+  }
+
   try {
     const ready = await requireReadyUser();
     const userId = "error" in ready ? null : ready.user.id;
@@ -80,7 +104,7 @@ export async function GET() {
       metricsSyncing: usedFallback && statuses.length === 0,
     });
   } catch (e) {
-    console.error("[api/communities]", e);
+    reportApiError("communities", e);
     const communities = catalogFallback();
     const statuses = await withTimeout(
       getCommunitySensorStatuses().catch(() => []),

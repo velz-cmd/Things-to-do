@@ -1,8 +1,15 @@
-import { NextResponse } from "next/server";
+import { API_CACHE } from "@/lib/api/cache-headers";
+import { safeApiGet } from "@/lib/api/safe-route";
 import { getSessionUser } from "@/lib/auth/session";
 import { buildLiveEvents } from "@/lib/events/live";
 
-/** Unified live event stream — ledger authorizations + community timeline. */
+const EVENTS_FALLBACK = {
+  degraded: true,
+  ok: true,
+  events: [] as unknown[],
+  message: "Live events temporarily unavailable",
+};
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const domain = searchParams.get("domain");
@@ -11,25 +18,28 @@ export async function GET(req: Request) {
   const status = searchParams.get("status");
   const scope = searchParams.get("scope") === "mine" ? "mine" : "network";
   const limit = Number(searchParams.get("limit") ?? "24");
-
   const authUser = await getSessionUser();
 
-  try {
-    const payload = await buildLiveEvents({
-      limit: Number.isFinite(limit) ? limit : 24,
-      domain: domain || null,
-      communitySlug: community || null,
-      missionId: mission || null,
-      status: status || null,
-      userId: authUser?.id ?? null,
-      scope,
-    });
-    return NextResponse.json(payload);
-  } catch (e) {
-    console.error("[events/live]", e);
-    return NextResponse.json(
-      { ok: false, error: "Could not load live events" },
-      { status: 500 },
-    );
-  }
+  const cacheKey = `events:live:${scope}:${limit}:${domain ?? ""}:${community ?? ""}:${mission ?? ""}:${status ?? ""}:${authUser?.id ?? "guest"}`;
+
+  return safeApiGet(
+    req,
+    () =>
+      buildLiveEvents({
+        limit: Number.isFinite(limit) ? limit : 24,
+        domain: domain || null,
+        communitySlug: community || null,
+        missionId: mission || null,
+        status: status || null,
+        userId: authUser?.id ?? null,
+        scope,
+      }) as Promise<Record<string, unknown>>,
+    {
+      scope: "events/live",
+      fallback: EVENTS_FALLBACK,
+      cacheControl: API_CACHE.privateShort,
+      rateLimit: { limit: 60, windowSeconds: 60, keyPrefix: "events:live", userId: authUser?.id },
+      redisCache: { key: cacheKey, ttlSeconds: 30, staleSeconds: 90 },
+    },
+  );
 }

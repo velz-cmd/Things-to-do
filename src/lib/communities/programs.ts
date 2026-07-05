@@ -65,6 +65,29 @@ export async function listProgramsForCommunity(
   return install.programs.map((p) => toProgramRecord(p, communitySlug));
 }
 
+/** Best program to show pool state for a community card (active, funded, or matching template). */
+export async function resolvePrimaryProgramForCommunity(
+  userId: string,
+  communitySlug: string,
+  preferredTemplateId?: string,
+): Promise<ProgramRecord | null> {
+  const programs = await listProgramsForCommunity(userId, communitySlug);
+  if (!programs.length) return null;
+
+  const ranked = [...programs].sort((a, b) => {
+    const score = (p: ProgramRecord) => {
+      let s = 0;
+      if (p.status === "active" || p.status === "deployed") s += 100;
+      if (preferredTemplateId && p.templateId === preferredTemplateId) s += 50;
+      s += Math.min(40, p.budgetUsd / 25);
+      return s;
+    };
+    return score(b) - score(a) || b.updatedAt.localeCompare(a.updatedAt);
+  });
+
+  return ranked[0] ?? null;
+}
+
 export async function getProgram(userId: string, programId: string) {
   const row = await prisma.resolveProgram.findFirst({
     where: { id: programId, userId },

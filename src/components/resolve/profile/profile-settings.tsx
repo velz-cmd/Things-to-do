@@ -272,8 +272,10 @@ export function ProfileSettings() {
       toast.error(
         githubError === "not_configured"
           ? "GitHub install is not available yet — server needs GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET"
+          : githubError === "session_timeout"
+            ? "GitHub connect timed out while checking your session. Refresh Profile and try again."
           : githubError.includes("redirect") || githubError === "redirect_uri_mismatch"
-            ? "GitHub redirect URI not registered — open /connect/github for the exact callback URL to add in GitHub OAuth app settings"
+            ? "GitHub redirect URI mismatch. Register the callback shown by /api/health/oauth, then try again."
             : `GitHub: ${githubError}`,
       );
       router.replace("/profile");
@@ -308,6 +310,8 @@ export function ProfileSettings() {
       toast.error(
         lbError === "not_configured"
           ? "ListenBrainz sign-in is not configured on the server yet"
+          : lbError === "session_timeout"
+            ? "ListenBrainz connect timed out while checking your session. Refresh Profile and try again."
           : `ListenBrainz: ${lbError}`,
       );
       router.replace("/profile");

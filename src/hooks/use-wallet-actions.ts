@@ -21,7 +21,7 @@ import { isWalletConnectEnabled } from "@/lib/reown/config";
 
 import type { FundProgressStage } from "@/lib/capital/fund-progress";
 
-export type WalletFundResult = { txHash: string };
+export type WalletFundResult = { txHash: string; activityId?: string };
 
 export function useWalletActions() {
   const { user, refreshBalance } = useAuth();
@@ -178,7 +178,7 @@ export function useWalletActions() {
           credentials: "include",
           body: JSON.stringify({ programId, amountUsd, txHash: hash }),
         });
-        const data = await parseJsonResponse<{ error?: string; message?: string }>(res);
+        const data = await parseJsonResponse<{ error?: string; message?: string; activityId?: string }>(res);
         if (!res.ok) throw new Error(data.error ?? "Fund failed after on-chain transfer");
 
         toast.success(data.message ?? `Pool funded with $${amountUsd.toFixed(2)} USDC`, {
@@ -187,7 +187,7 @@ export function useWalletActions() {
 
         await refreshBalance().catch(() => null);
         connectedBalance.refetch();
-        return { txHash: hash };
+        return { txHash: hash, activityId: data.activityId };
       } catch (e) {
         toast.dismiss("wallet-fund");
         throw e;

@@ -143,15 +143,26 @@ export function deriveDiscoverCardState(
   lane: DiscoverCardLane,
   role: DiscoverRole,
   surface: string,
-  options?: { signedIn?: boolean; spendableUsd?: number | null },
+  options?: {
+    signedIn?: boolean;
+    spendableUsd?: number | null;
+    poolBalanceUsd?: number;
+    yourDepositUsd?: number;
+  },
 ): DiscoverCardState {
   const profile = gap.communitySlug ? getCommunityValueProfile(gap.communitySlug) : null;
   const connected =
     gap.communitySlug != null && communityReadyForDiscover(gap.communitySlug, connections);
   const hasRule = gapHasActiveRule(gap);
-  const funded = gapIsFunded(gap);
+  const livePoolUsd = Math.max(
+    options?.poolBalanceUsd ?? 0,
+    options?.yourDepositUsd ?? 0,
+  );
+  const funded = livePoolUsd > 0 || gapIsFunded(gap);
   const settled = gapIsSettled(gap);
-  const opportunityState = getOpportunityState(gap, connected);
+  const opportunityState = getOpportunityState(gap, connected, {
+    poolBalanceUsd: livePoolUsd,
+  });
 
   const rawSlots = resolveDiscoverActionSlots({
     gap,

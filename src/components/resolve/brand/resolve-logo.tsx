@@ -12,28 +12,32 @@ type ResolveLogoProps = {
   size?: "nav" | "signin";
 };
 
-function ResolveLogoFallback({ className }: { className?: string }) {
+function ResolveLogoFallback({ className, size = "nav" }: { className?: string; size?: "nav" | "signin" }) {
+  const box = size === "signin" ? "h-14 w-14" : "h-12 w-12";
   return (
     <span
       className={clsx(
-        "inline-flex h-8 w-8 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow",
+        "inline-flex items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow",
+        box,
         className,
       )}
     >
-      <span className="text-xs font-bold text-white">R</span>
+      <span className={size === "signin" ? "text-sm font-bold text-white" : "text-xs font-bold text-white"}>
+        R
+      </span>
     </span>
   );
 }
 
 export function ResolveLogo({ className, size = "nav" }: ResolveLogoProps) {
   const [broken, setBroken] = useState(false);
-  const dim = size === "signin" ? 40 : 32;
+  const dim = size === "signin" ? 56 : 48;
 
   return (
     <Link href="/" className={clsx("group inline-flex items-center gap-2.5", className)}>
       {broken ? (
         <>
-          <ResolveLogoFallback className="transition group-hover:scale-105" />
+          <ResolveLogoFallback size={size} className="transition group-hover:scale-105" />
           <span className="text-sm font-semibold tracking-[0.08em] text-white">RESOLVE</span>
         </>
       ) : (
@@ -45,7 +49,7 @@ export function ResolveLogo({ className, size = "nav" }: ResolveLogoProps) {
           priority
           className={clsx(
             "shrink-0 rounded-lg object-contain transition group-hover:opacity-95",
-            size === "signin" ? "h-10 w-10" : "h-8 w-8",
+            size === "signin" ? "h-14 w-14" : "h-12 w-12",
           )}
           onError={() => setBroken(true)}
         />

@@ -171,8 +171,8 @@ export function useResolveAccount(): ResolveAccountState {
     const appWallet = wallets.find((w) => w.type === "app_managed");
     const externalFromApi = wallets.find((w) => w.type === "external");
     const appWalletAddress = appWallet?.address;
-    const externalWalletAddress =
-      externalFromApi?.address ?? wagmiAddress ?? undefined;
+    /** Linked external from DB only — never substitute wagmi (avoids address flicker). */
+    const externalWalletAddress = externalFromApi?.address;
 
     const hasExternalWallet = Boolean(externalWalletAddress);
     const authMethod = resolveAuthMethod(hasSupabase, hasExternalWallet, provider);

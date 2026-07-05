@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { useConnectedArcBalance } from "@/hooks/use-connected-arc-balance";
+import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
 import { isWalletConnectEnabled } from "@/lib/reown/config";
 import {
   maxSpendableUsd,
@@ -22,96 +23,114 @@ export type SpendableUsdSnapshot = {
   walletAddress?: string;
   appWalletAddress?: string;
   externalWalletAddress?: string;
+  appOnChainUsd?: number | null;
+  externalOnChainUsd?: number | null;
   externalReady: boolean;
-  pickSource: (amountUsd: number) => FundingSource | null;
+  pickSource: (amountUsd: number, preferred?: FundingSource | null) => FundingSource | null;
   refresh: () => Promise<void>;
 };
 
-function spendableFromAuthBalance(balance: NonNullable<ReturnType<typeof useAuth>["balance"]>) {
-  if (balance.onChainUsd != null && balance.syncStatus !== "no_wallet") {
-    return {
-      spendableUsd: balance.availableUsd,
-      totalUsdc: balance.onChainUsd,
-      source: "onchain_app" as const,
-    };
-  }
-  return {
-    spendableUsd: balance.availableUsd,
-    totalUsdc: balance.onChainUsd ?? balance.availableUsd,
-    source: "ledger" as const,
-  };
-}
-
 /**
- * Spendable balances for Capital, Discover, Communities.
- * Gmail RESOLVE wallet (app) and optional external wallet coexist — funding picks the best source.
+ * Per-wallet Arc balances from server RPC + optional live connected wallet.
+ * Never labels aggregated totals as the Gmail wallet.
  */
 export function useSpendableUsd(): SpendableUsdSnapshot {
   const { balance, balanceLoading, refreshBalance } = useAuth();
   const account = useResolveAccount();
+  const { view: activeView } = useActiveWalletView();
   const { address, isConnected } = useAccount();
   const connectedBalance = useConnectedArcBalance();
 
-  const linkedExternal = account.externalWalletAddress?.toLowerCase();
+  const appWalletAddress =
+    balance?.appWalletAddress ?? account.appWalletAddress ?? balance?.walletAddress;
+  const externalWalletAddress =
+    balance?.externalWalletAddress ?? account.externalWalletAddress;
+
+  const linkedExternal = externalWalletAddress?.toLowerCase();
   const connectedAddr = address?.toLowerCase();
   const externalLinked =
     Boolean(linkedExternal) && Boolean(connectedAddr) && linkedExternal === connectedAddr;
   const externalConnected = isWalletConnectEnabled() && isConnected && Boolean(connectedAddr);
-
   const externalReady = externalConnected && (externalLinked || !linkedExternal);
 
   return useMemo((): SpendableUsdSnapshot => {
-    const appWalletAddress = account.appWalletAddress ?? balance?.walletAddress;
-    const externalWalletAddress =
-      account.externalWalletAddress ?? (externalConnected ? connectedAddr : undefined);
+    let appSpendableUsd =
+      balance?.appSpendableUsd ??
+      (balance?.appOnChainUsd != null ? balance.appOnChainUsd : balance?.availableUsd ?? 0);
+    let appOnChainUsd = balance?.appOnChainUsd ?? balance?.onChainUsd ?? null;
 
-    let appSpendableUsd = 0;
-    let totalUsdc = 0;
-    let source: SpendableUsdSnapshot["source"] = "ledger";
-    let loaded = !balanceLoading;
+    let externalSpendableUsd = balance?.externalSpendableUsd ?? 0;
+    let externalOnChainUsd = balance?.externalOnChainUsd ?? null;
 
-    if (balance) {
-      const fromChain = spendableFromAuthBalance(balance);
-      appSpendableUsd = fromChain.spendableUsd;
-      totalUsdc = fromChain.totalUsdc;
-      source = fromChain.source;
-      loaded = true;
-    } else if (appWalletAddress) {
-      loaded = !balanceLoading;
+    if (externalReady && connectedBalance.loaded) {
+      externalSpendableUsd = connectedBalance.usdc;
+      externalOnChainUsd = connectedBalance.usdc;
     }
 
-    const externalSpendableUsd =
-      externalConnected && connectedBalance.loaded ? connectedBalance.usdc : 0;
+    appSpendableUsd = Math.round(appSpendableUsd * 100) / 100;
+    externalSpendableUsd = Math.round(externalSpendableUsd * 100) / 100;
 
     const balances = { appSpendableUsd, externalSpendableUsd };
-    const spendableUsd = maxSpendableUsd(balances, externalReady);
+    const combinedSpendable = maxSpendableUsd(balances, externalReady);
 
-    if (externalReady && externalSpendableUsd > 0 && appSpendableUsd > 0) {
-      source = "dual";
-    } else if (externalReady && externalSpendableUsd >= appSpendableUsd) {
-      source = "onchain_wallet";
+    const viewSpendable =
+      activeView === "external" && externalWalletAddress
+        ? externalSpendableUsd
+        : appSpendableUsd;
+
+    const viewOnChain =
+      activeView === "external" && externalWalletAddress
+        ? externalOnChainUsd
+        : appOnChainUsd;
+
+    let source: SpendableUsdSnapshot["source"] = "ledger";
+    if (balance?.syncStatus === "live" || balance?.syncStatus === "cached") {
+      source = externalReady && externalSpendableUsd > 0 && appSpendableUsd > 0
+        ? "dual"
+        : externalReady && externalSpendableUsd >= appSpendableUsd
+          ? "onchain_wallet"
+          : "onchain_app";
     }
 
+    const loaded =
+      !balanceLoading &&
+      Boolean(appWalletAddress) &&
+      (balance != null || !account.walletsLoading);
+
     return {
-      spendableUsd,
+      spendableUsd: combinedSpendable,
       appSpendableUsd,
       externalSpendableUsd,
-      totalUsdc: Math.max(totalUsdc, externalSpendableUsd, appSpendableUsd),
+      totalUsdc: Math.max(
+        viewOnChain ?? 0,
+        appOnChainUsd ?? 0,
+        externalOnChainUsd ?? 0,
+        combinedSpendable,
+      ),
       loaded: loaded || (externalConnected && connectedBalance.loaded),
       source,
-      walletAddress: appWalletAddress ?? externalWalletAddress,
+      walletAddress:
+        activeView === "external" && externalWalletAddress
+          ? externalWalletAddress
+          : appWalletAddress ?? externalWalletAddress,
       appWalletAddress,
       externalWalletAddress,
+      appOnChainUsd,
+      externalOnChainUsd,
       externalReady,
-      pickSource: (amountUsd: number) =>
-        pickFundingSource(amountUsd, balances, externalReady),
+      pickSource: (amountUsd: number, preferred?: FundingSource | null) =>
+        pickFundingSource(amountUsd, balances, externalReady, preferred),
       refresh: refreshBalance,
     };
   }, [
-    account.appWalletAddress,
-    account.externalWalletAddress,
     balance,
     balanceLoading,
+    account.appWalletAddress,
+    account.externalWalletAddress,
+    account.walletsLoading,
+    activeView,
+    appWalletAddress,
+    externalWalletAddress,
     connectedAddr,
     connectedBalance.loaded,
     connectedBalance.usdc,

@@ -33,6 +33,14 @@ export interface WalletBalance {
   availableUsd: number;
   onChainUsd: number | null;
   walletAddress?: string;
+  appWalletAddress?: string;
+  externalWalletAddress?: string;
+  appOnChainUsd?: number | null;
+  externalOnChainUsd?: number | null;
+  appSpendableUsd?: number;
+  externalSpendableUsd?: number;
+  combinedOnChainUsd?: number | null;
+  combinedSpendableUsd?: number;
   walletProvider?: "circle" | "embedded";
   syncStatus?: "live" | "cached" | "syncing" | "error" | "unknown" | "no_wallet";
   lastSyncedAt?: string | null;
@@ -161,6 +169,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
 
+        const slices = Array.isArray(data.walletSlices) ? data.walletSlices : [];
+        const appSlice = slices.find((s: { kind: string }) => s.kind === "app");
+        const extSlice = slices.find((s: { kind: string }) => s.kind === "external");
+        const appWalletAddress =
+          appSlice?.address ?? data.wallet?.address ?? walletAddress;
+        const externalWalletAddress =
+          extSlice?.address ?? data.wallet?.externalAddress ?? null;
+
+        const appOnChainUsd = appSlice ? Number(appSlice.onChainUsd) : null;
+        const externalOnChainUsd = extSlice ? Number(extSlice.onChainUsd) : null;
+        const appSpendableUsd = appSlice ? Number(appSlice.spendableUsd) : null;
+        const externalSpendableUsd = extSlice ? Number(extSlice.spendableUsd) : null;
+
         const onChainUsd = Number(
           data.usdcBalance ?? data.balance?.totalUsdc ?? data.balance?.onChainUsd ?? NaN,
         );
@@ -173,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data.syncStatus === "cached" ||
           Number.isFinite(onChainUsd);
 
-        const spendableUsd =
+        const combinedSpendableUsd =
           live && Number.isFinite(spendableFromChain)
             ? spendableFromChain
             : live && Number.isFinite(onChainUsd)
@@ -183,9 +204,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 : 0;
 
         setBalance({
-          availableUsd: spendableUsd,
+          availableUsd: combinedSpendableUsd,
           onChainUsd: Number.isFinite(onChainUsd) ? onChainUsd : null,
-          walletAddress,
+          walletAddress: appWalletAddress,
+          appWalletAddress,
+          externalWalletAddress: externalWalletAddress ?? undefined,
+          appOnChainUsd: Number.isFinite(appOnChainUsd ?? NaN) ? appOnChainUsd : null,
+          externalOnChainUsd:
+            Number.isFinite(externalOnChainUsd ?? NaN) ? externalOnChainUsd : null,
+          appSpendableUsd:
+            appSpendableUsd != null && Number.isFinite(appSpendableUsd)
+              ? appSpendableUsd
+              : undefined,
+          externalSpendableUsd:
+            externalSpendableUsd != null && Number.isFinite(externalSpendableUsd)
+              ? externalSpendableUsd
+              : undefined,
+          combinedOnChainUsd: Number.isFinite(onChainUsd) ? onChainUsd : null,
+          combinedSpendableUsd,
           walletProvider: data.walletProvider ?? data.wallet?.provider,
           syncStatus: data.syncStatus,
           lastSyncedAt: data.lastSyncedAt ?? data.balance?.syncedAt ?? null,

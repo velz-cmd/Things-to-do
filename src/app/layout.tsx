@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { cookieToInitialState } from "wagmi";
 import { Providers } from "@/components/providers";
 import { wagmiConfig } from "@/lib/reown/config";
+import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,7 +22,8 @@ export const metadata: Metadata = {
   description:
     "Mission control for outcome-backed payments. Bounties, distribution, and verified settlement on Arc USDC.",
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    icon: [{ url: BRAND_LOGO_PATH, type: "image/jpeg" }],
+    apple: [{ url: BRAND_LOGO_PATH, type: "image/jpeg" }],
   },
 };
 

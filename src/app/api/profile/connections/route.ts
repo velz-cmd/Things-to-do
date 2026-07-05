@@ -18,8 +18,6 @@ async function buildState(authUser: SupabaseUser): Promise<UserConnectionState> 
   let profile = await ensureProfileForUser(authUser);
   profile = await sanitizeConnectorIdentities(authUser.id, profile);
 
-  void autoInstallCommunitiesForUser(authUser.id, profile).catch(() => undefined);
-
   const wallet = resolveUserWallet(authUser.id, profile);
   return getUserConnectionState({
     userId: authUser.id,
@@ -41,7 +39,7 @@ export async function GET() {
       { ok: true, ...state },
       {
         headers: {
-          "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+          "Cache-Control": "no-store, max-age=0",
         },
       },
     );

@@ -155,15 +155,22 @@ export async function GET() {
       },
     ];
 
-    return NextResponse.json({
-      ok: true,
-      signedIn: Boolean(authUser),
-      email,
-      emailVerified,
-      identities,
-      ecosystems,
-      updatedAt: new Date().toISOString(),
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        signedIn: Boolean(authUser),
+        email,
+        emailVerified,
+        identities,
+        ecosystems,
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      },
+    );
   } catch (e) {
     console.error("[profile/identities]", e);
     const message = e instanceof Error ? e.message : "identities_failed";

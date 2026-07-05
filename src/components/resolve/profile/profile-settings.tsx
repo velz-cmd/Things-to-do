@@ -246,9 +246,10 @@ export function ProfileSettings() {
   }, [bootstrap, bootstrapLoading, load, user?.email]);
 
   const refreshAfterOAuth = useCallback(async () => {
-    reloadBootstrap();
     dispatchProfileRefresh();
-  }, [reloadBootstrap]);
+    reloadBootstrap();
+    await load();
+  }, [load, reloadBootstrap]);
 
   useEffect(() => {
     const onWalletLinked = () => reloadBootstrap();

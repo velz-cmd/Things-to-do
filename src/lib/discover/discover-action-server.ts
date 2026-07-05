@@ -151,7 +151,7 @@ export async function executeDiscoverAction(
           status: "funded",
           amountUsd,
           nextState: "funded",
-          message: `$${amountUsd.toFixed(2)} added to pool`,
+          message: `You funded this pool $${amountUsd.toFixed(2)}`,
         };
         break;
       }

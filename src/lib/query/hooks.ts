@@ -9,7 +9,7 @@ import { emptyConnectionState } from "@/lib/profile/connection-state-types";
 import type { CapitalStateResponse } from "@/lib/capital/state";
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(url, { credentials: "include", signal });
+  const res = await fetch(url, { credentials: "include", signal, cache: "no-store" });
   if (!res.ok) throw new Error(`fetch_failed:${url}`);
   return res.json() as Promise<T>;
 }
@@ -84,7 +84,10 @@ export function useUserConnectionsQuery(enabled: boolean) {
         return { ok: false, ...emptyConnectionState() };
       }
     },
-    staleTime: 60_000,
+    staleTime: 5_000,
+    gcTime: 120_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 

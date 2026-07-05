@@ -69,8 +69,9 @@ export async function cacheGetOrSet<T>(
   key: string,
   ttlSeconds: number,
   factory: () => Promise<T>,
+  options?: { shouldCache?: (value: T) => boolean; staleSeconds?: number; validateCached?: (value: T) => boolean },
 ): Promise<T> {
-  return cacheGetOrSetResilient(key, ttlSeconds, factory);
+  return cacheGetOrSetResilient(key, ttlSeconds, factory, options);
 }
 
 /**
@@ -81,7 +82,7 @@ export async function cacheGetOrSetResilient<T>(
   key: string,
   ttlSeconds: number,
   factory: () => Promise<T>,
-  options?: { staleSeconds?: number },
+  options?: { staleSeconds?: number; shouldCache?: (value: T) => boolean; validateCached?: (value: T) => boolean },
 ): Promise<T> {
   const namespaced = namespaceKey(key);
   const staleSeconds = options?.staleSeconds ?? ttlSeconds * 3;
@@ -92,8 +93,11 @@ export async function cacheGetOrSetResilient<T>(
 
   const envelope = await readEnvelope<T>(namespaced);
   if (envelope && envelope.freshUntil > now) {
-    memorySet(namespaced, envelope.data, ttlSeconds, staleSeconds);
-    return envelope.data;
+    if (!options?.validateCached || options.validateCached(envelope.data)) {
+      memorySet(namespaced, envelope.data, ttlSeconds, staleSeconds);
+      return envelope.data;
+    }
+    await cacheDelete(key);
   }
 
   const pending = inflight.get(namespaced) as Promise<T> | undefined;
@@ -102,6 +106,9 @@ export async function cacheGetOrSetResilient<T>(
   const work = (async () => {
     try {
       const fresh = await factory();
+      if (options?.shouldCache && !options.shouldCache(fresh)) {
+        return fresh;
+      }
       const next: CacheEnvelope<T> = { data: fresh, freshUntil: Date.now() + ttlSeconds * 1000 };
       memorySet(namespaced, fresh, ttlSeconds, staleSeconds);
       await writeEnvelope(namespaced, next, staleSeconds);

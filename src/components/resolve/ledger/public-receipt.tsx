@@ -217,7 +217,9 @@ export function PublicEarnReceipt({ receipt }: { receipt: PublicReceipt }) {
             </p>
             <dl className="mt-3 space-y-2 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-resolve-muted">{RECEIPT_COPY.platformFee.signalCost}</dt>
+                <dt className="text-resolve-muted">
+                  {receipt.kind === "payout" ? "Batch gross" : RECEIPT_COPY.platformFee.signalCost}
+                </dt>
                 <dd>
                   <Money amount={receipt.platformFee.grossUsd} size="sm" />
                 </dd>
@@ -231,7 +233,9 @@ export function PublicEarnReceipt({ receipt }: { receipt: PublicReceipt }) {
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] pt-2">
-                <dt className="text-resolve-muted">{RECEIPT_COPY.platformFee.netToProvider}</dt>
+                <dt className="text-resolve-muted">
+                  {receipt.kind === "payout" ? "Net to creators" : RECEIPT_COPY.platformFee.netToProvider}
+                </dt>
                 <dd>
                   <Money amount={receipt.platformFee.netToProviderUsd} size="sm" className="text-emerald-300" />
                 </dd>

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { createClaimToken, claimUrlForToken } from "@/lib/claim/tokens";
-import { sendClaimEmail } from "@/lib/deputy/tools/resend";
-import { getResendClient } from "@/lib/resend/client";
+import { sendCreatorClaimEmail } from "@/lib/email/claim-email";
+import { getAuthEmailDeliveryStatus } from "@/lib/email/deliver";
 import { communityLabelForMission } from "@/lib/earn/community-label";
 import {
   aggregateNotifyCandidate,
@@ -34,7 +34,10 @@ async function resolvePayeeEmail(
   payeeKeyType: string,
   payeeKey: string,
 ): Promise<string | null> {
-  if (payeeKeyType === "github_username") {
+  const normalizedType =
+    payeeKeyType === "github_user" ? "github_username" : payeeKeyType;
+
+  if (normalizedType === "github_username") {
     const user = await prisma.user.findFirst({
       where: { githubUsername: { equals: payeeKey, mode: "insensitive" } },
       select: { email: true },
@@ -52,9 +55,9 @@ async function resolvePayeeEmail(
 
   const contributor = await prisma.contributorRegistry.findFirst({
     where:
-      payeeKeyType === "github_username"
+      normalizedType === "github_username"
         ? { githubUsername: { equals: payeeKey, mode: "insensitive" } }
-        : payeeKeyType === "musicbrainz_artist"
+        : normalizedType === "musicbrainz_artist"
           ? { musicbrainzId: payeeKey }
           : {
               OR: [
@@ -74,7 +77,9 @@ async function resolvePayeeEmail(
 }
 
 function payeeLabel(payeeKeyType: string, payeeKey: string) {
-  if (payeeKeyType === "github_username") return `@${payeeKey}`;
+  if (payeeKeyType === "github_username" || payeeKeyType === "github_user") {
+    return `@${payeeKey}`;
+  }
   if (payeeKeyType === "listen_artist") return payeeKey;
   return payeeKey;
 }
@@ -133,6 +138,7 @@ export async function notifyEarnAvailable(input: {
   const resolvedEmail = await resolvePayeeEmail(input.payeeKeyType, payeeKey);
   const devInbox = process.env.RESEND_CLAIM_TO?.trim();
   const to = resolvedEmail ?? devInbox ?? null;
+  const emailReady = Boolean(getAuthEmailDeliveryStatus().primary);
 
   let emailSent = false;
   let channel: EarnNotifyResult["channel"] = "log";
@@ -143,19 +149,19 @@ export async function notifyEarnAvailable(input: {
     console.info(
       `[earn] skip notify ${input.payeeKeyType}:${payeeKey} $${amount} — ${reason} (urgency=${policy.urgency.toFixed(2)})`,
     );
-  } else if (getResendClient() && to) {
+  } else if (emailReady && to) {
     try {
-      await sendClaimEmail({
+      const sent = await sendCreatorClaimEmail({
         to,
         subject: `You've earned $${amount.toFixed(2)} from ${communityName}`,
         body: [
           `Hi ${label},`,
           "",
           `You've earned $${amount.toFixed(2)} from ${communityName}.`,
-          `RESOLVE verified this compensation for your contribution.`,
+          `RESOLVE verified this from public attribution — you don't need a RESOLVE account yet.`,
           input.contextLabel ? `Source: ${input.contextLabel}` : "",
           "",
-          "Claim your earnings (sign in, connect wallet, receive USDC on Arc).",
+          "Claim your earnings (sign in or connect wallet, receive USDC on Arc).",
           "",
           "This link expires in 14 days.",
         ]
@@ -164,15 +170,20 @@ export async function notifyEarnAvailable(input: {
         claimUrl,
         taskId: input.missionId,
       });
-      emailSent = true;
-      channel = "email";
-      reason = undefined;
+      if (sent.ok) {
+        emailSent = true;
+        channel = "email";
+        reason = undefined;
+      } else {
+        reason = sent.error ?? "email_failed";
+        console.warn("[earn] email failed:", reason);
+      }
     } catch (e) {
       reason = e instanceof Error ? e.message : "email_failed";
       console.warn("[earn] email failed:", reason);
     }
-  } else if (!getResendClient()) {
-    reason = "RESEND_API_KEY not configured";
+  } else if (!emailReady) {
+    reason = "Email provider not configured (Brevo or Resend)";
   } else {
     reason = "no_email_for_payee";
   }

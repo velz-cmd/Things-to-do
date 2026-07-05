@@ -78,6 +78,12 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   `PLAYWRIGHT_ENABLED=true` (set in `.github/workflows/playwright-e2e.yml` and `playwright.config.ts`
   webServer env). Proof receipt seeds an authorization when the ledger has none yet.
 
+### Pool funder intel + creator claim mail (Brevo)
+- After fund: `deliverFunderIntelBrief` emails tiered ledger brief (snapshot / analyst / deep by stake).
+- After checkpoint batch: micro-bonus to funders + updated brief email.
+- Creator claim notifications use `deliverAuthEmail` (Brevo primary when configured on Vercel).
+- Discover cards and live strip show real pool USD, contributor/funder counts, and sourced hooks.
+
 ### Performance / cache (non-obvious)
 - **Upstash Redis** (`UPSTASH_REDIS_REST_URL` + token): shared cache via `src/lib/cache/kv.ts`.
   Verify with `GET /api/health/cache`. Arc balances cache 20s (`resolve:arc:balance:*`).

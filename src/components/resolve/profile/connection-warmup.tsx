@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/auth/auth-provider";
 import { queryKeys } from "@/lib/query/keys";
-import { prefetchCommunitiesTab, prefetchDiscoverTab } from "@/lib/query/hooks";
+import { prefetchCommunitiesTab } from "@/lib/query/hooks";
 
 /** Warm Profile + Communities + Discover caches as soon as the user is signed in. */
 export function ConnectionWarmup() {
@@ -35,7 +35,7 @@ export function ConnectionWarmup() {
     });
 
     prefetchCommunitiesTab(queryClient);
-    prefetchDiscoverTab(queryClient);
+    // Discover feed prefetches on nav hover — avoid duplicating on every sign-in.
   }, [user, queryClient]);
 
   return null;

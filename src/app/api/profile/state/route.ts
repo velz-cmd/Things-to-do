@@ -2,11 +2,9 @@ import { NextResponse } from "next/server";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { getSessionUser, ensureProfileForUser } from "@/lib/auth/session";
 import { sanitizeConnectorIdentities } from "@/lib/identity/sanitize-profile";
-import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 import { getUserConnectionState } from "@/lib/profile/connection-state";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
 import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
-import { cacheGetOrSet } from "@/lib/cache/kv";
 import type { ConnectionSyncStatus } from "@/lib/profile/connection-state-types";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +62,6 @@ function connectorState(input: {
 async function buildProfileState(authUser: SupabaseUser) {
   let profile = await ensureProfileForUser(authUser);
   profile = await sanitizeConnectorIdentities(authUser.id, profile);
-  void autoInstallCommunitiesForUser(authUser.id, profile).catch(() => undefined);
 
   const wallet = resolveUserWallet(authUser.id, profile);
   const connectionState = await getUserConnectionState({
@@ -139,15 +136,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    const url = new URL(req.url);
-    const refresh = url.searchParams.get("refresh") === "1";
-    const key = `profile:state:${authUser.id}`;
-    const state = refresh
-      ? await buildProfileState(authUser)
-      : await cacheGetOrSet(key, 45, () => buildProfileState(authUser));
+    const state = await buildProfileState(authUser);
     return NextResponse.json(state, {
       headers: {
-        "Cache-Control": "private, max-age=30, stale-while-revalidate=60",
+        "Cache-Control": "no-store, max-age=0",
       },
     });
   } catch (e) {

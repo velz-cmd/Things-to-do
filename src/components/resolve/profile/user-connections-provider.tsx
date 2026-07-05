@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   type ReactNode,
 } from "react";
@@ -13,6 +14,7 @@ import { useUserConnectionsQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
+import { PROFILE_REFRESH_EVENT } from "@/lib/profile/refresh-events";
 
 type UserConnectionsContextValue = {
   state: UserConnectionState;
@@ -43,6 +45,16 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => {
     void query.refetch();
   }, [query]);
+
+  useEffect(() => {
+    const onProfileRefresh = () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.profileState });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.userConnections });
+      void query.refetch();
+    };
+    window.addEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
+    return () => window.removeEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh);
+  }, [query, queryClient]);
 
   const refreshSync = useCallback(async () => {
     if (!user) return;

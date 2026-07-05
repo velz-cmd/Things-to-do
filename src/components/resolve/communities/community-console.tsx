@@ -29,6 +29,7 @@ import { profileConnectPath } from "@/lib/communities/community-nav";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { ACTION_ERRORS } from "@/lib/copy/action-errors";
+import { PoolCheckpointPanel } from "@/components/resolve/communities/pool-checkpoint-panel";
 
 function programRulesLabel(program: ProgramRecord): string {
   const t = PROGRAM_TEMPLATES[program.templateId as keyof typeof PROGRAM_TEMPLATES];
@@ -136,6 +137,8 @@ function ProgramCard({
           </p>
         </div>
       </div>
+
+      <PoolCheckpointPanel communitySlug={slug} programId={program.id} compact />
 
       <div className="flex flex-wrap gap-2">
         <Button

@@ -23,6 +23,7 @@ export type DeployProgramResult = {
 export async function deployProgramOnArc(
   userId: string,
   programId: string,
+  options?: { checkpointThresholdUsd?: number },
 ): Promise<DeployProgramResult> {
   const program = await getProgram(userId, programId);
   if (!program) {
@@ -183,14 +184,19 @@ export async function deployProgramOnArc(
     await recordTimelineEvent({
       userId,
       ecosystemId: install?.ecosystemId ?? undefined,
-      eventType: "program_deployed",
-      title: `Deployed ${program.name} on Arc`,
+      eventType: options?.checkpointThresholdUsd
+        ? "pool_checkpoint_batch"
+        : "program_deployed",
+      title: options?.checkpointThresholdUsd
+        ? `Checkpoint $${options.checkpointThresholdUsd.toLocaleString()} — batch paid ${program.name}`
+        : `Deployed ${program.name} on Arc`,
       detail: `$${settledTotal.toFixed(2)} settled · ${contributors.length - (platformFeeUsd > 0 ? 1 : 0)} payees · $${platformFeeUsd.toFixed(2)} platform fee · batch #${result.proof?.batchNumber ?? "—"}`,
       severity: "info",
       metadata: {
         programId,
         settlementId: result.settlementId,
         communitySlug: program.communitySlug,
+        checkpointThresholdUsd: options?.checkpointThresholdUsd,
       },
     });
 

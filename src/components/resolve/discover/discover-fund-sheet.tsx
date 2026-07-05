@@ -19,6 +19,7 @@ import {
 import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel";
 import { WalletSourcePicker } from "@/components/resolve/fund/wallet-source-picker";
 import { DiscoverActionOutcomePanel } from "@/components/resolve/discover/discover-action-outcome-panel";
+import { PoolCheckpointPanel } from "@/components/resolve/communities/pool-checkpoint-panel";
 import type { FundProgressState } from "@/lib/capital/fund-progress";
 
 type FundOutcomeProps = {
@@ -28,6 +29,7 @@ type FundOutcomeProps = {
   amountUsd?: number;
   programName?: string;
   communitySlug?: string;
+  programId?: string;
   whoBenefits?: string;
   whyFund?: string;
   onDeployArc?: () => void;
@@ -155,6 +157,15 @@ export function DiscoverFundSheet({
               deploying={fundOutcome.deployingArc}
               onDone={onClose}
             />
+            {fundOutcome.programId && fundOutcome.communitySlug ? (
+              <div className="mt-4">
+                <PoolCheckpointPanel
+                  communitySlug={fundOutcome.communitySlug}
+                  programId={fundOutcome.programId}
+                  compact
+                />
+              </div>
+            ) : null}
           </div>
         ) : (
           <>

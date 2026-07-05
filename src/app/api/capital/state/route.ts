@@ -42,8 +42,8 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const refresh = url.searchParams.get("refresh") === "1";
-  const state = await loadCapitalState(authUser, { liveSync: refresh });
+  const fast = url.searchParams.get("fast") === "1";
+  const state = await loadCapitalState(authUser, { liveSync: !fast });
 
   return NextResponse.json(state, {
     status: 200,

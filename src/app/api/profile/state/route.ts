@@ -3,7 +3,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { getSessionUser } from "@/lib/auth/session";
 import { getUserConnectionState } from "@/lib/profile/connection-state";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
-import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
+import { resolveOnChainReadAddress, resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 import { loadProfileFast } from "@/lib/profile/load-profile-fast";
 import { cacheGetOrSet } from "@/lib/cache/kv";
 import type { ConnectionSyncStatus } from "@/lib/profile/connection-state-types";
@@ -64,9 +64,7 @@ async function buildProfileState(authUser: SupabaseUser) {
   const profile = await loadProfileFast(authUser);
 
   const wallet = resolveUserWallet(authUser.id, profile);
-  const balanceWallet = profile.scanWalletAddress?.trim()
-    ? (profile.scanWalletAddress.trim().toLowerCase() as `0x${string}`)
-    : wallet.address;
+  const balanceWallet = resolveOnChainReadAddress(authUser.id, profile);
   const connectionState = await getUserConnectionState({
     userId: authUser.id,
     profile,

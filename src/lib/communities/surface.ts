@@ -413,12 +413,49 @@ export async function listCommunitySummaries(
     : [];
   const installSet = new Set(installs.map((i) => i.communitySlug));
 
+  let operativeSlugs = installSet;
+  if (userId) {
+    try {
+      const { getUserConnectionState } = await import("@/lib/profile/connection-state");
+      const { profileLinkedCommunitySlugs } = await import(
+        "@/lib/discover/community-profile-link"
+      );
+      const profile = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          githubUsername: true,
+          listenbrainzUsername: true,
+          jellyfinUrl: true,
+          jellyfinUsername: true,
+          jellyfinAccessToken: true,
+          jellyfinPassword: true,
+          navidromeUrl: true,
+          navidromeUsername: true,
+          navidromePassword: true,
+          gmailConnected: true,
+          walletAddress: true,
+          scanWalletAddress: true,
+          updatedAt: true,
+        },
+      });
+      if (profile) {
+        const state = await getUserConnectionState({ userId, profile });
+        operativeSlugs = new Set([
+          ...installSet,
+          ...profileLinkedCommunitySlugs(state),
+        ]);
+      }
+    } catch {
+      /* keep DB installs only */
+    }
+  }
+
   const sensorStatuses =
     options?.sensorStatuses ?? (await getCommunitySensorStatuses().catch(() => []));
   const vitalsBySlug = await listCommunityVitals(sensorStatuses, { fast: options?.fast });
 
   const hubOpsBySlug =
-    userId && installSet.size > 0
+    userId && operativeSlugs.size > 0
       ? await import("@/lib/communities/hub-ops-stats").then((m) =>
           m.buildUserHubOpsMap(userId),
         )
@@ -434,7 +471,7 @@ export async function listCommunitySummaries(
     installCta: c.installCta,
     attachShape: c.attachShape,
     upstream: c.upstream,
-    installed: installSet.has(c.slug),
+    installed: operativeSlugs.has(c.slug),
     vitals: vitalsBySlug[c.slug],
     hubOps: (hubOpsBySlug[c.slug] ?? null) as CommunityHubOpsStats | null,
   }));

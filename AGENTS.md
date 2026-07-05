@@ -27,7 +27,12 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
  the account menu. `ConnectedWalletSync` switches to Arc testnet, reads native USDC from the
  linked address, and POSTs `/api/wallet/sync-connected`. Fund actions in Discover/Communities
  use a single wallet signature (`/api/capital/fund-with-tx`) when the connected address matches
- the linked profile wallet.
+ the linked profile wallet. `useSpendableUsd()` is the shared balance hook across tabs (on-chain
+ wallet first, ledger fallback).
+- Profile connector state hydrates Discover/Communities via `UserConnectionsProvider` +
+ `sessionStorage` snapshot (`connection-snapshot-client.ts`). `ProfileLinkedInstallSync` silently
+ creates community install rows when Profile already links upstream sources — users should not
+ re-install or re-connect GitHub per tab.
 
 ### Authentication is Supabase-gated (important)
 - All **authenticated write flows** (create task/mission, settlement, distribute, most

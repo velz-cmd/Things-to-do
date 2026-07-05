@@ -34,6 +34,10 @@ export function tailorDiscoverActionsForUser(
         return null;
       }
 
+      if (action.kind === "connect_sensor" && state.hasAnyConnector) {
+        return null;
+      }
+
       if (action.kind === "connect_sensor") {
         return {
           ...action,

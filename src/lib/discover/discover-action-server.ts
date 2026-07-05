@@ -1,4 +1,4 @@
-import { installCommunity } from "@/lib/communities/installs";
+import { ensureProfileLinkedInstall } from "@/lib/communities/profile-linked-install";
 import { createProgram } from "@/lib/communities/programs";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";
 import { resolveFundTarget } from "@/lib/discover/fund-target";
@@ -65,9 +65,14 @@ async function ensureProgramId(
   if (target.programId) return target.programId;
 
   if (target.needsInstall) {
-    const installed = await installCommunity(userId, target.communitySlug);
-    if (!installed.ok && !installed.alreadyInstalled) {
-      throw new Error(installed.error ?? "Could not create community program");
+    const installed = await ensureProfileLinkedInstall(userId, target.communitySlug);
+    if (!installed) {
+      const fallback = await import("@/lib/communities/installs").then((m) =>
+        m.installCommunity(userId, target.communitySlug),
+      );
+      if (!fallback.ok && !fallback.alreadyInstalled) {
+        throw new Error(fallback.error ?? "Could not create community program");
+      }
     }
   }
 

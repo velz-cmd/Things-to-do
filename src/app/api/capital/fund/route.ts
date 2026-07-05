@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";
+import { bustCapitalStateCache } from "@/lib/capital/state-cache";
 import { honestInfraError } from "@/lib/copy/action-errors";
 
 export const maxDuration = 60;
@@ -49,6 +50,8 @@ export async function POST(req: Request) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
+
+    await bustCapitalStateCache(ready.profile.id);
 
     return NextResponse.json(result);
   } catch (e) {

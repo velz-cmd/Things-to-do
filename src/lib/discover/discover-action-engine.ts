@@ -12,6 +12,9 @@ export type FundSheetRequest = {
   missionId?: string;
   amountUsd?: number;
   label?: string;
+  whyFund?: string;
+  whoBenefits?: string;
+  programName?: string;
 };
 
 export type WalletSnapshot = {
@@ -188,7 +191,10 @@ export function fundParamsFromAction(action: DiscoverAction): FundSheetRequest {
     templateId: action.templateId,
     missionId: action.missionId,
     amountUsd: action.amountUsd,
-    label: action.label,
+    label: action.programName ?? action.label,
+    whyFund: action.whyFund,
+    whoBenefits: action.whoBenefits,
+    programName: action.programName,
   };
 }
 

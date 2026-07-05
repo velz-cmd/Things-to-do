@@ -29,8 +29,9 @@ import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-s
 import { DiscoverActionConfirmSheet } from "@/components/resolve/discover/discover-action-confirm-sheet";
 import { useCommunityConsoleOptional } from "@/components/resolve/discover/discover-community-console-provider";
 import {
+  buildFundOutcomeSummary,
+  buildFundOutcomeTitle,
   fundOutcomeSteps,
-  whereFundGoes,
 } from "@/lib/discover/discover-action-outcomes";
 import { automateOutcomeSteps } from "@/lib/discover/discover-action-outcomes";
 import { defaultTriggerForTemplate } from "@/lib/discover/automate-action-labels";
@@ -54,6 +55,8 @@ import {
 import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 import type { FundingSource } from "@/lib/wallet/funding-source";
 import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
+import { dispatchCapitalRefresh } from "@/lib/capital/refresh-events";
+import { dispatchProfileRefresh } from "@/lib/profile/refresh-events";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -138,6 +141,9 @@ export function DiscoverActionsProvider({
     communitySlug?: string;
     txHash?: string;
     label?: string;
+    programName?: string;
+    whyFund?: string;
+    whoBenefits?: string;
   } | null>(null);
   const [deployingArc, setDeployingArc] = useState(false);
 
@@ -215,11 +221,14 @@ export function DiscoverActionsProvider({
   const effectiveSpendable = spendable.spendableUsd;
 
   const refreshDiscover = useCallback(async () => {
+    dispatchCapitalRefresh({ reason: "action" });
+    dispatchProfileRefresh();
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
       queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
       queryClient.invalidateQueries({ queryKey: queryKeys.profileState }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.myPoolStakes }),
       reloadConnections(),
       refreshWallet(),
     ]);
@@ -254,9 +263,7 @@ export function DiscoverActionsProvider({
         const fundedMessage = `${result.message} via ${fundingSourceLabel(result.fundingSource)}`;
         toast.success(fundedMessage, {
           id: "discover-chain",
-          description: result.txHash
-            ? "Confirmed on Arc testnet — see where it went below"
-            : "Recorded on Arc testnet — see Capital activity",
+          description: "See where your USDC went in this window",
         });
         reportActionStatus(surface, auditAction, "success", fundedMessage);
         setFundOutcome({
@@ -265,6 +272,9 @@ export function DiscoverActionsProvider({
           communitySlug: req.communitySlug,
           txHash: result.txHash,
           label: req.label,
+          programName: req.programName ?? req.label,
+          whyFund: req.whyFund,
+          whoBenefits: req.whoBenefits,
         });
         await refreshWallet();
         await refreshDiscover();
@@ -683,15 +693,30 @@ export function DiscoverActionsProvider({
         fundOutcome={
           fundOutcome
             ? {
-                title: `You funded ${fundOutcome.label ?? "this pool"}`,
-                summary: whereFundGoes({
-                  communitySlug: fundOutcome.communitySlug,
+                title: buildFundOutcomeTitle({
                   amountUsd: fundOutcome.amountUsd,
+                  programName: fundOutcome.programName ?? fundOutcome.label,
+                  communitySlug: fundOutcome.communitySlug,
                 }),
+                summary: buildFundOutcomeSummary({
+                  amountUsd: fundOutcome.amountUsd,
+                  programName: fundOutcome.programName ?? fundOutcome.label,
+                  communitySlug: fundOutcome.communitySlug,
+                  programId: fundOutcome.programId,
+                }),
+                amountUsd: fundOutcome.amountUsd,
+                programName: fundOutcome.programName ?? fundOutcome.label,
+                communitySlug: fundOutcome.communitySlug,
+                whoBenefits: fundOutcome.whoBenefits,
+                whyFund: fundOutcome.whyFund,
                 steps: fundOutcomeSteps({
+                  amountUsd: fundOutcome.amountUsd,
                   communitySlug: fundOutcome.communitySlug,
                   programId: fundOutcome.programId,
                   txHash: fundOutcome.txHash,
+                  programName: fundOutcome.programName ?? fundOutcome.label,
+                  whyFund: fundOutcome.whyFund,
+                  whoBenefits: fundOutcome.whoBenefits,
                 }),
                 onDeployArc:
                   fundOutcome.communitySlug && fundOutcome.programId

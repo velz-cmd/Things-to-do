@@ -75,7 +75,8 @@ export async function GET() {
       ok: true,
       communities,
       sensorStatuses: statuses,
-      degraded: communities === fallback || statuses.length === 0,
+      degraded: communities === fallback,
+      metricsSyncing: statuses.length === 0,
     });
   } catch (e) {
     console.error("[api/communities]", e);

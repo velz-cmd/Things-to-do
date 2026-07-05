@@ -82,18 +82,30 @@ export type GithubUser = {
 };
 
 export async function fetchGithubUser(accessToken: string): Promise<GithubUser> {
-  const res = await fetch(`${GITHUB_API}/user`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/vnd.github+json",
-      "User-Agent": "RESOLVE/1.0",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    signal: AbortSignal.timeout(12_000),
-  });
+  async function request(authScheme: "Bearer" | "token") {
+    return fetch(`${GITHUB_API}/user`, {
+      headers: {
+        Authorization: `${authScheme} ${accessToken}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "RESOLVE/1.0",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      signal: AbortSignal.timeout(12_000),
+    });
+  }
+
+  let res = await request("Bearer");
+
+  if (res.status === 401) {
+    res = await request("token");
+  }
 
   if (!res.ok) {
-    throw new Error(`GitHub user API HTTP ${res.status}`);
+    const hint =
+      res.status === 401
+        ? "GitHub authorization expired before RESOLVE could read your username. Try Connect GitHub again."
+        : `GitHub user API HTTP ${res.status}`;
+    throw new Error(hint);
   }
 
   return res.json() as Promise<GithubUser>;

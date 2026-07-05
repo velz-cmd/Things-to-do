@@ -10,7 +10,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAddFunds } from "@/components/wallet/add-funds-context";
 import { useSendFunds } from "@/components/wallet/send-funds-context";
-import { useResolveAccess } from "@/hooks/use-resolve-access";
+import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { clearGuestExploring } from "@/lib/auth/guest";
 import { ArcWalletLink } from "@/components/resolve/ui/arc-wallet-link";
@@ -28,7 +28,7 @@ function shortAddress(address: string) {
 export function AuthHeader() {
   const { signOut, balance, balanceLoading } = useAuth();
   const account = useResolveAccount();
-  const { externalWalletReady, connectedWalletUsd } = useResolveAccess();
+  const spendable = useSpendableUsd();
   const { openSignIn } = useSignInModal();
   const { openAddFunds } = useAddFunds();
   const { openSendFunds } = useSendFunds();
@@ -186,24 +186,20 @@ export function AuthHeader() {
                   Your wallet · {shortAddress(account.externalWalletAddress!)}
                 </p>
               )}
-              {!balanceLoading && hasEmailSession && (balance || externalWalletReady) && (
+              {!balanceLoading && hasEmailSession && (balance || spendable.externalSpendableUsd > 0) && (
                 <p className="mt-2 text-xs text-deputy-accent">
                   $
-                  {(externalWalletReady ? connectedWalletUsd : balance!.availableUsd).toFixed(2)}{" "}
-                  USDC on Arc testnet
-                  {externalWalletReady && (
-                    <span className="text-slate-500"> · from connected wallet</span>
+                  {(
+                    balance?.availableUsd ??
+                    spendable.appSpendableUsd
+                  ).toFixed(2)}{" "}
+                  USDC · RESOLVE wallet
+                  {spendable.externalReady && spendable.externalSpendableUsd > 0.001 && (
+                    <span className="text-slate-500">
+                      {" "}
+                      · yours ${spendable.externalSpendableUsd.toFixed(2)}
+                    </span>
                   )}
-                  {!externalWalletReady &&
-                    balance &&
-                    balance.onChainUsd != null &&
-                    Math.abs(balance.onChainUsd - balance.availableUsd) > 0.001 && (
-                      <span className="text-slate-500">
-                        {" "}
-                        (${balance.onChainUsd.toFixed(2)} on-chain
-                        {balance.availableUsd < balance.onChainUsd ? ", reserves held" : ""})
-                      </span>
-                    )}
                 </p>
               )}
               {(balanceLoading || (!balance && account.appWalletAddress)) && hasEmailSession && (

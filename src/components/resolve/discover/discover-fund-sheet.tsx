@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
+import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 import type { FundSheetRequest, WalletSnapshot } from "@/lib/discover/discover-action-engine";
 import { Button } from "@/components/resolve/ui/button";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { communityReadyForDiscover } from "@/lib/discover/community-profile-link";
+import { fundingSourceLabel, pickFundingSource } from "@/lib/wallet/funding-source";
 
 type DiscoverFundSheetProps = {
   open: boolean;
@@ -28,14 +30,25 @@ export function DiscoverFundSheet({
   onConfirm,
 }: DiscoverFundSheetProps) {
   const { state: connections } = useUserConnections();
-  const { externalWalletReady, openConnectWallet } = useResolveAccess();
+  const spendable = useSpendableUsd();
+  const { externalWalletReady, openConnectWallet, pickFundingSource: pickSource } =
+    useResolveAccess();
 
   const defaultAmount =
     request?.amountUsd && request.amountUsd >= 5 ? request.amountUsd.toFixed(2) : "25";
   const [amount, setAmount] = useState(defaultAmount);
   const amountUsd = Number(amount);
+
+  const appUsd = wallet.appSpendableUsd ?? spendable.appSpendableUsd;
+  const extUsd = wallet.externalSpendableUsd ?? spendable.externalSpendableUsd;
+  const fundingSource = Number.isFinite(amountUsd)
+    ? pickSource(amountUsd) ?? pickFundingSource(amountUsd, { appSpendableUsd: appUsd, externalSpendableUsd: extUsd }, externalWalletReady)
+    : null;
+
+  const hasLinkedExternal =
+    Boolean(spendable.externalWalletAddress) && !externalWalletReady;
   const insufficientBalance =
-    wallet.loaded && Number.isFinite(amountUsd) && amountUsd > wallet.spendableUsd;
+    wallet.loaded && Number.isFinite(amountUsd) && !fundingSource && amountUsd >= 5;
   const canUseBalance = wallet.loaded && wallet.spendableUsd >= 5;
 
   useEffect(() => {
@@ -47,7 +60,7 @@ export function DiscoverFundSheet({
   const slug = request.communitySlug;
   const communityReady = slug ? communityReadyForDiscover(slug, connections) : false;
   const fundHint = request.programId
-    ? "USDC moves from your wallet into this pool"
+    ? "USDC moves into this pool on Arc testnet"
     : communityReady && slug
       ? `Adds USDC to the ${slug} pool on Arc`
       : slug
@@ -75,52 +88,76 @@ export function DiscoverFundSheet({
           </span>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-resolve-muted">
+        <div className="mt-4 space-y-2 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-resolve-muted">
           <div className="flex items-center gap-2">
             <Wallet className="h-3.5 w-3.5 text-resolve-accent" />
             {wallet.loaded ? (
-              <span>
-                {externalWalletReady ? "Connected wallet" : "Spendable"}:{" "}
-                <span className="font-medium tabular-nums text-white">
-                  ${wallet.spendableUsd.toFixed(2)}
-                </span>
-                {externalWalletReady && (
-                  <span className="text-resolve-muted-dim"> · Arc testnet USDC</span>
-                )}
-              </span>
+              <span className="font-medium text-white">Available to fund</span>
             ) : (
-              <span>Loading wallet...</span>
+              <span>Loading wallets…</span>
             )}
           </div>
-          {externalWalletReady ? (
-            <span className="text-[11px] font-medium text-emerald-300">Wallet actions enabled</span>
-          ) : (
+          {wallet.loaded && (
+            <ul className="space-y-1 pl-5 text-[11px]">
+              <li>
+                RESOLVE wallet (Gmail):{" "}
+                <span className="tabular-nums text-white">${appUsd.toFixed(2)}</span>
+              </li>
+              {externalWalletReady && (
+                <li>
+                  Your connected wallet:{" "}
+                  <span className="tabular-nums text-white">${extUsd.toFixed(2)}</span>
+                </li>
+              )}
+              {hasLinkedExternal && (
+                <li className="text-amber-200">
+                  External wallet linked — reconnect from the account menu to sign on-chain
+                </li>
+              )}
+              {fundingSource && Number.isFinite(amountUsd) && amountUsd >= 5 && (
+                <li className="text-emerald-300">
+                  Will pay from {fundingSourceLabel(fundingSource)}
+                </li>
+              )}
+            </ul>
+          )}
+          {wallet.loaded && appUsd < 5 && !externalWalletReady && !hasLinkedExternal && (
             <button
               type="button"
               onClick={openConnectWallet}
               className="text-[11px] font-medium text-resolve-accent hover:underline"
             >
-              Connect wallet for on-chain fund
+              Or connect your own wallet for on-chain fund
             </button>
           )}
         </div>
+
         {insufficientBalance && (
           <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-xs text-amber-100">
-            You have ${wallet.spendableUsd.toFixed(2)} spendable. Add funds or lower the amount.
+            Not enough USDC across your wallets for this amount.
             <div className="mt-2 flex flex-wrap gap-2">
               <Link
                 href="/capital?returnUrl=/discover"
                 className="font-medium text-resolve-accent hover:underline"
               >
-                Add funds
+                Add funds in Capital
               </Link>
+              {!externalWalletReady && (
+                <button
+                  type="button"
+                  onClick={openConnectWallet}
+                  className="font-medium text-resolve-accent hover:underline"
+                >
+                  {hasLinkedExternal ? "Reconnect external wallet" : "Connect external wallet"}
+                </button>
+              )}
               {canUseBalance && (
                 <button
                   type="button"
                   onClick={() => setAmount(wallet.spendableUsd.toFixed(2))}
                   className="font-medium text-resolve-accent hover:underline"
                 >
-                  Use ${wallet.spendableUsd.toFixed(2)}
+                  Use max ${wallet.spendableUsd.toFixed(2)}
                 </button>
               )}
             </div>
@@ -147,7 +184,7 @@ export function DiscoverFundSheet({
             }
             if (insufficientBalance) {
               toast.error("Add funds or lower the amount", {
-                description: `You have $${wallet.spendableUsd.toFixed(2)} spendable.`,
+                description: `Max across wallets: $${wallet.spendableUsd.toFixed(2)}`,
               });
               return;
             }
@@ -178,7 +215,7 @@ export function DiscoverFundSheet({
             <Button type="submit" size="sm" disabled={busy || insufficientBalance}>
               {busy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : externalWalletReady ? (
+              ) : fundingSource === "external" ? (
                 "Confirm in wallet"
               ) : (
                 "Confirm fund"

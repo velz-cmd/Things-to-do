@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { recordFundAction } from "@/lib/capital/fund-action-store";
+import { dispatchCapitalRefresh } from "@/lib/capital/refresh-events";
 import type { FundProgressState } from "@/lib/capital/fund-progress";
 import {
   apiCreateProgram,
@@ -142,6 +143,7 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
         }));
 
         await spendable.refresh().catch(() => null);
+        dispatchCapitalRefresh({ reason: "fund" });
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
           queryClient.invalidateQueries({ queryKey: queryKeys.myPoolStakes }),

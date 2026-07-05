@@ -1,10 +1,9 @@
 /** Server-side Arc + Circle configuration. Never import from client components. */
 
+import { resolveArcRpcUrl } from "@/lib/wallet/arc-rpc-url";
+
 export const ARC_CHAIN_ID = Number(process.env.ARC_CHAIN_ID ?? "5042002");
-export const ARC_RPC_URL =
-  process.env.ARC_RPC_URL ??
-  process.env.ARC_TESTNET_RPC_URL ??
-  "https://rpc.testnet.arc.network";
+export const ARC_RPC_URL = resolveArcRpcUrl();
 export const ARC_EXPLORER_URL =
   process.env.ARC_EXPLORER_URL ?? "https://testnet.arcscan.app";
 export const ARC_AGENTIC_COMMERCE_CONTRACT = (process.env

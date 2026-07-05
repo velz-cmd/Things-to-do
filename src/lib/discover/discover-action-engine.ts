@@ -14,11 +14,14 @@ export type FundSheetRequest = {
 
 export type WalletSnapshot = {
   spendableUsd: number;
+  appSpendableUsd?: number;
+  externalSpendableUsd?: number;
   totalUsdc: string;
   loaded: boolean;
   address?: string;
   shortAddress?: string;
   explorerUrl?: string | null;
+  fundingSource?: "app" | "external" | null;
 };
 
 export async function apiInstallCommunity(slug: string) {

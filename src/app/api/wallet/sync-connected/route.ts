@@ -21,19 +21,18 @@ export async function POST(req: Request) {
   }
 
   const external = walletAddress.toLowerCase();
-  const profile = await prisma.user.findUnique({
+  let profile = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { scanWalletAddress: true, walletAddress: true },
   });
 
   if (!profile?.scanWalletAddress) {
-    return NextResponse.json(
-      { error: "Link your wallet from the account menu first" },
-      { status: 400 },
-    );
-  }
-
-  if (profile.scanWalletAddress.toLowerCase() !== external) {
+    profile = await prisma.user.update({
+      where: { id: session.user.id },
+      data: { scanWalletAddress: external },
+      select: { scanWalletAddress: true, walletAddress: true },
+    });
+  } else if (profile.scanWalletAddress.toLowerCase() !== external) {
     return NextResponse.json(
       { error: "Connected wallet does not match your linked address" },
       { status: 409 },

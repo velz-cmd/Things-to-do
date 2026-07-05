@@ -38,8 +38,8 @@ export function AddFundsModal({
   onClose: () => void;
 }) {
   const { refreshBalance, user } = useAuth();
-  const { cryptoReady } = useResolveAccess();
-  const { address } = useAccount();
+  const { appWalletAddress, openConnectWallet } = useResolveAccess();
+  const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const [cardOnRamp, setCardOnRamp] = useState(false);
@@ -161,10 +161,11 @@ export function AddFundsModal({
       });
       return;
     }
-    if (!cryptoReady || !address) {
-      toast.error("Connect your crypto wallet first", {
-        description: "Use the account menu → Connect crypto wallet",
+    if (!isConnected || !address) {
+      toast.error("Connect your crypto wallet to send USDC", {
+        description: "Account menu → Use your own wallet — your RESOLVE wallet address stays the same",
       });
+      openConnectWallet();
       return;
     }
 
@@ -285,15 +286,18 @@ export function AddFundsModal({
                 </p>
               </div>
             )}
-            {!cryptoReady && (
-              <p className="mt-3 rounded-lg border border-deputy-warn/40 bg-deputy-warn/10 px-3 py-2 text-xs text-deputy-warn">
-                Connect a crypto wallet from the account menu first, then confirm the transfer
-                here.
+            {!isConnected && depositAddress && (
+              <p className="mt-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-resolve-muted">
+                {appWalletAddress
+                  ? "Your RESOLVE wallet address is above. To send from MetaMask or Rabby, connect your wallet from the account menu — it will not replace your RESOLVE wallet."
+                  : "Connect a crypto wallet from the account menu to confirm a transfer here, or copy the address above for a manual deposit."}
               </p>
             )}
             <button
               type="button"
-              disabled={loading || isPending || confirming || !cryptoReady || !depositAddress}
+              disabled={
+                loading || isPending || confirming || !depositAddress || !isConnected || !address
+              }
               onClick={handleCryptoDeposit}
               className="mt-5 w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg disabled:opacity-50"
             >

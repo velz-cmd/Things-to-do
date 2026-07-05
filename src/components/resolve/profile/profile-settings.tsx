@@ -452,19 +452,34 @@ export function ProfileSettings() {
         : null;
     }
     if (platformId === "wallet") {
-      return connected ?
-          <>
-            <TextAction label="Change" onClick={() => open({ view: "Connect" })} />
-            <TextAction
-              label="Remove"
-              onClick={() => {
-                disconnect();
-                toast.success("Wallet disconnected");
-                void load();
-              }}
-            />
-          </>
-        : null;
+      const hasApp = Boolean(account.appWalletAddress);
+      const hasExternal = Boolean(account.externalWalletAddress);
+      if (!hasApp && !hasExternal) return null;
+      return (
+        <>
+          {!hasExternal && (
+            <TextAction label="Link your wallet" onClick={() => open({ view: "Connect" })} />
+          )}
+          {hasExternal && (
+            <>
+              <TextAction label="Change external" onClick={() => open({ view: "Connect" })} />
+              <TextAction
+                label="Unlink external"
+                onClick={() => {
+                  void fetch("/api/wallet/unlink-external", {
+                    method: "POST",
+                    credentials: "include",
+                  }).then(() => {
+                    disconnect();
+                    toast.success("External wallet unlinked — RESOLVE wallet unchanged");
+                    void load();
+                  });
+                }}
+              />
+            </>
+          )}
+        </>
+      );
     }
     if (platformId === "gmail") {
       return connected ?
@@ -497,7 +512,7 @@ export function ProfileSettings() {
   }
 
   function renderConnectButton(platformId: IdentityPlatformId, state?: ProfileIdentityState) {
-    if (state?.connected) return null;
+    if (platformId !== "wallet" && state?.connected) return null;
 
     switch (platformId) {
       case "github":
@@ -512,10 +527,19 @@ export function ProfileSettings() {
           </div>
         );
       case "wallet":
+        if (account.externalWalletAddress) return null;
         return (
-          <Button size="sm" onClick={() => open({ view: "Connect" })}>
-            Connect wallet
-          </Button>
+          <div className="space-y-2">
+            <Button size="sm" variant="secondary" onClick={() => open({ view: "Connect" })}>
+              {account.appWalletAddress ? "Link your wallet for on-chain signing" : "Link your wallet"}
+            </Button>
+            {account.appWalletAddress && (
+              <p className="text-[11px] text-resolve-muted-dim">
+                Your RESOLVE wallet stays active for Capital and payouts — this only adds an optional
+                wallet for signed transfers.
+              </p>
+            )}
+          </div>
         );
       case "gmail":
         return (
@@ -634,8 +658,8 @@ export function ProfileSettings() {
             Quick connect
           </p>
           <p className="mt-1 text-xs text-resolve-muted">
-            GitHub · ListenBrainz · Gmail · Wallet — secure sign-in for anyone, anywhere. RESOLVE
-            syncs your communities automatically after you connect.
+            GitHub · ListenBrainz · Gmail · Wallet — your RESOLVE Arc wallet is created at sign-in.
+            Optionally link your own wallet for signed on-chain actions. Both work across tabs.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {!identityMap.get("github")?.connected && (
@@ -650,13 +674,19 @@ export function ProfileSettings() {
             )}
             {!identityMap.get("wallet")?.connected && !account.appWalletAddress && (
               <Button size="sm" variant="secondary" onClick={() => open({ view: "Connect" })}>
-                Wallet
+                Link your wallet
               </Button>
             )}
+            {account.appWalletAddress && (
+              <span className="self-center text-xs text-emerald-300/90">
+                RESOLVE wallet active
+                {account.externalWalletAddress ? " · external linked" : ""}
+              </span>
+            )}
             {(identityMap.get("github")?.connected ||
-              identityMap.get("listenbrainz")?.connected ||
-              identityMap.get("wallet")?.connected ||
-              account.appWalletAddress) && (
+              identityMap.get("listenbrainz")?.connected) &&
+              !account.appWalletAddress &&
+              identityMap.get("wallet")?.connected && (
               <span className="self-center text-xs text-emerald-300/90">
                 Connected — earnings sync automatically
               </span>
@@ -677,20 +707,23 @@ export function ProfileSettings() {
               {platforms.map((def) => {
                 const state = identityMap.get(def.id);
                 const Icon = PLATFORM_ICONS[def.id];
-                const walletFromAccount =
-                  account.appWalletAddress ?? account.walletAddress ?? undefined;
+                const walletFromAccount = account.appWalletAddress ?? account.walletAddress;
+                const hasExternal = Boolean(account.externalWalletAddress);
                 const connected =
                   def.id === "wallet" ?
-                    Boolean(state?.connected || walletFromAccount)
+                    Boolean(walletFromAccount || hasExternal)
                   : (state?.connected ?? false);
                 const display =
                   def.id === "wallet" ?
-                    state?.displayValue ??
-                    (walletFromAccount ?
-                      `${walletFromAccount.slice(0, 6)}…${walletFromAccount.slice(-4)}`
+                    walletFromAccount ?
+                      `RESOLVE ${walletFromAccount.slice(0, 6)}…${walletFromAccount.slice(-4)}${
+                        hasExternal
+                          ? ` · yours ${account.externalWalletAddress!.slice(0, 6)}…${account.externalWalletAddress!.slice(-4)}`
+                          : ""
+                      }`
                     : account.externalWalletAddress ?
-                      `${account.externalWalletAddress.slice(0, 6)}…${account.externalWalletAddress.slice(-4)}`
-                    : undefined)
+                      `Yours ${account.externalWalletAddress.slice(0, 6)}…${account.externalWalletAddress.slice(-4)}`
+                    : state?.displayValue
                   : state?.displayValue;
 
                 return (
@@ -704,19 +737,26 @@ export function ProfileSettings() {
                       actions={renderPlatformActions(def.id, connected)}
                     />
                     <p className="text-xs leading-relaxed text-resolve-muted">{def.description}</p>
+                    {def.id === "wallet" && account.appWalletAddress && (
+                      <p className="text-[11px] text-resolve-muted-dim">
+                        Created at sign-in — payouts and Capital use this address. Link your own
+                        wallet below to fund pools with a wallet signature.
+                      </p>
+                    )}
                     <IdentityField
                       icon={Icon}
                       value={display}
                       placeholder="Not connected"
                       verified={connected && def.status === "live"}
                     />
-                    {def.id === "wallet" && connected && (
+                    {def.id === "wallet" && connected && walletFromAccount && (
                       <p className="text-sm font-medium text-white">
                         {balanceLoading ?
-                          "Loading balance…"
+                          "Loading RESOLVE wallet balance…"
                         : <>
+                            RESOLVE wallet:{" "}
                             <Money amount={balance?.availableUsd ?? 0} size="sm" className="inline" />{" "}
-                            available
+                            spendable
                           </>
                         }
                       </p>

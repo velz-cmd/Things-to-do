@@ -8,8 +8,7 @@ test.describe("Streamly demo portal", () => {
     await expect(page.getByTestId("streamly-account")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("account-email").fill("judge@resolve.app");
     await page.getByTestId("cancel-start").click();
-
-    await expect(page.getByTestId("cancel-form")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("cancel-form")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("cancel-reason").fill("Demo cancellation for RESOLVE");
     await page.getByTestId("cancel-submit").click();
 

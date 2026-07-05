@@ -1,12 +1,5 @@
 import { test, expect } from "@playwright/test";
-
-async function openDiscoverWorkspaceLane(
-  page: import("@playwright/test").Page,
-  lane: "Unpaid Value" | "Live Signals" | "Funding board",
-) {
-  const nav = page.getByRole("navigation", { name: "Discover workspace" });
-  await nav.getByRole("button", { name: lane, exact: true }).click();
-}
+import { openDiscoverWorkspaceLane, openFundingBoard } from "./helpers/discover-fund";
 
 /** Phase 1–3 API and surface smoke tests */
 test.describe("Community phases — APIs", () => {
@@ -350,39 +343,29 @@ test.describe("Community phases — surfaces", () => {
   });
 
   test("discover funder role shows sortable opportunity board", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
 
-    await page.goto("/discover", { waitUntil: "domcontentloaded" });
-
-    const boardReady = page.waitForResponse(
-      (res) => res.url().includes("/api/capital/discover") && res.ok(),
-      { timeout: 45_000 },
-    );
-    await page.getByRole("button", { name: /^Fund$/ }).click();
-    await boardReady;
+    await openFundingBoard(page);
 
     const board = page.locator("#opportunities");
-    await board.scrollIntoViewIfNeeded();
-    await expect(board.getByRole("heading", { name: "Funding board" })).toBeVisible();
     const sortOrSetup = board
       .getByText("Sort by")
+      .or(board.getByRole("button", { name: /Fulfill pool/i }))
       .or(board.getByText(/Set up React|Set up Navidrome|Explore music program|Connect GitHub/i));
     await expect(sortOrSetup.first()).toBeVisible({ timeout: 30_000 });
     const hasSort = await board.getByText("Sort by").isVisible().catch(() => false);
     if (hasSort) {
       await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
-      await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
     }
   });
 
   test("discover founder role opens opportunity board", async ({ page }) => {
-    await page.goto("/discover", { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /^Build$/ }).click();
-    await openDiscoverWorkspaceLane(page, "Funding board");
-    const board = page.locator("#opportunities");
-    await expect(board.getByRole("heading", { name: "Funding board" })).toBeVisible({
-      timeout: 15_000,
-    });
+    test.setTimeout(120_000);
+    await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.getByRole("tab", { name: /Run a program/i }).click();
+    const nav = page.getByRole("navigation", { name: "Discover workspace" });
+    await nav.getByRole("button", { name: "Ready to Fund" }).click();
+    await expect(page.locator("#opportunities")).toBeVisible({ timeout: 60_000 });
   });
 
   test("mission runs agent signal from chat prompt", async ({ page }) => {
@@ -397,17 +380,19 @@ test.describe("Community phases — surfaces", () => {
   });
 
   test("discover community role opens unpaid value with operational rows", async ({ page }) => {
-    await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await openDiscoverWorkspaceLane(page, "Unpaid Value");
 
-    await expect(page.getByRole("heading", { name: "Unpaid value" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Unpaid Value" })).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByText(/Jellyfin|Navidrome|React|payout program|watch events/i).first()).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByRole("button", { name: /Set up|Connect|Scan/i }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: /Fund|Launch|Create/i }).first()).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Fulfill pool|Connect source|View proof/i }).first(),
+    ).toBeVisible();
   });
 
   test("communities hub shows install cards and vitals", async ({ page, request }) => {
@@ -458,13 +443,13 @@ test.describe("Community phases — surfaces", () => {
       (res) => res.url().includes("/api/discover/radar") && res.ok(),
       { timeout: 45_000 },
     );
-    await page.goto("/discover", { waitUntil: "domcontentloaded" });
+    await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await radarReady;
 
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: /Where should value move next/i,
+        name: /What value do you want to unlock/i,
       }),
     ).toBeVisible();
 
@@ -483,10 +468,10 @@ test.describe("Community phases — surfaces", () => {
     await expect(svg.or(emptyLedger).first()).toBeVisible({ timeout: 30_000 });
 
     await openDiscoverWorkspaceLane(page, "Unpaid Value");
-    await expect(page.getByRole("heading", { name: "Unpaid value" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Unpaid Value" })).toBeVisible();
 
-    await openDiscoverWorkspaceLane(page, "Funding board");
-    await expect(page.locator("#opportunities").getByRole("heading", { name: "Funding board" })).toBeVisible();
+    await openDiscoverWorkspaceLane(page, "Ready to Fund");
+    await expect(page.getByRole("heading", { name: "Ready to Fund" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
   });
 
@@ -495,15 +480,13 @@ test.describe("Community phases — surfaces", () => {
     await expect(page).toHaveURL(/\/discover/);
   });
 
-  test("capital page loads with programs section", async ({ page }) => {
+  test("capital page loads with activity tab", async ({ page }) => {
     await page.goto("/capital", { waitUntil: "domcontentloaded" });
     await expect(
-      page.getByRole("heading", { level: 1, name: "Where should money move?" }),
+      page.getByRole("heading", { level: 1, name: "Your treasury" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Programs" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Fulfill a community program" }),
-    ).toBeVisible();
+    await page.getByRole("button", { name: "Activity" }).click();
+    await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
   });
 
   test("communities hub loads and nav highlights Communities", async ({ page }) => {

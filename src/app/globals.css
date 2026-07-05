@@ -3,26 +3,26 @@
 @tailwind utilities;
 
 :root {
-  /* Soft navy blue — easy on eyes, Boltshift / Agex vibes */
-  --background: #071428;
-  --foreground: #e8f1fc;
-  --resolve-bg: #071428;
-  --resolve-bg-deep: #051020;
-  --resolve-raised: rgba(12, 35, 72, 0.65);
-  --resolve-hover: rgba(20, 50, 95, 0.55);
-  --resolve-border: rgba(100, 160, 255, 0.12);
-  --resolve-border-strong: rgba(100, 180, 255, 0.22);
-  --resolve-accent: #3b9eff;
-  --resolve-accent-bright: #007aff;
-  --resolve-accent-muted: rgba(59, 158, 255, 0.15);
-  --resolve-glow: rgba(0, 122, 255, 0.45);
+  /* Brand: iris · aster · periwinkle — crisp dark canvas */
+  --background: #060f1c;
+  --foreground: #f0f5fc;
+  --resolve-bg: #060f1c;
+  --resolve-bg-deep: #040a14;
+  --resolve-raised: rgba(14, 32, 58, 0.88);
+  --resolve-hover: rgba(22, 48, 82, 0.72);
+  --resolve-border: rgba(125, 140, 196, 0.18);
+  --resolve-border-strong: rgba(125, 140, 196, 0.32);
+  --resolve-accent: #7d8cc4;
+  --resolve-accent-bright: #0077b3;
+  --resolve-accent-muted: rgba(125, 140, 196, 0.18);
+  --resolve-glow: rgba(0, 119, 179, 0.42);
   --resolve-orange: #ff7a45;
   --resolve-orange-muted: rgba(255, 122, 69, 0.15);
   --resolve-success: #34d399;
   --resolve-warning: #fbbf24;
   --resolve-danger: #f87171;
-  --resolve-muted: #8ba3c7;
-  --resolve-muted-dim: #5a7399;
+  --resolve-muted: #a8b8d4;
+  --resolve-muted-dim: #7a92b4;
   --resolve-calm-canvas: #f2e8e5;
   --resolve-calm-card: #ccc2d1;
   --resolve-calm-periwinkle: #7d8cc4;
@@ -45,6 +45,7 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 html.discover-route,
@@ -65,20 +66,20 @@ html.discover-route body {
   .resolve-glass {
     background: linear-gradient(
       168deg,
-      rgba(255, 255, 255, 0.07) 0%,
-      rgba(255, 255, 255, 0.02) 35%,
-      rgba(8, 28, 58, 0.75) 100%
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 35%,
+      rgba(10, 28, 52, 0.92) 100%
     );
-    backdrop-filter: blur(18px) saturate(1.3);
-    -webkit-backdrop-filter: blur(18px) saturate(1.3);
-    border: 1px solid rgba(100, 180, 255, 0.14);
+    backdrop-filter: blur(10px) saturate(1.2);
+    -webkit-backdrop-filter: blur(10px) saturate(1.2);
+    border: 1px solid rgba(125, 140, 196, 0.2);
   }
 
   .resolve-glass-subtle {
-    background: rgba(8, 26, 54, 0.6);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(100, 180, 255, 0.1);
+    background: rgba(8, 22, 42, 0.94);
+    backdrop-filter: blur(6px) saturate(1.15);
+    -webkit-backdrop-filter: blur(6px) saturate(1.15);
+    border: 1px solid rgba(125, 140, 196, 0.16);
   }
 
   /* Blue underglow — conversion-rate card style */
@@ -155,14 +156,14 @@ html.discover-route body {
   }
 
   .resolve-text-gradient {
-    background: linear-gradient(135deg, #ffffff 0%, #93c5fd 50%, #60a5fa 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #c5d4f0 45%, #7d8cc4 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .resolve-accent-gradient {
-    background: linear-gradient(135deg, #007aff 0%, #3b9eff 50%, #60a5fa 100%);
+    background: linear-gradient(135deg, #0077b3 0%, #5c609f 52%, #7d8cc4 100%);
   }
 
   .resolve-orange-gradient {

@@ -15,6 +15,7 @@ import {
   setRememberedEmail,
 } from "@/lib/auth/remember";
 import { detectInjectedWallets } from "@/lib/wallet/detect";
+import { ResolveLogoMark } from "@/components/resolve/brand/resolve-logo-mark";
 
 type Step = "welcome" | "wallet-picker" | "forgot-password";
 type AuthAction = "email" | "forgot" | "wallet" | "guest" | null;
@@ -261,8 +262,10 @@ export function SignInModal() {
           )}
 
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-400">
+            <div className="flex gap-3">
+              <ResolveLogoMark size={40} className="mt-0.5 rounded-xl shadow-[0_0_16px_rgba(92,96,159,0.3)]" />
+              <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-resolve-brand-periwinkle">
                 RESOLVE
               </p>
               <h2 id="sign-in-title" className="mt-1 text-2xl font-semibold text-white">
@@ -274,7 +277,8 @@ export function SignInModal() {
                       ? "Welcome back"
                       : "Welcome"}
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">{subtitle}</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-300">{subtitle}</p>
+              </div>
             </div>
             <button
               type="button"

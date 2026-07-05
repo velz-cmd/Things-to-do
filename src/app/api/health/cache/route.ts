@@ -1,40 +1,37 @@
 import { NextResponse } from "next/server";
 import { isRedisConfigured, verifyRedisConnection } from "@/lib/cache/redis";
+import { RESILIENCE_REGISTRY } from "@/lib/api/resilience-registry";
 
 export const runtime = "edge";
 
-/** Safe Redis diagnostics — never returns secret values. */
+/** Safe Redis + Sentry diagnostics — never returns secret values. */
 export async function GET() {
   const configured = isRedisConfigured();
   const ping = configured ? await verifyRedisConnection() : null;
+  const sentryDsn = Boolean(process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN);
 
   return NextResponse.json({
-    ok: Boolean(ping?.ok),
-    configured,
-    ping,
-    caches: [
-      "resolve:discover:radar-feed:* (90s)",
-      "resolve:discover:radar:v1 (30s)",
-      "resolve:discover:search:* (45s)",
-      "resolve:profile:bootstrap:* (30s)",
-      "resolve:oss:opportunities (60s)",
-      "resolve:integrations:health (180s)",
-      "resolve:arc:balance:* (20s)",
-    ],
-    rateLimits: [
-      "resolve:rl:discover:*",
-      "resolve:rl:capital:state:*",
-      "resolve:rl:github:opportunities",
-      "resolve:rl:profile:bootstrap:*",
-    ],
-    observability: {
-      sentry: Boolean(process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN),
+    ok: Boolean(ping?.ok) && sentryDsn,
+    redis: {
+      configured,
+      ping,
     },
+    sentry: {
+      configured: sentryDsn,
+      org: process.env.SENTRY_ORG ?? "resolve-n2",
+      project: process.env.SENTRY_PROJECT ?? "javascript-nextjs",
+      sourcemapsOnBuild: Boolean(process.env.SENTRY_AUTH_TOKEN),
+      clientDsn: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
+      serverDsn: Boolean(process.env.SENTRY_DSN),
+    },
+    caches: RESILIENCE_REGISTRY.caches,
+    rateLimits: RESILIENCE_REGISTRY.rateLimits,
+    safeApiRoutes: RESILIENCE_REGISTRY.safeApiRoutes,
     note:
       configured && ping?.ok ?
-        "Redis is live — Discover, OSS scan, rate limits, and integration health are shared across Vercel instances."
+        "Redis is live — shared cache + rate limits across Vercel instances."
       : configured ?
-        "Redis env vars are set but ping failed — check UPSTASH_REDIS_REST_TOKEN on Vercel Production."
-      : "Add UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN on Vercel, then redeploy. Falls back to in-process memory until then.",
+        "Redis env vars set but ping failed — check UPSTASH_REDIS_REST_TOKEN on Vercel Production."
+      : "Add UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN on Vercel. Falls back to in-process memory until then.",
   });
 }

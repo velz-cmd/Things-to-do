@@ -206,9 +206,14 @@ export function AuthHeader() {
                     )}
                 </p>
               )}
-              {!balanceLoading && hasEmailSession && !balance && (
+              {(balanceLoading || (!balance && account.appWalletAddress)) && hasEmailSession && (
+                <p className="mt-2 text-xs text-slate-500">
+                  {balanceLoading ? "Syncing Arc balance…" : "Loading wallet balance…"}
+                </p>
+              )}
+              {!balanceLoading && hasEmailSession && !balance && !account.appWalletAddress && (
                 <p className="mt-2 text-xs text-amber-300/90">
-                  Balance will appear after wallet sync. Capital can retry without blocking this page.
+                  Setting up your Arc wallet… open Capital if this takes more than a few seconds.
                 </p>
               )}
               {balanceLoading && hasEmailSession && balance && (

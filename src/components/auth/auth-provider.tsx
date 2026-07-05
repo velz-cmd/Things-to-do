@@ -126,62 +126,96 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(async () => {
     setBalanceLoading(true);
     try {
-      const res = await fetch("/api/capital/state", {
-        credentials: "include",
-        cache: "no-store",
-        signal: AbortSignal.timeout(12_000),
-      });
-      const data = await res.json();
-      const walletAddress =
-        data.walletAddress ??
-        data.wallet?.address ??
-        null;
-      if (!walletAddress) {
+      const loadOnce = async (): Promise<boolean> => {
+        const res = await fetch("/api/capital/state", {
+          credentials: "include",
+          cache: "no-store",
+          signal: AbortSignal.timeout(20_000),
+        });
+        const data = await res.json();
+        let walletAddress =
+          data.walletAddress ??
+          data.wallet?.address ??
+          null;
+
+        if (!walletAddress && (data.code === "WALLET_NOT_FOUND" || data.syncStatus === "no_wallet")) {
+          await fetch("/api/wallet/provision", {
+            method: "POST",
+            credentials: "include",
+          }).catch(() => null);
+          const retry = await fetch("/api/capital/state", {
+            credentials: "include",
+            cache: "no-store",
+            signal: AbortSignal.timeout(20_000),
+          });
+          const retryData = await retry.json();
+          walletAddress =
+            retryData.walletAddress ??
+            retryData.wallet?.address ??
+            null;
+          if (!walletAddress) return false;
+          Object.assign(data, retryData);
+        }
+
+        if (!walletAddress) {
+          return false;
+        }
+
+        const onChainUsd = Number(
+          data.usdcBalance ?? data.balance?.totalUsdc ?? data.balance?.onChainUsd ?? NaN,
+        );
+        const spendableFromChain = Number(
+          data.spendableBalance ?? data.balance?.spendableUsd ?? NaN,
+        );
+        const ledgerSpendable = Number(data.lastKnownBalance ?? NaN);
+        const live =
+          data.syncStatus === "live" ||
+          data.syncStatus === "cached" ||
+          Number.isFinite(onChainUsd);
+
+        const spendableUsd =
+          live && Number.isFinite(spendableFromChain)
+            ? spendableFromChain
+            : live && Number.isFinite(onChainUsd)
+              ? onChainUsd
+              : Number.isFinite(ledgerSpendable)
+                ? ledgerSpendable
+                : 0;
+
+        setBalance({
+          availableUsd: spendableUsd,
+          onChainUsd: Number.isFinite(onChainUsd) ? onChainUsd : null,
+          walletAddress,
+          walletProvider: data.walletProvider ?? data.wallet?.provider,
+          syncStatus: data.syncStatus,
+          lastSyncedAt: data.lastSyncedAt ?? data.balance?.syncedAt ?? null,
+          lockedUsd: 0,
+          releasedUsd: 0,
+          recentActivity: Array.isArray(data.pendingTransactions)
+            ? data.pendingTransactions.map(
+                (tx: {
+                  id: string;
+                  label?: string;
+                  amountUsd?: number;
+                  createdAt?: string;
+                  status?: string;
+                }) => ({
+                  id: tx.id,
+                  type: tx.status ?? "pending",
+                  label: tx.label ?? null,
+                  amountUsd: Number(tx.amountUsd ?? 0),
+                  createdAt: tx.createdAt ?? new Date().toISOString(),
+                }),
+              )
+            : [],
+        });
+        return true;
+      };
+
+      const ok = await loadOnce();
+      if (!ok) {
         setBalance((current) => current);
-        return;
       }
-
-      const onChainUsd = Number(
-        data.usdcBalance ?? data.balance?.totalUsdc ?? data.balance?.onChainUsd ?? NaN,
-      );
-      const spendableFromChain = Number(
-        data.spendableBalance ?? data.balance?.spendableUsd ?? NaN,
-      );
-      const ledgerSpendable = Number(data.lastKnownBalance ?? NaN);
-      const live =
-        data.syncStatus === "live" ||
-        data.syncStatus === "cached" ||
-        Number.isFinite(onChainUsd);
-
-      const spendableUsd = live && Number.isFinite(spendableFromChain)
-        ? spendableFromChain
-        : live && Number.isFinite(onChainUsd)
-          ? onChainUsd
-          : Number.isFinite(ledgerSpendable)
-            ? ledgerSpendable
-            : 0;
-
-      setBalance({
-        availableUsd: spendableUsd,
-        onChainUsd: Number.isFinite(onChainUsd) ? onChainUsd : null,
-        walletAddress,
-        walletProvider: data.walletProvider ?? data.wallet?.provider,
-        syncStatus: data.syncStatus,
-        lastSyncedAt: data.lastSyncedAt ?? data.balance?.syncedAt ?? null,
-        lockedUsd: 0,
-        releasedUsd: 0,
-        recentActivity: Array.isArray(data.pendingTransactions)
-          ? data.pendingTransactions.map(
-              (tx: { id: string; label?: string; amountUsd?: number; createdAt?: string; status?: string }) => ({
-                id: tx.id,
-                type: tx.status ?? "pending",
-                label: tx.label ?? null,
-                amountUsd: Number(tx.amountUsd ?? 0),
-                createdAt: tx.createdAt ?? new Date().toISOString(),
-              }),
-            )
-          : [],
-      });
     } catch {
       setBalance((current) => current);
     } finally {

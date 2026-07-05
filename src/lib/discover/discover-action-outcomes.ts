@@ -1,4 +1,4 @@
-import type { DiscoverAction } from "@/lib/discover/types";
+import type { DiscoverAction, TrendingValueGap } from "@/lib/discover/types";
 
 export type DiscoverOutcomeStep = {
   id: string;
@@ -6,131 +6,207 @@ export type DiscoverOutcomeStep = {
   description: string;
   href: string;
   external?: boolean;
+  primary?: boolean;
 };
 
 const ARC_EXPLORER = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app";
+
+/** Copy gap context onto fund/sponsor actions for post-action receipts. */
+export function enrichFundActionFromGap(
+  action: DiscoverAction,
+  gap: Pick<TrendingValueGap, "why" | "whoBenefits" | "headline" | "communitySlug" | "templateId">,
+): DiscoverAction {
+  if (action.kind !== "fund" && action.kind !== "sponsor") return action;
+  return {
+    ...action,
+    whyFund: action.whyFund ?? gap.why,
+    whoBenefits: action.whoBenefits ?? gap.whoBenefits,
+    programName: action.programName ?? gap.headline,
+    communitySlug: action.communitySlug ?? gap.communitySlug,
+    templateId: action.templateId ?? gap.templateId,
+  };
+}
+
+export type FundOutcomeDetail = {
+  amountUsd: number;
+  programName?: string;
+  communitySlug?: string;
+  programId?: string;
+  txHash?: string;
+  whyFund?: string;
+  whoBenefits?: string;
+};
+
+export function buildFundOutcomeTitle(input: FundOutcomeDetail): string {
+  const amount = `$${input.amountUsd.toFixed(2)}`;
+  if (input.programName) {
+    return `${amount} added to ${input.programName}`;
+  }
+  if (input.communitySlug) {
+    return `${amount} added to ${input.communitySlug.replace(/-/g, " ")} pool`;
+  }
+  return `${amount} added to program pool`;
+}
+
+export function buildFundOutcomeSummary(input: FundOutcomeDetail): string {
+  const dest = input.programName
+    ? input.programName
+    : input.communitySlug
+      ? `${input.communitySlug.replace(/-/g, " ")} program pool`
+      : "this program pool";
+  return `Your ${input.amountUsd.toFixed(2)} USDC is reserved in ${dest} on Arc testnet. It pays verified contributors when authorizations settle.`;
+}
+
+/** Capital-first — max 2 in-app steps; only what matters after funding. */
+export function fundOutcomeSteps(input: FundOutcomeDetail): DiscoverOutcomeStep[] {
+  const steps: DiscoverOutcomeStep[] = [
+    {
+      id: "capital",
+      label: "Capital · Your contribution",
+      description: `${input.amountUsd.toFixed(2)} stake, balance, and activity receipt`,
+      href: "/capital",
+      primary: true,
+    },
+  ];
+
+  if (input.communitySlug) {
+    const programQ = input.programId ? `&program=${encodeURIComponent(input.programId)}` : "";
+    steps.push({
+      id: "program",
+      label: "Program · Rules and payees",
+      description: "Who gets paid and how this pool spends",
+      href: `/communities/${input.communitySlug}?intent=fund${programQ}`,
+    });
+  }
+
+  if (input.txHash) {
+    steps.push({
+      id: "arcscan",
+      label: "Arcscan · On-chain transfer",
+      description: "Verify USDC on Arc testnet",
+      href: `${ARC_EXPLORER}/tx/${input.txHash}`,
+      external: true,
+    });
+  }
+
+  return steps.slice(0, 3);
+}
+
+/** One next step per completed action — no generic Discover clutter. */
+export function outcomeStepsForAction(
+  action: DiscoverAction,
+  ctx?: { programId?: string; entityId?: string },
+): DiscoverOutcomeStep[] {
+  switch (action.kind) {
+    case "create_program":
+      if (!action.communitySlug) return [];
+      return [
+        {
+          id: "fund-next",
+          label: "Fund this program on Arc",
+          description: "Min $5 USDC — pool must hold funds before payouts",
+          href: "/discover#opportunities",
+          primary: true,
+        },
+      ];
+    case "install":
+      if (!action.communitySlug) return [];
+      return [
+        {
+          id: "create-program",
+          label: "Create payout program",
+          description: `Set rules for ${action.communitySlug.replace(/-/g, " ")}`,
+          href: `/communities/${action.communitySlug}?intent=create_program`,
+          primary: true,
+        },
+      ];
+    case "analyze":
+      return [
+        {
+          id: "fund-when-ready",
+          label: action.communitySlug ? "Fund when proof is ready" : "Find programs to fund",
+          description: "Fund after authorizations appear in the ledger",
+          href: action.communitySlug
+            ? `/discover#opportunities`
+            : "/discover#opportunities",
+          primary: true,
+        },
+      ];
+    case "automate":
+      if (!action.communitySlug) return [];
+      return [
+        {
+          id: "fund-pool",
+          label: "Fund the pool first",
+          description: "Auto-pay needs USDC in the program pool",
+          href: "/discover#opportunities",
+          primary: true,
+        },
+      ];
+    case "fund":
+    case "sponsor":
+      return fundOutcomeSteps({
+        amountUsd: action.amountUsd ?? 5,
+        communitySlug: action.communitySlug,
+        programId: action.programId ?? ctx?.programId,
+        programName: action.programName,
+        whyFund: action.whyFund,
+        whoBenefits: action.whoBenefits,
+      });
+    default:
+      return [];
+  }
+}
 
 export function whereFundGoes(input: {
   communitySlug?: string;
   programName?: string;
   amountUsd: number;
 }): string {
-  const who = input.communitySlug
-    ? `${input.communitySlug.replace(/-/g, " ")} program pool`
-    : "this program pool";
-  return `$${input.amountUsd.toFixed(2)} USDC moves from your wallet into the ${who} on Arc testnet. It stays reserved until authorizations settle to contributors.`;
-}
-
-export function fundOutcomeSteps(input: {
-  communitySlug?: string;
-  programId?: string;
-  txHash?: string;
-}): DiscoverOutcomeStep[] {
-  const steps: DiscoverOutcomeStep[] = [
-    {
-      id: "capital",
-      label: "Capital · Activity",
-      description: "Fund stake, wallet sync, and Arc receipts",
-      href: "/capital",
-    },
-  ];
-
-  if (input.communitySlug) {
-    steps.push({
-      id: "community",
-      label: "Communities · Program pool",
-      description: "Rules, budget, and who gets paid",
-      href: `/communities/${input.communitySlug}?intent=fund`,
-    });
-  }
-
-  steps.push({
-    id: "discover-board",
-    label: "Discover · Ready to Fund",
-    description: "Your stake badge updates on opportunity cards",
-    href: "/discover#opportunities",
+  return buildFundOutcomeSummary({
+    amountUsd: input.amountUsd,
+    communitySlug: input.communitySlug,
+    programName: input.programName,
   });
-
-  if (input.txHash) {
-    steps.push({
-      id: "arcscan",
-      label: "Arcscan · On-chain tx",
-      description: "Verify the USDC transfer on Arc testnet",
-      href: `${ARC_EXPLORER}/tx/${input.txHash}`,
-      external: true,
-    });
-  }
-
-  return steps;
 }
 
 export function createProgramOutcomeSteps(input: {
   communitySlug?: string;
   programId?: string;
 }): DiscoverOutcomeStep[] {
-  const steps: DiscoverOutcomeStep[] = [];
-
-  if (input.communitySlug) {
-    steps.push({
-      id: "fund-next",
-      label: "Fund pool on Arc",
-      description: "Add USDC so payouts can settle",
-      href: `/discover#opportunities`,
-    });
-    steps.push({
-      id: "automate",
-      label: "Set auto-pay rule",
-      description: "Pay when verified proof arrives",
-      href: `/discover?community=${input.communitySlug}&panel=automate`,
-    });
-    steps.push({
-      id: "community",
-      label: "Communities console",
-      description: "Edit rules and deploy settlement",
-      href: `/communities/${input.communitySlug}?intent=create_program`,
-    });
-  }
-
-  return steps;
+  if (!input.communitySlug) return [];
+  return outcomeStepsForAction({
+    id: "create",
+    label: "Program",
+    kind: "create_program",
+    communitySlug: input.communitySlug,
+    programId: input.programId,
+  });
 }
 
 export function automateOutcomeSteps(input: { communitySlug?: string }): DiscoverOutcomeStep[] {
   if (!input.communitySlug) return [];
-  return [
-    {
-      id: "panel",
-      label: "Tune auto-pay on graph",
-      description: "Adjust cap and notifications on Discover",
-      href: `/discover?community=${input.communitySlug}&panel=automate`,
-    },
-    {
-      id: "fund",
-      label: "Fund the pool",
-      description: "USDC must be in the pool before Arc can pay",
-      href: "/discover#opportunities",
-    },
-    {
-      id: "capital",
-      label: "Capital activity",
-      description: "Settlement and wallet history",
-      href: "/capital",
-    },
-  ];
+  return outcomeStepsForAction({
+    id: "auto",
+    label: "Automate",
+    kind: "automate",
+    communitySlug: input.communitySlug,
+  });
 }
 
 export function confirmNextStepHint(action: DiscoverAction): string | undefined {
   switch (action.kind) {
     case "create_program":
-      return "After confirm → fund the pool on Arc (min $5 USDC).";
+      return "Next: fund the pool on Arc (min $5 USDC).";
     case "fund":
     case "sponsor":
-      return "USDC moves to the program pool · activity appears in Capital.";
+      return "USDC moves into the program pool — see Capital for your stake.";
     case "install":
-      return "After attach → create a program or fund from Discover.";
+      return "Next: create a payout program, then fund.";
     case "analyze":
-      return "Proof syncs to the ledger · fund or automate when verified.";
+      return "Proof updates in the ledger — fund when authorizations appear.";
     case "automate":
-      return "Opens auto-pay builder on Discover — go live on Arc when proof arrives.";
+      return "Fund the pool first — auto-pay runs when proof arrives.";
     default:
       return undefined;
   }

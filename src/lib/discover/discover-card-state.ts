@@ -13,6 +13,7 @@ import {
   type OpportunityState,
 } from "@/lib/discover/discover-opportunity-state";
 import { resolveLaneAdvancedActions } from "@/lib/discover/discover-lane-slots";
+import { enrichFundActionFromGap } from "@/lib/discover/discover-action-outcomes";
 import {
   buildDiscoverCardNarrative,
   type DiscoverCardNarrative,
@@ -152,7 +153,7 @@ export function deriveDiscoverCardState(
   const settled = gapIsSettled(gap);
   const opportunityState = getOpportunityState(gap, connected);
 
-  const actionSlots = resolveDiscoverActionSlots({
+  const rawSlots = resolveDiscoverActionSlots({
     gap,
     connections,
     role,
@@ -160,6 +161,11 @@ export function deriveDiscoverCardState(
     signedIn: options?.signedIn ?? Boolean(connections?.signedIn),
     spendableUsd: options?.spendableUsd ?? null,
   });
+
+  const actionSlots = rawSlots.map((slot) => ({
+    ...slot,
+    action: enrichFundActionFromGap(slot.action, gap),
+  }));
 
   const slotInput = {
     gap,
@@ -170,7 +176,9 @@ export function deriveDiscoverCardState(
     spendableUsd: options?.spendableUsd ?? null,
   };
 
-  const advancedActions = resolveLaneAdvancedActions(slotInput, actionSlots);
+  const advancedActions = resolveLaneAdvancedActions(slotInput, actionSlots).map((action) =>
+    enrichFundActionFromGap(action, gap),
+  );
 
   const proofSource =
     gap.valueMetrics?.verifiedSource ??

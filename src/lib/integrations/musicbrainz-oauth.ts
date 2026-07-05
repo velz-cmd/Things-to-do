@@ -11,13 +11,13 @@ export function musicBrainzOAuthConfigured(): boolean {
 
 export function appOrigin(requestOrigin?: string) {
   const fromRequest = requestOrigin?.replace(/\/$/, "");
-  if (fromRequest && !fromRequest.includes("localhost")) return fromRequest;
-  return (
+  const configured =
+    process.env.OAUTH_REDIRECT_ORIGIN?.replace(/\/$/, "") ??
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
-    process.env.APP_URL?.replace(/\/$/, "") ??
-    fromRequest ??
-    "http://localhost:3000"
-  );
+    process.env.APP_URL?.replace(/\/$/, "");
+
+  if (fromRequest?.includes("localhost")) return fromRequest;
+  return configured ?? fromRequest ?? "http://localhost:3000";
 }
 
 export function listenBrainzOAuthRedirectUri(requestOrigin?: string) {

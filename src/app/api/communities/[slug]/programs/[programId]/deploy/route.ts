@@ -5,6 +5,8 @@ import { buildCommunitySurface } from "@/lib/communities/surface";
 
 type Params = { params: Promise<{ slug: string; programId: string }> };
 
+export const maxDuration = 60;
+
 export async function POST(_req: Request, { params }: Params) {
   const ready = await requireReadyUser();
   if ("error" in ready) {

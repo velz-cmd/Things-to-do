@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { requireReadyUser } from "@/lib/auth/session";
-import { installCommunity } from "@/lib/communities/installs";
+import { deferInstallBackgroundWork, installCommunity } from "@/lib/communities/installs";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
 import { buildCommunitySurface } from "@/lib/communities/surface";
 import { buildObserveNarrative } from "@/lib/communities/vitals";
 
 type Params = { params: Promise<{ slug: string }> };
+
+export const maxDuration = 60;
 
 export async function POST(req: Request, { params }: Params) {
   const ready = await requireReadyUser();
@@ -22,6 +24,10 @@ export async function POST(req: Request, { params }: Params) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
+
+  after(() => {
+    deferInstallBackgroundWork(ready.user.id, slug);
+  });
 
   const minimal = new URL(req.url).searchParams.get("minimal") === "1";
   if (minimal) {

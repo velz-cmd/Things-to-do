@@ -20,9 +20,11 @@ import {
   apiResolveFundTarget,
   apiVerifyAndShareReceipt,
   fundParamsFromAction,
+  isAcceptedBackgroundError,
   type FundSheetRequest,
   type WalletSnapshot,
 } from "@/lib/discover/discover-action-engine";
+import { ACTION_STATUS } from "@/lib/copy/action-status";
 import { DiscoverFundSheet } from "@/components/resolve/discover/discover-fund-sheet";
 import { DiscoverActionConfirmSheet } from "@/components/resolve/discover/discover-action-confirm-sheet";
 import { useCommunityConsoleOptional } from "@/components/resolve/discover/discover-community-console-provider";
@@ -184,21 +186,27 @@ export function DiscoverActionsProvider({
 
       if (target.needsInstall) {
         if (!communityReadyForDiscover(target.communitySlug, connections)) {
-          toast.loading(`Setting up ${target.communitySlug}…`, { id: "discover-chain" });
+          toast.loading(ACTION_STATUS.workingInstall, { id: "discover-chain" });
         }
         try {
           await apiInstallCommunity(target.communitySlug);
         } catch (e) {
           toast.dismiss("discover-chain");
-          throw e;
+          if (isAcceptedBackgroundError(e)) {
+            void reloadConnections();
+          } else {
+            throw e;
+          }
         }
         void reloadConnections();
       }
 
-      toast.loading("Creating program…", { id: "discover-chain" });
+      toast.loading(ACTION_STATUS.workingProgram, { id: "discover-chain" });
       const created = await apiCreateProgram(target.communitySlug, target.templateId);
       toast.dismiss("discover-chain");
-      if (!created.program?.id) throw new Error("Program was not created - try again in a moment");
+      if (!created.program?.id) {
+        throw new Error("Program was not created — open Communities to verify");
+      }
       return created.program.id;
     },
     [reloadConnections],
@@ -262,6 +270,11 @@ export function DiscoverActionsProvider({
         await refreshDiscover();
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Fund failed";
+        if (isAcceptedBackgroundError(e)) {
+          toast.message(ACTION_STATUS.acceptedBackground, { id: "discover-chain" });
+          await refreshDiscover();
+          return;
+        }
         reportActionStatus(surface, auditAction, "error", msg);
         toast.error(msg, { id: "discover-chain" });
         throw e;
@@ -313,6 +326,12 @@ export function DiscoverActionsProvider({
         });
         if (result.nextAction === "add_funds") router.push("/capital");
         if (result.nextAction === "connect_source") router.push("/profile");
+        return;
+      }
+      if (result.status === "accepted") {
+        toast.message(result.message ?? ACTION_STATUS.acceptedBackground);
+        await refreshDiscover();
+        setConfirmAction(null);
         return;
       }
       reportActionStatus(surface, action, "success", result.message);

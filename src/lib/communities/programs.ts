@@ -100,6 +100,24 @@ export async function createProgram(
   const template = PROGRAM_TEMPLATES[templateId];
   if (!template) return { ok: false as const, error: "Unknown program template" };
 
+  const recentDraft = await prisma.resolveProgram.findFirst({
+    where: {
+      userId,
+      installId: install.id,
+      templateId,
+      status: "draft",
+      createdAt: { gte: new Date(Date.now() - 120_000) },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recentDraft) {
+    return {
+      ok: true as const,
+      program: toProgramRecord(recentDraft, communitySlug),
+      reused: true as const,
+    };
+  }
+
   const row = await prisma.resolveProgram.create({
     data: {
       userId,

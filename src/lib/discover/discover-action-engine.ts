@@ -1,4 +1,5 @@
-import { ACTION_ERRORS } from "@/lib/copy/action-errors";
+import { mutationFetch } from "@/lib/api/mutation-fetch";
+import { ACTION_STATUS } from "@/lib/copy/action-status";
 import type { DiscoverAction } from "@/lib/discover/types";
 import { parseJsonResponse } from "@/lib/http/parse-json-response";
 import type { DiscoverActionResponse } from "@/lib/discover/discover-action-response";
@@ -25,62 +26,44 @@ export type WalletSnapshot = {
   fundingSource?: "app" | "external" | null;
 };
 
+function acceptedBackgroundError() {
+  return new Error(ACTION_STATUS.acceptedBackground);
+}
+
 export async function apiInstallCommunity(slug: string) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const res = await fetch(`/api/communities/${slug}/install?minimal=1`, {
+    const res = await mutationFetch(`/api/communities/${slug}/install?minimal=1`, {
       method: "POST",
-      credentials: "include",
-      signal: controller.signal,
     });
     const data = await parseJsonResponse<{ error?: string; alreadyInstalled?: boolean }>(res);
     if (!res.ok) throw new Error(data.error ?? "Install failed");
     return data;
   } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") {
-      throw new Error(ACTION_ERRORS.attachCommunityTimeout);
-    }
+    if (e instanceof Error && e.name === "AbortError") throw acceptedBackgroundError();
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 export async function apiCreateProgram(slug: string, templateId?: string) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const res = await fetch(`/api/communities/${slug}/programs`, {
+    const res = await mutationFetch(`/api/communities/${slug}/programs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ templateId }),
-      signal: controller.signal,
     });
-    const data = await parseJsonResponse<{ error?: string; program?: ProgramRecord }>(
-      res,
-    );
+    const data = await parseJsonResponse<{ error?: string; program?: ProgramRecord }>(res);
     if (!res.ok) throw new Error(data.error ?? "Could not create program");
     return data as { program?: ProgramRecord };
   } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") {
-      throw new Error(ACTION_ERRORS.programCreateTimeout);
-    }
+    if (e instanceof Error && e.name === "AbortError") throw acceptedBackgroundError();
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 export async function apiDeployProgramOnArc(slug: string, programId: string) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
   try {
-    const res = await fetch(`/api/communities/${slug}/programs/${programId}/deploy`, {
+    const res = await mutationFetch(`/api/communities/${slug}/programs/${programId}/deploy`, {
       method: "POST",
-      credentials: "include",
-      signal: controller.signal,
     });
     const data = await parseJsonResponse<{
       ok?: boolean;
@@ -93,44 +76,31 @@ export async function apiDeployProgramOnArc(slug: string, programId: string) {
     if (!res.ok) throw new Error(data.error ?? data.message ?? "Arc settlement failed");
     return data;
   } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") {
-      throw new Error(ACTION_ERRORS.arcSettlementTimeout);
-    }
+    if (e instanceof Error && e.name === "AbortError") throw acceptedBackgroundError();
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 export async function apiFundProgram(programId: string, amountUsd: number) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const res = await fetch("/api/capital/fund", {
+    const res = await mutationFetch("/api/capital/fund", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ programId, amountUsd }),
-      signal: controller.signal,
     });
     const data = await parseJsonResponse<{ error?: string }>(res);
     if (!res.ok) throw new Error(data.error ?? "Fund failed");
     return data;
   } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") {
-      throw new Error(ACTION_ERRORS.fundTimeout);
-    }
+    if (e instanceof Error && e.name === "AbortError") throw acceptedBackgroundError();
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 export async function apiSyncConnectedWallet(walletAddress: string) {
-  const res = await fetch("/api/wallet/sync-connected", {
+  const res = await mutationFetch("/api/wallet/sync-connected", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify({ walletAddress }),
   });
   const data = await parseJsonResponse<{ error?: string }>(res);
@@ -160,7 +130,7 @@ export async function apiResolveFundTarget(input: {
   if (input.templateId) params.set("templateId", input.templateId);
   if (input.missionId) params.set("missionId", input.missionId);
 
-  const res = await fetch(`/api/discover/fund-target?${params}`, { credentials: "include" });
+  const res = await mutationFetch(`/api/discover/fund-target?${params}`);
   const data = await parseJsonResponse<{ error?: string; target?: FundTargetPayload }>(res);
   if (!res.ok) throw new Error(data.error ?? "Could not resolve program");
   return data.target as FundTargetPayload;
@@ -226,14 +196,10 @@ export async function apiDiscoverAction(
   action: DiscoverAction,
   opts?: { amountUsd?: number; role?: string; surface?: string },
 ): Promise<DiscoverActionResponse> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const res = await fetch("/api/discover/actions", {
+    const res = await mutationFetch("/api/discover/actions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      signal: controller.signal,
       body: JSON.stringify({
         actionKind: action.kind,
         actionId: action.id,
@@ -254,14 +220,16 @@ export async function apiDiscoverAction(
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
       return {
-        ok: false,
-        code: "TIMEOUT",
-        message: ACTION_ERRORS.discoverActionTimeout,
-        nextAction: "retry",
+        ok: true,
+        action: "accepted",
+        status: "accepted",
+        message: ACTION_STATUS.acceptedBackground,
       };
     }
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
+}
+
+export function isAcceptedBackgroundError(e: unknown): boolean {
+  return e instanceof Error && e.message === ACTION_STATUS.acceptedBackground;
 }

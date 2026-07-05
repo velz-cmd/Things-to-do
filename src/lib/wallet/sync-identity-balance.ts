@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 import {
-  resolveBalanceWalletAddress,
+  resolveOnChainReadAddress,
   resolveUserWallet,
 } from "@/lib/wallet/resolve-user-wallet";
 
@@ -50,7 +50,7 @@ export async function syncIdentityBalance(userId: string): Promise<IdentityBalan
     };
   }
 
-  const walletAddress = resolveBalanceWalletAddress(userId, profile);
+  const walletAddress = resolveOnChainReadAddress(userId, profile);
   const reservedUsd = await getReservedForPrograms(userId);
 
   let onChainUsd: number;

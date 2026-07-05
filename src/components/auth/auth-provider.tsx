@@ -34,6 +34,8 @@ export interface WalletBalance {
   onChainUsd: number | null;
   walletAddress?: string;
   walletProvider?: "circle" | "embedded";
+  syncStatus?: "live" | "cached" | "syncing" | "error" | "unknown" | "no_wallet";
+  lastSyncedAt?: string | null;
   lockedUsd: number;
   releasedUsd: number;
   recentActivity: {
@@ -126,17 +128,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/capital/state", {
         credentials: "include",
-        signal: AbortSignal.timeout(8_000),
+        cache: "no-store",
+        signal: AbortSignal.timeout(4_000),
       });
       const data = await res.json();
       if (data.ok && data.walletAddress) {
-        const spendableUsd = Number(data.spendableBalance ?? data.balance?.spendableUsd ?? 0);
-        const onChainUsd = Number(data.usdcBalance ?? data.balance?.totalUsdc ?? 0);
+        const spendableUsd = Number(
+          data.spendableBalance ?? data.balance?.spendableUsd ?? data.lastKnownBalance ?? 0,
+        );
+        const onChainUsd = Number(data.usdcBalance ?? data.balance?.totalUsdc ?? data.lastKnownBalance ?? 0);
         setBalance({
           availableUsd: Number.isFinite(spendableUsd) ? spendableUsd : 0,
           onChainUsd: Number.isFinite(onChainUsd) ? onChainUsd : null,
           walletAddress: data.walletAddress,
           walletProvider: data.walletProvider ?? data.wallet?.provider,
+          syncStatus: data.syncStatus,
+          lastSyncedAt: data.lastSyncedAt ?? null,
           lockedUsd: 0,
           releasedUsd: 0,
           recentActivity: Array.isArray(data.pendingTransactions)
@@ -152,10 +159,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             : [],
         });
       } else {
-        setBalance(null);
+        setBalance((current) => current);
       }
     } catch {
-      setBalance(null);
+      setBalance((current) => current);
     } finally {
       setBalanceLoading(false);
     }

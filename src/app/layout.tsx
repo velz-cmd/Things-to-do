@@ -22,7 +22,6 @@ export const metadata: Metadata = {
     "Mission control for outcome-backed payments. Bounties, distribution, and verified settlement on Arc USDC.",
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/logo-mark.svg", type: "image/svg+xml" }],
   },
 };
 

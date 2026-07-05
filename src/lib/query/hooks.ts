@@ -15,7 +15,7 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 const PROFILE_BOOTSTRAP_TIMEOUT_MS = 8_000;
-const DISCOVER_FEED_TIMEOUT_MS = 9_000;
+const DISCOVER_FEED_TIMEOUT_MS = 12_000;
 const COMMUNITY_HUB_TIMEOUT_MS = 8_000;
 const COMMUNITY_SURFACE_TIMEOUT_MS = 10_000;
 
@@ -90,7 +90,7 @@ export function useUserConnectionsQuery(
     },
     staleTime: 10_000,
     gcTime: 120_000,
-    refetchOnMount: "always",
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
 }
@@ -101,9 +101,9 @@ export function useDiscoverRadarFeedQuery(limit = 24) {
     queryFn: ({ signal }) => discoverRadarFeedQueryFn(limit, signal),
     staleTime: 90_000,
     gcTime: 300_000,
-    placeholderData: (prev) => prev,
+    placeholderData: emptyRadarFeedPayload(),
     retry: 1,
-    retryDelay: 2_000,
+    retryDelay: 1_500,
   });
 }
 
@@ -134,17 +134,6 @@ export function prefetchDiscoverTab(queryClient: ReturnType<typeof useQueryClien
   void queryClient.prefetchQuery({
     queryKey: queryKeys.discoverRadarFeed(24),
     queryFn: () => discoverRadarFeedQueryFn(24),
-    staleTime: 90_000,
-  });
-  void queryClient.prefetchQuery({
-    queryKey: queryKeys.profileState,
-    queryFn: async ({ signal }) => {
-      try {
-        return await fetchJson("/api/profile/state", signal);
-      } catch {
-        return { ok: false, ...emptyConnectionState() };
-      }
-    },
     staleTime: 90_000,
   });
 }

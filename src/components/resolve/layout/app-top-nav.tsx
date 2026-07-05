@@ -6,17 +6,16 @@ import clsx from "clsx";
 import { Command } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuthHeader } from "@/components/auth/auth-header";
-import { ResolveLogoMark } from "@/components/resolve/brand/resolve-logo-mark";
 import { PRODUCT_NAV } from "@/components/resolve/layout/nav";
 import { prefetchDiscoverTab, prefetchProfileTab, prefetchCommunitiesTab } from "@/lib/query/hooks";
 
 export function ResolveLogo({ className }: { className?: string }) {
   return (
     <Link href="/" className={clsx("group flex items-center gap-2.5", className)}>
-      <span className="relative flex h-8 w-8 items-center justify-center rounded-xl shadow-[0_0_20px_rgba(92,96,159,0.35)] transition group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(0,119,179,0.4)]">
-        <ResolveLogoMark size={32} className="rounded-xl" />
+      <span className="relative flex h-8 w-8 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow transition group-hover:scale-105">
+        <span className="text-xs font-bold text-white">R</span>
       </span>
-      <span className="text-sm font-semibold tracking-[0.1em] text-white">RESOLVE</span>
+      <span className="text-sm font-semibold tracking-[0.08em] text-white">RESOLVE</span>
     </Link>
   );
 }

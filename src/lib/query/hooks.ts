@@ -211,17 +211,19 @@ export function prefetchCommunitySurface(
 export function prefetchProfileTab(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileBootstrap,
-    queryFn: () => fetchJson("/api/profile/bootstrap"),
+    queryFn: () => fetchJsonWithTimeout("/api/profile/bootstrap", PROFILE_BOOTSTRAP_TIMEOUT_MS),
     staleTime: 90_000,
   });
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileState,
-    queryFn: () => fetchJson("/api/profile/state"),
+    queryFn: ({ signal }) =>
+      fetchJsonWithTimeout("/api/profile/state", PROFILE_BOOTSTRAP_TIMEOUT_MS, signal),
     staleTime: 90_000,
   });
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileWork,
-    queryFn: () => fetchJson("/api/profile/work"),
+    queryFn: ({ signal }) =>
+      fetchJsonWithTimeout("/api/profile/work", PROFILE_BOOTSTRAP_TIMEOUT_MS, signal),
     staleTime: 90_000,
   });
 }

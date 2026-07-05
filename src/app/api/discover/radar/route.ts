@@ -1,60 +1,50 @@
-import { NextResponse } from "next/server";
 import { buildDiscoverRadar } from "@/lib/discover/radar";
 import { withTimeout } from "@/lib/discover/fetch-timeout";
+import { cacheGetOrSet } from "@/lib/cache/kv";
+import { API_CACHE } from "@/lib/api/cache-headers";
+import { safeApiGet } from "@/lib/api/safe-route";
 
 export const maxDuration = 60;
 
-const RADAR_CACHE_MS = 30_000;
 const RADAR_BUILD_TIMEOUT_MS = 12_000;
-let radarCache: { at: number; body: Awaited<ReturnType<typeof buildDiscoverRadar>> } | null =
-  null;
+const RADAR_CACHE_TTL = 30;
 
-/** Discover global radar — real authorizations, timeline, graph slice only */
-export async function GET() {
-  const now = Date.now();
-  if (radarCache && now - radarCache.at < RADAR_CACHE_MS) {
-    return NextResponse.json(radarCache.body, {
-      headers: {
-        "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
-      },
-    });
-  }
+const RADAR_FALLBACK = {
+  ok: true,
+  live: false,
+  activity: [],
+  graph: { nodes: [], edges: [] },
+  timeline: [],
+  metrics: {
+    topNodes: [],
+    fundingEntropy: {
+      entropy: 0,
+      maxEntropy: 0,
+      concentrationPct: 0,
+      evidence: "Radar temporarily unavailable.",
+    },
+  },
+  emptyReason: "Showing cached radar when available.",
+  updatedAt: new Date().toISOString(),
+};
 
-  try {
-    const radar = await withTimeout(buildDiscoverRadar(), RADAR_BUILD_TIMEOUT_MS, null);
-    if (!radar) {
-      return NextResponse.json(
-        { ok: false, degraded: true, graph: { nodes: [], edges: [] }, timeline: [] },
-        { status: 200 },
-      );
-    }
-    radarCache = { at: now, body: radar };
-    return NextResponse.json(radar, {
-      headers: {
-        "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
-      },
-    });
-  } catch (e) {
-    console.error("[discover/radar]", e);
-    return NextResponse.json(
-      {
-        ok: true,
-        live: false,
-        activity: [],
-        graph: { nodes: [], edges: [] },
-        metrics: {
-          topNodes: [],
-          fundingEntropy: {
-            entropy: 0,
-            maxEntropy: 0,
-            concentrationPct: 0,
-            evidence: "Radar unavailable — database not connected.",
-          },
-        },
-        emptyReason: "Connect DATABASE_URL to stream live value events.",
-        updatedAt: new Date().toISOString(),
-      },
-      { status: 200 },
-    );
-  }
+/** Discover global radar — authorizations, timeline, graph (Redis-backed cache). */
+export async function GET(req: Request) {
+  return safeApiGet(
+    req,
+    async () => {
+      const radar = await cacheGetOrSet(`discover:radar:v1`, RADAR_CACHE_TTL, async () => {
+        const built = await withTimeout(buildDiscoverRadar(), RADAR_BUILD_TIMEOUT_MS, null);
+        if (!built) return RADAR_FALLBACK;
+        return built;
+      });
+      return radar;
+    },
+    {
+      scope: "discover/radar",
+      fallback: RADAR_FALLBACK,
+      cacheControl: API_CACHE.privateShort,
+      rateLimit: { keyPrefix: "discover:radar", limit: 40, windowSeconds: 60 },
+    },
+  );
 }

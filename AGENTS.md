@@ -63,6 +63,13 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   allowed **unauthenticated** (see `authorizeCronRequest`), so it is a reliable way to exercise
   the full API→Prisma→Postgres write path and populate Discover data without signing in.
 
+### Performance / cache (non-obvious)
+- **Upstash Redis** (`UPSTASH_REDIS_REST_URL` + token): shared cache via `src/lib/cache/kv.ts`.
+  Verify with `GET /api/health/cache`. Arc balances cache 20s (`resolve:arc:balance:*`).
+- **One wallet balance poller** (`WalletBalanceSync`): fast ledger poll ~45s, live Arc RPC ~90s.
+  Do not add more `setInterval` callers to full `/api/capital/state` without `?fast=1`.
+- Background refresh uses `refreshBalance({ mode: "fast", silent: true })` to avoid UI loading flashes.
+
 ### Contracts (`contracts/`)
 - Foundry toolchain (`forge build` / `forge test`); not needed to run the web app. Requires a
   separate Foundry install (not part of the web-app update script).

@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { createBrowserClient } from "@supabase/ssr";
@@ -28,6 +29,7 @@ import {
   type EmailPasswordResult,
 } from "@/lib/auth/email-password";
 import { toast } from "sonner";
+import { mergeArcBalanceSnapshot } from "@/lib/wallet/arc-balance-snapshot";
 
 export interface WalletBalance {
   availableUsd: number;
@@ -95,7 +97,7 @@ interface AuthContextValue {
     { ok: true } | { ok: false; message: string; cooldownSeconds?: number }
   >;
   signOut: () => Promise<void>;
-  refreshBalance: () => Promise<void>;
+  refreshBalance: (opts?: { mode?: "fast" | "live"; silent?: boolean }) => Promise<void>;
   provisionWallet: () => Promise<void>;
 }
 
@@ -111,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<WalletBalance | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const balanceInflight = useRef<Map<string, Promise<void>>>(new Map());
 
   const supabaseConfigured =
     capabilities.supabase ||
@@ -131,14 +134,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   }, [supabase, capabilities.publicConfig]);
 
-  const refreshBalance = useCallback(async () => {
-    setBalanceLoading(true);
+  const refreshBalance = useCallback(async (opts?: { mode?: "fast" | "live"; silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    const mode = opts?.mode ?? "live";
+    const inflightKey = mode;
+
+    const pending = balanceInflight.current.get(inflightKey);
+    if (pending) {
+      await pending;
+      return;
+    }
+
+    if (!silent) setBalanceLoading(true);
+
+    const work = (async () => {
     try {
       const loadOnce = async (): Promise<boolean> => {
-        const res = await fetch("/api/capital/state", {
+        const query = mode === "fast" ? "?fast=1" : "";
+        const res = await fetch(`/api/capital/state${query}`, {
           credentials: "include",
           cache: "no-store",
-          signal: AbortSignal.timeout(20_000),
+          signal: AbortSignal.timeout(mode === "fast" ? 12_000 : 20_000),
         });
         const data = await res.json();
         let walletAddress =
@@ -151,10 +167,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             method: "POST",
             credentials: "include",
           }).catch(() => null);
-          const retry = await fetch("/api/capital/state", {
+          const retry = await fetch(`/api/capital/state${query}`, {
             credentials: "include",
             cache: "no-store",
-            signal: AbortSignal.timeout(20_000),
+            signal: AbortSignal.timeout(mode === "fast" ? 12_000 : 20_000),
           });
           const retryData = await retry.json();
           walletAddress =
@@ -202,6 +218,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               : Number.isFinite(ledgerSpendable)
                 ? ledgerSpendable
                 : 0;
+
+        mergeArcBalanceSnapshot({
+          appAddress: appWalletAddress ?? undefined,
+          externalAddress: externalWalletAddress ?? undefined,
+          appOnChainUsd: Number.isFinite(appOnChainUsd ?? NaN) ? appOnChainUsd! : undefined,
+          externalOnChainUsd:
+            Number.isFinite(externalOnChainUsd ?? NaN) ? externalOnChainUsd! : undefined,
+          allowZero: data.syncStatus === "live",
+        });
 
         setBalance({
           availableUsd: combinedSpendableUsd,
@@ -272,7 +297,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setBalance((current) => current);
     } finally {
-      setBalanceLoading(false);
+      if (!silent) setBalanceLoading(false);
+    }
+    })();
+
+    balanceInflight.current.set(inflightKey, work);
+    try {
+      await work;
+    } finally {
+      balanceInflight.current.delete(inflightKey);
     }
   }, []);
 
@@ -354,10 +387,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [supabase, capabilities.loaded, refreshBalance]);
-
-  useEffect(() => {
-    if (user) void refreshBalance();
-  }, [user, refreshBalance]);
 
   const signInWithGoogle = useCallback(async () => {
     if (!googleEnabled) {

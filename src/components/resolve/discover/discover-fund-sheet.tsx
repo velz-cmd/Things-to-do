@@ -62,14 +62,17 @@ export function DiscoverFundSheet({
 
   const appUsd = wallet.appSpendableUsd ?? spendable.appSpendableUsd;
   const extUsd = wallet.externalSpendableUsd ?? spendable.externalSpendableUsd;
-  const balances = { appSpendableUsd: appUsd, externalSpendableUsd: extUsd };
+  const balances = useMemo(
+    () => ({ appSpendableUsd: appUsd, externalSpendableUsd: extUsd }),
+    [appUsd, extUsd],
+  );
 
   const affordable = useMemo(
     () =>
       Number.isFinite(amountUsd)
         ? affordableFundingSources(amountUsd, balances, externalWalletReady)
         : [],
-    [amountUsd, appUsd, extUsd, externalWalletReady],
+    [amountUsd, balances, externalWalletReady],
   );
 
   const fundingSource = useMemo(() => {
@@ -80,8 +83,10 @@ export function DiscoverFundSheet({
   useEffect(() => {
     if (affordable.length === 1) {
       setChosenWallet(affordable[0]);
-    } else if (chosenWallet && !affordable.includes(chosenWallet)) {
-      setChosenWallet(affordable[0] ?? null);
+    } else if (chosenWallet) {
+      /* keep user selection */
+    } else if (affordable.length > 0) {
+      setChosenWallet(affordable[0]);
     }
   }, [affordable, chosenWallet]);
 
@@ -181,9 +186,11 @@ export function DiscoverFundSheet({
               extUsd={extUsd}
               amountUsd={amountUsd}
               externalReady={externalWalletReady}
+              hasLinkedExternal={Boolean(spendable.externalLinked)}
               value={chosenWallet ?? fundingSource}
               onChange={setChosenWallet}
               disabled={busy}
+              onReconnectExternal={openConnectWallet}
             />
 
             {insufficientBalance && (
@@ -229,11 +236,22 @@ export function DiscoverFundSheet({
                 toast.error("Amount can't be less than $5");
                 return;
               }
-              if (!fundingSource) {
+              const source = chosenWallet ?? fundingSource;
+              if (!source) {
                 toast.error("Pick a wallet with enough USDC");
                 return;
               }
-              onConfirm(amountUsd, fundingSource);
+              if (source === "external" && !externalWalletReady) {
+                toast.message("Reconnect your wallet to sign on Arc");
+                openConnectWallet();
+                return;
+              }
+              const affordable = affordableFundingSources(amountUsd, balances, externalWalletReady);
+              if (!affordable.includes(source)) {
+                toast.error(`Selected wallet cannot cover $${amountUsd.toFixed(2)}`);
+                return;
+              }
+              onConfirm(amountUsd, source);
             }}
           >
             <label className="text-[11px] text-resolve-muted" htmlFor="fund-amount">
@@ -257,8 +275,8 @@ export function DiscoverFundSheet({
               <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={busy || insufficientBalance || !fundingSource}>
-                {fundingSource === "external" ? "Confirm in wallet" : "Fund on Arc"}
+              <Button type="submit" size="sm" disabled={busy || !fundingSource && !chosenWallet}>
+                {(chosenWallet ?? fundingSource) === "external" ? "Confirm in wallet" : "Fund on Arc"}
               </Button>
             </div>
           </form>

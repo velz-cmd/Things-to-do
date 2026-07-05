@@ -18,6 +18,16 @@ import type {
 } from "@/lib/capital/wallet-types";
 import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
 import type { WalletView } from "@/lib/wallet/active-wallet-view";
+import {
+  fundActionsToStatementLines,
+  mergeStatementLines,
+} from "@/lib/banking/merge-statements";
+import { CAPITAL_REFRESH_EVENT } from "@/lib/capital/refresh-events";
+import {
+  FUND_ACTION_RECORDED_EVENT,
+  listFundActions,
+  type StoredFundAction,
+} from "@/lib/capital/fund-action-store";
 
 const WALLET_REFRESH_MS = 60_000;
 const CLIENT_TIMEOUT_MS = 20_000;
@@ -97,7 +107,10 @@ type Overview = {
 };
 
 async function fetchCapitalWallet(refresh = true): Promise<CapitalStatePayload> {
-  const res = await fetch(refresh ? "/api/capital/state" : "/api/capital/state?fast=1", {
+  const url = refresh
+    ? "/api/capital/state?refresh=1"
+    : "/api/capital/state?fast=1";
+  const res = await fetch(url, {
     credentials: "include",
     cache: "no-store",
     signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
@@ -229,7 +242,7 @@ function mergeBankingSnapshots(
       live: live.arc.live,
       identityWallet: live.arc.identityWallet ?? meta.arc.identityWallet,
     },
-    statement: meta.statement.length > 0 ? meta.statement : live.statement,
+    statement: mergeStatementLines(live.statement, meta.statement),
   };
 }
 
@@ -306,7 +319,14 @@ export function PaymentsOS() {
         );
       }
 
-      setBanking((prev) => (prev ? mergeBankingSnapshots(snap, prev) : snap));
+      const optimistic = fundActionsToStatementLines(listFundActions());
+      const mergedSnap =
+        optimistic.length > 0
+          ? { ...snap, statement: mergeStatementLines(snap.statement, optimistic) }
+          : snap;
+      setBanking((prev) =>
+        prev ? mergeBankingSnapshots(mergedSnap, prev) : mergedSnap,
+      );
       lastCapitalRef.current = capital;
       setWalletHealth(buildHealthFromCapital(capital, walletView));
       const sync = capital.syncStatus;
@@ -361,7 +381,15 @@ export function PaymentsOS() {
       );
     }
 
-    setBanking((prev) => (prev ? mergeBankingSnapshots(snap, prev) : snap));
+    const optimistic = fundActionsToStatementLines(listFundActions());
+    const mergedSnap =
+      optimistic.length > 0
+        ? { ...snap, statement: mergeStatementLines(snap.statement, optimistic) }
+        : snap;
+
+    setBanking((prev) =>
+      prev ? mergeBankingSnapshots(mergedSnap, prev) : mergedSnap,
+    );
     setWalletHealth(buildHealthFromCapital(capital, walletView));
   }, [walletView, user]);
 
@@ -496,6 +524,38 @@ export function PaymentsOS() {
       WALLET_REFRESH_MS,
     );
     return () => clearInterval(t);
+  }, [loadBankingMeta, loadOverview, loadWallet, user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const onCapitalRefresh = () => {
+      void loadWallet({ silent: true, refresh: true });
+      void loadBankingMeta();
+      void loadOverview();
+    };
+
+    const onFundRecorded = (event: Event) => {
+      const action = (event as CustomEvent<StoredFundAction>).detail;
+      if (!action) return;
+      const line = fundActionsToStatementLines([action])[0];
+      if (!line) return;
+      setBanking((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          statement: mergeStatementLines(prev.statement, [line]),
+        };
+      });
+      void loadWallet({ silent: true, refresh: true });
+    };
+
+    window.addEventListener(CAPITAL_REFRESH_EVENT, onCapitalRefresh);
+    window.addEventListener(FUND_ACTION_RECORDED_EVENT, onFundRecorded);
+    return () => {
+      window.removeEventListener(CAPITAL_REFRESH_EVENT, onCapitalRefresh);
+      window.removeEventListener(FUND_ACTION_RECORDED_EVENT, onFundRecorded);
+    };
   }, [loadBankingMeta, loadOverview, loadWallet, user]);
 
   async function handleClaim() {

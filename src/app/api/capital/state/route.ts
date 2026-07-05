@@ -6,6 +6,7 @@ import { API_CACHE } from "@/lib/api/cache-headers";
 import { reportApiError } from "@/lib/api/report-error";
 import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
 import { cacheGetOrSet } from "@/lib/cache/kv";
+import { bustCapitalStateCache } from "@/lib/capital/state-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -65,8 +66,13 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const fast = url.searchParams.get("fast") === "1";
+  const forceRefresh = url.searchParams.get("refresh") === "1";
+  const fast = url.searchParams.get("fast") === "1" && !forceRefresh;
   const liveSync = !fast;
+
+  if (forceRefresh) {
+    await bustCapitalStateCache(authUser.id);
+  }
 
   try {
     const state = await withCapitalStateInflight(authUser.id, liveSync, () =>

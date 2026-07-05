@@ -55,6 +55,8 @@ import {
 import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 import type { FundingSource } from "@/lib/wallet/funding-source";
 import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
+import { dispatchCapitalRefresh } from "@/lib/capital/refresh-events";
+import { dispatchProfileRefresh } from "@/lib/profile/refresh-events";
 
 type DiscoverActionsContextValue = {
   signedIn: boolean;
@@ -219,11 +221,14 @@ export function DiscoverActionsProvider({
   const effectiveSpendable = spendable.spendableUsd;
 
   const refreshDiscover = useCallback(async () => {
+    dispatchCapitalRefresh({ reason: "action" });
+    dispatchProfileRefresh();
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
       queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
       queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
       queryClient.invalidateQueries({ queryKey: queryKeys.profileState }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.myPoolStakes }),
       reloadConnections(),
       refreshWallet(),
     ]);

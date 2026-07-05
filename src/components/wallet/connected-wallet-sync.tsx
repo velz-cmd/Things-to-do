@@ -9,7 +9,7 @@ import { ensureArcNetwork, isArcChain } from "@/lib/arc/wallet";
 import { isWalletConnectEnabled } from "@/lib/reown/config";
 import { useConnectedArcBalance } from "@/hooks/use-connected-arc-balance";
 
-const SYNC_INTERVAL_MS = 30_000;
+const SYNC_INTERVAL_MS = 45_000;
 
 /** Keep linked external wallet on Arc and sync on-chain USDC to the server ledger. */
 export function ConnectedWalletSync() {
@@ -17,7 +17,7 @@ export function ConnectedWalletSync() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
-  const { usdc, refetch } = useConnectedArcBalance();
+  const { refetch } = useConnectedArcBalance();
   const lastSyncRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -41,12 +41,9 @@ export function ConnectedWalletSync() {
           body: JSON.stringify({ walletAddress: address }),
         });
 
-        if (!cancelled && res.ok) {
-          const key = `${address}:${usdc}`;
-          if (lastSyncRef.current !== key) {
-            lastSyncRef.current = key;
-            await refreshBalance();
-          }
+        if (!cancelled && res.ok && address && lastSyncRef.current !== address) {
+          lastSyncRef.current = address;
+          await refreshBalance({ mode: "fast", silent: true });
         }
       } catch {
         /* non-fatal */
@@ -63,13 +60,13 @@ export function ConnectedWalletSync() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [user, isConnected, address, chainId, usdc, switchChainAsync, refreshBalance, refetch]);
+  }, [user, isConnected, address, chainId, switchChainAsync, refreshBalance, refetch]);
 
   useEffect(() => {
     if (!user) return;
 
     function onLinked() {
-      void refreshBalance();
+      void refreshBalance({ mode: "live", silent: false });
       refetch();
     }
 

@@ -6,6 +6,7 @@
 const PUBLIC_ARC_RPCS = [
   "https://rpc.testnet.arc.network",
   "https://arc-testnet.drpc.org",
+  "https://5042002.rpc.thirdweb.com",
 ] as const;
 
 /** Full Alchemy Arc testnet URL — never expose to the client. */
@@ -39,6 +40,21 @@ export function listArcRpcFallbackUrls(): string[] {
   ].filter((url): url is string => Boolean(url));
 
   return [...new Set(fromEnv.filter((url) => url !== primary))];
+}
+
+/** All RPC URLs to try, in priority order (deduped). */
+export function allArcRpcUrls(): string[] {
+  const alchemy = resolveArcAlchemyRpcUrl();
+  const primary = resolveArcRpcUrl();
+  const candidates = [
+    alchemy,
+    primary,
+    process.env.ARC_RPC_URL?.trim(),
+    process.env.ARC_TESTNET_RPC_URL?.trim(),
+    ...PUBLIC_ARC_RPCS,
+    ...listArcRpcFallbackUrls(),
+  ].filter((url): url is string => Boolean(url));
+  return [...new Set(candidates)];
 }
 
 export function isArcAlchemyConfigured(): boolean {

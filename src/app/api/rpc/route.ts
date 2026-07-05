@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  listArcRpcFallbackUrls,
-  resolveArcAlchemyRpcUrl,
-  resolveArcRpcUrl,
+  allArcRpcUrls,
 } from "@/lib/wallet/arc-rpc-url";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +16,7 @@ const ALLOWED_METHODS = new Set([
 ]);
 
 function rpcUpstreamUrls(): string[] {
-  const alchemy = resolveArcAlchemyRpcUrl();
-  const primary = resolveArcRpcUrl();
-  return [...new Set([alchemy, primary, ...listArcRpcFallbackUrls()].filter(Boolean))] as string[];
+  return allArcRpcUrls();
 }
 
 /**

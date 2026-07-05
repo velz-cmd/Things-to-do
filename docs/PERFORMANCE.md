@@ -26,7 +26,7 @@ Set for **Production** + **Preview**, then **Redeploy**.
 |-----|-----|------|
 | `resolve:discover:radar-feed:*` | 45s | Full Discover tab feed (18s build cap per request) |
 | `resolve:oss:opportunities` | 60s | GitHub OSS scan results |
-| `resolve:integrations:health` | 180s | External API health pings |
+| `resolve:arc:balance:*` | 20s | Per-address Arc USDC on-chain read |
 
 ## Client-side (already in app)
 

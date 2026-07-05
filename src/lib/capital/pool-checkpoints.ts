@@ -1,14 +1,12 @@
 import { prisma } from "@/lib/db";
 import { getAuthorizationSummary } from "@/lib/authorization/ledger";
-import { getCommunityBySlug } from "@/lib/communities/catalog";
 import { getProgram } from "@/lib/communities/programs";
 import { computeProgramYield } from "@/lib/capital/yield-service";
 import { getProgramStakePool } from "@/lib/capital/yield-service";
-import {
-  payeeCategoryForTemplate,
-  resolveCheckpointThresholds,
-} from "@/lib/capital/pool-checkpoint-defaults";
+import { resolveCheckpointThresholds } from "@/lib/capital/pool-checkpoint-defaults";
 import { parseProgramPoolMetadata } from "@/lib/capital/pool-checkpoint-metadata";
+import { getProgramPeopleCounts } from "@/lib/capital/pool-people-counts";
+import { buildSourcedPoolHook } from "@/lib/discover/pool-discover-copy";
 import type {
   PoolCheckpointRow,
   PoolCheckpointStatus,
@@ -154,12 +152,26 @@ export async function getProgramPoolState(
       ? round((yourDepositUsd / totalDepositedUsd) * owedToCreatorsUsd)
       : 0;
 
+  const people = await getProgramPeopleCounts(program.id, program.missionId, program.templateId);
+
+  const poolSnapshotForHook = {
+    programName: program.name,
+    poolBalanceUsd,
+    owedToCreatorsUsd,
+    claimableUsd,
+    nextCheckpointUsd,
+    progressToNextPct,
+    payeeCategory: people.payeeCategory,
+    funderCount,
+    contributorCount: people.contributorCount,
+  };
+
   return {
     programId,
     programName: program.name,
     communitySlug: slug,
     templateId: program.templateId,
-    payeeCategory: payeeCategoryForTemplate(program.templateId),
+    payeeCategory: people.payeeCategory,
     poolBalanceUsd,
     totalDepositedUsd,
     releasedUsd,
@@ -168,6 +180,9 @@ export async function getProgramPoolState(
     settledUsd,
     claimableUsd,
     funderCount,
+    contributorCount: people.contributorCount,
+    authorizationCount: people.authorizationCount,
+    sourcedHook: buildSourcedPoolHook(poolSnapshotForHook),
     checkpoints,
     nextCheckpointUsd,
     progressToNextPct,

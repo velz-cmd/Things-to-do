@@ -5,6 +5,7 @@ import { connectorLabel, payeeDisplayLabel, payeeRoleLabel } from "@/lib/ledger/
 import { getSettlementById } from "@/lib/payment/store";
 import {
   RESOLVE_PLATFORM_FEE_BPS,
+  applyPlatformFeeSplit,
   computePlatformFee,
 } from "@/lib/payment/platform-fee";
 import type { ReceiptKind } from "@/lib/receipt/copy";
@@ -146,6 +147,10 @@ function arcBlock(txHash?: string | null) {
   };
 }
 
+function roundUsd(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
 async function missionBlock(missionId: string) {
   const community = await communityLabelForMission(missionId);
   return {
@@ -283,11 +288,22 @@ export async function buildPayoutReceipt(settlementId: string): Promise<PublicRe
   const payees = [...payeeMap.values()].sort((a, b) => b.amountUsd - a.amountUsd);
   const txHash = settlement.escrowTxHash ?? settlement.intents.find((i) => i.txHash)?.txHash ?? null;
 
+  const grossUsd = payees.reduce((s, p) => s + p.amountUsd, 0);
+  const { feeUsd: platformFeeUsd, feeBps: platformFeeBps } = applyPlatformFeeSplit(grossUsd);
+  const netToCreatorsUsd = Math.max(0, roundUsd(grossUsd - platformFeeUsd));
+
   return {
     kind: "payout",
     id: settlement.id,
     status: settlement.status,
     amountUsd: settlement.treasuryAmount,
+    platformFee: {
+      grossUsd: roundUsd(grossUsd),
+      platformFeeBps,
+      platformFeeUsd: roundUsd(platformFeeUsd),
+      netToProviderUsd: netToCreatorsUsd,
+      note: `${platformFeeBps / 100}% RESOLVE platform fee on batch settlement · remainder routed to creators on Arc.`,
+    },
     mission,
     connector: {
       id: connectorIds.length === 1 ? primaryConnector : "multi",

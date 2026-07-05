@@ -61,7 +61,7 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
         )}
       >
         <Activity className="h-3.5 w-3.5 shrink-0 opacity-60" />
-        <span>No Arc activity on the ledger yet — fund a pool or run a connector sync.</span>
+        <span>No pool activity on the ledger yet — fulfill a program to fund creators.</span>
       </div>
     );
   }
@@ -76,15 +76,15 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
       <div className="flex items-center gap-2 border-b border-emerald-500/15 px-3 py-1.5">
         <Activity className="h-3.5 w-3.5 text-emerald-400" />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90">
-          Live on Arc
+          Live pools
         </span>
-        <span className="text-[10px] text-resolve-muted-dim">· real ledger rows</span>
+        <span className="text-[10px] text-resolve-muted-dim">· real USD + contributor counts</span>
       </div>
       <div className="flex gap-3 overflow-x-auto px-3 py-2 scrollbar-thin">
         {data.rows.map((row) => (
           <div
             key={row.id}
-            className="min-w-[200px] shrink-0 rounded-md border border-white/[0.06] bg-black/25 px-2.5 py-2"
+            className="min-w-[220px] shrink-0 rounded-md border border-white/[0.06] bg-black/25 px-2.5 py-2"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] font-medium uppercase tracking-wide text-resolve-muted-dim">
@@ -92,11 +92,27 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
               </span>
               <span className="text-[9px] text-resolve-muted-dim">{formatRelative(row.at)}</span>
             </div>
-            <p className="mt-0.5 truncate text-[11px] font-medium text-white">{row.title}</p>
-            <p className="mt-0.5 text-[10px] tabular-nums text-emerald-300">
-              ${row.amountUsd.toFixed(2)}
-              <span className="ml-1 text-resolve-muted-dim">{row.status}</span>
+            <p className="mt-0.5 line-clamp-2 text-[11px] font-medium leading-snug text-white">
+              {row.title}
             </p>
+            {row.subline && (
+              <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-resolve-muted">
+                {row.subline}
+              </p>
+            )}
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] tabular-nums">
+              <span className="text-emerald-300">${row.amountUsd.toFixed(2)}</span>
+              {row.poolBalanceUsd != null && row.kind === "fund" && (
+                <span className="text-resolve-muted-dim">
+                  pool ${row.poolBalanceUsd.toFixed(0)}
+                </span>
+              )}
+              {row.contributorCount != null && row.contributorCount > 0 && (
+                <span className="text-resolve-muted-dim">
+                  {row.contributorCount} {row.payeeCategory ?? "contributors"}
+                </span>
+              )}
+            </div>
             <div className="mt-1.5 flex flex-wrap gap-2">
               {row.receiptHref && (
                 <Link

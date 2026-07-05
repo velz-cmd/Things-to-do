@@ -137,28 +137,16 @@ export async function readIdentityBalance(userId: string): Promise<{
     return { availableUsd: 0, onChainUsd: null, reservedUsd: 0 };
   }
 
-  const walletAddress = resolveUserWallet(userId, profile).address;
   const reservedUsd = await getReservedForPrograms(userId).catch(() => 0);
-
-  try {
-    const bal = await getArcUsdcBalance(walletAddress);
-    const onChainUsd = round(Number(bal.totalUsdc));
-    return {
-      availableUsd: resolveSpendableUsd({
-        availableUsd: profile.availableUsd,
-        onChainUsd,
-        reservedUsd,
-      }),
-      onChainUsd,
-      reservedUsd,
-    };
-  } catch {
-    return {
+  return {
+    availableUsd: resolveSpendableUsd({
       availableUsd: profile.availableUsd,
       onChainUsd: null,
       reservedUsd,
-    };
-  }
+    }),
+    onChainUsd: null,
+    reservedUsd,
+  };
 }
 
 /** Spendable balance — syncs ledger when requested (e.g. before send/bridge). */

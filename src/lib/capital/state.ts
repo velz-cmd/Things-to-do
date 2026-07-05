@@ -1,6 +1,7 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { prisma } from "@/lib/db";
 import { ensureProfileForUser } from "@/lib/auth/session";
+import { ACTION_ERRORS } from "@/lib/copy/action-errors";
 import { ArcRpcUnavailableError } from "@/lib/wallet/arc-usdc-balance";
 import { getCachedArcUsdcBalance } from "@/lib/cache/arc-balance-cache";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
@@ -516,7 +517,7 @@ export async function loadCapitalState(
       claimableAmount,
       lastSyncedAt: cachedSyncedAt,
       syncStatus: cachedBalance !== null ? "cached" : "unknown",
-      syncError: cachedBalance !== null ? null : "Live Arc balance is syncing in the background.",
+      syncError: cachedBalance !== null ? null : ACTION_ERRORS.arcBalanceLoading,
       activity,
       walletSlices,
       wallet: {
@@ -606,8 +607,8 @@ export async function loadCapitalState(
     };
   } catch (e) {
     const message = cachedBalance !== null
-      ? "Using last known Arc balance."
-      : "Arc balance is still syncing. Refresh Capital before funding.";
+      ? ACTION_ERRORS.arcBalanceCached
+      : ACTION_ERRORS.arcBalanceUnavailable;
     const walletSlices = buildWalletSlices({
       profile,
       walletResolved,

@@ -111,7 +111,7 @@ export function CommunityBridgePanel({
           {status.receiving
             ? "Receiving plays"
             : connected
-              ? "Connected — syncing soon"
+              ? "Connected — waiting for plays"
               : "Not connected"}
         </span>
       </div>

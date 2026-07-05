@@ -19,8 +19,8 @@ type FundProgressPanelProps = {
 const STEP_COPY: Record<FundProgressStage, { title: string; sub: string }> = {
   idle: { title: "Ready", sub: "" },
   preparing_pool: {
-    title: "Preparing pool",
-    sub: "Setting up community program on Arc testnet",
+    title: "Creating program",
+    sub: "Saving program record before funding",
   },
   checking_wallet: {
     title: "Checking wallet",
@@ -39,8 +39,8 @@ const STEP_COPY: Record<FundProgressStage, { title: string; sub: string }> = {
     sub: "Waiting for on-chain USDC receipt",
   },
   recording_stake: {
-    title: "Recording stake",
-    sub: "Saving your contribution to this pool",
+    title: "Recording contribution",
+    sub: "Writing your USDC stake to the program ledger",
   },
   complete: {
     title: "Funded on Arc",

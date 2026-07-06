@@ -10,6 +10,8 @@ import { ensureAppWalletForUser } from "@/lib/wallet/app-wallet-service";
 import { loadProfileFast } from "@/lib/profile/load-profile-fast";
 import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 import { getProfileEarningsSummary } from "@/lib/earn/summary";
+import { withProviderTimeout } from "@/lib/providers/provider-router";
+import { finalizeAllPendingArcFundsForUser } from "@/lib/capital/fund-program-finalize";
 import type { CapitalWalletResponse } from "@/lib/capital/wallet-types";
 import type { ArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
 
@@ -390,7 +392,11 @@ export async function loadCapitalState(
   }
 
   if (profile && opts.liveSync) {
-    /* live path syncs after RPC — fast path reads ledger only */
+    await withProviderTimeout(
+      finalizeAllPendingArcFundsForUser(profile.id),
+      8_000,
+      "capital:finalize_pending_funds",
+    ).catch(() => 0);
   } else if (profile) {
     void syncIdentityBalance(profile.id).catch(() => null);
   }

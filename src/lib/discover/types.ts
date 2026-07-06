@@ -84,6 +84,8 @@ export type TrendingValueGap = {
   missionId?: string;
   updatedAt?: string;
   proofHref?: string;
+  /** Cohort pool — creators covered in the next batch with variable owed amounts */
+  cohortPayees?: Array<{ label: string; owedUsd: number }>;
   actions: DiscoverAction[];
   /** Phase 8 — investor-grade comparable scores */
   opportunityScorecard?: import("@/lib/discover/opportunity-score").OpportunityScorecard;

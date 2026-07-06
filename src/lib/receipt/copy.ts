@@ -1,6 +1,6 @@
 /** Plain-language receipt copy — readable for crypto and non-crypto users. */
 
-export type ReceiptKind = "earning" | "payout";
+export type ReceiptKind = "earning" | "payout" | "contribution";
 
 export const RECEIPT_COPY = {
   pageEyebrow: "Verified receipt",
@@ -29,6 +29,15 @@ export const RECEIPT_COPY = {
     amountLabel: "Total paid out",
     recipientSection: "Recipients",
     itemsLabel: (n: number) => `${n} earning${n === 1 ? "" : "s"} included`,
+  },
+  contribution: {
+    kind: "contribution" as const,
+    badge: "Pool contribution",
+    title: "Funding receipt",
+    subtitle:
+      "USDC you added to a community program pool on Arc — reserved until verified creators settle at the next checkpoint.",
+    amountLabel: "Amount funded",
+    recipientSection: "Program pool",
   },
 
   fields: {
@@ -62,7 +71,9 @@ export const RECEIPT_COPY = {
 } as const;
 
 export function receiptKindCopy(kind: ReceiptKind) {
-  return kind === "earning" ? RECEIPT_COPY.earning : RECEIPT_COPY.payout;
+  if (kind === "earning") return RECEIPT_COPY.earning;
+  if (kind === "contribution") return RECEIPT_COPY.contribution;
+  return RECEIPT_COPY.payout;
 }
 
 export function friendlyReceiptStatus(status: string): string {

@@ -47,6 +47,7 @@ function baseCohortGap(input: {
     eligibilityCriteria: `${count} payees × $${perPerson.toFixed(0)} avg · ${COHORT_POOL_SIZE}-person pool batches`,
     proofConnectorId: input.proofConnectorId,
     proofAuthorizationId: input.proofAuthorizationId,
+    cohortPayees: input.members.map((m) => ({ label: m.label, owedUsd: m.amountUsd })),
     amountNeededUsd: totalUsd,
     moneyCanMoveUsd: totalUsd,
     peopleImpacted: count,

@@ -3,18 +3,14 @@ import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";
 import { bustCapitalStateCache } from "@/lib/capital/state-cache";
-import { honestInfraError } from "@/lib/copy/action-errors";
+import { publicPaymentError } from "@/lib/copy/payment-errors";
 import { resolveFundTarget } from "@/lib/discover/fund-target";
 import { prisma } from "@/lib/db";
 
 export const maxDuration = 60;
 
 function publicFundError(error: unknown) {
-  const message = error instanceof Error ? error.message : "Fund failed";
-  if (/connection pool|prisma|timeout|timed out|database|ECONNRESET|fetch failed|Arc RPC/i.test(message)) {
-    return honestInfraError(message, "Funding could not complete right now.");
-  }
-  return message;
+  return publicPaymentError(error, "Funding could not complete right now.");
 }
 
 const bodySchema = z.object({

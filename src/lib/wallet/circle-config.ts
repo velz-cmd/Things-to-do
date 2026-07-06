@@ -1,18 +1,20 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
+import {
+  isProductionRuntime,
+  normalizeCircleEntitySecret,
+} from "@/lib/wallet/circle-secret";
+
+export { normalizeCircleEntitySecret } from "@/lib/wallet/circle-secret";
 
 export const CIRCLE_WALLET_SET_CONFIG_KEY = "circle_wallet_set_id";
 export const CIRCLE_ENTITY_SECRET_CONFIG_KEY = "circle_entity_secret";
 
-/** Circle entity secrets are 64-char hex; recovery exports sometimes include a colon. */
-export function normalizeCircleEntitySecret(
-  raw: string | undefined | null
-): string | null {
-  const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  const hex = trimmed.replace(/:/g, "");
-  if (/^[0-9a-fA-F]{64}$/.test(hex)) return hex.toLowerCase();
-  return trimmed;
+export class CircleEntitySecretError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CircleEntitySecretError";
+  }
 }
 
 export async function getCircleEntitySecret(): Promise<string | null> {
@@ -25,7 +27,26 @@ export async function getCircleEntitySecret(): Promise<string | null> {
   const fromDb = normalizeCircleEntitySecret(row?.value);
   if (fromDb && /^[0-9a-f]{64}$/.test(fromDb)) return fromDb;
 
-  return fromEnv;
+  return null;
+}
+
+/** Runtime path: normalized env (Vercel) first, then DB cache — no Circle register calls. */
+export async function requireCircleEntitySecret(): Promise<string> {
+  const secret = await getCircleEntitySecret();
+  if (secret && /^[0-9a-f]{64}$/.test(secret)) {
+    return secret;
+  }
+
+  const apiKey = process.env.CIRCLE_API_KEY?.trim();
+  if (!apiKey) {
+    throw new CircleEntitySecretError(
+      "Circle payments are not configured on this server.",
+    );
+  }
+
+  throw new CircleEntitySecretError(
+    "Circle entity secret is missing. Use your connected wallet to pay on Arc, or contact the operator.",
+  );
 }
 
 export async function setCircleEntitySecret(entitySecret: string): Promise<void> {
@@ -108,12 +129,18 @@ export async function ensureCircleEntitySecret(): Promise<{
       await setCircleEntitySecret(candidate);
       return {
         entitySecret: candidate,
-        normalizedFromEnv: Boolean(envRaw && envRaw !== candidate),
+        normalizedFromEnv: Boolean(envRaw && normalizeCircleEntitySecret(envRaw) !== candidate),
         generated: false,
       };
     } catch (err) {
       if (!isCircleCredentialError(err)) throw err;
     }
+  }
+
+  if (isProductionRuntime()) {
+    throw new CircleEntitySecretError(
+      "CIRCLE_ENTITY_SECRET on Vercel does not match Circle. Copy the 64-char hex from Vercel or reset via recovery file — see docs/CIRCLE-SETUP.md.",
+    );
   }
 
   const entitySecret = randomBytes(32).toString("hex");

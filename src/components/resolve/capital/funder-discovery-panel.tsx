@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Loader2, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Button } from "@/components/resolve/ui/button";
 import { Money } from "@/components/resolve/ui/money";
+import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
+import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
+import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
 import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
+import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 
 export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
@@ -15,6 +19,15 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
   const [loading, setLoading] = useState(true);
   const [fundingId, setFundingId] = useState<string | null>(null);
   const [amountByProgram, setAmountByProgram] = useState<Record<string, string>>({});
+  const [activeProgramId, setActiveProgramId] = useState<string | null>(null);
+
+  const activeAmount = activeProgramId
+    ? Number(amountByProgram[activeProgramId] ?? "25")
+    : 25;
+  const walletChoice = useFundingWalletChoice(
+    Number.isFinite(activeAmount) ? activeAmount : 25,
+  );
+  const { executeFund } = useFundProgramExecution();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -31,7 +44,7 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
     void load();
   }, [load]);
 
-  async function fund(programId: string) {
+  async function fund(programId: string, communitySlug: string, programName: string) {
     const raw = amountByProgram[programId] ?? "25";
     const amountUsd = Number(raw);
     if (!Number.isFinite(amountUsd) || amountUsd < 5) {
@@ -39,17 +52,23 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
       return;
     }
     setFundingId(programId);
+    setActiveProgramId(programId);
     try {
-      const res = await fetch("/api/capital/fund", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ programId, amountUsd }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Fund failed");
-      toast.success(`Funded $${amountUsd.toFixed(2)} — clearing obligations toward 2× leverage`);
+      const source = walletChoice.assertFundingSource();
+      const result = await executeFund(
+        {
+          programId,
+          amountUsd,
+          communitySlug,
+          label: programName,
+        },
+        source,
+      );
+      toast.success(
+        `${result.message} via ${fundingSourceLabel(result.fundingSource)}`,
+      );
       void load();
+      void walletChoice.spendable.refresh().catch(() => null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not fund program");
     } finally {
@@ -137,19 +156,29 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
                         min={5}
                         step="0.01"
                         value={amountByProgram[o.programId] ?? "25"}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setAmountByProgram((prev) => ({
                             ...prev,
                             [o.programId]: e.target.value,
-                          }))
-                        }
+                          }));
+                          setActiveProgramId(o.programId);
+                        }}
+                        onFocus={() => setActiveProgramId(o.programId)}
                         className="w-20 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
                       />
                     </div>
+                    {activeProgramId === o.programId && (
+                      <PayFromWalletSection
+                        amountUsd={Number(amountByProgram[o.programId] ?? "25") || 25}
+                        disabled={fundingId === o.programId}
+                        choice={walletChoice}
+                        className="w-full basis-full"
+                      />
+                    )}
                     <Button
                       size="sm"
                       disabled={fundingId === o.programId}
-                      onClick={() => void fund(o.programId)}
+                      onClick={() => void fund(o.programId, o.communitySlug, o.programName)}
                     >
                       {fundingId === o.programId ?
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />

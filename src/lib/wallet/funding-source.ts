@@ -37,6 +37,7 @@ export function pickFundingSource(
   const options = affordableFundingSources(amountUsd, balances, externalReady);
   if (!options.length) return null;
   if (preferred && options.includes(preferred)) return preferred;
+  if (options.includes("external")) return "external";
   return options[0] ?? null;
 }
 
@@ -51,5 +52,17 @@ export function maxSpendableUsd(
 }
 
 export function fundingSourceLabel(source: FundingSource): string {
-  return source === "app" ? "RESOLVE wallet" : "connected wallet → treasury";
+  return source === "app" ? "RESOLVE wallet (sign-in)" : "Connected wallet (you sign on Arc)";
+}
+
+/** Prefer connected wallet when both can pay — equal importance, user can override in picker. */
+export function defaultFundingSource(
+  amountUsd: number,
+  balances: FundingBalances,
+  externalReady: boolean,
+): FundingSource | null {
+  const options = affordableFundingSources(amountUsd, balances, externalReady);
+  if (!options.length) return null;
+  if (options.includes("external")) return "external";
+  return options[0] ?? null;
 }

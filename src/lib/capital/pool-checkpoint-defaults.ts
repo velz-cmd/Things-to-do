@@ -2,7 +2,7 @@ import type { ProgramRules } from "@/lib/communities/types";
 
 /** Default pool funding milestones — real USD thresholds for batch unlock. */
 export const DEFAULT_POOL_CHECKPOINT_THRESHOLDS_USD = [
-  50, 100, 250, 500, 1000, 2500, 5000, 10000,
+  500, 2500, 5000, 10000, 25000,
 ];
 
 export function resolveCheckpointThresholds(rules: ProgramRules): number[] {

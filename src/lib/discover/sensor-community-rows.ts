@@ -105,7 +105,7 @@ function buildPreviewRow(
       ? baseMetrics
       : { ...baseMetrics, story: liveSignalStory(slug) ?? baseMetrics.story };
   const upstream = profile ? humanizeExtractionSources(profile.extractionSources) : entry.name;
-  const estimatedAmountUsd = isInstalled ? previewAmountUsdForCommunity(slug) : 0;
+  const estimatedAmountUsd = previewAmountUsdForCommunity(slug);
 
   return {
     id: `value-preview-${surface}-${slug}`,
@@ -122,7 +122,7 @@ function buildPreviewRow(
     proofConnectorId: entry.connectors[0],
     amountNeededUsd: estimatedAmountUsd,
     moneyCanMoveUsd: estimatedAmountUsd,
-    peopleImpacted: isInstalled ? metrics.countValue : 0,
+    peopleImpacted: 0,
     trendScore: 0,
     communitySlug: slug,
     templateId,

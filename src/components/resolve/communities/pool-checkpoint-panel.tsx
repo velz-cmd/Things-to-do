@@ -12,6 +12,7 @@ import {
   type CapitalRefreshDetail,
 } from "@/lib/capital/refresh-events";
 import { FUND_ACTION_RECORDED_EVENT, type StoredFundAction } from "@/lib/capital/fund-action-store";
+import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
 
 type PoolCheckpointPanelProps = {
   communitySlug: string;
@@ -20,26 +21,52 @@ type PoolCheckpointPanelProps = {
   className?: string;
 };
 
-export function useProgramPoolState(communitySlug: string, programId: string | null) {
+export function useProgramPoolState(
+  communitySlug: string,
+  programId: string | null,
+  options?: { templateId?: string | null },
+) {
   const [pool, setPool] = useState<ProgramPoolState | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resolvedProgramId, setResolvedProgramId] = useState<string | null>(programId);
+
+  useEffect(() => {
+    setResolvedProgramId(programId);
+  }, [programId]);
 
   const refresh = useCallback(async () => {
-    if (!programId) return;
+    if (!communitySlug) return;
     setLoading(true);
     try {
+      if (programId) {
+        const res = await fetch(
+          `/api/communities/${encodeURIComponent(communitySlug)}/programs/${programId}/pool`,
+          { credentials: "include", cache: "no-store" },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setPool(data.pool ?? null);
+          setResolvedProgramId(programId);
+        }
+        return;
+      }
+
+      const qs = options?.templateId
+        ? `?templateId=${encodeURIComponent(options.templateId)}`
+        : "";
       const res = await fetch(
-        `/api/communities/${encodeURIComponent(communitySlug)}/programs/${programId}/pool`,
+        `/api/communities/${encodeURIComponent(communitySlug)}/pool${qs}`,
         { credentials: "include", cache: "no-store" },
       );
       if (res.ok) {
         const data = await res.json();
         setPool(data.pool ?? null);
+        setResolvedProgramId(data.programId ?? null);
       }
     } finally {
       setLoading(false);
     }
-  }, [communitySlug, programId]);
+  }, [communitySlug, programId, options?.templateId]);
 
   useEffect(() => {
     void refresh();
@@ -76,7 +103,7 @@ export function useProgramPoolState(communitySlug: string, programId: string | n
     };
   }, [programId, refresh]);
 
-  return { pool, loading, refresh };
+  return { pool, loading, refresh, resolvedProgramId };
 }
 
 function formatUsd(n: number) {
@@ -199,22 +226,7 @@ export function PoolCheckpointPanel({
         </div>
       )}
 
-      {pool.nextCheckpointUsd != null && (
-        <div>
-          <div className="mb-1.5 flex items-center justify-between text-[11px]">
-            <span className="text-resolve-muted">
-              Next checkpoint: ${formatUsd(pool.nextCheckpointUsd)}
-            </span>
-            <span className="font-medium text-white">{pool.progressToNextPct}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-resolve-accent to-emerald-400 transition-all"
-              style={{ width: `${pool.progressToNextPct}%` }}
-            />
-          </div>
-        </div>
-      )}
+      <PoolMilestoneBar poolUsd={pool.poolBalanceUsd} compact={compact} />
 
       <ol className="flex flex-wrap gap-2">
         {pool.checkpoints.slice(0, compact ? 6 : 10).map((cp) => (

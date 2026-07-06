@@ -580,7 +580,23 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {!result.ok && (
+          {!result.ok && result.payment?.txHash && (
+            <div className="mt-4">
+              <MissionBlueprintPanel
+                prompt={prompt}
+                mode="agent"
+                chargedUsd={result.payment.chargedUsd}
+                headline="Signal charged · agent incomplete"
+                detail="Arc payment settled — Blueprint uses cohort rules until intel completes."
+                execution={result.execution}
+                receiptHref={result.receiptHref}
+                commandBarMode
+                registerCommand
+              />
+            </div>
+          )}
+
+          {!result.ok && !result.payment?.txHash && (
             <Button
               variant="secondary"
               size="sm"

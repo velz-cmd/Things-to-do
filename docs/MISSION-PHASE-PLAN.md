@@ -71,9 +71,32 @@ If Mission only explains other tabs, we failed. If Mission produces a **Blueprin
 - [x] Fund/simulate intents bypass chat (`detectBlueprintIntent`)
 - [x] Agent → Blueprint after x402 invoke
 - [x] Simulate → Authorize (fund API when signed in)
-- [x] Mission receipt `/mission/report/[id]` (browser-local)
+- [x] Mission receipt `/mission/report/[id]` (browser-local + server)
 - [x] Discover `?scope=` handoff
 - [x] Objective bar + scoped live panel
+
+## Phase 0–7 ship status (main after #343–#344 + gap-fill)
+
+| Phase | Status |
+|-------|--------|
+| 0 Demo-proof | Shipped — pool prefetch, guest simulate, authorize errors, scope handoff |
+| 1 Identity | Shipped — command bar, objective phase, collapsed catalog, library badges |
+| 2 Blueprint | Shipped — ledger payees, policy, checkpoint math, JSON + DAO export |
+| 3 Agent lane | Shipped — pay→auto Blueprint, attribution, chains, failure+Arc→Blueprint |
+| 4 Stay in Mission | Shipped — settlement preview, inline authorize API, Arc receipt |
+| 5 Cooperation | Shipped — Discover fund CTA, Capital/Communities/Profile handoffs |
+| 6 Trust moat | Shipped — `MissionBlueprintReceipt`, evidence, memory, diff |
+| 7 Advanced | Shipped — agent budget cap, queue, RFB templates, ValueGraph |
+
+## Cleaning checklist (before calling Mission “shipped”)
+
+- [x] Empty state: hero + pipeline — catalogs collapsed  
+- [x] Center column: artifact-first (Blueprint / report)  
+- [x] Right panel: proof pipeline + pool + RFB  
+- [x] Agent: pay/skip → Blueprint  
+- [x] Every CTA answers “What should I do?”  
+- [x] No duplicate fund buttons in Mission center  
+- [x] Errors honest: sign-in / $5 min / programId  
 
 ---
 
@@ -188,19 +211,7 @@ If Mission only explains other tabs, we failed. If Mission produces a **Blueprin
 
 ---
 
-## Cleaning checklist (before calling Mission “shipped”)
-
-- [ ] Empty state: hero + one pipeline line — no wall of text  
-- [ ] Center column: artifact-first (Blueprint / report), chat second  
-- [ ] Right panel: proof pipeline + pool + RFB — not link farm  
-- [ ] Agent: pay/skip → Blueprint — never ends at bullet list  
-- [ ] Every CTA answers “What should I do?”  
-- [ ] No duplicate fund buttons (Discover owns fund sheet)  
-- [ ] Errors honest: “Sign in to authorize” / “Pool needs $5 min”  
-
----
-
-## Success metrics (how we know Mission works)
+## Success metrics (demo gate)
 
 | Signal | Target |
 |--------|--------|
@@ -221,13 +232,16 @@ If Mission only explains other tabs, we failed. If Mission produces a **Blueprin
 
 ---
 
-## Immediate next PRs (recommended order)
+## Gap-fill shipped (post #343–#344)
 
-1. **Phase 0 hardening** — production smoke, ledger payees priority, error copy  
-2. **Phase 1 polish** — collapse fluff, library status badges  
-3. **Phase 4.1** — inline authorize settlement preview  
-4. **Phase 6.1** — server-persisted mission reports  
+- Prisma migration for `MissionBlueprintReceipt` (production deploy)
+- Capital URL prefill (`program`, `community`, `missionReport`) from Mission handoff
+- Profile connector nudge in Mission when GitHub disconnected
+- Agent failure + Arc charged → Blueprint panel (honest receipt path)
+- Receipt compare via `/api/mission/reports/memory?compare=`
+
+**Deferred (non-blocking):** PDF export (JSON + DAO JSON shipped); save receipt on failed fund authorize.
 
 ---
 
-*Last updated: after merge of PR #341.*
+*Last updated: after merge of mission phases 0–7 + gap-fill.*

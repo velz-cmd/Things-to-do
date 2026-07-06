@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import clsx from "clsx";
 import {
-  ArrowRight,
   CheckCircle2,
   ExternalLink,
   LineChart,
@@ -35,10 +42,34 @@ import {
 import type { ProgramPoolState } from "@/lib/capital/pool-checkpoint-types";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
+import {
+  poolCacheKey,
+  readPoolCache,
+  writePoolCache,
+} from "@/lib/capital/pool-cache";
+import { prefetchMissionPool } from "@/lib/mission/prefetch-mission-pool";
+import {
+  computeFundCheckpointLabel,
+  formatAgentAttributionLine,
+} from "@/lib/mission/mission-checkpoint-math";
+import { downloadBlueprintJson } from "@/lib/mission/mission-blueprint-export";
+import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 
 type AgentExecution = {
   findings?: string[];
   recommendations?: string[];
+};
+
+export type MissionBlueprintPanelHandle = {
+  simulate: () => void;
+  authorize: () => Promise<void>;
+  exportBlueprint: () => void;
+  cyclePolicy: () => void;
+  state: {
+    simulated: boolean;
+    policyLabel: string;
+    authorizing: boolean;
+  };
 };
 
 export type MissionBlueprintPanelProps = {
@@ -51,27 +82,40 @@ export type MissionBlueprintPanelProps = {
   receiptHref?: string | null;
   communitySlug?: string | null;
   initialBudgetUsd?: number;
+  /** When true, inline action buttons are hidden — workspace command bar drives actions. */
+  commandBarMode?: boolean;
+  registerCommand?: boolean;
 };
 
-export function MissionBlueprintPanel({
-  prompt,
-  mode = "scope",
-  chargedUsd = 0,
-  headline,
-  detail,
-  execution,
-  receiptHref,
-  communitySlug: communitySlugProp,
-  initialBudgetUsd,
-}: MissionBlueprintPanelProps) {
+export const MissionBlueprintPanel = forwardRef<
+  MissionBlueprintPanelHandle,
+  MissionBlueprintPanelProps
+>(function MissionBlueprintPanel(
+  {
+    prompt,
+    mode = "scope",
+    chargedUsd = 0,
+    headline,
+    detail,
+    execution,
+    receiptHref,
+    communitySlug: communitySlugProp,
+    initialBudgetUsd,
+    commandBarMode = true,
+    registerCommand = true,
+  },
+  ref,
+) {
   const router = useRouter();
   const { user } = useAuth();
   const { openSignIn } = useSignInModal();
   const signedIn = Boolean(user);
+  const blueprintCommand = useMissionBlueprintCommand();
 
   const [pool, setPool] = useState<ProgramPoolState | null>(null);
   const [programId, setProgramId] = useState<string | null>(null);
   const [poolLoading, setPoolLoading] = useState(true);
+  const [payeeSource, setPayeeSource] = useState<"ledger" | "preview">("preview");
   const [policy, setPolicy] = useState<MissionBlueprintPolicyId>("balanced");
   const [budgetUsd, setBudgetUsd] = useState(initialBudgetUsd ?? 500);
   const [simulated, setSimulated] = useState(false);
@@ -83,28 +127,35 @@ export function MissionBlueprintPanel({
     resolveMissionCommunitySlug({ scopeLabel: prompt, topicName: prompt }) ??
     "react";
 
+  const cacheKey = poolCacheKey(slug, null);
+
   const loadPool = useCallback(async () => {
-    setPoolLoading(true);
-    try {
-      const res = await fetch(`/api/communities/${encodeURIComponent(slug)}/pool`, {
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const data = (await res.json()) as {
-          pool?: ProgramPoolState | null;
-          programId?: string | null;
-        };
-        setPool(data.pool ?? null);
-        setProgramId(data.programId ?? data.pool?.programId ?? null);
-        if (data.pool?.activeMilestoneUsd) {
-          setBudgetUsd((prev) => initialBudgetUsd ?? Math.max(prev, data.pool!.activeMilestoneUsd));
-        }
+    const cached = readPoolCache(cacheKey);
+    if (cached) {
+      setPool(cached);
+      setProgramId(cached.programId ?? null);
+      if (cached.nextBatchPayees?.length) setPayeeSource("ledger");
+      if (cached.activeMilestoneUsd) {
+        setBudgetUsd((prev) => initialBudgetUsd ?? Math.max(prev, cached.activeMilestoneUsd));
       }
-    } finally {
       setPoolLoading(false);
     }
-  }, [slug, initialBudgetUsd]);
+
+    const snapshot = await prefetchMissionPool(slug);
+    if (snapshot.pool) {
+      setPool(snapshot.pool);
+      setProgramId(snapshot.programId ?? snapshot.pool.programId ?? null);
+      if (snapshot.pool.nextBatchPayees?.length) setPayeeSource("ledger");
+      if (snapshot.pool.activeMilestoneUsd) {
+        setBudgetUsd((prev) => initialBudgetUsd ?? Math.max(prev, snapshot.pool!.activeMilestoneUsd));
+      }
+      writePoolCache(cacheKey, snapshot.pool);
+    } else if (!cached) {
+      setPool(null);
+      setProgramId(snapshot.programId);
+    }
+    setPoolLoading(false);
+  }, [slug, cacheKey, initialBudgetUsd]);
 
   useEffect(() => {
     void loadPool();
@@ -132,9 +183,7 @@ export function MissionBlueprintPanel({
         recommendations: execution?.recommendations,
       });
     }
-    return buildMissionBlueprintFromScope({
-      ...common,
-    });
+    return buildMissionBlueprintFromScope({ ...common });
   }, [
     prompt,
     slug,
@@ -176,16 +225,35 @@ export function MissionBlueprintPanel({
   const poolUsd = pool?.poolBalanceUsd ?? 0;
   const isAgent = mode === "agent" && chargedUsd > 0;
 
-  function persist(status: "simulated" | "authorized", extras?: { fundTxLabel?: string }) {
+  const checkpoint = useMemo(
+    () =>
+      computeFundCheckpointLabel({
+        fundUsd: budgetUsd,
+        payees: pkg.payees,
+        poolBalanceUsd: poolUsd,
+        milestoneUsd: pkg.milestoneUsd,
+      }),
+    [budgetUsd, pkg.payees, poolUsd, pkg.milestoneUsd],
+  );
+
+  const attributionLine = useMemo(() => {
+    if (!isAgent) return null;
+    return formatAgentAttributionLine(
+      chargedUsd,
+      pkg.payees.length,
+      budgetUsd,
+      formatAgentPrice,
+    );
+  }, [isAgent, chargedUsd, pkg.payees.length, budgetUsd]);
+
+  const policyLabel =
+    MISSION_POLICY_OPTIONS.find((o) => o.id === policy)?.label ?? "Balanced";
+
+  const handleSimulate = useCallback(() => {
     const id = pkg.id;
     setReportId(id);
-    const record = createReportFromPackage(pkg, status, extras);
+    const record = createReportFromPackage(pkg, "simulated");
     saveMissionReport(record);
-    return id;
-  }
-
-  function handleSimulate() {
-    const id = persist("simulated");
     setSimulated(true);
     toast.success("Simulation ready", {
       description: `${simulation.clearedAuthorizations} payees · $${simulation.totalPayeeUsd.toFixed(2)}`,
@@ -194,9 +262,9 @@ export function MissionBlueprintPanel({
         onClick: () => router.push(`/mission/report/${id}`),
       },
     });
-  }
+  }, [pkg, simulation.clearedAuthorizations, simulation.totalPayeeUsd, router]);
 
-  async function handleAuthorize() {
+  const handleAuthorize = useCallback(async () => {
     if (!simulated) {
       toast.error("Simulate first", { description: "Dry-run the package before authorizing." });
       return;
@@ -211,14 +279,24 @@ export function MissionBlueprintPanel({
       const fundAmount = Math.max(5, Math.round(budgetUsd));
       let fundTxLabel: string | undefined;
 
-      if (programId && fundAmount >= 5) {
+      if (!programId) {
+        toast.error("No program installed", {
+          description:
+            "Install a community program first, or open Capital to fund manually. Package saved as receipt.",
+        });
+      } else if (fundAmount >= 5) {
         const res = await fetch("/api/capital/fund", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ programId, amountUsd: fundAmount }),
         });
-        const data = (await res.json()) as { ok?: boolean; error?: string; txHash?: string; message?: string };
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          txHash?: string;
+          message?: string;
+        };
         if (res.ok && data.ok !== false) {
           fundTxLabel = data.txHash
             ? `Arc fund · ${data.txHash.slice(0, 10)}…`
@@ -229,26 +307,89 @@ export function MissionBlueprintPanel({
           return;
         } else {
           toast.error(data.error ?? "Fund failed", {
-            description: "Package saved — open Capital to complete funding.",
+            description: "Minimum $5 USDC on Arc. Package saved — open Capital to retry.",
           });
         }
+      } else {
+        toast.error("Minimum $5 to authorize", {
+          description: "Raise deploy budget to at least $5 for Arc pool funding.",
+        });
       }
 
-      const id = persist("authorized", { fundTxLabel });
+      const id = pkg.id;
+      setReportId(id);
+      const record = createReportFromPackage(pkg, "authorized", { fundTxLabel });
+      saveMissionReport(record);
       router.push(`/mission/report/${id}`);
     } finally {
       setAuthorizing(false);
     }
-  }
+  }, [simulated, signedIn, openSignIn, budgetUsd, programId, pkg, router]);
+
+  const handleExport = useCallback(() => {
+    downloadBlueprintJson(pkg);
+    toast.success("Blueprint exported", { description: "JSON ready for board or DAO review." });
+  }, [pkg]);
+
+  const cyclePolicy = useCallback(() => {
+    setPolicy((prev) => {
+      const order: MissionBlueprintPolicyId[] = ["balanced", "growth", "infrastructure"];
+      const idx = order.indexOf(prev);
+      return order[(idx + 1) % order.length]!;
+    });
+    setSimulated(false);
+  }, []);
+
+  const imperativeRef = useRef<MissionBlueprintPanelHandle>({
+    simulate: () => {},
+    authorize: async () => {},
+    exportBlueprint: () => {},
+    cyclePolicy: () => {},
+    state: { simulated: false, policyLabel: "Balanced", authorizing: false },
+  });
+
+  imperativeRef.current = {
+    simulate: handleSimulate,
+    authorize: handleAuthorize,
+    exportBlueprint: handleExport,
+    cyclePolicy,
+    state: { simulated, policyLabel, authorizing },
+  };
+
+  useImperativeHandle(ref, () => imperativeRef.current, [
+    handleSimulate,
+    handleAuthorize,
+    handleExport,
+    cyclePolicy,
+    simulated,
+    policyLabel,
+    authorizing,
+  ]);
+
+  useEffect(() => {
+    if (!registerCommand || !blueprintCommand) return;
+    blueprintCommand.register(imperativeRef.current);
+    return () => blueprintCommand.register(null);
+  }, [
+    registerCommand,
+    blueprintCommand,
+    simulated,
+    policyLabel,
+    authorizing,
+    handleSimulate,
+    handleAuthorize,
+    handleExport,
+    cyclePolicy,
+  ]);
 
   return (
     <section
-      className="rounded-xl border border-violet-500/25 bg-gradient-to-b from-violet-500/[0.08] to-black/20 p-4"
+      className="rounded-xl border border-sky-500/25 bg-gradient-to-b from-sky-500/[0.07] to-black/20 p-4"
       data-testid="mission-blueprint-panel"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300/90">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-300/90">
             Mission Blueprint
           </p>
           <h3 className="mt-1 text-base font-semibold text-white">
@@ -257,7 +398,7 @@ export function MissionBlueprintPanel({
           <p className="mt-1 text-xs text-resolve-muted">
             {isAgent
               ? `Signal ${formatAgentPrice(chargedUsd)} → ${pkg.payees.length} payees auto-filled`
-              : `${pkg.payees.length} payees from proof · simulate before Arc`}
+              : `${pkg.payees.length} payees · simulate before Arc`}
           </p>
         </div>
         <div className="text-right">
@@ -266,6 +407,22 @@ export function MissionBlueprintPanel({
             {Math.round(pkg.confidence * 100)}% confidence
           </p>
         </div>
+      </div>
+
+      {attributionLine && (
+        <p className="mt-3 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.08] px-3 py-2 text-center text-xs font-semibold tracking-wide text-emerald-100">
+          {attributionLine}
+        </p>
+      )}
+
+      <div className="mt-3 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-white/90">
+        <span className="font-medium text-sky-200">{checkpoint.label}</span>
+        {!poolLoading && (
+          <span className="ml-2 text-[10px] text-resolve-muted-dim">
+            · {payeeSource === "ledger" ? "Ledger payees" : "Cohort preview"}
+            {programId ? "" : " · no programId — install rail to authorize"}
+          </span>
+        )}
       </div>
 
       {(headline || pkg.agentHeadline) && (
@@ -311,7 +468,7 @@ export function MissionBlueprintPanel({
               className={clsx(
                 "rounded-lg border px-2.5 py-1.5 text-[11px] transition",
                 policy === opt.id
-                  ? "border-violet-400/40 bg-violet-500/15 text-white"
+                  ? "border-sky-400/40 bg-sky-500/15 text-white"
                   : "border-white/[0.08] text-resolve-muted hover:border-white/20",
               )}
             >
@@ -334,7 +491,7 @@ export function MissionBlueprintPanel({
               setBudgetUsd(Number(e.target.value));
               setSimulated(false);
             }}
-            className="mt-1 block w-44 accent-violet-400"
+            className="mt-1 block w-44 accent-sky-400"
           />
           <span className="mt-0.5 block text-sm font-semibold tabular-nums text-white">
             ${budgetUsd.toLocaleString()}
@@ -396,37 +553,49 @@ export function MissionBlueprintPanel({
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button type="button" variant="secondary" size="sm" className="gap-1.5" onClick={handleSimulate}>
-          <LineChart className="h-3.5 w-3.5" />
-          Simulate
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          className="gap-1.5"
-          disabled={authorizing || !simulated}
-          onClick={() => void handleAuthorize()}
-        >
-          {authorizing ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Shield className="h-3.5 w-3.5" />
-          )}
-          Authorize
-        </Button>
-        {reportId && (
-          <Link
-            href={`/mission/report/${reportId}`}
-            className="inline-flex items-center gap-1 self-center text-[11px] font-medium text-resolve-accent hover:underline"
+      {!commandBarMode && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" className="gap-1.5" onClick={handleSimulate}>
+            <LineChart className="h-3.5 w-3.5" />
+            Simulate
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            disabled={authorizing || !simulated}
+            onClick={() => void handleAuthorize()}
           >
-            Mission receipt
-            <ExternalLink className="h-3 w-3" />
-          </Link>
-        )}
-      </div>
+            {authorizing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Shield className="h-3.5 w-3.5" />
+            )}
+            Authorize
+          </Button>
+          {reportId && (
+            <Link
+              href={`/mission/report/${reportId}`}
+              className="inline-flex items-center gap-1 self-center text-[11px] font-medium text-resolve-accent hover:underline"
+            >
+              Mission receipt
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          )}
+        </div>
+      )}
+
+      {commandBarMode && reportId && (
+        <Link
+          href={`/mission/report/${reportId}`}
+          className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-resolve-accent hover:underline"
+        >
+          Mission receipt
+          <ExternalLink className="h-3 w-3" />
+        </Link>
+      )}
 
       <p className="mt-3 text-[10px] leading-relaxed text-resolve-muted-dim">{pkg.rationale}</p>
     </section>
   );
-}
+});

@@ -176,13 +176,20 @@ export function ValueReceiptCard({
           payeeCategory: pool.payeeCategory,
         })
       : null;
+  const poolDeferred = poolLoading && !pool && poolBalanceUsd <= 0 && yourDepositUsd <= 0;
   const milestoneSegment = computePoolMilestoneSegment(poolBalanceUsd);
   const contributorCount = pool?.contributorCount ?? 0;
   const sourcedHook = pool?.sourcedHook ?? null;
   const rfb = rfbBadgeForTemplate(gap.templateId);
   const proofHref =
     gap.proofHref ??
-    (gap.proofAuthorizationId ? `/receipt/${gap.proofAuthorizationId}` : undefined);
+    (gap.proofAuthorizationId && gap.dataSource === "supabase_ledger"
+      ? `/receipt/${gap.proofAuthorizationId}`
+      : undefined);
+  const cohortPayees =
+    pool?.nextBatchPayees?.length
+      ? pool.nextBatchPayees.map((p) => ({ label: p.label, owedUsd: p.owedUsd }))
+      : gap.cohortPayees;
 
   const showInlineFund = Boolean(onFund);
 
@@ -249,7 +256,7 @@ export function ValueReceiptCard({
             {heroLabel}
           </p>
           <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-300">
-            {poolLoading && !pool && poolBalanceUsd <= 0 ? (
+            {poolDeferred ? (
               <Loader2 className="inline h-4 w-4 animate-spin" />
             ) : (
               <Money amount={heroUsd} size="sm" className="inline" />
@@ -272,7 +279,7 @@ export function ValueReceiptCard({
         <div>
           <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Pool</dt>
           <dd className="mt-0.5 font-semibold tabular-nums text-emerald-300">
-            {poolLoading && !pool ? (
+            {poolDeferred ? (
               <Loader2 className="inline h-3 w-3 animate-spin" />
             ) : (
               <Money amount={poolBalanceUsd} size="sm" className="inline" />
@@ -317,6 +324,25 @@ export function ValueReceiptCard({
       )}
 
       <PoolMilestoneBar poolUsd={poolBalanceUsd} segment={milestoneSegment} compact />
+
+      {cohortPayees && cohortPayees.length > 0 && (
+        <div className="mt-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted">
+            Next batch · up to {cohortPayees.length} creators
+          </p>
+          <ul className="mt-1.5 max-h-28 space-y-0.5 overflow-y-auto">
+            {cohortPayees.slice(0, 10).map((payee) => (
+              <li
+                key={payee.label}
+                className="flex items-center justify-between gap-2 text-[10px]"
+              >
+                <span className="truncate text-white/90">{payee.label}</span>
+                <Money amount={payee.owedUsd} size="sm" className="shrink-0 text-amber-100/90" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {showInlineFund ? (
         <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3">

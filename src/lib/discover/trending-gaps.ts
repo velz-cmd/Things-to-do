@@ -18,6 +18,11 @@ import {
 import type { TrendingValueGap } from "@/lib/discover/types";
 import { enrichGapWithNeedType } from "@/lib/discover/need-types";
 import { attachScorecardToGap } from "@/lib/discover/opportunity-score";
+import {
+  buildMusicCohortGaps,
+  buildOssCohortGaps,
+  buildResearchCohortGaps,
+} from "@/lib/discover/cohort-pool-gaps";
 
 type AuthRow = {
   id: string;
@@ -30,10 +35,6 @@ type AuthRow = {
   status: string;
   updatedAt: Date;
 };
-
-function repoPath(owner: string, repo: string) {
-  return `/e/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
-}
 
 function entityPathForAuth(r: AuthRow): string | undefined {
   if (r.payeeKeyType === "github_username") {
@@ -108,107 +109,6 @@ async function buildPendingAuthGap(r: AuthRow): Promise<TrendingValueGap> {
   };
 }
 
-function buildMusicAggregateGap(
-  artistKey: string,
-  rows: AuthRow[],
-  communitySlug = "navidrome",
-): TrendingValueGap {
-  const totalUsd = rows.reduce((s, r) => s + r.amountUsd, 0);
-  const latest = rows.reduce((a, b) => (a.updatedAt > b.updatedAt ? a : b));
-  const entityPath = entityPathForAuth({ ...latest, payeeKey: artistKey });
-
-  return {
-    id: `music-artist-${artistKey.toLowerCase()}`,
-    domain: "music",
-    headline: `${latest.contextLabel ?? artistKey} — unfunded artist pool`,
-    why: `${rows.length} ListenBrainz/Navidrome authorization${rows.length === 1 ? "" : "s"} in ledger`,
-    whoBenefits: "Artists, composers, session musicians",
-    proofSource: formatProofSource({
-      connectorId: latest.connectorId,
-      authorizationId: latest.id,
-      fallback: "RESOLVE ledger",
-    }),
-    dataSource: "musicbrainz",
-    amountVerified: true,
-    proofConnectorId: latest.connectorId,
-    proofAuthorizationId: latest.id,
-    amountNeededUsd: totalUsd,
-    moneyCanMoveUsd: totalUsd,
-    peopleImpacted: 1,
-    trendScore: totalUsd * 12 + 80,
-    entityPath,
-    communitySlug,
-    templateId: "user-centric-royalties",
-    updatedAt: latest.updatedAt.toISOString(),
-    proofHref: `/receipt/${latest.id}`,
-    actions: [
-      {
-        id: "fund",
-        label: "Fund pool",
-        kind: "fund",
-        communitySlug,
-        templateId: "user-centric-royalties",
-      },
-      ...(entityPath ? [{ id: "open", label: "Open", kind: "open" as const, entityPath }] : []),
-      {
-        id: "connect",
-        label: "Explore music",
-        kind: "install",
-        communitySlug,
-      },
-    ],
-  };
-}
-
-function buildResearchGap(r: AuthRow, communitySlug = "open-research"): TrendingValueGap {
-  const entityPath = entityPathForAuth(r);
-  const dataSource = r.connectorId === "crossref" ? "openalex" : "openalex";
-
-  return {
-    id: `research-${r.id}`,
-    domain: "research",
-    headline: `${r.contextLabel ?? r.payeeKey} — citation value recognized`,
-    why: `Research sensor (${r.connectorId}) recorded an attributable work event`,
-    whoBenefits: r.payeeKey,
-    proofSource: formatProofSource({
-      connectorId: r.connectorId,
-      authorizationId: r.id,
-      fallback: "RESOLVE ledger",
-    }),
-    dataSource,
-    amountVerified: true,
-    proofConnectorId: r.connectorId,
-    proofAuthorizationId: r.id,
-    amountNeededUsd: r.amountUsd,
-    moneyCanMoveUsd: r.amountUsd,
-    peopleImpacted: 1,
-    trendScore: r.amountUsd * 8 + 60,
-    entityPath,
-    communitySlug,
-    templateId: "citation-toll",
-    updatedAt: r.updatedAt.toISOString(),
-    proofHref: `/receipt/${r.id}`,
-    actions: [
-      ...(entityPath ? [{ id: "open", label: "Open work", kind: "open" as const, entityPath }] : []),
-      {
-        id: "fund",
-        label: "Fund citations",
-        kind: "fund",
-        communitySlug,
-        templateId: "citation-toll",
-        amountUsd: r.amountUsd,
-      },
-      {
-        id: "sensor",
-        label: "Explore ecosystem",
-        kind: "install",
-        communitySlug,
-      },
-      { id: "share", label: "Share receipt", kind: "share", href: `/receipt/${r.id}` },
-    ],
-  };
-}
-
 export type TrendingBuildMeta = {
   gaps: TrendingValueGap[];
   githubScanAt: string | null;
@@ -269,12 +169,16 @@ export async function buildTrendingValueGaps(
     gaps.push(attachScorecardToGap(enrichGapWithNeedType(gap)));
   }
 
+  const ossGapSeeds: Array<{
+    id: string;
+    fullName: string;
+    amountUsd: number;
+    communitySlug?: string;
+    templateId?: string;
+  }> = [];
+
   for (const o of ossOpportunities.slice(0, 8)) {
-    const path = repoPath(o.owner, o.repo);
     const { communitySlug, templateId } = resolveCommunityForRepo(o.owner, o.repo);
-    const publicTarget = await resolveFundTarget({ communitySlug, templateId }).catch(() => null);
-    const priorityBoost = o.priority === "critical" ? 3 : o.priority === "high" ? 2 : 1;
-    const scanAt = githubScanAt ?? new Date().toISOString();
 
     const valuation = estimateOssFundingGap({
       stars: o.stars,
@@ -283,59 +187,19 @@ export async function buildTrendingValueGaps(
       maintainerCount: o.unfundedMaintainers || o.health.maintainerCount,
     });
 
-    push({
+    if (valuation.usd <= 0) continue;
+
+    ossGapSeeds.push({
       id: `oss-${o.fullName}`,
-      domain: "oss",
-      headline: `${o.fullName} — ecosystem gap`,
-      why: `GitHub scan · est. $${valuation.usd.toFixed(0)} · ${valuation.eligibility}`,
-      whoBenefits: `${o.unfundedMaintainers} maintainers · ${o.stars.toLocaleString()} star ecosystem`,
-      proofSource: formatProofSource({
-        connectorId: "github",
-        githubScanAt: scanAt,
-        fallback: `GitHub scan · grade ${o.health.grade}`,
-      }),
-      dataSource: "github",
-      amountVerified: false,
-      amountKind: "estimate",
-      eligibilityCriteria: valuation.eligibility,
-      proofConnectorId: "github",
-      proofGithubScanAt: scanAt,
-      amountNeededUsd: valuation.usd,
-      moneyCanMoveUsd: valuation.usd,
-      peopleImpacted: o.unfundedMaintainers,
-      trendScore: valuation.usd * priorityBoost + o.stars * 0.01,
-      entityPath: path,
+      fullName: o.fullName,
+      amountUsd: valuation.usd,
       communitySlug,
       templateId,
-      programId: publicTarget?.programId ?? undefined,
-      updatedAt: scanAt,
-      actions: [
-        { id: "open", label: "Open", kind: "open", entityPath: path },
-        {
-          id: "fund",
-          label: publicTarget?.programId ? "Fund" : "Fund gap",
-          kind: "fund",
-          programId: publicTarget?.programId ?? undefined,
-          communitySlug,
-          templateId,
-          amountUsd: Math.max(25, Math.min(valuation.usd, 100)),
-        },
-        {
-          id: "bounty",
-          label: "Docs bounty",
-          kind: "create_program",
-          communitySlug,
-          templateId,
-        },
-        {
-          id: "sensor",
-          label: "Explore ecosystem",
-          kind: "install",
-          communitySlug,
-        },
-        { id: "analyze", label: "Maintainer graph", kind: "analyze", entityPath: path },
-      ],
     });
+  }
+
+  for (const cohortGap of buildOssCohortGaps(ossGapSeeds)) {
+    push(cohortGap);
   }
 
   for (const o of fundable.filter((p) => p.fundingGapUsd > 0)) {
@@ -397,13 +261,16 @@ export async function buildTrendingValueGaps(
     musicByArtist.set(key, list);
   }
 
-  for (const [artistKey, rows] of musicByArtist) {
-    push(buildMusicAggregateGap(artistKey, rows));
+  const musicArtistEntries = [...musicByArtist.entries()].map(([artistKey, rows]) => ({
+    artistKey,
+    rows,
+  }));
+  for (const cohortGap of buildMusicCohortGaps(musicArtistEntries)) {
+    push(cohortGap);
   }
 
-  for (const r of researchRows.slice(0, 8)) {
-    if (pendingRows.some((p) => p.id === r.id)) continue;
-    push(buildResearchGap(r));
+  for (const cohortGap of buildResearchCohortGaps(researchRows)) {
+    push(cohortGap);
   }
 
   for (const r of pendingRows.slice(0, 8)) {

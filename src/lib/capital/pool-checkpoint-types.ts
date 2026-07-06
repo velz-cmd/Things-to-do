@@ -20,6 +20,13 @@ export type PoolBatchRow = {
   checkpointThresholdUsd: number | null;
 };
 
+export type PoolBatchPayeeRow = {
+  label: string;
+  owedUsd: number;
+  payeeKey: string;
+  payeeKeyType: string;
+};
+
 export type PoolFunderPosition = {
   userId: string | null;
   yourDepositUsd: number;
@@ -63,6 +70,11 @@ export type ProgramPoolState = {
   recentBatches: PoolBatchRow[];
   autoSettleEnabled: boolean;
   funder: PoolFunderPosition;
+  /** Creators queued for the next milestone batch (variable owed per eligibility). */
+  nextBatchPayees: PoolBatchPayeeRow[];
+  nextBatchTotalUsd: number;
+  /** Active milestone ceiling — e.g. $500 before advancing to $2.5k */
+  activeMilestoneUsd: number;
 };
 
 export type StoredCheckpointRecord = {

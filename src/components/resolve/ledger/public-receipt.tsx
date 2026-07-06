@@ -81,8 +81,9 @@ function RecipientRow({ payee }: { payee: PublicReceiptPayee }) {
 
 export function PublicEarnReceipt({ receipt }: { receipt: PublicReceipt }) {
   const isEarning = receipt.kind === "earning";
+  const isContribution = receipt.kind === "contribution";
   const copy = receiptKindCopy(receipt.kind);
-  const KindIcon = isEarning ? BadgeCheck : Users;
+  const KindIcon = isEarning || isContribution ? BadgeCheck : Users;
 
   function copyLink() {
     void navigator.clipboard.writeText(window.location.href);
@@ -121,7 +122,7 @@ export function PublicEarnReceipt({ receipt }: { receipt: PublicReceipt }) {
         <div
           className={clsx(
             "border-b border-resolve-border-strong px-5 py-4",
-            isEarning ? "bg-violet-500/5" : "bg-emerald-500/5",
+            isEarning || isContribution ? "bg-violet-500/5" : "bg-emerald-500/5",
           )}
         >
           <div className="flex flex-wrap items-center gap-2">

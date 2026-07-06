@@ -200,41 +200,24 @@ async function getPendingTransactions(userId: string) {
 }
 
 async function getActivity(userId: string): Promise<CapitalStateResponse["activity"]> {
-  const [walletRows, timelineRows] = await Promise.all([
-    prisma.walletTransaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: { id: true, type: true, label: true, amountUsd: true, status: true, createdAt: true },
-    }),
-    prisma.resolveTimelineEvent.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: { id: true, eventType: true, title: true, severity: true, createdAt: true },
-    }),
-  ]);
+  const walletRows = await prisma.walletTransaction.findMany({
+    where: {
+      userId,
+      type: { in: ["fund_program", "deposit", "withdraw", "send", "claim", "adjustment"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 24,
+    select: { id: true, type: true, label: true, amountUsd: true, status: true, createdAt: true },
+  });
 
-  return [
-    ...walletRows.map((row) => ({
-      id: row.id,
-      label: row.label ?? row.type,
-      amountUsd: row.amountUsd,
-      status: row.status,
-      createdAt: row.createdAt.toISOString(),
-      kind: row.type,
-    })),
-    ...timelineRows.map((row) => ({
-      id: row.id,
-      label: row.title,
-      amountUsd: null,
-      status: row.severity,
-      createdAt: row.createdAt.toISOString(),
-      kind: row.eventType,
-    })),
-  ]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 12);
+  return walletRows.map((row) => ({
+    id: row.id,
+    label: row.label ?? row.type,
+    amountUsd: row.amountUsd,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+    kind: row.type,
+  }));
 }
 
 function roundUsd(n: number): number {

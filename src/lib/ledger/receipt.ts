@@ -327,10 +327,152 @@ export async function buildPayoutReceipt(settlementId: string): Promise<PublicRe
 /** @deprecated use buildPayoutReceipt */
 export const buildLedgerReceipt = buildPayoutReceipt;
 
-/** Resolve either earning (authorization id) or payout (settlement id). */
+/** Pool fund stake — walletTransaction id from fund_program activity. */
+export async function buildFundReceipt(activityId: string): Promise<PublicReceipt | null> {
+  const tx = await prisma.walletTransaction.findUnique({
+    where: { id: activityId },
+  });
+  if (!tx || tx.type !== "fund_program") return null;
+
+  const amountUsd = Math.abs(tx.amountUsd);
+  const funder = await prisma.user.findUnique({
+    where: { id: tx.userId },
+    select: { displayName: true, email: true, walletAddress: true },
+  });
+
+  const stake = await prisma.communityFundStake.findFirst({
+    where: {
+      userId: tx.userId,
+      principalUsd: amountUsd,
+      createdAt: {
+        gte: new Date(tx.createdAt.getTime() - 10_000),
+        lte: new Date(tx.createdAt.getTime() + 10_000),
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      program: {
+        include: { install: { select: { communitySlug: true } } },
+      },
+    },
+  });
+
+  let programId = stake?.programId ?? null;
+  let programName = stake?.program.name ?? null;
+  let communitySlug = stake?.program.install?.communitySlug ?? null;
+  let missionId = stake?.program.missionId ?? null;
+
+  if (!programId) {
+    const events = await prisma.resolveTimelineEvent.findMany({
+      where: {
+        userId: tx.userId,
+        eventType: "pool_funding_pending",
+        createdAt: {
+          gte: new Date(tx.createdAt.getTime() - 60_000),
+          lte: new Date(tx.createdAt.getTime() + 60_000),
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { metadataJson: true },
+    });
+    for (const ev of events) {
+      if (!ev.metadataJson) continue;
+      try {
+        const meta = JSON.parse(ev.metadataJson) as {
+          activityId?: string;
+          programId?: string;
+        };
+        if (meta.activityId !== activityId) continue;
+        programId = meta.programId ?? programId;
+        break;
+      } catch {
+        /* skip */
+      }
+    }
+    if (programId && !stake) {
+      const program = await prisma.resolveProgram.findUnique({
+        where: { id: programId },
+        include: { install: { select: { communitySlug: true } } },
+      });
+      if (program) {
+        programName = program.name;
+        communitySlug = program.install?.communitySlug ?? null;
+        missionId = program.missionId;
+      }
+    }
+  }
+
+  const mission =
+    missionId
+      ? await missionBlock(missionId)
+      : {
+          id: "pool-fund",
+          communityName: communitySlug?.replace(/-/g, " ") ?? "Community program",
+          communitySlug: communitySlug ?? undefined,
+          programName: programName ?? undefined,
+        };
+
+  return {
+    kind: "contribution",
+    id: tx.id,
+    status: tx.status,
+    amountUsd,
+    mission,
+    connector: {
+      id: "resolve_pool",
+      label: "RESOLVE program pool",
+      eventType: "fund_program",
+    },
+    payee: {
+      keyType: "program",
+      key: programId ?? mission.id,
+      label: programName ?? mission.communityName,
+      role: "Program pool",
+      amountUsd,
+      walletAddress: null,
+      status: tx.status,
+    },
+    arc: arcBlock(null),
+    contextLabel: tx.label ?? `Funded ${programName ?? "program pool"}`,
+    createdAt: tx.createdAt.toISOString(),
+    settledAt: tx.status === "completed" ? tx.createdAt.toISOString() : null,
+    earningCount: 1,
+    ...(funder?.walletAddress
+      ? {
+          lineItems: [
+            {
+              id: tx.id,
+              amountUsd,
+              status: tx.status,
+              connectorId: "resolve_pool",
+              connectorLabel: "RESOLVE program pool",
+              eventType: "fund_program",
+              payee: {
+                keyType: "wallet",
+                key: funder.walletAddress,
+                label: funder.displayName ?? funder.email ?? "Funder",
+                role: "Funder",
+                amountUsd,
+                walletAddress: funder.walletAddress,
+                status: tx.status,
+              },
+              contextLabel: tx.label,
+              createdAt: tx.createdAt.toISOString(),
+              settledAt: tx.status === "completed" ? tx.createdAt.toISOString() : null,
+            },
+          ],
+        }
+      : {}),
+  };
+}
+
+/** Resolve earning, payout, or pool-fund activity receipt. */
 export async function buildPublicReceipt(id: string): Promise<PublicReceipt | null> {
   const earning = await buildEarningReceipt(id);
   if (earning) return earning;
+  const fund = await buildFundReceipt(id);
+  if (fund) return fund;
   return buildPayoutReceipt(id);
 }
 

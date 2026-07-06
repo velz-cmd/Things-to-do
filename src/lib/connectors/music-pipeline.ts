@@ -29,7 +29,7 @@ export async function musicScrobbleToSettlementEvents(
   const day = input.submissionTime.slice(0, 10);
   const missionId = input.missionId ?? `music-${instance}-${input.userId}-${day}`;
   const baseKey = `music:${input.mediaFileId}:${input.userId}:${input.submissionTime}`;
-  const perPlayUsd = input.perPlayUsd ?? 0.0004;
+  const perPlayUsd = input.perPlayUsd ?? 0.02;
 
   const credits = await resolveRecordingCredits({
     recordingMbid: input.recordingMbid,

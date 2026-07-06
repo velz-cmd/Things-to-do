@@ -101,12 +101,14 @@ function ActivityRow({
   amountUsd,
   direction,
   badge,
+  receiptHref,
 }: {
   title: string;
   subtitle: string;
   amountUsd: number;
   direction?: "credit" | "debit";
   badge?: string;
+  receiptHref?: string;
 }) {
   const credit = direction !== "debit";
   return (
@@ -120,7 +122,17 @@ function ActivityRow({
             </span>
           )}
         </div>
-        <p className="text-[11px] text-resolve-muted">{subtitle}</p>
+        <p className="text-[11px] text-resolve-muted">
+          {subtitle}
+          {receiptHref && (
+            <>
+              {" · "}
+              <Link href={receiptHref} className="text-resolve-accent hover:underline">
+                View receipt
+              </Link>
+            </>
+          )}
+        </p>
       </div>
       <p
         className={`shrink-0 text-sm font-medium tabular-nums ${
@@ -390,24 +402,14 @@ export function ResolveBanking({
   const showNoWallet = walletSync === "no_wallet" && !payoutWallet;
 
   const statementLines: StatementLine[] = account?.statement ?? [];
-  const activityItems = [
-    ...statementLines.map((line) => ({
-      id: line.id,
-      title: friendlyStatementLabel(line.label),
-      subtitle: formatDate(line.at),
-      amountUsd: line.amountUsd,
-      direction: line.direction,
-      badge: "wallet" as const,
-    })),
-    ...settlements.map((s) => ({
-      id: s.id,
-      title: s.label,
-      subtitle: `${formatDate(s.at)} · ${friendlyStatus(s.status)}${s.txHash ? " · on-chain" : ""}`,
-      amountUsd: s.amountUsd,
-      direction: "credit" as const,
-      badge: s.kind === "authorization" || !s.txHash ? "recognized" : "settled",
-    })),
-  ];
+  const activityItems = statementLines.map((line) => ({
+    id: line.id,
+    title: friendlyStatementLabel(line.label),
+    subtitle: formatDate(line.at),
+    amountUsd: line.amountUsd,
+    direction: line.direction,
+    badge: "wallet" as const,
+  }));
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 lg:px-8">
@@ -625,6 +627,9 @@ export function ResolveBanking({
                   amountUsd={item.amountUsd}
                   direction={item.direction}
                   badge={item.badge}
+                  receiptHref={
+                    item.direction === "debit" ? `/receipt/${encodeURIComponent(item.id)}` : undefined
+                  }
                 />
               ))}
             </ul>

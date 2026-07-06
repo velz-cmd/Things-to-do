@@ -8,6 +8,13 @@ import {
   previewAmountUsdForCommunity,
   radarHeadlineForProfile,
 } from "@/lib/discover/community-value-profiles";
+import {
+  MUSIC_MIN_PLAYS,
+  MUSIC_PAYOUT_USD,
+  RESEARCH_MIN_VIEWS,
+  RESEARCH_PAYOUT_USD,
+  COHORT_POOL_SIZE,
+} from "@/lib/earn/discover-eligibility";
 import { classifyBoardNeedType } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DomainRadarId, TrendingValueGap } from "@/lib/discover/types";
@@ -106,6 +113,12 @@ function buildPreviewRow(
       : { ...baseMetrics, story: liveSignalStory(slug) ?? baseMetrics.story };
   const upstream = profile ? humanizeExtractionSources(profile.extractionSources) : entry.name;
   const estimatedAmountUsd = previewAmountUsdForCommunity(slug);
+  const eligibilityCriteria =
+    entry.kind === "music"
+      ? `${MUSIC_MIN_PLAYS}+ plays → $${MUSIC_PAYOUT_USD} · pools of ${COHORT_POOL_SIZE}`
+      : entry.kind === "research"
+        ? `${RESEARCH_MIN_VIEWS}+ views → $${RESEARCH_PAYOUT_USD} · pools of ${COHORT_POOL_SIZE}`
+        : `OSS eligibility · pools of ${COHORT_POOL_SIZE}`;
 
   return {
     id: `value-preview-${surface}-${slug}`,
@@ -118,7 +131,7 @@ function buildPreviewRow(
     dataSource: "community_catalog",
     amountVerified: false,
     amountKind: "estimate",
-    eligibilityCriteria: `${metrics.observedEvents} · ${metrics.payoutRules}`,
+    eligibilityCriteria,
     proofConnectorId: entry.connectors[0],
     amountNeededUsd: estimatedAmountUsd,
     moneyCanMoveUsd: estimatedAmountUsd,

@@ -170,7 +170,7 @@ export const PROGRAM_TEMPLATES = {
       "Pay artists per verified play. MusicBrainz splits credits; Arc batches settlement.",
     defaultBudgetUsd: 500,
     defaultRules: {
-      perPlayUsd: 0.0004,
+      perPlayUsd: 0.02,
       minDurationSec: 30,
       splitMode: "musicbrainz",
       connectorId: "navidrome",

@@ -177,7 +177,7 @@ export async function GET() {
     recentReceipts,
     claimUrl,
     eligibility: EARN_ELIGIBILITY_RULES,
-    workStreams,
+    workStreams: workStreams.filter((s) => s.meetsEligibility),
     identityCount: identities.length,
   });
   } catch (e) {

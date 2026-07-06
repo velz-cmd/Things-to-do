@@ -8,6 +8,7 @@ import { parseProgramPoolMetadata } from "@/lib/capital/pool-checkpoint-metadata
 import { getProgramPeopleCounts } from "@/lib/capital/pool-people-counts";
 import { buildSourcedPoolHook } from "@/lib/discover/pool-discover-copy";
 import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
+import { getNextBatchPayees } from "@/lib/capital/pool-batch-payees";
 import type {
   PoolCheckpointRow,
   PoolCheckpointStatus,
@@ -158,6 +159,10 @@ export async function getProgramPoolState(
       : 0;
 
   const people = await getProgramPeopleCounts(program.id, program.missionId, program.templateId);
+  const nextBatchPayees = await getNextBatchPayees(program.missionId);
+  const nextBatchTotalUsd = round(
+    nextBatchPayees.reduce((s, p) => s + p.owedUsd, 0),
+  );
 
   const poolSnapshotForHook = {
     programName: program.name,
@@ -201,6 +206,9 @@ export async function getProgramPoolState(
       estimatedShareOfOwedUsd,
       projectedImpactUsd,
     },
+    nextBatchPayees,
+    nextBatchTotalUsd,
+    activeMilestoneUsd: milestone.ceilingUsd,
   };
 }
 

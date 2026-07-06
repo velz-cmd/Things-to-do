@@ -1,4 +1,5 @@
-import clsx from "clsx";
+"use client";
+
 import type { UserWorkStream } from "@/lib/earn/user-eligible-work";
 
 export function ProfileWorkView({
@@ -12,25 +13,25 @@ export function ProfileWorkView({
 }) {
   if (!signedIn) return null;
 
-  const connected = streams.filter((s) => s.connected);
-  if (!connected.length) return null;
+  const eligible = streams.filter((s) => s.meetsEligibility);
+  if (!eligible.length) return null;
 
   return (
     <section className="space-y-3">
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-300/90">
-          Your connected work
+          Eligible work
         </p>
         <p className="mt-1 text-xs text-resolve-muted">
-          Verified activity from your linked sources — claim payouts on Capital.
+          Only verified activity that meets published thresholds appears here — batched into Discover pools of 10.
         </p>
         {degraded && (
-          <p className="mt-1 text-[10px] text-amber-200/90">Ledger sync delayed — showing connection status.</p>
+          <p className="mt-1 text-[10px] text-amber-200/90">Ledger sync delayed — thresholds may update after sync.</p>
         )}
       </div>
 
       <ul className="space-y-2">
-        {connected.map((stream) => (
+        {eligible.map((stream) => (
           <li
             key={stream.id}
             className="rounded-xl border border-white/[0.06] bg-[#0a0f18] px-4 py-3"
@@ -48,15 +49,8 @@ export function ProfileWorkView({
                 <p className="mt-0.5 text-[10px] text-resolve-muted-dim">{stream.activityLabel}</p>
                 <p className="mt-1 text-[10px] text-resolve-muted">{stream.threshold}</p>
               </div>
-              <span
-                className={clsx(
-                  "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                  stream.meetsEligibility
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                    : "border-white/10 bg-white/[0.03] text-resolve-muted",
-                )}
-              >
-                {stream.meetsEligibility ? "Eligible" : "Building"}
+              <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                Eligible
               </span>
             </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { CircleDollarSign, Bot, LineChart } from "lucide-react";
+import { CircleDollarSign, Bot, Wallet } from "lucide-react";
 import {
   MISSION_HERO_SUBTITLE,
   MISSION_HERO_TITLE,
@@ -12,18 +12,18 @@ import { MissionPipelineStepper } from "@/components/resolve/mission-control/mis
 const PRIMARY_INTENTS = [
   {
     id: "fund" as const satisfies MissionJobId,
-    label: "Communal pool",
-    detail: "View milestone · fund on Discover",
-    prompt: "View React communal pool — milestone and autopay status",
+    label: "Fulfill pool",
+    detail: "Active Discover pools · add USDC only",
+    prompt: "Give me the most active pool on Discover — I want to fulfill",
     icon: CircleDollarSign,
     accent: "sky",
   },
   {
     id: "simulate" as const satisfies MissionJobId,
-    label: "Batch payout",
-    detail: "PDF → % split → Arc batch",
-    prompt: "Batch payout from PDF — allocate $5,000 split between maintainers with percentages",
-    icon: LineChart,
+    label: "Personal pool",
+    detail: "Your pool · PDF payees · Arc batch",
+    prompt: "Create my personal pool — batch payout from PDF with payee percentages",
+    icon: Wallet,
     accent: "emerald",
   },
   {

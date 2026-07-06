@@ -13,8 +13,8 @@ export function missionTurnsToSyncInput(turns: MissionTurn[]): SyncMissionTurnIn
     payload: {
       blueprint: t.blueprint,
       agentSignal: t.agentSignal,
-      communalPool: t.communalPool,
-      batchAllocation: t.batchAllocation,
+      fulfillPool: t.fulfillPool ?? t.communalPool,
+      personalPool: t.personalPool ?? t.batchAllocation,
     },
   }));
 }

@@ -27,6 +27,8 @@ export type MissionSession = {
     report?: import("@/lib/mission/mission-report").MissionReport;
     blueprint?: { prompt: string; initialBudgetUsd?: number };
     agentSignal?: { prompt: string; serviceId?: string };
+    fulfillPool?: { prompt: string; communitySlug?: string };
+    personalPool?: { prompt: string; initialBudgetUsd?: number };
     communalPool?: { prompt: string; communitySlug?: string };
     batchAllocation?: { prompt: string; communitySlug?: string; initialBudgetUsd?: number };
   }>;

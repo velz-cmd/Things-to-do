@@ -3,14 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Flag, Loader2, Radio, Users } from "lucide-react";
-import { communitiesInstallHandoff } from "@/lib/mission/mission-handoff";
+import { Flag, Loader2, Radio } from "lucide-react";
 import { ValueGraph } from "@/components/resolve/discover/value-graph";
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
-import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
-import { Money } from "@/components/resolve/ui/money";
 import { MissionCapitalLoop } from "@/components/resolve/mission-control/mission-capital-loop";
-import { useProgramPoolState } from "@/components/resolve/communities/pool-checkpoint-panel";
 import { missionProofStages } from "@/lib/mission/mission-proof-stages";
 import { rfbProgramsForKind } from "@/lib/mission/mission-lane-copy";
 import type { CommunityKind } from "@/lib/mission/community/types";
@@ -21,75 +17,6 @@ import type { PolicyProposal } from "@/lib/workspace/advisors/policy-proposals";
 import type { AllocationLine } from "@/components/resolve/mission-control/mission-recommendation";
 import type { ServerTimelineEvent } from "@/lib/mission/client-api";
 import { MissionTimeline } from "@/components/resolve/mission-control/mission-timeline";
-
-type MissionPoolStripProps = {
-  communitySlug: string;
-  compact?: boolean;
-};
-
-export function MissionPoolStrip({ communitySlug, compact }: MissionPoolStripProps) {
-  const { pool, loading } = useProgramPoolState(communitySlug, null, { scope: "community" });
-
-  if (loading && !pool) {
-    return (
-      <div className="flex items-center gap-2 text-[11px] text-resolve-muted">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Loading communal pool…
-      </div>
-    );
-  }
-
-  if (!pool) return null;
-
-  const poolUsd = pool.poolBalanceUsd ?? 0;
-  const milestoneUsd = pool.activeMilestoneUsd ?? pool.nextCheckpointUsd ?? 500;
-  const funderCount = pool.funderCount ?? 0;
-
-  return (
-    <div
-      className={clsx(
-        "rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04]",
-        compact ? "px-3 py-2.5" : "px-3 py-3",
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90">
-          Communal pool
-        </p>
-        {funderCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-resolve-muted">
-            <Users className="h-3 w-3" />
-            {funderCount} funder{funderCount === 1 ? "" : "s"}
-          </span>
-        )}
-      </div>
-      <p className="mt-1 text-sm font-semibold tabular-nums text-white">
-        <Money amount={poolUsd} size="sm" className="inline text-sm" />{" "}
-        <span className="text-xs font-normal text-resolve-muted">
-          toward <Money amount={milestoneUsd} size="sm" className="inline text-xs" />
-        </span>
-      </p>
-      <p className="mt-1 text-[10px] text-emerald-300/90">Autopay at milestone — no manual allocation</p>
-      {poolUsd >= 0 && (
-        <PoolMilestoneBar poolUsd={poolUsd} className="mt-2" compact />
-      )}
-      <div className="mt-2 flex flex-wrap gap-2">
-        <Link
-          href={`/discover?community=${encodeURIComponent(communitySlug)}`}
-          className="inline-flex items-center gap-1 text-[10px] font-medium text-resolve-accent hover:underline"
-        >
-          Discover scope
-        </Link>
-        <Link
-          href={communitiesInstallHandoff(communitySlug)}
-          className="inline-flex items-center gap-1 text-[10px] font-medium text-resolve-muted hover:text-white"
-        >
-          Install program
-        </Link>
-      </div>
-    </div>
-  );
-}
 
 function LiveEventRow({ event }: { event: LiveEventItem }) {
   return (
@@ -211,8 +138,13 @@ export function MissionLivePanel({
         </div>
 
         {communitySlug && (
-          <div className="mt-4">
-            <MissionPoolStrip communitySlug={communitySlug} compact />
+          <div className="mt-3">
+            <Link
+              href={`/discover?community=${encodeURIComponent(communitySlug)}`}
+              className="inline-block text-[10px] font-medium text-resolve-accent hover:underline"
+            >
+              Fulfill pools on Discover →
+            </Link>
           </div>
         )}
 

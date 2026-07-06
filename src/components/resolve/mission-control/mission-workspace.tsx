@@ -21,8 +21,8 @@ import {
 import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
 import { MissionAgentSignalCard } from "@/components/resolve/mission-control/mission-agent-signal-card";
 import { MissionBlueprintPanel } from "@/components/resolve/mission-control/mission-blueprint-panel";
-import { MissionCommunalPoolPanel } from "@/components/resolve/mission-control/mission-communal-pool-panel";
-import { MissionBatchAllocationPanel } from "@/components/resolve/mission-control/mission-batch-allocation-panel";
+import { MissionPersonalPoolPanel } from "@/components/resolve/mission-control/mission-personal-pool-panel";
+import { MissionFulfillPoolPanel } from "@/components/resolve/mission-control/mission-fulfill-pool-panel";
 import { MissionObjectiveBar } from "@/components/resolve/mission-control/mission-objective-bar";
 import { MissionLivePanel } from "@/components/resolve/mission-control/mission-live-panel";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
@@ -63,13 +63,17 @@ export type MissionTurn = {
   researchReferences?: import("@/lib/mission/capabilities/types").ResearchReference[];
   agentSignal?: MissionAgentSignalTurn;
   blueprint?: { prompt: string; initialBudgetUsd?: number };
+  fulfillPool?: { prompt: string; communitySlug?: string };
+  personalPool?: { prompt: string; initialBudgetUsd?: number };
+  /** @deprecated use fulfillPool */
   communalPool?: { prompt: string; communitySlug?: string };
+  /** @deprecated use personalPool */
   batchAllocation?: { prompt: string; communitySlug?: string; initialBudgetUsd?: number };
 };
 
 function isArtifactTurn(turn: MissionTurn): boolean {
   return Boolean(
-    turn.blueprint || turn.agentSignal || turn.report || turn.brief || turn.communalPool || turn.batchAllocation,
+    turn.blueprint || turn.agentSignal || turn.report || turn.brief || turn.fulfillPool || turn.personalPool || turn.communalPool || turn.batchAllocation,
   );
 }
 
@@ -188,28 +192,25 @@ export function MissionWorkspace({
   const topicKind = displayTopic?.kind === "general" ? "oss" : displayTopic?.kind;
 
   function renderResolveTurn(turn: MissionTurn, isCurrent: boolean) {
-    if (turn.communalPool) {
+    const poolTurn = turn.fulfillPool ?? turn.communalPool;
+    if (poolTurn) {
       return (
-        <MissionArtifactStage label="Communal pool">
-          <MissionCommunalPoolPanel
-            communitySlug={
-              turn.communalPool.communitySlug ??
-              communitySlug ??
-              "react"
-            }
-            prompt={turn.communalPool.prompt}
+        <MissionArtifactStage label="Fulfill pool">
+          <MissionFulfillPoolPanel
+            highlightSlug={poolTurn.communitySlug ?? communitySlug}
+            prompt={poolTurn.prompt}
           />
         </MissionArtifactStage>
       );
     }
 
-    if (turn.batchAllocation) {
+    const personalTurn = turn.personalPool ?? turn.batchAllocation;
+    if (personalTurn) {
       return (
-        <MissionArtifactStage label="Batch allocation">
-          <MissionBatchAllocationPanel
-            prompt={turn.batchAllocation.prompt}
-            communitySlug={turn.batchAllocation.communitySlug ?? communitySlug}
-            initialBudgetUsd={turn.batchAllocation.initialBudgetUsd}
+        <MissionArtifactStage label="Personal pool">
+          <MissionPersonalPoolPanel
+            prompt={personalTurn.prompt}
+            initialBudgetUsd={personalTurn.initialBudgetUsd}
           />
         </MissionArtifactStage>
       );

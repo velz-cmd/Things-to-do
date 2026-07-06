@@ -3,11 +3,10 @@
 import { useState, type FormEvent } from "react";
 import { Bot, ChevronDown, Loader2, Send } from "lucide-react";
 import { MissionCommandHero } from "@/components/resolve/mission-control/mission-command-hero";
-import { MissionLivePanel } from "@/components/resolve/mission-control/mission-live-panel";
 import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
+import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
 import { useMissionScope } from "@/lib/mission/mission-context";
-import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { MissionTemplateTiles } from "@/components/resolve/mission-control/mission-template-tiles";
 import { MISSION_JOBS } from "@/lib/mission/mission-lane-copy";
@@ -46,9 +45,6 @@ export function MissionEmptyState({
 }) {
   const { scope } = useMissionScope();
   const [showMore, setShowMore] = useState(false);
-  const communitySlug = resolveMissionCommunitySlug({
-    scopeLabel: scope?.label,
-  });
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -95,6 +91,12 @@ export function MissionEmptyState({
               </button>
             </div>
           </form>
+
+          {loading && (
+            <div className="mt-5">
+              <MissionProgressStepCard active title="Starting your mission" />
+            </div>
+          )}
 
           <MissionTemplateTiles onSubmit={onSubmit} className="mt-5" />
 
@@ -162,14 +164,6 @@ export function MissionEmptyState({
           )}
         </div>
       </div>
-
-      <MissionLivePanel
-        topicName={scope?.label}
-        communitySlug={communitySlug}
-        missionPhase="discover"
-        loopPhase="observe"
-        className="hidden lg:flex"
-      />
     </div>
   );
 }

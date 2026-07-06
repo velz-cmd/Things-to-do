@@ -54,7 +54,6 @@ import { detectBlueprintIntent, detectCommunalPoolIntent, detectPrivateBatchInte
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
-import { prefetchMissionPool } from "@/lib/mission/prefetch-mission-pool";
 import { MissionBlueprintCommandProvider } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 
 type AdvisorPayload = {
@@ -636,17 +635,11 @@ export function MissionControl() {
       setLoading(true);
       setThinkingComplete(false);
       setActiveThinkingSteps([
-        "Building settlement package",
-        "Ledger payees",
-        "Simulate dry-run",
+        "Parsing settlement objective",
+        "Ranking play-weighted payees",
+        "Building your package",
+        "Ready to simulate",
       ]);
-
-      const slug =
-        resolveMissionCommunitySlug({
-          scopeLabel: scope?.label ?? trimmed,
-          topicName: objective ?? trimmed,
-        }) ?? "react";
-      void prefetchMissionPool(slug);
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
@@ -685,12 +678,6 @@ export function MissionControl() {
       const trimmed = text.trim();
       if (!trimmed) return;
 
-      if (detectAgentSignalIntent(trimmed)) {
-        const serviceOverride = searchParams.get("service") ?? undefined;
-        await runAgentSignalMessage(trimmed, serviceOverride ?? undefined);
-        return;
-      }
-
       if (detectPrivateBatchIntent(trimmed)) {
         await runBatchAllocationMission(trimmed);
         return;
@@ -703,6 +690,12 @@ export function MissionControl() {
 
       if (detectBlueprintIntent(trimmed)) {
         await runBlueprintMission(trimmed);
+        return;
+      }
+
+      if (detectAgentSignalIntent(trimmed)) {
+        const serviceOverride = searchParams.get("service") ?? undefined;
+        await runAgentSignalMessage(trimmed, serviceOverride ?? undefined);
         return;
       }
 

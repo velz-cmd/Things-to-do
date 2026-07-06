@@ -63,6 +63,19 @@ function buildSummary(
   };
 }
 
+function isAgentSignalSuccessful(serviceId: string, data: unknown): boolean {
+  const micro = asMicroResult(data);
+  if (!micro) return true;
+  if (serviceId === "attribution-signal" && micro.payload && typeof micro.payload === "object") {
+    const payload = micro.payload as { parseable?: boolean };
+    if (payload.parseable === false) return false;
+  }
+  if (micro.findings?.some((f) => /could not extract|no labeled fields found/i.test(f))) {
+    return false;
+  }
+  return true;
+}
+
 function buildExecutionReport(data: unknown) {
   const micro = asMicroResult(data);
   if (!micro) return null;
@@ -202,13 +215,20 @@ async function handleAgentInvoke(req: Request) {
     prepaidArcTxHash: payment?.txHash,
   });
 
-  const succeeded = result.ok && Boolean(result.data);
+  const succeeded = result.ok && Boolean(result.data) && isAgentSignalSuccessful(serviceId, result.data);
 
   if (!succeeded) {
+    const execution = buildExecutionReport(result.data);
+    const summary = buildSummary(serviceId, result.data);
     return NextResponse.json(
       {
         ok: false,
-        error: result.error ?? "Agent signal failed after payment",
+        error:
+          execution?.findings?.[0] ??
+          result.error ??
+          "Agent signal could not produce usable output",
+        summary,
+        execution,
         payment,
         taskId,
         meteringMode: result.meteringMode,

@@ -21,13 +21,25 @@ export function detectCommunalPoolIntent(text: string): boolean {
 const BLUEPRINT_VERBS =
   /\b(simulate allocation|capital blueprint|settlement package|prepare settlement|citation payout)\b/i;
 
+const ROYALTY_SETTLEMENT =
+  /\b(royalty settlement|royalty batch|play-weighted payee|prepare royalty|independent music artist)\b/i;
+
 /** Mission Blueprint for settlement design / agent follow-on — not communal fund control. */
 export function detectBlueprintIntent(text: string): boolean {
   const trimmed = text.trim();
-  if (!trimmed || detectAgentSignalIntent(trimmed)) return false;
+  if (!trimmed) return false;
   if (detectCommunalPoolIntent(trimmed) || detectPrivateBatchIntent(trimmed)) return false;
+  if (ROYALTY_SETTLEMENT.test(trimmed)) return true;
+  if (
+    /\b(settlement|settle)\b/i.test(trimmed) &&
+    /\b(artist|music|royalt|play|listen)\b/i.test(trimmed)
+  ) {
+    return true;
+  }
   if (parseCapitalUsd(trimmed) != null && /\b(simulate|blueprint|settlement)\b/i.test(trimmed)) {
     return true;
   }
-  return BLUEPRINT_VERBS.test(trimmed);
+  if (BLUEPRINT_VERBS.test(trimmed)) return true;
+  if (detectAgentSignalIntent(trimmed)) return false;
+  return false;
 }

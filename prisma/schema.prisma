@@ -481,6 +481,7 @@ model ResolveMissionTurn {
   findingsJson String?  @db.Text
   actionsJson  String?  @db.Text
   reportJson   String?  @db.Text
+  payloadJson  String?  @db.Text
   sortOrder    Int
   createdAt    DateTime @default(now())
 

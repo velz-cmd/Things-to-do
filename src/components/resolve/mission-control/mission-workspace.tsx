@@ -26,7 +26,6 @@ import { MissionLivePanel } from "@/components/resolve/mission-control/mission-l
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
 import { MissionConnectorNudge } from "@/components/resolve/mission-control/mission-connector-nudge";
-import { MissionQueueStrip } from "@/components/resolve/mission-control/mission-queue-strip";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
@@ -269,10 +268,6 @@ export function MissionWorkspace({
 
         <div className="mx-auto w-full max-w-4xl px-4 lg:px-8">
           <MissionConnectorNudge communitySlug={communitySlug} visible={blueprintActive} />
-          <MissionQueueStrip
-            onSelect={(item) => onSubmit(item.objective)}
-            className="mb-3"
-          />
         </div>
 
         {displayTopic && displayTopic.kind !== "general" && (

@@ -5,6 +5,9 @@
 # dashboard / MCP and healed at runtime (ensurePasswordResetSchema).
 set -euo pipefail
 
+export NEXT_TELEMETRY_DISABLED=1
+export CI=1
+
 echo "→ prisma generate"
 npx prisma generate
 

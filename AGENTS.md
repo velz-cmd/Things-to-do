@@ -62,7 +62,7 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
 - **External fetches** — `fetchResilient` in `src/lib/api/fetch-resilient.ts` (10s timeout, 2 retries, exponential backoff).
 - **Sentry** — `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` + `SENTRY_AUTH_TOKEN` (source maps). Org/project from `SENTRY_ORG` / `SENTRY_PROJECT` or defaults. Disabled when DSN unset.
 - **Health** — `GET /api/health/cache` confirms Redis + Sentry + lists cache/rate-limit registry. Full report: `docs/RESILIENCE-REPORT.md`.
-- **Vercel build queue** — Hobby allows 1 concurrent **deploy**; this does not block runtime APIs. Queued deploys ≠ hung pages.
+- **Vercel build queue** — Hobby allows **1 concurrent build**. Preview deploys on `cursor/*` branches used to block Production (now disabled in `vercel.json` via `git.deploymentEnabled`). Never click **Redeploy** repeatedly — each queues another Production row.
 - API failures return **200 + degraded/stale payload** on hardened routes so the UI never hard-crashes on one downstream.
 
 ### Cron / background jobs (non-obvious)

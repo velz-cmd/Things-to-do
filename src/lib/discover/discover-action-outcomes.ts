@@ -55,7 +55,7 @@ export function buildFundOutcomeSummary(input: FundOutcomeDetail): string {
     : input.communitySlug
       ? `${input.communitySlug.replace(/-/g, " ")} program pool`
       : "this program pool";
-  return `Your ${input.amountUsd.toFixed(2)} USDC is reserved in ${dest} on Arc testnet. It pays verified contributors when authorizations settle.`;
+  return `Your ${input.amountUsd.toFixed(2)} USDC is in the communal pool on Arc. Payouts run automatically when the pool reaches the next milestone — no manual allocation needed.`;
 }
 
 /** Capital-first — proof link, then Capital activity. */

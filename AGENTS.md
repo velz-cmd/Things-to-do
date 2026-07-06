@@ -25,6 +25,8 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   `MissionBlueprintReceipt` (Phase 6 server-persisted mission reports).
 - Mission chats: signed-in users persist via `ResolveMission` + `PUT /api/mission/sessions/[id]/sync`
   (Blueprint/agent turns use `payloadJson`). Guests use `localStorage` (`resolve-mission-sessions`).
+- **Pool doctrine:** communal Discover pools are fund-only + autopay at milestone (no allocation UI).
+  Mission batch payouts (PDF + %) are private operator flows — see `docs/POOL-DOCTRINE.md`.
 - The wallet SDK (Reown/wagmi) logs harmless `api.web3modal.org ... 403` fetch errors when
  `NEXT_PUBLIC_REOWN_PROJECT_ID` is unset — these are non-fatal and do not affect the server.
 - With `NEXT_PUBLIC_REOWN_PROJECT_ID` set (Reown/AppKit), users connect an external wallet from

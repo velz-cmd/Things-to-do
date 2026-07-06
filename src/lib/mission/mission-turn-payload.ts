@@ -2,6 +2,8 @@
 export type MissionTurnPayload = {
   blueprint?: { prompt: string; initialBudgetUsd?: number };
   agentSignal?: { prompt: string; serviceId?: string };
+  communalPool?: { prompt: string; communitySlug?: string };
+  batchAllocation?: { prompt: string; communitySlug?: string; initialBudgetUsd?: number };
 };
 
 export function parseTurnPayload(raw: string | null | undefined): MissionTurnPayload | undefined {
@@ -16,6 +18,13 @@ export function parseTurnPayload(raw: string | null | undefined): MissionTurnPay
 }
 
 export function stringifyTurnPayload(payload: MissionTurnPayload | undefined): string | null {
-  if (!payload?.blueprint && !payload?.agentSignal) return null;
+  if (
+    !payload?.blueprint &&
+    !payload?.agentSignal &&
+    !payload?.communalPool &&
+    !payload?.batchAllocation
+  ) {
+    return null;
+  }
   return JSON.stringify(payload);
 }

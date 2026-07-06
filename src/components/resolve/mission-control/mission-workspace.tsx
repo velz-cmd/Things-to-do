@@ -21,11 +21,12 @@ import {
 import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
 import { MissionAgentSignalCard } from "@/components/resolve/mission-control/mission-agent-signal-card";
 import { MissionBlueprintPanel } from "@/components/resolve/mission-control/mission-blueprint-panel";
+import { MissionCommunalPoolPanel } from "@/components/resolve/mission-control/mission-communal-pool-panel";
+import { MissionBatchAllocationPanel } from "@/components/resolve/mission-control/mission-batch-allocation-panel";
 import { MissionObjectiveBar } from "@/components/resolve/mission-control/mission-objective-bar";
 import { MissionLivePanel } from "@/components/resolve/mission-control/mission-live-panel";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
-import { MissionConnectorNudge } from "@/components/resolve/mission-control/mission-connector-nudge";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
@@ -62,10 +63,14 @@ export type MissionTurn = {
   researchReferences?: import("@/lib/mission/capabilities/types").ResearchReference[];
   agentSignal?: MissionAgentSignalTurn;
   blueprint?: { prompt: string; initialBudgetUsd?: number };
+  communalPool?: { prompt: string; communitySlug?: string };
+  batchAllocation?: { prompt: string; communitySlug?: string; initialBudgetUsd?: number };
 };
 
 function isArtifactTurn(turn: MissionTurn): boolean {
-  return Boolean(turn.blueprint || turn.agentSignal || turn.report || turn.brief);
+  return Boolean(
+    turn.blueprint || turn.agentSignal || turn.report || turn.brief || turn.communalPool || turn.batchAllocation,
+  );
 }
 
 export function MissionWorkspace({
@@ -183,6 +188,33 @@ export function MissionWorkspace({
   const topicKind = displayTopic?.kind === "general" ? "oss" : displayTopic?.kind;
 
   function renderResolveTurn(turn: MissionTurn, isCurrent: boolean) {
+    if (turn.communalPool) {
+      return (
+        <MissionArtifactStage label="Communal pool">
+          <MissionCommunalPoolPanel
+            communitySlug={
+              turn.communalPool.communitySlug ??
+              communitySlug ??
+              "react"
+            }
+            prompt={turn.communalPool.prompt}
+          />
+        </MissionArtifactStage>
+      );
+    }
+
+    if (turn.batchAllocation) {
+      return (
+        <MissionArtifactStage label="Batch allocation">
+          <MissionBatchAllocationPanel
+            prompt={turn.batchAllocation.prompt}
+            communitySlug={turn.batchAllocation.communitySlug ?? communitySlug}
+            initialBudgetUsd={turn.batchAllocation.initialBudgetUsd}
+          />
+        </MissionArtifactStage>
+      );
+    }
+
     if (turn.blueprint) {
       return (
         <MissionArtifactStage label="Blueprint">
@@ -266,9 +298,6 @@ export function MissionWorkspace({
           />
         )}
 
-        <div className="mx-auto w-full max-w-4xl px-4 lg:px-8">
-          <MissionConnectorNudge communitySlug={communitySlug} visible={blueprintActive} />
-        </div>
 
         {displayTopic && displayTopic.kind !== "general" && (
           <div className="mx-auto w-full max-w-4xl px-4 lg:px-8">

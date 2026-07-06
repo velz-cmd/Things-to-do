@@ -19,6 +19,8 @@ import {
 } from "@/components/resolve/mission-control/mission-planning-bar";
 import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
 import { MissionAgentSignalCard } from "@/components/resolve/mission-control/mission-agent-signal-card";
+import { MissionBlueprintPanel } from "@/components/resolve/mission-control/mission-blueprint-panel";
+import { MissionObjectiveBar } from "@/components/resolve/mission-control/mission-objective-bar";
 import { MissionLivePanel } from "@/components/resolve/mission-control/mission-live-panel";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionAiProvidersPanel } from "@/components/resolve/mission-control/mission-ai-providers-panel";
@@ -56,6 +58,7 @@ export type MissionTurn = {
   nextSteps?: CapabilityAction[];
   researchReferences?: import("@/lib/mission/capabilities/types").ResearchReference[];
   agentSignal?: MissionAgentSignalTurn;
+  blueprint?: { prompt: string; initialBudgetUsd?: number };
 };
 
 export function MissionWorkspace({
@@ -173,6 +176,8 @@ export function MissionWorkspace({
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {objective && <MissionObjectiveBar objective={objective} />}
+
         {displayTopic && displayTopic.kind !== "general" && (
           <MissionWorldSnapshot
             topic={displayTopic.name}
@@ -187,7 +192,17 @@ export function MissionWorkspace({
               turn.role === "user" ?
                 <MissionUserBubble key={turn.id}>{turn.text}</MissionUserBubble>
               : <MissionResolveBubble key={turn.id}>
-                  {turn.agentSignal ?
+                  {turn.blueprint ?
+                    <div className="space-y-3">
+                      <p className="text-sm text-resolve-muted">{turn.text}</p>
+                      <MissionBlueprintPanel
+                        prompt={turn.blueprint.prompt}
+                        mode="scope"
+                        initialBudgetUsd={turn.blueprint.initialBudgetUsd}
+                        communitySlug={communitySlug}
+                      />
+                    </div>
+                  : turn.agentSignal ?
                     <div className="space-y-3">
                       <p className="text-sm text-resolve-muted">{turn.text}</p>
                       <MissionAgentSignalCard

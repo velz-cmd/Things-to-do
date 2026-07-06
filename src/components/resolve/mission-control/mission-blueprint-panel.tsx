@@ -25,6 +25,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
+import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
 import {
   MISSION_POLICY_OPTIONS,
@@ -408,13 +409,11 @@ export const MissionBlueprintPanel = forwardRef<
   ]);
 
   return (
-    <section
-      className="rounded-2xl border border-white/[0.08] bg-[#0c1220]/90 p-4 shadow-lg shadow-black/20 sm:p-5"
-      data-testid="mission-blueprint-panel"
-    >
+    <DiscoverCapitalCard as="section" accent="blue" className="shadow-lg shadow-black/20 sm:p-5">
+      <div data-testid="mission-blueprint-panel">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-300/90">
+          <p className="discover-eyebrow text-[10px] font-semibold uppercase tracking-[0.2em]">
             Mission Blueprint
           </p>
           <h3 className="mt-1 text-base font-semibold text-white">
@@ -703,6 +702,7 @@ export const MissionBlueprintPanel = forwardRef<
       )}
 
       <p className="mt-3 text-[10px] leading-relaxed text-resolve-muted-dim">{pkg.rationale}</p>
-    </section>
+      </div>
+    </DiscoverCapitalCard>
   );
 });

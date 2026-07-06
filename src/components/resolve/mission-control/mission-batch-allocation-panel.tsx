@@ -15,6 +15,10 @@ import {
 import { createReportFromPackage, saveMissionReport } from "@/lib/mission/mission-report-store";
 import { authorizeBlueprintServer, prepareBlueprintSettlement } from "@/lib/mission/mission-report-api";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
+import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
+import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
+import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
+import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 
 type PayeeRow = { id: string; label: string; percent: number };
 
@@ -54,6 +58,10 @@ export function MissionBatchAllocationPanel({
   const [uploading, setUploading] = useState(false);
   const [simulated, setSimulated] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
+
+  const fundAmount = Math.max(5, Math.round(budgetUsd));
+  const walletChoice = useFundingWalletChoice(fundAmount);
+  const { executeFund } = useFundProgramExecution(slug);
 
   const totalPercent = payees.reduce((s, p) => s + p.percent, 0);
 
@@ -149,10 +157,31 @@ export function MissionBatchAllocationPanel({
     }
     setAuthorizing(true);
     try {
+      let skipFund = false;
+      try {
+        const source = walletChoice.assertFundingSource();
+        if (source === "external" && pkg.programId) {
+          await executeFund(
+            {
+              programId: pkg.programId,
+              amountUsd: fundAmount,
+              communitySlug: slug,
+              label: "Mission batch",
+            },
+            source,
+          );
+          skipFund = true;
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Pick a wallet to pay from");
+        return;
+      }
+
       const preview = await prepareBlueprintSettlement(pkg);
       const result = await authorizeBlueprintServer({
         pkg,
-        amountUsd: Math.max(5, Math.round(budgetUsd)),
+        amountUsd: fundAmount,
+        skipFund,
       });
       if (!result.ok) {
         toast.error(result.error ?? "Batch payout failed", {
@@ -164,7 +193,12 @@ export function MissionBatchAllocationPanel({
         fundTxLabel: result.fundTxLabel,
       });
       saveMissionReport(record);
-      toast.success("Arc batch submitted", { description: result.fundTxLabel });
+      const paidFrom = walletChoice.fundingSource;
+      toast.success("Arc batch submitted", {
+        description: paidFrom
+          ? `${result.fundTxLabel ?? "Submitted"} · ${fundingSourceLabel(paidFrom)}`
+          : result.fundTxLabel,
+      });
       router.push(`/mission/report/${pkg.id}`);
     } finally {
       setAuthorizing(false);
@@ -274,6 +308,14 @@ export function MissionBatchAllocationPanel({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
+        {simulated && user && (
+          <PayFromWalletSection
+            amountUsd={fundAmount}
+            disabled={authorizing}
+            choice={walletChoice}
+            className="w-full basis-full"
+          />
+        )}
         <Button type="button" variant="secondary" size="sm" onClick={() => void handleSimulate()}>
           Simulate batch
         </Button>

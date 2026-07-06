@@ -18,6 +18,7 @@ import {
 import { circleWalletIdForUser, appWalletProvider } from "@/lib/wallet/app-wallet-service";
 import { markFundPendingArc } from "@/lib/capital/fund-program-finalize";
 import { circleIdempotencyKey } from "@/lib/wallet/circle-idempotency";
+import { circleUserMessage } from "@/lib/wallet/circle-errors";
 import type { ProgramRules } from "@/lib/communities/types";
 import { isDeputyDemoMode, isProductionDeploy } from "@/lib/config/demo-mode";
 
@@ -291,8 +292,8 @@ export async function fundCommunityProgram(input: {
         ok: false,
         error:
           e instanceof Error
-            ? `${e.message} — your balance was restored. Try your connected wallet instead.`
-            : "Arc transfer failed — your balance was restored. Try your connected wallet.",
+            ? `${circleUserMessage(e)} — your balance was restored. Try Connected wallet instead.`
+            : "Arc transfer failed — your balance was restored. Try Connected wallet.",
       };
     }
   }

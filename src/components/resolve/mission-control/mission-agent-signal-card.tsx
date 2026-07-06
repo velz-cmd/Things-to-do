@@ -27,6 +27,9 @@ import {
   setMissionAgentBudgetCap,
 } from "@/lib/mission/mission-agent-budget";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
+import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
+import { useResolveAccess } from "@/hooks/use-resolve-access";
+import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
 
 const CHAINED_SIGNALS = [
   {
@@ -135,6 +138,7 @@ export function MissionAgentSignalCard({
 }) {
   const { user } = useAuth();
   const { openSignIn } = useSignInModal();
+  const { payAgentSignalWithWallet } = useResolveAccess();
   const signedIn = Boolean(user);
 
   const [catalog, setCatalog] = useState<ServicesPayload | null>(null);
@@ -198,7 +202,11 @@ export function MissionAgentSignalCard({
   }, [catalog?.services, selected]);
 
   const pricePreview = selected?.priceUsd ?? 0.001;
-  const canAfford = walletUsd == null || walletUsd >= pricePreview;
+  const walletChoice = useFundingWalletChoice(pricePreview);
+  const canAfford =
+    walletChoice.fundingSource != null ||
+    walletUsd == null ||
+    walletUsd >= pricePreview;
 
   async function runAgent(overrideServiceId?: string, chainLabel?: string) {
     const runServiceId = overrideServiceId ?? serviceId;
@@ -210,12 +218,25 @@ export function MissionAgentSignalCard({
       toast.error("Enter a prompt and pick a service");
       return;
     }
+    try {
+      walletChoice.assertFundingSource();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Pick a wallet to pay from");
+      return;
+    }
     setInvoking(true);
     setInvokeStage("charging");
     if (!chainLabel) setResult(null);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 110_000);
+    let paymentTxHash: string | undefined;
     try {
+      const source = walletChoice.fundingSource;
+      if (source === "external") {
+        const paid = await payAgentSignalWithWallet(pricePreview);
+        paymentTxHash = paid.txHash;
+      }
+
       const res = await fetch("/api/agent/invoke", {
         method: "POST",
         credentials: "include",
@@ -226,6 +247,7 @@ export function MissionAgentSignalCard({
           prompt: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
           text: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
           maxSpendUsd: Math.min(budgetUsd, agentCapUsd),
+          paymentTxHash,
         }),
       });
       setInvokeStage("running");
@@ -339,8 +361,19 @@ export function MissionAgentSignalCard({
             <span className="font-semibold text-emerald-300">{formatAgentPrice(pricePreview)}</span>{" "}
             for verified {selected.name} output — or skip and ask Mission for a free analysis path.
           </p>
+          <PayFromWalletSection
+            amountUsd={pricePreview}
+            disabled={invoking}
+            choice={walletChoice}
+            className="mt-3"
+          />
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" className="gap-1.5" onClick={() => setPayDecision("pay")}>
+            <Button
+              size="sm"
+              className="gap-1.5"
+              disabled={!canAfford}
+              onClick={() => setPayDecision("pay")}
+            >
               <CircleDollarSign className="h-3.5 w-3.5" />
               Pay · {formatAgentPrice(pricePreview)}
             </Button>

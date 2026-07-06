@@ -43,6 +43,7 @@ export function useResolveAccess() {
     spendableUsd: spendable.spendableUsd,
     pickFundingSource: spendable.pickSource,
     fundProgramWithWallet: wallet.fundProgramWithWallet,
+    payAgentSignalWithWallet: wallet.payAgentSignalWithWallet,
     openConnectWallet: wallet.openConnectWallet,
     authLoading: authLoading || account.loading,
     address: account.appWalletAddress ?? account.externalWalletAddress ?? account.walletAddress,

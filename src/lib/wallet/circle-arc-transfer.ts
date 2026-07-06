@@ -4,8 +4,8 @@ import {
   getCircleClientWithSecret,
   resetCircleClientCache,
 } from "@/lib/settlement/circle-client";
-import { ensureCircleEntitySecret } from "@/lib/wallet/circle-config";
-import { circleErrorMessage } from "@/lib/wallet/circle-errors";
+import { requireCircleEntitySecret } from "@/lib/wallet/circle-config";
+import { circleUserMessage } from "@/lib/wallet/circle-errors";
 import { circleIdempotencyKey, circleIdempotencyKeyRandom } from "@/lib/wallet/circle-idempotency";
 import { getResolvedArcClientWalletId } from "@/lib/settlement/arc-wallet-ids";
 import { verifyArcTx } from "@/lib/settlement/arc-verify";
@@ -18,10 +18,10 @@ import type { User } from "@prisma/client";
 export const ARC_GAS_RESERVE_USD = 0.05;
 
 export async function circleClientForTransfers() {
-  const secretResult = await ensureCircleEntitySecret();
+  const entitySecret = await requireCircleEntitySecret();
   resetCircleClientCache();
-  const circle = await getCircleClientWithSecret(secretResult.entitySecret);
-  if (!circle) throw new Error("Circle is not configured for Arc transfers");
+  const circle = await getCircleClientWithSecret(entitySecret);
+  if (!circle) throw new Error("Circle payments are unavailable right now");
   return circle;
 }
 
@@ -151,7 +151,7 @@ export async function sendUsdcFromUserCircleWallet(input: {
     });
     return { txHash, circleTransactionId };
   } catch (err) {
-    throw new Error(circleErrorMessage(err));
+    throw new Error(circleUserMessage(err));
   }
 }
 
@@ -194,6 +194,6 @@ export async function sendUsdcFromTreasuryCircleWallet(input: {
     const { txHash } = await waitForCircleArcTransfer(circle, circleTransactionId);
     return { txHash, circleTransactionId };
   } catch (err) {
-    throw new Error(circleErrorMessage(err));
+    throw new Error(circleUserMessage(err));
   }
 }

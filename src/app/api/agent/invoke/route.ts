@@ -7,9 +7,11 @@ import {
   matchServiceForPrompt,
 } from "@/lib/agent/commerce";
 import { chargeAgentSignalOnArc } from "@/lib/agent/agent-signal-arc-payment";
+import { chargeAgentSignalWithExternalTx } from "@/lib/agent/agent-signal-with-tx";
 import { describeAgentCommerceFeePath } from "@/lib/agent/fee-path";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { isProductionDeploy } from "@/lib/config/demo-mode";
+import { circleUserMessage } from "@/lib/wallet/circle-errors";
 import type { X402MicroResult } from "@/lib/agent/x402-micro";
 
 export const maxDuration = 120;
@@ -21,6 +23,8 @@ type InvokeBody = {
   text?: string;
   missionId?: string;
   maxSpendUsd?: number;
+  /** Verified when user paid with a connected wallet on Arc */
+  paymentTxHash?: string;
 };
 
 function asMicroResult(data: unknown): X402MicroResult | null {
@@ -144,18 +148,28 @@ async function handleAgentInvoke(req: Request) {
     | undefined;
 
   if (isProductionDeploy()) {
-    const arcCharge = await chargeAgentSignalOnArc({
-      user: ready.profile,
-      amountUsd: priceUsd,
-      serviceId,
-      taskId,
-    });
+    const arcCharge = body.paymentTxHash
+      ? await chargeAgentSignalWithExternalTx({
+          userId: ready.user.id,
+          amountUsd: priceUsd,
+          serviceId,
+          taskId,
+          txHash: body.paymentTxHash,
+          identityWalletAddress: ready.profile.walletAddress,
+        })
+      : await chargeAgentSignalOnArc({
+          user: ready.profile,
+          amountUsd: priceUsd,
+          serviceId,
+          taskId,
+        });
 
     if (!arcCharge.ok) {
+      const userError = circleUserMessage(arcCharge.error);
       return NextResponse.json(
         {
           ok: false,
-          error: arcCharge.error,
+          error: userError,
           wallet: {
             balanceUsd: arcCharge.balanceUsd,
             onChainUsd: arcCharge.onChainUsd,

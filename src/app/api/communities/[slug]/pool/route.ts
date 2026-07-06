@@ -33,6 +33,6 @@ export async function GET(req: Request, { params }: Params) {
 
   return NextResponse.json(
     { ok: true, programId, pool },
-    { headers: { "Cache-Control": API_CACHE.publicShort } },
+    { headers: { "Cache-Control": API_CACHE.noStore } },
   );
 }

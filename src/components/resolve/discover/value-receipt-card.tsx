@@ -119,7 +119,7 @@ export function ValueReceiptCard({
   const { pool, loading: poolLoading, resolvedProgramId } = useProgramPoolState(
     communitySlug ?? "",
     programId ?? null,
-    { templateId: gap.templateId },
+    { templateId: gap.templateId, scope: "community" },
   );
   const effectiveProgramId = programId ?? resolvedProgramId ?? null;
 

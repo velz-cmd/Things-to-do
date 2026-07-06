@@ -30,10 +30,12 @@ type PoolCheckpointPanelProps = {
 export function useProgramPoolState(
   communitySlug: string,
   programId: string | null,
-  options?: { templateId?: string | null },
+  options?: { templateId?: string | null; scope?: "program" | "community" },
 ) {
+  const scope = options?.scope ?? "program";
+  const effectiveProgramId = scope === "community" ? null : programId;
   const cacheKey = communitySlug
-    ? poolCacheKey(communitySlug, programId, options?.templateId)
+    ? poolCacheKey(communitySlug, effectiveProgramId, options?.templateId)
     : null;
 
   const [pool, setPool] = useState<ProgramPoolState | null>(() =>
@@ -51,8 +53,8 @@ export function useProgramPoolState(
   }, []);
 
   useEffect(() => {
-    setResolvedProgramId(programId);
-  }, [programId]);
+    setResolvedProgramId(effectiveProgramId);
+  }, [effectiveProgramId]);
 
   useEffect(() => {
     if (!cacheKey) return;
@@ -68,9 +70,9 @@ export function useProgramPoolState(
     const hasCache = Boolean(readPoolCache(cacheKey));
     if (!hasCache) setLoading(true);
     try {
-      if (programId) {
+      if (effectiveProgramId) {
         const res = await fetch(
-          `/api/communities/${encodeURIComponent(communitySlug)}/programs/${programId}/pool`,
+          `/api/communities/${encodeURIComponent(communitySlug)}/programs/${effectiveProgramId}/pool`,
           { credentials: "include", cache: "default" },
         );
         if (res.ok) {
@@ -78,7 +80,7 @@ export function useProgramPoolState(
           const next = data.pool ?? null;
           if (mountedRef.current) {
             setPool(next);
-            setResolvedProgramId(programId);
+            setResolvedProgramId(effectiveProgramId);
           }
           if (next) writePoolCache(cacheKey, next);
         }
@@ -104,7 +106,7 @@ export function useProgramPoolState(
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [cacheKey, communitySlug, programId, options?.templateId]);
+  }, [cacheKey, communitySlug, effectiveProgramId, options?.templateId]);
 
   useEffect(() => {
     if (!communitySlug) return;
@@ -117,9 +119,9 @@ export function useProgramPoolState(
   useEffect(() => {
     if (!communitySlug) return;
 
-    const activeProgramId = programId ?? resolvedProgramId ?? undefined;
+    const activeProgramId = effectiveProgramId ?? resolvedProgramId ?? undefined;
     const shouldRefresh = (eventProgramId?: string) =>
-      !eventProgramId || !activeProgramId || eventProgramId === activeProgramId;
+      scope === "community" || !eventProgramId || !activeProgramId || eventProgramId === activeProgramId;
 
     const onPoolRefresh = (event: Event) => {
       const detail = (event as CustomEvent<{ programId?: string }>).detail;
@@ -144,7 +146,7 @@ export function useProgramPoolState(
       window.removeEventListener(CAPITAL_REFRESH_EVENT, onCapitalRefresh);
       window.removeEventListener(FUND_ACTION_RECORDED_EVENT, onFundRecorded);
     };
-  }, [communitySlug, programId, resolvedProgramId, refresh]);
+  }, [communitySlug, effectiveProgramId, resolvedProgramId, refresh, scope]);
 
   return { pool, loading, refresh, resolvedProgramId };
 }

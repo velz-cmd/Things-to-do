@@ -96,6 +96,7 @@ export async function apiFundProgram(programId: string, amountUsd: number) {
       activityId?: string;
       programId?: string;
       message?: string;
+      txHash?: string;
     }>(res);
     if (!res.ok) throw new Error(data.error ?? "Fund failed");
     return data;

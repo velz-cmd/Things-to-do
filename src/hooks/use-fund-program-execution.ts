@@ -126,7 +126,8 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
           setFundProgress((p) => ({ ...p, stage: "recording_stake" }));
           const fundResult = await apiFundProgram(programId, req.amountUsd);
           activityId = fundResult.activityId;
-          setFundProgress((p) => ({ ...p, stage: "arc_confirming" }));
+          txHash = fundResult.txHash;
+          setFundProgress((p) => ({ ...p, stage: "arc_confirming", txHash }));
         }
 
         recordFundAction({

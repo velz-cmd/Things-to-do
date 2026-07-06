@@ -39,8 +39,8 @@ export function MissionEmptyState({
   onInputChange: (v: string) => void;
   onSubmit: (text: string) => void;
   loading?: boolean;
-  onNewMission?: () => void;
-  onSelectSession?: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
+  onNewMission: () => void;
+  onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
   activeSessionId?: string | null;
   libraryTick?: number;
 }) {
@@ -62,14 +62,12 @@ export function MissionEmptyState({
 
   return (
     <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px] bg-[#0a1020]/40">
-      {onNewMission && onSelectSession && (
-        <MissionHistorySidebar
-          onNewMission={onNewMission}
-          onSelectSession={onSelectSession}
-          activeSessionId={activeSessionId}
-          libraryVersion={libraryTick}
-        />
-      )}
+      <MissionHistorySidebar
+        onNewMission={onNewMission!}
+        onSelectSession={onSelectSession!}
+        activeSessionId={activeSessionId}
+        libraryVersion={libraryTick}
+      />
 
       <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8">
         <div className="mx-auto max-w-3xl">

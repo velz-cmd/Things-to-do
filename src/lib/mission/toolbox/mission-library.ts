@@ -24,7 +24,12 @@ export type MissionSession = {
     findings?: MissionFinding[];
     capability?: string;
     actions?: import("@/lib/mission/capabilities/types").CapabilityAction[];
+    report?: import("@/lib/mission/mission-report").MissionReport;
+    blueprint?: { prompt: string; initialBudgetUsd?: number };
+    agentSignal?: { prompt: string; serviceId?: string };
   }>;
+  /** Server-only: turn count when listing without full turns */
+  turnCount?: number;
 };
 
 const STORAGE_KEY = "resolve-mission-sessions";

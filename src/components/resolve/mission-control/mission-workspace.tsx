@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MissionThinking } from "@/components/resolve/mission-control/mission-thinking";
 import { MissionEmptyState } from "@/components/resolve/mission-control/mission-empty-state";
+import { MissionThinkingBubble } from "@/components/resolve/mission-control/mission-chat-bubble";
 import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
 import { MissionReportCard } from "@/components/resolve/mission-control/mission-report-card";
 import { MissionWorldSnapshot } from "@/components/resolve/mission-control/mission-world-snapshot";
-import { MissionThinkingBubble } from "@/components/resolve/mission-control/mission-chat-bubble";
 import {
   MissionArtifactStage,
   MissionPriorTurn,
@@ -23,7 +22,7 @@ import { MissionBlueprintPanel } from "@/components/resolve/mission-control/miss
 import { MissionCommunalPoolPanel } from "@/components/resolve/mission-control/mission-communal-pool-panel";
 import { MissionBatchAllocationPanel } from "@/components/resolve/mission-control/mission-batch-allocation-panel";
 import { MissionObjectiveBar } from "@/components/resolve/mission-control/mission-objective-bar";
-import { MissionLivePanel } from "@/components/resolve/mission-control/mission-live-panel";
+import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
 import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
@@ -146,9 +145,6 @@ export function MissionWorkspace({
   const showExecute = shouldShowExecuteBar(phase) && !blueprintActive;
   const lastReport = lastResolve?.report;
   const displayTopic = topic ?? (objective ? { name: objective.slice(0, 48), kind: "general" as const } : null);
-  const hasAgentReceipt = turns.some(
-    (t) => t.role === "resolve" && Boolean(t.agentSignal) && t !== lastResolve,
-  ) || Boolean(lastResolve?.agentSignal && !loading);
   const communitySlug = resolveMissionCommunitySlug({
     topicName: displayTopic?.name,
     scopeLabel: scope?.label ?? objective,
@@ -179,7 +175,6 @@ export function MissionWorkspace({
     );
   }
 
-  const topicKind = displayTopic?.kind === "general" ? "oss" : displayTopic?.kind;
 
   function renderResolveTurn(turn: MissionTurn, isCurrent: boolean) {
     if (turn.communalPool) {
@@ -343,9 +338,10 @@ export function MissionWorkspace({
 
             {loading && (
               <MissionThinkingBubble>
-                <MissionThinking
-                  active={loading}
+                <MissionProgressStepCard
+                  active
                   complete={thinkingComplete}
+                  title="Working on your mission"
                   steps={thinkingSteps}
                 />
               </MissionThinkingBubble>
@@ -446,28 +442,6 @@ export function MissionWorkspace({
           )}
         </div>
       </div>
-
-      <MissionLivePanel
-        topicName={displayTopic?.name ?? scope?.label}
-        topicKind={topicKind}
-        communitySlug={communitySlug}
-        missionPhase={phase}
-        loopPhase={loopPhase}
-        hasAgentReceipt={hasAgentReceipt}
-        hasAllocation={Boolean(lastAllocations?.length)}
-        missionId={missionId}
-        showCapital={showCapital}
-        showPolicies={showPolicies && !blueprintActive}
-        showTimeline={showTimeline}
-        policies={policies}
-        selectedPolicyId={selectedPolicyId}
-        onSelectPolicy={onSelectPolicy}
-        allocations={lastAllocations}
-        treasuryBalanceUsd={treasuryBalanceUsd}
-        timeline={timeline}
-        timelineLoading={timelineLoading}
-        className="hidden lg:flex"
-      />
     </div>
   );
 }

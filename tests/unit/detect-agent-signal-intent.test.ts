@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { detectAgentSignalIntent } from "../../src/lib/mission/detect-agent-signal-intent";
+import { detectBlueprintIntent } from "../../src/lib/mission/detect-blueprint-intent";
+
+const ROYALTY_PROMPT =
+  "Prepare royalty settlement for independent music artists — show play-weighted payees.";
 
 describe("detectAgentSignalIntent", () => {
   it("detects run intel prompts", () => {
@@ -18,5 +22,15 @@ describe("detectAgentSignalIntent", () => {
 
   it("detects explicit agent verbs", () => {
     expect(detectAgentSignalIntent("Run agent on sentiment for this feedback")).toBe(true);
+  });
+
+  it("ignores royalty settlement template prompts", () => {
+    expect(detectAgentSignalIntent(ROYALTY_PROMPT)).toBe(false);
+  });
+});
+
+describe("detectBlueprintIntent", () => {
+  it("routes royalty settlement to blueprint", () => {
+    expect(detectBlueprintIntent(ROYALTY_PROMPT)).toBe(true);
   });
 });

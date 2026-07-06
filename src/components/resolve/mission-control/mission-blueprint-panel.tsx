@@ -26,7 +26,6 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
-import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
 import {
   MISSION_POLICY_OPTIONS,
   applyPolicyToPayees,
@@ -40,19 +39,9 @@ import {
   createReportFromPackage,
   saveMissionReport,
 } from "@/lib/mission/mission-report-store";
-import type { ProgramPoolState } from "@/lib/capital/pool-checkpoint-types";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
-import {
-  poolCacheKey,
-  readPoolCache,
-  writePoolCache,
-} from "@/lib/capital/pool-cache";
-import { prefetchMissionPool } from "@/lib/mission/prefetch-mission-pool";
-import {
-  computeFundCheckpointLabel,
-  formatAgentAttributionLine,
-} from "@/lib/mission/mission-checkpoint-math";
+import { formatAgentAttributionLine } from "@/lib/mission/mission-checkpoint-math";
 import { downloadBlueprintJson, downloadDaoProposal } from "@/lib/mission/mission-blueprint-export";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 import type { BlueprintSettlementPreview } from "@/lib/mission/mission-blueprint-settlement";
@@ -126,10 +115,6 @@ export const MissionBlueprintPanel = forwardRef<
   const signedIn = Boolean(user);
   const blueprintCommand = useMissionBlueprintCommand();
 
-  const [pool, setPool] = useState<ProgramPoolState | null>(null);
-  const [programId, setProgramId] = useState<string | null>(null);
-  const [poolLoading, setPoolLoading] = useState(true);
-  const [payeeSource, setPayeeSource] = useState<"ledger" | "preview">("preview");
   const [policy, setPolicy] = useState<MissionBlueprintPolicyId>("balanced");
   const [budgetUsd, setBudgetUsd] = useState(initialBudgetUsd ?? 500);
   const [simulated, setSimulated] = useState(false);
@@ -147,40 +132,6 @@ export const MissionBlueprintPanel = forwardRef<
     resolveMissionCommunitySlug({ scopeLabel: prompt, topicName: prompt }) ??
     "react";
 
-  const cacheKey = poolCacheKey(slug, null);
-
-  const loadPool = useCallback(async () => {
-    const cached = readPoolCache(cacheKey);
-    if (cached) {
-      setPool(cached);
-      setProgramId(cached.programId ?? null);
-      if (cached.nextBatchPayees?.length) setPayeeSource("ledger");
-      if (cached.activeMilestoneUsd) {
-        setBudgetUsd((prev) => initialBudgetUsd ?? Math.max(prev, cached.activeMilestoneUsd));
-      }
-      setPoolLoading(false);
-    }
-
-    const snapshot = await prefetchMissionPool(slug);
-    if (snapshot.pool) {
-      setPool(snapshot.pool);
-      setProgramId(snapshot.programId ?? snapshot.pool.programId ?? null);
-      if (snapshot.pool.nextBatchPayees?.length) setPayeeSource("ledger");
-      if (snapshot.pool.activeMilestoneUsd) {
-        setBudgetUsd((prev) => initialBudgetUsd ?? Math.max(prev, snapshot.pool!.activeMilestoneUsd));
-      }
-      writePoolCache(cacheKey, snapshot.pool);
-    } else if (!cached) {
-      setPool(null);
-      setProgramId(snapshot.programId);
-    }
-    setPoolLoading(false);
-  }, [slug, cacheKey, initialBudgetUsd]);
-
-  useEffect(() => {
-    void loadPool();
-  }, [loadPool]);
-
   useEffect(() => {
     void fetchMissionMemory(slug).then((m) => setMemoryLine(m.line));
   }, [slug]);
@@ -189,13 +140,10 @@ export const MissionBlueprintPanel = forwardRef<
     const common = {
       prompt,
       communitySlug: slug,
-      poolPayees: pool?.nextBatchPayees,
-      milestoneUsd: pool?.activeMilestoneUsd ?? budgetUsd,
+      milestoneUsd: budgetUsd,
       budgetUsd,
       policy,
-      programId,
-      poolBalanceUsd: pool?.poolBalanceUsd,
-      owedUsd: pool?.owedToCreatorsUsd,
+      programId: null,
     };
     if (mode === "agent") {
       return buildMissionBlueprintFromAgent({
@@ -211,10 +159,8 @@ export const MissionBlueprintPanel = forwardRef<
   }, [
     prompt,
     slug,
-    pool,
     budgetUsd,
     policy,
-    programId,
     mode,
     chargedUsd,
     headline,
@@ -224,26 +170,17 @@ export const MissionBlueprintPanel = forwardRef<
   ]);
 
   const pkg = useMemo((): MissionBlueprintPackage => {
-    const basePayees =
-      pool?.nextBatchPayees?.length
-        ? pool.nextBatchPayees.map((r) => ({
-            label: r.label,
-            owedUsd: r.owedUsd,
-            source: "Authorization ledger",
-          }))
-        : basePkg.payees;
-
-    const payees = applyPolicyToPayees(basePayees, policy, budgetUsd);
+    const payees = applyPolicyToPayees(basePkg.payees, policy, budgetUsd);
     return {
       ...basePkg,
       id: reportId ?? basePkg.id,
       totalCapitalUsd: budgetUsd,
-      milestoneUsd: pool?.activeMilestoneUsd ?? basePkg.milestoneUsd,
+      milestoneUsd: budgetUsd,
       payees,
       policy,
-      programId,
+      programId: null,
     };
-  }, [basePkg, pool, policy, budgetUsd, reportId, programId]);
+  }, [basePkg, policy, budgetUsd, reportId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,19 +197,10 @@ export const MissionBlueprintPanel = forwardRef<
   }, [pkg]);
 
   const simulation = useMemo(() => simulateBlueprintPackage(pkg), [pkg]);
-  const poolUsd = pool?.poolBalanceUsd ?? 0;
   const isAgent = mode === "agent" && chargedUsd > 0;
-
-  const checkpoint = useMemo(
-    () =>
-      computeFundCheckpointLabel({
-        fundUsd: budgetUsd,
-        payees: pkg.payees,
-        poolBalanceUsd: poolUsd,
-        milestoneUsd: pkg.milestoneUsd,
-      }),
-    [budgetUsd, pkg.payees, poolUsd, pkg.milestoneUsd],
-  );
+  const signalIncomplete =
+    mode === "agent" &&
+    Boolean(execution?.findings?.some((f) => /could not extract|no labeled fields/i.test(f)));
 
   const attributionLine = useMemo(() => {
     if (!isAgent) return null;
@@ -292,7 +220,7 @@ export const MissionBlueprintPanel = forwardRef<
     setReportId(id);
     const record = createReportFromPackage(pkg, "simulated");
     saveMissionReport(record);
-    void persistMissionReportServer({ record, programId });
+    void persistMissionReportServer({ record, programId: null });
     setSimulated(true);
     toast.success("Simulation ready", {
       description: `${simulation.clearedAuthorizations} payees · $${simulation.totalPayeeUsd.toFixed(2)}`,
@@ -301,7 +229,7 @@ export const MissionBlueprintPanel = forwardRef<
         onClick: () => router.push(`/mission/report/${id}`),
       },
     });
-  }, [pkg, simulation.clearedAuthorizations, simulation.totalPayeeUsd, router, programId]);
+  }, [pkg, simulation.clearedAuthorizations, simulation.totalPayeeUsd, router]);
 
   const handleAuthorize = useCallback(async () => {
     if (!simulated) {
@@ -316,7 +244,7 @@ export const MissionBlueprintPanel = forwardRef<
     setAuthorizing(true);
     try {
       const result = await authorizeBlueprintServer({
-        pkg: { ...pkg, programId },
+        pkg: { ...pkg, programId: null },
         amountUsd: Math.max(5, Math.round(budgetUsd)),
       });
 
@@ -347,7 +275,7 @@ export const MissionBlueprintPanel = forwardRef<
     } finally {
       setAuthorizing(false);
     }
-  }, [simulated, signedIn, openSignIn, budgetUsd, programId, pkg, router]);
+  }, [simulated, signedIn, openSignIn, budgetUsd, pkg, router]);
 
   const handleExport = useCallback(() => {
     downloadBlueprintJson(pkg);
@@ -408,6 +336,8 @@ export const MissionBlueprintPanel = forwardRef<
     cyclePolicy,
   ]);
 
+  if (signalIncomplete) return null;
+
   return (
     <DiscoverCapitalCard as="section" accent="blue" className="shadow-lg shadow-black/20 sm:p-5">
       <div data-testid="mission-blueprint-panel">
@@ -440,13 +370,12 @@ export const MissionBlueprintPanel = forwardRef<
       )}
 
       <div className="mt-3 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-white/90">
-        <span className="font-medium text-sky-200">{checkpoint.label}</span>
-        {!poolLoading && (
-          <span className="ml-2 text-[10px] text-resolve-muted-dim">
-            · {payeeSource === "ledger" ? "Ledger payees" : "Cohort preview"}
-            {programId ? "" : " · no programId — install rail to authorize"}
-          </span>
-        )}
+        <span className="font-medium text-sky-200">
+          ${budgetUsd.toLocaleString()} deploy budget · {pkg.payees.length} play-weighted payees
+        </span>
+        <span className="ml-2 text-[10px] text-resolve-muted-dim">
+          · Mission cohort preview · simulate before Arc
+        </span>
       </div>
 
       {memoryLine && (
@@ -549,7 +478,7 @@ export const MissionBlueprintPanel = forwardRef<
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-end gap-4">
+      <div className="mt-4">
         <label className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">
           Deploy budget (USDC)
           <input
@@ -562,31 +491,12 @@ export const MissionBlueprintPanel = forwardRef<
               setBudgetUsd(Number(e.target.value));
               setSimulated(false);
             }}
-            className="mt-1 block w-44 accent-sky-400"
+            className="mt-1 block w-full max-w-xs accent-sky-400"
           />
           <span className="mt-0.5 block text-sm font-semibold tabular-nums text-white">
             ${budgetUsd.toLocaleString()}
           </span>
         </label>
-        {poolLoading ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-resolve-muted">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Syncing pool…
-          </span>
-        ) : (
-          <div className="min-w-[140px] flex-1">
-            <p className="text-[10px] text-resolve-muted-dim">Pool balance</p>
-            <Money amount={poolUsd} size="sm" className="text-white" />
-            {pool?.owedToCreatorsUsd != null && pool.owedToCreatorsUsd > 0 && (
-              <p className="text-[10px] text-amber-200/90">
-                ${pool.owedToCreatorsUsd.toFixed(0)} owed to creators
-              </p>
-            )}
-            {!commandBarMode && (
-              <PoolMilestoneBar poolUsd={poolUsd} className="mt-1" compact />
-            )}
-          </div>
-        )}
       </div>
 
       <div className="mt-4 overflow-hidden rounded-lg border border-white/[0.08]">
@@ -636,14 +546,12 @@ export const MissionBlueprintPanel = forwardRef<
           Handoffs · Capital · Install · Claim
         </summary>
         <div className="mt-2 flex flex-wrap gap-2">
-          {!programId && (
-            <Link
-              href={communitiesInstallHandoff(slug)}
-              className="rounded-lg border border-white/10 px-2 py-1 text-resolve-accent hover:underline"
-            >
-              Install program rail
-            </Link>
-          )}
+          <Link
+            href={communitiesInstallHandoff(slug)}
+            className="rounded-lg border border-white/10 px-2 py-1 text-resolve-accent hover:underline"
+          >
+            Install program rail
+          </Link>
           <Link
             href={capitalHandoffFromBlueprint(pkg)}
             className="rounded-lg border border-white/10 px-2 py-1 text-resolve-accent hover:underline"

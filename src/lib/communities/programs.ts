@@ -88,6 +88,50 @@ export async function resolvePrimaryProgramForCommunity(
   return ranked[0] ?? null;
 }
 
+/** Public pool card lookup — highest-budget active program for a community slug. */
+export async function resolvePublicProgramForCommunity(
+  communitySlug: string,
+  preferredTemplateId?: string,
+): Promise<ProgramRecord | null> {
+  const baseWhere = {
+    status: { in: ["active", "deployed"] },
+    install: { communitySlug },
+  };
+
+  let rows = await prisma.resolveProgram.findMany({
+    where: preferredTemplateId
+      ? { ...baseWhere, templateId: preferredTemplateId }
+      : baseWhere,
+    include: { install: true },
+    orderBy: [{ budgetUsd: "desc" }, { updatedAt: "desc" }],
+    take: 20,
+  });
+
+  if (!rows.length && preferredTemplateId) {
+    rows = await prisma.resolveProgram.findMany({
+      where: baseWhere,
+      include: { install: true },
+      orderBy: [{ budgetUsd: "desc" }, { updatedAt: "desc" }],
+      take: 20,
+    });
+  }
+
+  if (!rows.length) return null;
+
+  const ranked = [...rows].sort((a, b) => {
+    const score = (p: typeof rows[0]) => {
+      let s = 0;
+      if (preferredTemplateId && p.templateId === preferredTemplateId) s += 50;
+      s += Math.min(50, p.budgetUsd / 10);
+      return s;
+    };
+    return score(b) - score(a) || b.updatedAt.getTime() - a.updatedAt.getTime();
+  });
+
+  const pick = ranked[0];
+  return pick ? toProgramRecord(pick, communitySlug) : null;
+}
+
 export async function getProgram(userId: string, programId: string) {
   const row = await prisma.resolveProgram.findFirst({
     where: { id: programId, userId },

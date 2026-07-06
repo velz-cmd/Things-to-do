@@ -519,15 +519,21 @@ export function PaymentsOS() {
 
   useEffect(() => {
     if (!user) return;
-    void loadWallet({ silent: false, refresh: true });
+    const fastFirst = initialTab === "activity";
+    void loadWallet({ silent: false, refresh: !fastFirst });
+    if (fastFirst) {
+      void loadWallet({ silent: true, refresh: false });
+    }
     void loadBankingMeta();
-    void loadOverview();
+    if (initialTab !== "activity") {
+      void loadOverview();
+    }
     const t = setInterval(
       () => void loadWallet({ silent: true, refresh: false }),
       WALLET_REFRESH_MS,
     );
     return () => clearInterval(t);
-  }, [loadBankingMeta, loadOverview, loadWallet, user]);
+  }, [initialTab, loadBankingMeta, loadOverview, loadWallet, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -599,6 +605,7 @@ export function PaymentsOS() {
   }
 
   const settlements = useMemo(() => {
+    if (initialTab === "activity") return [];
     const rows = [
       ...(overview?.settlements.map((s) => ({
         id: s.id,
@@ -620,7 +627,7 @@ export function PaymentsOS() {
       })) ?? []),
     ];
     return rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  }, [overview]);
+  }, [initialTab, overview]);
 
   const balanceKnown =
     walletSync === "synced" ||
@@ -646,7 +653,9 @@ export function PaymentsOS() {
       onClaim={() => void handleClaim()}
       onRefresh={() => void loadWallet({ silent: false, refresh: true })}
       onSignIn={openSignIn}
-      onActivityOpen={() => void loadOverview()}
+      onActivityOpen={() => {
+        void loadWallet({ silent: true, refresh: false });
+      }}
       initialTab={initialTab}
       walletViewProps={{
         appAddress: account.appWalletAddress,

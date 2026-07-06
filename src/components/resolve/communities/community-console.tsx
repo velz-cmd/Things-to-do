@@ -28,8 +28,10 @@ import {
 import { profileConnectPath } from "@/lib/communities/community-nav";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
+import { platformConnected } from "@/lib/profile/connection-state-types";
 import { ACTION_ERRORS } from "@/lib/copy/action-errors";
 import { PoolCheckpointPanel } from "@/components/resolve/communities/pool-checkpoint-panel";
+import { ProgramPayeeRulesPanel } from "@/components/resolve/communities/program-payee-rules-panel";
 
 function programRulesLabel(program: ProgramRecord): string {
   const t = PROGRAM_TEMPLATES[program.templateId as keyof typeof PROGRAM_TEMPLATES];
@@ -69,6 +71,7 @@ function ProgramCard({
   deploying,
   readiness,
   sourcesConnected,
+  connections,
 }: {
   program: ProgramRecord;
   slug: string;
@@ -78,6 +81,7 @@ function ProgramCard({
   deploying: string | null;
   readiness?: ProgramRecord["deployReadiness"];
   sourcesConnected?: boolean;
+  connections: UserConnectionState;
 }) {
   const isDeploying = deploying === program.id;
   const canRedeploy = (readiness?.authorizedCount ?? 0) > 0;
@@ -139,6 +143,13 @@ function ProgramCard({
       </div>
 
       <PoolCheckpointPanel communitySlug={slug} programId={program.id} compact />
+
+      <ProgramPayeeRulesPanel
+        program={program}
+        communitySlug={slug}
+        githubConnected={platformConnected(connections, "github")}
+        githubUsername={connections.githubUsername}
+      />
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -472,6 +483,7 @@ export function CommunityConsole({
                 deploying={deploying}
                 readiness={p.deployReadiness ?? surface.deployReadiness}
                 sourcesConnected={sourcesConnected}
+                connections={connections}
               />
             ))}
           </div>

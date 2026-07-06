@@ -71,6 +71,14 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   allowed **unauthenticated** (see `authorizeCronRequest`), so it is a reliable way to exercise
   the full API→Prisma→Postgres write path and populate Discover data without signing in.
 
+### Pool + receipts (non-obvious)
+- `GET /api/communities/[slug]/pool` and `.../programs/[programId]/pool` are **public read**
+  (optional session for your stake). Client hook caches pool snapshots to avoid spinner flash.
+- Fund proof links use `/receipt/{walletTransaction.id}` — `buildFundReceipt` resolves
+  `fund_program` activity rows (not only authorization/settlement ids).
+- Capital **Activity** tab uses `?fast=1` on first load and lists **wallet transactions only**
+  (deposits, fund_program stakes) — not timeline noise or unrelated authorizations.
+
 ### Playwright fund E2E (CI with Supabase secrets)
 - `tests/e2e/discover-fund-receipt.spec.ts` — sign in → Fulfill pool $5 → pool bar → Capital
   Activity → `/receipt/[id]`. Skips locally when Supabase is not configured.

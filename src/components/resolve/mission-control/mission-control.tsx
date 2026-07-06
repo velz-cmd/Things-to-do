@@ -51,6 +51,9 @@ import { detectAgentSignalIntent } from "@/lib/mission/detect-agent-signal-inten
 import { detectBlueprintIntent } from "@/lib/mission/detect-blueprint-intent";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
+import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
+import { prefetchMissionPool } from "@/lib/mission/prefetch-mission-pool";
+import { MissionBlueprintCommandProvider } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 
 type AdvisorPayload = {
   phase?: MissionPhase;
@@ -445,6 +448,13 @@ export function MissionControl() {
         "Ready to simulate",
       ]);
 
+      const slug =
+        resolveMissionCommunitySlug({
+          scopeLabel: scope?.label ?? trimmed,
+          topicName: objective ?? trimmed,
+        }) ?? "react";
+      void prefetchMissionPool(slug);
+
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
       setTurns(nextTurns);
@@ -456,7 +466,7 @@ export function MissionControl() {
         role: "resolve",
         text: "Settlement package ready — named payees below. Simulate, then authorize.",
         phase: "plan",
-        blueprint: { prompt: trimmed, initialBudgetUsd: budget },
+        blueprint: { prompt: trimmed, initialBudgetUsd: budget ?? undefined },
       };
       const finalTurns = [...nextTurns, resolveTurn];
       setTurns(finalTurns);
@@ -473,7 +483,7 @@ export function MissionControl() {
       setLibraryTick((n) => n + 1);
       setLoading(false);
     },
-    [turns, session, objective, activeWorkspace?.id],
+    [turns, session, objective, activeWorkspace?.id, scope?.label],
   );
 
   const sendMessage = useCallback(
@@ -768,12 +778,15 @@ export function MissionControl() {
 
   useEffect(() => {
     if (!scope?.label || objective) return;
+    const intent = searchParams.get("intent");
     const scopedPrompt =
-      scope.kind === "repository"
-        ? `Fund maintainers for ${scope.label} based on verified contribution signals — $500`
-        : detectBlueprintIntent(scope.label)
-          ? scope.label
-          : `Fund ${scope.label} maintainers — simulate $500 allocation`;
+      intent === "fund" || scope.kind === "query"
+        ? `Fund ${scope.label} maintainers based on verified contribution signals — $500`
+        : scope.kind === "repository"
+          ? `Fund maintainers for ${scope.label} based on verified contribution signals — $500`
+          : detectBlueprintIntent(scope.label)
+            ? scope.label
+            : `Fund ${scope.label} maintainers — simulate $500 allocation`;
     void sendMessage(scopedPrompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope?.label]);
@@ -855,35 +868,37 @@ export function MissionControl() {
   }
 
   return (
-    <MissionWorkspace
-      objective={objective}
-      turns={turns}
-      loading={loading}
-      thinkingComplete={thinkingComplete}
-      thinkingSteps={activeThinkingSteps}
-      phase={lastPhase}
-      input={input}
-      onInputChange={setInput}
-      onSubmit={(t) => void sendMessage(t)}
-      onAction={handleAction}
-      onNewMission={() => void handleNewMission()}
-      onSelectSession={(s) => void handleSelectSession(s)}
-      activeSessionId={session.id}
-      missionId={session.id.startsWith("ms-") ? null : session.id}
-      libraryTick={libraryTick}
-      policies={policies}
-      selectedPolicyId={selectedPolicyId}
-      onSelectPolicy={handlePolicySelect}
-      showCapital={showCapital}
-      showPolicies={showPolicies}
-      showTimeline={showTimeline}
-      timeline={timeline}
-      timelineLoading={timelineLoading}
-      treasuryBalanceUsd={treasuryBalanceUsd}
-      topic={topic}
-      operatingMode={operatingMode}
-      loopPhase={loopPhase}
-      onOperatingModeChange={setOperatingMode}
-    />
+    <MissionBlueprintCommandProvider>
+      <MissionWorkspace
+        objective={objective}
+        turns={turns}
+        loading={loading}
+        thinkingComplete={thinkingComplete}
+        thinkingSteps={activeThinkingSteps}
+        phase={lastPhase}
+        input={input}
+        onInputChange={setInput}
+        onSubmit={(t) => void sendMessage(t)}
+        onAction={handleAction}
+        onNewMission={() => void handleNewMission()}
+        onSelectSession={(s) => void handleSelectSession(s)}
+        activeSessionId={session.id}
+        missionId={session.id.startsWith("ms-") ? null : session.id}
+        libraryTick={libraryTick}
+        policies={policies}
+        selectedPolicyId={selectedPolicyId}
+        onSelectPolicy={handlePolicySelect}
+        showCapital={showCapital}
+        showPolicies={showPolicies}
+        showTimeline={showTimeline}
+        timeline={timeline}
+        timelineLoading={timelineLoading}
+        treasuryBalanceUsd={treasuryBalanceUsd}
+        topic={topic}
+        operatingMode={operatingMode}
+        loopPhase={loopPhase}
+        onOperatingModeChange={setOperatingMode}
+      />
+    </MissionBlueprintCommandProvider>
   );
 }

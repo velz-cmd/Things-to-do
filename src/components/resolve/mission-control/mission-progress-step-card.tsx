@@ -30,7 +30,7 @@ export function MissionProgressStepCard({
       return;
     }
 
-    const timers = steps.map((_, i) => setTimeout(() => setStepIndex(i), i * 480));
+    const timers = steps.map((_, i) => setTimeout(() => setStepIndex(i), i * 200));
     return () => timers.forEach(clearTimeout);
   }, [active, steps]);
 

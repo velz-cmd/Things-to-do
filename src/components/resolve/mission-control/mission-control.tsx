@@ -204,15 +204,59 @@ function missionVisitKey(id: string) {
   return `resolve-mission-visit-${id}`;
 }
 
-const AGENT_SIGNAL_THINKING = [
-  "Matching signal catalog",
-  "Pricing micropay",
-  "Checking wallet path",
-  "Preparing agent run",
-] as const;
-
 function agentSignalIntro(serviceName: string, priceUsd: number, billingUnit: string): string {
   return `I'll run ${serviceName} for your prompt — ${formatAgentPrice(priceUsd)} per ${billingUnit}. Review what you get below, then authorize the run.`;
+}
+
+function scheduleMissionPersist(
+  ensureServerSession: (
+    activeSession: MissionSession,
+    trimmed: string,
+    workspaceId?: string,
+  ) => Promise<MissionSession>,
+  persistSession: (
+    activeSession: MissionSession,
+    turnList: MissionTurn[],
+    opts: {
+      title?: string;
+      findingCount?: number;
+      phase?: MissionPhase;
+      scope?: string;
+      ecosystemId?: string;
+      status?: string;
+      capability?: string;
+    },
+  ) => Promise<void>,
+  input: {
+    session: MissionSession;
+    isFirstTurn: boolean;
+    trimmed: string;
+    workspaceId?: string;
+    finalTurns: MissionTurn[];
+    setObjective: (value: string) => void;
+    persistOpts: {
+      title?: string;
+      findingCount?: number;
+      phase?: MissionPhase;
+      scope?: string;
+      ecosystemId?: string;
+      status?: string;
+      capability?: string;
+    };
+  },
+) {
+  void (async () => {
+    let activeSession = input.session;
+    if (input.isFirstTurn) {
+      input.setObjective(input.trimmed);
+      activeSession = await ensureServerSession(
+        input.session,
+        input.trimmed,
+        input.workspaceId,
+      );
+    }
+    await persistSession(activeSession, input.finalTurns, input.persistOpts);
+  })();
 }
 
 export function MissionControl() {
@@ -464,68 +508,47 @@ export function MissionControl() {
   const runAgentSignalMessage = useCallback(
     async (trimmed: string, serviceOverride?: string) => {
       const isFirstTurn = turns.length === 0;
-      let activeSession = session;
-      if (isFirstTurn) {
-        activeSession = await ensureServerSession(
-          session,
-          trimmed,
-          activeWorkspace?.id ?? session.ecosystemId,
-        );
-        setObjective(trimmed);
-      }
       setLastIntent(trimmed);
       setInput("");
-      setLoading(true);
-      setThinkingComplete(false);
-      setActiveThinkingSteps([...AGENT_SIGNAL_THINKING]);
+
+      const matched = matchServiceForPrompt(trimmed);
+      const serviceId = serviceOverride ?? matched?.id;
+      const serviceName = matched?.name ?? "Agent signal";
+      const priceUsd = matched?.priceUsd ?? 0.02;
+      const billingUnit = matched?.billingUnit ?? "signal";
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
-      setTurns(nextTurns);
+      const resolveTurn: MissionTurn = {
+        id: `r-${Date.now()}`,
+        role: "resolve",
+        text: agentSignalIntro(serviceName, priceUsd, billingUnit),
+        phase: "discover",
+        agentSignal: {
+          prompt: trimmed,
+          serviceId,
+        },
+      };
+      const finalTurns = [...nextTurns, resolveTurn];
+      setTurns(finalTurns);
+      setLastPhase("discover");
+      setLastCapability("general_inquiry");
 
-      try {
-        const matched = matchServiceForPrompt(trimmed);
-        const serviceId = serviceOverride ?? matched?.id;
-        const serviceName = matched?.name ?? "Agent signal";
-        const priceUsd = matched?.priceUsd ?? 0.02;
-        const billingUnit = matched?.billingUnit ?? "signal";
-
-        setThinkingComplete(true);
-        const resolveTurn: MissionTurn = {
-          id: `r-${Date.now()}`,
-          role: "resolve",
-          text: agentSignalIntro(serviceName, priceUsd, billingUnit),
-          phase: "discover",
-          agentSignal: {
-            prompt: trimmed,
-            serviceId,
-          },
-        };
-        const finalTurns = [...nextTurns, resolveTurn];
-        setTurns(finalTurns);
-        setLastPhase("discover");
-        setLastCapability("general_inquiry");
-        await persistSession(activeSession, finalTurns, {
+      scheduleMissionPersist(ensureServerSession, persistSession, {
+        session,
+        isFirstTurn,
+        trimmed,
+        workspaceId: activeWorkspace?.id ?? session.ecosystemId,
+        finalTurns,
+        setObjective,
+        persistOpts: {
           title: (objective ?? trimmed).slice(0, 48),
           phase: "discover",
           scope: objective ?? trimmed,
-          ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
+          ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
           capability: "general_inquiry",
-        });
-      } catch (e) {
-        setThinkingComplete(true);
-        setTurns([
-          ...nextTurns,
-          {
-            id: `r-${Date.now()}`,
-            role: "resolve",
-            text: e instanceof Error ? e.message : "Could not prepare agent signal.",
-            phase: "discover",
-          },
-        ]);
-      } finally {
-        setLoading(false);
-      }
+        },
+      });
     },
     [turns, session, objective, activeWorkspace?.id, ensureServerSession, persistSession],
   );
@@ -533,20 +556,8 @@ export function MissionControl() {
   const runCommunalPoolMission = useCallback(
     async (trimmed: string) => {
       const isFirstTurn = turns.length === 0;
-      let activeSession = session;
-      if (isFirstTurn) {
-        activeSession = await ensureServerSession(
-          session,
-          trimmed,
-          activeWorkspace?.id ?? session.ecosystemId,
-        );
-        setObjective(trimmed);
-      }
       setLastIntent(trimmed);
       setInput("");
-      setLoading(true);
-      setThinkingComplete(false);
-      setActiveThinkingSteps(["Loading communal pool", "Milestone status", "Autopay queue"]);
 
       const slug =
         resolveMissionCommunitySlug({
@@ -556,9 +567,6 @@ export function MissionControl() {
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
-      setTurns(nextTurns);
-
-      setThinkingComplete(true);
       const resolveTurn: MissionTurn = {
         id: `r-${Date.now()}`,
         role: "resolve",
@@ -570,13 +578,21 @@ export function MissionControl() {
       setTurns(finalTurns);
       setLastPhase("discover");
       setLoopPhase("observe");
-      await persistSession(activeSession, finalTurns, {
-        title: (objective ?? trimmed).slice(0, 48),
-        phase: "discover",
-        scope: objective ?? trimmed,
-        ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
+
+      scheduleMissionPersist(ensureServerSession, persistSession, {
+        session,
+        isFirstTurn,
+        trimmed,
+        workspaceId: activeWorkspace?.id ?? session.ecosystemId,
+        finalTurns,
+        setObjective,
+        persistOpts: {
+          title: (objective ?? trimmed).slice(0, 48),
+          phase: "discover",
+          scope: objective ?? trimmed,
+          ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
+        },
       });
-      setLoading(false);
     },
     [turns, session, objective, activeWorkspace?.id, scope?.label, ensureServerSession, persistSession],
   );
@@ -584,20 +600,8 @@ export function MissionControl() {
   const runBatchAllocationMission = useCallback(
     async (trimmed: string) => {
       const isFirstTurn = turns.length === 0;
-      let activeSession = session;
-      if (isFirstTurn) {
-        activeSession = await ensureServerSession(
-          session,
-          trimmed,
-          activeWorkspace?.id ?? session.ecosystemId,
-        );
-        setObjective(trimmed);
-      }
       setLastIntent(trimmed);
       setInput("");
-      setLoading(true);
-      setThinkingComplete(false);
-      setActiveThinkingSteps(["Batch payout", "Upload PDF", "Set payee %"]);
 
       const slug =
         resolveMissionCommunitySlug({
@@ -608,9 +612,6 @@ export function MissionControl() {
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
-      setTurns(nextTurns);
-
-      setThinkingComplete(true);
       const resolveTurn: MissionTurn = {
         id: `r-${Date.now()}`,
         role: "resolve",
@@ -626,14 +627,22 @@ export function MissionControl() {
       setTurns(finalTurns);
       setLastPhase("plan");
       setLoopPhase("design_capital");
-      await persistSession(activeSession, finalTurns, {
-        title: (objective ?? trimmed).slice(0, 48),
-        phase: "plan",
-        scope: objective ?? trimmed,
-        ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
-        capability: "allocate_capital",
+
+      scheduleMissionPersist(ensureServerSession, persistSession, {
+        session,
+        isFirstTurn,
+        trimmed,
+        workspaceId: activeWorkspace?.id ?? session.ecosystemId,
+        finalTurns,
+        setObjective,
+        persistOpts: {
+          title: (objective ?? trimmed).slice(0, 48),
+          phase: "plan",
+          scope: objective ?? trimmed,
+          ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
+          capability: "allocate_capital",
+        },
       });
-      setLoading(false);
     },
     [turns, session, objective, activeWorkspace?.id, scope?.label, ensureServerSession, persistSession],
   );
@@ -641,32 +650,12 @@ export function MissionControl() {
   const runBlueprintMission = useCallback(
     async (trimmed: string) => {
       const isFirstTurn = turns.length === 0;
-      let activeSession = session;
-      if (isFirstTurn) {
-        activeSession = await ensureServerSession(
-          session,
-          trimmed,
-          activeWorkspace?.id ?? session.ecosystemId,
-        );
-        setObjective(trimmed);
-      }
       setLastIntent(trimmed);
       setInput("");
-      setLoading(true);
-      setThinkingComplete(false);
-      setActiveThinkingSteps([
-        "Parsing settlement objective",
-        "Ranking play-weighted payees",
-        "Building your package",
-        "Ready to simulate",
-      ]);
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
-      setTurns(nextTurns);
-
       const budget = parseCapitalUsd(trimmed);
-      setThinkingComplete(true);
       const resolveTurn: MissionTurn = {
         id: `r-${Date.now()}`,
         role: "resolve",
@@ -680,17 +669,25 @@ export function MissionControl() {
       setLastCapability("allocate_capital");
       setLoopPhase("simulate");
       setOperatingMode(detectOperatingMode(trimmed));
-      await persistSession(activeSession, finalTurns, {
-        title: (objective ?? trimmed).slice(0, 48),
-        phase: "plan",
-        scope: objective ?? trimmed,
-        ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
-        capability: "allocate_capital",
-        status: "awaiting_user",
+
+      scheduleMissionPersist(ensureServerSession, persistSession, {
+        session,
+        isFirstTurn,
+        trimmed,
+        workspaceId: activeWorkspace?.id ?? session.ecosystemId,
+        finalTurns,
+        setObjective,
+        persistOpts: {
+          title: (objective ?? trimmed).slice(0, 48),
+          phase: "plan",
+          scope: objective ?? trimmed,
+          ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
+          capability: "allocate_capital",
+          status: "awaiting_user",
+        },
       });
-      setLoading(false);
     },
-    [turns, session, objective, activeWorkspace?.id, scope?.label, ensureServerSession, persistSession],
+    [turns, session, objective, activeWorkspace?.id, ensureServerSession, persistSession],
   );
 
   const sendMessage = useCallback(

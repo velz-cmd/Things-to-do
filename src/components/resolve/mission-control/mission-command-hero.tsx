@@ -21,7 +21,7 @@ const PRIMARY_INTENTS = [
   {
     id: "agent" as const satisfies MissionJobId,
     label: "Hire intel",
-    detail: "Micropay signal → report",
+    detail: "From $0.001/signal → Blueprint payees",
     prompt: "Run intel on React maintainers — docs gaps and contributor health",
     icon: Bot,
     tone: "violet",

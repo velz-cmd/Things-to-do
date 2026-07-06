@@ -35,6 +35,31 @@ import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
 
+const CATALOG_CACHE_KEY = "resolve-agent-services-cache";
+const CATALOG_CACHE_MS = 5 * 60_000;
+
+function readCatalogCache(): ServicesPayload | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(CATALOG_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at: number; data: ServicesPayload };
+    if (Date.now() - parsed.at > CATALOG_CACHE_MS) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCatalogCache(data: ServicesPayload) {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ at: Date.now(), data }));
+  } catch {
+    /* quota */
+  }
+}
+
 const CHAINED_SIGNALS = [
   {
     id: "sentiment-per-request",
@@ -189,11 +214,22 @@ export function MissionAgentSignalCard({
   const autoRunRef = useRef(false);
 
   const loadCatalog = useCallback(async () => {
-    setLoadingCatalog(true);
+    const cached = readCatalogCache();
+    if (cached?.services?.length) {
+      setCatalog(cached);
+      if (!serviceId) {
+        const matched = matchServiceForPrompt(prompt);
+        setServiceId(matched?.id ?? cached.services[0]?.id ?? "");
+      }
+      setLoadingCatalog(false);
+    } else {
+      setLoadingCatalog(true);
+    }
     try {
       const res = await fetch("/api/agent/services");
       const data = (await res.json()) as ServicesPayload;
       setCatalog(data);
+      writeCatalogCache(data);
       if (!serviceId) {
         const matched = matchServiceForPrompt(prompt);
         setServiceId(matched?.id ?? data.services[0]?.id ?? "");

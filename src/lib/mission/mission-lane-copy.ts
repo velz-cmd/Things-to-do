@@ -13,6 +13,31 @@ export const MISSION_HERO_SUBTITLE =
 export const MISSION_COMPETITIVE_EDGE =
   "Micropay agents stop at the toll booth. RESOLVE runs the full loop — observe, reason, fund, settle, remember.";
 
+/** Plain-language value for “Hire intel” — why it is not generic chat. */
+export const MISSION_HIRE_INTEL = {
+  title: "Hire intel — verified signals, not chat",
+  lead: "Pay cents for machine-checked context, then turn it into a named payee plan you can simulate and settle on Arc.",
+  bullets: [
+    "Micropay ($0.001–$0.10) for docs gaps, sentiment, CVE, or citation checks — each run gets an Arc receipt.",
+    "Findings auto-fill Blueprint: who gets paid, how much, and which evidence backed it.",
+    "Approve once to simulate policy and authorize settlement — intel is the cheapest step in a dollars-scale decision.",
+  ],
+  compare:
+    "Generic AI stops at text. RESOLVE intel is ledger-ready evidence that feeds the same fund → settle loop as Discover and Capital.",
+  examples: [
+    {
+      label: "Docs review",
+      prompt: "Run intel on React maintainers — docs gaps and contributor health",
+      price: 0.02,
+    },
+    {
+      label: "Sentiment",
+      prompt: "Classify sentiment for maintainer feedback: love the DX but docs lag behind releases.",
+      price: 0.001,
+    },
+  ],
+} as const;
+
 export type MissionJobId = "agent" | "fund" | "simulate" | "install" | "research" | "settle";
 
 export type MissionJob = {

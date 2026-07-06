@@ -23,7 +23,7 @@ import { MissionCommunalPoolPanel } from "@/components/resolve/mission-control/m
 import { MissionBatchAllocationPanel } from "@/components/resolve/mission-control/mission-batch-allocation-panel";
 import { MissionObjectiveBar } from "@/components/resolve/mission-control/mission-objective-bar";
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
-import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
+import { MissionIntelValuePanel } from "@/components/resolve/mission-control/mission-intel-value-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
 import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
@@ -373,14 +373,9 @@ export function MissionWorkspace({
           ) : (
             <>
               {!showPlanning && !showExecute && (
-                <details className="mx-auto mb-3 max-w-4xl rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">
-                  <summary className="cursor-pointer list-none px-3 py-2 text-xs text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
-                    Hire intel — agent signals
-                  </summary>
-                  <div className="px-2">
-                    <MissionSignalRailsPanel onMissionPrompt={(prompt) => onSubmit(prompt)} />
-                  </div>
-                </details>
+                <div className="mx-auto mb-3 max-w-4xl">
+                  <MissionIntelValuePanel onTryExample={onSubmit} loading={loading} />
+                </div>
               )}
 
               {onOperatingModeChange && !blueprintActive && (

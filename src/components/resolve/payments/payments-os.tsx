@@ -330,6 +330,11 @@ export function PaymentsOS() {
   const { view: walletView } = useActiveWalletView();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") === "activity" ? "activity" : "overview";
+  const missionHandoff = {
+    missionReportId: searchParams.get("missionReport"),
+    programId: searchParams.get("program"),
+    communitySlug: searchParams.get("community"),
+  };
 
   const [banking, setBanking] = useState<BankingAccountSnapshot | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -739,6 +744,11 @@ export function PaymentsOS() {
       onSignIn={openSignIn}
       onActivityOpen={onActivityOpen}
       initialTab={initialTab}
+      missionHandoff={
+        missionHandoff.missionReportId || missionHandoff.programId || missionHandoff.communitySlug
+          ? missionHandoff
+          : undefined
+      }
       walletViewProps={{
         appAddress: account.appWalletAddress,
         externalAddress: account.externalWalletAddress,

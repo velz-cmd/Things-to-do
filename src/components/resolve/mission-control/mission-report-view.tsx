@@ -42,13 +42,38 @@ export function MissionReportView({ reportId }: { reportId: string }) {
   }, [reportId]);
 
   useEffect(() => {
-    const prior = listMissionReports().find(
-      (r) => r.communitySlug === report?.communitySlug && r.id !== reportId && r.status === "authorized",
-    );
-    if (report && prior) {
-      setCompareDiff(diffMissionReceipts(prior, report));
-    }
-  }, [report, reportId]);
+    if (!report || !stored?.id) return;
+    const priorId = stored.id;
+    void fetch(`/api/mission/reports/memory?slug=${encodeURIComponent(report.communitySlug)}`, {
+      credentials: "include",
+    })
+      .then((r) => r.json())
+      .then(
+        (data: {
+          memory?: { receipt?: { id: string } };
+        }) => {
+          const lastId = data.memory?.receipt?.id;
+          if (!lastId || lastId === priorId) {
+            const prior = listMissionReports().find(
+              (r) =>
+                r.communitySlug === report.communitySlug &&
+                r.id !== reportId &&
+                r.status === "authorized",
+            );
+            if (prior) setCompareDiff(diffMissionReceipts(prior, report));
+            return;
+          }
+          return fetch(
+            `/api/mission/reports/memory?compare=${encodeURIComponent(lastId)},${encodeURIComponent(priorId)}`,
+          )
+            .then((r) => r.json())
+            .then((cmp: { diff?: ReturnType<typeof diffMissionReceipts> }) => {
+              if (cmp.diff) setCompareDiff(cmp.diff);
+            });
+        },
+      )
+      .catch(() => undefined);
+  }, [report, reportId, stored?.id]);
 
   if (!report) {
     return (

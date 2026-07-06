@@ -6,7 +6,6 @@ import { MissionThinking } from "@/components/resolve/mission-control/mission-th
 import { MissionEmptyState } from "@/components/resolve/mission-control/mission-empty-state";
 import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
 import { MissionReportCard } from "@/components/resolve/mission-control/mission-report-card";
-import { MissionContextPanel } from "@/components/resolve/mission-control/mission-context-panel";
 import { MissionWorldSnapshot } from "@/components/resolve/mission-control/mission-world-snapshot";
 import {
   MissionUserBubble,
@@ -20,6 +19,7 @@ import {
 } from "@/components/resolve/mission-control/mission-planning-bar";
 import { MissionOperatingMode } from "@/components/resolve/mission-control/mission-operating-mode";
 import { MissionAgentSignalCard } from "@/components/resolve/mission-control/mission-agent-signal-card";
+import { MissionLivePanel } from "@/components/resolve/mission-control/mission-live-panel";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionAiProvidersPanel } from "@/components/resolve/mission-control/mission-ai-providers-panel";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
@@ -34,6 +34,8 @@ import type { MissionReport } from "@/lib/mission/mission-report";
 import { reportFromBrief } from "@/lib/mission/mission-report";
 import type { ServerTimelineEvent } from "@/lib/mission/client-api";
 import type { MissionTopic } from "@/lib/mission/mission-topic";
+import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
+import { useMissionScope } from "@/lib/mission/mission-context";
 
 export type MissionAgentSignalTurn = {
   prompt: string;
@@ -116,12 +118,21 @@ export function MissionWorkspace({
   onOperatingModeChange?: (mode: OperatingMode) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
+  const { scope } = useMissionScope();
   const started = Boolean(objective || turns.length > 0 || loading);
   const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
   const lastAllocations = lastResolve?.allocations;
   const showPlanning = shouldShowPlanningBar(phase);
   const showExecute = shouldShowExecuteBar(phase);
   const lastReport = lastResolve?.report;
+  const displayTopic = topic ?? (objective ? { name: objective.slice(0, 48), kind: "general" as const } : null);
+  const hasAgentReceipt = turns.some(
+    (t) => t.role === "resolve" && Boolean(t.agentSignal) && t !== lastResolve,
+  ) || Boolean(lastResolve?.agentSignal && !loading);
+  const communitySlug = resolveMissionCommunitySlug({
+    topicName: displayTopic?.name,
+    scopeLabel: scope?.label ?? objective,
+  });
   const [evidenceCount, setEvidenceCount] = useState(0);
   const executeBlocked = showExecute && evidenceCount < 1;
 
@@ -142,11 +153,15 @@ export function MissionWorkspace({
         onInputChange={onInputChange}
         onSubmit={onSubmit}
         loading={loading}
+        onNewMission={onNewMission}
+        onSelectSession={onSelectSession}
+        activeSessionId={activeSessionId}
+        libraryTick={libraryTick}
       />
     );
   }
 
-  const displayTopic = topic ?? (objective ? { name: objective.slice(0, 48), kind: "general" as const } : null);
+  const topicKind = displayTopic?.kind === "general" ? "oss" : displayTopic?.kind;
 
   return (
     <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px] bg-[#0a1020]/40">
@@ -325,25 +340,27 @@ export function MissionWorkspace({
         </div>
       </div>
 
-      {displayTopic && lastReport && (
-        <MissionContextPanel
-          topicName={displayTopic.name}
-          topicKind={displayTopic.kind === "general" ? "oss" : displayTopic.kind}
-          phase={phase}
-          showCapital={showCapital}
-          showPolicies={showPolicies}
-          showTimeline={showTimeline}
-          policies={policies}
-          selectedPolicyId={selectedPolicyId}
-          onSelectPolicy={onSelectPolicy}
-          allocations={lastAllocations}
-          treasuryBalanceUsd={treasuryBalanceUsd}
-          timeline={timeline}
-          timelineLoading={timelineLoading}
-          operatingMode={operatingMode}
-          loopPhase={loopPhase}
-        />
-      )}
+      <MissionLivePanel
+        topicName={displayTopic?.name ?? scope?.label}
+        topicKind={topicKind}
+        communitySlug={communitySlug}
+        missionPhase={phase}
+        loopPhase={loopPhase}
+        hasAgentReceipt={hasAgentReceipt}
+        hasAllocation={Boolean(lastAllocations?.length)}
+        missionId={missionId}
+        showCapital={showCapital}
+        showPolicies={showPolicies}
+        showTimeline={showTimeline}
+        policies={policies}
+        selectedPolicyId={selectedPolicyId}
+        onSelectPolicy={onSelectPolicy}
+        allocations={lastAllocations}
+        treasuryBalanceUsd={treasuryBalanceUsd}
+        timeline={timeline}
+        timelineLoading={timelineLoading}
+        className="hidden lg:flex"
+      />
     </div>
   );
 }

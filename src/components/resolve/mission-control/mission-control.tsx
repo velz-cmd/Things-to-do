@@ -50,7 +50,7 @@ import { detectOperatingMode, detectCapitalLoopPhase, detectMissionJob } from "@
 import { resolveMissionTopic } from "@/lib/mission/mission-topic";
 import { resolveMissionActionType } from "@/lib/mission/actions/resolve-type";
 import { detectAgentSignalIntent } from "@/lib/mission/detect-agent-signal-intent";
-import { detectBlueprintIntent } from "@/lib/mission/detect-blueprint-intent";
+import { detectBlueprintIntent, detectCommunalPoolIntent, detectPrivateBatchIntent } from "@/lib/mission/detect-blueprint-intent";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
@@ -150,6 +150,8 @@ function persistLocalSession(
       report: t.report,
       blueprint: t.blueprint,
       agentSignal: t.agentSignal,
+      communalPool: t.communalPool,
+      batchAllocation: t.batchAllocation,
     })),
   });
 }
@@ -166,6 +168,8 @@ function turnsFromSession(session: MissionSession): MissionTurn[] {
     report: t.report,
     blueprint: t.blueprint,
     agentSignal: t.agentSignal,
+    communalPool: t.communalPool,
+    batchAllocation: t.batchAllocation,
     nextSteps: t.actions,
   }));
 }
@@ -507,6 +511,114 @@ export function MissionControl() {
     [turns, session, objective, activeWorkspace?.id, ensureServerSession, persistSession],
   );
 
+  const runCommunalPoolMission = useCallback(
+    async (trimmed: string) => {
+      const isFirstTurn = turns.length === 0;
+      let activeSession = session;
+      if (isFirstTurn) {
+        activeSession = await ensureServerSession(
+          session,
+          trimmed,
+          activeWorkspace?.id ?? session.ecosystemId,
+        );
+        setObjective(trimmed);
+      }
+      setLastIntent(trimmed);
+      setInput("");
+      setLoading(true);
+      setThinkingComplete(false);
+      setActiveThinkingSteps(["Loading communal pool", "Milestone status", "Autopay queue"]);
+
+      const slug =
+        resolveMissionCommunitySlug({
+          scopeLabel: scope?.label ?? trimmed,
+          topicName: objective ?? trimmed,
+        }) ?? "react";
+
+      const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+      const nextTurns = [...turns, userTurn];
+      setTurns(nextTurns);
+
+      setThinkingComplete(true);
+      const resolveTurn: MissionTurn = {
+        id: `r-${Date.now()}`,
+        role: "resolve",
+        text: "Communal pool — shared network balance. Payouts run automatically at milestone.",
+        phase: "discover",
+        communalPool: { prompt: trimmed, communitySlug: slug },
+      };
+      const finalTurns = [...nextTurns, resolveTurn];
+      setTurns(finalTurns);
+      setLastPhase("discover");
+      setLoopPhase("observe");
+      await persistSession(activeSession, finalTurns, {
+        title: (objective ?? trimmed).slice(0, 48),
+        phase: "discover",
+        scope: objective ?? trimmed,
+        ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
+      });
+      setLoading(false);
+    },
+    [turns, session, objective, activeWorkspace?.id, scope?.label, ensureServerSession, persistSession],
+  );
+
+  const runBatchAllocationMission = useCallback(
+    async (trimmed: string) => {
+      const isFirstTurn = turns.length === 0;
+      let activeSession = session;
+      if (isFirstTurn) {
+        activeSession = await ensureServerSession(
+          session,
+          trimmed,
+          activeWorkspace?.id ?? session.ecosystemId,
+        );
+        setObjective(trimmed);
+      }
+      setLastIntent(trimmed);
+      setInput("");
+      setLoading(true);
+      setThinkingComplete(false);
+      setActiveThinkingSteps(["Batch payout", "Upload PDF", "Set payee %"]);
+
+      const slug =
+        resolveMissionCommunitySlug({
+          scopeLabel: scope?.label ?? trimmed,
+          topicName: objective ?? trimmed,
+        }) ?? "react";
+      const budget = parseCapitalUsd(trimmed);
+
+      const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+      const nextTurns = [...turns, userTurn];
+      setTurns(nextTurns);
+
+      setThinkingComplete(true);
+      const resolveTurn: MissionTurn = {
+        id: `r-${Date.now()}`,
+        role: "resolve",
+        text: "Private batch — upload your PDF, set percentages, then execute Arc payout.",
+        phase: "plan",
+        batchAllocation: {
+          prompt: trimmed,
+          communitySlug: slug,
+          initialBudgetUsd: budget ?? undefined,
+        },
+      };
+      const finalTurns = [...nextTurns, resolveTurn];
+      setTurns(finalTurns);
+      setLastPhase("plan");
+      setLoopPhase("design_capital");
+      await persistSession(activeSession, finalTurns, {
+        title: (objective ?? trimmed).slice(0, 48),
+        phase: "plan",
+        scope: objective ?? trimmed,
+        ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
+        capability: "allocate_capital",
+      });
+      setLoading(false);
+    },
+    [turns, session, objective, activeWorkspace?.id, scope?.label, ensureServerSession, persistSession],
+  );
+
   const runBlueprintMission = useCallback(
     async (trimmed: string) => {
       const isFirstTurn = turns.length === 0;
@@ -524,10 +636,9 @@ export function MissionControl() {
       setLoading(true);
       setThinkingComplete(false);
       setActiveThinkingSteps([
-        "Loading communal pool",
-        "Resolving authorizations",
-        "Building Blueprint",
-        "Ready to simulate",
+        "Building settlement package",
+        "Ledger payees",
+        "Simulate dry-run",
       ]);
 
       const slug =
@@ -546,7 +657,7 @@ export function MissionControl() {
       const resolveTurn: MissionTurn = {
         id: `r-${Date.now()}`,
         role: "resolve",
-        text: "Settlement package ready — named payees below. Simulate, then authorize.",
+        text: "Settlement package — simulate policy, then export or authorize your batch design.",
         phase: "plan",
         blueprint: { prompt: trimmed, initialBudgetUsd: budget ?? undefined },
       };
@@ -577,6 +688,16 @@ export function MissionControl() {
       if (detectAgentSignalIntent(trimmed)) {
         const serviceOverride = searchParams.get("service") ?? undefined;
         await runAgentSignalMessage(trimmed, serviceOverride ?? undefined);
+        return;
+      }
+
+      if (detectPrivateBatchIntent(trimmed)) {
+        await runBatchAllocationMission(trimmed);
+        return;
+      }
+
+      if (detectCommunalPoolIntent(trimmed)) {
+        await runCommunalPoolMission(trimmed);
         return;
       }
 
@@ -750,6 +871,8 @@ export function MissionControl() {
       operatingMode,
       runAgentSignalMessage,
       runBlueprintMission,
+      runCommunalPoolMission,
+      runBatchAllocationMission,
       searchParams,
       ensureServerSession,
       persistSession,
@@ -863,12 +986,12 @@ export function MissionControl() {
     const intent = searchParams.get("intent");
     const scopedPrompt =
       intent === "fund" || scope.kind === "query"
-        ? `Fund ${scope.label} maintainers based on verified contribution signals — $500`
+        ? `Fund ${scope.label} communal pool — view milestone and autopay status`
         : scope.kind === "repository"
-          ? `Fund maintainers for ${scope.label} based on verified contribution signals — $500`
-          : detectBlueprintIntent(scope.label)
+          ? `Fund maintainers for ${scope.label} — communal pool on Discover`
+          : detectCommunalPoolIntent(scope.label)
             ? scope.label
-            : `Fund ${scope.label} maintainers — simulate $500 allocation`;
+            : `View ${scope.label} communal pool status`;
     void sendMessage(scopedPrompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope?.label]);

@@ -348,6 +348,9 @@ export function ValueReceiptCard({
       )}
 
       <PoolMilestoneBar poolUsd={poolBalanceUsd} segment={milestoneSegment} compact />
+      <p className="mt-2 text-[10px] text-emerald-300/85">
+        Autopay when milestone is reached — funders do not pick payees
+      </p>
 
       {pool && pool.funderCount > 0 && (
         <p className="mt-2 text-[10px] text-resolve-muted">

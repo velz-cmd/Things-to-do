@@ -21,6 +21,7 @@ import { ArcWalletLink } from "@/components/resolve/ui/arc-wallet-link";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { MISSION_AGENT_LANE_COPY } from "@/lib/mission/mission-lane-copy";
+import { MissionBlueprintPackage } from "@/components/resolve/mission-control/mission-blueprint-package";
 import { apiFetchWallet } from "@/lib/discover/discover-action-engine";
 
 export type AgentServiceCard = {
@@ -496,6 +497,19 @@ export function MissionAgentSignalCard({
                   </ul>
                 </div>
               )}
+            </div>
+          )}
+
+          {result.ok && (
+            <div className="mt-4">
+              <MissionBlueprintPackage
+                prompt={prompt}
+                chargedUsd={result.payment?.chargedUsd ?? result.wallet?.chargedUsd ?? result.amountUsd ?? 0.02}
+                headline={result.summary?.headline ?? "Agent signal complete"}
+                detail={result.summary?.detail}
+                execution={result.execution}
+                receiptHref={result.receiptHref}
+              />
             </div>
           )}
 

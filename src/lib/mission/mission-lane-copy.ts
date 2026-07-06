@@ -68,6 +68,28 @@ export const MISSION_JOBS: MissionJob[] = [
   },
 ];
 
+export const MISSION_AGENT_PIPELINE =
+  "Pay signal → Blueprint payees → Simulate → Authorize";
+
+/** Where Arc hackathon demos stop vs RESOLVE Mission continues. */
+export const MISSION_VS_COMPETITORS = [
+  {
+    name: "Obolus",
+    stopsAt: "Agent pays creator source · citation receipt",
+    missionContinues: "Signal feeds named payee Blueprint → communal settle",
+  },
+  {
+    name: "Inktoll",
+    stopsAt: "Agent unlocks one article · publisher feed tick",
+    missionContinues: "Micropay buys intel → multi-payee batch plan → Arc fulfill",
+  },
+  {
+    name: "Gaffer",
+    stopsAt: "Pay to steer one branch · creator earns moment",
+    missionContinues: "Paid context → program-weighted allocation → ledger proof",
+  },
+] as const;
+
 export const MISSION_AGENT_LANE_COPY = {
   tagline: PLATFORM_LOOP_TAGLINE,
   settlement: RESOLVE_SETTLEMENT_LINE,

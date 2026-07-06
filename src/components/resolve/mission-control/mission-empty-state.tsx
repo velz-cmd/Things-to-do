@@ -9,7 +9,7 @@ import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mi
 import { MissionAiProvidersPanel } from "@/components/resolve/mission-control/mission-ai-providers-panel";
 import { useMissionScope } from "@/lib/mission/mission-context";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
-import { MISSION_AGENT_LANE_COPY, type MissionJobId } from "@/lib/mission/mission-lane-copy";
+import { MISSION_AGENT_LANE_COPY, MISSION_AGENT_PIPELINE, type MissionJobId } from "@/lib/mission/mission-lane-copy";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 
 const AGENT_EXAMPLES = [
@@ -104,7 +104,7 @@ export function MissionEmptyState({
           </form>
 
           <p className="mt-4 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-3 py-2 text-center text-xs font-medium leading-relaxed text-violet-100/95">
-            {MISSION_AGENT_LANE_COPY.tagline}
+            {MISSION_AGENT_PIPELINE} — {MISSION_AGENT_LANE_COPY.tagline}
           </p>
 
           <div className="mt-8">

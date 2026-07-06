@@ -8,7 +8,7 @@ import { RESOLVE_SETTLEMENT_LINE } from "@/lib/discover/resolve-doctrine";
 export const MISSION_HERO_TITLE = "Decide, simulate, and authorize — not just micropay.";
 
 export const MISSION_HERO_SUBTITLE =
-  "Agents buy verified signals. Communities earn on proof. RESOLVE turns both into settlement plans you approve — communal pools, RFB programs, and Arc receipts in one Mission OS.";
+  "Turn verified signals into a named payee plan — simulate policy, approve once, settle on Arc.";
 
 export const MISSION_COMPETITIVE_EDGE =
   "Micropay agents stop at the toll booth. RESOLVE runs the full loop — observe, reason, fund, settle, remember.";

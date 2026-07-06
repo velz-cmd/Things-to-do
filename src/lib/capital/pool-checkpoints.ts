@@ -7,6 +7,7 @@ import { resolveCheckpointThresholds } from "@/lib/capital/pool-checkpoint-defau
 import { parseProgramPoolMetadata } from "@/lib/capital/pool-checkpoint-metadata";
 import { getProgramPeopleCounts } from "@/lib/capital/pool-people-counts";
 import { buildSourcedPoolHook } from "@/lib/discover/pool-discover-copy";
+import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
 import type {
   PoolCheckpointRow,
   PoolCheckpointStatus,
@@ -85,7 +86,14 @@ export async function getProgramPoolState(
       poolBalanceUsd < t &&
       storedByThreshold.get(t)?.status !== "paid",
   );
-  const nextCheckpointUsd = nextOpenThreshold ?? null;
+
+  const milestone = computePoolMilestoneSegment(poolBalanceUsd, thresholds);
+  const nextCheckpointUsd: number | null =
+    nextOpenThreshold != null && nextOpenThreshold <= milestone.ceilingUsd
+      ? nextOpenThreshold
+      : milestone.poolUsd < milestone.ceilingUsd
+        ? milestone.ceilingUsd
+        : (nextOpenThreshold ?? null);
 
   const checkpoints: PoolCheckpointRow[] = thresholds.map((thresholdUsd) => {
     const stored = storedByThreshold.get(thresholdUsd);
@@ -106,10 +114,7 @@ export async function getProgramPoolState(
     };
   });
 
-  const progressToNextPct =
-    nextCheckpointUsd != null && nextCheckpointUsd > 0
-      ? Math.min(100, Math.round((poolBalanceUsd / nextCheckpointUsd) * 100))
-      : 100;
+  const progressToNextPct = milestone.progressPct;
 
   const recentBatches = (meta.checkpoints ?? [])
     .filter((c) => c.status === "paid" && c.paidUsd != null)

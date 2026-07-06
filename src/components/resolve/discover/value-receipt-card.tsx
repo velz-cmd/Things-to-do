@@ -21,6 +21,8 @@ import { buildPoolPeopleLine } from "@/lib/discover/pool-discover-copy";
 import { useMyPoolStakes } from "@/hooks/use-my-pool-stakes";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { useProgramPoolState } from "@/components/resolve/communities/pool-checkpoint-panel";
+import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
+import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -87,39 +89,7 @@ function gapFromSource(source: ValueReceiptSource): TrendingValueGap {
   };
 }
 
-function CheckpointMiniBar({
-  progressPct,
-  nextUsd,
-  poolUsd,
-}: {
-  progressPct: number;
-  nextUsd: number | null;
-  poolUsd: number;
-}) {
-  const pct = Math.min(100, Math.max(0, progressPct));
-  return (
-    <div className="mt-3">
-      <div className="flex items-center justify-between gap-2 text-[10px] text-resolve-muted-dim">
-        <span>Pool checkpoint</span>
-        {nextUsd != null ? (
-          <span>
-            ${poolUsd.toFixed(0)} / ${nextUsd.toFixed(0)} next
-          </span>
-        ) : (
-          <span>${poolUsd.toFixed(2)} in pool</span>
-        )}
-      </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-resolve-accent/80 to-emerald-400/80 transition-all"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/** Phase A — Value Receipt card: real USD, one estimate line, checkpoint bar, 3 actions. */
+/** Phase A — Value Receipt card: real USD, milestone bar, 3 actions. */
 export function ValueReceiptCard({
   source,
   signedIn,
@@ -141,19 +111,21 @@ export function ValueReceiptCard({
   const { fundedUsdForProgram } = useMyPoolStakes();
   const programId = gap.programId;
   const communitySlug = gap.communitySlug;
-  const { pool, loading: poolLoading } = useProgramPoolState(
+  const { pool, loading: poolLoading, resolvedProgramId } = useProgramPoolState(
     communitySlug ?? "",
     programId ?? null,
+    { templateId: gap.templateId },
   );
+  const effectiveProgramId = programId ?? resolvedProgramId ?? null;
 
   const spendableUsd = wallet.loaded ? wallet.spendableUsd : null;
   const poolBalanceUsd = Math.max(
     pool?.poolBalanceUsd ?? 0,
-    fundedUsdForProgram(programId),
+    fundedUsdForProgram(effectiveProgramId),
   );
   const yourDepositUsd = Math.max(
     pool?.funder.yourDepositUsd ?? 0,
-    fundedUsdForProgram(programId),
+    fundedUsdForProgram(effectiveProgramId),
   );
   const card = useMemo(
     () =>
@@ -177,25 +149,35 @@ export function ValueReceiptCard({
       (s) => s.action.id === action.id && s.action.kind === action.kind,
     );
     if (slot?.disabled) return;
-    void runAction(action, surface);
+    void runAction(
+      {
+        ...action,
+        programId: action.programId ?? effectiveProgramId ?? undefined,
+        communitySlug: action.communitySlug ?? communitySlug ?? undefined,
+        templateId: action.templateId ?? gap.templateId,
+      },
+      surface,
+    );
   };
 
-  const owedUsd = pool?.owedToCreatorsUsd ?? gap.amountNeededUsd;
+  const catalogOwedUsd = Math.max(gap.amountNeededUsd, gap.moneyCanMoveUsd, 0);
+  const owedUsd =
+    pool && pool.owedToCreatorsUsd > 0 ? pool.owedToCreatorsUsd : catalogOwedUsd;
   const estimateUsd =
     pool?.funder.estimatedShareOfOwedUsd ??
     (gap.amountVerified ? gap.moneyCanMoveUsd : 0);
   const heroUsd = poolBalanceUsd > 0 ? poolBalanceUsd : owedUsd;
   const heroLabel = poolBalanceUsd > 0 ? "Pool funded" : "Owed to creators";
   const peopleLine =
-    pool ?
-      buildPoolPeopleLine({
-        contributorCount: pool.contributorCount,
-        funderCount: pool.funderCount,
-        payeeCategory: pool.payeeCategory,
-      })
-    : gap.peopleImpacted ?
-      `${gap.peopleImpacted} people impacted`
-    : null;
+    pool && pool.contributorCount > 0
+      ? buildPoolPeopleLine({
+          contributorCount: pool.contributorCount,
+          funderCount: pool.funderCount,
+          payeeCategory: pool.payeeCategory,
+        })
+      : null;
+  const milestoneSegment = computePoolMilestoneSegment(poolBalanceUsd);
+  const contributorCount = pool?.contributorCount ?? 0;
   const sourcedHook = pool?.sourcedHook ?? null;
   const rfb = rfbBadgeForTemplate(gap.templateId);
   const proofHref =
@@ -281,7 +263,12 @@ export function ValueReceiptCard({
         </div>
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5 text-[11px] sm:grid-cols-4">
+      <dl
+        className={clsx(
+          "mt-3 grid gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5 text-[11px]",
+          contributorCount > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3",
+        )}
+      >
         <div>
           <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Pool</dt>
           <dd className="mt-0.5 font-semibold tabular-nums text-emerald-300">
@@ -305,15 +292,20 @@ export function ValueReceiptCard({
         <div>
           <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Owed</dt>
           <dd className="mt-0.5 font-semibold tabular-nums text-amber-200">
+            {!gap.amountVerified && catalogOwedUsd > 0 && (
+              <span className="mr-1 text-[8px] font-normal uppercase text-resolve-muted-dim">
+                Est.
+              </span>
+            )}
             <Money amount={owedUsd} size="sm" className="inline" />
           </dd>
         </div>
-        <div>
-          <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Contributors</dt>
-          <dd className="mt-0.5 font-semibold tabular-nums text-white">
-            {pool?.contributorCount ?? "—"}
-          </dd>
-        </div>
+        {contributorCount > 0 && (
+          <div>
+            <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Payees</dt>
+            <dd className="mt-0.5 font-semibold tabular-nums text-white">{contributorCount}</dd>
+          </div>
+        )}
       </dl>
 
       {estimateUsd > 0 && estimateUsd !== owedUsd && (
@@ -324,13 +316,7 @@ export function ValueReceiptCard({
         </p>
       )}
 
-      {pool && pool.nextCheckpointUsd != null && (
-        <CheckpointMiniBar
-          progressPct={pool.progressToNextPct}
-          nextUsd={pool.nextCheckpointUsd}
-          poolUsd={pool.poolBalanceUsd}
-        />
-      )}
+      <PoolMilestoneBar poolUsd={poolBalanceUsd} segment={milestoneSegment} compact />
 
       {showInlineFund ? (
         <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3">

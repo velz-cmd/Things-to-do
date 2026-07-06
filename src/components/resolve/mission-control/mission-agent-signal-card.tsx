@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  Bot,
   CircleDollarSign,
   ExternalLink,
   Loader2,
@@ -23,6 +22,28 @@ import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { MISSION_AGENT_LANE_COPY } from "@/lib/mission/mission-lane-copy";
 import { MissionBlueprintPanel } from "@/components/resolve/mission-control/mission-blueprint-panel";
 import { apiFetchWallet } from "@/lib/discover/discover-action-engine";
+import { getAgentSignalService } from "@/lib/agent/service-registry";
+
+const CHAINED_SIGNALS = [
+  {
+    id: "sentiment-per-request",
+    label: "Sentiment pass",
+    promptSuffix: "Classify maintainer sentiment from recent feedback threads.",
+    priceHint: 0.001,
+  },
+  {
+    id: "docs-review",
+    label: "Docs depth",
+    promptSuffix: "Deep docs gap review for top maintainers.",
+    priceHint: 0.02,
+  },
+  {
+    id: "security-signal",
+    label: "CVE scan",
+    promptSuffix: "Extract security advisories affecting this ecosystem.",
+    priceHint: 0.1,
+  },
+] as const;
 
 export type AgentServiceCard = {
   id: string;
@@ -122,6 +143,10 @@ export function MissionAgentSignalCard({
   const [invokeStage, setInvokeStage] = useState<"idle" | "charging" | "running">("idle");
   const [payDecision, setPayDecision] = useState<"pending" | "pay" | "skip">("pending");
   const [result, setResult] = useState<InvokeResult | null>(null);
+  const [chainSteps, setChainSteps] = useState<
+    Array<{ serviceName: string; chargedUsd: number; headline: string }>
+  >([]);
+  const autoRunRef = useRef(false);
 
   const loadCatalog = useCallback(async () => {
     setLoadingCatalog(true);
@@ -170,18 +195,19 @@ export function MissionAgentSignalCard({
   const pricePreview = selected?.priceUsd ?? 0.001;
   const canAfford = walletUsd == null || walletUsd >= pricePreview;
 
-  async function runAgent() {
+  async function runAgent(overrideServiceId?: string, chainLabel?: string) {
+    const runServiceId = overrideServiceId ?? serviceId;
     if (!signedIn) {
       openSignIn();
       return;
     }
-    if (!prompt.trim() || !serviceId) {
+    if (!prompt.trim() || !runServiceId) {
       toast.error("Enter a prompt and pick a service");
       return;
     }
     setInvoking(true);
     setInvokeStage("charging");
-    setResult(null);
+    if (!chainLabel) setResult(null);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 110_000);
     try {
@@ -191,15 +217,25 @@ export function MissionAgentSignalCard({
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          serviceId,
-          prompt: prompt.trim(),
-          text: prompt.trim(),
+          serviceId: runServiceId,
+          prompt: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
+          text: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
           maxSpendUsd: budgetUsd,
         }),
       });
       setInvokeStage("running");
       const data = (await res.json()) as InvokeResult;
       setResult(data);
+      if (data.ok && chainLabel) {
+        setChainSteps((prev) => [
+          ...prev,
+          {
+            serviceName: data.serviceName ?? chainLabel,
+            chargedUsd: data.payment?.chargedUsd ?? data.wallet?.chargedUsd ?? data.amountUsd ?? 0,
+            headline: data.summary?.headline ?? chainLabel,
+          },
+        ]);
+      }
       if (data.wallet?.balanceUsd != null) {
         setWalletUsd(data.wallet.balanceUsd);
       } else if (data.payment?.balanceUsd != null) {
@@ -233,6 +269,25 @@ export function MissionAgentSignalCard({
       setInvokeStage("idle");
     }
   }
+
+  useEffect(() => {
+    if (payDecision !== "pay" || result || invoking || autoRunRef.current) return;
+    if (!signedIn) {
+      openSignIn();
+      return;
+    }
+    if (!serviceId) return;
+    autoRunRef.current = true;
+    void runAgent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payDecision, signedIn, serviceId]);
+
+  const totalChargedUsd = useMemo(() => {
+    const base =
+      result?.payment?.chargedUsd ?? result?.wallet?.chargedUsd ?? result?.amountUsd ?? 0;
+    const chain = chainSteps.reduce((s, c) => s + c.chargedUsd, 0);
+    return base + chain;
+  }, [result, chainSteps]);
 
   if (loadingCatalog && !catalog) {
     return (
@@ -284,116 +339,14 @@ export function MissionAgentSignalCard({
       )}
 
       {!result && selected && payDecision === "pay" && (
-        <>
-          <div className="rounded-xl border border-white/[0.08] bg-black/25 px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90">
-              What you get
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-resolve-muted">{selected.description}</p>
-            <ul className="mt-2 space-y-1">
-              {(selected.deliverables ?? [selected.tagline]).map((d) => (
-                <li key={d} className="flex items-start gap-2 text-[11px] text-white/85">
-                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-resolve-accent" />
-                  {d}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-resolve-muted-dim">
-              Suggested service
-            </span>
-            <span className="rounded-full border border-resolve-accent/30 bg-resolve-accent/[0.08] px-2.5 py-1 text-xs font-medium text-white">
-              {selected.name} · {formatAgentPrice(selected.priceUsd)}/{selected.billingUnit}
-            </span>
-          </div>
-
-          {alternatives.length > 0 && (
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-resolve-muted-dim">
-                Other signals
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {alternatives.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setServiceId(s.id)}
-                    className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-resolve-muted transition hover:border-resolve-accent/25 hover:text-white"
-                  >
-                    {s.name} · {formatAgentPrice(s.priceUsd)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs text-resolve-muted">
-            <div className="flex items-center gap-2">
-              <CircleDollarSign className="h-3.5 w-3.5 shrink-0" />
-              <span>
-                Price preview:{" "}
-                <span className="font-semibold text-emerald-300">{formatAgentPrice(pricePreview)}</span>
-              </span>
-            </div>
-            {signedIn && walletUsd != null && (
-              <p className="mt-1.5">
-                Wallet:{" "}
-                <span
-                  className={clsx(
-                    "font-semibold tabular-nums",
-                    canAfford ? "text-emerald-300" : "text-amber-200",
-                  )}
-                >
-                  ${walletUsd.toFixed(2)} USDC on Arc testnet
-                </span>
-                {walletAddress && (
-                  <>
-                    {" "}
-                    · <ArcWalletLink address={walletAddress} label="Arcscan wallet" />
-                  </>
-                )}
-                {" · "}
-                Run charges{" "}
-                <span className="font-medium text-white">{formatAgentPrice(pricePreview)}</span>{" "}
-                from your wallet with Arcscan proof
-                {!canAfford && (
-                  <span className="ml-1">
-                    —{" "}
-                    <Link href="/payments" className="text-resolve-accent hover:underline">
-                      add funds
-                    </Link>
-                  </span>
-                )}
-              </p>
-            )}
-            {catalog?.feePath && (
-              <p className="mt-1.5 text-[10px] text-resolve-muted-dim">
-                Platform fee: {catalog.feePath.platformFeeBps / 100}% on settlements · sample{" "}
-                {formatAgentPrice(catalog.feePath.platformFeeUsd)} on {formatAgentPrice(pricePreview)}{" "}
-                signal
-              </p>
-            )}
-          </div>
-
-          <Button
-            className="gap-2"
-            disabled={invoking || (signedIn && walletUsd != null && !canAfford)}
-            onClick={() => void runAgent()}
-          >
-            {invoking ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Bot className="h-4 w-4" />
-            )}
-            {invoking
-              ? invokeStage === "charging"
-                ? "Charging USDC on Arc…"
-                : "Running agent…"
-              : `Run agent · ${formatAgentPrice(pricePreview)}`}
-          </Button>
-        </>
+        <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-black/25 px-3 py-3 text-sm text-resolve-muted">
+          <Loader2 className="h-4 w-4 animate-spin text-resolve-accent" />
+          {invoking
+            ? invokeStage === "charging"
+              ? "Charging USDC on Arc…"
+              : "Running agent — Blueprint loads next"
+            : "Preparing agent run…"}
+        </div>
       )}
 
       {result && (
@@ -505,19 +458,61 @@ export function MissionAgentSignalCard({
               <MissionBlueprintPanel
                 prompt={prompt}
                 mode="agent"
-                chargedUsd={result.payment?.chargedUsd ?? result.wallet?.chargedUsd ?? result.amountUsd ?? 0.02}
+                chargedUsd={totalChargedUsd}
                 headline={result.summary?.headline ?? "Agent signal complete"}
                 detail={result.summary?.detail}
                 execution={result.execution}
                 receiptHref={result.receiptHref}
+                commandBarMode
+                registerCommand
               />
+            </div>
+          )}
+
+          {result.ok && chainSteps.length > 0 && (
+            <div className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
+                Chained sub-signals
+              </p>
+              <ul className="mt-1 space-y-1">
+                {chainSteps.map((c) => (
+                  <li key={c.headline} className="text-[11px] text-resolve-muted">
+                    {c.serviceName} · {formatAgentPrice(c.chargedUsd)} · {c.headline}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.ok && (
+            <div className="mt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
+                Hire sub-agent (cents)
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {CHAINED_SIGNALS.map((sig) => {
+                  const svc = getAgentSignalService(sig.id);
+                  if (!svc) return null;
+                  return (
+                    <button
+                      key={sig.id}
+                      type="button"
+                      disabled={invoking}
+                      onClick={() => void runAgent(sig.id, sig.promptSuffix)}
+                      className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-resolve-muted transition hover:border-resolve-accent/25 hover:text-white disabled:opacity-40"
+                    >
+                      {sig.label} · {formatAgentPrice(svc.priceUsd)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {result.ok && (
             <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3 text-xs text-resolve-muted">
               <span>
-                {result.serviceName} · {formatAgentPrice(result.amountUsd ?? 0)}
+                {result.serviceName} · {formatAgentPrice(totalChargedUsd)}
                 {result.meteringMode === "user_arc_prepaid" ? " · Arc prepaid" : ""}
               </span>
               {result.receiptHref && (

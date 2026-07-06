@@ -17,6 +17,7 @@ import {
 } from "@/lib/mission/client-api";
 import { statusLabel } from "@/lib/mission/state-machine";
 import type { MissionStatus } from "@/lib/mission/state-machine";
+import { listMissionReports } from "@/lib/mission/mission-report-store";
 
 /** Mission history only — revealed after the user starts a mission. */
 export function MissionHistorySidebar({
@@ -33,8 +34,19 @@ export function MissionHistorySidebar({
   const [collapsed, setCollapsed] = useState(false);
   const [sessions, setSessions] = useState<MissionSession[]>([]);
   const [serverMode, setServerMode] = useState(false);
+  const [reportBadges, setReportBadges] = useState<
+    Record<string, { status: string; reportId: string }>
+  >({});
 
   const loadAll = useCallback(async () => {
+    const reports = listMissionReports();
+    const badges: Record<string, { status: string; reportId: string }> = {};
+    for (const r of reports) {
+      const key = r.objective.slice(0, 48).toLowerCase();
+      badges[key] = { status: r.status, reportId: r.id };
+    }
+    setReportBadges(badges);
+
     const missions = await fetchMissions();
     if (missions !== null) {
       setServerMode(true);
@@ -117,6 +129,18 @@ export function MissionHistorySidebar({
                   <span className="mt-0.5 block text-[10px] text-resolve-muted-dim">
                     {formatSessionTime(s.updatedAt)}
                     {s.status && ` · ${statusLabel(s.status as MissionStatus)}`}
+                    {(() => {
+                      const badge =
+                        reportBadges[(s.title || s.query || "").slice(0, 48).toLowerCase()];
+                      if (!badge) return null;
+                      const label =
+                        badge.status === "authorized"
+                          ? "Receipt"
+                          : badge.status === "simulated"
+                            ? "Blueprint"
+                            : null;
+                      return label ? ` · ${label}` : null;
+                    })()}
                   </span>
                 </button>
                 <button

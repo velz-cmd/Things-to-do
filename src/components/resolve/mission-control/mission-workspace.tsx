@@ -24,6 +24,8 @@ import { MissionObjectiveBar } from "@/components/resolve/mission-control/missio
 import { MissionLivePanel } from "@/components/resolve/mission-control/mission-live-panel";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionAiProvidersPanel } from "@/components/resolve/mission-control/mission-ai-providers-panel";
+import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
+import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
@@ -125,8 +127,12 @@ export function MissionWorkspace({
   const started = Boolean(objective || turns.length > 0 || loading);
   const lastResolve = [...turns].reverse().find((t) => t.role === "resolve");
   const lastAllocations = lastResolve?.allocations;
-  const showPlanning = shouldShowPlanningBar(phase);
-  const showExecute = shouldShowExecuteBar(phase);
+  const hasBlueprintTurn = turns.some((t) => t.role === "resolve" && Boolean(t.blueprint));
+  const blueprintCommand = useMissionBlueprintCommand();
+  const blueprintActive =
+    hasBlueprintTurn || Boolean(blueprintCommand?.handle);
+  const showPlanning = shouldShowPlanningBar(phase) && !blueprintActive;
+  const showExecute = shouldShowExecuteBar(phase) && !blueprintActive;
   const lastReport = lastResolve?.report;
   const displayTopic = topic ?? (objective ? { name: objective.slice(0, 48), kind: "general" as const } : null);
   const hasAgentReceipt = turns.some(
@@ -176,7 +182,13 @@ export function MissionWorkspace({
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {objective && <MissionObjectiveBar objective={objective} />}
+        {objective && (
+          <MissionObjectiveBar
+            objective={objective}
+            loopPhase={loopPhase}
+            blueprintActive={blueprintActive}
+          />
+        )}
 
         {displayTopic && displayTopic.kind !== "general" && (
           <MissionWorldSnapshot
@@ -200,6 +212,8 @@ export function MissionWorkspace({
                         mode="scope"
                         initialBudgetUsd={turn.blueprint.initialBudgetUsd}
                         communitySlug={communitySlug}
+                        commandBarMode
+                        registerCommand={turn === lastResolve}
                       />
                     </div>
                   : turn.agentSignal ?
@@ -245,19 +259,35 @@ export function MissionWorkspace({
         </div>
 
         <div className="shrink-0 border-t border-white/[0.06] bg-[#070b14]/60 px-4 py-3 backdrop-blur-md lg:px-8">
-          <div className="mx-auto mb-3 max-w-2xl space-y-3">
-            <details className="group rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">
-              <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
-                Mission AI — Gemini, Llama, OpenRouter
-              </summary>
-              <div className="px-2">
-                <MissionAiProvidersPanel className="border-0 bg-transparent px-2 py-2" />
-              </div>
-            </details>
-            <MissionSignalRailsPanel
-              onMissionPrompt={(prompt) => onSubmit(prompt)}
-            />
-          </div>
+          {!blueprintActive && (
+            <div className="mx-auto mb-3 max-w-2xl space-y-3">
+              <details className="group rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">
+                <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
+                  Mission AI — Gemini, Llama, OpenRouter
+                </summary>
+                <div className="px-2">
+                  <MissionAiProvidersPanel className="border-0 bg-transparent px-2 py-2" />
+                </div>
+              </details>
+              <details className="rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">
+                <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
+                  Hire intel — agent signals (collapsed)
+                </summary>
+                <div className="px-2">
+                  <MissionSignalRailsPanel onMissionPrompt={(prompt) => onSubmit(prompt)} />
+                </div>
+              </details>
+            </div>
+          )}
+
+          {blueprintActive && blueprintCommand?.handle && (
+            <div className="mb-3">
+              <MissionCommandBar
+                handle={blueprintCommand.handle}
+                authorizing={blueprintCommand.handle.state.authorizing}
+              />
+            </div>
+          )}
           {onOperatingModeChange && (
             <div className="mx-auto mb-3 max-w-2xl">
               <MissionOperatingMode
@@ -329,7 +359,7 @@ export function MissionWorkspace({
             onAction={onAction}
           />
 
-          {!showPlanning && !showExecute && (
+          {!showPlanning && !showExecute && !blueprintActive && (
             <form onSubmit={handleFormSubmit} className="mx-auto max-w-2xl">
               <div className="relative">
                 <input

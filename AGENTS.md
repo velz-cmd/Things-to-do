@@ -23,6 +23,8 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
 - After changing the Prisma schema, run `npx prisma db push` (dev) to sync the local DB.
 - Production deploy: apply `prisma/migrations/20250706180000_mission_blueprint_receipt/` for
   `MissionBlueprintReceipt` (Phase 6 server-persisted mission reports).
+- Mission chats: signed-in users persist via `ResolveMission` + `PUT /api/mission/sessions/[id]/sync`
+  (Blueprint/agent turns use `payloadJson`). Guests use `localStorage` (`resolve-mission-sessions`).
 - The wallet SDK (Reown/wagmi) logs harmless `api.web3modal.org ... 403` fetch errors when
  `NEXT_PUBLIC_REOWN_PROJECT_ID` is unset — these are non-fatal and do not affect the server.
 - With `NEXT_PUBLIC_REOWN_PROJECT_ID` set (Reown/AppKit), users connect an external wallet from

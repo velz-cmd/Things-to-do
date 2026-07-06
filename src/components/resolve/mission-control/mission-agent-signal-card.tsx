@@ -21,6 +21,10 @@ import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { MISSION_AGENT_LANE_COPY } from "@/lib/mission/mission-lane-copy";
 import { MissionBlueprintPanel } from "@/components/resolve/mission-control/mission-blueprint-panel";
+import {
+  AGENT_INVOKE_STEPS,
+  MissionProgressStepCard,
+} from "@/components/resolve/mission-control/mission-progress-step-card";
 import { apiFetchWallet } from "@/lib/discover/discover-action-engine";
 import {
   getMissionAgentBudgetCap,
@@ -126,6 +130,33 @@ const FOLLOW_UP_SUGGESTIONS = [
     prompt: "What other agent signals would help this mission?",
   },
 ] as const;
+
+const FAILURE_FOLLOW_UPS = [
+  {
+    label: "Open royalty settlement",
+    prompt:
+      "Prepare royalty settlement for independent music artists — show play-weighted payees.",
+  },
+  {
+    label: "Try labeled attribution",
+    prompt: "artist: Luna Hart · track: Midnight Echo — parse attribution for royalty routing.",
+  },
+  {
+    label: "Skip paid agent",
+    prompt: "Skip paid agent signal — give me a free analysis path for this objective.",
+  },
+] as const;
+
+function chargedUsdDisplay(amount: number): boolean {
+  return amount >= 0.0001;
+}
+
+function signalExecutionFailed(execution?: ExecutionReport | null): boolean {
+  if (!execution?.findings?.length) return false;
+  return execution.findings.some((f) =>
+    /could not extract|no labeled fields|paste full advisory|no cve/i.test(f),
+  );
+}
 
 export function MissionAgentSignalCard({
   prompt,
@@ -394,21 +425,28 @@ export function MissionAgentSignalCard({
       )}
 
       {!result && selected && payDecision === "pay" && (
-        <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-black/25 px-3 py-3 text-sm text-resolve-muted">
-          <Loader2 className="h-4 w-4 animate-spin text-resolve-accent" />
-          {invoking
-            ? invokeStage === "charging"
-              ? "Charging USDC on Arc…"
-              : "Running agent — Blueprint loads next"
-            : "Preparing agent run…"}
-        </div>
+        <MissionProgressStepCard
+          active
+          title={
+            invoking
+              ? invokeStage === "charging"
+                ? "Charging USDC on Arc"
+                : "Running agent signal"
+              : "Preparing agent run"
+          }
+          steps={
+            invoking && invokeStage === "running"
+              ? AGENT_INVOKE_STEPS.slice(2)
+              : AGENT_INVOKE_STEPS
+          }
+        />
       )}
 
       {result && (
         <div
           className={clsx(
             "rounded-xl border px-4 py-4",
-            result.ok
+            result.ok && !signalExecutionFailed(result.execution)
               ? "border-emerald-500/20 bg-emerald-500/[0.04]"
               : "border-rose-500/20 bg-rose-500/[0.04]",
           )}
@@ -418,24 +456,44 @@ export function MissionAgentSignalCard({
               <p
                 className={clsx(
                   "text-[10px] font-semibold uppercase tracking-wider",
-                  result.ok ? "text-emerald-400/90" : "text-rose-400/90",
+                  result.ok && !signalExecutionFailed(result.execution)
+                    ? "text-emerald-400/90"
+                    : "text-rose-400/90",
                 )}
               >
-                {result.ok ? "Agent execution report" : "Invoke failed"}
+                {result.ok && !signalExecutionFailed(result.execution)
+                  ? "Agent execution report"
+                  : "Signal incomplete"}
               </p>
               <p className="mt-2 text-base font-medium text-white">
-                {result.ok
+                {result.ok && !signalExecutionFailed(result.execution)
                   ? (result.summary?.headline ?? "Complete")
-                  : (result.error ?? "Could not complete agent signal")}
+                  : (result.execution?.findings?.[0] ??
+                    result.error ??
+                    "Could not complete agent signal")}
               </p>
-              {result.ok && result.summary?.detail && (
+              {result.ok &&
+                !signalExecutionFailed(result.execution) &&
+                result.summary?.detail && (
                 <p className="mt-1 text-sm text-resolve-muted">{result.summary.detail}</p>
               )}
+              {signalExecutionFailed(result.execution) && result.execution?.recommendations?.[0] && (
+                <p className="mt-1 text-sm text-resolve-muted">
+                  {result.execution.recommendations[0]}
+                </p>
+              )}
             </div>
-            {result.ok && <Sparkles className="h-5 w-5 shrink-0 text-emerald-400" />}
+            {result.ok && !signalExecutionFailed(result.execution) && (
+              <Sparkles className="h-5 w-5 shrink-0 text-emerald-400" />
+            )}
           </div>
 
-          {result.ok && (result.payment ?? result.wallet) && (
+          {result.ok &&
+            !signalExecutionFailed(result.execution) &&
+            (result.payment ?? result.wallet) &&
+            chargedUsdDisplay(
+              result.payment?.chargedUsd ?? result.wallet?.chargedUsd ?? 0,
+            ) && (
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-xs text-emerald-100">
               <span>
                 <span className="font-semibold tabular-nums">
@@ -459,15 +517,15 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {result.ok && result.execution && (
+          {(result.execution?.steps?.length || result.execution?.findings?.length) && (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {result.execution.steps.length > 0 && (
+              {(result.execution?.steps?.length ?? 0) > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
                     What the agent did
                   </p>
                   <ol className="mt-2 space-y-1">
-                    {result.execution.steps.map((step, i) => (
+                    {result.execution!.steps.map((step, i) => (
                       <li key={step} className="flex gap-2 text-[11px] text-resolve-muted">
                         <span className="shrink-0 font-mono text-resolve-accent">{i + 1}.</span>
                         {step}
@@ -476,13 +534,13 @@ export function MissionAgentSignalCard({
                   </ol>
                 </div>
               )}
-              {result.execution.findings.length > 0 && (
+              {(result.execution?.findings?.length ?? 0) > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
                     Findings
                   </p>
                   <ul className="mt-2 space-y-1">
-                    {result.execution.findings.map((f) => (
+                    {result.execution!.findings.map((f) => (
                       <li key={f} className="text-[11px] text-white/90">
                         {f}
                       </li>
@@ -490,13 +548,13 @@ export function MissionAgentSignalCard({
                   </ul>
                 </div>
               )}
-              {result.execution.recommendations.length > 0 && (
+              {(result.execution?.recommendations?.length ?? 0) > 0 && (
                 <div className="sm:col-span-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
                     Recommended next steps
                   </p>
                   <ul className="mt-2 space-y-1">
-                    {result.execution.recommendations.map((r) => (
+                    {result.execution!.recommendations.map((r) => (
                       <li key={r} className="flex gap-2 text-[11px] text-resolve-accent">
                         <ArrowRight className="mt-0.5 h-3 w-3 shrink-0" />
                         {r}
@@ -508,7 +566,7 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {result.ok && (
+          {result.ok && !signalExecutionFailed(result.execution) && (
             <div className="mt-4">
               <MissionBlueprintPanel
                 prompt={prompt}
@@ -524,7 +582,7 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {result.ok && chainSteps.length > 0 && (
+          {result.ok && !signalExecutionFailed(result.execution) && chainSteps.length > 0 && (
             <div className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
                 Chained sub-signals
@@ -539,7 +597,7 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {result.ok && (
+          {result.ok && !signalExecutionFailed(result.execution) && (
             <div className="mt-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
                 Hire sub-agent (cents)
@@ -564,7 +622,7 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {result.ok && (
+          {result.ok && !signalExecutionFailed(result.execution) && (
             <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3 text-xs text-resolve-muted">
               <span>
                 {result.serviceName} · {formatAgentPrice(totalChargedUsd)}
@@ -583,13 +641,18 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {result.ok && onFollowUp && (
+          {onFollowUp && (
             <div className="mt-4 border-t border-white/[0.06] pt-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-                Continue in Mission
+                {result.ok && !signalExecutionFailed(result.execution)
+                  ? "Continue in Mission"
+                  : "Try a different path"}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {FOLLOW_UP_SUGGESTIONS.map((s) => (
+                {(result.ok && !signalExecutionFailed(result.execution)
+                  ? FOLLOW_UP_SUGGESTIONS
+                  : FAILURE_FOLLOW_UPS
+                ).map((s) => (
                   <button
                     key={s.label}
                     type="button"
@@ -603,7 +666,7 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {!result.ok && result.payment?.txHash && (
+          {!result.ok && result.payment?.txHash && chargedUsdDisplay(result.payment.chargedUsd) && (
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-100">
               <span>
                 USDC charged on Arc (−${result.payment.chargedUsd.toFixed(3)}) but agent failed — funds
@@ -613,21 +676,6 @@ export function MissionAgentSignalCard({
             </div>
           )}
 
-          {!result.ok && result.payment?.txHash && (
-            <div className="mt-4">
-              <MissionBlueprintPanel
-                prompt={prompt}
-                mode="agent"
-                chargedUsd={result.payment.chargedUsd}
-                headline="Signal charged · agent incomplete"
-                detail="Arc payment settled — Blueprint uses cohort rules until intel completes."
-                execution={result.execution}
-                receiptHref={result.receiptHref}
-                commandBarMode
-                registerCommand
-              />
-            </div>
-          )}
 
           {!result.ok && !result.payment?.txHash && (
             <Button

@@ -52,8 +52,21 @@ import {
   computeFundCheckpointLabel,
   formatAgentAttributionLine,
 } from "@/lib/mission/mission-checkpoint-math";
-import { downloadBlueprintJson } from "@/lib/mission/mission-blueprint-export";
+import { downloadBlueprintJson, downloadDaoProposal } from "@/lib/mission/mission-blueprint-export";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
+import type { BlueprintSettlementPreview } from "@/lib/mission/mission-blueprint-settlement";
+import {
+  authorizeBlueprintServer,
+  fetchMissionMemory,
+  persistMissionReportServer,
+  prepareBlueprintSettlement,
+} from "@/lib/mission/mission-report-api";
+import {
+  capitalHandoffFromBlueprint,
+  communitiesInstallHandoff,
+  profileClaimHandoff,
+} from "@/lib/mission/mission-handoff";
+import { ArcTxLink } from "@/components/resolve/ui/arc-tx-link";
 
 type AgentExecution = {
   findings?: string[];
@@ -121,6 +134,12 @@ export const MissionBlueprintPanel = forwardRef<
   const [simulated, setSimulated] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
   const [reportId, setReportId] = useState<string | null>(null);
+  const [settlementPreview, setSettlementPreview] = useState<BlueprintSettlementPreview | null>(
+    null,
+  );
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [memoryLine, setMemoryLine] = useState<string | null>(null);
+  const [fundTxHash, setFundTxHash] = useState<string | null>(null);
 
   const slug =
     communitySlugProp ??
@@ -160,6 +179,10 @@ export const MissionBlueprintPanel = forwardRef<
   useEffect(() => {
     void loadPool();
   }, [loadPool]);
+
+  useEffect(() => {
+    void fetchMissionMemory(slug).then((m) => setMemoryLine(m.line));
+  }, [slug]);
 
   const basePkg = useMemo(() => {
     const common = {
@@ -221,6 +244,20 @@ export const MissionBlueprintPanel = forwardRef<
     };
   }, [basePkg, pool, policy, budgetUsd, reportId, programId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setPreviewLoading(true);
+    void prepareBlueprintSettlement(pkg).then((preview) => {
+      if (!cancelled) {
+        setSettlementPreview(preview);
+        setPreviewLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pkg]);
+
   const simulation = useMemo(() => simulateBlueprintPackage(pkg), [pkg]);
   const poolUsd = pool?.poolBalanceUsd ?? 0;
   const isAgent = mode === "agent" && chargedUsd > 0;
@@ -254,6 +291,7 @@ export const MissionBlueprintPanel = forwardRef<
     setReportId(id);
     const record = createReportFromPackage(pkg, "simulated");
     saveMissionReport(record);
+    void persistMissionReportServer({ record, programId });
     setSimulated(true);
     toast.success("Simulation ready", {
       description: `${simulation.clearedAuthorizations} payees · $${simulation.totalPayeeUsd.toFixed(2)}`,
@@ -262,7 +300,7 @@ export const MissionBlueprintPanel = forwardRef<
         onClick: () => router.push(`/mission/report/${id}`),
       },
     });
-  }, [pkg, simulation.clearedAuthorizations, simulation.totalPayeeUsd, router]);
+  }, [pkg, simulation.clearedAuthorizations, simulation.totalPayeeUsd, router, programId]);
 
   const handleAuthorize = useCallback(async () => {
     if (!simulated) {
@@ -276,51 +314,35 @@ export const MissionBlueprintPanel = forwardRef<
 
     setAuthorizing(true);
     try {
-      const fundAmount = Math.max(5, Math.round(budgetUsd));
-      let fundTxLabel: string | undefined;
+      const result = await authorizeBlueprintServer({
+        pkg: { ...pkg, programId },
+        amountUsd: Math.max(5, Math.round(budgetUsd)),
+      });
 
-      if (!programId) {
-        toast.error("No program installed", {
-          description:
-            "Install a community program first, or open Capital to fund manually. Package saved as receipt.",
-        });
-      } else if (fundAmount >= 5) {
-        const res = await fetch("/api/capital/fund", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ programId, amountUsd: fundAmount }),
-        });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          txHash?: string;
-          message?: string;
-        };
-        if (res.ok && data.ok !== false) {
-          fundTxLabel = data.txHash
-            ? `Arc fund · ${data.txHash.slice(0, 10)}…`
-            : (data.message ?? `Pool +$${fundAmount}`);
-          toast.success("Pool funded on Arc", { description: fundTxLabel });
-        } else if (res.status === 401) {
-          openSignIn();
-          return;
-        } else {
-          toast.error(data.error ?? "Fund failed", {
-            description: "Minimum $5 USDC on Arc. Package saved — open Capital to retry.",
+      if (!result.ok) {
+        if (result.preview) setSettlementPreview(result.preview);
+        if (result.capitalHref) {
+          toast.error(result.error ?? "Could not fund on Arc", {
+            description: "Open Capital with this plan pre-filled.",
+            action: {
+              label: "Capital",
+              onClick: () => router.push(result.capitalHref!),
+            },
           });
+        } else {
+          toast.error(result.error ?? "Authorize failed");
         }
       } else {
-        toast.error("Minimum $5 to authorize", {
-          description: "Raise deploy budget to at least $5 for Arc pool funding.",
+        if (result.preview) setSettlementPreview(result.preview);
+        if (result.fundTxHash) setFundTxHash(result.fundTxHash);
+        const fundTxLabel = result.fundTxLabel;
+        const record = createReportFromPackage(pkg, "authorized", { fundTxLabel });
+        saveMissionReport(record);
+        toast.success("Authorized in Mission", {
+          description: fundTxLabel ?? "Pool funded · receipt saved",
         });
+        router.push(`/mission/report/${pkg.id}`);
       }
-
-      const id = pkg.id;
-      setReportId(id);
-      const record = createReportFromPackage(pkg, "authorized", { fundTxLabel });
-      saveMissionReport(record);
-      router.push(`/mission/report/${id}`);
     } finally {
       setAuthorizing(false);
     }
@@ -328,8 +350,11 @@ export const MissionBlueprintPanel = forwardRef<
 
   const handleExport = useCallback(() => {
     downloadBlueprintJson(pkg);
-    toast.success("Blueprint exported", { description: "JSON ready for board or DAO review." });
-  }, [pkg]);
+    downloadDaoProposal(pkg, settlementPreview ?? undefined, "snapshot");
+    toast.success("Blueprint + DAO proposal exported", {
+      description: "JSON files for board or Snapshot/Tally review.",
+    });
+  }, [pkg, settlementPreview]);
 
   const cyclePolicy = useCallback(() => {
     setPolicy((prev) => {
@@ -424,6 +449,43 @@ export const MissionBlueprintPanel = forwardRef<
           </span>
         )}
       </div>
+
+      {memoryLine && (
+        <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-[11px] text-amber-100">
+          {memoryLine}
+        </p>
+      )}
+
+      {(settlementPreview || previewLoading) && (
+        <div className="mt-3 rounded-lg border border-violet-500/20 bg-violet-500/[0.05] px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-200/90">
+            Settlement package preview
+          </p>
+          {previewLoading && !settlementPreview ? (
+            <p className="mt-1 flex items-center gap-1.5 text-[11px] text-resolve-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Preparing batch…
+            </p>
+          ) : settlementPreview ? (
+            <div className="mt-1.5 space-y-1 text-[11px] text-resolve-muted">
+              <p>
+                Batch <span className="font-mono text-white/90">{settlementPreview.batchHash}</span>
+                {" · "}
+                {settlementPreview.recipientCount} recipients ·{" "}
+                <span className="text-emerald-300">
+                  {settlementPreview.readyCount} ready
+                </span>
+                {settlementPreview.pendingCount > 0 && (
+                  <span> · {settlementPreview.pendingCount} claimable</span>
+                )}
+              </p>
+              <p className="font-mono text-[10px] text-resolve-muted-dim">
+                proof {settlementPreview.proofHash.slice(0, 20)}…
+              </p>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {(headline || pkg.agentHeadline) && (
         <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2 text-xs text-emerald-100">
@@ -550,8 +612,36 @@ export const MissionBlueprintPanel = forwardRef<
             allocated
             {simulation.checkpointReached && " · checkpoint reachable"}
           </p>
+          {fundTxHash && (
+            <p className="mt-1 flex items-center gap-2">
+              Arc proof <ArcTxLink txHash={fundTxHash} />
+            </p>
+          )}
         </div>
       )}
+
+      <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
+        {!programId && (
+          <Link
+            href={communitiesInstallHandoff(slug)}
+            className="rounded-lg border border-white/10 px-2 py-1 text-resolve-accent hover:underline"
+          >
+            Install program rail
+          </Link>
+        )}
+        <Link
+          href={capitalHandoffFromBlueprint(pkg)}
+          className="rounded-lg border border-white/10 px-2 py-1 text-resolve-accent hover:underline"
+        >
+          Open Capital (prefilled)
+        </Link>
+        <Link
+          href={profileClaimHandoff()}
+          className="rounded-lg border border-white/10 px-2 py-1 text-resolve-muted hover:text-white"
+        >
+          Claim earnings
+        </Link>
+      </div>
 
       {!commandBarMode && (
         <div className="mt-4 flex flex-wrap gap-2">

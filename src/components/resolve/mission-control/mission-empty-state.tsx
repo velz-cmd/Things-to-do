@@ -11,6 +11,7 @@ import { useMissionScope } from "@/lib/mission/mission-context";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
 import { MISSION_AGENT_LANE_COPY, MISSION_AGENT_PIPELINE, type MissionJobId } from "@/lib/mission/mission-lane-copy";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
+import { MissionTemplateTiles } from "@/components/resolve/mission-control/mission-template-tiles";
 
 const AGENT_EXAMPLES = [
   {
@@ -106,6 +107,8 @@ export function MissionEmptyState({
           <p className="mt-4 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-3 py-2 text-center text-xs font-medium leading-relaxed text-violet-100/95">
             {MISSION_AGENT_PIPELINE} — {MISSION_AGENT_LANE_COPY.tagline}
           </p>
+
+          <MissionTemplateTiles onSubmit={onSubmit} />
 
           <div className="mt-8">
             <details className="rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">

@@ -25,6 +25,7 @@ import { MissionLivePanel } from "@/components/resolve/mission-control/mission-l
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionAiProvidersPanel } from "@/components/resolve/mission-control/mission-ai-providers-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
+import { MissionQueueStrip } from "@/components/resolve/mission-control/mission-queue-strip";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
@@ -189,6 +190,13 @@ export function MissionWorkspace({
             blueprintActive={blueprintActive}
           />
         )}
+
+        <div className="mx-auto max-w-2xl px-4 lg:px-8">
+          <MissionQueueStrip
+            onSelect={(item) => onSubmit(item.objective)}
+            className="mb-3"
+          />
+        </div>
 
         {displayTopic && displayTopic.kind !== "general" && (
           <MissionWorldSnapshot

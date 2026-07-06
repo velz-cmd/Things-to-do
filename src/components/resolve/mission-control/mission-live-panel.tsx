@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Flag, Loader2, Radio, Users, Wallet } from "lucide-react";
+import { Flag, Loader2, Radio, Users } from "lucide-react";
+import { communitiesInstallHandoff } from "@/lib/mission/mission-handoff";
+import { ValueGraph } from "@/components/resolve/discover/value-graph";
 import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-proof-pipeline";
 import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
 import { Money } from "@/components/resolve/ui/money";
@@ -70,13 +72,20 @@ export function MissionPoolStrip({ communitySlug, compact }: MissionPoolStripPro
       {poolUsd >= 0 && (
         <PoolMilestoneBar poolUsd={poolUsd} className="mt-2" compact />
       )}
-      <Link
-        href={`/discover?community=${encodeURIComponent(communitySlug)}`}
-        className="mt-2 inline-flex items-center gap-1 text-[10px] font-medium text-resolve-accent hover:underline"
-      >
-        <Wallet className="h-3 w-3" />
-        Fund from Discover
-      </Link>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Link
+          href={`/discover?community=${encodeURIComponent(communitySlug)}`}
+          className="inline-flex items-center gap-1 text-[10px] font-medium text-resolve-accent hover:underline"
+        >
+          Discover scope
+        </Link>
+        <Link
+          href={communitiesInstallHandoff(communitySlug)}
+          className="inline-flex items-center gap-1 text-[10px] font-medium text-resolve-muted hover:text-white"
+        >
+          Install program
+        </Link>
+      </div>
     </div>
   );
 }
@@ -302,6 +311,11 @@ export function MissionLivePanel({
           >
             Discover gaps →
           </Link>
+          {communitySlug && (
+            <div className="mt-3">
+              <ValueGraph variant="compact" />
+            </div>
+          )}
         </section>
       </div>
     </aside>

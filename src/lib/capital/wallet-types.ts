@@ -11,6 +11,7 @@ export type CapitalWalletActivity = {
   status: string;
   createdAt: string;
   kind: string;
+  method?: string | null;
 };
 
 export type CapitalWalletResponse =

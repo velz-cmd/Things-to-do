@@ -65,7 +65,7 @@ export async function resolveFundTarget(input: {
 
   const templateId = (input.templateId ?? "docs-bounty") as ProgramTemplateId;
 
-  const sharedPool = await resolvePublicProgramForCommunity(communitySlug, templateId);
+  const sharedPool = await resolvePublicProgramForCommunity(communitySlug, undefined);
   if (sharedPool) {
     return {
       ok: true,

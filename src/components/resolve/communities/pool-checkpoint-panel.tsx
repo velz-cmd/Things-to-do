@@ -34,8 +34,9 @@ export function useProgramPoolState(
 ) {
   const scope = options?.scope ?? "program";
   const effectiveProgramId = scope === "community" ? null : programId;
+  const effectiveTemplateId = scope === "community" ? null : options?.templateId;
   const cacheKey = communitySlug
-    ? poolCacheKey(communitySlug, effectiveProgramId, options?.templateId)
+    ? poolCacheKey(communitySlug, effectiveProgramId, effectiveTemplateId)
     : null;
 
   const [pool, setPool] = useState<ProgramPoolState | null>(() =>
@@ -87,8 +88,8 @@ export function useProgramPoolState(
         return;
       }
 
-      const qs = options?.templateId
-        ? `?templateId=${encodeURIComponent(options.templateId)}`
+      const qs = effectiveTemplateId
+        ? `?templateId=${encodeURIComponent(effectiveTemplateId)}`
         : "";
       const res = await fetch(
         `/api/communities/${encodeURIComponent(communitySlug)}/pool${qs}`,
@@ -106,7 +107,7 @@ export function useProgramPoolState(
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [cacheKey, communitySlug, effectiveProgramId, options?.templateId]);
+  }, [cacheKey, communitySlug, effectiveProgramId, effectiveTemplateId]);
 
   useEffect(() => {
     if (!communitySlug) return;

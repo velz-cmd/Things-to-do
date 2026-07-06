@@ -78,6 +78,7 @@ export type CapitalStateResponse = {
     status: string;
     createdAt: string;
     kind: string;
+    method: string | null;
   }>;
   wallet?: CapitalWalletResponse["wallet"];
   balance?: Extract<CapitalWalletResponse, { ok: true }>["balance"];
@@ -209,7 +210,15 @@ async function getActivity(userId: string): Promise<CapitalStateResponse["activi
     },
     orderBy: { createdAt: "desc" },
     take: 24,
-    select: { id: true, type: true, label: true, amountUsd: true, status: true, createdAt: true },
+    select: {
+      id: true,
+      type: true,
+      method: true,
+      label: true,
+      amountUsd: true,
+      status: true,
+      createdAt: true,
+    },
   });
 
   return walletRows.map((row) => ({
@@ -219,6 +228,7 @@ async function getActivity(userId: string): Promise<CapitalStateResponse["activi
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     kind: row.type,
+    method: row.method,
   }));
 }
 
@@ -392,11 +402,18 @@ export async function loadCapitalState(
   }
 
   if (profile && opts.liveSync) {
-    await withProviderTimeout(
-      finalizeAllPendingArcFundsForUser(profile.id),
-      8_000,
-      "capital:finalize_pending_funds",
-    ).catch(() => 0);
+    const hasPendingFunds = await prisma.walletTransaction
+      .count({
+        where: { userId: profile.id, type: "fund_program", status: "pending" },
+      })
+      .catch(() => 0);
+    if (hasPendingFunds > 0) {
+      await withProviderTimeout(
+        finalizeAllPendingArcFundsForUser(profile.id),
+        8_000,
+        "capital:finalize_pending_funds",
+      ).catch(() => 0);
+    }
   } else if (profile) {
     void syncIdentityBalance(profile.id).catch(() => null);
   }

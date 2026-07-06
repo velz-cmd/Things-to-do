@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getLiveBlockers, isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import {
+  ARC_CLIENT_WALLET_ID,
+  ARC_PROVIDER_WALLET_ID,
+  getLiveBlockers,
+  isLiveArcEnabled,
+} from "@/lib/settlement/arc-config";
 import { getCircleWalletSetId } from "@/lib/wallet/circle-config";
 import {
   getSupabaseServerUrl,
@@ -206,6 +211,16 @@ export async function GET() {
     arc: {
       liveEnabled: isLiveArcEnabled(),
       blockers: getLiveBlockers(),
+      /** User pool funding only needs addresses; treasury payouts need wallet IDs */
+      treasuryOutboundReady: Boolean(ARC_CLIENT_WALLET_ID?.trim()),
+      providerOutboundReady: Boolean(ARC_PROVIDER_WALLET_ID?.trim()),
+      operatorHints:
+        isLiveArcEnabled() &&
+        (!ARC_CLIENT_WALLET_ID?.trim() || !ARC_PROVIDER_WALLET_ID?.trim()) ?
+          [
+            "Set ARC_CLIENT_WALLET_ID and ARC_PROVIDER_WALLET_ID in Vercel (Production + Preview) for treasury/agent outbound transfers. User pool funding works with addresses only.",
+          ]
+        : [],
     },
     missingRecommended: missing,
   });

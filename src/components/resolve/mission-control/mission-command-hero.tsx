@@ -12,17 +12,17 @@ import { MissionPipelineStepper } from "@/components/resolve/mission-control/mis
 const PRIMARY_INTENTS = [
   {
     id: "fund" as const satisfies MissionJobId,
-    label: "Fund a gap",
-    detail: "Blueprint payees from ledger",
-    prompt: "Fund the top open-source maintainers in React based on real contribution signals.",
+    label: "Communal pool",
+    detail: "View milestone · fund on Discover",
+    prompt: "View React communal pool — milestone and autopay status",
     icon: CircleDollarSign,
     accent: "sky",
   },
   {
     id: "simulate" as const satisfies MissionJobId,
-    label: "Simulate allocation",
-    detail: "Dry-run before Arc",
-    prompt: "Simulate allocating $5,000 across React maintainers — show recipients and amounts.",
+    label: "Batch payout",
+    detail: "PDF → % split → Arc batch",
+    prompt: "Batch payout from PDF — allocate $5,000 split between maintainers with percentages",
     icon: LineChart,
     accent: "emerald",
   },

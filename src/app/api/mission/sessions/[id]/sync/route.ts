@@ -12,7 +12,7 @@ const turnSchema = z.object({
   findings: z.array(z.unknown()).optional(),
   actions: z.array(z.unknown()).optional(),
   report: z.record(z.string(), z.unknown()).optional(),
-  payload: z
+      payload: z
     .object({
       blueprint: z
         .object({
@@ -24,6 +24,19 @@ const turnSchema = z.object({
         .object({
           prompt: z.string(),
           serviceId: z.string().optional(),
+        })
+        .optional(),
+      communalPool: z
+        .object({
+          prompt: z.string(),
+          communitySlug: z.string().optional(),
+        })
+        .optional(),
+      batchAllocation: z
+        .object({
+          prompt: z.string(),
+          communitySlug: z.string().optional(),
+          initialBudgetUsd: z.number().optional(),
         })
         .optional(),
     })

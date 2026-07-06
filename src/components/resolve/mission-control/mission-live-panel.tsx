@@ -69,6 +69,7 @@ export function MissionPoolStrip({ communitySlug, compact }: MissionPoolStripPro
           toward <Money amount={milestoneUsd} size="sm" className="inline text-xs" />
         </span>
       </p>
+      <p className="mt-1 text-[10px] text-emerald-300/90">Autopay at milestone — no manual allocation</p>
       {poolUsd >= 0 && (
         <PoolMilestoneBar poolUsd={poolUsd} className="mt-2" compact />
       )}

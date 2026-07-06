@@ -2,12 +2,14 @@ export type MissionIntent = "funding" | "risk" | "claim" | "discovery" | "genera
 
 const FUNDING = /\b(distribut|fund|allocat|\$\d|treasury|capital|invest|grant)\b/i;
 const RISK = /\b(risk|breaking|break|depend|critical|burnout|disappear|affected)\b/i;
-const CLAIM = /\b(claim|paid fairly|earnings|unclaimed|earning|owed)\b/i;
+const CLAIM = /\b(claim|paid fairly|earnings|unclaimed|earning|owed|earned|claimable|what am i owed|what have i earned)\b/i;
+const LINK_IDENTITY = /\b(link my|connect my|creator (identity|profile)|recognize my|my github|my profile)\b/i;
 const DISCOVERY = /\b(leak|underfund|unpaid|deserve|opportunit|who powers|analyze|ecosystem)\b/i;
 
 export function detectMissionIntent(text: string): MissionIntent {
   if (FUNDING.test(text)) return "funding";
   if (CLAIM.test(text)) return "claim";
+  if (LINK_IDENTITY.test(text)) return "discovery";
   if (RISK.test(text)) return "risk";
   if (DISCOVERY.test(text)) return "discovery";
   return "general";

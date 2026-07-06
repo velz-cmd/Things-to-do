@@ -1,47 +1,19 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowRight, CircleDollarSign, Bot, LineChart, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import {
+  MISSION_HERO_EYEBROW,
   MISSION_HERO_SUBTITLE,
   MISSION_HERO_TITLE,
-  type MissionJobId,
+  MISSION_PRIMARY_INTENTS,
 } from "@/lib/mission/mission-lane-copy";
 import { MissionPipelineStepper } from "@/components/resolve/mission-control/mission-pipeline-stepper";
-
-const PRIMARY_INTENTS = [
-  {
-    id: "fund" as const satisfies MissionJobId,
-    label: "Settle batch",
-    detail: "Blueprint · simulate · authorize",
-    prompt: "Prepare royalty settlement for independent music artists — show play-weighted payees.",
-    icon: LineChart,
-    tone: "sky",
-  },
-  {
-    id: "agent" as const satisfies MissionJobId,
-    label: "Hire intel",
-    detail: "From $0.001/signal → Blueprint payees",
-    prompt: "Run intel on React maintainers — docs gaps and contributor health",
-    icon: Bot,
-    tone: "violet",
-  },
-  {
-    id: "simulate" as const satisfies MissionJobId,
-    label: "Batch payout",
-    detail: "PDF memo → % split",
-    prompt: "Batch payout from PDF — allocate $5,000 split between maintainers with percentages",
-    icon: CircleDollarSign,
-    tone: "emerald",
-  },
-] as const;
 
 export function MissionCommandHero({
   onSubmit,
   className,
 }: {
-  activeJob?: MissionJobId | null;
-  onSelectJob?: (jobId: MissionJobId) => void;
   onSubmit: (prompt: string) => void;
   className?: string;
 }) {
@@ -52,7 +24,7 @@ export function MissionCommandHero({
           <div className="min-w-0 flex-1">
             <p className="mission-eyebrow">
               <Sparkles className="inline h-3.5 w-3.5 text-violet-300" aria-hidden />
-              Mission workspace
+              {MISSION_HERO_EYEBROW}
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-[1.65rem]">
               {MISSION_HERO_TITLE}
@@ -65,7 +37,7 @@ export function MissionCommandHero({
         </div>
 
         <div className="mt-6 grid gap-2.5 sm:grid-cols-3" role="list" aria-label="Start a mission">
-          {PRIMARY_INTENTS.map((intent) => {
+          {MISSION_PRIMARY_INTENTS.map((intent) => {
             const Icon = intent.icon;
             return (
               <button

@@ -14,7 +14,7 @@ export function MissionIntelValuePanel({
   loading?: boolean;
 }) {
   return (
-    <details className="mission-panel mission-intel-panel" open>
+    <details className="mission-panel mission-intel-panel">
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-resolve-muted">
           <Bot className="h-3.5 w-3.5 text-violet-300" aria-hidden />

@@ -14,7 +14,7 @@ export function MissionTemplateTiles({
     <section className={clsx("mission-templates", className)}>
       <div className="flex items-baseline justify-between gap-3">
         <p className="mission-eyebrow">One-click templates</p>
-        <span className="text-[10px] text-resolve-muted-dim">RFB · settlement rails</span>
+        <span className="text-[10px] text-resolve-muted-dim">Operators · settlement rails</span>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {MISSION_RFB_TEMPLATES.map((t) => (

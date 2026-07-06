@@ -125,6 +125,7 @@ model User {
   communityFundStakes CommunityFundStake[]
   automationRules   ResolveAutomationRule[]
   earningsSnapshot  UserEarningsSnapshot?
+  missionBlueprintReceipts MissionBlueprintReceipt[]
 }
 
 /** App-owned reset tokens — survives email link prefetch (Supabase OTP is single-use). */
@@ -484,6 +485,28 @@ model ResolveMissionTurn {
   createdAt    DateTime @default(now())
 
   @@index([missionId, sortOrder])
+}
+
+/// Mission Blueprint decision receipts — shareable across devices (Phase 6)
+model MissionBlueprintReceipt {
+  id              String   @id
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  communitySlug   String
+  status          String
+  packageJson     String   @db.Text
+  simulationJson  String?  @db.Text
+  settlementJson  String?  @db.Text
+  fundTxHash      String?
+  fundTxLabel     String?
+  programId       String?
+  evidenceJson    String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([communitySlug, createdAt])
+  @@index([userId, communitySlug])
+  @@index([status])
 }
 
 model ResolveEcosystem {

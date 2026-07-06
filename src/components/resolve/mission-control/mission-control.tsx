@@ -51,6 +51,7 @@ import { detectAgentSignalIntent } from "@/lib/mission/detect-agent-signal-inten
 import { detectBlueprintIntent } from "@/lib/mission/detect-blueprint-intent";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
+import { pushMissionQueue } from "@/lib/mission/mission-agent-budget";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
 import { prefetchMissionPool } from "@/lib/mission/prefetch-mission-pool";
 import { MissionBlueprintCommandProvider } from "@/components/resolve/mission-control/mission-blueprint-command-context";
@@ -461,6 +462,10 @@ export function MissionControl() {
 
       const budget = parseCapitalUsd(trimmed);
       setThinkingComplete(true);
+      pushMissionQueue({
+        objective: (objective ?? trimmed).slice(0, 80),
+        communitySlug: slug,
+      });
       const resolveTurn: MissionTurn = {
         id: `r-${Date.now()}`,
         role: "resolve",

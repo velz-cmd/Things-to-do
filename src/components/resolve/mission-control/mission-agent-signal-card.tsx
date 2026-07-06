@@ -22,6 +22,10 @@ import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { MISSION_AGENT_LANE_COPY } from "@/lib/mission/mission-lane-copy";
 import { MissionBlueprintPanel } from "@/components/resolve/mission-control/mission-blueprint-panel";
 import { apiFetchWallet } from "@/lib/discover/discover-action-engine";
+import {
+  getMissionAgentBudgetCap,
+  setMissionAgentBudgetCap,
+} from "@/lib/mission/mission-agent-budget";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
 
 const CHAINED_SIGNALS = [
@@ -137,6 +141,7 @@ export function MissionAgentSignalCard({
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [serviceId, setServiceId] = useState(initialServiceId ?? "");
   const [budgetUsd, setBudgetUsd] = useState(0.05);
+  const [agentCapUsd, setAgentCapUsd] = useState(() => getMissionAgentBudgetCap());
   const [walletUsd, setWalletUsd] = useState<number | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [invoking, setInvoking] = useState(false);
@@ -220,7 +225,7 @@ export function MissionAgentSignalCard({
           serviceId: runServiceId,
           prompt: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
           text: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
-          maxSpendUsd: budgetUsd,
+          maxSpendUsd: Math.min(budgetUsd, agentCapUsd),
         }),
       });
       setInvokeStage("running");
@@ -306,6 +311,23 @@ export function MissionAgentSignalCard({
 
       {!result && selected && payDecision === "pending" && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-3 py-3">
+          <label className="mb-3 block text-[10px] uppercase tracking-wider text-resolve-muted-dim">
+            Agent budget cap (mission)
+            <input
+              type="range"
+              min={0.01}
+              max={1}
+              step={0.01}
+              value={agentCapUsd}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setAgentCapUsd(v);
+                setMissionAgentBudgetCap(v);
+              }}
+              className="mt-1 block w-full accent-violet-400"
+            />
+            <span className="text-[11px] text-white">Max {formatAgentPrice(agentCapUsd)} per signal</span>
+          </label>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/90">
             {MISSION_AGENT_LANE_COPY.paySkipTitle}
           </p>

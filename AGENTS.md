@@ -76,6 +76,10 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   (optional session for your stake). Client hook caches pool snapshots to avoid spinner flash.
 - Fund proof links use `/receipt/{walletTransaction.id}` — `buildFundReceipt` resolves
   `fund_program` activity rows (not only authorization/settlement ids).
+- **App-wallet fund** (`POST /api/capital/fund`) awaits a real Circle Arc USDC transfer when
+  `isLiveArcEnabled()` (Circle + `ARC_CLIENT_WALLET_ADDRESS` on Vercel). Returns `txHash` for
+  Arcscan. Production blocks ledger-only fund when Arc is not live.
+- **External wallet fund** uses `POST /api/capital/fund-with-tx` after the user signs on Arc.
 - Capital **Activity** tab uses `?fast=1` on first load and lists **wallet transactions only**
   (deposits, fund_program stakes) — not timeline noise or unrelated authorizations.
 

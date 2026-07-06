@@ -361,45 +361,62 @@ export async function buildFundReceipt(activityId: string): Promise<PublicReceip
   let programName = stake?.program.name ?? null;
   let communitySlug = stake?.program.install?.communitySlug ?? null;
   let missionId = stake?.program.missionId ?? null;
+  let onChainTxHash: string | null = null;
+
+  const timelineEvents = await prisma.resolveTimelineEvent.findMany({
+    where: {
+      userId: tx.userId,
+      eventType: "pool_funding_pending",
+      createdAt: {
+        gte: new Date(tx.createdAt.getTime() - 120_000),
+        lte: new Date(tx.createdAt.getTime() + 120_000),
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+    select: { metadataJson: true },
+  });
+
+  for (const ev of timelineEvents) {
+    if (!ev.metadataJson) continue;
+    try {
+      const meta = JSON.parse(ev.metadataJson) as {
+        activityId?: string;
+        programId?: string;
+        txHash?: string;
+      };
+      if (meta.activityId !== activityId) continue;
+      programId = meta.programId ?? programId;
+      onChainTxHash = meta.txHash ?? onChainTxHash;
+      break;
+    } catch {
+      /* skip */
+    }
+  }
 
   if (!programId) {
-    const events = await prisma.resolveTimelineEvent.findMany({
-      where: {
-        userId: tx.userId,
-        eventType: "pool_funding_pending",
-        createdAt: {
-          gte: new Date(tx.createdAt.getTime() - 60_000),
-          lte: new Date(tx.createdAt.getTime() + 60_000),
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { metadataJson: true },
-    });
-    for (const ev of events) {
+    for (const ev of timelineEvents) {
       if (!ev.metadataJson) continue;
       try {
-        const meta = JSON.parse(ev.metadataJson) as {
-          activityId?: string;
-          programId?: string;
-        };
-        if (meta.activityId !== activityId) continue;
+        const meta = JSON.parse(ev.metadataJson) as { programId?: string; txHash?: string };
         programId = meta.programId ?? programId;
-        break;
+        onChainTxHash = meta.txHash ?? onChainTxHash;
+        if (programId) break;
       } catch {
         /* skip */
       }
     }
-    if (programId && !stake) {
-      const program = await prisma.resolveProgram.findUnique({
-        where: { id: programId },
-        include: { install: { select: { communitySlug: true } } },
-      });
-      if (program) {
-        programName = program.name;
-        communitySlug = program.install?.communitySlug ?? null;
-        missionId = program.missionId;
-      }
+  }
+
+  if (programId && !stake) {
+    const program = await prisma.resolveProgram.findUnique({
+      where: { id: programId },
+      include: { install: { select: { communitySlug: true } } },
+    });
+    if (program) {
+      programName = program.name;
+      communitySlug = program.install?.communitySlug ?? null;
+      missionId = program.missionId;
     }
   }
 
@@ -433,7 +450,7 @@ export async function buildFundReceipt(activityId: string): Promise<PublicReceip
       walletAddress: null,
       status: tx.status,
     },
-    arc: arcBlock(null),
+    arc: arcBlock(onChainTxHash),
     contextLabel: tx.label ?? `Funded ${programName ?? "program pool"}`,
     createdAt: tx.createdAt.toISOString(),
     settledAt: tx.status === "completed" ? tx.createdAt.toISOString() : null,

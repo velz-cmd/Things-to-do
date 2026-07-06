@@ -7,7 +7,7 @@ import {
 import { ensureCircleEntitySecret } from "@/lib/wallet/circle-config";
 import { circleErrorMessage } from "@/lib/wallet/circle-errors";
 import { circleIdempotencyKey, circleIdempotencyKeyRandom } from "@/lib/wallet/circle-idempotency";
-import { ARC_CLIENT_WALLET_ID } from "@/lib/settlement/arc-config";
+import { getResolvedArcClientWalletId } from "@/lib/settlement/arc-wallet-ids";
 import { verifyArcTx } from "@/lib/settlement/arc-verify";
 import {
   appWalletProvider,
@@ -116,7 +116,8 @@ export async function sendUsdcFromTreasuryCircleWallet(input: {
   amountUsd: number;
   idempotencyKey?: string;
 }): Promise<{ txHash: string; circleTransactionId: string }> {
-  if (!ARC_CLIENT_WALLET_ID) {
+  const treasuryWalletId = await getResolvedArcClientWalletId();
+  if (!treasuryWalletId) {
     throw new Error("ARC_CLIENT_WALLET_ID not configured");
   }
   if (!isAddress(input.destinationAddress)) {
@@ -134,7 +135,7 @@ export async function sendUsdcFromTreasuryCircleWallet(input: {
   try {
     const res = await circle.createTransaction({
       idempotencyKey: resolveIdempotencyKey(input.idempotencyKey),
-      walletId: ARC_CLIENT_WALLET_ID,
+      walletId: treasuryWalletId,
       tokenAddress: "",
       blockchain: "ARC-TESTNET",
       destinationAddress: destination,

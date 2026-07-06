@@ -5,6 +5,10 @@ import {
   getLiveBlockers,
   isLiveArcEnabled,
 } from "@/lib/settlement/arc-config";
+import {
+  getResolvedArcClientWalletId,
+  getResolvedArcProviderWalletId,
+} from "@/lib/settlement/arc-wallet-ids";
 import { getCircleWalletSetId } from "@/lib/wallet/circle-config";
 import {
   getSupabaseServerUrl,
@@ -26,6 +30,10 @@ import { isRedisConfigured } from "@/lib/cache/redis";
 export async function GET() {
   const present = (key: string) => Boolean(process.env[key]?.trim());
   const circleWalletSetId = await getCircleWalletSetId();
+  const [resolvedClientWalletId, resolvedProviderWalletId] = await Promise.all([
+    getResolvedArcClientWalletId(),
+    getResolvedArcProviderWalletId(),
+  ]);
   const ai = listConfiguredProviders();
   const search = listSearchProviders();
   const db = getDatabaseDiagnostics();
@@ -212,13 +220,20 @@ export async function GET() {
       liveEnabled: isLiveArcEnabled(),
       blockers: getLiveBlockers(),
       /** User pool funding only needs addresses; treasury payouts need wallet IDs */
-      treasuryOutboundReady: Boolean(ARC_CLIENT_WALLET_ID?.trim()),
-      providerOutboundReady: Boolean(ARC_PROVIDER_WALLET_ID?.trim()),
+      treasuryOutboundReady: Boolean(resolvedClientWalletId),
+      providerOutboundReady: Boolean(resolvedProviderWalletId),
+      walletIdsFromCircle:
+        (!ARC_CLIENT_WALLET_ID?.trim() && Boolean(resolvedClientWalletId)) ||
+        (!ARC_PROVIDER_WALLET_ID?.trim() && Boolean(resolvedProviderWalletId)),
       operatorHints:
         isLiveArcEnabled() &&
-        (!ARC_CLIENT_WALLET_ID?.trim() || !ARC_PROVIDER_WALLET_ID?.trim()) ?
+        (!resolvedClientWalletId || !resolvedProviderWalletId) ?
           [
-            "Set ARC_CLIENT_WALLET_ID and ARC_PROVIDER_WALLET_ID in Vercel (Production + Preview) for treasury/agent outbound transfers. User pool funding works with addresses only.",
+            "Treasury/provider wallet IDs missing — set ARC_CLIENT_WALLET_ID and ARC_PROVIDER_WALLET_ID in Vercel, or ensure addresses match wallets in CIRCLE_WALLET_SET_ID.",
+          ]
+        : !ARC_CLIENT_WALLET_ID?.trim() || !ARC_PROVIDER_WALLET_ID?.trim() ?
+          [
+            "Wallet IDs resolved from Circle by address (no Vercel ID vars needed). Optional: copy IDs into Vercel for faster cold starts.",
           ]
         : [],
     },

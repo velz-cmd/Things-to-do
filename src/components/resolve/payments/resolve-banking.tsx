@@ -59,6 +59,11 @@ type ResolveBankingProps = {
   onSignIn: () => void;
   onActivityOpen?: () => void;
   initialTab?: Tab;
+  missionHandoff?: {
+    missionReportId?: string | null;
+    programId?: string | null;
+    communitySlug?: string | null;
+  };
   walletViewProps?: {
     appAddress?: string | null;
     externalAddress?: string | null;
@@ -372,6 +377,7 @@ export function ResolveBanking({
   onSignIn,
   onActivityOpen,
   initialTab = "overview",
+  missionHandoff,
   walletViewProps,
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
@@ -455,6 +461,24 @@ export function ResolveBanking({
           </p>
         )}
       </header>
+
+      {missionHandoff?.missionReportId && (
+        <div className="mb-6 rounded-xl border border-sky-500/25 bg-sky-500/[0.06] px-4 py-3 text-sm text-sky-100">
+          <p className="font-medium text-white">Mission plan approved</p>
+          <p className="mt-1 text-xs text-resolve-muted">
+            {missionHandoff.communitySlug
+              ? `${missionHandoff.communitySlug} · `
+              : ""}
+            Activity and settlements for this authorization package.
+          </p>
+          <Link
+            href={`/mission/report/${missionHandoff.missionReportId}`}
+            className="mt-2 inline-block text-xs font-medium text-resolve-accent hover:underline"
+          >
+            View Mission receipt →
+          </Link>
+        </div>
+      )}
 
       <div className="mb-6 flex gap-1 rounded-xl border border-white/[0.06] bg-black/20 p-1">
         <TabButton active={tab === "overview"} onClick={() => selectTab("overview")}>

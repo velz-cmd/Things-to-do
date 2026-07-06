@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db";
 import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
 import { EARN_ELIGIBILITY_RULES, type EarnEligibilityRule } from "@/lib/earn/eligibility-copy";
+import {
+  meetsMusicEligibility,
+  meetsResearchEligibility,
+  meetsVideoEligibility,
+} from "@/lib/earn/discover-eligibility";
 import { resolveClaimIdentities } from "@/lib/identity/claim-identities";
 import {
   userJellyfinConfigured,
@@ -44,9 +49,9 @@ function domainForEventType(eventType: string): UserWorkStream["id"] | null {
 function eligibilityMet(id: UserWorkStream["id"], count: number, connected: boolean): boolean {
   if (!connected) return false;
   if (id === "oss") return count >= 5;
-  if (id === "music") return count >= 1000;
-  if (id === "video") return count >= 500;
-  if (id === "research") return count >= 10;
+  if (id === "music") return meetsMusicEligibility(count);
+  if (id === "video") return meetsVideoEligibility(count);
+  if (id === "research") return meetsResearchEligibility(count);
   return false;
 }
 
@@ -150,11 +155,7 @@ export async function buildUserEligibleWork(input: {
   ];
 
   if (!process.env.DATABASE_URL) {
-    return streams.map((s) =>
-      s.connected
-        ? { ...s, activityLabel: "Source connected — sync runs in background" }
-        : s,
-    );
+    return [];
   }
 
   try {
@@ -224,24 +225,24 @@ export async function buildUserEligibleWork(input: {
       }
     }
 
-    return streams.map((stream) => {
-      const count = counts[stream.id];
-      const connected = stream.connected;
-      const meets = eligibilityMet(stream.id, count, connected);
-      return {
-        ...stream,
-        activityCount: count,
-        activityLabel: connected ? activityLabel(stream.id, count) : stream.activityLabel,
-        meetsEligibility: meets,
-        recentItems: recent[stream.id],
-      };
-    });
+    return streams
+      .map((stream) => {
+        const count = counts[stream.id];
+        const connected = stream.connected;
+        const meets = eligibilityMet(stream.id, count, connected);
+        return {
+          ...stream,
+          activityCount: count,
+          activityLabel: connected ? activityLabel(stream.id, count) : stream.activityLabel,
+          meetsEligibility: meets,
+          recentItems: recent[stream.id],
+        };
+      })
+      .filter((stream) => stream.connected && stream.meetsEligibility);
   } catch (e) {
     if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) {
       console.warn("[user-eligible-work]", e);
     }
-    return streams.map((s) =>
-      s.connected ? { ...s, activityLabel: "Connected — ledger sync in progress" } : s,
-    );
+    return [];
   }
 }

@@ -2,37 +2,41 @@ import { describe, expect, it } from "vitest";
 import {
   estimateMusicValueUsd,
   estimateOssFundingGap,
+  estimateResearchValueUsd,
   estimateVideoValueUsd,
 } from "@/lib/discover/valuation-eligibility";
 
 describe("valuation-eligibility", () => {
-  it("caps OSS estimates and requires merge/star threshold", () => {
+  it("pays $10 OSS blocks at merge/star threshold", () => {
     const low = estimateOssFundingGap({
       stars: 10,
       forks: 2,
       mergedPrCount: 1,
       maintainerCount: 1,
     });
-    expect(low.usd).toBeLessThanOrEqual(100);
-    expect(low.tier).toBe("minimum");
+    expect(low.usd).toBe(0);
 
-    const high = estimateOssFundingGap({
-      stars: 80_000,
-      forks: 20_000,
-      mergedPrCount: 120,
-      maintainerCount: 1,
+    const qualified = estimateOssFundingGap({
+      stars: 120,
+      forks: 20,
+      mergedPrCount: 6,
+      maintainerCount: 2,
     });
-    expect(high.usd).toBeLessThanOrEqual(25_000);
-    expect(high.usd).toBeGreaterThan(1_000);
+    expect(qualified.usd).toBeGreaterThanOrEqual(10);
+    expect(qualified.usd).toBeLessThanOrEqual(25_000);
   });
 
-  it("scales music and video with plays/views", () => {
-    const music = estimateMusicValueUsd({ playCount: 50_000, uniqueListeners: 2_000 });
-    expect(music.usd).toBeGreaterThan(500);
-    expect(music.usd).toBeLessThanOrEqual(15_000);
+  it("pays $10 per 500 plays and 1000 views", () => {
+    const music = estimateMusicValueUsd({ playCount: 500 });
+    expect(music.usd).toBe(10);
 
-    const video = estimateVideoValueUsd({ viewCount: 10_000, uniqueViewers: 800 });
-    expect(video.usd).toBeGreaterThan(200);
-    expect(video.usd).toBeLessThanOrEqual(12_000);
+    const music2k = estimateMusicValueUsd({ playCount: 2_000 });
+    expect(music2k.usd).toBe(40);
+
+    const video = estimateVideoValueUsd({ viewCount: 1_000 });
+    expect(video.usd).toBe(10);
+
+    const research = estimateResearchValueUsd({ viewCount: 1_000 });
+    expect(research.usd).toBe(10);
   });
 });

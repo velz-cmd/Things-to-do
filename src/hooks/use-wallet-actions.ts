@@ -18,7 +18,7 @@ import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { useConnectedArcBalance } from "@/hooks/use-connected-arc-balance";
 import { parseJsonResponse } from "@/lib/http/parse-json-response";
 import { isWalletConnectEnabled } from "@/lib/reown/config";
-
+import { mutationFetch } from "@/lib/api/mutation-fetch";
 import type { FundProgressStage } from "@/lib/capital/fund-progress";
 
 export type WalletFundResult = { txHash: string; activityId?: string };
@@ -172,14 +172,31 @@ export function useWalletActions() {
 
         opts?.onStage?.("recording_stake", hash);
 
-        const res = await fetch("/api/capital/fund-with-tx", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ programId, amountUsd, txHash: hash }),
-        });
-        const data = await parseJsonResponse<{ error?: string; message?: string; activityId?: string }>(res);
-        if (!res.ok) throw new Error(data.error ?? "Fund failed after on-chain transfer");
+        let data: { error?: string; message?: string; activityId?: string } = {};
+        let lastError: Error | null = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const res = await mutationFetch("/api/capital/fund-with-tx", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ programId, amountUsd, txHash: hash }),
+            });
+            data = await parseJsonResponse(res);
+            if (!res.ok) throw new Error(data.error ?? "Fund failed after on-chain transfer");
+            lastError = null;
+            break;
+          } catch (err) {
+            lastError = err instanceof Error ? err : new Error("Fund failed after on-chain transfer");
+            if (attempt < 2) {
+              await new Promise((r) => setTimeout(r, 2_000 * (attempt + 1)));
+            }
+          }
+        }
+        if (lastError) {
+          throw new Error(
+            `${lastError.message} Your on-chain USDC was sent — open Capital to retry recording, or contact support with tx ${hash.slice(0, 10)}…`,
+          );
+        }
 
         toast.success(data.message ?? `Pool funded with $${amountUsd.toFixed(2)} USDC`, {
           id: "wallet-fund",

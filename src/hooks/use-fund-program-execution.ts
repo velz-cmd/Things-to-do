@@ -6,14 +6,17 @@ import { recordFundAction } from "@/lib/capital/fund-action-store";
 import { dispatchPoolRefresh } from "@/lib/capital/refresh-events";
 import type { FundProgressState } from "@/lib/capital/fund-progress";
 import {
+  FundRequestInFlightError,
+  pollFundUntilSettled,
+} from "@/lib/capital/poll-fund-finalize";
+import { ACTION_STATUS } from "@/lib/copy/action-status";
+import {
   apiCreateProgram,
   apiFundProgram,
   apiInstallCommunity,
   apiResolveFundTarget,
-  isAcceptedBackgroundError,
   type FundSheetRequest,
 } from "@/lib/discover/discover-action-engine";
-import { ACTION_STATUS } from "@/lib/copy/action-status";
 import { queryKeys } from "@/lib/query/keys";
 import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
@@ -108,6 +111,7 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
 
         let txHash: string | undefined;
         let activityId: string | undefined;
+        let fundMessage: string | undefined;
 
         if (source === "external") {
           setFundProgress((p) => ({ ...p, stage: "awaiting_signature" }));
@@ -127,7 +131,25 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
           const fundResult = await apiFundProgram(programId, req.amountUsd);
           activityId = fundResult.activityId;
           txHash = fundResult.txHash;
-          setFundProgress((p) => ({ ...p, stage: "arc_confirming", txHash }));
+          fundMessage = fundResult.message;
+          if (fundResult.status === "pending_arc") {
+            setFundProgress((p) => ({
+              ...p,
+              stage: "arc_confirming",
+              message: ACTION_STATUS.fundPendingArc,
+            }));
+            const settled = await pollFundUntilSettled(activityId);
+            if (settled && "status" in settled) {
+              if (settled.status === "reversed") {
+                throw new Error(settled.message ?? "Arc transfer failed — balance restored");
+              }
+              if (settled.status === "completed") {
+                txHash = settled.txHash ?? txHash;
+              }
+            }
+          } else {
+            setFundProgress((p) => ({ ...p, stage: "arc_confirming", txHash }));
+          }
         }
 
         recordFundAction({
@@ -168,26 +190,45 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
           fundingSource: source,
           txHash,
           activityId,
-          message: `You funded this pool $${req.amountUsd.toFixed(2)}`,
+          message: fundMessage ?? `You funded this pool $${req.amountUsd.toFixed(2)}`,
         };
       } catch (e) {
-        if (isAcceptedBackgroundError(e)) {
+        if (e instanceof FundRequestInFlightError) {
           setFundProgress((p) => ({
             ...p,
-            stage: "complete",
+            stage: "arc_confirming",
             message: ACTION_STATUS.acceptedBackground,
           }));
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
-          ]).catch(() => null);
-          return {
-            programId: req.programId ?? "",
-            amountUsd: req.amountUsd,
-            fundingSource: source!,
-            message: ACTION_STATUS.acceptedBackground,
-          };
+          const settled = await pollFundUntilSettled(e.activityId);
+          if (settled && "status" in settled && settled.status === "completed") {
+            await spendable.refresh().catch(() => null);
+            dispatchPoolRefresh({ programId: req.programId, communitySlug: req.communitySlug });
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: queryKeys.capitalState }),
+              queryClient.invalidateQueries({ queryKey: queryKeys.myPoolStakes }),
+              queryClient.invalidateQueries({ queryKey: queryKeys.communities }),
+              queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed() }),
+            ]).catch(() => null);
+            setFundProgress((p) => ({
+              ...p,
+              stage: "complete",
+              txHash: settled.txHash,
+            }));
+            return {
+              programId: req.programId ?? "",
+              amountUsd: req.amountUsd,
+              fundingSource: source!,
+              txHash: settled.txHash,
+              activityId: settled.activityId,
+              message: `You funded this pool $${req.amountUsd.toFixed(2)}`,
+            };
+          }
+          if (settled && "status" in settled && settled.status === "reversed") {
+            throw new Error(settled.message ?? "Arc transfer failed — your balance was restored");
+          }
+          throw new Error(
+            `${ACTION_STATUS.acceptedBackground} Check Capital → pending transactions.`,
+          );
         }
         setFundProgress((p) => ({
           ...p,

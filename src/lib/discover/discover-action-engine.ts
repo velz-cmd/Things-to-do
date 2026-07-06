@@ -1,5 +1,6 @@
 import { mutationFetch } from "@/lib/api/mutation-fetch";
 import { ACTION_STATUS } from "@/lib/copy/action-status";
+import { FundRequestInFlightError } from "@/lib/capital/poll-fund-finalize";
 import type { DiscoverAction } from "@/lib/discover/types";
 import { parseJsonResponse } from "@/lib/http/parse-json-response";
 import type { DiscoverActionResponse } from "@/lib/discover/discover-action-response";
@@ -97,11 +98,14 @@ export async function apiFundProgram(programId: string, amountUsd: number) {
       programId?: string;
       message?: string;
       txHash?: string;
+      status?: "completed" | "pending_arc";
     }>(res);
     if (!res.ok) throw new Error(data.error ?? "Fund failed");
     return data;
   } catch (e) {
-    if (e instanceof Error && e.name === "AbortError") throw acceptedBackgroundError();
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new FundRequestInFlightError();
+    }
     throw e;
   }
 }

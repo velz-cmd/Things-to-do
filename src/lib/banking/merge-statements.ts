@@ -23,6 +23,8 @@ export function mergeStatementLines(
 }
 
 export function fundActionToStatementLine(action: StoredFundAction): StatementLine {
+  const walletTag =
+    action.fundingSource === "external" ? "connected_wallet" : "resolve_wallet";
   const label = action.programName
     ? `You funded ${action.programName}`
     : "You funded pool";
@@ -34,7 +36,7 @@ export function fundActionToStatementLine(action: StoredFundAction): StatementLi
     amountUsd: action.amountUsd,
     balanceAfterUsd: null,
     label,
-    reference: action.txHash ?? "completed",
+    reference: walletTag,
   };
 }
 

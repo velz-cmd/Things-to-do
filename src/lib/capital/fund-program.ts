@@ -81,6 +81,14 @@ export async function fundCommunityProgram(input: {
     return { ok: false, error: "Sign in again before funding this pool" };
   }
 
+  if (settleFrom === "ledger" && !user.walletAddress) {
+    return {
+      ok: false,
+      error:
+        "RESOLVE wallet is still provisioning. Connect an external wallet with USDC on Arc to fund now.",
+    };
+  }
+
   if (settleFrom === "ledger") {
     let availableUsd = Math.round(user.availableUsd * 100) / 100;
     if (availableUsd < amount) {
@@ -98,8 +106,8 @@ export async function fundCommunityProgram(input: {
         ok: false,
         error:
           availableUsd <= 0
-            ? "Wallet has no spendable USDC. Open Capital to add funds."
-            : `Insufficient balance: $${availableUsd.toFixed(2)} spendable, need $${amount.toFixed(2)}`,
+            ? "No spendable USDC in your RESOLVE wallet. Connect an external wallet with Arc USDC, or add funds in Capital."
+            : `Insufficient RESOLVE wallet balance: $${availableUsd.toFixed(2)} spendable, need $${amount.toFixed(2)}. Try your connected wallet if it has USDC.`,
       };
     }
 
@@ -214,8 +222,8 @@ export async function fundCommunityProgram(input: {
         ok: false,
         error:
           e instanceof Error
-            ? `Arc transfer failed: ${e.message}`
-            : "Arc transfer failed — your balance was not charged",
+            ? `${e.message} — try funding with your connected wallet instead`
+            : "Arc transfer failed — try your connected wallet, or add USDC to your RESOLVE wallet",
       };
     }
   }

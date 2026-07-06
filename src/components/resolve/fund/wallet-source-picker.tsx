@@ -41,7 +41,7 @@ export function WalletSourcePicker({
       id: "app",
       balance: appUsd,
       canPay: appUsd >= amountUsd,
-      hint: "Ledger stake on Arc",
+      hint: "Circle wallet on Arc",
     },
     {
       id: "external",

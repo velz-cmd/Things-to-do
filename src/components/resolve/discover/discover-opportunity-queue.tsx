@@ -342,7 +342,7 @@ export function DiscoverOpportunityQueue({
                 role={role}
                 surface="opportunity-board"
                 lane="graph"
-                fundAmountUsd={amountByProgram[program.programId] ?? "25"}
+                fundAmountUsd={amountByProgram[program.programId] ?? "5"}
                 onFundAmountChange={(value) =>
                   setAmountByProgram((prev) => ({ ...prev, [program.programId]: value }))
                 }

@@ -328,18 +328,36 @@ export function DiscoverActionsProvider({
         router.push("/login?next=/discover");
         return;
       }
-      if (wallet.loaded && wallet.spendableUsd <= 0) {
-        toast.error("No spendable USDC - add funds in Capital before funding", {
+      const canSpend =
+        spendable.spendableUsd >= 5 ||
+        spendable.appSpendableUsd >= 5 ||
+        (externalWalletReady && spendable.externalSpendableUsd >= 5);
+
+      if (spendable.loaded && !canSpend) {
+        toast.error("No spendable USDC on Arc testnet", {
+          description: externalWalletReady
+            ? "Add USDC to your connected wallet or RESOLVE wallet"
+            : "Connect a wallet with USDC, or add funds in Capital",
           action: {
-            label: "Open Capital",
-            onClick: () => router.push("/capital"),
+            label: externalWalletReady ? "Open Capital" : "Connect wallet",
+            onClick: () =>
+              externalWalletReady ? router.push("/capital") : openConnectWallet(),
           },
         });
         return;
       }
       setFundSheet(req);
     },
-    [signedIn, router, wallet.loaded, wallet.spendableUsd],
+    [
+      signedIn,
+      router,
+      spendable.loaded,
+      spendable.spendableUsd,
+      spendable.appSpendableUsd,
+      spendable.externalSpendableUsd,
+      externalWalletReady,
+      openConnectWallet,
+    ],
   );
 
   const executeConfirmedAction = useCallback(async () => {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { DiscoverAction, DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverCardLane } from "@/lib/discover/types";
@@ -26,14 +26,7 @@ import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progre
 import { resolveGapDisplayAmounts } from "@/lib/discover/gap-display-amounts";
 import { gapProofHref } from "@/lib/discover/gap-rules";
 import { buildPreviewCohortPayees } from "@/lib/discover/preview-cohort-payees";
-import {
-  discoverCardKey,
-  dismissDiscoverCard,
-  FUND_ACTION_RECORDED_EVENT,
-  FUND_CARD_DISMISSED_EVENT,
-  isDiscoverCardDismissed,
-  latestFundForCommunity,
-} from "@/lib/capital/fund-action-store";
+import { latestFundForCommunity } from "@/lib/capital/fund-action-store";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -122,28 +115,12 @@ export function ValueReceiptCard({
   const { fundedUsdForProgram, fundedUsdForCommunity } = useMyPoolStakes();
   const programId = gap.programId;
   const communitySlug = gap.communitySlug;
-  const cardKey = discoverCardKey({
-    communitySlug,
-    templateId: gap.templateId,
-    gapId: gap.id,
-  });
-  const [dismissed, setDismissed] = useState(() => isDiscoverCardDismissed(cardKey));
   const { pool, loading: poolLoading, resolvedProgramId } = useProgramPoolState(
     communitySlug ?? "",
     programId ?? null,
     { templateId: gap.templateId },
   );
   const effectiveProgramId = programId ?? resolvedProgramId ?? null;
-
-  useEffect(() => {
-    const syncDismiss = () => setDismissed(isDiscoverCardDismissed(cardKey));
-    window.addEventListener(FUND_CARD_DISMISSED_EVENT, syncDismiss);
-    window.addEventListener(FUND_ACTION_RECORDED_EVENT, syncDismiss);
-    return () => {
-      window.removeEventListener(FUND_CARD_DISMISSED_EVENT, syncDismiss);
-      window.removeEventListener(FUND_ACTION_RECORDED_EVENT, syncDismiss);
-    };
-  }, [cardKey]);
 
   const spendableUsd = wallet.loaded ? wallet.spendableUsd : null;
   const fundedProgramUsd = fundedUsdForProgram(effectiveProgramId);
@@ -202,6 +179,8 @@ export function ValueReceiptCard({
     pool?.funder.estimatedShareOfOwedUsd ??
     (gap.amountVerified ? gap.moneyCanMoveUsd : isEstimate ? catalogOwedUsd : 0);
   const heroLabel = poolBalanceUsd > 0 ? "Pool funded" : "Owed to creators";
+  const hasInstantAmounts =
+    owedUsd > 0 || poolBalanceUsd > 0 || yourDepositUsd > 0 || Boolean(localFund);
   const peopleLine =
     pool && pool.contributorCount > 0
       ? buildPoolPeopleLine({
@@ -209,9 +188,14 @@ export function ValueReceiptCard({
           funderCount: pool.funderCount,
           payeeCategory: pool.payeeCategory,
         })
-      : null;
-  const poolRefreshing =
-    poolLoading && !pool && poolBalanceUsd <= 0 && yourDepositUsd <= 0 && !localFund;
+      : contributorCount > 0
+        ? buildPoolPeopleLine({
+            contributorCount,
+            funderCount: pool?.funderCount ?? 0,
+            payeeCategory: pool?.payeeCategory ?? "creators",
+          })
+        : null;
+  const poolRefreshing = poolLoading && !pool && !hasInstantAmounts;
   const milestoneSegment = computePoolMilestoneSegment(poolBalanceUsd);
   const sourcedHook = pool?.sourcedHook ?? null;
   const rfb = rfbBadgeForTemplate(gap.templateId);
@@ -231,28 +215,8 @@ export function ValueReceiptCard({
 
   const showInlineFund = Boolean(onFund);
 
-  if (dismissed) return null;
-
-  const canDismiss = signedIn && yourDepositUsd > 0;
-
-  const handleDismiss = () => {
-    dismissDiscoverCard(cardKey);
-    setDismissed(true);
-  };
-
   return (
     <article className={clsx("value-receipt-card relative", className)}>
-      {canDismiss && (
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/40 p-1 text-resolve-muted hover:text-white"
-          aria-label="Dismiss funded row"
-          title="Hide after your contribution is recorded"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <DiscoverCommunityLogo gap={gap} />

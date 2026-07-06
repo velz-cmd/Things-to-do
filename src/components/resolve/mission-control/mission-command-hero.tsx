@@ -1,19 +1,48 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowRight } from "lucide-react";
-import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
+import { CircleDollarSign, Bot, LineChart } from "lucide-react";
 import {
-  MISSION_COMPETITIVE_EDGE,
   MISSION_HERO_SUBTITLE,
   MISSION_HERO_TITLE,
-  MISSION_JOBS,
   type MissionJobId,
 } from "@/lib/mission/mission-lane-copy";
+import { MissionPipelineStepper } from "@/components/resolve/mission-control/mission-pipeline-stepper";
+
+const PRIMARY_INTENTS = [
+  {
+    id: "fund" as const satisfies MissionJobId,
+    label: "Fund a gap",
+    detail: "Blueprint payees from ledger",
+    prompt: "Fund the top open-source maintainers in React based on real contribution signals.",
+    icon: CircleDollarSign,
+    accent: "sky",
+  },
+  {
+    id: "simulate" as const satisfies MissionJobId,
+    label: "Simulate allocation",
+    detail: "Dry-run before Arc",
+    prompt: "Simulate allocating $5,000 across React maintainers — show recipients and amounts.",
+    icon: LineChart,
+    accent: "emerald",
+  },
+  {
+    id: "agent" as const satisfies MissionJobId,
+    label: "Hire intel",
+    detail: "x402 signal → Blueprint",
+    prompt: "Run intel on React maintainers — docs gaps and contributor health",
+    icon: Bot,
+    accent: "violet",
+  },
+] as const;
+
+const accentRing: Record<string, string> = {
+  sky: "hover:border-sky-500/35 hover:bg-sky-500/[0.06] focus-visible:ring-sky-500/40",
+  emerald: "hover:border-emerald-500/35 hover:bg-emerald-500/[0.06] focus-visible:ring-emerald-500/40",
+  violet: "hover:border-violet-500/35 hover:bg-violet-500/[0.06] focus-visible:ring-violet-500/40",
+};
 
 export function MissionCommandHero({
-  activeJob,
-  onSelectJob,
   onSubmit,
   className,
 }: {
@@ -24,62 +53,48 @@ export function MissionCommandHero({
 }) {
   return (
     <header className={clsx("relative", className)}>
-      <DiscoverCapitalCard className="discover-operating-hero" padding={false} hover={false}>
-        <div className="relative overflow-hidden px-5 py-5 sm:px-6 sm:py-6">
-          <div aria-hidden className="discover-operating-hero__flare" />
-          <div className="relative">
-            <p className="discover-eyebrow text-[10px] font-semibold uppercase tracking-[0.24em]">
-              Mission OS
+      <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#0f1729] to-[#0a1020]/80 px-5 py-6 sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300/80">
+              Mission
             </p>
-            <h1 className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">
+            <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-white sm:text-2xl">
               {MISSION_HERO_TITLE}
             </h1>
-            <p className="mt-2 text-sm leading-6 text-resolve-muted">{MISSION_HERO_SUBTITLE}</p>
-            <p className="mt-3 rounded-lg border border-violet-500/20 bg-violet-500/[0.06] px-3 py-2 text-[11px] font-medium leading-relaxed text-violet-100/95">
-              {MISSION_COMPETITIVE_EDGE}
+            <p className="mt-2 max-w-lg text-sm leading-relaxed text-resolve-muted">
+              {MISSION_HERO_SUBTITLE}
             </p>
           </div>
-
-          <div
-            className="relative mt-5 grid gap-2 sm:grid-cols-2"
-            role="tablist"
-            aria-label="Mission intent"
-          >
-            {MISSION_JOBS.map((job) => {
-              const selected = activeJob === job.id;
-              const Icon = job.icon;
-              return (
-                <button
-                  key={job.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  title={job.who}
-                  onClick={() => {
-                    onSelectJob?.(job.id);
-                    onSubmit(job.prompt);
-                  }}
-                  className={clsx(
-                    "discover-job-tile group text-left",
-                    selected && "discover-job-tile--active",
-                  )}
-                >
-                  <span className="discover-job-tile__icon">
-                    <Icon className="h-4 w-4" strokeWidth={1.9} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-white">{job.who}</span>
-                    <span className="mt-0.5 block text-[11px] leading-4 text-resolve-muted">
-                      {job.surfaces}
-                    </span>
-                  </span>
-                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-resolve-muted-dim transition group-hover:translate-x-0.5 group-hover:text-white" />
-                </button>
-              );
-            })}
-          </div>
+          <MissionPipelineStepper activeStep="signal" className="shrink-0" />
         </div>
-      </DiscoverCapitalCard>
+
+        <div className="mt-6 grid gap-2 sm:grid-cols-3" role="list" aria-label="Start a mission">
+          {PRIMARY_INTENTS.map((intent) => {
+            const Icon = intent.icon;
+            return (
+              <button
+                key={intent.id}
+                type="button"
+                role="listitem"
+                onClick={() => onSubmit(intent.prompt)}
+                className={clsx(
+                  "group flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3.5 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2",
+                  accentRing[intent.accent],
+                )}
+              >
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-white/90">
+                  <Icon className="h-4 w-4" strokeWidth={1.75} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-white">{intent.label}</span>
+                  <span className="mt-0.5 block text-[11px] text-resolve-muted">{intent.detail}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </header>
   );
 }

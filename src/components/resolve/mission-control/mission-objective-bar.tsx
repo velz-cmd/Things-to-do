@@ -3,8 +3,11 @@
 import clsx from "clsx";
 import { Target } from "lucide-react";
 import { useMissionScope } from "@/lib/mission/mission-context";
-import { MISSION_AGENT_PIPELINE } from "@/lib/mission/mission-lane-copy";
 import type { CapitalLoopPhase } from "@/lib/mission/capital-os";
+import {
+  MissionPipelineStepper,
+  type MissionPipelineStep,
+} from "@/components/resolve/mission-control/mission-pipeline-stepper";
 
 const LOOP_PHASE_LABEL: Record<CapitalLoopPhase, string> = {
   observe: "Observe",
@@ -17,23 +20,35 @@ const LOOP_PHASE_LABEL: Record<CapitalLoopPhase, string> = {
   learn: "Learn",
 };
 
-/** Sticky mission objective — command deck identity. */
+function pipelineStep(loopPhase: CapitalLoopPhase, blueprintActive: boolean): MissionPipelineStep {
+  if (!blueprintActive) return "signal";
+  if (loopPhase === "simulate" || loopPhase === "approve") return loopPhase === "approve" ? "authorize" : "simulate";
+  if (loopPhase === "execute" || loopPhase === "measure") return "authorize";
+  return "blueprint";
+}
+
+/** Sticky mission objective — command deck header. */
 export function MissionObjectiveBar({
   objective,
   loopPhase = "observe",
   blueprintActive = false,
+  simulated = false,
 }: {
   objective: string;
   loopPhase?: CapitalLoopPhase;
   blueprintActive?: boolean;
+  simulated?: boolean;
 }) {
   const { scope } = useMissionScope();
+  const step = pipelineStep(loopPhase, blueprintActive);
 
   return (
-    <div className="shrink-0 border-b border-white/[0.06] bg-[#070b14]/80 px-4 py-2.5 backdrop-blur-md lg:px-8">
-      <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Target className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+    <div className="shrink-0 border-b border-white/[0.06] bg-[#070b14]/90 px-4 py-3 backdrop-blur-md lg:px-8">
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 ring-1 ring-sky-400/20">
+            <Target className="h-4 w-4 text-sky-300" />
+          </div>
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
               Active mission
@@ -41,10 +56,22 @@ export function MissionObjectiveBar({
             <p className="truncate text-sm font-medium text-white">{objective}</p>
           </div>
         </div>
+
+        <MissionPipelineStepper
+          activeStep={step}
+          simulated={simulated}
+          className="hidden sm:flex"
+        />
+
         <div className="flex flex-wrap items-center gap-2">
+          {scope && (
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] text-resolve-muted">
+              {scope.label}
+            </span>
+          )}
           <span
             className={clsx(
-              "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+              "rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
               blueprintActive
                 ? "border-sky-400/30 bg-sky-500/10 text-sky-200"
                 : "border-white/10 bg-white/[0.04] text-resolve-muted",
@@ -52,16 +79,8 @@ export function MissionObjectiveBar({
           >
             {LOOP_PHASE_LABEL[loopPhase]}
           </span>
-          {scope && (
-            <p className="text-[10px] text-resolve-muted">
-              Scope · <span className="text-white/90">{scope.label}</span>
-            </p>
-          )}
         </div>
       </div>
-      <p className="mx-auto mt-1 max-w-2xl text-center text-[9px] text-resolve-muted-dim">
-        {MISSION_AGENT_PIPELINE}
-      </p>
     </div>
   );
 }

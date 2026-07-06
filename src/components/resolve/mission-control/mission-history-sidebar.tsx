@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { ChevronLeft, PenLine, Trash2 } from "lucide-react";
-import { ValueGraph } from "@/components/resolve/discover/value-graph";
 import {
   formatSessionTime,
   loadMissionSessions,
@@ -155,10 +154,6 @@ export function MissionHistorySidebar({
             ))}
           </ul>
         }
-      </div>
-
-      <div className="border-t border-white/[0.06] p-3">
-        <ValueGraph variant="compact" />
       </div>
     </aside>
   );

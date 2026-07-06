@@ -22,6 +22,7 @@ import { useMyPoolStakes } from "@/hooks/use-my-pool-stakes";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { useProgramPoolState } from "@/components/resolve/communities/pool-checkpoint-panel";
 import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
+import { PoolBatchPayeeCompact } from "@/components/resolve/discover/pool-batch-payee-compact";
 import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
 import { resolveGapDisplayAmounts } from "@/lib/discover/gap-display-amounts";
 import { gapProofHref } from "@/lib/discover/gap-rules";
@@ -201,17 +202,15 @@ export function ValueReceiptCard({
   const rfb = rfbBadgeForTemplate(gap.templateId);
   const proofHref = gapProofHref(gap, localFund?.id ?? null);
   const previewCohort =
-    gap.communitySlug && gap.dataSource === "community_catalog" && yourDepositUsd <= 0
+    gap.communitySlug && gap.dataSource === "community_catalog"
       ? buildPreviewCohortPayees(gap.communitySlug, milestoneSegment.ceilingUsd)
       : null;
   const cohortPayees =
-    yourDepositUsd > 0
-      ? null
-      : pool?.nextBatchPayees?.length
-        ? pool.nextBatchPayees.map((p) => ({ label: p.label, owedUsd: p.owedUsd }))
-        : gap.cohortPayees?.length
-          ? gap.cohortPayees
-          : previewCohort;
+    pool?.nextBatchPayees?.length
+      ? pool.nextBatchPayees.map((p) => ({ label: p.label, owedUsd: p.owedUsd }))
+      : gap.cohortPayees?.length
+        ? gap.cohortPayees
+        : previewCohort;
 
   const showInlineFund = Boolean(onFund);
 
@@ -348,27 +347,29 @@ export function ValueReceiptCard({
 
       <PoolMilestoneBar poolUsd={poolBalanceUsd} segment={milestoneSegment} compact />
 
+      {pool && pool.funderCount > 0 && (
+        <p className="mt-2 text-[10px] text-resolve-muted">
+          <span className="font-medium text-emerald-200/90">
+            {pool.funderCount} funder{pool.funderCount === 1 ? "" : "s"}
+          </span>
+          {" · "}
+          <Money amount={poolBalanceUsd} size="sm" className="inline text-white/90" /> communal pool
+          {yourDepositUsd > 0 ? (
+            <>
+              {" · your share "}
+              <Money amount={yourDepositUsd} size="sm" className="inline text-white/90" />
+              {pool.funder.yourSharePct > 0 ? ` (${pool.funder.yourSharePct}%)` : ""}
+            </>
+          ) : null}
+        </p>
+      )}
+
       {cohortPayees && cohortPayees.length > 0 && (
-        <div className="mt-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted">
-            Next ${milestoneSegment.ceilingUsd.toLocaleString()} batch · {cohortPayees.length} creators
-            · ${cohortPayees.reduce((s, p) => s + p.owedUsd, 0).toFixed(2)} total
-          </p>
-          {gap.eligibilityCriteria && (
-            <p className="mt-0.5 text-[9px] text-resolve-muted-dim">{gap.eligibilityCriteria}</p>
-          )}
-          <ul className="mt-1.5 max-h-28 space-y-0.5 overflow-y-auto">
-            {cohortPayees.slice(0, 10).map((payee) => (
-              <li
-                key={payee.label}
-                className="flex items-center justify-between gap-2 text-[10px]"
-              >
-                <span className="truncate text-white/90">{payee.label}</span>
-                <Money amount={payee.owedUsd} size="sm" className="shrink-0 text-amber-100/90" />
-              </li>
-            ))}
-          </ul>
-        </div>
+        <PoolBatchPayeeCompact
+          payees={cohortPayees}
+          ceilingUsd={milestoneSegment.ceilingUsd}
+          payeeCategory={pool?.payeeCategory ?? "creators"}
+        />
       )}
       {yourDepositUsd > 0 && localFund && (
         <p className="mt-2 text-[10px] text-emerald-200/90">

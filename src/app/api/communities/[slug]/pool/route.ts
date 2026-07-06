@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser, ensureProfileForUser } from "@/lib/auth/session";
-import { getProgramPoolState } from "@/lib/capital/pool-checkpoints";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
-import { resolvePublicProgramForCommunity } from "@/lib/communities/programs";
+import { getCommunityPoolState } from "@/lib/capital/community-pool-state";
 import { API_CACHE } from "@/lib/api/cache-headers";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -23,18 +22,17 @@ export async function GET(req: Request, { params }: Params) {
 
   const url = new URL(req.url);
   const templateId = url.searchParams.get("templateId") ?? undefined;
-  const program = await resolvePublicProgramForCommunity(slug, templateId ?? undefined);
+  const { programId, pool } = await getCommunityPoolState(slug, templateId, viewerId);
 
-  if (!program) {
+  if (!programId || !pool) {
     return NextResponse.json(
-      { ok: true, programId: null, pool: null },
+      { ok: true, programId: programId ?? null, pool: null },
       { headers: { "Cache-Control": API_CACHE.publicShort } },
     );
   }
 
-  const pool = await getProgramPoolState(program.id, viewerId);
   return NextResponse.json(
-    { ok: true, programId: program.id, pool },
+    { ok: true, programId, pool },
     { headers: { "Cache-Control": API_CACHE.publicShort } },
   );
 }

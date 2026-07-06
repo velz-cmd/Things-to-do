@@ -5,7 +5,10 @@ import {
   ARC_PROVIDER_WALLET_ADDRESS,
   ARC_USDC_CONTRACT,
 } from "@/lib/settlement/arc-config";
-import { getCircleEntitySecret } from "@/lib/wallet/circle-config";
+import {
+  ensureCircleEntitySecret,
+  getCircleEntitySecret,
+} from "@/lib/wallet/circle-config";
 import { ERC8183_ABI, ERC20_APPROVE_ABI } from "@/lib/settlement/erc8183-abi";
 import { verifyArcTx } from "@/lib/settlement/arc-verify";
 import { usdcToWei } from "@/lib/arc/utils";
@@ -37,8 +40,16 @@ export async function getCircleClientWithSecret(
 
 export async function getCircleClient(): Promise<CircleClient | null> {
   const apiKey = process.env.CIRCLE_API_KEY?.trim();
-  const entitySecret = await getCircleEntitySecret();
-  if (!apiKey || !entitySecret) return null;
+  if (!apiKey) return null;
+
+  let entitySecret: string | null = null;
+  try {
+    const resolved = await ensureCircleEntitySecret();
+    entitySecret = resolved.entitySecret;
+  } catch {
+    entitySecret = await getCircleEntitySecret();
+  }
+  if (!entitySecret) return null;
 
   if (clientSecretKey !== entitySecret) {
     clientPromise = null;
@@ -52,7 +63,7 @@ export async function getCircleClient(): Promise<CircleClient | null> {
       );
       return initiateDeveloperControlledWalletsClient({
         apiKey,
-        entitySecret,
+        entitySecret: entitySecret!,
       });
     })();
   }
@@ -117,9 +128,17 @@ export async function executeCircleContractOn(input: {
   abiParameters: string[];
   label: string;
 }): Promise<string> {
-  const circle = await getCircleClient();
-  if (!circle) {
-    throw new Error("Circle client not configured");
+  let circle: CircleClient;
+  try {
+    const secretResult = await ensureCircleEntitySecret();
+    resetCircleClientCache();
+    const resolved = await getCircleClientWithSecret(secretResult.entitySecret);
+    if (!resolved) throw new Error("Circle client not configured");
+    circle = resolved;
+  } catch {
+    const fallback = await getCircleClient();
+    if (!fallback) throw new Error("Circle client not configured");
+    circle = fallback;
   }
 
   const res = await circle.createContractExecutionTransaction({

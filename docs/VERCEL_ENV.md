@@ -25,7 +25,7 @@ Enable **Production**, **Preview**, and **Development** for each.
 | Name | Value (RESOLVE production example) |
 |------|-------------------------------------|
 | `CIRCLE_API_KEY` | Full Circle key: `TEST_API_KEY:…:…` (entire string) |
-| `CIRCLE_ENTITY_SECRET` | 64-char **entity secret** from Circle → Developer Wallets (not `TEST_CLIENT_KEY` unless Circle labels it entity secret) |
+| `CIRCLE_ENTITY_SECRET` | 64-char **entity secret** from Circle Console → Configurator → Entity Secret (see `docs/CIRCLE-SETUP.md`) — **not** `TEST_CLIENT_KEY` |
 | `CIRCLE_WALLET_SET_ID` | Wallet set UUID where user wallets are created, e.g. `52cc4ccb-0d02-5d7c-9f62-8becc86c2825` |
 | `ARC_CLIENT_WALLET_ADDRESS` | **Settlement treasury** — pool funds land here, e.g. `0xd8c4bb234e42b87109c42a928e908d73c0e6bc3c` |
 | `ARC_CLIENT_WALLET_ID` | Circle wallet UUID for treasury (optional if address is in `CIRCLE_WALLET_SET_ID` — app resolves from Circle) |

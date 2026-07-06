@@ -7,6 +7,7 @@ import {
   matchServiceForPrompt,
 } from "@/lib/agent/commerce";
 import { chargeAgentSignalOnArc } from "@/lib/agent/agent-signal-arc-payment";
+import { chargeAgentSignalWithExternalTx } from "@/lib/agent/agent-signal-with-tx";
 import { describeAgentCommerceFeePath } from "@/lib/agent/fee-path";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { isProductionDeploy } from "@/lib/config/demo-mode";
@@ -21,6 +22,8 @@ type InvokeBody = {
   text?: string;
   missionId?: string;
   maxSpendUsd?: number;
+  /** Verified when user paid with a connected wallet on Arc */
+  paymentTxHash?: string;
 };
 
 function asMicroResult(data: unknown): X402MicroResult | null {
@@ -144,12 +147,21 @@ async function handleAgentInvoke(req: Request) {
     | undefined;
 
   if (isProductionDeploy()) {
-    const arcCharge = await chargeAgentSignalOnArc({
-      user: ready.profile,
-      amountUsd: priceUsd,
-      serviceId,
-      taskId,
-    });
+    const arcCharge = body.paymentTxHash
+      ? await chargeAgentSignalWithExternalTx({
+          userId: ready.user.id,
+          amountUsd: priceUsd,
+          serviceId,
+          taskId,
+          txHash: body.paymentTxHash,
+          identityWalletAddress: ready.profile.walletAddress,
+        })
+      : await chargeAgentSignalOnArc({
+          user: ready.profile,
+          amountUsd: priceUsd,
+          serviceId,
+          taskId,
+        });
 
     if (!arcCharge.ok) {
       return NextResponse.json(

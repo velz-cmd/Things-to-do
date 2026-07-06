@@ -1,5 +1,6 @@
 import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
 import { isVerifiedGap } from "@/lib/discover/gap-rules";
+import { enrichGapCatalogAmounts } from "@/lib/discover/gap-display-amounts";
 import { buildSensorCommunityPreviewRows } from "@/lib/discover/sensor-community-rows";
 import type { DomainRadarId, DiscoverRadarFeedPayload, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
@@ -27,7 +28,7 @@ export function collectGapsRows(
   connections: UserConnectionState | null = null,
 ): TrendingValueGap[] {
   if (filtered.length > 0) {
-    return filtered.slice(0, limit);
+    return filtered.slice(0, limit).map(enrichGapCatalogAmounts);
   }
   if (!feed) {
     return buildSensorCommunityPreviewRows(role, connections, limit, "gaps");

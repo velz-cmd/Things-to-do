@@ -8,6 +8,7 @@ import {
   previewAmountUsdForCommunity,
   radarHeadlineForProfile,
 } from "@/lib/discover/community-value-profiles";
+import { buildPreviewCohortPayees } from "@/lib/discover/preview-cohort-payees";
 import {
   MUSIC_MIN_PLAYS,
   MUSIC_PAYOUT_USD,
@@ -113,6 +114,8 @@ function buildPreviewRow(
       : { ...baseMetrics, story: liveSignalStory(slug) ?? baseMetrics.story };
   const upstream = profile ? humanizeExtractionSources(profile.extractionSources) : entry.name;
   const estimatedAmountUsd = previewAmountUsdForCommunity(slug);
+  const previewMetrics = buildUnpaidValueMetrics(slug, isInstalled);
+  const cohortPayees = buildPreviewCohortPayees(slug);
   const eligibilityCriteria =
     entry.kind === "music"
       ? `${MUSIC_MIN_PLAYS}+ plays → $${MUSIC_PAYOUT_USD} · pools of ${COHORT_POOL_SIZE}`
@@ -135,7 +138,8 @@ function buildPreviewRow(
     proofConnectorId: entry.connectors[0],
     amountNeededUsd: estimatedAmountUsd,
     moneyCanMoveUsd: estimatedAmountUsd,
-    peopleImpacted: 0,
+    peopleImpacted: previewMetrics.countValue || cohortPayees.length,
+    cohortPayees,
     trendScore: 0,
     communitySlug: slug,
     templateId,

@@ -23,6 +23,9 @@ import { useUserConnections } from "@/components/resolve/profile/user-connection
 import { useProgramPoolState } from "@/components/resolve/communities/pool-checkpoint-panel";
 import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
 import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
+import { resolveGapDisplayAmounts } from "@/lib/discover/gap-display-amounts";
+import { gapProofHref } from "@/lib/discover/gap-rules";
+import { buildPreviewCohortPayees } from "@/lib/discover/preview-cohort-payees";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -119,14 +122,21 @@ export function ValueReceiptCard({
   const effectiveProgramId = programId ?? resolvedProgramId ?? null;
 
   const spendableUsd = wallet.loaded ? wallet.spendableUsd : null;
-  const poolBalanceUsd = Math.max(
-    pool?.poolBalanceUsd ?? 0,
-    fundedUsdForProgram(effectiveProgramId),
-  );
-  const yourDepositUsd = Math.max(
-    pool?.funder.yourDepositUsd ?? 0,
-    fundedUsdForProgram(effectiveProgramId),
-  );
+  const fundedUsd = fundedUsdForProgram(effectiveProgramId);
+  const amounts = resolveGapDisplayAmounts({
+    gap,
+    pool,
+    fundedUsdForProgram: fundedUsd,
+    yourDepositFromPool: pool?.funder.yourDepositUsd ?? 0,
+  });
+  const {
+    displayOwedUsd: owedUsd,
+    displayPoolUsd: poolBalanceUsd,
+    displayHeroUsd: heroUsd,
+    yourDepositUsd,
+    contributorCount,
+    isEstimate,
+  } = amounts;
   const card = useMemo(
     () =>
       deriveDiscoverCardState(gap, connections, lane, role, surface, {
@@ -160,13 +170,10 @@ export function ValueReceiptCard({
     );
   };
 
-  const catalogOwedUsd = Math.max(gap.amountNeededUsd, gap.moneyCanMoveUsd, 0);
-  const owedUsd =
-    pool && pool.owedToCreatorsUsd > 0 ? pool.owedToCreatorsUsd : catalogOwedUsd;
+  const catalogOwedUsd = amounts.catalogEstimateUsd;
   const estimateUsd =
     pool?.funder.estimatedShareOfOwedUsd ??
-    (gap.amountVerified ? gap.moneyCanMoveUsd : 0);
-  const heroUsd = poolBalanceUsd > 0 ? poolBalanceUsd : owedUsd;
+    (gap.amountVerified ? gap.moneyCanMoveUsd : isEstimate ? catalogOwedUsd : 0);
   const heroLabel = poolBalanceUsd > 0 ? "Pool funded" : "Owed to creators";
   const peopleLine =
     pool && pool.contributorCount > 0
@@ -176,20 +183,21 @@ export function ValueReceiptCard({
           payeeCategory: pool.payeeCategory,
         })
       : null;
-  const poolDeferred = poolLoading && !pool && poolBalanceUsd <= 0 && yourDepositUsd <= 0;
+  const poolRefreshing = poolLoading && !pool && poolBalanceUsd <= 0 && yourDepositUsd <= 0;
   const milestoneSegment = computePoolMilestoneSegment(poolBalanceUsd);
-  const contributorCount = pool?.contributorCount ?? 0;
   const sourcedHook = pool?.sourcedHook ?? null;
   const rfb = rfbBadgeForTemplate(gap.templateId);
-  const proofHref =
-    gap.proofHref ??
-    (gap.proofAuthorizationId && gap.dataSource === "supabase_ledger"
-      ? `/receipt/${gap.proofAuthorizationId}`
-      : undefined);
+  const proofHref = gapProofHref(gap);
+  const previewCohort =
+    gap.communitySlug && gap.dataSource === "community_catalog"
+      ? buildPreviewCohortPayees(gap.communitySlug)
+      : null;
   const cohortPayees =
     pool?.nextBatchPayees?.length
       ? pool.nextBatchPayees.map((p) => ({ label: p.label, owedUsd: p.owedUsd }))
-      : gap.cohortPayees;
+      : gap.cohortPayees?.length
+        ? gap.cohortPayees
+        : previewCohort;
 
   const showInlineFund = Boolean(onFund);
 
@@ -256,12 +264,14 @@ export function ValueReceiptCard({
             {heroLabel}
           </p>
           <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-300">
-            {poolDeferred ? (
-              <Loader2 className="inline h-4 w-4 animate-spin" />
-            ) : (
-              <Money amount={heroUsd} size="sm" className="inline" />
+            <Money amount={heroUsd} size="sm" className="inline" />
+            {poolRefreshing && (
+              <Loader2 className="ml-1 inline h-3 w-3 animate-spin text-resolve-muted" />
             )}
           </p>
+          {isEstimate && poolBalanceUsd <= 0 && (
+            <p className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Est. unpaid</p>
+          )}
           {poolBalanceUsd > 0 && owedUsd > 0 && poolBalanceUsd !== owedUsd && (
             <p className="text-[10px] tabular-nums text-amber-200/80">
               <Money amount={owedUsd} size="sm" className="inline" /> owed
@@ -279,10 +289,9 @@ export function ValueReceiptCard({
         <div>
           <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Pool</dt>
           <dd className="mt-0.5 font-semibold tabular-nums text-emerald-300">
-            {poolDeferred ? (
-              <Loader2 className="inline h-3 w-3 animate-spin" />
-            ) : (
-              <Money amount={poolBalanceUsd} size="sm" className="inline" />
+            <Money amount={poolBalanceUsd} size="sm" className="inline" />
+            {poolRefreshing && (
+              <Loader2 className="ml-0.5 inline h-3 w-3 animate-spin text-resolve-muted" />
             )}
           </dd>
         </div>
@@ -299,7 +308,7 @@ export function ValueReceiptCard({
         <div>
           <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Owed</dt>
           <dd className="mt-0.5 font-semibold tabular-nums text-amber-200">
-            {!gap.amountVerified && catalogOwedUsd > 0 && (
+            {isEstimate && owedUsd > 0 && (
               <span className="mr-1 text-[8px] font-normal uppercase text-resolve-muted-dim">
                 Est.
               </span>
@@ -309,7 +318,7 @@ export function ValueReceiptCard({
         </div>
         {contributorCount > 0 && (
           <div>
-            <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Payees</dt>
+            <dt className="text-[9px] uppercase tracking-wide text-resolve-muted-dim">Contributors</dt>
             <dd className="mt-0.5 font-semibold tabular-nums text-white">{contributorCount}</dd>
           </div>
         )}
@@ -328,8 +337,12 @@ export function ValueReceiptCard({
       {cohortPayees && cohortPayees.length > 0 && (
         <div className="mt-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted">
-            Next batch · up to {cohortPayees.length} creators
+            Next ${milestoneSegment.ceilingUsd.toLocaleString()} batch · up to {cohortPayees.length}{" "}
+            creators
           </p>
+          {gap.eligibilityCriteria && (
+            <p className="mt-0.5 text-[9px] text-resolve-muted-dim">{gap.eligibilityCriteria}</p>
+          )}
           <ul className="mt-1.5 max-h-28 space-y-0.5 overflow-y-auto">
             {cohortPayees.slice(0, 10).map((payee) => (
               <li

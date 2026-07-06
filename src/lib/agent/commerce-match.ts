@@ -17,7 +17,17 @@ export function matchServiceForPrompt(prompt: string): AgentSignalService | null
   if (lower.includes("research") || lower.includes("premium") || lower.includes("policy")) {
     return getAgentSignalService("premium-research") ?? null;
   }
-  if (lower.includes("play") || lower.includes("listen") || lower.includes("artist")) {
+  if (
+    lower.includes("royalty") ||
+    lower.includes("play-weighted") ||
+    (lower.includes("settlement") && (lower.includes("music") || lower.includes("artist")))
+  ) {
+    return null;
+  }
+  if (
+    (lower.includes("play") || lower.includes("listen") || lower.includes("artist")) &&
+    /(?:artist|by|track|title|song)[:\s]+/i.test(prompt)
+  ) {
     return getAgentSignalService("attribution-signal") ?? null;
   }
   if (

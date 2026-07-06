@@ -60,11 +60,11 @@ export function resolveGapDisplayAmounts(input: {
   const ledgerOwedUsd = Math.max(input.pool?.owedToCreatorsUsd ?? 0, 0);
   const displayOwedUsd = ledgerOwedUsd > 0 ? ledgerOwedUsd : catalogEstimateUsd;
   const communityFunded = input.fundedUsdForCommunity ?? 0;
-  const displayPoolUsd = Math.max(
+  const serverPoolUsd = Math.max(
     input.pool?.poolBalanceUsd ?? 0,
-    input.fundedUsdForProgram,
-    communityFunded,
+    input.pool?.totalDepositedUsd ?? 0,
   );
+  const displayPoolUsd = serverPoolUsd;
   const displayHeroUsd = displayPoolUsd > 0 ? displayPoolUsd : displayOwedUsd;
   const yourDepositUsd = Math.max(
     input.yourDepositFromPool,

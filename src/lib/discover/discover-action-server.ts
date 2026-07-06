@@ -128,25 +128,22 @@ export async function executeDiscoverAction(
           break;
         }
 
-        let programId = input.programId;
-        if (!programId) {
-          const target = await resolveFundTarget({
-            programId: input.programId,
-            communitySlug: input.communitySlug,
-            templateId: input.templateId,
-            missionId: input.missionId,
-            userId,
-          });
-          if (!target) {
-            response = discoverActionError(
-              "PROGRAM_NOT_FOUND",
-              "Program rule required",
-              "create_rule",
-            );
-            break;
-          }
-          programId = await ensureProgramId(userId, target);
+        const target = await resolveFundTarget({
+          programId: input.programId,
+          communitySlug: input.communitySlug,
+          templateId: input.templateId,
+          missionId: input.missionId,
+          userId,
+        });
+        if (!target) {
+          response = discoverActionError(
+            "PROGRAM_NOT_FOUND",
+            "Program rule required",
+            "create_rule",
+          );
+          break;
         }
+        const programId = await ensureProgramId(userId, target);
 
         const funded = await fundCommunityProgram({ userId, programId, amountUsd });
         if (!funded.ok) {

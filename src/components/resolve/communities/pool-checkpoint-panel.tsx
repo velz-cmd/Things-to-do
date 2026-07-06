@@ -72,10 +72,10 @@ export function useProgramPoolState(
     if (!hasCache) setLoading(true);
     try {
       if (effectiveProgramId) {
-        const res = await fetch(
-          `/api/communities/${encodeURIComponent(communitySlug)}/programs/${effectiveProgramId}/pool`,
-          { credentials: "include", cache: "default" },
-        );
+      const res = await fetch(
+        `/api/communities/${encodeURIComponent(communitySlug)}/programs/${effectiveProgramId}/pool`,
+        { credentials: "include", cache: "no-store" },
+      );
         if (res.ok) {
           const data = await res.json();
           const next = data.pool ?? null;
@@ -93,7 +93,7 @@ export function useProgramPoolState(
         : "";
       const res = await fetch(
         `/api/communities/${encodeURIComponent(communitySlug)}/pool${qs}`,
-        { credentials: "include", cache: "default" },
+        { credentials: "include", cache: "no-store" },
       );
       if (res.ok) {
         const data = await res.json();

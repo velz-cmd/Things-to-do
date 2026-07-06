@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getCommunityBySlug, type ProgramTemplateId } from "@/lib/communities/catalog";
 import { ensureProfileLinkedInstall } from "@/lib/communities/profile-linked-install";
-import { resolvePublicProgramForCommunity } from "@/lib/communities/programs";
+import { resolveCommunalFundTarget } from "@/lib/capital/community-pool-state";
 
 export type FundTargetResolution = {
   ok: true;
@@ -28,11 +28,31 @@ export async function resolveFundTarget(input: {
       include: { install: { select: { communitySlug: true } } },
     });
     if (!program) return null;
+    const communitySlug = program.install?.communitySlug ?? input.communitySlug;
+    if (communitySlug && getCommunityBySlug(communitySlug)) {
+      const communal = await resolveCommunalFundTarget({
+        communitySlug,
+        templateId: program.templateId,
+        fallbackProgramId: program.id,
+      });
+      if (communal) {
+        return {
+          ok: true,
+          programId: communal.programId,
+          programName: communal.programName,
+          communitySlug: communal.communitySlug,
+          templateId: communal.templateId as ProgramTemplateId,
+          needsInstall: false,
+          needsCreate: false,
+          missionId: communal.missionId,
+        };
+      }
+    }
     return {
       ok: true,
       programId: program.id,
       programName: program.name,
-      communitySlug: program.install?.communitySlug ?? "unknown",
+      communitySlug: communitySlug ?? "unknown",
       templateId: program.templateId as ProgramTemplateId,
       needsInstall: false,
       needsCreate: false,
@@ -47,11 +67,31 @@ export async function resolveFundTarget(input: {
       orderBy: { updatedAt: "desc" },
     });
     if (program) {
+      const communitySlug = program.install?.communitySlug ?? input.communitySlug;
+      if (communitySlug && getCommunityBySlug(communitySlug)) {
+        const communal = await resolveCommunalFundTarget({
+          communitySlug,
+          templateId: program.templateId,
+          fallbackProgramId: program.id,
+        });
+        if (communal) {
+          return {
+            ok: true,
+            programId: communal.programId,
+            programName: communal.programName,
+            communitySlug: communal.communitySlug,
+            templateId: communal.templateId as ProgramTemplateId,
+            needsInstall: false,
+            needsCreate: false,
+            missionId: communal.missionId,
+          };
+        }
+      }
       return {
         ok: true,
         programId: program.id,
         programName: program.name,
-        communitySlug: program.install?.communitySlug ?? "unknown",
+        communitySlug: communitySlug ?? "unknown",
         templateId: program.templateId as ProgramTemplateId,
         needsInstall: false,
         needsCreate: false,
@@ -65,17 +105,21 @@ export async function resolveFundTarget(input: {
 
   const templateId = (input.templateId ?? "docs-bounty") as ProgramTemplateId;
 
-  const sharedPool = await resolvePublicProgramForCommunity(communitySlug, undefined);
-  if (sharedPool) {
+  const communal = await resolveCommunalFundTarget({
+    communitySlug,
+    templateId,
+    fallbackProgramId: null,
+  });
+  if (communal) {
     return {
       ok: true,
-      programId: sharedPool.id,
-      programName: sharedPool.name,
+      programId: communal.programId,
+      programName: communal.programName,
       communitySlug,
-      templateId: sharedPool.templateId as ProgramTemplateId,
+      templateId: communal.templateId as ProgramTemplateId,
       needsInstall: false,
       needsCreate: false,
-      missionId: sharedPool.missionId,
+      missionId: communal.missionId,
     };
   }
 

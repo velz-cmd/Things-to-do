@@ -59,7 +59,15 @@ describe("gap-display-amounts", () => {
     expect(amounts.isEstimate).toBe(true);
   });
 
-  it("reads catalog estimate from community slug", () => {
-    expect(catalogEstimateUsdForGap(previewGap())).toBe(2430);
+  it("does not treat your deposit as communal pool total", () => {
+    const amounts = resolveGapDisplayAmounts({
+      gap: previewGap(),
+      pool: null,
+      fundedUsdForProgram: 90,
+      fundedUsdForCommunity: 90,
+      yourDepositFromPool: 0,
+    });
+    expect(amounts.displayPoolUsd).toBe(0);
+    expect(amounts.yourDepositUsd).toBe(90);
   });
 });

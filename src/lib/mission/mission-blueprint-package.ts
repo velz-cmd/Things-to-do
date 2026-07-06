@@ -45,6 +45,12 @@ export const MISSION_POLICY_OPTIONS: Array<{
   { id: "infrastructure", label: "Sustain core", emoji: "⚡", hint: "Bias top maintainers + infra" },
 ];
 
+/** Mission tab only — smaller pools for simulate / test deploys (Discover keeps 10). */
+export const MISSION_BLUEPRINT_MIN_BUDGET_USD = 25;
+export const MISSION_BLUEPRINT_DEFAULT_BUDGET_USD = 100;
+export const MISSION_BLUEPRINT_MAX_BUDGET_USD = 5000;
+export const MISSION_BLUEPRINT_PAYEE_COUNT = 4;
+
 function payeesFromPoolRows(rows: PoolBatchPayeeRow[]): MissionBlueprintPayee[] {
   return rows.map((r) => ({
     label: r.label,
@@ -54,7 +60,7 @@ function payeesFromPoolRows(rows: PoolBatchPayeeRow[]): MissionBlueprintPayee[] 
 }
 
 function payeesFromPreview(slug: string, milestoneUsd: number): MissionBlueprintPayee[] {
-  return buildPreviewCohortPayees(slug, milestoneUsd).map((p) => ({
+  return buildPreviewCohortPayees(slug, milestoneUsd, MISSION_BLUEPRINT_PAYEE_COUNT).map((p) => ({
     label: p.label,
     owedUsd: p.owedUsd,
     source: "Verified cohort · program rules",
@@ -127,9 +133,11 @@ function buildBasePayees(
   poolPayees?: PoolBatchPayeeRow[],
 ): MissionBlueprintPayee[] {
   const poolRows = poolPayees?.filter((p) => p.owedUsd > 0) ?? [];
-  return poolRows.length > 0
-    ? payeesFromPoolRows(poolRows)
-    : payeesFromPreview(slug, milestoneUsd);
+  const payees =
+    poolRows.length > 0
+      ? payeesFromPoolRows(poolRows)
+      : payeesFromPreview(slug, milestoneUsd);
+  return payees.slice(0, MISSION_BLUEPRINT_PAYEE_COUNT);
 }
 
 /** Direct fund / simulate intent — no agent required. */

@@ -108,37 +108,53 @@ export function MissionEmptyState({
           </p>
 
           <div className="mt-8">
-            <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">
-              Agent signals · pay per verified context
-            </p>
-            <ul className="mt-3 space-y-2">
-              {AGENT_EXAMPLES.map((ex) => (
-                <li key={ex.label}>
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => onSubmit(ex.prompt)}
-                    className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-left transition hover:border-resolve-accent/25 hover:bg-resolve-accent/[0.04] disabled:opacity-40"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-white/90">
-                        <Bot className="h-3.5 w-3.5 text-resolve-accent" />
-                        {ex.label}
-                      </span>
-                      <span className="text-xs font-semibold tabular-nums text-emerald-300">
-                        {formatAgentPrice(ex.price)}
-                      </span>
-                    </div>
-                    <span className="mt-0.5 block text-xs text-resolve-muted-dim">{ex.prompt}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <details className="rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">
+              <summary className="cursor-pointer list-none px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
+                Hire intel — agent signals
+              </summary>
+              <ul className="mt-2 space-y-2 px-2 pb-2">
+                {AGENT_EXAMPLES.map((ex) => (
+                  <li key={ex.label}>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => onSubmit(ex.prompt)}
+                      className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-left transition hover:border-resolve-accent/25 hover:bg-resolve-accent/[0.04] disabled:opacity-40"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-white/90">
+                          <Bot className="h-3.5 w-3.5 text-resolve-accent" />
+                          {ex.label}
+                        </span>
+                        <span className="text-xs font-semibold tabular-nums text-emerald-300">
+                          {formatAgentPrice(ex.price)}
+                        </span>
+                      </div>
+                      <span className="mt-0.5 block text-xs text-resolve-muted-dim">{ex.prompt}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
           </div>
 
           <div className="mt-10 space-y-4">
-            <MissionAiProvidersPanel />
-            <MissionSignalRailsPanel onMissionPrompt={(prompt) => onSubmit(prompt)} />
+            <details className="rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">
+              <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
+                Mission AI providers
+              </summary>
+              <div className="px-2 pb-2">
+                <MissionAiProvidersPanel />
+              </div>
+            </details>
+            <details className="rounded-xl border border-white/[0.06] bg-[#0a0f18]/50 open:pb-3">
+              <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
+                Signal rails catalog
+              </summary>
+              <div className="px-2 pb-2">
+                <MissionSignalRailsPanel onMissionPrompt={(prompt) => onSubmit(prompt)} />
+              </div>
+            </details>
           </div>
         </div>
       </div>

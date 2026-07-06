@@ -1,5 +1,9 @@
 import type { MissionPhase } from "@/lib/mission/phases";
 import type { MissionFinding } from "@/lib/workspace/advisors/intelligence-findings";
+import {
+  filterOutTombstonedSessions,
+  isMissionChatTombstoned,
+} from "@/lib/mission/mission-chat-tombstones";
 
 export type MissionSession = {
   id: string;
@@ -32,6 +36,8 @@ export type MissionSession = {
   }>;
   /** Server-only: turn count when listing without full turns */
   turnCount?: number;
+  /** Server list: user-authored messages only */
+  userTurnCount?: number;
 };
 
 const STORAGE_KEY = "resolve-mission-sessions";
@@ -43,7 +49,8 @@ export function loadMissionSessions(): MissionSession[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return migrateLegacyLibrary();
     const parsed = JSON.parse(raw) as MissionSession[];
-    return Array.isArray(parsed) ? parsed : [];
+    const sessions = Array.isArray(parsed) ? parsed : [];
+    return filterOutTombstonedSessions(sessions);
   } catch {
     return [];
   }
@@ -72,7 +79,7 @@ function migrateLegacyLibrary(): MissionSession[] {
       findingCount: e.findingCount,
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-    return sessions;
+    return filterOutTombstonedSessions(sessions);
   } catch {
     return [];
   }
@@ -94,6 +101,7 @@ export function createMissionSession(ecosystemId?: string): MissionSession {
 
 export function upsertMissionSession(session: MissionSession) {
   if (typeof window === "undefined") return;
+  if (isMissionChatTombstoned(session.id)) return;
   const existing = loadMissionSessions();
   const idx = existing.findIndex((s) => s.id === session.id);
   const next = { ...session, updatedAt: new Date().toISOString() };

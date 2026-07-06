@@ -15,7 +15,8 @@ export type ServerMission = {
   createdAt: string;
   updatedAt: string;
   turnCount?: number;
-    turns: Array<{
+  userTurnCount?: number;
+  turns: Array<{
     id: string;
     role: "user" | "resolve";
     text: string;
@@ -322,6 +323,8 @@ export function serverMissionToSession(
     updatedAt: m.updatedAt,
     findingCount: m.findingCount,
     turnCount: m.turnCount ?? m.turns.length,
+    userTurnCount:
+      m.userTurnCount ?? m.turns.filter((t) => t.role === "user").length,
     turns: m.turns.map((t) => ({
       id: t.id,
       role: t.role,

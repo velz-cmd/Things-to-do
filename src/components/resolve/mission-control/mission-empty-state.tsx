@@ -32,6 +32,7 @@ export function MissionEmptyState({
   loading,
   onNewMission,
   onSelectSession,
+  onSessionDeleted,
   activeSessionId,
   libraryTick,
   scopeHint,
@@ -44,6 +45,7 @@ export function MissionEmptyState({
   loading?: boolean;
   onNewMission: () => void;
   onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
+  onSessionDeleted?: (sessionId: string) => void;
   activeSessionId?: string | null;
   libraryTick?: number;
   scopeHint?: string | null;
@@ -62,6 +64,7 @@ export function MissionEmptyState({
       <MissionHistorySidebar
         onNewMission={onNewMission!}
         onSelectSession={onSelectSession!}
+        onSessionDeleted={onSessionDeleted}
         activeSessionId={activeSessionId}
         libraryVersion={libraryTick}
       />

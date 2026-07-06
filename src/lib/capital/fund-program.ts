@@ -12,6 +12,7 @@ import {
 import { sendUsdcFromUserCircleWallet } from "@/lib/wallet/circle-arc-transfer";
 import { circleIdempotencyKey } from "@/lib/wallet/circle-idempotency";
 import type { ProgramRules } from "@/lib/communities/types";
+import { isDeputyDemoMode, isProductionDeploy } from "@/lib/config/demo-mode";
 
 const MIN_FUND_USD = 5;
 
@@ -25,6 +26,8 @@ export type FundProgramResult =
       newBudgetUsd: number;
       status: "completed";
       activityId: string;
+      /** On-chain Arc tx hash when USDC moved from the funder's wallet */
+      txHash?: string;
       message: string;
     }
   | { ok: false; error: string };
@@ -99,6 +102,14 @@ export async function fundCommunityProgram(input: {
             : `Insufficient balance: $${availableUsd.toFixed(2)} spendable, need $${amount.toFixed(2)}`,
       };
     }
+
+    if (!isLiveArcEnabled() && isProductionDeploy() && !isDeputyDemoMode()) {
+      return {
+        ok: false,
+        error:
+          "Production funding requires a live Arc USDC transfer. Connect an external wallet with USDC in Profile, or use Capital after Arc/Circle is provisioned for your RESOLVE wallet.",
+      };
+    }
   }
 
   const target = input.targetYieldMultiplier ?? DEFAULT_TARGET_YIELD_MULTIPLIER;
@@ -154,27 +165,59 @@ export async function fundCommunityProgram(input: {
     };
   }
 
+  let arcTxHash: string | undefined = input.txHash;
+
   if (
     settleFrom === "ledger" &&
     isLiveArcEnabled() &&
     ARC_CLIENT_WALLET_ADDRESS &&
     user.walletAddress
   ) {
-    const treasuryAddress = ARC_CLIENT_WALLET_ADDRESS;
-    void prisma.user
-      .findUnique({ where: { id: input.userId } })
-      .then((fullUser) => {
-        if (!fullUser) return;
-        return sendUsdcFromUserCircleWallet({
-          user: fullUser,
-          destinationAddress: treasuryAddress,
-          amountUsd: amount,
-          idempotencyKey: circleIdempotencyKey(
-            `fund-treasury:${funded.activity.id}`,
-          ),
+    const fullUser = await prisma.user.findUnique({ where: { id: input.userId } });
+    if (!fullUser) {
+      return { ok: false, error: "Sign in again before funding this pool" };
+    }
+
+    try {
+      const sent = await sendUsdcFromUserCircleWallet({
+        user: fullUser,
+        destinationAddress: ARC_CLIENT_WALLET_ADDRESS,
+        amountUsd: amount,
+        idempotencyKey: circleIdempotencyKey(`fund-treasury:${funded.activity.id}`),
+      });
+      arcTxHash = sent.txHash;
+      await prisma.walletTransaction.update({
+        where: { id: funded.activity.id },
+        data: { status: "completed", method: "arc_usdc" },
+      });
+    } catch (e) {
+      console.error("[fund-program] Arc treasury transfer failed — reversing stake", e);
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: input.userId },
+          data: { availableUsd: { increment: amount } },
         });
-      })
-      .catch((e) => console.error("[fund-program] treasury transfer", e));
+        await tx.resolveProgram.update({
+          where: { id: program.id },
+          data: { budgetUsd: { decrement: amount } },
+        });
+        await tx.communityFundStake.delete({ where: { id: funded.stake.id } });
+        await tx.walletTransaction.update({
+          where: { id: funded.activity.id },
+          data: {
+            status: "failed",
+            label: `Arc transfer failed — ${program.name}`,
+          },
+        });
+      });
+      return {
+        ok: false,
+        error:
+          e instanceof Error
+            ? `Arc transfer failed: ${e.message}`
+            : "Arc transfer failed — your balance was not charged",
+      };
+    }
   }
 
   void recordTimelineEvent({
@@ -182,13 +225,17 @@ export async function fundCommunityProgram(input: {
     ecosystemId: program.install?.ecosystemId ?? undefined,
     eventType: "pool_funding_pending",
     title: `You funded ${program.name}`,
-    detail: `You funded this pool $${amount.toFixed(2)}.`,
+    detail: arcTxHash
+      ? `You funded this pool $${amount.toFixed(2)} · verified on Arc.`
+      : `You funded this pool $${amount.toFixed(2)}.`,
     severity: "info",
     metadata: {
       programId: program.id,
       stakeId: funded.stake.id,
       activityId: funded.activity.id,
       amountUsd: amount,
+      txHash: arcTxHash,
+      fromWallet: user.walletAddress,
     },
   }).catch(() => {});
 
@@ -233,6 +280,9 @@ export async function fundCommunityProgram(input: {
     newBudgetUsd: program.budgetUsd + amount,
     status: "completed",
     activityId: funded.activity.id,
-    message: `You funded this pool $${amount.toFixed(2)}.`,
+    txHash: arcTxHash,
+    message: arcTxHash
+      ? `You funded this pool $${amount.toFixed(2)} — verified on Arc testnet.`
+      : `You funded this pool $${amount.toFixed(2)}.`,
   };
 }

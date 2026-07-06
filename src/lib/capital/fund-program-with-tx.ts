@@ -1,6 +1,7 @@
 import { isHash } from "viem";
 import { prisma } from "@/lib/db";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";
+import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { verifyArcTransferFromWallet } from "@/lib/wallet/verify-crypto-deposit";
 import { resolvePaymentRoute } from "@/lib/wallet/payment-routes";
 
@@ -79,6 +80,21 @@ export async function fundCommunityProgramWithTx(input: {
   });
 
   if (result.ok) {
+    await recordTimelineEvent({
+      userId: input.userId,
+      eventType: "pool_funding_pending",
+      title: "Pool funded on Arc",
+      detail: `Verified transfer ${input.txHash.slice(0, 10)}…`,
+      severity: "info",
+      metadata: {
+        programId: input.programId,
+        activityId: result.activityId,
+        amountUsd: input.amountUsd,
+        txHash: input.txHash,
+        fromWallet,
+      },
+    }).catch(() => null);
+
     await prisma.walletTransaction.create({
       data: {
         userId: input.userId,

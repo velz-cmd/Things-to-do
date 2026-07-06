@@ -1,6 +1,19 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "bash scripts/vercel-build.sh",
   "installCommand": "npm install --legacy-peer-deps --include=dev",
   "framework": "nextjs",
-  "ignoreCommand": "bash -c 'if [ \"$VERCEL_ENV\" = \"preview\" ]; then echo \"Skipping preview deploy (saves free-tier quota)\"; exit 0; fi; exit 1'"
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "cursor/**": false,
+      "codex/**": false,
+      "*": false
+    }
+  },
+  "github": {
+    "autoJobCancelation": true,
+    "silent": true
+  },
+  "ignoreCommand": "bash scripts/vercel-should-build.sh"
 }

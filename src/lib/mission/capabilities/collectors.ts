@@ -5,8 +5,7 @@ import { buildPolicyProposals } from "@/lib/workspace/advisors/policy-proposals"
 import { buildValueConcentrations } from "@/lib/workspace/advisors/concentrations";
 import { opportunitiesToCards } from "@/lib/workspace/advisors/opportunity-cards";
 import { collectUpstreamUsageSignals } from "@/lib/connectors/upstream";
-import { pingListenBrainz, fetchListenBrainzListens } from "@/lib/integrations/listenbrainz";
-import { pingNavidrome } from "@/lib/integrations/navidrome";
+import { pingListenBrainz } from "@/lib/integrations/listenbrainz";
 import type { FundingOpportunity } from "@/lib/github/types";
 import {
   buildCommunityContext,
@@ -76,6 +75,7 @@ export async function runCollectors(input: {
   capability: CapabilityId;
   question: string;
   seedEvidence?: Awaited<ReturnType<typeof gatherWorkspaceEvidence>>;
+  fast?: boolean;
   community?: {
     name: string;
     kind?: string;
@@ -97,6 +97,7 @@ export async function runCollectors(input: {
   stepsRun: string[];
 }> {
   const def = getCapabilityDef(input.capability);
+  const fast = input.fast === true;
   const community = buildCommunityContext({
     question: input.question,
     requiredLayers: def.requiredLayers,
@@ -107,7 +108,8 @@ export async function runCollectors(input: {
   const stepsRun: string[] = [`Detecting ${community.kindLabel} community`];
 
   stepsRun.push("Gathering workspace evidence");
-  const evidence = input.seedEvidence ?? (await gatherWorkspaceEvidence());
+  const evidence =
+    input.seedEvidence ?? (await gatherWorkspaceEvidence({ light: fast }));
 
   if (wantsLayer(community, "capital") || wantsLayer(community, "verify")) {
     traces.push(
@@ -158,7 +160,7 @@ export async function runCollectors(input: {
     hasSensor(community.sensors, "github") &&
     (community.kind === "oss" || community.kind === "protocol" || community.kind === "general");
 
-  if (observeCode && communityRepos.length > 0) {
+  if (!fast && observeCode && communityRepos.length > 0) {
     stepsRun.push(`Observing ${communityRepos.length} attached signals`);
     for (const r of communityRepos.slice(0, 6)) {
       const scanned = await scanFundingOpportunity(r.owner, r.repo).catch(() => null);
@@ -184,7 +186,7 @@ export async function runCollectors(input: {
     }
   }
 
-  if (observeCode && hasSensor(community.sensors, "github")) {
+  if (!fast && observeCode && hasSensor(community.sensors, "github")) {
     stepsRun.push("Observing code community signals");
     const parsed = parseRepoInput(input.question);
     if (parsed) {
@@ -214,33 +216,19 @@ export async function runCollectors(input: {
     }
   }
 
-  if (community.kind === "music" || hasSensor(community.sensors, "listenbrainz")) {
+  if (!fast && (community.kind === "music" || hasSensor(community.sensors, "listenbrainz"))) {
     stepsRun.push("Observing music community signals");
     const lb = await pingListenBrainz().catch(() => ({ ok: false, message: "unavailable" }));
     if (lb.ok) {
-      const listens = await fetchListenBrainzListens(5).catch(() => []);
-      traces.push(
-        trace(
-          "music",
-          "ok",
-          listens.length ?
-            `ListenBrainz · ${listens.length} recent listens`
-          : lb.message,
-          "observe",
-        ),
-      );
+      traces.push(trace("music", "ok", lb.message, "observe"));
     } else {
       traces.push(
         trace("music", "empty", "Connect ListenBrainz on Profile to observe music communities", "observe"),
       );
     }
-    const nd = await pingNavidrome().catch(() => ({ ok: false, message: "unavailable" }));
-    if (nd.ok) {
-      traces.push(trace("music", "ok", nd.message, "observe"));
-    }
   }
 
-  if (community.kind === "research" || hasSensor(community.sensors, "openalex")) {
+  if (!fast && (community.kind === "research" || hasSensor(community.sensors, "openalex"))) {
     stepsRun.push("Observing research community signals");
     traces.push(
       trace(
@@ -303,10 +291,11 @@ export async function runCollectors(input: {
 
   let researchReferences: ResearchReference[] = [];
   const needsResearch =
-    input.capability === "research_ecosystem" ||
-    input.capability === "general_inquiry" ||
-    input.capability === "compare_ecosystems" ||
-    ["research", "local", "science", "education", "general"].includes(community.kind);
+    !fast &&
+    (input.capability === "research_ecosystem" ||
+      input.capability === "compare_ecosystems" ||
+      (input.capability === "general_inquiry" &&
+        ["research", "local", "science", "education"].includes(community.kind)));
 
   if (needsResearch && wantsLayer(community, "observe")) {
     stepsRun.push("Researching open web signals");

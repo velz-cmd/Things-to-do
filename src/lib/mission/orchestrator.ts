@@ -1,4 +1,5 @@
 import { generateTextWithFallback, listConfiguredProviders } from "@/lib/ai/gateway";
+import { withTimeout } from "@/lib/mission/with-timeout";
 import { buildIntelligenceFindings } from "@/lib/workspace/advisors/intelligence-findings";
 import { detectMissionIntent, parseCapitalUsd } from "@/lib/mission/intents";
 import { detectMissionPhase } from "@/lib/mission/phases";
@@ -65,7 +66,9 @@ async function maybeEnhanceWithReasoning(
   ctx: OrchestratorContext,
   groundedAnswer: string,
   messages?: AdvisorMessage[],
+  fast?: boolean,
 ): Promise<string> {
+  if (fast) return groundedAnswer;
   const ai = listConfiguredProviders();
   const hasAi = ai.gemini || ai.groq || ai.openrouter;
   const hasLiveEvidence =
@@ -118,11 +121,16 @@ async function maybeEnhanceWithReasoning(
     .join("\n\n");
 
   try {
-    const { text } = await generateTextWithFallback({
-      tier: "fast",
-      system: `You are RESOLVE — the operating system for open communities. Write 2–3 crisp sentences using ONLY GROUNDED FACTS. Never invent numbers, repos, or funding amounts. Analyst tone — Bloomberg clarity, not marketing. Max 60 words. Focus on the community and capital, not connectors.`,
-      prompt: [history, facts, `USER:\n${ctx.question}`].filter(Boolean).join("\n\n"),
-    });
+    const { text } = await withTimeout(
+      generateTextWithFallback({
+        tier: "fast",
+        system: `You are RESOLVE — the operating system for open communities. Write 2–3 crisp sentences using ONLY GROUNDED FACTS. Never invent numbers, repos, or funding amounts. Analyst tone — Bloomberg clarity, not marketing. Max 60 words. Focus on the community and capital, not connectors.`,
+        prompt: [history, facts, `USER:\n${ctx.question}`].filter(Boolean).join("\n\n"),
+        maxOutputTokens: 120,
+      }),
+      8_000,
+      "AI summary",
+    );
     return text.trim() || groundedAnswer;
   } catch {
     return groundedAnswer;
@@ -135,6 +143,7 @@ export async function runMissionOrchestrator(input: {
   messages?: AdvisorMessage[];
   seedEvidence?: import("@/lib/workspace/context").WorkspaceEvidence;
   operatingMode?: import("@/lib/mission/capital-os").OperatingMode;
+  fast?: boolean;
   ecosystem?: {
     name: string;
     keywords?: string[];
@@ -151,6 +160,7 @@ export async function runMissionOrchestrator(input: {
     capability,
     question: input.question,
     seedEvidence: input.seedEvidence,
+    fast: input.fast,
     community: input.ecosystem ?
       {
         name: input.ecosystem.name,
@@ -217,6 +227,7 @@ export async function runMissionOrchestrator(input: {
     ctx,
     brief.summary || groundedAnswer,
     input.messages,
+    input.fast,
   );
   if (polished && polished !== brief.summary) {
     brief.summary = polished;

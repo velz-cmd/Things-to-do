@@ -35,6 +35,8 @@ const bodySchema = z.object({
   operatingMode: z
     .enum(["founder", "dao", "maintainer", "creator", "research", "community_manager"])
     .optional(),
+  /** Mission chat: skip OSS scan, GitHub live probes, web research, LLM polish. */
+  fast: z.boolean().optional(),
 });
 
 /** Open protocol chat — evidence-backed, never executes without approval. */
@@ -48,13 +50,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ...getProtocolWelcome() });
   }
 
-  const evidence = await gatherWorkspaceEvidence();
+  const useFast = parsed.data.fast === true;
+  const evidence = await gatherWorkspaceEvidence({ light: useFast });
   const result = await askValueAdvisor({
     question: parsed.data.question,
     evidence,
     messages: parsed.data.messages,
     ecosystem: parsed.data.ecosystem,
     operatingMode: parsed.data.operatingMode,
+    fast: useFast,
   });
 
   return NextResponse.json({

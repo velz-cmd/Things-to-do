@@ -45,6 +45,7 @@ export async function askValueAdvisor(input: {
   evidence?: WorkspaceEvidence;
   messages?: AdvisorMessage[];
   operatingMode?: import("@/lib/mission/capital-os").OperatingMode;
+  fast?: boolean;
   ecosystem?: {
     name: string;
     keywords?: string[];
@@ -57,6 +58,7 @@ export async function askValueAdvisor(input: {
     messages: input.messages,
     seedEvidence: input.evidence,
     operatingMode: input.operatingMode,
+    fast: input.fast,
     ecosystem: input.ecosystem,
   });
 

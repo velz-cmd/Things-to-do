@@ -24,6 +24,7 @@ import {
   type MissionSession,
 } from "@/lib/mission/toolbox/mission-library";
 import { isMissionChatTombstoned } from "@/lib/mission/mission-chat-tombstones";
+import { askMissionWorkspace, MISSION_ASK_TIMEOUT_MS } from "@/lib/mission/mission-ask-client";
 import {
   getActiveEcosystemId,
   setActiveEcosystemId,
@@ -39,7 +40,6 @@ import {
   fetchWorkbench,
   isMissionServerAvailable,
   migrateLocalSessions,
-  sendMissionMessage,
   serverMissionToSession,
   syncMissionSession,
   type ServerTimelineEvent,
@@ -719,14 +719,6 @@ export function MissionControl() {
       let activeSession = sessionOverride ?? session;
       const isFirstTurn = turns.length === 0;
 
-      if (isFirstTurn) {
-        activeSession = await ensureServerSession(
-          activeSession,
-          trimmed,
-          activeWorkspace?.id ?? activeSession.ecosystemId,
-        );
-      }
-
       if (isFirstTurn) setObjective(trimmed);
       setLastIntent(trimmed);
 
@@ -736,13 +728,13 @@ export function MissionControl() {
         : trimmed;
 
       setInput("");
-      setLoading(true);
-      setThinkingComplete(false);
-      setActiveThinkingSteps(thinkingStepsFor(detectMissionIntent(trimmed)));
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
       setTurns(nextTurns);
+      setLoading(true);
+      setThinkingComplete(false);
+      setActiveThinkingSteps(thinkingStepsFor(detectMissionIntent(trimmed)));
 
       const history = turns.map((t) => ({
         role: (t.role === "user" ? "user" : "assistant") as "user" | "assistant",
@@ -764,48 +756,20 @@ export function MissionControl() {
           }
         : undefined;
 
-      try {
-        let data: AdvisorPayload;
+      const controller = new AbortController();
+      const askTimer = window.setTimeout(() => controller.abort(), MISSION_ASK_TIMEOUT_MS);
 
-        if (serverMode && !activeSession.id.startsWith("ms-")) {
-          const serverData = await sendMissionMessage(activeSession.id, {
+      try {
+        const data = await askMissionWorkspace(
+          {
             question: query,
             messages: history,
-            ecosystemId: workspaceId,
+            ecosystem: workspacePayload,
             operatingMode,
-          });
-          if (serverData) {
-            data = serverData;
-          } else {
-            const res = await fetch("/api/workspace/ask", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                question: query,
-                messages: history,
-                ecosystem: workspacePayload,
-                operatingMode,
-              }),
-            });
-            const json = (await res.json()) as AdvisorPayload & { error?: string };
-            if (!res.ok) throw new Error(json.error ?? "Analysis failed");
-            data = json;
-          }
-        } else {
-          const res = await fetch("/api/workspace/ask", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              question: query,
-              messages: history,
-              ecosystem: workspacePayload,
-              operatingMode,
-            }),
-          });
-          const json = (await res.json()) as AdvisorPayload & { error?: string };
-          if (!res.ok) throw new Error(json.error ?? "Analysis failed");
-          data = json;
-        }
+            fast: true,
+          },
+          controller.signal,
+        );
 
         setThinkingComplete(true);
         if (data.stepsRun?.length) setActiveThinkingSteps(data.stepsRun);
@@ -826,20 +790,32 @@ export function MissionControl() {
         setLastCapability(data.capability ?? null);
 
         if (data.report?.operatingMode) setOperatingMode(data.report.operatingMode);
-        else setOperatingMode(detectOperatingMode(trimmed, activeWorkspace?.kind as import("@/lib/mission/community/types").CommunityKind | undefined));
+        else
+          setOperatingMode(
+            detectOperatingMode(
+              trimmed,
+              activeWorkspace?.kind as import("@/lib/mission/community/types").CommunityKind | undefined,
+            ),
+          );
         if (data.report?.loopPhase) setLoopPhase(data.report.loopPhase);
         else {
-          const job = detectMissionJob(trimmed, (data.capability ?? "general_inquiry") as import("@/lib/mission/capabilities/types").CapabilityId, phase, parseCapitalUsd(trimmed));
+          const job = detectMissionJob(
+            trimmed,
+            (data.capability ?? "general_inquiry") as import("@/lib/mission/capabilities/types").CapabilityId,
+            phase,
+            parseCapitalUsd(trimmed),
+          );
           setLoopPhase(detectCapitalLoopPhase(job, phase, trimmed));
         }
 
-        if (serverMode && data.mission) {
-          const updated = serverMissionToSession(data.mission, activeWorkspace?.name);
-          setSession(updated);
-          setMissionStatus(data.status ?? updated.status ?? null);
-          void loadTimelineForMission(updated.id, workspaceId);
-        } else {
-          await persistSession(activeSession, finalTurns, {
+        scheduleMissionPersist(ensureServerSession, persistSession, {
+          session: activeSession,
+          isFirstTurn,
+          trimmed,
+          workspaceId,
+          finalTurns,
+          setObjective,
+          persistOpts: {
             title: (objective ?? trimmed).slice(0, 48),
             findingCount: resolveTurn.findings?.length,
             phase,
@@ -847,27 +823,35 @@ export function MissionControl() {
             ecosystemId: workspaceId,
             capability: data.capability ?? undefined,
             status: data.status,
-          });
-          captureFromMission({
-            missionId: activeSession.id,
-            missionTitle: objective ?? trimmed,
-            ecosystemId: workspaceId,
-            findings: resolveTurn.findings?.map((f) => ({ title: f.title, insight: f.insight })),
-          });
-        }
+          },
+        });
+
+        captureFromMission({
+          missionId: activeSession.id,
+          missionTitle: objective ?? trimmed,
+          ecosystemId: workspaceId,
+          findings: resolveTurn.findings?.map((f) => ({ title: f.title, insight: f.insight })),
+        });
       } catch (e) {
         setThinkingComplete(true);
+        const message =
+          e instanceof DOMException && e.name === "AbortError"
+            ? "Mission took too long — try a shorter question or check your connection."
+            : e instanceof Error
+              ? e.message
+              : "Could not complete analysis.";
         setTurns([
           ...nextTurns,
           {
             id: `r-${Date.now()}`,
             role: "resolve",
-            text: e instanceof Error ? e.message : "Could not complete analysis.",
+            text: message,
             phase: "discover",
           },
         ]);
         setLibraryTick((n) => n + 1);
       } finally {
+        window.clearTimeout(askTimer);
         setLoading(false);
       }
     },

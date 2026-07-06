@@ -26,6 +26,18 @@ const turnSchema = z.object({
           serviceId: z.string().optional(),
         })
         .optional(),
+      fulfillPool: z
+        .object({
+          prompt: z.string(),
+          communitySlug: z.string().optional(),
+        })
+        .optional(),
+      personalPool: z
+        .object({
+          prompt: z.string(),
+          initialBudgetUsd: z.number().optional(),
+        })
+        .optional(),
       communalPool: z
         .object({
           prompt: z.string(),

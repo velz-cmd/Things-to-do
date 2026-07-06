@@ -132,9 +132,13 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
   → `RESOLVE_PLATFORM_FEE_WALLET` / `ARC_PROVIDER_WALLET_ADDRESS`. Connected-wallet program
   funds use `GET /api/capital/payment-route?action=program_fund` — never the Gmail identity wallet.
   App-wallet funds debit ledger then best-effort Circle transfer to treasury when live Arc is on.
-  Set `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `CIRCLE_WALLET_SET_ID`, and treasury env vars on
-  Vercel — never commit secrets to the repo.
-- **Pool checkpoints** (`src/lib/capital/pool-checkpoints.ts`): program pools show **real USD**
+  Set `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET` (Circle Console → Configurator → Entity Secret —
+  **not** `TEST_CLIENT_KEY`; see `docs/CIRCLE-SETUP.md`), `CIRCLE_WALLET_SET_ID`, and treasury env
+  vars on Vercel — never commit secrets to the repo. Mission, Capital, and Discover show the same
+  **Pay from** picker (RESOLVE wallet vs connected wallet).
+- **Pool doctrine** (`docs/POOL-DOCTRINE.md`): Discover communal pools vs Mission **Fulfill pool**
+  (fund active Discover programs only) vs Mission **Personal pool** (owner pool + PDF batch — not
+  linked to Discover).
   deposited balance + checkpoint ladder ($50…$5k). Funder position separates real deposit vs
   projected share/impact. Auto batch payout via `tryCheckpointBatchSettle` when pool crosses a
   checkpoint and obligations are fully funded — `GET .../programs/[id]/pool` for UI state.

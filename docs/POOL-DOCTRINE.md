@@ -1,56 +1,52 @@
 # Pool doctrine — Discover vs Mission
 
-**Status:** Product law (July 2026). Supersedes any UI that lets one person **allocate** a **communal** pool.
+**Status:** Product law (July 2026).
 
 ---
 
-## Two pool types (do not mix)
+## Three pool surfaces (do not mix)
 
-| | **Communal pool (Discover)** | **Private batch (Mission)** |
-|--|------------------------------|-----------------------------|
-| **Who owns it** | Network / community — **everyone’s stakes, one pool** | **Your** community operator wallet + your rules |
-| **Who controls payout** | **Nobody manually** — autopay at milestone | **You** — founder/funder approves batch |
-| **Human UI** | **Fund only** (add USDC). Read milestone + autopay status. | **PDF upload** → AI reads → set % per payee → **Arc memo batch** |
-| **Tab** | Discover (+ Capital for your stake receipt) | Mission |
-| **Sensors / connectors** | Profile + Discover | **Not Mission** |
-
----
-
-## Communal pool (Discover)
-
-1. One aggregated pool per community (`community-pool-state`).
-2. Funders **deposit**; they do **not** pick payees or weights.
-3. When the pool hits a **milestone** and obligations are ready, **`tryCheckpointBatchSettle` / cron** pays — no “Settle on Arc” button on Discover.
-4. Discover cards show: balance, milestone progress, **“Autopay at checkpoint”** — not allocation sliders.
-5. **No `create_program` / grant pool / docs bounty** from Discover bubble console — operators use Communities when we expose that later.
-
-**Mission handoff for communal fund:** Mission may show **read-only** pool status + link **“Add funds on Discover”** — never Authorize/Simulate/Policy on communal money.
+| | **Discover communal** | **Mission fulfill** | **Mission personal pool** |
+|--|----------------------|---------------------|---------------------------|
+| **Who owns it** | Network / community | Same pool — read from Discover | **You** — pool owner |
+| **Linked?** | Canonical on Discover | Lists active Discover programs | **Not** linked to Discover |
+| **Human UI** | Fund + milestone · autopay | **Fulfill pool only** (add USDC) | Pool size · milestone · PDF payees · Arc batch |
+| **Tab** | Discover (+ Capital stake) | Mission | Mission |
 
 ---
 
-## Private batch (Mission)
+## Discover communal pools
 
-For operators with a **community wallet** and allocation proof (PDF, memo, board resolution):
-
-1. Upload PDF in Mission → evidence ingest → AI extracts payees / amounts / %.
-2. Funder edits the batch table (percentages must sum to 100%).
-3. **Simulate** → **Execute Arc batch** (memo tech) — pays **their** list, not the communal ledger queue.
-
-This is **not** the Discover communal pool.
+1. One aggregated pool per community program.
+2. Funders deposit; autopay at milestone from the authorization ledger.
+3. **Discover** is the home for browsing and funding communal pools.
 
 ---
 
-## Profile & Discover own connectors
+## Mission — fulfill pool (Discover pools)
 
-- GitHub, Navidrome, sensors: **Profile → Connections** and **Discover** (connect / proof).
-- Mission does **not** nudge connectors or host sensor managers.
-
----
-
-## Future pool UI
-
-If we need operator-facing communal pool controls later, we will spec it explicitly — **not** on Discover cards and **not** as Mission Blueprint authorize today.
+1. User asks e.g. “most active pool” → Mission shows **active programs from Discover**.
+2. **Only action:** Fulfill pool (add USDC) with wallet picker.
+3. **No** communal pool simulation, milestone editor, or allocation UI on Mission.
+4. **No** read-only communal pool status panel — fulfill or link to Discover.
 
 ---
 
-*Last updated: pool doctrine alignment PR.*
+## Mission — personal pool (owner)
+
+For operators who want **their own** pool (not the communal ledger):
+
+1. Create/name pool, set **pool size** and **milestone** (any values).
+2. Upload **PDF** as evidence for **your payee list** (names / `0x` wallets + %).
+3. Simulate batch → **Execute Arc batch** to your list.
+4. **Not** tied to Discover communal `programId`.
+
+---
+
+## Blueprint (Mission)
+
+Settlement **design** after agent intel — simulate policy and export. Does **not** fund or simulate Discover communal pools.
+
+---
+
+*Last updated: mission pool split PR.*

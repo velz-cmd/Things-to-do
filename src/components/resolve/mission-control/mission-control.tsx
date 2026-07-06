@@ -50,11 +50,14 @@ import { detectOperatingMode, detectCapitalLoopPhase, detectMissionJob } from "@
 import { resolveMissionTopic } from "@/lib/mission/mission-topic";
 import { resolveMissionActionType } from "@/lib/mission/actions/resolve-type";
 import { detectAgentSignalIntent } from "@/lib/mission/detect-agent-signal-intent";
-import { detectBlueprintIntent, detectCommunalPoolIntent, detectPrivateBatchIntent } from "@/lib/mission/detect-blueprint-intent";
+import {
+  detectBlueprintIntent,
+  detectFulfillPoolIntent,
+  detectPersonalPoolIntent,
+} from "@/lib/mission/detect-blueprint-intent";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
-import { prefetchMissionPool } from "@/lib/mission/prefetch-mission-pool";
 import { MissionBlueprintCommandProvider } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 
 type AdvisorPayload = {
@@ -150,8 +153,8 @@ function persistLocalSession(
       report: t.report,
       blueprint: t.blueprint,
       agentSignal: t.agentSignal,
-      communalPool: t.communalPool,
-      batchAllocation: t.batchAllocation,
+      fulfillPool: t.fulfillPool ?? t.communalPool,
+      personalPool: t.personalPool ?? t.batchAllocation,
     })),
   });
 }
@@ -168,8 +171,8 @@ function turnsFromSession(session: MissionSession): MissionTurn[] {
     report: t.report,
     blueprint: t.blueprint,
     agentSignal: t.agentSignal,
-    communalPool: t.communalPool,
-    batchAllocation: t.batchAllocation,
+    fulfillPool: t.fulfillPool ?? t.communalPool,
+    personalPool: t.personalPool ?? t.batchAllocation,
     nextSteps: t.actions,
   }));
 }
@@ -511,7 +514,7 @@ export function MissionControl() {
     [turns, session, objective, activeWorkspace?.id, ensureServerSession, persistSession],
   );
 
-  const runCommunalPoolMission = useCallback(
+  const runFulfillPoolMission = useCallback(
     async (trimmed: string) => {
       const isFirstTurn = turns.length === 0;
       let activeSession = session;
@@ -527,13 +530,13 @@ export function MissionControl() {
       setInput("");
       setLoading(true);
       setThinkingComplete(false);
-      setActiveThinkingSteps(["Loading communal pool", "Milestone status", "Autopay queue"]);
+      setActiveThinkingSteps(["Loading active pools", "Discover programs", "Fulfill"]);
 
       const slug =
         resolveMissionCommunitySlug({
           scopeLabel: scope?.label ?? trimmed,
           topicName: objective ?? trimmed,
-        }) ?? "react";
+        }) ?? undefined;
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
@@ -543,9 +546,9 @@ export function MissionControl() {
       const resolveTurn: MissionTurn = {
         id: `r-${Date.now()}`,
         role: "resolve",
-        text: "Communal pool — shared network balance. Payouts run automatically at milestone.",
+        text: "Active Discover pools — pick one and fulfill (add USDC). Autopay runs at milestone.",
         phase: "discover",
-        communalPool: { prompt: trimmed, communitySlug: slug },
+        fulfillPool: { prompt: trimmed, communitySlug: slug },
       };
       const finalTurns = [...nextTurns, resolveTurn];
       setTurns(finalTurns);
@@ -562,7 +565,7 @@ export function MissionControl() {
     [turns, session, objective, activeWorkspace?.id, scope?.label, ensureServerSession, persistSession],
   );
 
-  const runBatchAllocationMission = useCallback(
+  const runPersonalPoolMission = useCallback(
     async (trimmed: string) => {
       const isFirstTurn = turns.length === 0;
       let activeSession = session;
@@ -578,13 +581,8 @@ export function MissionControl() {
       setInput("");
       setLoading(true);
       setThinkingComplete(false);
-      setActiveThinkingSteps(["Batch payout", "Upload PDF", "Set payee %"]);
+      setActiveThinkingSteps(["Personal pool", "PDF payee list", "Batch %"]);
 
-      const slug =
-        resolveMissionCommunitySlug({
-          scopeLabel: scope?.label ?? trimmed,
-          topicName: objective ?? trimmed,
-        }) ?? "react";
       const budget = parseCapitalUsd(trimmed);
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
@@ -595,11 +593,10 @@ export function MissionControl() {
       const resolveTurn: MissionTurn = {
         id: `r-${Date.now()}`,
         role: "resolve",
-        text: "Private batch — upload your PDF, set percentages, then execute Arc payout.",
+        text: "Your personal pool — set size and milestone, upload payees, execute Arc batch.",
         phase: "plan",
-        batchAllocation: {
+        personalPool: {
           prompt: trimmed,
-          communitySlug: slug,
           initialBudgetUsd: budget ?? undefined,
         },
       };
@@ -646,7 +643,6 @@ export function MissionControl() {
           scopeLabel: scope?.label ?? trimmed,
           topicName: objective ?? trimmed,
         }) ?? "react";
-      void prefetchMissionPool(slug);
 
       const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
       const nextTurns = [...turns, userTurn];
@@ -691,13 +687,13 @@ export function MissionControl() {
         return;
       }
 
-      if (detectPrivateBatchIntent(trimmed)) {
-        await runBatchAllocationMission(trimmed);
+      if (detectPersonalPoolIntent(trimmed)) {
+        await runPersonalPoolMission(trimmed);
         return;
       }
 
-      if (detectCommunalPoolIntent(trimmed)) {
-        await runCommunalPoolMission(trimmed);
+      if (detectFulfillPoolIntent(trimmed)) {
+        await runFulfillPoolMission(trimmed);
         return;
       }
 
@@ -871,8 +867,8 @@ export function MissionControl() {
       operatingMode,
       runAgentSignalMessage,
       runBlueprintMission,
-      runCommunalPoolMission,
-      runBatchAllocationMission,
+      runFulfillPoolMission,
+      runPersonalPoolMission,
       searchParams,
       ensureServerSession,
       persistSession,
@@ -986,12 +982,12 @@ export function MissionControl() {
     const intent = searchParams.get("intent");
     const scopedPrompt =
       intent === "fund" || scope.kind === "query"
-        ? `Fund ${scope.label} communal pool — view milestone and autopay status`
+        ? `Show the most active pool for ${scope.label} — I want to fulfill`
         : scope.kind === "repository"
-          ? `Fund maintainers for ${scope.label} — communal pool on Discover`
-          : detectCommunalPoolIntent(scope.label)
+          ? `Most active pool to fund maintainers for ${scope.label}`
+          : detectFulfillPoolIntent(scope.label)
             ? scope.label
-            : `View ${scope.label} communal pool status`;
+            : `Give me the most active Discover pool related to ${scope.label}`;
     void sendMessage(scopedPrompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope?.label]);

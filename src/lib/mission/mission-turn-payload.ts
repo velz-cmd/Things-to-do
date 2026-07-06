@@ -2,6 +2,8 @@
 export type MissionTurnPayload = {
   blueprint?: { prompt: string; initialBudgetUsd?: number };
   agentSignal?: { prompt: string; serviceId?: string };
+  fulfillPool?: { prompt: string; communitySlug?: string };
+  personalPool?: { prompt: string; initialBudgetUsd?: number };
   communalPool?: { prompt: string; communitySlug?: string };
   batchAllocation?: { prompt: string; communitySlug?: string; initialBudgetUsd?: number };
 };
@@ -21,6 +23,8 @@ export function stringifyTurnPayload(payload: MissionTurnPayload | undefined): s
   if (
     !payload?.blueprint &&
     !payload?.agentSignal &&
+    !payload?.fulfillPool &&
+    !payload?.personalPool &&
     !payload?.communalPool &&
     !payload?.batchAllocation
   ) {

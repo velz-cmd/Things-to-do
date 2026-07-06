@@ -333,8 +333,8 @@ export function serverMissionToSession(
       report: t.report,
       blueprint: t.payload?.blueprint,
       agentSignal: t.payload?.agentSignal,
-      communalPool: t.payload?.communalPool,
-      batchAllocation: t.payload?.batchAllocation,
+      fulfillPool: t.payload?.fulfillPool ?? t.payload?.communalPool,
+      personalPool: t.payload?.personalPool ?? t.payload?.batchAllocation,
     })),
   };
 }

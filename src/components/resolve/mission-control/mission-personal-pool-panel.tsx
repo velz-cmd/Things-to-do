@@ -1,26 +1,25 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { FileUp, Loader2, Percent, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { Button } from "@/components/resolve/ui/button";
+import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
+import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
+import { createReportFromPackage, saveMissionReport } from "@/lib/mission/mission-report-store";
 import {
   buildMissionBlueprintFromScope,
   simulateBlueprintPackage,
   type MissionBlueprintPackage,
 } from "@/lib/mission/mission-blueprint-package";
-import { createReportFromPackage, saveMissionReport } from "@/lib/mission/mission-report-store";
-import { authorizeBlueprintServer, prepareBlueprintSettlement } from "@/lib/mission/mission-report-api";
-import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
 
 type PayeeRow = { id: string; label: string; percent: number };
 
 function parsePayeesFromText(text: string): PayeeRow[] {
   const rows: PayeeRow[] = [];
-  const re = /([A-Za-z0-9@._-]+)\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*%/g;
+  const re = /([A-Za-z0-9@._:-]+)\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*%/g;
   let m: RegExpExecArray | null;
   let i = 0;
   while ((m = re.exec(text)) !== null) {
@@ -29,55 +28,85 @@ function parsePayeesFromText(text: string): PayeeRow[] {
   return rows;
 }
 
-/** Private community batch — PDF evidence + funder-set % → Arc memo payout. */
-export function MissionBatchAllocationPanel({
+const POOL_KEY = "resolve-personal-pool-v1";
+
+function loadPoolPrefs(): { name: string; milestoneUsd: number } {
+  if (typeof window === "undefined") return { name: "My pool", milestoneUsd: 500 };
+  try {
+    const raw = localStorage.getItem(POOL_KEY);
+    if (!raw) return { name: "My pool", milestoneUsd: 500 };
+    const p = JSON.parse(raw) as { name?: string; milestoneUsd?: number };
+    return {
+      name: p.name?.trim() || "My pool",
+      milestoneUsd: p.milestoneUsd && p.milestoneUsd >= 5 ? p.milestoneUsd : 500,
+    };
+  } catch {
+    return { name: "My pool", milestoneUsd: 500 };
+  }
+}
+
+function savePoolPrefs(name: string, milestoneUsd: number) {
+  try {
+    localStorage.setItem(POOL_KEY, JSON.stringify({ name, milestoneUsd }));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Personal pool — you are the owner. Not linked to Discover communal pools.
+ * PDF is evidence for your payee list; you set pool size, milestone, and batch %.
+ */
+export function MissionPersonalPoolPanel({
   prompt,
-  communitySlug: communitySlugProp,
   initialBudgetUsd,
 }: {
   prompt: string;
-  communitySlug?: string | null;
   initialBudgetUsd?: number;
 }) {
-  const router = useRouter();
   const { user } = useAuth();
   const { openSignIn } = useSignInModal();
   const fileRef = useRef<HTMLInputElement>(null);
-  const slug =
-    communitySlugProp ??
-    resolveMissionCommunitySlug({ scopeLabel: prompt, topicName: prompt }) ??
-    "react";
+  const prefs = loadPoolPrefs();
 
-  const [budgetUsd, setBudgetUsd] = useState(initialBudgetUsd ?? 500);
+  const [poolName, setPoolName] = useState(prefs.name);
+  const [poolSizeUsd, setPoolSizeUsd] = useState(initialBudgetUsd ?? 5000);
+  const [milestoneUsd, setMilestoneUsd] = useState(prefs.milestoneUsd);
   const [extractedText, setExtractedText] = useState("");
   const [payees, setPayees] = useState<PayeeRow[]>([]);
   const [uploading, setUploading] = useState(false);
   const [simulated, setSimulated] = useState(false);
-  const [authorizing, setAuthorizing] = useState(false);
+  const [executing, setExecuting] = useState(false);
 
-  const totalPercent = payees.reduce((s, p) => s + p.percent, 0);
+  const batchTotalUsd = useMemo(() => {
+    return payees.reduce(
+      (s, p) => s + Math.round((poolSizeUsd * p.percent) / 100 * 100) / 100,
+      0,
+    );
+  }, [payees, poolSizeUsd]);
+
+  const walletChoice = useFundingWalletChoice(Math.max(batchTotalUsd, 5));
 
   const pkg = useMemo((): MissionBlueprintPackage => {
     const base = buildMissionBlueprintFromScope({
-      prompt,
-      communitySlug: slug,
-      budgetUsd,
+      prompt: `${poolName} · ${prompt}`,
+      communitySlug: "personal",
+      budgetUsd: poolSizeUsd,
       policy: "balanced",
-      milestoneUsd: budgetUsd,
+      milestoneUsd,
     });
     const owedRows = payees.map((p) => ({
       label: p.label,
-      owedUsd: Math.round((budgetUsd * p.percent) / 100 * 100) / 100,
-      source: "Batch plan (Mission)",
+      owedUsd: Math.round((poolSizeUsd * p.percent) / 100 * 100) / 100,
+      source: "Personal pool batch",
     }));
     return {
       ...base,
       payees: owedRows.length ? owedRows : base.payees,
-      totalCapitalUsd: budgetUsd,
-      rationale:
-        "Private batch allocation from operator PDF/memo — not the communal Discover pool.",
+      totalCapitalUsd: poolSizeUsd,
+      rationale: "Personal pool — your milestone, your payee list, not the Discover communal ledger.",
     };
-  }, [prompt, slug, budgetUsd, payees]);
+  }, [prompt, poolName, poolSizeUsd, milestoneUsd, payees]);
 
   const simulation = useMemo(() => simulateBlueprintPackage(pkg), [pkg]);
 
@@ -97,11 +126,11 @@ export function MissionBatchAllocationPanel({
       if (parsed.length) {
         setPayees(parsed);
         toast.success("PDF read — payees extracted", {
-          description: `${parsed.length} rows — adjust % before execute`,
+          description: `${parsed.length} rows — adjust % before batch`,
         });
       } else {
         toast.message("PDF uploaded", {
-          description: "Add payee rows manually or paste “Name 40%” lines",
+          description: "Add payee rows or paste “name@org 40%” / “0x… 25%” lines",
         });
       }
     } catch (e) {
@@ -126,15 +155,16 @@ export function MissionBatchAllocationPanel({
       toast.error("Add at least one payee");
       return;
     }
-    if (Math.abs(totalPercent - 100) > 0.5) {
-      toast.error("Percentages must sum to 100%", { description: `Currently ${totalPercent.toFixed(1)}%` });
+    if (Math.abs(payees.reduce((s, p) => s + p.percent, 0) - 100) > 0.5) {
+      toast.error("Percentages must sum to 100%");
       return;
     }
+    savePoolPrefs(poolName, milestoneUsd);
     const record = createReportFromPackage(pkg, "simulated");
     saveMissionReport(record);
     setSimulated(true);
     toast.success("Batch simulated", {
-      description: `$${simulation.totalPayeeUsd.toFixed(2)} · ${payees.length} payees`,
+      description: `$${simulation.totalPayeeUsd.toFixed(2)} · ${payees.length} payees · milestone $${milestoneUsd}`,
     });
   }
 
@@ -147,45 +177,117 @@ export function MissionBatchAllocationPanel({
       openSignIn();
       return;
     }
-    setAuthorizing(true);
     try {
-      const preview = await prepareBlueprintSettlement(pkg);
-      const result = await authorizeBlueprintServer({
-        pkg,
-        amountUsd: Math.max(5, Math.round(budgetUsd)),
+      walletChoice.assertFundingSource();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Pick a wallet to pay from");
+      return;
+    }
+
+    setExecuting(true);
+    try {
+      const res = await fetch("/api/mission/personal-pool/execute", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          poolName,
+          payees: payees.map((p) => ({
+            label: p.label,
+            amountUsd: Math.round((poolSizeUsd * p.percent) / 100 * 100) / 100,
+          })),
+        }),
       });
-      if (!result.ok) {
-        toast.error(result.error ?? "Batch payout failed", {
-          description: preview ? `Batch ${preview.batchHash}` : undefined,
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        transfers?: Array<{ txHash: string; label: string }>;
+        skipped?: string[];
+        message?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error ?? "Batch failed", {
+          description: data.skipped?.length
+            ? `Missing wallet on: ${data.skipped.slice(0, 3).join(", ")}`
+            : undefined,
         });
         return;
       }
       const record = createReportFromPackage(pkg, "authorized", {
-        fundTxLabel: result.fundTxLabel,
+        fundTxLabel: data.transfers?.[0]?.txHash
+          ? `Personal batch · ${data.transfers[0].txHash.slice(0, 10)}…`
+          : "Personal pool batch",
       });
       saveMissionReport(record);
-      toast.success("Arc batch submitted", { description: result.fundTxLabel });
-      router.push(`/mission/report/${pkg.id}`);
+      toast.success(data.message ?? "Arc batch sent", {
+        description:
+          data.skipped?.length ?
+            `${data.skipped.length} row(s) skipped — need 0x wallet in label`
+          : undefined,
+      });
     } finally {
-      setAuthorizing(false);
+      setExecuting(false);
     }
   }
+
+  const totalPercent = payees.reduce((s, p) => s + p.percent, 0);
 
   return (
     <section
       className="rounded-2xl border border-violet-500/25 bg-[#0c1220]/90 p-4 sm:p-5"
-      data-testid="mission-batch-allocation-panel"
+      data-testid="mission-personal-pool-panel"
     >
       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300/90">
-        Private batch payout
+        Personal pool
       </p>
-      <h3 className="mt-1 text-base font-semibold text-white">
-        Your community · Arc memo batch
-      </h3>
+      <h3 className="mt-1 text-base font-semibold text-white">Batch payout</h3>
       <p className="mt-2 text-sm text-resolve-muted">
-        Upload a PDF (board resolution, payroll memo). Set who gets what %. This pays{" "}
-        <span className="text-white/90">your</span> list — not the communal Discover pool.
+        You own this pool — set size and milestone, upload a PDF for your payee list, split by %, then
+        execute Arc transfers.{" "}
+        <span className="text-white/90">Not</span> linked to Discover communal pools.
       </p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <label className="text-xs text-resolve-muted">
+          Pool name
+          <input
+            value={poolName}
+            onChange={(e) => {
+              setPoolName(e.target.value);
+              setSimulated(false);
+            }}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+          />
+        </label>
+        <label className="text-xs text-resolve-muted">
+          Pool size (USDC)
+          <input
+            type="number"
+            min={5}
+            step={100}
+            value={poolSizeUsd}
+            onChange={(e) => {
+              setPoolSizeUsd(Number(e.target.value));
+              setSimulated(false);
+            }}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+          />
+        </label>
+        <label className="text-xs text-resolve-muted">
+          Milestone (USDC)
+          <input
+            type="number"
+            min={5}
+            step={50}
+            value={milestoneUsd}
+            onChange={(e) => {
+              setMilestoneUsd(Number(e.target.value));
+              setSimulated(false);
+            }}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+          />
+        </label>
+      </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <input
@@ -204,22 +306,8 @@ export function MissionBatchAllocationPanel({
           onClick={() => fileRef.current?.click()}
         >
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
-          Upload PDF
+          Upload PDF (payee list)
         </Button>
-        <label className="text-xs text-resolve-muted">
-          Batch total (USDC)
-          <input
-            type="number"
-            min={5}
-            step={50}
-            value={budgetUsd}
-            onChange={(e) => {
-              setBudgetUsd(Number(e.target.value));
-              setSimulated(false);
-            }}
-            className="ml-2 w-24 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-sm text-white"
-          />
-        </label>
       </div>
 
       {extractedText && (
@@ -234,7 +322,7 @@ export function MissionBatchAllocationPanel({
       <div className="mt-4">
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
-            Payees · must total 100%
+            Payees · 0x wallet or name · must total 100%
           </p>
           <button type="button" onClick={addPayee} className="text-xs text-sky-300 hover:underline">
             + Add row
@@ -246,7 +334,7 @@ export function MissionBatchAllocationPanel({
               <input
                 value={p.label}
                 onChange={(e) => updatePayee(p.id, { label: e.target.value })}
-                placeholder="Payee name or wallet"
+                placeholder="0x… or payee id"
                 className="min-w-[140px] flex-1 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
               />
               <span className="flex items-center gap-1 text-sm text-resolve-muted">
@@ -261,7 +349,7 @@ export function MissionBatchAllocationPanel({
                 />
               </span>
               <span className="text-xs tabular-nums text-emerald-300">
-                ${((budgetUsd * p.percent) / 100).toFixed(2)}
+                ${((poolSizeUsd * p.percent) / 100).toFixed(2)}
               </span>
             </li>
           ))}
@@ -269,9 +357,18 @@ export function MissionBatchAllocationPanel({
         <p
           className={`mt-2 text-xs ${Math.abs(totalPercent - 100) < 0.5 ? "text-emerald-300" : "text-amber-300"}`}
         >
-          Total: {totalPercent.toFixed(1)}%
+          Total: {totalPercent.toFixed(1)}% · batch ${batchTotalUsd.toFixed(2)}
         </p>
       </div>
+
+      {simulated && user && (
+        <PayFromWalletSection
+          amountUsd={Math.max(batchTotalUsd, 5)}
+          disabled={executing}
+          choice={walletChoice}
+          className="mt-4"
+        />
+      )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button type="button" variant="secondary" size="sm" onClick={() => void handleSimulate()}>
@@ -281,10 +378,10 @@ export function MissionBatchAllocationPanel({
           type="button"
           size="sm"
           className="gap-1.5"
-          disabled={authorizing || !simulated}
+          disabled={executing || !simulated}
           onClick={() => void handleExecute()}
         >
-          {authorizing ? (
+          {executing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Shield className="h-3.5 w-3.5" />
@@ -295,3 +392,6 @@ export function MissionBatchAllocationPanel({
     </section>
   );
 }
+
+/** @deprecated use MissionPersonalPoolPanel */
+export const MissionBatchAllocationPanel = MissionPersonalPoolPanel;

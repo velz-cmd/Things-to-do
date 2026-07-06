@@ -33,16 +33,16 @@ export const MISSION_JOBS: MissionJob[] = [
   },
   {
     id: "fund",
-    who: "Fund a gap",
-    surfaces: "Communal pool · milestone bar · handoff to Capital",
-    prompt: "Fund the top open-source maintainers in React based on real contribution signals.",
+    who: "Fulfill pool",
+    surfaces: "Discover communal pools · add USDC · autopay at milestone",
+    prompt: "Give me the most active pool on Discover — I want to fulfill",
     icon: CircleDollarSign,
   },
   {
     id: "simulate",
-    who: "Simulate allocation",
-    surfaces: "Recipients · weights · policy before you move money",
-    prompt: "Simulate allocating $5,000 across React maintainers — show recipients and amounts.",
+    who: "Personal pool",
+    surfaces: "Your pool size · milestone · PDF payees · Arc batch",
+    prompt: "Create my personal pool — batch payout from PDF with payee percentages",
     icon: LineChart,
   },
   {

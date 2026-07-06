@@ -298,9 +298,9 @@ export function MissionLivePanel({
           )}
           <Link
             href="/discover"
-            className="mt-3 inline-block text-[10px] font-medium text-resolve-accent hover:underline"
+            className="mt-2 inline-block text-[10px] font-medium text-resolve-muted hover:text-resolve-accent"
           >
-            Open Discover feed →
+            Discover gaps →
           </Link>
         </section>
       </div>

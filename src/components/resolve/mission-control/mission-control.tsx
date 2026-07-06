@@ -48,6 +48,7 @@ import { detectOperatingMode, detectCapitalLoopPhase, detectMissionJob } from "@
 import { resolveMissionTopic } from "@/lib/mission/mission-topic";
 import { resolveMissionActionType } from "@/lib/mission/actions/resolve-type";
 import { detectAgentSignalIntent } from "@/lib/mission/detect-agent-signal-intent";
+import { detectBlueprintIntent } from "@/lib/mission/detect-blueprint-intent";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 
@@ -429,6 +430,52 @@ export function MissionControl() {
     [turns, session, objective, activeWorkspace?.id],
   );
 
+  const runBlueprintMission = useCallback(
+    async (trimmed: string) => {
+      const isFirstTurn = turns.length === 0;
+      if (isFirstTurn) setObjective(trimmed);
+      setLastIntent(trimmed);
+      setInput("");
+      setLoading(true);
+      setThinkingComplete(false);
+      setActiveThinkingSteps([
+        "Loading communal pool",
+        "Resolving authorizations",
+        "Building Blueprint",
+        "Ready to simulate",
+      ]);
+
+      const userTurn: MissionTurn = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+      const nextTurns = [...turns, userTurn];
+      setTurns(nextTurns);
+
+      const budget = parseCapitalUsd(trimmed);
+      setThinkingComplete(true);
+      const resolveTurn: MissionTurn = {
+        id: `r-${Date.now()}`,
+        role: "resolve",
+        text: "Settlement package ready — named payees below. Simulate, then authorize.",
+        phase: "plan",
+        blueprint: { prompt: trimmed, initialBudgetUsd: budget },
+      };
+      const finalTurns = [...nextTurns, resolveTurn];
+      setTurns(finalTurns);
+      setLastPhase("plan");
+      setLastCapability("allocate_capital");
+      setLoopPhase("simulate");
+      setOperatingMode(detectOperatingMode(trimmed));
+      persistLocalSession(session, finalTurns, {
+        title: (objective ?? trimmed).slice(0, 48),
+        phase: "plan",
+        scope: objective ?? trimmed,
+        ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
+      });
+      setLibraryTick((n) => n + 1);
+      setLoading(false);
+    },
+    [turns, session, objective, activeWorkspace?.id],
+  );
+
   const sendMessage = useCallback(
     async (text: string, sessionOverride?: MissionSession, policyOverride?: string) => {
       const trimmed = text.trim();
@@ -437,6 +484,11 @@ export function MissionControl() {
       if (detectAgentSignalIntent(trimmed)) {
         const serviceOverride = searchParams.get("service") ?? undefined;
         await runAgentSignalMessage(trimmed, serviceOverride ?? undefined);
+        return;
+      }
+
+      if (detectBlueprintIntent(trimmed)) {
+        await runBlueprintMission(trimmed);
         return;
       }
 
@@ -607,6 +659,7 @@ export function MissionControl() {
       selectedPolicyId,
       operatingMode,
       runAgentSignalMessage,
+      runBlueprintMission,
       searchParams,
     ],
   );
@@ -715,7 +768,13 @@ export function MissionControl() {
 
   useEffect(() => {
     if (!scope?.label || objective) return;
-    void sendMessage(scope.label);
+    const scopedPrompt =
+      scope.kind === "repository"
+        ? `Fund maintainers for ${scope.label} based on verified contribution signals — $500`
+        : detectBlueprintIntent(scope.label)
+          ? scope.label
+          : `Fund ${scope.label} maintainers — simulate $500 allocation`;
+    void sendMessage(scopedPrompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope?.label]);
 

@@ -154,7 +154,10 @@ export async function fundCommunityProgram(input: {
         type: "fund_program",
         method: settleFrom === "treasury_on_chain" ? "crypto" : "arc_usdc",
         amountUsd: -amount,
-        label: `You funded ${program.name}`,
+        label:
+          input.txHash
+            ? `You funded ${program.name} · ${input.txHash}`
+            : `You funded ${program.name}`,
         status: "completed",
       },
     });

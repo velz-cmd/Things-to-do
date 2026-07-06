@@ -115,7 +115,7 @@ function buildPreviewRow(
   const upstream = profile ? humanizeExtractionSources(profile.extractionSources) : entry.name;
   const estimatedAmountUsd = previewAmountUsdForCommunity(slug);
   const previewMetrics = buildUnpaidValueMetrics(slug, isInstalled);
-  const cohortPayees = buildPreviewCohortPayees(slug);
+  const cohortPayees = buildPreviewCohortPayees(slug, 500);
   const eligibilityCriteria =
     entry.kind === "music"
       ? `${MUSIC_MIN_PLAYS}+ plays → $${MUSIC_PAYOUT_USD} · pools of ${COHORT_POOL_SIZE}`

@@ -134,6 +134,7 @@ export function useFundProgramExecution(defaultCommunitySlug?: string) {
           id: activityId,
           programId,
           communitySlug,
+          templateId: req.templateId,
           programName: req.label,
           amountUsd: req.amountUsd,
           fundingSource: source,

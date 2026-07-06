@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import type { DiscoverAction, DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { DiscoverCardLane } from "@/lib/discover/types";
@@ -26,6 +26,14 @@ import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progre
 import { resolveGapDisplayAmounts } from "@/lib/discover/gap-display-amounts";
 import { gapProofHref } from "@/lib/discover/gap-rules";
 import { buildPreviewCohortPayees } from "@/lib/discover/preview-cohort-payees";
+import {
+  discoverCardKey,
+  dismissDiscoverCard,
+  FUND_ACTION_RECORDED_EVENT,
+  FUND_CARD_DISMISSED_EVENT,
+  isDiscoverCardDismissed,
+  latestFundForCommunity,
+} from "@/lib/capital/fund-action-store";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -111,9 +119,15 @@ export function ValueReceiptCard({
   const { runAction, wallet } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
-  const { fundedUsdForProgram } = useMyPoolStakes();
+  const { fundedUsdForProgram, fundedUsdForCommunity } = useMyPoolStakes();
   const programId = gap.programId;
   const communitySlug = gap.communitySlug;
+  const cardKey = discoverCardKey({
+    communitySlug,
+    templateId: gap.templateId,
+    gapId: gap.id,
+  });
+  const [dismissed, setDismissed] = useState(() => isDiscoverCardDismissed(cardKey));
   const { pool, loading: poolLoading, resolvedProgramId } = useProgramPoolState(
     communitySlug ?? "",
     programId ?? null,
@@ -121,12 +135,25 @@ export function ValueReceiptCard({
   );
   const effectiveProgramId = programId ?? resolvedProgramId ?? null;
 
+  useEffect(() => {
+    const syncDismiss = () => setDismissed(isDiscoverCardDismissed(cardKey));
+    window.addEventListener(FUND_CARD_DISMISSED_EVENT, syncDismiss);
+    window.addEventListener(FUND_ACTION_RECORDED_EVENT, syncDismiss);
+    return () => {
+      window.removeEventListener(FUND_CARD_DISMISSED_EVENT, syncDismiss);
+      window.removeEventListener(FUND_ACTION_RECORDED_EVENT, syncDismiss);
+    };
+  }, [cardKey]);
+
   const spendableUsd = wallet.loaded ? wallet.spendableUsd : null;
-  const fundedUsd = fundedUsdForProgram(effectiveProgramId);
+  const fundedProgramUsd = fundedUsdForProgram(effectiveProgramId);
+  const fundedCommunityUsd = fundedUsdForCommunity(communitySlug, gap.templateId);
+  const localFund = latestFundForCommunity(communitySlug ?? "", gap.templateId);
   const amounts = resolveGapDisplayAmounts({
     gap,
     pool,
-    fundedUsdForProgram: fundedUsd,
+    fundedUsdForProgram: fundedProgramUsd,
+    fundedUsdForCommunity: fundedCommunityUsd,
     yourDepositFromPool: pool?.funder.yourDepositUsd ?? 0,
   });
   const {
@@ -183,26 +210,49 @@ export function ValueReceiptCard({
           payeeCategory: pool.payeeCategory,
         })
       : null;
-  const poolRefreshing = poolLoading && !pool && poolBalanceUsd <= 0 && yourDepositUsd <= 0;
+  const poolRefreshing =
+    poolLoading && !pool && poolBalanceUsd <= 0 && yourDepositUsd <= 0 && !localFund;
   const milestoneSegment = computePoolMilestoneSegment(poolBalanceUsd);
   const sourcedHook = pool?.sourcedHook ?? null;
   const rfb = rfbBadgeForTemplate(gap.templateId);
-  const proofHref = gapProofHref(gap);
+  const proofHref = gapProofHref(gap, localFund?.id ?? null);
   const previewCohort =
-    gap.communitySlug && gap.dataSource === "community_catalog"
-      ? buildPreviewCohortPayees(gap.communitySlug)
+    gap.communitySlug && gap.dataSource === "community_catalog" && yourDepositUsd <= 0
+      ? buildPreviewCohortPayees(gap.communitySlug, milestoneSegment.ceilingUsd)
       : null;
   const cohortPayees =
-    pool?.nextBatchPayees?.length
-      ? pool.nextBatchPayees.map((p) => ({ label: p.label, owedUsd: p.owedUsd }))
-      : gap.cohortPayees?.length
-        ? gap.cohortPayees
-        : previewCohort;
+    yourDepositUsd > 0
+      ? null
+      : pool?.nextBatchPayees?.length
+        ? pool.nextBatchPayees.map((p) => ({ label: p.label, owedUsd: p.owedUsd }))
+        : gap.cohortPayees?.length
+          ? gap.cohortPayees
+          : previewCohort;
 
   const showInlineFund = Boolean(onFund);
 
+  if (dismissed) return null;
+
+  const canDismiss = signedIn && yourDepositUsd > 0;
+
+  const handleDismiss = () => {
+    dismissDiscoverCard(cardKey);
+    setDismissed(true);
+  };
+
   return (
-    <article className={clsx("value-receipt-card", className)}>
+    <article className={clsx("value-receipt-card relative", className)}>
+      {canDismiss && (
+        <button
+          type="button"
+          onClick={handleDismiss}
+          className="absolute right-2 top-2 rounded-md border border-white/10 bg-black/40 p-1 text-resolve-muted hover:text-white"
+          aria-label="Dismiss funded row"
+          title="Hide after your contribution is recorded"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <DiscoverCommunityLogo gap={gap} />
@@ -337,8 +387,8 @@ export function ValueReceiptCard({
       {cohortPayees && cohortPayees.length > 0 && (
         <div className="mt-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted">
-            Next ${milestoneSegment.ceilingUsd.toLocaleString()} batch · up to {cohortPayees.length}{" "}
-            creators
+            Next ${milestoneSegment.ceilingUsd.toLocaleString()} batch · {cohortPayees.length} creators
+            · ${cohortPayees.reduce((s, p) => s + p.owedUsd, 0).toFixed(2)} total
           </p>
           {gap.eligibilityCriteria && (
             <p className="mt-0.5 text-[9px] text-resolve-muted-dim">{gap.eligibilityCriteria}</p>
@@ -356,7 +406,21 @@ export function ValueReceiptCard({
           </ul>
         </div>
       )}
-
+      {yourDepositUsd > 0 && localFund && (
+        <p className="mt-2 text-[10px] text-emerald-200/90">
+          You funded ${yourDepositUsd.toFixed(2)}
+          {localFund.fundingSource === "external" ? " from connected wallet" : " on Arc"}
+          {localFund.txHash ? " · memo settlement pending batch" : ""}
+          {proofHref ? (
+            <>
+              {" · "}
+              <Link href={proofHref} className="text-resolve-accent hover:underline">
+                View proof receipt
+              </Link>
+            </>
+          ) : null}
+        </p>
+      )}
       {showInlineFund ? (
         <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-white/[0.06] pt-3">
           {signedIn ? (

@@ -53,17 +53,24 @@ export function resolveGapDisplayAmounts(input: {
   gap: TrendingValueGap;
   pool: ProgramPoolState | null;
   fundedUsdForProgram: number;
+  fundedUsdForCommunity?: number;
   yourDepositFromPool: number;
 }): GapDisplayAmounts {
   const catalogEstimateUsd = catalogEstimateUsdForGap(input.gap);
   const ledgerOwedUsd = Math.max(input.pool?.owedToCreatorsUsd ?? 0, 0);
   const displayOwedUsd = ledgerOwedUsd > 0 ? ledgerOwedUsd : catalogEstimateUsd;
+  const communityFunded = input.fundedUsdForCommunity ?? 0;
   const displayPoolUsd = Math.max(
     input.pool?.poolBalanceUsd ?? 0,
     input.fundedUsdForProgram,
+    communityFunded,
   );
   const displayHeroUsd = displayPoolUsd > 0 ? displayPoolUsd : displayOwedUsd;
-  const yourDepositUsd = Math.max(input.yourDepositFromPool, input.fundedUsdForProgram);
+  const yourDepositUsd = Math.max(
+    input.yourDepositFromPool,
+    input.fundedUsdForProgram,
+    communityFunded,
+  );
   const contributorCount =
     input.pool?.contributorCount ??
     input.gap.peopleImpacted ??

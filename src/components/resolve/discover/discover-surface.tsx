@@ -39,7 +39,6 @@ import { DiscoverWorkspaceNav,
   laneForJob,
   type DiscoverWorkspaceLane,
 } from "@/components/resolve/discover/discover-workspace-nav";
-import { DiscoverPoolMilestoneStrip } from "@/components/resolve/discover/discover-pool-milestone-strip";
 import type { DiscoverJobId } from "@/lib/discover/discover-jobs";
 import type { DiscoverNeedTypeFilter } from "@/lib/discover/need-types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
@@ -146,7 +145,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
 
         <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-4">
           <DiscoverWorkspaceNav lane={lane} onLaneChange={switchLane} />
-          <DiscoverPoolMilestoneStrip signedIn={Boolean(user)} />
 
           <div key={lane} className="min-h-[200px]">
             {lane === "gaps" && (

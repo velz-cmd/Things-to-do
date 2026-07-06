@@ -167,7 +167,9 @@ export function ValueReceiptCard({
     void runAction(
       {
         ...action,
-        programId: action.programId ?? effectiveProgramId ?? undefined,
+        ...(action.kind === "fund" || action.kind === "sponsor"
+          ? { programId: undefined }
+          : { programId: action.programId ?? effectiveProgramId ?? undefined }),
         communitySlug: action.communitySlug ?? communitySlug ?? undefined,
         templateId: action.templateId ?? gap.templateId,
       },

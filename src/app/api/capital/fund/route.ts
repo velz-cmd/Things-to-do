@@ -4,6 +4,8 @@ import { requireReadyUser } from "@/lib/auth/session";
 import { fundCommunityProgram } from "@/lib/capital/fund-program";
 import { bustCapitalStateCache } from "@/lib/capital/state-cache";
 import { honestInfraError } from "@/lib/copy/action-errors";
+import { resolveFundTarget } from "@/lib/discover/fund-target";
+import { prisma } from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -40,9 +42,21 @@ export async function POST(req: Request) {
       );
     }
 
+    const program = await prisma.resolveProgram.findUnique({
+      where: { id: parsed.data.programId },
+      include: { install: { select: { communitySlug: true } } },
+    });
+    const target = await resolveFundTarget({
+      programId: parsed.data.programId,
+      communitySlug: program?.install?.communitySlug,
+      templateId: program?.templateId,
+      userId: ready.profile.id,
+    });
+    const programId = target?.programId ?? parsed.data.programId;
+
     const result = await fundCommunityProgram({
       userId: ready.profile.id,
-      programId: parsed.data.programId,
+      programId,
       amountUsd: parsed.data.amountUsd,
       targetYieldMultiplier: parsed.data.targetYieldMultiplier,
     });

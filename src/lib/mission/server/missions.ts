@@ -8,6 +8,11 @@ import type { CapabilityAction } from "@/lib/mission/capabilities/types";
 import type { MissionReport } from "@/lib/mission/mission-report";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { upsertKnowledgeFromMission } from "@/lib/mission/server/knowledge";
+import {
+  parseTurnPayload,
+  stringifyTurnPayload,
+  type MissionTurnPayload,
+} from "@/lib/mission/mission-turn-payload";
 
 export type MissionRecord = {
   id: string;
@@ -20,6 +25,7 @@ export type MissionRecord = {
   findingCount: number;
   capitalUsd: number | null;
   metadata: Record<string, unknown>;
+  turnCount?: number;
   createdAt: string;
   updatedAt: string;
   turns: Array<{
@@ -31,6 +37,7 @@ export type MissionRecord = {
     findings?: MissionFinding[];
     actions?: CapabilityAction[];
     report?: MissionReport;
+    payload?: MissionTurnPayload;
   }>;
 };
 
@@ -69,17 +76,26 @@ function toMissionRecord(
       findings: parseJson<MissionFinding[] | undefined>(t.findingsJson, undefined),
       actions: parseJson<CapabilityAction[] | undefined>(t.actionsJson, undefined),
       report: parseJson<MissionReport | undefined>(t.reportJson, undefined),
+      payload: parseTurnPayload(t.payloadJson),
     })),
   };
 }
-
 export async function listMissions(userId: string, limit = 32): Promise<MissionRecord[]> {
   const rows = await prisma.resolveMission.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
     take: limit,
+    include: {
+      _count: { select: { turns: true } },
+    },
   });
-  return rows.map((r) => toMissionRecord(r, []));
+  return rows.map((r) => {
+    const { _count, ...mission } = r;
+    return {
+      ...toMissionRecord(mission, []),
+      turnCount: _count.turns,
+    };
+  });
 }
 
 export async function getMission(userId: string, missionId: string): Promise<MissionRecord | null> {
@@ -304,4 +320,78 @@ export async function migrateLocalSessions(
     migrated++;
   }
   return { migrated };
+}
+
+export type SyncMissionTurnInput = {
+  role: "user" | "resolve";
+  text: string;
+  phase?: MissionPhase;
+  capability?: string;
+  findings?: MissionFinding[];
+  actions?: CapabilityAction[];
+  report?: MissionReport;
+  payload?: MissionTurnPayload;
+};
+
+/** Replace mission turns with client state — Blueprint, agent, and chat paths. */
+export async function syncMissionSession(
+  userId: string,
+  missionId: string,
+  input: {
+    title?: string;
+    scope?: string;
+    status?: MissionStatus;
+    phase?: MissionPhase;
+    capability?: string;
+    ecosystemId?: string;
+    findingCount?: number;
+    turns: SyncMissionTurnInput[];
+  },
+): Promise<MissionRecord> {
+  const mission = await prisma.resolveMission.findFirst({
+    where: { id: missionId, userId },
+  });
+  if (!mission) throw new Error("Mission not found");
+
+  await prisma.resolveMissionTurn.deleteMany({ where: { missionId } });
+
+  if (input.turns.length > 0) {
+    await prisma.resolveMissionTurn.createMany({
+      data: input.turns.map((t, sortOrder) => ({
+        missionId,
+        role: t.role,
+        text: t.text,
+        phase: t.phase ?? null,
+        capability: t.capability ?? null,
+        findingsJson: t.findings?.length ? JSON.stringify(t.findings) : null,
+        actionsJson: t.actions?.length ? JSON.stringify(t.actions) : null,
+        reportJson: t.report ? JSON.stringify(t.report) : null,
+        payloadJson: stringifyTurnPayload(t.payload),
+        sortOrder,
+      })),
+    });
+  }
+
+  const firstUser = input.turns.find((t) => t.role === "user");
+  const lastResolve = [...input.turns].reverse().find((t) => t.role === "resolve");
+
+  await prisma.resolveMission.update({
+    where: { id: missionId },
+    data: {
+      title:
+        input.title && input.title !== "New mission"
+          ? input.title
+          : firstUser?.text.slice(0, 80) ?? mission.title,
+      scope: input.scope ?? firstUser?.text ?? mission.scope,
+      status: input.status ?? mission.status,
+      phase: input.phase ?? lastResolve?.phase ?? mission.phase,
+      capability: input.capability ?? lastResolve?.capability ?? mission.capability,
+      ecosystemId: input.ecosystemId ?? mission.ecosystemId,
+      findingCount: input.findingCount ?? mission.findingCount,
+    },
+  });
+
+  const full = await getMission(userId, missionId);
+  if (!full) throw new Error("Mission sync failed");
+  return full;
 }

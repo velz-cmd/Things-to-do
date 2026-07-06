@@ -14,6 +14,7 @@ export type ServerMission = {
   capitalUsd: number | null;
   createdAt: string;
   updatedAt: string;
+  turnCount?: number;
     turns: Array<{
     id: string;
     role: "user" | "resolve";
@@ -23,6 +24,7 @@ export type ServerMission = {
     findings?: MissionFinding[];
     actions?: import("@/lib/mission/capabilities/types").CapabilityAction[];
     report?: import("@/lib/mission/mission-report").MissionReport;
+    payload?: import("@/lib/mission/mission-turn-payload").MissionTurnPayload;
   }>;
 };
 
@@ -264,6 +266,29 @@ export async function fetchToolbox() {
   return snapshot;
 }
 
+export async function syncMissionSession(
+  missionId: string,
+  input: {
+    title?: string;
+    scope?: string;
+    status?: string;
+    phase?: string;
+    capability?: string;
+    ecosystemId?: string;
+    findingCount?: number;
+    turns: import("@/lib/mission/server/missions").SyncMissionTurnInput[];
+  },
+): Promise<ServerMission | null> {
+  const data = await missionFetch<{ mission: ServerMission }>(
+    `/api/mission/sessions/${missionId}/sync`,
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+    },
+  );
+  return data?.mission ?? null;
+}
+
 export async function migrateLocalSessions(
   sessions: Array<{
     title: string;
@@ -296,6 +321,7 @@ export function serverMissionToSession(
     savedAt: m.createdAt,
     updatedAt: m.updatedAt,
     findingCount: m.findingCount,
+    turnCount: m.turnCount ?? m.turns.length,
     turns: m.turns.map((t) => ({
       id: t.id,
       role: t.role,
@@ -305,6 +331,8 @@ export function serverMissionToSession(
       capability: t.capability,
       actions: t.actions,
       report: t.report,
+      blueprint: t.payload?.blueprint,
+      agentSignal: t.payload?.agentSignal,
     })),
   };
 }

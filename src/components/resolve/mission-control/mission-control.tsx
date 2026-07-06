@@ -40,8 +40,10 @@ import {
   migrateLocalSessions,
   sendMissionMessage,
   serverMissionToSession,
+  syncMissionSession,
   type ServerTimelineEvent,
 } from "@/lib/mission/client-api";
+import { missionTurnsToSyncInput, sessionTitleFromTurns } from "@/lib/mission/mission-session-sync";
 import type { AutomationRule } from "@/lib/mission/toolbox/types";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
 import { detectOperatingMode, detectCapitalLoopPhase, detectMissionJob } from "@/lib/mission/capital-os";
@@ -51,7 +53,6 @@ import { detectAgentSignalIntent } from "@/lib/mission/detect-agent-signal-inten
 import { detectBlueprintIntent } from "@/lib/mission/detect-blueprint-intent";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
-import { pushMissionQueue } from "@/lib/mission/mission-agent-budget";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
 import { prefetchMissionPool } from "@/lib/mission/prefetch-mission-pool";
 import { MissionBlueprintCommandProvider } from "@/components/resolve/mission-control/mission-blueprint-command-context";
@@ -147,6 +148,8 @@ function persistLocalSession(
       capability: t.capability,
       actions: t.nextSteps,
       report: t.report,
+      blueprint: t.blueprint,
+      agentSignal: t.agentSignal,
     })),
   });
 }
@@ -160,7 +163,9 @@ function turnsFromSession(session: MissionSession): MissionTurn[] {
     phase: t.phase,
     findings: t.findings,
     capability: t.capability as MissionTurn["capability"],
-    report: (t as { report?: MissionReport }).report,
+    report: t.report,
+    blueprint: t.blueprint,
+    agentSignal: t.agentSignal,
     nextSteps: t.actions,
   }));
 }
@@ -245,7 +250,7 @@ export function MissionControl() {
 
       const local = loadMissionSessions();
       if (local.length > 0) {
-        await migrateLocalSessions(
+        const result = await migrateLocalSessions(
           local.map((s) => ({
             title: s.title,
             query: s.query || s.scope || s.title,
@@ -253,6 +258,9 @@ export function MissionControl() {
             turns: s.turns?.map((t) => ({ role: t.role, text: t.text })),
           })),
         ).catch(() => undefined);
+        if (result?.migrated && result.migrated > 0) {
+          localStorage.removeItem("resolve-mission-sessions");
+        }
       }
     }
     void bootstrap();
@@ -320,6 +328,63 @@ export function MissionControl() {
     }
   }
 
+  const ensureServerSession = useCallback(
+    async (
+      activeSession: MissionSession,
+      trimmed: string,
+      workspaceId?: string,
+    ): Promise<MissionSession> => {
+      if (!serverMode || !activeSession.id.startsWith("ms-")) return activeSession;
+      const created = await createServerMission({
+        title: trimmed.slice(0, 80),
+        ecosystemId: workspaceId ?? activeSession.ecosystemId,
+      });
+      if (!created) return activeSession;
+      const next = serverMissionToSession(created, activeWorkspace?.name);
+      setSession(next);
+      return next;
+    },
+    [serverMode, activeWorkspace?.name],
+  );
+
+  const persistSession = useCallback(
+    async (
+      activeSession: MissionSession,
+      turnList: MissionTurn[],
+      opts: {
+        title?: string;
+        findingCount?: number;
+        phase?: MissionPhase;
+        scope?: string;
+        ecosystemId?: string;
+        status?: string;
+        capability?: string;
+      },
+    ) => {
+      const title = sessionTitleFromTurns(turnList, opts.title ?? activeSession.title);
+
+      if (serverMode && !activeSession.id.startsWith("ms-")) {
+        const synced = await syncMissionSession(activeSession.id, {
+          title,
+          scope: opts.scope ?? title,
+          status: opts.status,
+          phase: opts.phase,
+          capability: opts.capability,
+          ecosystemId: opts.ecosystemId,
+          findingCount: opts.findingCount,
+          turns: missionTurnsToSyncInput(turnList),
+        });
+        if (synced) {
+          setSession(serverMissionToSession(synced, activeWorkspace?.name));
+        }
+      } else {
+        persistLocalSession(activeSession, turnList, { ...opts, title });
+      }
+      setLibraryTick((n) => n + 1);
+    },
+    [serverMode, activeWorkspace?.name],
+  );
+
   const runExecute = useCallback(
     async (missionId: string, execute = false) => {
       setLoading(true);
@@ -376,7 +441,15 @@ export function MissionControl() {
   const runAgentSignalMessage = useCallback(
     async (trimmed: string, serviceOverride?: string) => {
       const isFirstTurn = turns.length === 0;
-      if (isFirstTurn) setObjective(trimmed);
+      let activeSession = session;
+      if (isFirstTurn) {
+        activeSession = await ensureServerSession(
+          session,
+          trimmed,
+          activeWorkspace?.id ?? session.ecosystemId,
+        );
+        setObjective(trimmed);
+      }
       setLastIntent(trimmed);
       setInput("");
       setLoading(true);
@@ -409,13 +482,13 @@ export function MissionControl() {
         setTurns(finalTurns);
         setLastPhase("discover");
         setLastCapability("general_inquiry");
-        persistLocalSession(session, finalTurns, {
+        await persistSession(activeSession, finalTurns, {
           title: (objective ?? trimmed).slice(0, 48),
           phase: "discover",
           scope: objective ?? trimmed,
-          ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
+          ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
+          capability: "general_inquiry",
         });
-        setLibraryTick((n) => n + 1);
       } catch (e) {
         setThinkingComplete(true);
         setTurns([
@@ -431,13 +504,21 @@ export function MissionControl() {
         setLoading(false);
       }
     },
-    [turns, session, objective, activeWorkspace?.id],
+    [turns, session, objective, activeWorkspace?.id, ensureServerSession, persistSession],
   );
 
   const runBlueprintMission = useCallback(
     async (trimmed: string) => {
       const isFirstTurn = turns.length === 0;
-      if (isFirstTurn) setObjective(trimmed);
+      let activeSession = session;
+      if (isFirstTurn) {
+        activeSession = await ensureServerSession(
+          session,
+          trimmed,
+          activeWorkspace?.id ?? session.ecosystemId,
+        );
+        setObjective(trimmed);
+      }
       setLastIntent(trimmed);
       setInput("");
       setLoading(true);
@@ -462,10 +543,6 @@ export function MissionControl() {
 
       const budget = parseCapitalUsd(trimmed);
       setThinkingComplete(true);
-      pushMissionQueue({
-        objective: (objective ?? trimmed).slice(0, 80),
-        communitySlug: slug,
-      });
       const resolveTurn: MissionTurn = {
         id: `r-${Date.now()}`,
         role: "resolve",
@@ -479,16 +556,17 @@ export function MissionControl() {
       setLastCapability("allocate_capital");
       setLoopPhase("simulate");
       setOperatingMode(detectOperatingMode(trimmed));
-      persistLocalSession(session, finalTurns, {
+      await persistSession(activeSession, finalTurns, {
         title: (objective ?? trimmed).slice(0, 48),
         phase: "plan",
         scope: objective ?? trimmed,
-        ecosystemId: activeWorkspace?.id ?? session.ecosystemId,
+        ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
+        capability: "allocate_capital",
+        status: "awaiting_user",
       });
-      setLibraryTick((n) => n + 1);
       setLoading(false);
     },
-    [turns, session, objective, activeWorkspace?.id, scope?.label],
+    [turns, session, objective, activeWorkspace?.id, scope?.label, ensureServerSession, persistSession],
   );
 
   const sendMessage = useCallback(
@@ -510,15 +588,12 @@ export function MissionControl() {
       let activeSession = sessionOverride ?? session;
       const isFirstTurn = turns.length === 0;
 
-      if (serverMode && activeSession.id.startsWith("ms-") && isFirstTurn) {
-        const created = await createServerMission({
-          title: trimmed.slice(0, 80),
-          ecosystemId: activeWorkspace?.id ?? activeSession.ecosystemId,
-        });
-        if (created) {
-          activeSession = serverMissionToSession(created, activeWorkspace?.name);
-          setSession(activeSession);
-        }
+      if (isFirstTurn) {
+        activeSession = await ensureServerSession(
+          activeSession,
+          trimmed,
+          activeWorkspace?.id ?? activeSession.ecosystemId,
+        );
       }
 
       if (isFirstTurn) setObjective(trimmed);
@@ -633,12 +708,14 @@ export function MissionControl() {
           setMissionStatus(data.status ?? updated.status ?? null);
           void loadTimelineForMission(updated.id, workspaceId);
         } else {
-          persistLocalSession(activeSession, finalTurns, {
+          await persistSession(activeSession, finalTurns, {
             title: (objective ?? trimmed).slice(0, 48),
             findingCount: resolveTurn.findings?.length,
             phase,
             scope: objective ?? trimmed,
             ecosystemId: workspaceId,
+            capability: data.capability ?? undefined,
+            status: data.status,
           });
           captureFromMission({
             missionId: activeSession.id,
@@ -647,8 +724,6 @@ export function MissionControl() {
             findings: resolveTurn.findings?.map((f) => ({ title: f.title, insight: f.insight })),
           });
         }
-
-        setLibraryTick((n) => n + 1);
       } catch (e) {
         setThinkingComplete(true);
         setTurns([
@@ -676,6 +751,8 @@ export function MissionControl() {
       runAgentSignalMessage,
       runBlueprintMission,
       searchParams,
+      ensureServerSession,
+      persistSession,
     ],
   );
 
@@ -848,6 +925,7 @@ export function MissionControl() {
         setTurns(turnList);
         const lastResolve = [...turnList].reverse().find((t) => t.role === "resolve");
         setLastPhase(lastResolve?.phase ?? restored.phase ?? "discover");
+        if (turnList.some((t) => t.blueprint)) setLoopPhase("simulate");
         void loadTimelineForMission(restored.id, restored.ecosystemId ?? undefined);
         return;
       }

@@ -2,25 +2,22 @@
 
 import { useState } from "react";
 import clsx from "clsx";
-import { Eye, Gift, Loader2, Play, ScrollText } from "lucide-react";
+import { Eye, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
 import type { DiscoverGraphNode } from "@/lib/discover/radar";
-import type { ProgramTemplateId } from "@/lib/communities/catalog";
 
-type ConsoleActionId = "bounty" | "grant" | "observe" | "simulate";
+type ConsoleActionId = "observe" | "simulate" | "fund";
 
 const ACTIONS: {
   id: ConsoleActionId;
   label: string;
   badge: string;
-  icon: typeof ScrollText;
-  templateId: ProgramTemplateId;
+  icon: typeof Eye;
 }[] = [
-  { id: "bounty", label: "Docs bounty", badge: "Creates program", icon: ScrollText, templateId: "docs-bounty" },
-  { id: "grant", label: "Grant pool", badge: "Creates program", icon: Gift, templateId: "quadratic-funding" },
-  { id: "observe", label: "Metrics", badge: "View", icon: Eye, templateId: "docs-bounty" },
-  { id: "simulate", label: "Test rule", badge: "Auto-pay", icon: Play, templateId: "docs-bounty" },
+  { id: "fund", label: "Fund pool", badge: "Discover", icon: Play },
+  { id: "observe", label: "Metrics", badge: "View", icon: Eye },
+  { id: "simulate", label: "Autopay preview", badge: "Read-only", icon: Play },
 ];
 
 type Props = {
@@ -43,25 +40,26 @@ export function DiscoverCommunityConsoleActions({
   if (!slug) {
     return (
       <p className="text-xs text-resolve-muted">
-        Install a community on this node to unlock programs.
+        Install a community on this node to view the communal pool.
       </p>
     );
   }
 
   async function handleAction(id: ConsoleActionId) {
-    const def = ACTIONS.find((a) => a.id === id)!;
-
     if (id === "observe") {
       onObserve?.();
       return;
     }
     if (id === "simulate") {
       onSimulate?.();
+      toast.message("Autopay at milestone", {
+        description: "Communal pools settle automatically — no manual payout on Discover.",
+      });
       return;
     }
 
     if (!signedIn) {
-      toast.error("Sign in to create programs");
+      toast.error("Sign in to fund the communal pool");
       return;
     }
 
@@ -69,11 +67,11 @@ export function DiscoverCommunityConsoleActions({
     try {
       await runAction(
         {
-          id: `console-${id}`,
-          label: def.label,
-          kind: "create_program",
+          id: `console-fund-${slug}`,
+          label: "Fund communal pool",
+          kind: "fund",
           communitySlug: slug,
-          templateId: def.templateId,
+          amountUsd: 25,
         },
         "community-console",
       );
@@ -85,7 +83,10 @@ export function DiscoverCommunityConsoleActions({
   return (
     <div className="space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-        Programs
+        Communal pool
+      </p>
+      <p className="text-[10px] leading-relaxed text-resolve-muted-dim">
+        Fund only — payouts autopay at milestone. No program creation here.
       </p>
       <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {ACTIONS.map((def) => {
@@ -98,16 +99,17 @@ export function DiscoverCommunityConsoleActions({
               disabled={pendingId !== null && !loading}
               onClick={() => void handleAction(def.id)}
               className={clsx(
-                "discover-inline-action shrink-0 min-w-[7rem]",
-                (def.id === "bounty" || def.id === "grant") && "discover-inline-action--primary",
-                pendingId !== null && !loading && "opacity-50",
+                "flex shrink-0 items-start gap-2 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-left transition hover:border-white/15",
+                loading && "opacity-70",
               )}
             >
-              <span className="discover-inline-action__label inline-flex items-center gap-1">
-                {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
-                {def.label}
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.05]">
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
               </span>
-              <span className="discover-inline-action__badge">{def.badge}</span>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-white">{def.label}</span>
+                <span className="block text-[10px] text-resolve-muted-dim">{def.badge}</span>
+              </span>
             </button>
           );
         })}

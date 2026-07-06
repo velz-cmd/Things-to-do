@@ -758,10 +758,6 @@ export function DiscoverActionsProvider({
                   whyFund: fundOutcome.whyFund,
                   whoBenefits: fundOutcome.whoBenefits,
                 }),
-                onDeployArc:
-                  fundOutcome.communitySlug && fundOutcome.programId
-                    ? () => void handleDeployFromFundOutcome()
-                    : undefined,
                 deployingArc,
               }
             : null

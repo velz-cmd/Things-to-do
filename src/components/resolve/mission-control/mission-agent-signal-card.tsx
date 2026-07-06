@@ -20,7 +20,8 @@ import { ArcTxLink } from "@/components/resolve/ui/arc-tx-link";
 import { ArcWalletLink } from "@/components/resolve/ui/arc-wallet-link";
 import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { matchServiceForPrompt } from "@/lib/agent/commerce-match";
-import { PLATFORM_LOOP_TAGLINE } from "@/lib/economy/platform-loop";
+import { MISSION_AGENT_LANE_COPY } from "@/lib/mission/mission-lane-copy";
+import { MissionBlueprintPackage } from "@/components/resolve/mission-control/mission-blueprint-package";
 import { apiFetchWallet } from "@/lib/discover/discover-action-engine";
 
 export type AgentServiceCard = {
@@ -119,6 +120,7 @@ export function MissionAgentSignalCard({
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [invoking, setInvoking] = useState(false);
   const [invokeStage, setInvokeStage] = useState<"idle" | "charging" | "running">("idle");
+  const [payDecision, setPayDecision] = useState<"pending" | "pay" | "skip">("pending");
   const [result, setResult] = useState<InvokeResult | null>(null);
 
   const loadCatalog = useCallback(async () => {
@@ -244,10 +246,44 @@ export function MissionAgentSignalCard({
   return (
     <div className="space-y-4">
       <p className="rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-3 py-2.5 text-center text-xs font-medium leading-relaxed text-violet-100/95">
-        {catalog?.tagline ?? PLATFORM_LOOP_TAGLINE}
+        {catalog?.tagline ?? MISSION_AGENT_LANE_COPY.tagline}
       </p>
 
-      {!result && selected && (
+      {!result && selected && payDecision === "pending" && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-3 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/90">
+            {MISSION_AGENT_LANE_COPY.paySkipTitle}
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-resolve-muted">
+            {MISSION_AGENT_LANE_COPY.paySkipDetail}
+          </p>
+          <p className="mt-2 text-xs text-white/90">
+            Pay{" "}
+            <span className="font-semibold text-emerald-300">{formatAgentPrice(pricePreview)}</span>{" "}
+            for verified {selected.name} output — or skip and ask Mission for a free analysis path.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" className="gap-1.5" onClick={() => setPayDecision("pay")}>
+              <CircleDollarSign className="h-3.5 w-3.5" />
+              Pay · {formatAgentPrice(pricePreview)}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setPayDecision("skip");
+                onFollowUp?.(
+                  `Skip paid agent signal — give me a free analysis path for: ${prompt.trim()}`,
+                );
+              }}
+            >
+              Skip · free analysis
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!result && selected && payDecision === "pay" && (
         <>
           <div className="rounded-xl border border-white/[0.08] bg-black/25 px-3 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90">
@@ -461,6 +497,19 @@ export function MissionAgentSignalCard({
                   </ul>
                 </div>
               )}
+            </div>
+          )}
+
+          {result.ok && (
+            <div className="mt-4">
+              <MissionBlueprintPackage
+                prompt={prompt}
+                chargedUsd={result.payment?.chargedUsd ?? result.wallet?.chargedUsd ?? result.amountUsd ?? 0.02}
+                headline={result.summary?.headline ?? "Agent signal complete"}
+                detail={result.summary?.detail}
+                execution={result.execution}
+                receiptHref={result.receiptHref}
+              />
             </div>
           )}
 

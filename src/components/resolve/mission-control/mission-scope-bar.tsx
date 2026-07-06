@@ -10,15 +10,26 @@ export function MissionScopeBar() {
   if (!scope) return null;
 
   return (
-    <div className="border-b border-resolve-accent/20 bg-resolve-accent/5">
-      <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-4 py-2 lg:px-8">
-        <p className="text-xs text-resolve-muted">
-          Mission scope:{" "}
-          <span className="font-semibold text-white">{scope.label}</span>
-          {scope.kind === "repository" && (
-            <span className="ml-2 text-resolve-muted-dim">— graph, treasury, and evidence unified</span>
-          )}
-        </p>
+    <div className="border-b border-resolve-accent/20 bg-gradient-to-r from-resolve-accent/10 via-violet-500/5 to-transparent">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-4 py-2.5 lg:px-8">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-accent/90">
+            Mission scope
+          </p>
+          <p className="text-sm text-white">
+            <span className="font-semibold">{scope.label}</span>
+            {scope.kind === "repository" && (
+              <span className="ml-2 text-xs text-resolve-muted">
+                — graph, pool, and evidence unified
+              </span>
+            )}
+            {scope.kind === "community" && (
+              <span className="ml-2 text-xs text-resolve-muted">
+                — communal pool and program rails in live panel
+              </span>
+            )}
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => setScope(null)}

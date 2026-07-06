@@ -21,6 +21,8 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
  (Supabase auth, AI providers, Circle/Arc, Resend). Everything degrades gracefully. If `.env`
  is ever missing, recreate it with `DEPUTY_DEMO_MODE=true` and the local `DATABASE_URL` above.
 - After changing the Prisma schema, run `npx prisma db push` (dev) to sync the local DB.
+- Production deploy: apply `prisma/migrations/20250706180000_mission_blueprint_receipt/` for
+  `MissionBlueprintReceipt` (Phase 6 server-persisted mission reports).
 - The wallet SDK (Reown/wagmi) logs harmless `api.web3modal.org ... 403` fetch errors when
  `NEXT_PUBLIC_REOWN_PROJECT_ID` is unset — these are non-fatal and do not affect the server.
 - With `NEXT_PUBLIC_REOWN_PROJECT_ID` set (Reown/AppKit), users connect an external wallet from

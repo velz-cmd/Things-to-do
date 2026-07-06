@@ -13,12 +13,12 @@ import {
 } from "@/lib/capital/refresh-events";
 import { FUND_ACTION_RECORDED_EVENT, type StoredFundAction } from "@/lib/capital/fund-action-store";
 import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
-
-const poolCache = new Map<string, ProgramPoolState>();
-
-function poolCacheKey(communitySlug: string, programId: string | null, templateId?: string | null) {
-  return `${communitySlug}:${programId ?? ""}:${templateId ?? ""}`;
-}
+import {
+  poolCacheKey,
+  poolCacheIsFresh,
+  readPoolCache,
+  writePoolCache,
+} from "@/lib/capital/pool-cache";
 
 type PoolCheckpointPanelProps = {
   communitySlug: string;
@@ -32,8 +32,14 @@ export function useProgramPoolState(
   programId: string | null,
   options?: { templateId?: string | null },
 ) {
-  const [pool, setPool] = useState<ProgramPoolState | null>(null);
-  const [loading, setLoading] = useState(false);
+  const cacheKey = communitySlug
+    ? poolCacheKey(communitySlug, programId, options?.templateId)
+    : null;
+
+  const [pool, setPool] = useState<ProgramPoolState | null>(() =>
+    cacheKey ? readPoolCache(cacheKey) : null,
+  );
+  const [loading, setLoading] = useState(() => Boolean(cacheKey && !readPoolCache(cacheKey)));
   const [resolvedProgramId, setResolvedProgramId] = useState<string | null>(programId);
   const mountedRef = useRef(true);
 
@@ -49,18 +55,17 @@ export function useProgramPoolState(
   }, [programId]);
 
   useEffect(() => {
-    if (!communitySlug) return;
-    const key = poolCacheKey(communitySlug, programId, options?.templateId);
-    const cached = poolCache.get(key);
+    if (!cacheKey) return;
+    const cached = readPoolCache(cacheKey);
     if (cached) {
       setPool(cached);
+      setLoading(false);
     }
-  }, [communitySlug, programId, options?.templateId]);
+  }, [cacheKey]);
 
   const refresh = useCallback(async () => {
-    if (!communitySlug) return;
-    const key = poolCacheKey(communitySlug, programId, options?.templateId);
-    const hasCache = poolCache.has(key);
+    if (!communitySlug || !cacheKey) return;
+    const hasCache = Boolean(readPoolCache(cacheKey));
     if (!hasCache) setLoading(true);
     try {
       if (programId) {
@@ -75,7 +80,7 @@ export function useProgramPoolState(
             setPool(next);
             setResolvedProgramId(programId);
           }
-          if (next) poolCache.set(key, next);
+          if (next) writePoolCache(cacheKey, next);
         }
         return;
       }
@@ -94,16 +99,20 @@ export function useProgramPoolState(
           setPool(next);
           setResolvedProgramId(data.programId ?? null);
         }
-        if (next) poolCache.set(key, next);
+        if (next) writePoolCache(cacheKey, next);
       }
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [communitySlug, programId, options?.templateId]);
+  }, [cacheKey, communitySlug, programId, options?.templateId]);
 
   useEffect(() => {
+    if (!communitySlug) return;
     void refresh();
-  }, [refresh]);
+    if (cacheKey && poolCacheIsFresh(cacheKey)) return;
+    const interval = setInterval(() => void refresh(), 60_000);
+    return () => clearInterval(interval);
+  }, [cacheKey, communitySlug, refresh]);
 
   useEffect(() => {
     if (!communitySlug) return;

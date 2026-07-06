@@ -186,7 +186,7 @@ export function MissionLivePanel({
   return (
     <aside
       className={clsx(
-        "flex w-full shrink-0 flex-col border-l border-white/[0.06] bg-[#070b14]/60 lg:w-64 xl:w-72",
+        "flex w-full shrink-0 flex-col border-l border-resolve-border/60 bg-[#0a0f18]/75 backdrop-blur-md lg:w-64 xl:w-72",
         className,
       )}
     >

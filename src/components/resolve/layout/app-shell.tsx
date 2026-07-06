@@ -22,23 +22,25 @@ function MissionScopeBarGate() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isDiscover = pathname === "/discover" || pathname.startsWith("/discover/");
+  const isMission = pathname === "/mission" || pathname.startsWith("/mission/");
+  const isProductCanvas = isDiscover || isMission;
 
   useEffect(() => {
-    document.documentElement.classList.toggle("discover-route", isDiscover);
-    document.body.classList.toggle("discover-route", isDiscover);
+    document.documentElement.classList.toggle("discover-route", isProductCanvas);
+    document.body.classList.toggle("discover-route", isProductCanvas);
     return () => {
       document.documentElement.classList.remove("discover-route");
       document.body.classList.remove("discover-route");
     };
-  }, [isDiscover]);
+  }, [isProductCanvas]);
 
   return (
     <CommandProvider>
       <MissionModalProvider>
         <Suspense fallback={null}>
           <MissionScopeProvider>
-            <div className={clsx("relative min-h-screen text-white", isDiscover && "discover-canvas")}>
-              <ResolveBackground variant={isDiscover ? "hero" : "app"} />
+            <div className={clsx("relative min-h-screen text-white", isProductCanvas && "discover-canvas")}>
+              <ResolveBackground variant={isProductCanvas ? "hero" : "app"} />
               <AppTopNav />
               <MissionScopeBarGate />
               <main className="relative flex-1 overflow-auto">{children}</main>

@@ -80,7 +80,7 @@ export function MissionHistorySidebar({
 
   if (collapsed) {
     return (
-      <aside className="flex w-11 shrink-0 flex-col items-center border-r border-white/[0.06] bg-[#060a12] py-3">
+      <aside className="flex w-11 shrink-0 flex-col items-center border-r border-resolve-border/60 bg-[#060a12]/90 py-3 backdrop-blur-md">
         <button
           type="button"
           onClick={() => setCollapsed(false)}
@@ -103,10 +103,10 @@ export function MissionHistorySidebar({
 
   return (
     <aside
-      className="flex w-[260px] shrink-0 flex-col border-r border-white/[0.06] bg-[#060a12]"
+      className="flex w-[260px] shrink-0 flex-col border-r border-resolve-border/60 bg-[#060a12]/90 backdrop-blur-md"
       data-testid="mission-chat-sidebar"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-resolve-border/50 px-3 py-3">
         <p className="text-sm font-medium text-white">Chats</p>
         <button
           type="button"
@@ -122,7 +122,7 @@ export function MissionHistorySidebar({
         <button
           type="button"
           onClick={onNewMission}
-          className="flex w-full items-center gap-2 rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.07]"
+          className="discover-action-btn discover-action-btn--primary flex w-full items-center justify-center gap-2 !py-2.5"
         >
           <MessageSquarePlus className="h-4 w-4 shrink-0" />
           New chat

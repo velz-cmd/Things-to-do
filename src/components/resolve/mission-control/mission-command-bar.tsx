@@ -19,7 +19,7 @@ export function MissionCommandBar({
   return (
     <div
       className={clsx(
-        "mx-auto flex max-w-4xl flex-wrap items-center gap-2 rounded-2xl border border-white/[0.1] bg-[#0a0f18]/98 p-2.5 shadow-lg shadow-black/30",
+        "mx-auto flex max-w-4xl flex-wrap items-center gap-2 rounded-2xl border border-resolve-border/60 bg-[#0a0f18]/95 p-2.5 shadow-lg shadow-black/30 backdrop-blur-md",
         className,
       )}
       data-testid="mission-command-bar"

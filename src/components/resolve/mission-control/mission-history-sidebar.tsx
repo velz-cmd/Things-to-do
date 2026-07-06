@@ -10,6 +10,7 @@ import {
   sessionDisplayTitle,
   type MissionSession,
 } from "@/lib/mission/toolbox/mission-library";
+import { filterMeaningfulMissionSessions } from "@/lib/mission/mission-session-filter";
 import {
   deleteServerMission,
   fetchMissions,
@@ -25,7 +26,7 @@ function sessionPreview(s: MissionSession): string {
   return `${formatSessionTime(s.updatedAt)} · ${msgs}`;
 }
 
-/** ChatGPT-style mission history — real local or server persistence only. */
+/** Mission chat history — only conversations you started (user message required). */
 export function MissionHistorySidebar({
   onNewMission,
   onSelectSession,
@@ -51,20 +52,14 @@ export function MissionHistorySidebar({
       if (missions !== null) {
         setStorageMode("server");
         setSessions(
-          missions
-            .map((m) => serverMissionToSession(m))
-            .filter((s) => s.title !== "New mission" || (s.turnCount ?? 0) > 0),
+          filterMeaningfulMissionSessions(missions.map((m) => serverMissionToSession(m))),
         );
         return;
       }
     }
 
     setStorageMode("local");
-    setSessions(
-      loadMissionSessions().filter(
-        (s) => (s.turns?.length ?? 0) > 0 || (s.query?.trim() && s.title !== "New mission"),
-      ),
-    );
+    setSessions(filterMeaningfulMissionSessions(loadMissionSessions()));
   }, [user]);
 
   useEffect(() => {
@@ -80,11 +75,11 @@ export function MissionHistorySidebar({
 
   if (collapsed) {
     return (
-      <aside className="flex w-11 shrink-0 flex-col items-center border-r border-resolve-border/60 bg-[#060a12]/90 py-3 backdrop-blur-md">
+      <aside className="mission-history-sidebar mission-history-sidebar--collapsed">
         <button
           type="button"
           onClick={() => setCollapsed(false)}
-          className="rounded-lg p-2 text-resolve-muted transition hover:bg-white/[0.05] hover:text-white"
+          className="mission-history-icon-btn"
           aria-label="Expand chats"
         >
           <PanelLeft className="h-4 w-4" />
@@ -92,7 +87,7 @@ export function MissionHistorySidebar({
         <button
           type="button"
           onClick={onNewMission}
-          className="mt-2 rounded-lg p-2 text-resolve-muted transition hover:bg-white/[0.05] hover:text-white"
+          className="mission-history-icon-btn mt-2"
           aria-label="New chat"
         >
           <MessageSquarePlus className="h-4 w-4" />
@@ -102,28 +97,21 @@ export function MissionHistorySidebar({
   }
 
   return (
-    <aside
-      className="flex w-[260px] shrink-0 flex-col border-r border-resolve-border/60 bg-[#060a12]/90 backdrop-blur-md"
-      data-testid="mission-chat-sidebar"
-    >
-      <div className="flex items-center justify-between gap-2 border-b border-resolve-border/50 px-3 py-3">
-        <p className="text-sm font-medium text-white">Chats</p>
+    <aside className="mission-history-sidebar" data-testid="mission-chat-sidebar">
+      <div className="flex items-center justify-between gap-2 border-b border-violet-400/10 px-3 py-3">
+        <p className="text-sm font-medium text-violet-100/95">Your chats</p>
         <button
           type="button"
           onClick={() => setCollapsed(true)}
-          className="rounded-lg p-1.5 text-resolve-muted transition hover:bg-white/[0.05] hover:text-white"
+          className="mission-history-icon-btn"
           aria-label="Collapse sidebar"
         >
           <PanelLeftClose className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="px-3 py-2">
-        <button
-          type="button"
-          onClick={onNewMission}
-          className="discover-action-btn discover-action-btn--primary flex w-full items-center justify-center gap-2 !py-2.5"
-        >
+      <div className="px-3 py-2.5">
+        <button type="button" onClick={onNewMission} className="mission-btn mission-btn--primary w-full">
           <MessageSquarePlus className="h-4 w-4 shrink-0" />
           New chat
         </button>
@@ -135,11 +123,11 @@ export function MissionHistorySidebar({
         ) : sessions.length === 0 ? (
           <p className="px-2 py-4 text-xs leading-relaxed text-resolve-muted-dim">
             {storageMode === "server"
-              ? "No chats yet. Start a mission — it saves here automatically."
-              : "Chats save in this browser. Sign in to sync across devices."}
+              ? "Chats appear here after you send your first message."
+              : "Chats save in this browser after you send a message."}
           </p>
         ) : (
-          <ul className="space-y-0.5">
+          <ul className="space-y-1">
             {sessions.map((s) => {
               const active = activeSessionId === s.id;
               const title = sessionDisplayTitle(s);
@@ -148,16 +136,9 @@ export function MissionHistorySidebar({
                   <button
                     type="button"
                     onClick={() => onSelectSession(s)}
-                    className={clsx(
-                      "w-full rounded-lg px-3 py-2.5 pr-8 text-left transition",
-                      active
-                        ? "bg-white/[0.08] text-white"
-                        : "text-resolve-muted hover:bg-white/[0.04] hover:text-white",
-                    )}
+                    className={clsx("mission-history-item", active && "mission-history-item--active")}
                   >
-                    <span className="block truncate text-[13px] font-medium leading-snug">
-                      {title}
-                    </span>
+                    <span className="block truncate text-[13px] font-medium leading-snug">{title}</span>
                     <span className="mt-0.5 block truncate text-[11px] text-resolve-muted-dim">
                       {sessionPreview(s)}
                     </span>
@@ -177,25 +158,19 @@ export function MissionHistorySidebar({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-white/[0.06] px-3 py-3">
+      <div className="shrink-0 border-t border-violet-400/10 px-3 py-3">
         {storageMode === "server" ? (
-          <p className="text-[10px] leading-relaxed text-emerald-300/80">
-            Saved to your account
-          </p>
+          <p className="text-[10px] leading-relaxed text-violet-200/70">Synced to your account</p>
         ) : user ? (
           <p className="text-[10px] leading-relaxed text-resolve-muted-dim">
-            Saving locally — server sync unavailable
+            Local only — server sync unavailable
           </p>
         ) : (
           <p className="text-[10px] leading-relaxed text-resolve-muted-dim">
-            <button
-              type="button"
-              onClick={() => openSignIn()}
-              className="text-sky-300 hover:underline"
-            >
+            <button type="button" onClick={() => openSignIn()} className="text-sky-300 hover:underline">
               Sign in
             </button>{" "}
-            to save chats across devices
+            to sync chats
           </p>
         )}
       </div>

@@ -25,7 +25,7 @@ export function MissionScopeBar() {
             )}
             {scope.kind === "community" && (
               <span className="ml-2 text-xs text-resolve-muted">
-                — communal pool and program rails in live panel
+                — program rails and settlement in Mission
               </span>
             )}
           </p>

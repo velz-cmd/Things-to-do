@@ -101,6 +101,9 @@ export function MissionWorkspace({
   operatingMode,
   loopPhase,
   onOperatingModeChange,
+  scopePromptHint,
+  onAcceptScopeHint,
+  onDismissScopeHint,
 }: {
   objective: string | null;
   turns: MissionTurn[];
@@ -130,6 +133,9 @@ export function MissionWorkspace({
   operatingMode: OperatingMode;
   loopPhase: CapitalLoopPhase;
   onOperatingModeChange?: (mode: OperatingMode) => void;
+  scopePromptHint?: string | null;
+  onAcceptScopeHint?: () => void;
+  onDismissScopeHint?: () => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const { scope } = useMissionScope();
@@ -171,6 +177,9 @@ export function MissionWorkspace({
         onSelectSession={onSelectSession}
         activeSessionId={activeSessionId}
         libraryTick={libraryTick}
+        scopeHint={scopePromptHint}
+        onAcceptScopeHint={onAcceptScopeHint}
+        onDismissScopeHint={onDismissScopeHint}
       />
     );
   }
@@ -269,7 +278,7 @@ export function MissionWorkspace({
   }
 
   return (
-    <div className="resolve-grid-bg flex h-[calc(100vh-3.75rem)] min-h-[560px]">
+    <div className="mission-workspace-shell flex h-[calc(100vh-3.75rem)] min-h-[560px]">
       <MissionHistorySidebar
         onNewMission={onNewMission}
         onSelectSession={onSelectSession}

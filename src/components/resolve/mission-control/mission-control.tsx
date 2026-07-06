@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useMissionScope } from "@/lib/mission/mission-context";
+import { useMissionScope, type MissionScope } from "@/lib/mission/mission-context";
 import {
   MissionWorkspace,
   type MissionTurn,
@@ -244,6 +244,19 @@ export function MissionControl() {
   const [lastIntent, setLastIntent] = useState<string | null>(null);
   const [operatingMode, setOperatingMode] = useState<OperatingMode>("founder");
   const [loopPhase, setLoopPhase] = useState<CapitalLoopPhase>("observe");
+  const [scopePromptHint, setScopePromptHint] = useState<string | null>(null);
+
+  function buildScopedPrompt(label: string, kind: MissionScope["kind"]) {
+    const intent = searchParams.get("intent");
+    if (intent === "fund" || kind === "query") {
+      return `Fund ${label} communal pool — view milestone and autopay status`;
+    }
+    if (kind === "repository") {
+      return `Fund maintainers for ${label} — communal pool on Discover`;
+    }
+    if (detectCommunalPoolIntent(label)) return label;
+    return `View ${label} communal pool status`;
+  }
 
   useEffect(() => {
     async function bootstrap() {
@@ -251,7 +264,9 @@ export function MissionControl() {
       setServerMode(available);
       if (!available) return;
 
-      const local = loadMissionSessions();
+      const local = loadMissionSessions().filter((s) =>
+        s.turns?.some((t) => t.role === "user" && t.text.trim()),
+      );
       if (local.length > 0) {
         const result = await migrateLocalSessions(
           local.map((s) => ({
@@ -364,6 +379,9 @@ export function MissionControl() {
         capability?: string;
       },
     ) => {
+      const hasUserTurn = turnList.some((t) => t.role === "user" && t.text.trim());
+      if (!hasUserTurn) return;
+
       const title = sessionTitleFromTurns(turnList, opts.title ?? activeSession.title);
 
       if (serverMode && !activeSession.id.startsWith("ms-")) {
@@ -975,19 +993,13 @@ export function MissionControl() {
   );
 
   useEffect(() => {
-    if (!scope?.label || objective) return;
-    const intent = searchParams.get("intent");
-    const scopedPrompt =
-      intent === "fund" || scope.kind === "query"
-        ? `Fund ${scope.label} communal pool — view milestone and autopay status`
-        : scope.kind === "repository"
-          ? `Fund maintainers for ${scope.label} — communal pool on Discover`
-          : detectCommunalPoolIntent(scope.label)
-            ? scope.label
-            : `View ${scope.label} communal pool status`;
-    void sendMessage(scopedPrompt);
+    if (!scope?.label || objective || turns.length > 0) {
+      setScopePromptHint(null);
+      return;
+    }
+    setScopePromptHint(buildScopedPrompt(scope.label, scope.kind));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope?.label]);
+  }, [scope?.label, scope?.kind, objective, turns.length]);
 
   useEffect(() => {
     const prompt = searchParams.get("prompt");
@@ -1004,14 +1016,9 @@ export function MissionControl() {
 
   async function handleNewMission() {
     setScope(null);
+    setScopePromptHint(null);
     const wsId = activeWorkspace?.id ?? getActiveEcosystemId() ?? undefined;
-
-    if (serverMode) {
-      const created = await createServerMission({ ecosystemId: wsId });
-      setSession(created ? serverMissionToSession(created, activeWorkspace?.name) : createMissionSession(wsId));
-    } else {
-      setSession(createMissionSession(wsId));
-    }
+    setSession(createMissionSession(wsId));
 
     setTurns([]);
     setObjective(null);
@@ -1097,6 +1104,16 @@ export function MissionControl() {
         operatingMode={operatingMode}
         loopPhase={loopPhase}
         onOperatingModeChange={setOperatingMode}
+        scopePromptHint={scopePromptHint}
+        onAcceptScopeHint={
+          scopePromptHint
+            ? () => {
+                setScopePromptHint(null);
+                void sendMessage(scopePromptHint);
+              }
+            : undefined
+        }
+        onDismissScopeHint={() => setScopePromptHint(null)}
       />
     </MissionBlueprintCommandProvider>
   );

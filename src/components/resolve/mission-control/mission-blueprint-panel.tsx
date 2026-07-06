@@ -409,7 +409,7 @@ export const MissionBlueprintPanel = forwardRef<
 
   return (
     <section
-      className="rounded-xl border border-sky-500/25 bg-gradient-to-b from-sky-500/[0.07] to-black/20 p-4"
+      className="rounded-2xl border border-white/[0.08] bg-[#0c1220]/90 p-4 shadow-lg shadow-black/20 sm:p-5"
       data-testid="mission-blueprint-panel"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -517,27 +517,37 @@ export const MissionBlueprintPanel = forwardRef<
       )}
 
       <div className="mt-4">
-        <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">Allocation policy</p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {MISSION_POLICY_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => {
-                setPolicy(opt.id);
-                setSimulated(false);
-              }}
-              className={clsx(
-                "rounded-lg border px-2.5 py-1.5 text-[11px] transition",
-                policy === opt.id
-                  ? "border-sky-400/40 bg-sky-500/15 text-white"
-                  : "border-white/[0.08] text-resolve-muted hover:border-white/20",
-              )}
-            >
-              {opt.emoji} {opt.label}
-            </button>
-          ))}
-        </div>
+        {commandBarMode ? (
+          <p className="text-xs text-resolve-muted">
+            Policy ·{" "}
+            <span className="font-medium text-white/90">{policyLabel}</span>
+            <span className="text-resolve-muted-dim"> — change via command bar</span>
+          </p>
+        ) : (
+          <>
+            <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">Allocation policy</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {MISSION_POLICY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setPolicy(opt.id);
+                    setSimulated(false);
+                  }}
+                  className={clsx(
+                    "rounded-lg border px-2.5 py-1.5 text-[11px] transition",
+                    policy === opt.id
+                      ? "border-sky-400/40 bg-sky-500/15 text-white"
+                      : "border-white/[0.08] text-resolve-muted hover:border-white/20",
+                  )}
+                >
+                  {opt.emoji} {opt.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap items-end gap-4">
@@ -566,14 +576,16 @@ export const MissionBlueprintPanel = forwardRef<
           </span>
         ) : (
           <div className="min-w-[140px] flex-1">
-            <p className="text-[10px] text-resolve-muted-dim">Communal pool (context)</p>
+            <p className="text-[10px] text-resolve-muted-dim">Pool balance</p>
             <Money amount={poolUsd} size="sm" className="text-white" />
             {pool?.owedToCreatorsUsd != null && pool.owedToCreatorsUsd > 0 && (
               <p className="text-[10px] text-amber-200/90">
                 ${pool.owedToCreatorsUsd.toFixed(0)} owed to creators
               </p>
             )}
-            <PoolMilestoneBar poolUsd={poolUsd} className="mt-1" compact />
+            {!commandBarMode && (
+              <PoolMilestoneBar poolUsd={poolUsd} className="mt-1" compact />
+            )}
           </div>
         )}
       </div>
@@ -620,28 +632,33 @@ export const MissionBlueprintPanel = forwardRef<
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
-        {!programId && (
+      <details className="mt-4 text-[10px]">
+        <summary className="cursor-pointer text-resolve-muted hover:text-white">
+          Handoffs · Capital · Install · Claim
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {!programId && (
+            <Link
+              href={communitiesInstallHandoff(slug)}
+              className="rounded-lg border border-white/10 px-2 py-1 text-resolve-accent hover:underline"
+            >
+              Install program rail
+            </Link>
+          )}
           <Link
-            href={communitiesInstallHandoff(slug)}
+            href={capitalHandoffFromBlueprint(pkg)}
             className="rounded-lg border border-white/10 px-2 py-1 text-resolve-accent hover:underline"
           >
-            Install program rail
+            Open Capital (prefilled)
           </Link>
-        )}
-        <Link
-          href={capitalHandoffFromBlueprint(pkg)}
-          className="rounded-lg border border-white/10 px-2 py-1 text-resolve-accent hover:underline"
-        >
-          Open Capital (prefilled)
-        </Link>
-        <Link
-          href={profileClaimHandoff()}
-          className="rounded-lg border border-white/10 px-2 py-1 text-resolve-muted hover:text-white"
-        >
-          Claim earnings
-        </Link>
-      </div>
+          <Link
+            href={profileClaimHandoff()}
+            className="rounded-lg border border-white/10 px-2 py-1 text-resolve-muted hover:text-white"
+          >
+            Claim earnings
+          </Link>
+        </div>
+      </details>
 
       {!commandBarMode && (
         <div className="mt-4 flex flex-wrap gap-2">

@@ -43,7 +43,7 @@ export function MissionObjectiveBar({
   const step = pipelineStep(loopPhase, blueprintActive);
 
   return (
-    <div className="shrink-0 border-b border-white/[0.06] bg-[#070b14]/90 px-4 py-3 backdrop-blur-md lg:px-8">
+    <div className="shrink-0 border-b border-resolve-border/60 bg-[#0a0f18]/85 px-4 py-3 backdrop-blur-md lg:px-8">
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 ring-1 ring-sky-400/20">

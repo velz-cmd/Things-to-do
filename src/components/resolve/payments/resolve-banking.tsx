@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -375,12 +376,33 @@ export function ResolveBanking({
 }: ResolveBankingProps) {
   const { openAddFunds } = useAddFunds();
   const { openSendFunds } = useSendFunds();
+  const router = useRouter();
+  const pathname = usePathname();
   const [tab, setTab] = useState<Tab>(initialTab);
+  const onActivityOpenRef = useRef(onActivityOpen);
+  onActivityOpenRef.current = onActivityOpen;
 
   useEffect(() => {
     setTab(initialTab);
-    if (initialTab === "activity") onActivityOpen?.();
-  }, [initialTab, onActivityOpen]);
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (initialTab === "activity") {
+      onActivityOpenRef.current?.();
+    }
+  }, [initialTab]);
+
+  const selectTab = useCallback(
+    (next: Tab) => {
+      setTab(next);
+      const href = next === "activity" ? `${pathname}?tab=activity` : pathname;
+      router.replace(href, { scroll: false });
+      if (next === "activity") {
+        onActivityOpenRef.current?.();
+      }
+    },
+    [pathname, router],
+  );
 
   const balances = account?.balances;
   const network = account?.network;
@@ -408,7 +430,14 @@ export function ResolveBanking({
     subtitle: formatDate(line.at),
     amountUsd: line.amountUsd,
     direction: line.direction,
-    badge: "wallet" as const,
+    badge:
+      line.reference === "connected_wallet"
+        ? "Connected wallet"
+        : line.reference === "pending"
+          ? "Pending"
+          : line.reference === "resolve_wallet"
+            ? "RESOLVE wallet"
+            : "Wallet",
   }));
 
   return (
@@ -428,10 +457,10 @@ export function ResolveBanking({
       </header>
 
       <div className="mb-6 flex gap-1 rounded-xl border border-white/[0.06] bg-black/20 p-1">
-        <TabButton active={tab === "overview"} onClick={() => setTab("overview")}>
+        <TabButton active={tab === "overview"} onClick={() => selectTab("overview")}>
           {BANKING_UI.overview}
         </TabButton>
-        <TabButton active={tab === "activity"} onClick={() => { setTab("activity"); onActivityOpen?.(); }}>
+        <TabButton active={tab === "activity"} onClick={() => selectTab("activity")}>
           {BANKING_UI.activity}
         </TabButton>
       </div>

@@ -7,7 +7,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useResolveAccount } from "@/hooks/use-resolve-account";
 import { ResolveBanking } from "@/components/resolve/payments/resolve-banking";
-import type { BankingAccountSnapshot } from "@/lib/banking/types";
+import type { BankingAccountSnapshot, StatementLine } from "@/lib/banking/types";
 import { normalizeBankingSnapshot } from "@/lib/banking/normalize-snapshot";
 import { BANKING_UI } from "@/lib/banking/copy";
 import { BANKING_POLICY } from "@/lib/banking/types";
@@ -38,6 +38,13 @@ type CapitalStatePayload =
   | (Extract<CapitalWalletResponse, { ok: true }> & {
       claimableAmount?: number;
       walletSlices?: WalletBalanceSlice[];
+      pendingTransactions?: Array<{
+        id: string;
+        label: string;
+        amountUsd: number;
+        status: string;
+        createdAt: string;
+      }>;
     })
   | (Extract<CapitalWalletResponse, { ok: false }> & {
       claimableAmount?: number;
@@ -45,7 +52,81 @@ type CapitalStatePayload =
       syncError?: string | null;
       balance?: Extract<CapitalWalletResponse, { ok: true }>["balance"];
       walletSlices?: WalletBalanceSlice[];
+      pendingTransactions?: Array<{
+        id: string;
+        label: string;
+        amountUsd: number;
+        status: string;
+        createdAt: string;
+      }>;
     });
+
+function walletTagForActivity(item: {
+  kind: string;
+  status: string;
+  label: string | null;
+  method?: string | null;
+}): string {
+  if (item.status === "pending" || item.status === "pending_sync" || item.status === "syncing") {
+    return "pending";
+  }
+  if (item.method === "crypto") {
+    return "connected_wallet";
+  }
+  const lower = (item.label ?? "").toLowerCase();
+  if (lower.includes("connected wallet") || lower.includes("fund_tx:")) {
+    return "connected_wallet";
+  }
+  if (item.kind === "fund_program") {
+    return "resolve_wallet";
+  }
+  return "wallet";
+}
+
+function buildStatementFromCapital(
+  data: Extract<CapitalWalletResponse, { ok: true }>,
+  pendingTransactions?: Array<{
+    id: string;
+    label: string;
+    amountUsd: number;
+    status: string;
+    createdAt: string;
+  }>,
+): StatementLine[] {
+  const activityLines = (data.activity ?? []).map((item) => {
+    const amount = item.amountUsd ?? 0;
+    return {
+      id: item.id,
+      at: item.createdAt,
+      type: item.kind === "fund_program" ? ("program_reserve" as const) : ("adjustment" as const),
+      direction: amount < 0 ? ("debit" as const) : ("credit" as const),
+      amountUsd: Math.abs(amount),
+      balanceAfterUsd: null,
+      label: item.label ?? item.kind,
+      reference: walletTagForActivity({
+        kind: item.kind,
+        status: item.status,
+        label: item.label,
+        method: item.method ?? null,
+      }),
+    };
+  });
+
+  const pendingLines = (pendingTransactions ?? [])
+    .filter((row) => !activityLines.some((line) => line.id === row.id))
+    .map((row) => ({
+      id: row.id,
+      at: row.createdAt,
+      type: "program_reserve" as const,
+      direction: "debit" as const,
+      amountUsd: Math.abs(row.amountUsd),
+      balanceAfterUsd: null,
+      label: row.label ?? "Funding in progress",
+      reference: "pending",
+    }));
+
+  return [...activityLines, ...pendingLines];
+}
 
 function buildHealthFromCapital(
   data: CapitalStatePayload,
@@ -125,6 +206,13 @@ function snapshotFromCapitalWallet(
   claimableAmount = 0,
   view: WalletView = "app",
   walletSlices?: WalletBalanceSlice[],
+  pendingTransactions?: Array<{
+    id: string;
+    label: string;
+    amountUsd: number;
+    status: string;
+    createdAt: string;
+  }>,
 ): BankingAccountSnapshot {
   const slice =
     walletSlices?.find((s) => s.kind === view) ?? walletSlices?.find((s) => s.kind === "app");
@@ -133,19 +221,7 @@ function snapshotFromCapitalWallet(
   const wallet = slice?.address ?? data.wallet.address;
   const shortLabel = slice?.shortAddress ?? data.wallet.shortAddress;
   const walletSource = slice?.kind === "external" ? "external_wallet" : data.wallet.source;
-  const statement = (data.activity ?? []).map((item) => {
-    const amount = item.amountUsd ?? 0;
-    return {
-      id: item.id,
-      at: item.createdAt,
-      type: item.kind === "fund_program" ? ("program_reserve" as const) : ("adjustment" as const),
-      direction: amount < 0 ? ("debit" as const) : ("credit" as const),
-      amountUsd: Math.abs(amount),
-      balanceAfterUsd: null,
-      label: item.label,
-      reference: item.status,
-    };
-  });
+  const statement = buildStatementFromCapital(data, pendingTransactions);
 
   return {
     ok: true,
@@ -267,6 +343,7 @@ export function PaymentsOS() {
 
   const lastLiveBalanceRef = useRef<number | null>(null);
   const lastCapitalRef = useRef<CapitalStatePayload | null>(null);
+  const capitalRefreshInFlight = useRef(false);
 
   const fallbackWallet =
     account.appWalletAddress ??
@@ -302,6 +379,7 @@ export function PaymentsOS() {
         claimable,
         walletView,
         capital.walletSlices,
+        capital.pendingTransactions,
       );
       const viewSlice = capital.walletSlices?.find((s) => s.kind === walletView);
       const spendable = viewSlice
@@ -365,6 +443,7 @@ export function PaymentsOS() {
       claimable,
       walletView,
       capital.walletSlices,
+      capital.pendingTransactions,
     );
     const viewSlice = capital.walletSlices?.find((s) => s.kind === walletView);
     const spendable = viewSlice
@@ -517,31 +596,37 @@ export function PaymentsOS() {
     }
   }, [user]);
 
+  const onActivityOpen = useCallback(() => {
+    void loadWallet({ silent: true, refresh: false });
+    void loadOverview();
+  }, [loadOverview, loadWallet]);
+
   useEffect(() => {
     if (!user) return;
-    const fastFirst = initialTab === "activity";
-    void loadWallet({ silent: false, refresh: !fastFirst });
-    if (fastFirst) {
-      void loadWallet({ silent: true, refresh: false });
-    }
+    void loadWallet({ silent: false, refresh: initialTab !== "activity" });
     void loadBankingMeta();
-    if (initialTab !== "activity") {
-      void loadOverview();
-    }
+    void loadOverview();
     const t = setInterval(
       () => void loadWallet({ silent: true, refresh: false }),
       WALLET_REFRESH_MS,
     );
     return () => clearInterval(t);
-  }, [initialTab, loadBankingMeta, loadOverview, loadWallet, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount + user only; loaders are stable enough
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
 
     const onCapitalRefresh = () => {
-      void loadWallet({ silent: true, refresh: true });
-      void loadBankingMeta();
-      void loadOverview();
+      if (capitalRefreshInFlight.current) return;
+      capitalRefreshInFlight.current = true;
+      void Promise.all([
+        loadWallet({ silent: true, refresh: true }),
+        loadBankingMeta(),
+        loadOverview(),
+      ]).finally(() => {
+        capitalRefreshInFlight.current = false;
+      });
     };
 
     const onFundRecorded = (event: Event) => {
@@ -556,7 +641,7 @@ export function PaymentsOS() {
           statement: mergeStatementLines(prev.statement, [line]),
         };
       });
-      void loadWallet({ silent: true, refresh: true });
+      onCapitalRefresh();
     };
 
     window.addEventListener(CAPITAL_REFRESH_EVENT, onCapitalRefresh);
@@ -605,7 +690,6 @@ export function PaymentsOS() {
   }
 
   const settlements = useMemo(() => {
-    if (initialTab === "activity") return [];
     const rows = [
       ...(overview?.settlements.map((s) => ({
         id: s.id,
@@ -627,7 +711,7 @@ export function PaymentsOS() {
       })) ?? []),
     ];
     return rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  }, [initialTab, overview]);
+  }, [overview]);
 
   const balanceKnown =
     walletSync === "synced" ||
@@ -653,9 +737,7 @@ export function PaymentsOS() {
       onClaim={() => void handleClaim()}
       onRefresh={() => void loadWallet({ silent: false, refresh: true })}
       onSignIn={openSignIn}
-      onActivityOpen={() => {
-        void loadWallet({ silent: true, refresh: false });
-      }}
+      onActivityOpen={onActivityOpen}
       initialTab={initialTab}
       walletViewProps={{
         appAddress: account.appWalletAddress,

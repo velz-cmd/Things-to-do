@@ -11,25 +11,26 @@ export function MissionTemplateTiles({
   className?: string;
 }) {
   return (
-    <div className={clsx("discover-section-stack", className)}>
-      <p className="discover-eyebrow text-[10px] font-semibold uppercase tracking-[0.2em]">
-        RFB templates · one-click missions
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <section className={clsx("mission-templates", className)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="mission-eyebrow">One-click templates</p>
+        <span className="text-[10px] text-resolve-muted-dim">RFB · settlement rails</span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {MISSION_RFB_TEMPLATES.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => onSubmit(t.prompt)}
-            className="discover-job-tile group !min-h-0"
+            className="mission-template-card"
           >
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block text-sm font-semibold text-white">{t.label}</span>
-              <span className="mt-0.5 block text-[10px] text-resolve-muted-dim">{t.surfaces}</span>
+            <span className="block text-sm font-semibold text-white">{t.label}</span>
+            <span className="mt-1 block text-left text-[11px] leading-snug text-resolve-muted">
+              {t.surfaces}
             </span>
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

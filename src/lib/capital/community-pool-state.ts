@@ -14,10 +14,10 @@ function round(n: number) {
 /** One communal pool per community (+ template) — aggregate all funder stakes. */
 export async function getCommunityPoolState(
   communitySlug: string,
-  templateId: string | undefined,
+  _templateId: string | undefined,
   viewerUserId?: string | null,
 ): Promise<{ programId: string | null; pool: ProgramPoolState | null }> {
-  const canonical = await resolvePublicProgramForCommunity(communitySlug, templateId);
+  const canonical = await resolvePublicProgramForCommunity(communitySlug, undefined);
   if (!canonical) return { programId: null, pool: null };
 
   const base = await getProgramPoolState(canonical.id, viewerUserId);
@@ -27,7 +27,6 @@ export async function getCommunityPoolState(
     where: {
       status: { in: ["active", "deployed"] },
       install: { communitySlug },
-      ...(templateId ? { templateId } : {}),
     },
     select: { id: true },
   });

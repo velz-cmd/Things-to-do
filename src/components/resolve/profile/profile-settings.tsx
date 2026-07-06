@@ -43,6 +43,7 @@ import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
 import { walletViewLabel } from "@/lib/wallet/active-wallet-view";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
+import { mergeIdentityMaps } from "@/lib/profile/merge-identities";
 
 const PROFILE_PLATFORM_IDS = new Set<IdentityPlatformId>([
   "github",
@@ -263,7 +264,7 @@ export function ProfileSettings() {
       for (const row of (data.identities ?? []) as ProfileIdentityState[]) {
         map.set(row.id, row);
       }
-      setIdentityMap(map);
+      setIdentityMap((prev) => mergeIdentityMaps(prev, map.values(), { allowDisconnect: true }));
       setEcosystems(data.ecosystems ?? []);
     } catch {
       toast.error("Could not load profile identities");
@@ -277,10 +278,7 @@ export function ProfileSettings() {
     const fromConnections = identityMapFromConnections(connections);
     if (fromConnections.size > 0) {
       setIdentityMap((prev) => {
-        const next = new Map(prev);
-        for (const [id, row] of fromConnections) {
-          next.set(id, { ...next.get(id), ...row });
-        }
+        const next = mergeIdentityMaps(prev, fromConnections);
         return next;
       });
       setLoading(false);
@@ -293,11 +291,7 @@ export function ProfileSettings() {
       setEmail(bootstrap.email ?? user?.email ?? null);
       setEmailVerified(Boolean(bootstrap.emailVerified ?? user?.email));
       if (bootstrap.identities?.length) {
-        const map = new Map<IdentityPlatformId, ProfileIdentityState>();
-        for (const row of bootstrap.identities) {
-          map.set(row.id, row);
-        }
-        setIdentityMap(map);
+        setIdentityMap((prev) => mergeIdentityMaps(prev, bootstrap.identities!));
       }
     }
     void load();

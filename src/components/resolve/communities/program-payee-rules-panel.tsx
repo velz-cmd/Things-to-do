@@ -9,6 +9,7 @@ import type { ProgramPoolState } from "@/lib/capital/pool-checkpoint-types";
 import { Money } from "@/components/resolve/ui/money";
 import { profileConnectPath } from "@/lib/communities/community-nav";
 import { useProgramPoolState } from "@/components/resolve/communities/pool-checkpoint-panel";
+import { buildPreviewCohortPayees } from "@/lib/discover/preview-cohort-payees";
 
 type ProgramPayeeRulesPanelProps = {
   program: ProgramRecord;
@@ -43,6 +44,10 @@ export function ProgramPayeeRulesPanel({
 }: ProgramPayeeRulesPanelProps) {
   const { pool: fetchedPool } = useProgramPoolState(communitySlug, program.id);
   const resolvedPool = pool ?? fetchedPool;
+  const previewBatch =
+    !resolvedPool?.nextBatchPayees.length && communitySlug
+      ? buildPreviewCohortPayees(communitySlug, resolvedPool?.activeMilestoneUsd ?? 500)
+      : [];
   const template = PROGRAM_TEMPLATES[program.templateId as keyof typeof PROGRAM_TEMPLATES];
   const domain = templateDomain(program.templateId);
   const rules = domain
@@ -129,7 +134,31 @@ export function ProgramPayeeRulesPanel({
         </div>
       )}
 
-      {resolvedPool && resolvedPool.nextBatchPayees.length === 0 && resolvedPool.authorizationCount === 0 && (
+      {previewBatch.length > 0 && (!resolvedPool || resolvedPool.nextBatchPayees.length === 0) && (
+        <div className="border-t border-white/[0.06] pt-3">
+          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">
+            Next $500 batch · eligibility preview
+          </p>
+          <p className="mt-0.5 text-[10px] text-resolve-muted-dim">
+            {githubConnected
+              ? "GitHub is connected — ledger authorizations replace this preview when activity syncs."
+              : "Connect sources in Profile so verified work can queue for payout."}
+          </p>
+          <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto">
+            {previewBatch.map((payee) => (
+              <li
+                key={payee.label}
+                className="flex items-center justify-between gap-2 text-[11px]"
+              >
+                <span className="truncate text-white/90">{payee.label}</span>
+                <Money amount={payee.owedUsd} size="sm" className="shrink-0 text-amber-100/80" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {resolvedPool && resolvedPool.nextBatchPayees.length === 0 && resolvedPool.authorizationCount === 0 && previewBatch.length === 0 && (
         <p className="text-[11px] text-resolve-muted-dim">
           No payees in the ledger yet — connect sources in Profile and run a sensor sync. Rules
           above apply when verified activity arrives.

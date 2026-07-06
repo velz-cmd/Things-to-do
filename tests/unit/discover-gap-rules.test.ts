@@ -3,6 +3,7 @@ import {
   capSeedGaps,
   formatProofSource,
   gapMatchesRadar,
+  gapProofHref,
   isMusicAuthorization,
   isResearchAuthorization,
   isSeedGap,
@@ -55,6 +56,28 @@ describe("gap-rules", () => {
     expect(isSeedGap(gap({ id: "seed-react", dataSource: "catalog_preview", amountVerified: false }))).toBe(
       true,
     );
+  });
+
+  it("gapProofHref avoids receipt links on catalog preview rows", () => {
+    expect(
+      gapProofHref(
+        gap({
+          id: "preview",
+          dataSource: "community_catalog",
+          proofAuthorizationId: "fake-auth",
+          entityPath: "/communities/react",
+        }),
+      ),
+    ).toBe("/communities/react");
+    expect(
+      gapProofHref(
+        gap({
+          id: "ledger",
+          dataSource: "supabase_ledger",
+          proofAuthorizationId: "auth-real",
+        }),
+      ),
+    ).toBe("/receipt/auth-real");
   });
 
   it("capSeedGaps limits seed cards", () => {

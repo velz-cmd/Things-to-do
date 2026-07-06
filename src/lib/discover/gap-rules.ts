@@ -14,6 +14,18 @@ export function isSeedGap(gap: TrendingValueGap): boolean {
   return gap.id.startsWith("seed-") || gap.dataSource === "catalog_preview";
 }
 
+/** Receipt URLs only when ledger-backed — avoids 404 on preview/cohort cards. */
+export function gapProofHref(gap: TrendingValueGap): string | undefined {
+  if (gap.proofHref) return gap.proofHref;
+  if (gap.proofAuthorizationId && gap.dataSource === "supabase_ledger") {
+    return `/receipt/${gap.proofAuthorizationId}`;
+  }
+  if (gap.entityPath && (gap.dataSource === "community_catalog" || !gap.proofAuthorizationId)) {
+    return gap.entityPath;
+  }
+  return undefined;
+}
+
 export function gapMatchesRadar(
   gap: TrendingValueGap,
   radar: "oss" | "music" | "dao",

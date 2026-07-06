@@ -1,5 +1,6 @@
 import { dedupeTrendingGaps } from "@/lib/discover/gap-dedupe";
 import { buildSensorCommunityPreviewRows } from "@/lib/discover/sensor-community-rows";
+import { enrichGapCatalogAmounts } from "@/lib/discover/gap-display-amounts";
 import type { DiscoverRadarFeedPayload, TrendingValueGap } from "@/lib/discover/types";
 
 /** Discover should never look empty — attach catalog preview rows when live signals are thin. */
@@ -7,10 +8,11 @@ export function hydrateDiscoverGaps(
   gaps: TrendingValueGap[],
   limit = 8,
 ): TrendingValueGap[] {
-  if (gaps.length >= 3) return gaps;
+  const withAmounts = gaps.map(enrichGapCatalogAmounts);
+  if (withAmounts.length >= 3) return withAmounts;
 
   const preview = buildSensorCommunityPreviewRows("all", null, limit, "gaps");
-  return dedupeTrendingGaps([...gaps, ...preview]).slice(0, limit);
+  return dedupeTrendingGaps([...withAmounts, ...preview]).slice(0, limit);
 }
 
 export function isUsefulDiscoverFeed(feed: DiscoverRadarFeedPayload): boolean {

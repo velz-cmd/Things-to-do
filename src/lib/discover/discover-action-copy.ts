@@ -22,9 +22,7 @@ export function discoverActionSummary(
         requirement:
           walletUsd != null && walletUsd < 5
             ? "Wallet required: add Arc USDC in Capital."
-            : connected
-              ? undefined
-              : "Connect the proof source in Profile first.",
+            : undefined,
       };
     case "create_program":
       return {

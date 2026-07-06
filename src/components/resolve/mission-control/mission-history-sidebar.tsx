@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { MessageSquarePlus, PanelLeftClose, PanelLeft, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   formatSessionTime,
   loadMissionSessions,
@@ -11,6 +12,10 @@ import {
   type MissionSession,
 } from "@/lib/mission/toolbox/mission-library";
 import { filterMeaningfulMissionSessions } from "@/lib/mission/mission-session-filter";
+import {
+  addMissionChatTombstone,
+  filterOutTombstonedSessions,
+} from "@/lib/mission/mission-chat-tombstones";
 import {
   deleteServerMission,
   fetchMissions,
@@ -21,20 +26,29 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuth } from "@/components/auth/auth-provider";
 
 function sessionPreview(s: MissionSession): string {
-  const turns = s.turnCount ?? s.turns?.length ?? 0;
-  const msgs = turns > 0 ? `${turns} message${turns === 1 ? "" : "s"}` : "Empty";
+  const userMsgs =
+    s.userTurnCount ??
+    s.turns?.filter((t) => t.role === "user").length ??
+    0;
+  const msgs = userMsgs > 0 ? `${userMsgs} message${userMsgs === 1 ? "" : "s"}` : "Empty";
   return `${formatSessionTime(s.updatedAt)} · ${msgs}`;
+}
+
+function applySidebarFilters(sessions: MissionSession[]): MissionSession[] {
+  return filterMeaningfulMissionSessions(filterOutTombstonedSessions(sessions));
 }
 
 /** Mission chat history — only conversations you started (user message required). */
 export function MissionHistorySidebar({
   onNewMission,
   onSelectSession,
+  onSessionDeleted,
   activeSessionId,
   libraryVersion = 0,
 }: {
   onNewMission: () => void;
   onSelectSession: (session: MissionSession) => void;
+  onSessionDeleted?: (sessionId: string) => void;
   activeSessionId?: string | null;
   libraryVersion?: number;
 }) {
@@ -43,6 +57,7 @@ export function MissionHistorySidebar({
   const [collapsed, setCollapsed] = useState(false);
   const [sessions, setSessions] = useState<MissionSession[]>([]);
   const [storageMode, setStorageMode] = useState<"local" | "server" | "loading">("loading");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
     const serverAvailable = user ? await isMissionServerAvailable() : false;
@@ -52,14 +67,14 @@ export function MissionHistorySidebar({
       if (missions !== null) {
         setStorageMode("server");
         setSessions(
-          filterMeaningfulMissionSessions(missions.map((m) => serverMissionToSession(m))),
+          applySidebarFilters(missions.map((m) => serverMissionToSession(m))),
         );
         return;
       }
     }
 
     setStorageMode("local");
-    setSessions(filterMeaningfulMissionSessions(loadMissionSessions()));
+    setSessions(applySidebarFilters(loadMissionSessions()));
   }, [user]);
 
   useEffect(() => {
@@ -67,10 +82,29 @@ export function MissionHistorySidebar({
   }, [libraryVersion, loadAll, user?.id]);
 
   async function handleDeleteSession(id: string, e: React.MouseEvent) {
+    e.preventDefault();
     e.stopPropagation();
-    if (storageMode === "server") await deleteServerMission(id);
-    else removeMissionSession(id);
+    if (deletingId) return;
+
+    setDeletingId(id);
+    addMissionChatTombstone(id);
+    removeMissionSession(id);
     setSessions((prev) => prev.filter((s) => s.id !== id));
+
+    const isLocalOnly = id.startsWith("ms-");
+    let serverOk = true;
+    if (!isLocalOnly && user) {
+      serverOk = await deleteServerMission(id);
+    }
+
+    setDeletingId(null);
+    onSessionDeleted?.(id);
+
+    if (!serverOk && !isLocalOnly) {
+      toast.error("Could not remove chat from account", {
+        description: "It stays hidden on this device. Refresh and try delete again if it reappears.",
+      });
+    }
   }
 
   if (collapsed) {
@@ -131,6 +165,7 @@ export function MissionHistorySidebar({
             {sessions.map((s) => {
               const active = activeSessionId === s.id;
               const title = sessionDisplayTitle(s);
+              const isDeleting = deletingId === s.id;
               return (
                 <li key={s.id} className="group relative">
                   <button
@@ -145,8 +180,12 @@ export function MissionHistorySidebar({
                   </button>
                   <button
                     type="button"
+                    disabled={isDeleting}
                     onClick={(e) => void handleDeleteSession(s.id, e)}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1.5 text-transparent opacity-0 transition group-hover:opacity-100 hover:!text-rose-300 group-hover:text-resolve-muted-dim"
+                    className={clsx(
+                      "mission-history-delete",
+                      isDeleting && "opacity-40",
+                    )}
                     aria-label="Delete chat"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

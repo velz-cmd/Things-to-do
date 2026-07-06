@@ -1779,4 +1779,35 @@ html.discover-route body {
     color: white;
     box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.25);
   }
+
+  .mission-history-delete {
+    position: absolute;
+    right: 0.25rem;
+    top: 50%;
+    z-index: 2;
+    transform: translateY(-50%);
+    border-radius: 0.4rem;
+    padding: 0.4rem;
+    color: rgba(203, 213, 225, 0.55);
+    transition:
+      color 0.15s ease,
+      background 0.15s ease,
+      opacity 0.15s ease;
+  }
+
+  .mission-history-delete:hover {
+    background: rgba(244, 63, 94, 0.15);
+    color: #fda4af;
+  }
+
+  @media (min-width: 640px) {
+    .mission-history-delete {
+      opacity: 0;
+    }
+
+    .group:hover .mission-history-delete,
+    .group:focus-within .mission-history-delete {
+      opacity: 1;
+    }
+  }
 }

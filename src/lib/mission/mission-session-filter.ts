@@ -3,8 +3,8 @@ import type { MissionSession } from "@/lib/mission/toolbox/mission-library";
 /** Chats with no user message are drafts — hide from history. */
 export function missionSessionHasUserMessage(session: MissionSession): boolean {
   if (session.turns?.some((t) => t.role === "user" && t.text.trim())) return true;
-  const count = session.turnCount ?? 0;
-  return count > 0;
+  if (session.userTurnCount != null) return session.userTurnCount > 0;
+  return false;
 }
 
 export function isMeaningfulMissionSession(session: MissionSession): boolean {

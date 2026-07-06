@@ -26,6 +26,7 @@ export type MissionRecord = {
   capitalUsd: number | null;
   metadata: Record<string, unknown>;
   turnCount?: number;
+  userTurnCount?: number;
   createdAt: string;
   updatedAt: string;
   turns: Array<{
@@ -82,18 +83,30 @@ function toMissionRecord(
 }
 export async function listMissions(userId: string, limit = 32): Promise<MissionRecord[]> {
   const rows = await prisma.resolveMission.findMany({
-    where: { userId },
+    where: {
+      userId,
+      turns: { some: { role: "user" } },
+    },
     orderBy: { updatedAt: "desc" },
     take: limit,
     include: {
-      _count: { select: { turns: true } },
+      _count: {
+        select: {
+          turns: true,
+        },
+      },
+      turns: {
+        where: { role: "user" },
+        select: { id: true },
+      },
     },
   });
   return rows.map((r) => {
-    const { _count, ...mission } = r;
+    const { _count, turns: userTurns, ...mission } = r;
     return {
       ...toMissionRecord(mission, []),
       turnCount: _count.turns,
+      userTurnCount: userTurns.length,
     };
   });
 }

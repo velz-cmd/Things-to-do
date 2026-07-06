@@ -84,6 +84,7 @@ export function MissionWorkspace({
   onAction,
   onNewMission,
   onSelectSession,
+  onSessionDeleted,
   activeSessionId,
   missionId = null,
   thinkingSteps,
@@ -116,6 +117,7 @@ export function MissionWorkspace({
   onAction: (action: CapabilityAction) => void;
   onNewMission: () => void;
   onSelectSession: (session: import("@/lib/mission/toolbox/mission-library").MissionSession) => void;
+  onSessionDeleted?: (sessionId: string) => void;
   activeSessionId?: string | null;
   missionId?: string | null;
   thinkingSteps?: readonly string[];
@@ -175,6 +177,7 @@ export function MissionWorkspace({
         loading={loading}
         onNewMission={onNewMission}
         onSelectSession={onSelectSession}
+        onSessionDeleted={onSessionDeleted}
         activeSessionId={activeSessionId}
         libraryTick={libraryTick}
         scopeHint={scopePromptHint}
@@ -282,6 +285,7 @@ export function MissionWorkspace({
       <MissionHistorySidebar
         onNewMission={onNewMission}
         onSelectSession={onSelectSession}
+        onSessionDeleted={onSessionDeleted}
         activeSessionId={activeSessionId}
         libraryVersion={libraryTick}
       />

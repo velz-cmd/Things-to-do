@@ -23,6 +23,7 @@ import {
   upsertMissionSession,
   type MissionSession,
 } from "@/lib/mission/toolbox/mission-library";
+import { isMissionChatTombstoned } from "@/lib/mission/mission-chat-tombstones";
 import {
   getActiveEcosystemId,
   setActiveEcosystemId,
@@ -381,6 +382,7 @@ export function MissionControl() {
     ) => {
       const hasUserTurn = turnList.some((t) => t.role === "user" && t.text.trim());
       if (!hasUserTurn) return;
+      if (isMissionChatTombstoned(activeSession.id)) return;
 
       const title = sessionTitleFromTurns(turnList, opts.title ?? activeSession.title);
 
@@ -1014,6 +1016,26 @@ export function MissionControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  function handleSessionDeleted(deletedId: string) {
+    if (session.id !== deletedId) return;
+    setScope(null);
+    setScopePromptHint(null);
+    const wsId = activeWorkspace?.id ?? getActiveEcosystemId() ?? undefined;
+    setSession(createMissionSession(wsId));
+    setTurns([]);
+    setObjective(null);
+    setInput("");
+    setLastIntent(null);
+    setLiveDelta([]);
+    setTimeline([]);
+    setThinkingComplete(false);
+    setLastPhase("discover");
+    setLastCapability(null);
+    setOperatingMode("founder");
+    setLoopPhase("observe");
+    setMissionStatus("created");
+  }
+
   async function handleNewMission() {
     setScope(null);
     setScopePromptHint(null);
@@ -1088,6 +1110,7 @@ export function MissionControl() {
         onAction={handleAction}
         onNewMission={() => void handleNewMission()}
         onSelectSession={(s) => void handleSelectSession(s)}
+        onSessionDeleted={handleSessionDeleted}
         activeSessionId={session.id}
         missionId={session.id.startsWith("ms-") ? null : session.id}
         libraryTick={libraryTick}

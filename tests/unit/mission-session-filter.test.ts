@@ -32,6 +32,28 @@ describe("mission-session-filter", () => {
     ).toBe(true);
   });
 
+  it("hides server rows with only resolve turns (turnCount without user)", () => {
+    expect(
+      isMeaningfulMissionSession(
+        session({
+          turnCount: 2,
+          turns: [{ id: "r1", role: "resolve", text: "Auto reply" }],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("shows server list rows with userTurnCount", () => {
+    expect(
+      isMeaningfulMissionSession(
+        session({
+          userTurnCount: 1,
+          turnCount: 2,
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("filters list to meaningful only", () => {
     const list = filterMeaningfulMissionSessions([
       session({ id: "a", title: "New mission", turns: [] }),

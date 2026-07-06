@@ -106,10 +106,11 @@ export function useProgramPoolState(
   }, [refresh]);
 
   useEffect(() => {
-    if (!programId) return;
+    if (!communitySlug) return;
 
+    const activeProgramId = programId ?? resolvedProgramId ?? undefined;
     const shouldRefresh = (eventProgramId?: string) =>
-      !eventProgramId || eventProgramId === programId;
+      !eventProgramId || !activeProgramId || eventProgramId === activeProgramId;
 
     const onPoolRefresh = (event: Event) => {
       const detail = (event as CustomEvent<{ programId?: string }>).detail;
@@ -123,7 +124,7 @@ export function useProgramPoolState(
 
     const onFundRecorded = (event: Event) => {
       const action = (event as CustomEvent<StoredFundAction>).detail;
-      if (action?.programId && shouldRefresh(action.programId)) void refresh();
+      if (shouldRefresh(action?.programId)) void refresh();
     };
 
     window.addEventListener(POOL_REFRESH_EVENT, onPoolRefresh);
@@ -134,7 +135,7 @@ export function useProgramPoolState(
       window.removeEventListener(CAPITAL_REFRESH_EVENT, onCapitalRefresh);
       window.removeEventListener(FUND_ACTION_RECORDED_EVENT, onFundRecorded);
     };
-  }, [programId, refresh]);
+  }, [communitySlug, programId, resolvedProgramId, refresh]);
 
   return { pool, loading, refresh, resolvedProgramId };
 }

@@ -6,6 +6,8 @@ import { MissionHistorySidebar } from "@/components/resolve/mission-control/miss
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
 import { MissionCreatorValuePanel } from "@/components/resolve/mission-control/mission-creator-value-panel";
 import { MissionFunderToolsPanel } from "@/components/resolve/mission-control/mission-funder-tools-panel";
+import { MissionDecisionQueue } from "@/components/resolve/mission-control/mission-decision-queue";
+import { MissionCapitalAssemblyLine } from "@/components/resolve/mission-control/mission-capital-assembly-line";
 import { useMissionScope } from "@/lib/mission/mission-context";
 
 export function MissionEmptyState({
@@ -75,7 +77,23 @@ export function MissionEmptyState({
             loading={loading}
           />
 
-          {loading && <MissionProgressStepCard active title="Working on your question" />}
+          {loading && (
+            <>
+              <MissionCapitalAssemblyLine
+                loading
+                missionPhase="discover"
+                loopPhase="observe"
+                turns={[{ id: "boot", role: "user", text: input.trim() || "…" }]}
+                blueprintActive={false}
+                simulated={false}
+              />
+              <MissionProgressStepCard active title="Working on your question" />
+            </>
+          )}
+
+          {!loading && (
+            <MissionDecisionQueue onSelectDecision={onSubmit} loading={loading} limit={3} />
+          )}
 
           <MissionCreatorValuePanel onTryPrompt={onSubmit} loading={loading} />
 

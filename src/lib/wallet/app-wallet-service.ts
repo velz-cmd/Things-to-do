@@ -4,11 +4,11 @@ import { embeddedWalletFor } from "@/lib/wallet/embedded";
 import { getCircleClient, getCircleClientWithSecret, resetCircleClientCache } from "@/lib/settlement/circle-client";
 import {
   CIRCLE_WALLET_SET_CONFIG_KEY,
-  ensureCircleEntitySecret,
   ensureCircleWalletSet,
   getCircleWalletSetId,
+  requireCircleEntitySecret,
 } from "@/lib/wallet/circle-config";
-import { circleErrorMessage } from "@/lib/wallet/circle-errors";
+import { circleUserMessage } from "@/lib/wallet/circle-errors";
 import { circleIdempotencyKey } from "@/lib/wallet/circle-idempotency";
 
 type AppWalletMeta = {
@@ -69,12 +69,12 @@ async function createCircleAppWallet(
   circleWalletId: string;
 } | null> {
   try {
-    const secretResult = await ensureCircleEntitySecret();
+    const entitySecret = await requireCircleEntitySecret();
     resetCircleClientCache();
 
-    const circle = await getCircleClientWithSecret(secretResult.entitySecret);
+    const circle = await getCircleClientWithSecret(entitySecret);
     if (!circle) {
-      const msg = "Circle client not configured (CIRCLE_API_KEY or CIRCLE_ENTITY_SECRET)";
+      const msg = "Circle payments are unavailable right now";
       if (options?.throwOnError) throw new Error(msg);
       return null;
     }
@@ -107,7 +107,7 @@ async function createCircleAppWallet(
 
     throw lastError ?? new Error("Could not create wallet in any wallet set");
   } catch (err) {
-    const msg = circleErrorMessage(err);
+    const msg = circleUserMessage(err);
     if (options?.throwOnError) throw new Error(msg);
     console.error("[createCircleAppWallet]", userId, msg);
     return null;

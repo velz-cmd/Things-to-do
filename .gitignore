@@ -13,6 +13,7 @@ contracts/broadcast
 .vercel
 .vercel-deploy-hook
 .resolve
+recovery/
 test-results
 playwright-report
 .env*

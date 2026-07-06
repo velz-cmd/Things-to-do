@@ -1,5 +1,6 @@
 /** Server-side Arc + Circle configuration. Never import from client components. */
 
+import { normalizeCircleEntitySecret } from "@/lib/wallet/circle-secret";
 import { resolveArcRpcUrl } from "@/lib/wallet/arc-rpc-url";
 
 export const ARC_CHAIN_ID = Number(process.env.ARC_CHAIN_ID ?? "5042002");
@@ -21,9 +22,9 @@ export const ARC_CLIENT_WALLET_ADDRESS = process.env
   .ARC_CLIENT_WALLET_ADDRESS as `0x${string}` | undefined;
 
 export function hasCircleCredentials(): boolean {
-  return Boolean(
-    process.env.CIRCLE_API_KEY && process.env.CIRCLE_ENTITY_SECRET
-  );
+  const apiKey = process.env.CIRCLE_API_KEY?.trim();
+  const entitySecret = normalizeCircleEntitySecret(process.env.CIRCLE_ENTITY_SECRET);
+  return Boolean(apiKey && entitySecret);
 }
 
 export function getLiveBlockers(): string[] {

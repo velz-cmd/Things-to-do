@@ -64,6 +64,7 @@ export async function prepareBlueprintSettlement(
 export async function authorizeBlueprintServer(input: {
   pkg: MissionBlueprintPackage;
   amountUsd?: number;
+  skipFund?: boolean;
 }): Promise<{
   ok: boolean;
   receipt?: StoredMissionReceipt;
@@ -81,6 +82,7 @@ export async function authorizeBlueprintServer(input: {
       body: JSON.stringify({
         package: input.pkg,
         amountUsd: input.amountUsd,
+        skipFund: input.skipFund,
       }),
     });
     const data = (await res.json()) as {

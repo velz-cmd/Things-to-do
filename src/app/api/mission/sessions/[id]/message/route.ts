@@ -15,6 +15,7 @@ const bodySchema = z.object({
   operatingMode: z
     .enum(["founder", "dao", "maintainer", "creator", "research", "community_manager"])
     .optional(),
+  fast: z.boolean().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -40,6 +41,7 @@ export async function POST(req: Request, { params }: Params) {
       messages: parsed.data.messages,
       ecosystemId: parsed.data.ecosystemId,
       operatingMode: parsed.data.operatingMode,
+      fast: parsed.data.fast ?? true,
     });
 
     return NextResponse.json({

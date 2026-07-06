@@ -14,6 +14,7 @@ export async function processMissionMessage(input: {
   messages?: AdvisorMessage[];
   ecosystemId?: string;
   operatingMode?: import("@/lib/mission/capital-os").OperatingMode;
+  fast?: boolean;
 }): Promise<AdvisorResponse & { mission: MissionRecord; status: string }> {
   const ecosystem =
     input.ecosystemId ? await getEcosystem(input.userId, input.ecosystemId) : null;
@@ -22,6 +23,7 @@ export async function processMissionMessage(input: {
     question: input.question,
     messages: input.messages,
     operatingMode: input.operatingMode,
+    fast: input.fast ?? true,
     ecosystem: ecosystem
       ? {
           name: ecosystem.name,

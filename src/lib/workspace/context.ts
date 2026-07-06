@@ -17,13 +17,23 @@ export type WorkspaceEvidence = {
   opportunities: Awaited<ReturnType<typeof cachedScanAllOpportunities>>;
 };
 
-export async function gatherWorkspaceEvidence(): Promise<WorkspaceEvidence> {
+export type GatherEvidenceOptions = {
+  /** Skip OSS scan + integration probes — Mission chat default for sub-5s responses. */
+  light?: boolean;
+};
+
+export async function gatherWorkspaceEvidence(
+  opts?: GatherEvidenceOptions,
+): Promise<WorkspaceEvidence> {
+  const light = opts?.light === true;
   const [treasury, ledger, connectors, integrations, opportunities] = await Promise.all([
     getTreasurySnapshot(),
     getGlobalAuthorizationSummary().catch(() => null),
     getConnectorLiveStatuses().catch(() => []),
-    runIntegrationHealthCheck().catch(() => null),
-    process.env.CI === "true"
+    light
+      ? Promise.resolve(null)
+      : runIntegrationHealthCheck().catch(() => null),
+    light || process.env.CI === "true"
       ? Promise.resolve([])
       : cachedScanAllOpportunities().catch(() => []),
   ]);

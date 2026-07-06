@@ -211,7 +211,6 @@ export function MissionAgentSignalCard({
   const [chainSteps, setChainSteps] = useState<
     Array<{ serviceName: string; chargedUsd: number; headline: string }>
   >([]);
-  const autoRunRef = useRef(false);
 
   const loadCatalog = useCallback(async () => {
     const cached = readCatalogCache();
@@ -295,7 +294,7 @@ export function MissionAgentSignalCard({
     setInvokeStage("charging");
     if (!chainLabel) setResult(null);
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 110_000);
+    const timeout = window.setTimeout(() => controller.abort(), 75_000);
     let paymentTxHash: string | undefined;
     try {
       const source = walletChoice.fundingSource;
@@ -318,7 +317,11 @@ export function MissionAgentSignalCard({
         }),
       });
       setInvokeStage("running");
-      const data = (await res.json()) as InvokeResult;
+      const data = (await res.json().catch(() => ({}))) as InvokeResult;
+      if (!res.ok && !data.error) {
+        data.error = `Agent invoke failed (${res.status})`;
+        data.ok = false;
+      }
       setResult(data);
       if (data.ok && chainLabel) {
         setChainSteps((prev) => [
@@ -350,12 +353,16 @@ export function MissionAgentSignalCard({
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
-        toast.error("Agent invoke timed out", {
+        const err = "Agent invoke timed out after 75s";
+        toast.error(err, {
           description:
-            "Arc USDC transfers can take up to ~60s. Check Arcscan on your wallet — if charged, refresh and view the report.",
+            "Check Arcscan on your wallet — if charged, refresh. Otherwise retry or use Skip for free analysis.",
         });
+        setResult({ ok: false, error: err });
       } else {
-        toast.error("Could not run agent task");
+        const err = e instanceof Error ? e.message : "Could not run agent task";
+        toast.error(err);
+        setResult({ ok: false, error: err });
       }
     } finally {
       window.clearTimeout(timeout);
@@ -363,18 +370,6 @@ export function MissionAgentSignalCard({
       setInvokeStage("idle");
     }
   }
-
-  useEffect(() => {
-    if (payDecision !== "pay" || result || invoking || autoRunRef.current) return;
-    if (!signedIn) {
-      openSignIn();
-      return;
-    }
-    if (!serviceId) return;
-    autoRunRef.current = true;
-    void runAgent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payDecision, signedIn, serviceId]);
 
   const totalChargedUsd = useMemo(() => {
     const base =
@@ -438,8 +433,11 @@ export function MissionAgentSignalCard({
             <Button
               size="sm"
               className="gap-1.5"
-              disabled={!canAfford}
-              onClick={() => setPayDecision("pay")}
+              disabled={!canAfford || invoking}
+              onClick={() => {
+                setPayDecision("pay");
+                void runAgent();
+              }}
             >
               <CircleDollarSign className="h-3.5 w-3.5" />
               Pay · {formatAgentPrice(pricePreview)}

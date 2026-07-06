@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Loader2, Zap } from "lucide-react";
+import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
 import { Money } from "@/components/resolve/ui/money";
 import { useProgramPoolState } from "@/components/resolve/communities/pool-checkpoint-panel";
@@ -19,11 +20,9 @@ export function MissionCommunalPoolPanel({
   const milestoneUsd = pool?.activeMilestoneUsd ?? pool?.nextCheckpointUsd ?? 500;
 
   return (
-    <section
-      className="rounded-2xl border border-white/[0.08] bg-[#0c1220]/90 p-4 sm:p-5"
-      data-testid="mission-communal-pool-panel"
-    >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300/90">
+    <DiscoverCapitalCard as="section" accent="emerald" className="sm:p-5">
+      <div data-testid="mission-communal-pool-panel">
+      <p className="discover-eyebrow text-[10px] font-semibold uppercase tracking-[0.2em]">
         Communal pool · read-only
       </p>
       <h3 className="mt-1 text-base font-semibold capitalize text-white">
@@ -82,13 +81,13 @@ export function MissionCommunalPoolPanel({
       <div className="mt-5 flex flex-wrap gap-2">
         <Link
           href={`/discover?community=${encodeURIComponent(communitySlug)}&intent=fund`}
-          className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-white/90"
+          className="discover-action-btn discover-action-btn--fund inline-flex items-center justify-center !py-2"
         >
           Add funds on Discover
         </Link>
         <Link
           href={`/capital?tab=activity&community=${encodeURIComponent(communitySlug)}`}
-          className="inline-flex items-center justify-center rounded-lg border border-white/15 px-4 py-2 text-sm text-resolve-muted transition hover:text-white"
+          className="discover-action-btn discover-action-btn--secondary inline-flex items-center justify-center !py-2 text-sm"
         >
           Your stake in Capital
         </Link>
@@ -98,6 +97,7 @@ export function MissionCommunalPoolPanel({
         Custom batch payouts for your community (PDF + Arc memo) → use{" "}
         <span className="text-white/80">Batch payout</span> in Mission, not this pool.
       </p>
-    </section>
+      </div>
+    </DiscoverCapitalCard>
   );
 }

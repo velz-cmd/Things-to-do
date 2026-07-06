@@ -227,6 +227,89 @@ export function useWalletActions() {
     ],
   );
 
+  const payAgentSignalWithWallet = useCallback(
+    async (amountUsd: number): Promise<WalletFundResult> => {
+      if (!externalConnected || !address) {
+        throw new Error("Connect your wallet from Profile or the account menu");
+      }
+
+      if (linkedExternal && connectedAddr && linkedExternal !== connectedAddr) {
+        throw new Error(
+          "Connected wallet does not match your linked address — reconnect or change wallet in Profile",
+        );
+      }
+
+      if (connectedBalance.usdc < amountUsd) {
+        throw new Error(
+          `Insufficient connected wallet balance: $${connectedBalance.usdc.toFixed(2)} on Arc, need $${amountUsd.toFixed(3)}`,
+        );
+      }
+
+      const routeRes = await fetch("/api/capital/payment-route?action=agent_signal", {
+        credentials: "include",
+      });
+      const route = await parseJsonResponse<{
+        ok?: boolean;
+        address?: string;
+        label?: string;
+        error?: string;
+      }>(routeRes);
+      if (!routeRes.ok || !route.ok || !route.address) {
+        throw new Error(route.error ?? "Could not resolve agent settlement address");
+      }
+
+      if (signingRef.current) {
+        throw new Error("Wallet transaction already in progress");
+      }
+
+      signingRef.current = true;
+      try {
+        const linked = await ensureExternalLinked();
+        if (!linked) {
+          throw new Error("Could not link wallet to your account — try again from Profile");
+        }
+
+        await ensureArc();
+
+        toast.message(`Sign to send $${amountUsd.toFixed(3)} USDC for agent signal`, {
+          id: "wallet-agent-pay",
+        });
+
+        const hash = await sendTransactionAsync({
+          chainId: arcTestnet.id,
+          to: route.address as `0x${string}`,
+          value: usdcToWei(amountUsd),
+        });
+
+        if (publicClient) {
+          await publicClient.waitForTransactionReceipt({ hash });
+        }
+
+        toast.success("Agent payment sent on Arc", { id: "wallet-agent-pay" });
+        await refreshBalance().catch(() => null);
+        connectedBalance.refetch();
+        return { txHash: hash };
+      } catch (e) {
+        toast.dismiss("wallet-agent-pay");
+        throw e;
+      } finally {
+        signingRef.current = false;
+      }
+    },
+    [
+      externalConnected,
+      address,
+      linkedExternal,
+      connectedAddr,
+      connectedBalance,
+      ensureArc,
+      ensureExternalLinked,
+      sendTransactionAsync,
+      publicClient,
+      refreshBalance,
+    ],
+  );
+
   return {
     canPayWithConnectedWallet,
     connectedBalanceUsd: connectedBalance.usdc,
@@ -234,6 +317,7 @@ export function useWalletActions() {
     walletSigning: isPending,
     spendableUsd: canPayWithConnectedWallet ? connectedBalance.usdc : undefined,
     fundProgramWithWallet,
+    payAgentSignalWithWallet,
     openConnectWallet,
     ensureArc,
   };

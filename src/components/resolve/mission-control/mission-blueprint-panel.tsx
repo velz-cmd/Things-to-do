@@ -67,6 +67,10 @@ import {
   profileClaimHandoff,
 } from "@/lib/mission/mission-handoff";
 import { ArcTxLink } from "@/components/resolve/ui/arc-tx-link";
+import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
+import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
+import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
+import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 
 type AgentExecution = {
   findings?: string[];
@@ -145,6 +149,10 @@ export const MissionBlueprintPanel = forwardRef<
     communitySlugProp ??
     resolveMissionCommunitySlug({ scopeLabel: prompt, topicName: prompt }) ??
     "react";
+
+  const fundAmount = Math.max(5, Math.round(budgetUsd));
+  const walletChoice = useFundingWalletChoice(fundAmount);
+  const { executeFund } = useFundProgramExecution(slug);
 
   const cacheKey = poolCacheKey(slug, null);
 
@@ -314,9 +322,30 @@ export const MissionBlueprintPanel = forwardRef<
 
     setAuthorizing(true);
     try {
+      let skipFund = false;
+      try {
+        const source = walletChoice.assertFundingSource();
+        if (source === "external" && programId) {
+          await executeFund(
+            {
+              programId,
+              amountUsd: fundAmount,
+              communitySlug: slug,
+              label: pkg.communityLabel,
+            },
+            source,
+          );
+          skipFund = true;
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Pick a wallet to pay from");
+        return;
+      }
+
       const result = await authorizeBlueprintServer({
         pkg: { ...pkg, programId },
-        amountUsd: Math.max(5, Math.round(budgetUsd)),
+        amountUsd: fundAmount,
+        skipFund,
       });
 
       if (!result.ok) {
@@ -339,14 +368,16 @@ export const MissionBlueprintPanel = forwardRef<
         const record = createReportFromPackage(pkg, "authorized", { fundTxLabel });
         saveMissionReport(record);
         toast.success("Authorized in Mission", {
-          description: fundTxLabel ?? "Pool funded · receipt saved",
+          description: fundTxLabel
+            ? `${fundTxLabel}${walletChoice.fundingSource ? ` · ${fundingSourceLabel(walletChoice.fundingSource)}` : ""}`
+            : "Pool funded · receipt saved",
         });
         router.push(`/mission/report/${pkg.id}`);
       }
     } finally {
       setAuthorizing(false);
     }
-  }, [simulated, signedIn, openSignIn, budgetUsd, programId, pkg, router]);
+  }, [simulated, signedIn, openSignIn, fundAmount, programId, pkg, router, walletChoice, executeFund, slug]);
 
   const handleExport = useCallback(() => {
     downloadBlueprintJson(pkg);
@@ -630,6 +661,15 @@ export const MissionBlueprintPanel = forwardRef<
             </p>
           )}
         </div>
+      )}
+
+      {simulated && signedIn && (
+        <PayFromWalletSection
+          amountUsd={fundAmount}
+          disabled={authorizing}
+          choice={walletChoice}
+          className="mt-4"
+        />
       )}
 
       <details className="mt-4 text-[10px]">

@@ -17,7 +17,7 @@ import type { User } from "@prisma/client";
 
 export const ARC_GAS_RESERVE_USD = 0.05;
 
-async function circleClientForTransfers() {
+export async function circleClientForTransfers() {
   const secretResult = await ensureCircleEntitySecret();
   resetCircleClientCache();
   const circle = await getCircleClientWithSecret(secretResult.entitySecret);
@@ -25,48 +25,69 @@ async function circleClientForTransfers() {
   return circle;
 }
 
-function resolveIdempotencyKey(seed?: string): string {
-  if (!seed) return circleIdempotencyKeyRandom();
-  return circleIdempotencyKey(seed);
+export type CircleArcTransferSnapshot =
+  | { state: "complete"; txHash: string }
+  | { state: "failed"; reason: string }
+  | { state: "pending" };
+
+export async function getCircleArcTransferSnapshot(
+  circle: NonNullable<Awaited<ReturnType<typeof getCircleClient>>>,
+  transactionId: string,
+): Promise<CircleArcTransferSnapshot> {
+  const res = await circle.getTransaction({ id: transactionId });
+  const state = res.data?.transaction?.state;
+  const txHash = res.data?.transaction?.txHash;
+
+  if (state === "COMPLETE" && txHash) {
+    const verified = await verifyArcTx(txHash);
+    if (verified.found && verified.success) {
+      return { state: "complete", txHash };
+    }
+    if (verified.found && !verified.success) {
+      return { state: "failed", reason: "Transfer failed on Arc" };
+    }
+    return { state: "pending" };
+  }
+
+  if (state === "FAILED" || state === "DENIED" || state === "CANCELLED") {
+    return { state: "failed", reason: `Transfer failed in Circle: ${state}` };
+  }
+
+  return { state: "pending" };
 }
 
 export async function waitForCircleArcTransfer(
   circle: NonNullable<Awaited<ReturnType<typeof getCircleClient>>>,
   transactionId: string,
+  options?: { maxAttempts?: number },
 ) {
-  const maxAttempts = 40;
+  const maxAttempts = options?.maxAttempts ?? 40;
   for (let i = 0; i < maxAttempts; i++) {
-    const res = await circle.getTransaction({ id: transactionId });
-    const state = res.data?.transaction?.state;
-    const txHash = res.data?.transaction?.txHash;
-
-    if (state === "COMPLETE" && txHash) {
-      const verified = await verifyArcTx(txHash);
-      if (verified.found && verified.success) {
-        return { txHash, verified: true as const };
-      }
-      if (verified.found && !verified.success) {
-        throw new Error("Transfer failed on Arc");
-      }
+    const snapshot = await getCircleArcTransferSnapshot(circle, transactionId);
+    if (snapshot.state === "complete") {
+      return { txHash: snapshot.txHash, verified: true as const };
     }
-
-    if (state === "FAILED" || state === "DENIED" || state === "CANCELLED") {
-      throw new Error(`Transfer failed in Circle: ${state}`);
+    if (snapshot.state === "failed") {
+      throw new Error(snapshot.reason);
     }
-
     await new Promise((r) => setTimeout(r, 1500));
   }
 
   throw new Error("Transfer timed out waiting for Arc confirmation");
 }
 
-/** Send USDC on Arc testnet from the user's Circle RESOLVE wallet. */
-export async function sendUsdcFromUserCircleWallet(input: {
-  user: User;
+function resolveIdempotencyKey(seed?: string): string {
+  if (!seed) return circleIdempotencyKeyRandom();
+  return circleIdempotencyKey(seed);
+}
+
+/** Create a Circle USDC transfer without waiting for Arc confirmation. */
+export async function createCircleUsdcTransfer(input: {
+  walletId: string;
   destinationAddress: string;
   amountUsd: number;
   idempotencyKey?: string;
-}): Promise<{ txHash: string; circleTransactionId: string }> {
+}): Promise<{ circleTransactionId: string }> {
   if (!isAddress(input.destinationAddress)) {
     throw new Error("Invalid destination address");
   }
@@ -75,6 +96,34 @@ export async function sendUsdcFromUserCircleWallet(input: {
   const amountUsd = Math.round(input.amountUsd * 1_000_000) / 1_000_000;
   if (amountUsd <= 0) {
     throw new Error("Amount must be greater than zero");
+  }
+
+  const circle = await circleClientForTransfers();
+  const res = await circle.createTransaction({
+    idempotencyKey: resolveIdempotencyKey(input.idempotencyKey),
+    walletId: input.walletId,
+    tokenAddress: "",
+    blockchain: "ARC-TESTNET",
+    destinationAddress: destination,
+    amount: [amountUsd.toFixed(6)],
+    fee: { type: "level", config: { feeLevel: "MEDIUM" } },
+  } as never);
+
+  const circleTransactionId = res.data?.id;
+  if (!circleTransactionId) throw new Error("Circle did not return a transaction id");
+  return { circleTransactionId };
+}
+
+/** Send USDC on Arc testnet from the user's Circle RESOLVE wallet. */
+export async function sendUsdcFromUserCircleWallet(input: {
+  user: User;
+  destinationAddress: string;
+  amountUsd: number;
+  idempotencyKey?: string;
+  maxWaitAttempts?: number;
+}): Promise<{ txHash: string; circleTransactionId: string }> {
+  if (!isAddress(input.destinationAddress)) {
+    throw new Error("Invalid destination address");
   }
 
   if (!input.user.walletAddress) {
@@ -90,20 +139,16 @@ export async function sendUsdcFromUserCircleWallet(input: {
   const circle = await circleClientForTransfers();
 
   try {
-    const res = await circle.createTransaction({
-      idempotencyKey: resolveIdempotencyKey(input.idempotencyKey),
+    const { circleTransactionId } = await createCircleUsdcTransfer({
       walletId: circleWalletId,
-      tokenAddress: "",
-      blockchain: "ARC-TESTNET",
-      destinationAddress: destination,
-      amount: [amountUsd.toFixed(6)],
-      fee: { type: "level", config: { feeLevel: "MEDIUM" } },
-    } as never);
+      destinationAddress: input.destinationAddress,
+      amountUsd: input.amountUsd,
+      idempotencyKey: input.idempotencyKey,
+    });
 
-    const circleTransactionId = res.data?.id;
-    if (!circleTransactionId) throw new Error("Circle did not return a transaction id");
-
-    const { txHash } = await waitForCircleArcTransfer(circle, circleTransactionId);
+    const { txHash } = await waitForCircleArcTransfer(circle, circleTransactionId, {
+      maxAttempts: input.maxWaitAttempts,
+    });
     return { txHash, circleTransactionId };
   } catch (err) {
     throw new Error(circleErrorMessage(err));

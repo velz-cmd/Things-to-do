@@ -10,7 +10,10 @@ export const ACTION_STATUS = {
 
   /** Rare edge: client gave up waiting but server may still finish */
   acceptedBackground:
-    "Submitted — finishing in the background. Capital and Communities update when complete.",
+    "Still confirming on Arc — open Capital to see pending status. You are not charged twice.",
+
+  fundPendingArc:
+    "Arc is confirming your USDC transfer. Balance stays reserved until it completes or reverses.",
 
   arcBalanceLoading: "Loading Arc balance from testnet…",
   arcBalanceCached: "Using last known Arc balance.",

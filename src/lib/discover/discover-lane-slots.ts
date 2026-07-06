@@ -145,24 +145,17 @@ function resolveValueReceiptSlots(input: ActionResolveInput): DiscoverActionSlot
     return slots;
   }
 
-  if (!connected || state === "detected") {
-    push({
-      action: fund,
-      variant: "primary",
-      disabled: true,
-      disabledReason: "Connect the proof source in Profile first.",
-    });
-    push({ action: connect, variant: "secondary" });
-    if (proof) push({ action: proof, variant: "secondary" });
-    return slots;
-  }
-
+  // Anyone signed in can fund — proof sources are for creators/operators, not funders.
   push({
     action: fund,
     variant: "primary",
     disabled: lowBalance,
     disabledReason: lowBalanceReason,
   });
+
+  if (!connected) {
+    push({ action: connect, variant: "secondary" });
+  }
 
   if (proof) {
     push({ action: proof, variant: "secondary" });

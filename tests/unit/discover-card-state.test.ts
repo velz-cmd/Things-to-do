@@ -40,14 +40,14 @@ function primarySlot(state: ReturnType<typeof deriveDiscoverCardState>) {
 }
 
 describe("deriveDiscoverCardState", () => {
-  it("shows disabled fund + connect secondary for funder when source not linked", () => {
+  it("enables fund + connect secondary for funder when source not linked", () => {
     const state = deriveDiscoverCardState(baseGap(), null, "gaps", "funder", "trending-gaps", {
       signedIn: true,
+      spendableUsd: 50,
     });
     const primary = primarySlot(state);
     expect(primary?.action.kind).toBe("fund");
-    expect(primary?.disabled).toBe(true);
-    expect(primary?.disabledReason).toMatch(/Connect source/i);
+    expect(primary?.disabled).toBeFalsy();
     expect(state.settlementStatus).toBe("Source not connected");
     expect(state.actionSlots.some((s) => s.action.kind === "connect_sensor")).toBe(true);
   });

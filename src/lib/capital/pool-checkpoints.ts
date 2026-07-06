@@ -88,12 +88,12 @@ export async function getProgramPoolState(
   );
 
   const milestone = computePoolMilestoneSegment(poolBalanceUsd, thresholds);
-  const nextCheckpointUsd =
+  const nextCheckpointUsd: number | null =
     nextOpenThreshold != null && nextOpenThreshold <= milestone.ceilingUsd
       ? nextOpenThreshold
       : milestone.poolUsd < milestone.ceilingUsd
         ? milestone.ceilingUsd
-        : nextOpenThreshold;
+        : (nextOpenThreshold ?? null);
 
   const checkpoints: PoolCheckpointRow[] = thresholds.map((thresholdUsd) => {
     const stored = storedByThreshold.get(thresholdUsd);

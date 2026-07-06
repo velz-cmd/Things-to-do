@@ -20,7 +20,7 @@ export function MissionPromptField({
   onChange,
   onSubmit,
   loading,
-  placeholder = "Describe your objective — community, settlement, or signal…",
+  placeholder = "Ask what's owed, link your work, or describe a payout — free paths need no pool…",
   className,
   footer,
 }: MissionPromptFieldProps) {

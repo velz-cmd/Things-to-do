@@ -1578,6 +1578,34 @@ html.discover-route body {
     background: rgba(52, 211, 153, 0.1);
   }
 
+  .mission-intent-card--violet .mission-intent-card__icon {
+    color: #c4b5fd;
+    border-color: rgba(139, 92, 246, 0.28);
+    background: rgba(139, 92, 246, 0.12);
+  }
+
+  .mission-intent-card--amber .mission-intent-card__icon {
+    color: #fcd34d;
+    border-color: rgba(251, 191, 36, 0.28);
+    background: rgba(251, 191, 36, 0.1);
+  }
+
+  .mission-intent-card--compact {
+    padding: 0.55rem 0.65rem;
+    gap: 0.5rem;
+  }
+
+  .mission-intent-card--compact .mission-intent-card__icon {
+    width: 1.65rem;
+    height: 1.65rem;
+    border-radius: 0.5rem;
+  }
+
+  .mission-creator-panel {
+    border-color: rgba(52, 211, 153, 0.15);
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.06) 0%, rgba(8, 14, 28, 0.4) 100%);
+  }
+
   .mission-prompt-shell {
     border-radius: 1rem;
     border: 1px solid rgba(96, 165, 250, 0.22);

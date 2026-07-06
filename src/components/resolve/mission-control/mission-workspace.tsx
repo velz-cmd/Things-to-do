@@ -23,7 +23,8 @@ import { MissionCommunalPoolPanel } from "@/components/resolve/mission-control/m
 import { MissionBatchAllocationPanel } from "@/components/resolve/mission-control/mission-batch-allocation-panel";
 import { MissionObjectiveBar } from "@/components/resolve/mission-control/mission-objective-bar";
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
-import { MissionIntelValuePanel } from "@/components/resolve/mission-control/mission-intel-value-panel";
+import { MissionCreatorValuePanel } from "@/components/resolve/mission-control/mission-creator-value-panel";
+import { MissionFunderToolsPanel } from "@/components/resolve/mission-control/mission-funder-tools-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
 import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
@@ -373,8 +374,9 @@ export function MissionWorkspace({
           ) : (
             <>
               {!showPlanning && !showExecute && (
-                <div className="mx-auto mb-3 max-w-4xl">
-                  <MissionIntelValuePanel onTryExample={onSubmit} loading={loading} />
+                <div className="mx-auto mb-3 max-w-4xl space-y-3">
+                  <MissionCreatorValuePanel onTryPrompt={onSubmit} loading={loading} />
+                  <MissionFunderToolsPanel onSubmit={onSubmit} loading={loading} />
                 </div>
               )}
 

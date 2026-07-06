@@ -1,15 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { MissionCommandHero } from "@/components/resolve/mission-control/mission-command-hero";
 import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
 import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
-import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
+import { MissionCreatorValuePanel } from "@/components/resolve/mission-control/mission-creator-value-panel";
+import { MissionFunderToolsPanel } from "@/components/resolve/mission-control/mission-funder-tools-panel";
 import { useMissionScope } from "@/lib/mission/mission-context";
-import { MissionTemplateTiles } from "@/components/resolve/mission-control/mission-template-tiles";
-import { MissionIntelValuePanel } from "@/components/resolve/mission-control/mission-intel-value-panel";
-import { MISSION_JOBS } from "@/lib/mission/mission-lane-copy";
 
 export function MissionEmptyState({
   input,
@@ -39,11 +36,6 @@ export function MissionEmptyState({
   onDismissScopeHint?: () => void;
 }) {
   const { scope } = useMissionScope();
-  const [showMore, setShowMore] = useState(false);
-
-  const secondaryJobs = MISSION_JOBS.filter(
-    (j) => j.id !== "fund" && j.id !== "simulate" && j.id !== "agent",
-  );
 
   return (
     <div className="mission-workspace-shell flex h-[calc(100vh-3.75rem)] min-h-[560px]">
@@ -83,45 +75,11 @@ export function MissionEmptyState({
             loading={loading}
           />
 
-          {loading && <MissionProgressStepCard active title="Starting your mission" />}
+          {loading && <MissionProgressStepCard active title="Working on your question" />}
 
-          <MissionTemplateTiles onSubmit={onSubmit} />
+          <MissionCreatorValuePanel onTryPrompt={onSubmit} loading={loading} />
 
-          <MissionIntelValuePanel onTryExample={onSubmit} loading={loading} />
-
-          <button
-            type="button"
-            onClick={() => setShowMore((v) => !v)}
-            className="text-xs text-resolve-muted transition hover:text-white"
-          >
-            {showMore ? "Hide" : "More"} mission types
-          </button>
-
-          {showMore && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {secondaryJobs.map((job) => (
-                  <button
-                    key={job.id}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => onSubmit(job.prompt)}
-                    className="mission-chip disabled:opacity-40"
-                  >
-                    {job.who}
-                  </button>
-                ))}
-              </div>
-              <details className="mission-panel">
-                <summary className="cursor-pointer list-none px-4 py-3 text-xs text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
-                  Full signal catalog
-                </summary>
-                <div className="border-t border-white/[0.06] px-3 py-3">
-                  <MissionSignalRailsPanel onMissionPrompt={(prompt) => onSubmit(prompt)} />
-                </div>
-              </details>
-            </div>
-          )}
+          <MissionFunderToolsPanel onSubmit={onSubmit} loading={loading} />
         </div>
       </div>
     </div>

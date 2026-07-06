@@ -1,22 +1,34 @@
 import type { LucideIcon } from "lucide-react";
-import { Bot, CircleDollarSign, Layers, LineChart, Shield, Sparkles } from "lucide-react";
+import {
+  Bot,
+  CircleDollarSign,
+  Layers,
+  LineChart,
+  Link2,
+  MessageCircle,
+  Shield,
+  Sparkles,
+  Wallet,
+} from "lucide-react";
 import type { CommunityKind } from "@/lib/mission/community/types";
 import { RFB_PROGRAMS } from "@/lib/capital/ecosystem-program";
 import { PLATFORM_LOOP_TAGLINE } from "@/lib/economy/platform-loop";
 import { RESOLVE_SETTLEMENT_LINE } from "@/lib/discover/resolve-doctrine";
 
-export const MISSION_HERO_TITLE = "Decide, simulate, and authorize — not just micropay.";
+export const MISSION_HERO_TITLE = "Your work has value — even in cents.";
 
 export const MISSION_HERO_SUBTITLE =
-  "Turn verified signals into a named payee plan — simulate policy, approve once, settle on Arc.";
+  "Creators and contributors: check what's owed, link your identity, ask questions — free. Funders and operators: simulate payouts when you're ready to move money.";
+
+export const MISSION_HERO_EYEBROW = "For creators · contributors · funders";
 
 export const MISSION_COMPETITIVE_EDGE =
   "Micropay agents stop at the toll booth. RESOLVE runs the full loop — observe, reason, fund, settle, remember.";
 
-/** Plain-language value for “Hire intel” — why it is not generic chat. */
+/** Plain-language value for “Hire intel” — optional path for operators, not required for creators. */
 export const MISSION_HIRE_INTEL = {
-  title: "Hire intel — verified signals, not chat",
-  lead: "Pay cents for machine-checked context, then turn it into a named payee plan you can simulate and settle on Arc.",
+  title: "Optional · hire intel (funders & operators)",
+  lead: "Planning a payout? Pay cents for verified context, then turn it into a payee plan. Creators can skip this — use the free paths above.",
   bullets: [
     "Micropay ($0.001–$0.10) for docs gaps, sentiment, CVE, or citation checks — each run gets an Arc receipt.",
     "Findings auto-fill Blueprint: who gets paid, how much, and which evidence backed it.",
@@ -38,7 +50,115 @@ export const MISSION_HIRE_INTEL = {
   ],
 } as const;
 
-export type MissionJobId = "agent" | "fund" | "simulate" | "install" | "research" | "settle";
+/** Creator-first paths — no pool, batch, or treasury required. */
+export const MISSION_CREATOR_VALUE = {
+  title: "For creators & contributors",
+  lead: "You don't need to fund a pool. Mission shows what's already owed from your link, plays, merges, or citations — often cents until someone funds the gap.",
+  bullets: [
+    "See claimable earnings tied to your real work — not a demo scorecard",
+    "Link GitHub, music, or profile so value follows your creator identity",
+    "Ask why you appear in a program or who benefits from what you made",
+  ],
+  actions: [
+    {
+      id: "owed",
+      label: "What am I owed?",
+      detail: "Free · claimable balance",
+      prompt:
+        "What have I earned from my contributions? Show claimable balance, authorized cents, and what's still waiting for pool funding.",
+    },
+    {
+      id: "link",
+      label: "Link my work",
+      detail: "Connect identity · free",
+      prompt:
+        "Help me link my GitHub and creator profiles so RESOLVE can recognize my contributions, plays, and citations.",
+    },
+    {
+      id: "why",
+      label: "Why is my work valued?",
+      detail: "Free · evidence-backed",
+      prompt:
+        "Explain how my open-source or creative work is recognized here — who consumed it and what might be owed to me.",
+    },
+  ],
+  profileHref: "/profile?tab=earnings",
+} as const;
+
+export type MissionJobId =
+  | "agent"
+  | "fund"
+  | "simulate"
+  | "install"
+  | "research"
+  | "settle"
+  | "claim"
+  | "link"
+  | "discover";
+
+export type MissionPrimaryIntent = {
+  id: MissionJobId;
+  label: string;
+  detail: string;
+  prompt: string;
+  icon: LucideIcon;
+  tone: "sky" | "violet" | "emerald" | "amber";
+};
+
+/** Hero tiles — creators first; funders use More / templates. */
+export const MISSION_PRIMARY_INTENTS: MissionPrimaryIntent[] = [
+  {
+    id: "claim",
+    label: "What am I owed?",
+    detail: "Free · earnings in cents",
+    prompt: MISSION_CREATOR_VALUE.actions[0]!.prompt,
+    icon: Wallet,
+    tone: "emerald",
+  },
+  {
+    id: "link",
+    label: "Link my work",
+    detail: "Creator identity · no payment",
+    prompt: MISSION_CREATOR_VALUE.actions[1]!.prompt,
+    icon: Link2,
+    tone: "sky",
+  },
+  {
+    id: "discover",
+    label: "Ask anything",
+    detail: "Free · gaps & recognition",
+    prompt: MISSION_CREATOR_VALUE.actions[2]!.prompt,
+    icon: MessageCircle,
+    tone: "violet",
+  },
+];
+
+export const MISSION_FUNDER_INTENTS: MissionPrimaryIntent[] = [
+  {
+    id: "fund",
+    label: "Settle batch",
+    detail: "Blueprint · simulate · authorize",
+    prompt: "Prepare royalty settlement for independent music artists — show play-weighted payees.",
+    icon: LineChart,
+    tone: "sky",
+  },
+  {
+    id: "agent",
+    label: "Hire intel",
+    detail: "From $0.001/signal → payee plan",
+    prompt: "Run intel on React maintainers — docs gaps and contributor health",
+    icon: Bot,
+    tone: "violet",
+  },
+  {
+    id: "simulate",
+    label: "Batch payout",
+    detail: "PDF memo → % split",
+    prompt: "Batch payout from PDF — allocate $5,000 split between maintainers with percentages",
+    icon: CircleDollarSign,
+    tone: "amber",
+  },
+];
 
 export type MissionJob = {
   id: MissionJobId;

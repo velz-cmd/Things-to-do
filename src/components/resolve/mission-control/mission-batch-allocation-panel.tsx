@@ -19,6 +19,7 @@ import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
 import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
 import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
 import { fundingSourceLabel } from "@/lib/wallet/funding-source";
+import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 
 type PayeeRow = { id: string; label: string; percent: number };
 
@@ -206,11 +207,9 @@ export function MissionBatchAllocationPanel({
   }
 
   return (
-    <section
-      className="rounded-2xl border border-violet-500/25 bg-[#0c1220]/90 p-4 sm:p-5"
-      data-testid="mission-batch-allocation-panel"
-    >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300/90">
+    <DiscoverCapitalCard as="section" accent="violet" className="sm:p-5">
+      <div data-testid="mission-batch-allocation-panel">
+      <p className="discover-eyebrow text-[10px] font-semibold uppercase tracking-[0.2em]">
         Private batch payout
       </p>
       <h3 className="mt-1 text-base font-semibold text-white">
@@ -334,6 +333,7 @@ export function MissionBatchAllocationPanel({
           Execute Arc batch
         </Button>
       </div>
-    </section>
+      </div>
+    </DiscoverCapitalCard>
   );
 }

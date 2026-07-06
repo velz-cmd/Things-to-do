@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type FormEvent, useState } from "react";
-import { Loader2, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { MissionEmptyState } from "@/components/resolve/mission-control/mission-empty-state";
 import { MissionThinkingBubble } from "@/components/resolve/mission-control/mission-chat-bubble";
 import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
@@ -26,6 +25,7 @@ import { MissionObjectiveBar } from "@/components/resolve/mission-control/missio
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
+import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
@@ -160,12 +160,6 @@ export function MissionWorkspace({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns, loading, thinkingComplete]);
 
-  function handleFormSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
-    onSubmit(input.trim());
-  }
-
   if (!started) {
     return (
       <MissionEmptyState
@@ -275,7 +269,7 @@ export function MissionWorkspace({
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.75rem)] min-h-[560px] bg-[#0a1020]/40">
+    <div className="resolve-grid-bg flex h-[calc(100vh-3.75rem)] min-h-[560px]">
       <MissionHistorySidebar
         onNewMission={onNewMission}
         onSelectSession={onSelectSession}
@@ -356,7 +350,7 @@ export function MissionWorkspace({
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-white/[0.06] bg-[#070b14]/80 px-4 py-3 backdrop-blur-md lg:px-8">
+        <div className="shrink-0 border-t border-resolve-border/60 bg-[#0a0f18]/85 px-4 py-3 backdrop-blur-md lg:px-8">
           {blueprintActive && blueprintCommand?.handle ? (
             <MissionCommandBar
               handle={blueprintCommand.handle}
@@ -435,27 +429,14 @@ export function MissionWorkspace({
               />
 
               {!showPlanning && !showExecute && (
-                <form onSubmit={handleFormSubmit} className="mx-auto max-w-4xl">
-                  <div className="relative">
-                    <input
-                      value={input}
-                      onChange={(e) => onInputChange(e.target.value)}
-                      placeholder="Refine objective or run another signal…"
-                      disabled={loading}
-                      className="w-full rounded-xl border border-white/[0.1] bg-[#0a0f18]/90 px-4 py-3 pr-12 text-sm text-white placeholder:text-resolve-muted-dim focus:border-sky-500/40 focus:outline-none disabled:opacity-50"
-                    />
-                    <button
-                      type="submit"
-                      disabled={loading || !input.trim()}
-                      className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
-                      aria-label="Send"
-                    >
-                      {loading ?
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Send className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </form>
+                <MissionPromptField
+                  className="mx-auto max-w-4xl"
+                  value={input}
+                  onChange={onInputChange}
+                  onSubmit={() => onSubmit(input.trim())}
+                  loading={loading}
+                  placeholder="Refine objective or run another signal…"
+                />
               )}
             </>
           )}

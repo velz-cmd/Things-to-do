@@ -28,6 +28,9 @@ import { Button } from "@/components/resolve/ui/button";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 import {
   MISSION_POLICY_OPTIONS,
+  MISSION_BLUEPRINT_DEFAULT_BUDGET_USD,
+  MISSION_BLUEPRINT_MAX_BUDGET_USD,
+  MISSION_BLUEPRINT_MIN_BUDGET_USD,
   applyPolicyToPayees,
   buildMissionBlueprintFromAgent,
   buildMissionBlueprintFromScope,
@@ -116,7 +119,12 @@ export const MissionBlueprintPanel = forwardRef<
   const blueprintCommand = useMissionBlueprintCommand();
 
   const [policy, setPolicy] = useState<MissionBlueprintPolicyId>("balanced");
-  const [budgetUsd, setBudgetUsd] = useState(initialBudgetUsd ?? 500);
+  const [budgetUsd, setBudgetUsd] = useState(
+    Math.max(
+      MISSION_BLUEPRINT_MIN_BUDGET_USD,
+      initialBudgetUsd ?? MISSION_BLUEPRINT_DEFAULT_BUDGET_USD,
+    ),
+  );
   const [simulated, setSimulated] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
   const [reportId, setReportId] = useState<string | null>(null);
@@ -483,9 +491,9 @@ export const MissionBlueprintPanel = forwardRef<
           Deploy budget (USDC)
           <input
             type="range"
-            min={100}
-            max={5000}
-            step={50}
+            min={MISSION_BLUEPRINT_MIN_BUDGET_USD}
+            max={MISSION_BLUEPRINT_MAX_BUDGET_USD}
+            step={25}
             value={budgetUsd}
             onChange={(e) => {
               setBudgetUsd(Number(e.target.value));

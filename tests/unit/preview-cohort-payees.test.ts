@@ -20,6 +20,13 @@ describe("preview-cohort-payees", () => {
     expect(batch[0]!.label).not.toContain("tutorial-author");
   });
 
+  it("supports Mission tab batch size of 4", () => {
+    const batch = buildPreviewCohortPayees("linux", 100, 4);
+    expect(batch).toHaveLength(4);
+    expect(batch.reduce((s, p) => s + p.owedUsd, 0)).toBeCloseTo(100, 2);
+    expect(batch[0]!.label).toContain("Linus Torvalds");
+  });
+
   it("distributes custom milestone totals", () => {
     const members = [
       { name: "A", work: "x", weight: 1 },

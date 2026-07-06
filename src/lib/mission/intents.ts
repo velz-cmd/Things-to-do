@@ -59,9 +59,7 @@ export function thinkingStepsFor(intent: MissionIntent): string[] {
       ];
     default:
       return [
-        "Observing ecosystems",
-        "Mapping relationships",
-        "Analyzing evidence",
+        "Gathering evidence",
         "Reasoning over the graph",
         "Preparing answer",
       ];

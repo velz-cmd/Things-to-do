@@ -1,29 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, ChevronDown } from "lucide-react";
 import { MissionCommandHero } from "@/components/resolve/mission-control/mission-command-hero";
 import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
 import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
 import { MissionSignalRailsPanel } from "@/components/resolve/mission-control/mission-signal-rails-panel";
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
 import { useMissionScope } from "@/lib/mission/mission-context";
-import { formatAgentPrice } from "@/lib/agent/agent-signal-format";
 import { MissionTemplateTiles } from "@/components/resolve/mission-control/mission-template-tiles";
+import { MissionIntelValuePanel } from "@/components/resolve/mission-control/mission-intel-value-panel";
 import { MISSION_JOBS } from "@/lib/mission/mission-lane-copy";
-
-const AGENT_EXAMPLES = [
-  {
-    label: "Docs review",
-    prompt: "Run intel on React maintainers — docs gaps and contributor health",
-    price: 0.02,
-  },
-  {
-    label: "Sentiment",
-    prompt: "Classify sentiment for maintainer feedback: love the DX but docs lag behind releases.",
-    price: 0.001,
-  },
-];
 
 export function MissionEmptyState({
   input,
@@ -101,32 +87,7 @@ export function MissionEmptyState({
 
           <MissionTemplateTiles onSubmit={onSubmit} />
 
-          <details className="mission-panel">
-            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-medium text-resolve-muted marker:content-none [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-1.5">
-                <Bot className="h-3.5 w-3.5 text-violet-300" />
-                Hire intel — agent signals
-              </span>
-              <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-            </summary>
-            <ul className="space-y-1.5 border-t border-white/[0.06] px-3 py-3">
-              {AGENT_EXAMPLES.map((ex) => (
-                <li key={ex.label}>
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => onSubmit(ex.prompt)}
-                    className="mission-agent-row disabled:opacity-40"
-                  >
-                    <span className="text-sm text-white/90">{ex.label}</span>
-                    <span className="text-xs font-semibold tabular-nums text-emerald-300">
-                      {formatAgentPrice(ex.price)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </details>
+          <MissionIntelValuePanel onTryExample={onSubmit} loading={loading} />
 
           <button
             type="button"

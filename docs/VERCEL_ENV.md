@@ -20,17 +20,35 @@ Enable **Production**, **Preview**, and **Development** for each.
 
 ## Arc + Circle (live settlement)
 
-| Name | Value |
-|------|-------|
-| `CIRCLE_API_KEY` | From Circle Developer Console |
-| `CIRCLE_ENTITY_SECRET` | From Circle Developer Console |
-| `ARC_RPC_URL` | `https://rpc.testnet.arc.network` (public fallback; Alchemy preferred when key is set) |
+**Operators only** — set once in Vercel. End users never configure Vercel; they sign in, get a RESOLVE wallet automatically, and fund/settle on **Arc testnet** (visible on [Arcscan](https://testnet.arcscan.app)).
+
+| Name | Value (RESOLVE production example) |
+|------|-------------------------------------|
+| `CIRCLE_API_KEY` | Full Circle key: `TEST_API_KEY:…:…` (entire string) |
+| `CIRCLE_ENTITY_SECRET` | 64-char **entity secret** from Circle → Developer Wallets (not `TEST_CLIENT_KEY` unless Circle labels it entity secret) |
+| `CIRCLE_WALLET_SET_ID` | Wallet set UUID where user wallets are created, e.g. `52cc4ccb-0d02-5d7c-9f62-8becc86c2825` |
+| `ARC_CLIENT_WALLET_ADDRESS` | **Settlement treasury** — pool funds land here, e.g. `0xd8c4bb234e42b87109c42a928e908d73c0e6bc3c` |
+| `ARC_CLIENT_WALLET_ID` | Circle wallet UUID for treasury, e.g. `8680137f-c112-51ff-b544-e75ad58c3b9a` |
+| `ARC_PROVIDER_WALLET_ADDRESS` | **Agent / platform fee** wallet, e.g. `0xaed9af58c965b8bc3aedb126522693ffcdb6d944` |
+| `ARC_PROVIDER_WALLET_ID` | Circle wallet UUID for provider, e.g. `69885467-baa7-5175-ae57-d2af3e165133` |
+| `ARC_RPC_URL` | `https://rpc.testnet.arc.network` (Alchemy preferred when `ALCHEMY_API_KEY` is set) |
 | `ARC_CHAIN_ID` | `5042002` |
 | `ARC_EXPLORER_URL` | `https://testnet.arcscan.app` |
 | `ARC_AGENTIC_COMMERCE_CONTRACT` | `0x0747EEf0706327138c69792bF28Cd525089e4583` |
 | `ARC_USDC_CONTRACT` | `0x3600000000000000000000000000000000000000` |
-| `ARC_PROVIDER_WALLET_ADDRESS` | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` |
-| `ARC_CLIENT_WALLET_ADDRESS` | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` |
+
+**Do not use** doc placeholders `0xDD81E79E…` or a JWT in `CIRCLE_WALLET_SET_ID`. Scope: **Production** + **Preview** (or All Environments).
+
+**Fund treasury** after deploy: [faucet.circle.com](https://faucet.circle.com) → Arc Testnet → `ARC_CLIENT_WALLET_ADDRESS`.
+
+### What users do (no Vercel)
+
+| User action | On-chain |
+|-------------|----------|
+| Sign in | RESOLVE creates a Circle wallet in `CIRCLE_WALLET_SET_ID` |
+| Fulfill pool (Capital balance) | User RESOLVE wallet → `ARC_CLIENT_WALLET_ADDRESS` (real Arc tx, `txHash` on receipt) |
+| Fulfill pool (connected MetaMask) | User signs → treasury → verified on Arcscan |
+| View proof | `/receipt/{id}` links to Arcscan when `txHash` exists |
 
 ## Playwright browser executor
 
@@ -55,7 +73,7 @@ https://things-to-do-eta.vercel.app/api/communities
 https://things-to-do-eta.vercel.app/discover
 ```
 
-`missingRecommended` should be empty when everything is set.
+`missingRecommended` should be empty when everything is set. For Arc, also confirm `ARC_CLIENT_WALLET_ID` and `ARC_PROVIDER_WALLET_ID` are **true** (not only addresses).
 
 ## Community programs (Phases 1–3) — production merge checklist
 
@@ -121,7 +139,11 @@ Live Arc settlement requires a **funded treasury** and **real scrobble data** fr
 
 **One deploy per push.** Vercel’s GitHub integration deploys automatically when `main` is updated.
 
-The workflow `.github/workflows/vercel-deploy.yml` only **verifies** that production is healthy after deploy. It does **not** call the deploy hook on every push (that caused duplicate deploys and hit Vercel’s free-tier limit of 100 deploys/day).
+**Queued deployments:** If many Production rows show **Queued**, cancel duplicates in the Vercel dashboard and keep only the latest `main` deploy. Old **Error** preview rows from failed feature-branch builds can be ignored — they do not affect Production.
+
+**Failed preview builds** on merged branches (e.g. `edccc2b`) were TypeScript errors fixed in PR #324 (`8057688`). Production should build from current `main`.
+
+The workflow `.github/workflows/vercel-deploy.yml` only **verifies** that production is healthy after deploy. It does **not** call the deploy hook on every push (that duplicated deploys and hit Vercel’s free-tier limit of 100 deploys/day).
 
 Manual redeploy (if Git deploy is stuck): GitHub → Actions → **Verify Vercel Production** → Run workflow → enable **trigger_deploy_hook**.
 

@@ -25,6 +25,7 @@ import { MissionObjectiveBar } from "@/components/resolve/mission-control/missio
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
 import { MissionCreatorValuePanel } from "@/components/resolve/mission-control/mission-creator-value-panel";
 import { MissionFunderToolsPanel } from "@/components/resolve/mission-control/mission-funder-tools-panel";
+import { MissionCapitalAssemblyLine } from "@/components/resolve/mission-control/mission-capital-assembly-line";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
 import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
@@ -314,6 +315,17 @@ export function MissionWorkspace({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8">
           <div className="mx-auto max-w-4xl space-y-4">
+            <MissionCapitalAssemblyLine
+              loading={loading}
+              thinkingComplete={thinkingComplete}
+              missionPhase={phase}
+              loopPhase={loopPhase}
+              turns={turns}
+              blueprintActive={blueprintActive}
+              simulated={simulated}
+              compact={!blueprintActive}
+            />
+
             {turns.map((turn, index) => {
               const isCurrentArtifact =
                 turn.role === "resolve" && index === lastArtifactIndex;

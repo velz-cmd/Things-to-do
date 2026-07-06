@@ -278,7 +278,7 @@ export function ProfileSettings() {
     const fromConnections = identityMapFromConnections(connections);
     if (fromConnections.size > 0) {
       setIdentityMap((prev) => {
-        const next = mergeIdentityMaps(prev, fromConnections);
+        const next = mergeIdentityMaps(prev, fromConnections.values());
         return next;
       });
       setLoading(false);

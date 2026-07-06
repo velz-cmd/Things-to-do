@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { CheckCircle2, Flag, Loader2, Users, Wallet } from "lucide-react";
 import { Money } from "@/components/resolve/ui/money";
@@ -13,6 +13,12 @@ import {
 } from "@/lib/capital/refresh-events";
 import { FUND_ACTION_RECORDED_EVENT, type StoredFundAction } from "@/lib/capital/fund-action-store";
 import { PoolMilestoneBar } from "@/components/resolve/discover/pool-milestone-bar";
+
+const poolCache = new Map<string, ProgramPoolState>();
+
+function poolCacheKey(communitySlug: string, programId: string | null, templateId?: string | null) {
+  return `${communitySlug}:${programId ?? ""}:${templateId ?? ""}`;
+}
 
 type PoolCheckpointPanelProps = {
   communitySlug: string;
@@ -29,24 +35,47 @@ export function useProgramPoolState(
   const [pool, setPool] = useState<ProgramPoolState | null>(null);
   const [loading, setLoading] = useState(false);
   const [resolvedProgramId, setResolvedProgramId] = useState<string | null>(programId);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     setResolvedProgramId(programId);
   }, [programId]);
 
+  useEffect(() => {
+    if (!communitySlug) return;
+    const key = poolCacheKey(communitySlug, programId, options?.templateId);
+    const cached = poolCache.get(key);
+    if (cached) {
+      setPool(cached);
+    }
+  }, [communitySlug, programId, options?.templateId]);
+
   const refresh = useCallback(async () => {
     if (!communitySlug) return;
-    setLoading(true);
+    const key = poolCacheKey(communitySlug, programId, options?.templateId);
+    const hasCache = poolCache.has(key);
+    if (!hasCache) setLoading(true);
     try {
       if (programId) {
         const res = await fetch(
           `/api/communities/${encodeURIComponent(communitySlug)}/programs/${programId}/pool`,
-          { credentials: "include", cache: "no-store" },
+          { credentials: "include", cache: "default" },
         );
         if (res.ok) {
           const data = await res.json();
-          setPool(data.pool ?? null);
-          setResolvedProgramId(programId);
+          const next = data.pool ?? null;
+          if (mountedRef.current) {
+            setPool(next);
+            setResolvedProgramId(programId);
+          }
+          if (next) poolCache.set(key, next);
         }
         return;
       }
@@ -56,15 +85,19 @@ export function useProgramPoolState(
         : "";
       const res = await fetch(
         `/api/communities/${encodeURIComponent(communitySlug)}/pool${qs}`,
-        { credentials: "include", cache: "no-store" },
+        { credentials: "include", cache: "default" },
       );
       if (res.ok) {
         const data = await res.json();
-        setPool(data.pool ?? null);
-        setResolvedProgramId(data.programId ?? null);
+        const next = data.pool ?? null;
+        if (mountedRef.current) {
+          setPool(next);
+          setResolvedProgramId(data.programId ?? null);
+        }
+        if (next) poolCache.set(key, next);
       }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, [communitySlug, programId, options?.templateId]);
 
@@ -227,6 +260,34 @@ export function PoolCheckpointPanel({
       )}
 
       <PoolMilestoneBar poolUsd={pool.poolBalanceUsd} compact={compact} />
+
+      {pool.nextBatchPayees.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted">
+            Next ${formatUsd(pool.activeMilestoneUsd)} batch
+          </p>
+          <p className="text-[11px] text-resolve-muted-dim">
+            {pool.nextBatchPayees.length} {pool.payeeCategory} · $
+            {formatUsd(pool.nextBatchTotalUsd)} owed when checkpoint clears
+          </p>
+          <ul className="max-h-40 space-y-1 overflow-y-auto">
+            {pool.nextBatchPayees.map((payee) => (
+              <li
+                key={`${payee.payeeKeyType}:${payee.payeeKey}`}
+                className="flex items-center justify-between gap-2 text-[11px]"
+              >
+                <span className="truncate text-white">{payee.label}</span>
+                <Money amount={payee.owedUsd} size="sm" className="shrink-0 text-amber-100" />
+              </li>
+            ))}
+          </ul>
+          <p className="text-[10px] text-resolve-muted-dim">
+            Variable per eligibility — minimum blocks earn ~$10; stronger signals earn more.
+            After ${formatUsd(pool.activeMilestoneUsd)} distributes, the pool advances toward $
+            {pool.activeMilestoneUsd >= 500 && pool.activeMilestoneUsd < 2500 ? "2,500" : "next"}.
+          </p>
+        </div>
+      )}
 
       <ol className="flex flex-wrap gap-2">
         {pool.checkpoints.slice(0, compact ? 6 : 10).map((cp) => (

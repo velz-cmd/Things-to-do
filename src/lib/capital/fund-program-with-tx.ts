@@ -31,15 +31,12 @@ export async function fundCommunityProgramWithTx(input: {
     },
   });
 
-  if (!profile?.walletAddress) {
-    return { ok: false, error: "RESOLVE wallet not ready — try again in a moment" };
-  }
-
-  const fromWallet = profile.scanWalletAddress?.trim().toLowerCase();
+  const fromWallet = profile?.scanWalletAddress?.trim().toLowerCase();
   if (!fromWallet) {
     return {
       ok: false,
-      error: "Connect your wallet in the account menu before funding on-chain",
+      error:
+        "Connect your wallet from the account menu, then sign the Arc transfer to fund this pool",
     };
   }
 
@@ -51,7 +48,10 @@ export async function fundCommunityProgramWithTx(input: {
     return { ok: false, error: "This transaction was already used to fund a pool" };
   }
 
-  const route = resolvePaymentRoute("program_fund", profile.walletAddress);
+  const route = resolvePaymentRoute(
+    "program_fund",
+    profile?.walletAddress ?? fromWallet,
+  );
   if ("error" in route) {
     return { ok: false, error: route.error };
   }

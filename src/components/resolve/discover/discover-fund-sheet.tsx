@@ -62,7 +62,7 @@ export function DiscoverFundSheet({
   const { externalWalletReady, openConnectWallet } = useResolveAccess();
 
   const defaultAmount =
-    request?.amountUsd && request.amountUsd >= 5 ? request.amountUsd.toFixed(2) : "25";
+    request?.amountUsd && request.amountUsd >= 5 ? request.amountUsd.toFixed(2) : "5";
   const [amount, setAmount] = useState(defaultAmount);
   const [chosenWallet, setChosenWallet] = useState<FundingSource | null>(null);
   const amountUsd = Number(amount);
@@ -90,8 +90,10 @@ export function DiscoverFundSheet({
   useEffect(() => {
     if (affordable.length === 1) {
       setChosenWallet(affordable[0]);
-    } else if (chosenWallet) {
+    } else if (chosenWallet && affordable.includes(chosenWallet)) {
       /* keep user selection */
+    } else if (affordable.includes("external")) {
+      setChosenWallet("external");
     } else if (affordable.length > 0) {
       setChosenWallet(affordable[0]);
     }

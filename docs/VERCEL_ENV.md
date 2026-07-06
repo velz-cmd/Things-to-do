@@ -137,15 +137,24 @@ Live Arc settlement requires a **funded treasury** and **real scrobble data** fr
 
 ## GitHub Actions + Vercel deploy
 
-**One deploy per push.** Vercel’s GitHub integration deploys automatically when `main` is updated.
+**One deploy per push to `main`.** Vercel Hobby allows **one concurrent build** — preview/cursor branch builds were blocking production.
 
-**Queued deployments:** If many Production rows show **Queued**, cancel duplicates in the Vercel dashboard and keep only the latest `main` deploy. Old **Error** preview rows from failed feature-branch builds can be ignored — they do not affect Production.
+### Root causes (fixed in `vercel.json`)
 
-**Failed preview builds** on merged branches (e.g. `edccc2b`) were TypeScript errors fixed in PR #324 (`8057688`). Production should build from current `main`.
+| Problem | Cause | Fix |
+|---------|--------|-----|
+| Production **Queued** forever | Preview build on `cursor/*` hogging the single build slot | `git.deploymentEnabled`: only `main: true`, `cursor/**` + `*` false |
+| Many **Redeploy** rows | Manual Redeploy duplicates queue entries | Push to `main` only; cancel extras in dashboard |
+| Preview **Error** on old PRs | TypeScript errors on merged feature branches (fixed in #324+) | Ignore — previews disabled; production uses `main` |
+| **Building** 15m+ then stuck | `next build` + Sentry behind a preview in queue | Previews no longer start; `autoJobCancelation: true` |
 
-The workflow `.github/workflows/vercel-deploy.yml` only **verifies** that production is healthy after deploy. It does **not** call the deploy hook on every push (that duplicated deploys and hit Vercel’s free-tier limit of 100 deploys/day).
+`scripts/vercel-should-build.sh` skips any non-`main` / non-production build (backup to `deploymentEnabled`).
 
-Manual redeploy (if Git deploy is stuck): GitHub → Actions → **Verify Vercel Production** → Run workflow → enable **trigger_deploy_hook**.
+**Do not** click **Redeploy** repeatedly in Vercel — each click queues another Production build.
+
+**Queued deployments:** Cancel all duplicate Queued/Building rows; keep only the latest `main` push.
+
+The workflow `.github/workflows/vercel-deploy.yml` only **verifies** production health after deploy. It does **not** trigger deploy hooks (removed — they duplicated queue).
 
 Do **not** set `VERCEL_TOKEN` in GitHub secrets for this repo — the old CLI `vercel deploy --prebuilt` path duplicated deploys and failed with `api-deployments-free-per-day`.
 

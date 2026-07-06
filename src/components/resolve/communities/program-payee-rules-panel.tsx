@@ -48,6 +48,7 @@ export function ProgramPayeeRulesPanel({
     !resolvedPool?.nextBatchPayees.length && communitySlug
       ? buildPreviewCohortPayees(communitySlug, resolvedPool?.activeMilestoneUsd ?? 500)
       : [];
+  const previewTotal = previewBatch.reduce((s, p) => s + p.owedUsd, 0);
   const template = PROGRAM_TEMPLATES[program.templateId as keyof typeof PROGRAM_TEMPLATES];
   const domain = templateDomain(program.templateId);
   const rules = domain
@@ -137,7 +138,8 @@ export function ProgramPayeeRulesPanel({
       {previewBatch.length > 0 && (!resolvedPool || resolvedPool.nextBatchPayees.length === 0) && (
         <div className="border-t border-white/[0.06] pt-3">
           <p className="text-[10px] uppercase tracking-wider text-resolve-muted">
-            Next $500 batch · eligibility preview
+            Next $500 batch · eligibility preview · ${previewTotal.toFixed(2)} across{" "}
+            {previewBatch.length} creators
           </p>
           <p className="mt-0.5 text-[10px] text-resolve-muted-dim">
             {githubConnected

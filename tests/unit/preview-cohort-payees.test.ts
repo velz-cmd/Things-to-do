@@ -1,17 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { buildPreviewCohortPayees } from "../../src/lib/discover/preview-cohort-payees";
-import { COHORT_POOL_SIZE, MUSIC_PAYOUT_USD, OSS_PAYOUT_USD } from "../../src/lib/earn/discover-eligibility";
+import {
+  buildPreviewCohortPayees,
+  distributeMilestoneUsd,
+} from "../../src/lib/discover/preview-cohort-payees";
 
 describe("preview-cohort-payees", () => {
-  it("returns 10 tiered payees for react", () => {
-    const batch = buildPreviewCohortPayees("react");
-    expect(batch).toHaveLength(COHORT_POOL_SIZE);
-    expect(batch[0]!.owedUsd).toBeGreaterThanOrEqual(OSS_PAYOUT_USD);
+  it("distributes exactly $500 across 10 react creators", () => {
+    const batch = buildPreviewCohortPayees("react", 500);
+    expect(batch).toHaveLength(10);
+    const total = batch.reduce((s, p) => s + p.owedUsd, 0);
+    expect(total).toBeCloseTo(500, 2);
+    expect(batch[0]!.label).toMatch(/—/);
     expect(batch[batch.length - 1]!.owedUsd).toBeGreaterThan(batch[0]!.owedUsd);
   });
 
-  it("uses music minimum payout for navidrome", () => {
-    const batch = buildPreviewCohortPayees("navidrome");
-    expect(batch.every((p) => p.owedUsd >= MUSIC_PAYOUT_USD)).toBe(true);
+  it("uses human names not slug tokens", () => {
+    const batch = buildPreviewCohortPayees("react", 500);
+    expect(batch[0]!.label).toContain("Maya Okonkwo");
+    expect(batch[0]!.label).not.toContain("tutorial-author");
+  });
+
+  it("distributes custom milestone totals", () => {
+    const members = [
+      { name: "A", work: "x", weight: 1 },
+      { name: "B", work: "y", weight: 2 },
+    ];
+    const out = distributeMilestoneUsd(members, 100);
+    expect(out.reduce((s, r) => s + r.owedUsd, 0)).toBeCloseTo(100, 2);
   });
 });

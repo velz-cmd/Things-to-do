@@ -1,126 +1,124 @@
-import {
-  COHORT_POOL_SIZE,
-  MUSIC_PAYOUT_USD,
-  OSS_PAYOUT_USD,
-  RESEARCH_PAYOUT_USD,
-} from "../earn/discover-eligibility";
+import { COHORT_POOL_SIZE } from "../earn/discover-eligibility";
 
-const PREVIEW_PAYEE_LABELS: Record<string, string[]> = {
-  react: [
-    "docs-maintainer",
-    "tutorial-author",
-    "api-writer",
-    "changelog-editor",
-    "examples-contrib",
-    "i18n-volunteer",
-    "typo-fixer",
-    "reviewer-a",
-    "reviewer-b",
-    "onboarding-docs",
-  ],
-  linux: [
-    "kernel-maintainer",
-    "security-reviewer",
-    "driver-author",
-    "docs-maintainer",
-    "backport-fixer",
-    "cve-responder",
-    "build-maintainer",
-    "arch-tester",
-    "subsystem-lead",
-    "release-helper",
-  ],
-  jellyfin: [
-    "plugin-author",
-    "theme-designer",
-    "subtitle-contrib",
-    "server-admin",
-    "metadata-editor",
-    "codec-tester",
-    "docs-writer",
-    "translator",
-    "community-mod",
-    "stream-optimizer",
-  ],
-  navidrome: [
-    "indie-artist-a",
-    "session-musician",
-    "composer-b",
-    "label-artist",
-    "remix-artist",
-    "cover-artist",
-    "playlist-curator",
-    "live-recording",
-    "podcast-host",
-    "sound-engineer",
-  ],
-  "independent-music": [
-    "bedroom-producer",
-    "vocalist",
-    "beatmaker",
-    "mix-engineer",
-    "mastering-artist",
-    "collab-vocal",
-    "session-guitar",
-    "lyricist",
-    "sample-pack",
-    "live-set",
-  ],
-  "open-research": [
-    "lead-author",
-    "co-author-1",
-    "co-author-2",
-    "dataset-curator",
-    "reviewer-open",
-    "citation-target",
-    "methods-contrib",
-    "fig-maker",
-    "editor-volunteer",
-    "replication-lab",
-  ],
+export type PreviewCohortMember = {
+  name: string;
+  work: string;
+  /** Relative eligibility weight — higher verified impact → larger share of milestone. */
+  weight: number;
 };
 
-/** Tiered batch payouts for preview rows — min block payout up to ~10× for top eligibility. */
-function tieredBatchAmounts(
-  batchSize: number,
-  minUsd: number,
-  maxUsd: number,
-  targetTotalUsd: number,
-): number[] {
-  if (batchSize <= 1) return [Math.min(maxUsd, targetTotalUsd)];
-  const step = (maxUsd - minUsd) / (batchSize - 1);
-  let amounts = Array.from({ length: batchSize }, (_, i) =>
-    Math.round(minUsd + step * i),
-  );
-  const sum = amounts.reduce((s, a) => s + a, 0);
-  if (sum > targetTotalUsd) {
-    const scale = targetTotalUsd / sum;
-    amounts = amounts.map((a) => Math.max(minUsd, Math.round(a * scale)));
+const REACT_BATCH: PreviewCohortMember[] = [
+  { name: "Maya Okonkwo", work: "Hooks reference rewrite", weight: 1.0 },
+  { name: "Jonas Petrov", work: "Tutorial: concurrent rendering", weight: 1.15 },
+  { name: "Elena Vasquez", work: "API docs for use()", weight: 1.3 },
+  { name: "Chris Nakamura", work: "Changelog + migration notes", weight: 1.45 },
+  { name: "Aisha Rahman", work: "Examples: server components", weight: 1.6 },
+  { name: "Tomás Silva", work: "i18n: Spanish docs pass", weight: 1.75 },
+  { name: "Priya Menon", work: "Typo sweep · 140 pages", weight: 1.9 },
+  { name: "David Kim", work: "Docs PR review · accessibility", weight: 2.1 },
+  { name: "Rachel O'Brien", work: "Maintainer review · API surface", weight: 2.35 },
+  { name: "Sam Adeyemi", work: "Onboarding guide + diagrams", weight: 2.6 },
+];
+
+const LINUX_BATCH: PreviewCohortMember[] = [
+  { name: "Linus Torvalds*", work: "Kernel release coordination", weight: 2.8 },
+  { name: "Greg Kroah-Hartman*", work: "Stable branch merges", weight: 2.5 },
+  { name: "Kees Cook", work: "Security hardening patch", weight: 2.0 },
+  { name: "Shuah Khan", work: "Driver subsystem fix", weight: 1.7 },
+  { name: "Jonathan Corbet", work: "LWN docs / kernel news", weight: 1.5 },
+  { name: "Anna Morris", work: "Backport for LTS 6.6", weight: 1.35 },
+  { name: "Wei Zhang", work: "CVE triage response", weight: 1.25 },
+  { name: "Carlos Mendez", work: "Build system maintainer", weight: 1.15 },
+  { name: "Ingrid Holm", work: "Arch test matrix fix", weight: 1.05 },
+  { name: "Omar Hassan", work: "Release packaging helper", weight: 1.0 },
+];
+
+const JELLYFIN_BATCH: PreviewCohortMember[] = [
+  { name: "Nina Bergström", work: "Plugin: intro skip markers", weight: 1.0 },
+  { name: "Marcus Lee", work: "Theme pack · living room UI", weight: 1.2 },
+  { name: "Yuki Tanaka", work: "Subtitle timing fixes", weight: 1.35 },
+  { name: "Felipe Costa", work: "Library admin · 12k items", weight: 1.5 },
+  { name: "Hannah Weiss", work: "Metadata enrichment pass", weight: 1.65 },
+  { name: "Alex Rivera", work: "Transcode path testing", weight: 1.8 },
+  { name: "Sofia Marchetti", work: "Docs: remote access", weight: 1.95 },
+  { name: "Ben Okafor", work: "Italian UI translation", weight: 2.1 },
+  { name: "Claire Dubois", work: "Community support mod", weight: 2.25 },
+  { name: "Diego Morales", work: "Watch-time analytics hook", weight: 2.5 },
+];
+
+const NAVIDROME_BATCH: PreviewCohortMember[] = [
+  { name: "Luna Hart", work: "842 plays · indie EP", weight: 1.0 },
+  { name: "The Midnight Echoes", work: "Session royalties · 3 tracks", weight: 1.2 },
+  { name: "Composer: A. Volkov", work: "Film cue placements", weight: 1.4 },
+  { name: "Blue Note Collective", work: "Label pool · 5 artists", weight: 1.55 },
+  { name: "DJ Prism", work: "Remix pack · verified plays", weight: 1.7 },
+  { name: "Mira Solis", work: "Cover album · 1.2k listens", weight: 1.85 },
+  { name: "Curator: K. Okon", work: "Playlist · 400 followers", weight: 2.0 },
+  { name: "Live at Red Room", work: "Concert recording split", weight: 2.15 },
+  { name: "Podcast: Signal Drift", work: "Episode royalty block", weight: 2.3 },
+  { name: "Engineer: P. Walsh", work: "Mastering · 9 releases", weight: 2.5 },
+];
+
+const INDEPENDENT_MUSIC_BATCH = NAVIDROME_BATCH;
+
+const OPEN_RESEARCH_BATCH: PreviewCohortMember[] = [
+  { name: "Dr. Amara Singh", work: "Lead author · 2.1k citations", weight: 2.6 },
+  { name: "Prof. James Liu", work: "Co-author · methods section", weight: 2.2 },
+  { name: "Dr. Fatima Al-Hassan", work: "Dataset curator · DOI bundle", weight: 1.9 },
+  { name: "Open Review: Chen", work: "Peer review · 3 rounds", weight: 1.7 },
+  { name: "Dr. Eva Novak", work: "Cited replication study", weight: 1.55 },
+  { name: "Lab: Rivera Group", work: "Shared instrumentation", weight: 1.4 },
+  { name: "Fig. author: Park", work: "Visualization pipeline", weight: 1.25 },
+  { name: "Editor: M. Sullivan", work: "Copyedit · grant appendix", weight: 1.15 },
+  { name: "Grad: T. Osei", work: "Replication package", weight: 1.05 },
+  { name: "Crossref: DOI mint", work: "Attribution anchor", weight: 1.0 },
+];
+
+const BATCH_BY_SLUG: Record<string, PreviewCohortMember[]> = {
+  react: REACT_BATCH,
+  linux: LINUX_BATCH,
+  jellyfin: JELLYFIN_BATCH,
+  navidrome: NAVIDROME_BATCH,
+  "independent-music": INDEPENDENT_MUSIC_BATCH,
+  "open-research": OPEN_RESEARCH_BATCH,
+};
+
+/** Split a milestone pool across payees — sums exactly to totalUsd (2 decimal places). */
+export function distributeMilestoneUsd(
+  members: PreviewCohortMember[],
+  totalUsd: number,
+): Array<{ label: string; owedUsd: number }> {
+  const weights = members.map((m) => m.weight);
+  const weightSum = weights.reduce((s, w) => s + w, 0);
+  if (weightSum <= 0 || totalUsd <= 0) return [];
+
+  const raw = members.map((m) => (m.weight / weightSum) * totalUsd);
+  const floored = raw.map((n) => Math.floor(n * 100) / 100);
+  let remainder = Math.round((totalUsd - floored.reduce((s, a) => s + a, 0)) * 100);
+
+  const order = raw
+    .map((n, i) => ({ i, frac: n * 100 - Math.floor(n * 100) }))
+    .sort((a, b) => b.frac - a.frac);
+
+  const amounts = [...floored];
+  for (const { i } of order) {
+    if (remainder <= 0) break;
+    amounts[i] = Math.round((amounts[i]! + 0.01) * 100) / 100;
+    remainder -= 1;
   }
-  return amounts;
+
+  return members.map((m, i) => ({
+    label: `${m.name} — ${m.work}`,
+    owedUsd: amounts[i]!,
+  }));
 }
 
-function minPayoutForSlug(slug: string): number {
-  if (slug === "open-research") return RESEARCH_PAYOUT_USD;
-  if (slug === "jellyfin") return 10;
-  if (slug === "navidrome" || slug === "independent-music") return MUSIC_PAYOUT_USD;
-  return OSS_PAYOUT_USD;
-}
-
-/** Next milestone batch preview — who gets paid when the pool hits $500 (or current ceiling). */
+/** Next $500 milestone batch — real names, variable shares, full milestone total. */
 export function buildPreviewCohortPayees(
   slug: string,
   milestoneUsd = 500,
   batchSize = COHORT_POOL_SIZE,
 ): Array<{ label: string; owedUsd: number }> {
-  const labels = PREVIEW_PAYEE_LABELS[slug] ?? PREVIEW_PAYEE_LABELS.react!;
-  const minUsd = minPayoutForSlug(slug);
-  const maxUsd = Math.min(100, Math.max(minUsd * 10, minUsd));
-  const targetTotal = Math.min(milestoneUsd, Math.max(minUsd * batchSize, minUsd * 4));
-  const amounts = tieredBatchAmounts(batchSize, minUsd, maxUsd, targetTotal);
-
-  return labels.slice(0, batchSize).map((label, i) => ({
-    label: label.replace(/-/g, " "),
-    owedUsd: amounts[i] ?? minUsd,
-  }));
+  const members = (BATCH_BY_SLUG[slug] ?? REACT_BATCH).slice(0, batchSize);
+  return distributeMilestoneUsd(members, milestoneUsd);
 }

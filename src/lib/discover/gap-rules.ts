@@ -14,8 +14,14 @@ export function isSeedGap(gap: TrendingValueGap): boolean {
   return gap.id.startsWith("seed-") || gap.dataSource === "catalog_preview";
 }
 
-/** Receipt URLs only when ledger-backed — avoids 404 on preview/cohort cards. */
-export function gapProofHref(gap: TrendingValueGap): string | undefined {
+/** Receipt URLs — ledger auth, fund activity, or community proof page. */
+export function gapProofHref(
+  gap: TrendingValueGap,
+  fundReceiptId?: string | null,
+): string | undefined {
+  if (fundReceiptId) {
+    return `/receipt/${fundReceiptId}`;
+  }
   if (gap.proofHref) return gap.proofHref;
   if (gap.proofAuthorizationId && gap.dataSource === "supabase_ledger") {
     return `/receipt/${gap.proofAuthorizationId}`;

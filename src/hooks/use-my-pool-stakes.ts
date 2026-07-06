@@ -5,8 +5,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
 import {
   FUND_ACTION_RECORDED_EVENT,
+  FUND_CARD_DISMISSED_EVENT,
   latestFundForProgram,
   listFundActions,
+  totalFundedForCommunity,
   totalFundedForProgram,
   type StoredFundAction,
 } from "@/lib/capital/fund-action-store";
@@ -44,8 +46,15 @@ export function useMyPoolStakes() {
       setLocalVersion((v) => v + 1);
       void queryClient.invalidateQueries({ queryKey: queryKeys.myPoolStakes });
     }
+    function onDismissed() {
+      setLocalVersion((v) => v + 1);
+    }
     window.addEventListener(FUND_ACTION_RECORDED_EVENT, onRecorded);
-    return () => window.removeEventListener(FUND_ACTION_RECORDED_EVENT, onRecorded);
+    window.addEventListener(FUND_CARD_DISMISSED_EVENT, onDismissed);
+    return () => {
+      window.removeEventListener(FUND_ACTION_RECORDED_EVENT, onRecorded);
+      window.removeEventListener(FUND_CARD_DISMISSED_EVENT, onDismissed);
+    };
   }, [queryClient]);
 
   const fundedUsdForProgram = useCallback(
@@ -53,6 +62,19 @@ export function useMyPoolStakes() {
       if (!programId) return 0;
       const server = query.data?.byProgramId[programId]?.totalPrincipalUsd ?? 0;
       const local = totalFundedForProgram(programId);
+      return Math.max(server, local);
+    },
+    [query.data?.byProgramId, localVersion],
+  );
+
+  const fundedUsdForCommunity = useCallback(
+    (communitySlug?: string | null, templateId?: string | null): number => {
+      if (!communitySlug) return 0;
+      const server = Object.values(query.data?.byProgramId ?? {}).reduce((s, row) => {
+        if (row.communitySlug !== communitySlug) return s;
+        return s + row.totalPrincipalUsd;
+      }, 0);
+      const local = totalFundedForCommunity(communitySlug, templateId);
       return Math.max(server, local);
     },
     [query.data?.byProgramId, localVersion],
@@ -72,6 +94,7 @@ export function useMyPoolStakes() {
   return {
     ...query,
     fundedUsdForProgram,
+    fundedUsdForCommunity,
     latestForProgram,
     localActions: listFundActions(),
   };

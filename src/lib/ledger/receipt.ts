@@ -420,6 +420,30 @@ export async function buildFundReceipt(activityId: string): Promise<PublicReceip
     }
   }
 
+  if (!onChainTxHash && tx.label?.includes("0x")) {
+    const match = tx.label.match(/(0x[a-fA-F0-9]{64})/);
+    if (match?.[1]) onChainTxHash = match[1];
+  }
+
+  if (!onChainTxHash) {
+    const marker = await prisma.walletTransaction.findFirst({
+      where: {
+        userId: tx.userId,
+        label: { startsWith: "fund_tx:" },
+        createdAt: {
+          gte: new Date(tx.createdAt.getTime() - 180_000),
+          lte: new Date(tx.createdAt.getTime() + 180_000),
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { label: true },
+    });
+    const hash = marker?.label?.replace(/^fund_tx:/i, "").trim();
+    if (hash && hash.startsWith("0x")) {
+      onChainTxHash = hash;
+    }
+  }
+
   const mission =
     missionId
       ? await missionBlock(missionId)

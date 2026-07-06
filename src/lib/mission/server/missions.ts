@@ -294,6 +294,7 @@ export async function migrateLocalSessions(
 ) {
   let migrated = 0;
   for (const s of sessions) {
+    if (!s.turns?.some((t) => t.role === "user" && t.text.trim())) continue;
     const mission = await createMission(userId, {
       title: s.title || s.query || "Imported mission",
       ecosystemId: s.ecosystemId,

@@ -28,9 +28,9 @@ Enable **Production**, **Preview**, and **Development** for each.
 | `CIRCLE_ENTITY_SECRET` | 64-char **entity secret** from Circle → Developer Wallets (not `TEST_CLIENT_KEY` unless Circle labels it entity secret) |
 | `CIRCLE_WALLET_SET_ID` | Wallet set UUID where user wallets are created, e.g. `52cc4ccb-0d02-5d7c-9f62-8becc86c2825` |
 | `ARC_CLIENT_WALLET_ADDRESS` | **Settlement treasury** — pool funds land here, e.g. `0xd8c4bb234e42b87109c42a928e908d73c0e6bc3c` |
-| `ARC_CLIENT_WALLET_ID` | Circle wallet UUID for treasury, e.g. `8680137f-c112-51ff-b544-e75ad58c3b9a` |
+| `ARC_CLIENT_WALLET_ID` | Circle wallet UUID for treasury (optional if address is in `CIRCLE_WALLET_SET_ID` — app resolves from Circle) |
 | `ARC_PROVIDER_WALLET_ADDRESS` | **Agent / platform fee** wallet, e.g. `0xaed9af58c965b8bc3aedb126522693ffcdb6d944` |
-| `ARC_PROVIDER_WALLET_ID` | Circle wallet UUID for provider, e.g. `69885467-baa7-5175-ae57-d2af3e165133` |
+| `ARC_PROVIDER_WALLET_ID` | Circle wallet UUID for provider (optional — resolved from address when omitted) |
 | `ARC_RPC_URL` | `https://rpc.testnet.arc.network` (Alchemy preferred when `ALCHEMY_API_KEY` is set) |
 | `ARC_CHAIN_ID` | `5042002` |
 | `ARC_EXPLORER_URL` | `https://testnet.arcscan.app` |

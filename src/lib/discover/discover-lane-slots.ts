@@ -12,6 +12,7 @@ import {
   type ActionResolveInput,
   type DiscoverActionSlot,
 } from "@/lib/discover/discover-opportunity-state";
+import { gapProofHref } from "@/lib/discover/gap-rules";
 
 const MAX_SLOTS = 3;
 
@@ -69,19 +70,17 @@ function proofAction(pool: DiscoverAction[], gap: TrendingValueGap): DiscoverAct
   const fromPool = findActionMatching(pool, /proof|receipt/i) ?? findAction(pool, "open");
   const label = viewProofLabel();
   if (fromPool?.href || fromPool?.entityPath) {
-    return { ...fromPool, label, kind: "open" };
+    const href = fromPool.href ?? fromPool.entityPath;
+    if (href?.includes("/receipt/") && !gapProofHref(gap)?.includes("/receipt/")) {
+      /* ignore stale receipt links on preview rows */
+    } else {
+      return { ...fromPool, label, kind: "open" };
+    }
   }
-  if (gap.proofHref) {
-    return synthAction(gap, "proof", label, "open", { href: gap.proofHref });
-  }
-  if (gap.proofAuthorizationId) {
+  const href = gapProofHref(gap);
+  if (href) {
     return synthAction(gap, "proof", label, "open", {
-      href: `/receipt/${gap.proofAuthorizationId}`,
-    });
-  }
-  if (gap.entityPath) {
-    return synthAction(gap, "proof", label, "open", {
-      href: gap.entityPath,
+      href,
       entityPath: gap.entityPath,
     });
   }

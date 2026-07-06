@@ -46,7 +46,8 @@ function baseCohortGap(input: {
     amountKind: "estimate",
     eligibilityCriteria: `${count} payees × $${perPerson.toFixed(0)} avg · ${COHORT_POOL_SIZE}-person pool batches`,
     proofConnectorId: input.proofConnectorId,
-    proofAuthorizationId: input.proofAuthorizationId,
+    proofAuthorizationId:
+      input.dataSource === "supabase_ledger" ? input.proofAuthorizationId : undefined,
     cohortPayees: input.members.map((m) => ({ label: m.label, owedUsd: m.amountUsd })),
     amountNeededUsd: totalUsd,
     moneyCanMoveUsd: totalUsd,

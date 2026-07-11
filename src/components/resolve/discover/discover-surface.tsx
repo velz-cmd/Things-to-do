@@ -129,12 +129,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   return (
     <div className="resolve-grid-bg min-h-screen pb-12">
       <div className="relative mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">
-        <section className="discover-command-deck">
-        <div className="discover-command-deck__topline">
-          <span>Discover intelligence desk</span>
-          <span className="discover-command-deck__status"><i /> Verified signals · capital pathways</span>
-        </div>
-        <div className="mb-4">
+        <div className="mb-5">
           <DiscoverGlobalSearch
             signedIn={Boolean(user)}
             query={query}
@@ -185,7 +180,6 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
               />
             )}
           </div>
-        </section>
         </section>
 
         <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">

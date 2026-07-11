@@ -16,6 +16,7 @@ import { friendlyDiscoverActionLabel } from "@/lib/discover/discover-action-labe
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { tailorDiscoverActionsForUser } from "@/lib/discover/tailor-actions-for-user";
 import { visibleDiscoverActions } from "@/lib/discover/discover-visible-actions";
+import { DomainArtwork } from "@/components/resolve/visuals/evidence-network";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
   oss: "border-blue-500/25 bg-blue-500/10 text-blue-100",
@@ -128,7 +129,9 @@ export function DiscoverActionCard({
             </>
           )}
         </div>
-        <div className="shrink-0 text-right">
+        <div className="flex shrink-0 items-start gap-3 text-right">
+          {!compact && <DomainArtwork domain={gap.domain} className="hidden w-24 sm:block" />}
+          <div>
           <p
             className={clsx(
               "text-lg font-semibold tabular-nums",
@@ -158,6 +161,7 @@ export function DiscoverActionCard({
               {gap.peopleImpacted} impacted
             </p>
           )}
+          </div>
         </div>
       </div>
 

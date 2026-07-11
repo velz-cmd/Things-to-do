@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { CheckCircle2, CircleDollarSign, Code2, FileText, Music2, Play } from "lucide-react";
+import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
 
 const signals = [
   { x: 32, y: 32, label: "Code", Icon: Code2, tone: "cyan" },
@@ -56,7 +58,10 @@ export function EvidenceNetworkVisual({ className = "" }: { className?: string }
         </div>
       ))}
 
-      <div className="evidence-network__core"><span>R</span><small>Evidence core</small></div>
+      <div className="evidence-network__core">
+        <Image src={BRAND_LOGO_PATH} alt="RESOLVE" width={42} height={42} className="evidence-network__logo" priority />
+        <small>Evidence core</small>
+      </div>
       <div className="evidence-network__stage evidence-network__stage--policy"><CheckCircle2 /><span>Program</span><small>policy</small></div>
       <div className="evidence-network__stage evidence-network__stage--settle"><CircleDollarSign /><span>Arc</span><small>settlement</small></div>
       <div className="evidence-network__legend"><span>Signals</span><i /> <span>Evidence</span><i /> <span>Capital</span></div>

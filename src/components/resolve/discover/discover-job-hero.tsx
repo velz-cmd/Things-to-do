@@ -34,7 +34,7 @@ export function DiscoverJobHero({
               {DISCOVER_HERO_SUBTITLE}
             </p>
 
-            <div className="discover-command-intents relative mt-5 flex flex-wrap gap-1.5" role="tablist" aria-label="Discover intent">
+            <div className="relative mt-5 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3" role="tablist" aria-label="Discover intent">
             {DISCOVER_JOBS.map((job) => {
               const selected = activeJob === job.id;
               const Icon = job.icon;
@@ -54,9 +54,9 @@ export function DiscoverJobHero({
                   <span className="discover-job-tile__icon">
                     <Icon className="h-4 w-4" strokeWidth={1.9} />
                   </span>
-                  <span className="min-w-0">
+                  <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-white">{job.who}</span>
-                    <span className="sr-only">
+                    <span className="mt-1 block text-left text-[11px] leading-4 text-resolve-muted">
                       {job.surfaces}
                     </span>
                   </span>

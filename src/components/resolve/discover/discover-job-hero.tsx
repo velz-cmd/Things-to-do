@@ -53,7 +53,11 @@ export function DiscoverJobHero({
                       aria-selected={selected}
                       title={job.title}
                       onClick={() => onSelectJob(job.id, job.role, job.scrollTo)}
-                      className={clsx("discover-job-tile group", selected && "discover-job-tile--active")}
+                      className={clsx(
+                        "discover-job-tile group",
+                        `discover-job-tile--${job.id}`,
+                        selected && "discover-job-tile--active",
+                      )}
                     >
                       <span className="discover-job-tile__icon">
                         <Icon className="h-4 w-4" strokeWidth={1.9} />

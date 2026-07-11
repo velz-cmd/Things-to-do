@@ -39,12 +39,12 @@ export function ProductPage({
     width === "narrow" ? "max-w-3xl" : width === "full" ? "max-w-[1400px]" : "max-w-6xl";
 
   return (
-    <div className={clsx("relative mx-auto px-4 py-10 lg:px-8", maxWidth)}>
-      <header className="relative mb-12 animate-resolve-enter">
+    <div className={clsx("resolve-page relative mx-auto px-4 py-8 sm:px-6 lg:px-8 lg:py-10", maxWidth)}>
+      <header className="relative mb-8 animate-resolve-enter lg:mb-10">
         <div
           aria-hidden
           className={clsx(
-            "pointer-events-none absolute -inset-x-8 -top-8 h-48 rounded-full opacity-50 blur-3xl",
+            "pointer-events-none absolute -inset-x-8 -top-8 h-36 rounded-full opacity-30 blur-3xl",
             "bg-gradient-to-b",
             accentGlow[accent],
           )}
@@ -57,11 +57,11 @@ export function ProductPage({
               accentGlow[accent],
             )}
           />
-          <div className="relative flex flex-wrap items-start justify-between gap-6 p-7 md:p-9">
+          <div className="resolve-spotlight relative flex flex-wrap items-start justify-between gap-6 p-6 md:p-8">
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 {Icon && (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl resolve-accent-gradient shadow-resolve-glow">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl resolve-accent-gradient shadow-[0_8px_24px_rgba(59,157,255,.22)]">
                     <Icon className="h-5 w-5 text-white" strokeWidth={1.5} />
                   </div>
                 )}

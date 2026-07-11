@@ -80,59 +80,39 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
         </span>
         <span className="text-[10px] text-resolve-muted-dim">· real USD + contributor counts</span>
       </div>
-      <div className="discover-live-rail__rows flex gap-3 overflow-x-auto px-3 scrollbar-thin">
-        {data.rows.map((row) => (
+      <div className="discover-live-rail__rows">
+        {data.rows.slice(0, 3).map((row) => (
           <div
             key={row.id}
-            className="discover-live-rail__row min-w-[260px] shrink-0"
+            className="discover-live-rail__row"
+            title={row.subline ? `${row.title} — ${row.subline}` : row.title}
           >
-            <div className="flex items-center justify-between gap-2">
+            <div className="discover-live-rail__meta">
               <span className="text-[9px] font-medium uppercase tracking-wide text-resolve-muted-dim">
                 {kindLabel(row.kind)}
               </span>
               <span className="text-[9px] text-resolve-muted-dim">{formatRelative(row.at)}</span>
             </div>
-            <p className="mt-0.5 line-clamp-2 text-[11px] font-medium leading-snug text-white">
-              {row.title}
-            </p>
-            {row.subline && (
-              <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-resolve-muted">
-                {row.subline}
-              </p>
-            )}
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] tabular-nums">
-              <span className="text-emerald-300">${row.amountUsd.toFixed(2)}</span>
-              {row.poolBalanceUsd != null && row.kind === "fund" && (
-                <span className="text-resolve-muted-dim">
-                  pool ${row.poolBalanceUsd.toFixed(0)}
-                </span>
-              )}
-              {row.contributorCount != null && row.contributorCount > 0 && (
-                <span className="text-resolve-muted-dim">
-                  {row.contributorCount} {row.payeeCategory ?? "contributors"}
-                </span>
-              )}
-            </div>
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              {row.receiptHref && (
-                <Link
-                  href={row.receiptHref}
-                  className="text-[10px] font-medium text-resolve-accent hover:underline"
-                >
-                  Proof
-                </Link>
-              )}
-              {row.explorerUrl && (
-                <a
-                  href={row.explorerUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[10px] text-resolve-muted hover:text-white"
-                >
-                  Arcscan
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </a>
-              )}
+            <div className="discover-live-rail__content">
+              <p className="discover-live-rail__title">{row.title}</p>
+              <div className="discover-live-rail__links">
+                {row.receiptHref && (
+                  <Link href={row.receiptHref} className="discover-live-rail__link">
+                    Proof
+                  </Link>
+                )}
+                {row.explorerUrl && (
+                  <a
+                    href={row.explorerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="discover-live-rail__link"
+                  >
+                    Arcscan
+                    <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         ))}

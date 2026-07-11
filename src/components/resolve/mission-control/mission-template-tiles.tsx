@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { MISSION_RFB_TEMPLATES } from "@/lib/mission/mission-templates";
+import { TemplateDiagram } from "@/components/resolve/visuals/capital-compiler";
 
 export function MissionTemplateTiles({
   onSubmit,
@@ -24,9 +25,9 @@ export function MissionTemplateTiles({
             onClick={() => onSubmit(t.prompt)}
             className="mission-template-card"
           >
-            <span className="block text-sm font-semibold text-white">{t.label}</span>
-            <span className="mt-1 block text-left text-[11px] leading-snug text-resolve-muted">
-              {t.surfaces}
+            <span className="grid grid-cols-[1fr_96px] items-center gap-3">
+              <span><span className="block text-sm font-semibold text-white">{t.label}</span><span className="mt-1 block text-left text-[11px] leading-snug text-resolve-muted">{t.surfaces}</span></span>
+              <TemplateDiagram id={t.id} />
             </span>
           </button>
         ))}

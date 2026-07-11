@@ -48,7 +48,7 @@ export function MissionEmptyState({
       />
 
       <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 lg:px-10 lg:py-8">
-        <div className="mx-auto max-w-3xl space-y-6">
+        <div className="mx-auto max-w-6xl space-y-6">
           <MissionCommandHero onSubmit={onSubmit} />
 
           {scopeHint && onAcceptScopeHint && (

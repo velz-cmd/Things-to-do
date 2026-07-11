@@ -69,22 +69,22 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
   return (
     <div
       className={clsx(
-        "overflow-hidden rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04]",
+        "discover-live-operational flex h-[52px] items-center overflow-hidden rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04]",
         className,
       )}
     >
-      <div className="flex items-center gap-2 border-b border-emerald-500/15 px-3 py-1.5">
+      <div className="discover-live-rail__header flex items-center gap-2 px-3">
         <Activity className="h-3.5 w-3.5 text-emerald-400" />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90">
           Live pools
         </span>
         <span className="text-[10px] text-resolve-muted-dim">· real USD + contributor counts</span>
       </div>
-      <div className="flex gap-3 overflow-x-auto px-3 py-2 scrollbar-thin">
+      <div className="discover-live-rail__rows flex gap-3 overflow-x-auto px-3 scrollbar-thin">
         {data.rows.map((row) => (
           <div
             key={row.id}
-            className="min-w-[220px] shrink-0 rounded-md border border-white/[0.06] bg-black/25 px-2.5 py-2"
+            className="discover-live-rail__row min-w-[260px] shrink-0"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] font-medium uppercase tracking-wide text-resolve-muted-dim">

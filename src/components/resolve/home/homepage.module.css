@@ -1,0 +1,231 @@
+.page {
+  --home-line: rgba(139, 164, 215, 0.14);
+  --home-panel: rgba(8, 18, 35, 0.82);
+  --home-blue: #4b8dff;
+  --home-violet: #8a63ff;
+  --home-mint: #42d7ac;
+  position: relative;
+  overflow: clip;
+  background:
+    radial-gradient(circle at 79% 4%, rgba(78, 69, 220, 0.13), transparent 25rem),
+    radial-gradient(circle at 8% 28%, rgba(23, 123, 199, 0.08), transparent 32rem),
+    #050b15;
+}
+
+.section {
+  position: relative;
+  margin-inline: auto;
+  width: min(100% - 2.5rem, 1280px);
+  padding-block: 7rem;
+}
+
+.hero {
+  position: relative;
+  min-height: 650px;
+  display: grid;
+  grid-template-columns: minmax(0, 44fr) minmax(0, 56fr);
+  align-items: center;
+  gap: 2.5rem;
+  margin-inline: auto;
+  width: min(100% - 3rem, 1380px);
+  padding: 3.5rem 2rem 3rem;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 4% 0 2%;
+  pointer-events: none;
+  border: 1px solid rgba(133, 156, 205, 0.08);
+  border-radius: 32px;
+  background: linear-gradient(145deg, rgba(12, 26, 49, 0.38), rgba(5, 11, 22, 0.08));
+  mask-image: linear-gradient(to bottom, black 0 78%, transparent);
+}
+
+.routingFrame {
+  position: relative;
+  min-height: 480px;
+  overflow: hidden;
+  border: 1px solid rgba(126, 147, 210, 0.24);
+  border-radius: 24px;
+  background:
+    linear-gradient(rgba(95, 129, 193, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(95, 129, 193, 0.06) 1px, transparent 1px),
+    radial-gradient(circle at 52% 47%, rgba(94, 72, 246, 0.18), transparent 28%),
+    linear-gradient(145deg, rgba(12, 26, 49, 0.98), rgba(5, 12, 25, 0.97));
+  background-size: 28px 28px, 28px 28px, auto, auto;
+  box-shadow: 0 34px 80px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.05);
+  transform: perspective(1200px) rotateY(-2deg) rotateX(1deg);
+  transform-origin: center;
+}
+
+.routingFrame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.045), transparent 28% 74%, rgba(83, 101, 245, 0.05));
+}
+
+.routePath {
+  stroke-dasharray: 7 8;
+  animation: route-flow 8s linear infinite;
+}
+
+.evidenceCore {
+  position: relative;
+  display: grid;
+  height: 132px;
+  width: 132px;
+  place-items: center;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(73, 91, 219, 0.22), rgba(6, 13, 27, 0.9) 58%);
+  box-shadow: 0 0 55px rgba(78, 75, 235, 0.26), inset 0 0 30px rgba(78, 133, 255, 0.12);
+}
+
+.evidenceCore::before,
+.evidenceCore::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  border: 1px solid rgba(111, 115, 255, 0.3);
+  animation: orbit-turn 18s linear infinite;
+}
+
+.evidenceCore::before { inset: -18px; border-style: dashed; }
+.evidenceCore::after { inset: -34px; border-color: rgba(66, 176, 255, 0.14); animation-direction: reverse; }
+
+.sourceRail {
+  width: min(100% - 3rem, 1280px);
+  margin: 0 auto;
+  border-block: 1px solid rgba(132, 156, 204, 0.1);
+  background: rgba(6, 14, 28, 0.58);
+}
+
+.sourceScroller { scrollbar-width: none; }
+.sourceScroller::-webkit-scrollbar { display: none; }
+
+.leakVisual {
+  position: relative;
+  min-height: 390px;
+  overflow: hidden;
+  border: 1px solid var(--home-line);
+  border-radius: 22px;
+  background:
+    linear-gradient(rgba(98, 130, 185, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(98, 130, 185, 0.055) 1px, transparent 1px),
+    radial-gradient(circle at 54% 48%, rgba(77, 74, 231, 0.13), transparent 33%),
+    rgba(6, 15, 30, 0.78);
+  background-size: 26px 26px, 26px 26px, auto, auto;
+}
+
+.leakRoute {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 58px 1fr 58px 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.leakLine {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(76, 142, 255, 0.25), rgba(138, 99, 255, 0.9));
+  box-shadow: 0 0 12px rgba(85, 93, 255, 0.38);
+}
+
+.workflowVisual {
+  position: sticky;
+  top: 104px;
+  min-height: 510px;
+  overflow: hidden;
+  border: 1px solid var(--home-line);
+  border-radius: 24px;
+  background:
+    linear-gradient(rgba(93, 121, 175, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(93, 121, 175, 0.055) 1px, transparent 1px),
+    radial-gradient(circle at 46% 44%, rgba(76, 71, 221, 0.17), transparent 32%),
+    #07101e;
+  background-size: 28px 28px, 28px 28px, auto, auto;
+}
+
+.workflowBeam {
+  width: 0;
+  transition: width 550ms cubic-bezier(.2,.7,.2,1);
+}
+
+.workspaceFrame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(151, 168, 205, 0.22);
+  border-radius: 24px;
+  background: #07101d;
+  box-shadow: 0 42px 90px rgba(0, 0, 0, 0.42), inset 0 1px rgba(255, 255, 255, 0.06);
+  transform: perspective(1400px) rotateX(1.2deg);
+}
+
+.workspaceFrame::before {
+  content: "";
+  position: absolute;
+  inset: -40% 30% 40% -10%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(66, 136, 255, 0.14), transparent 62%);
+}
+
+.receipt {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(70, 216, 170, 0.2);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(10, 30, 43, 0.95), rgba(5, 15, 26, 0.98));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3), inset 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.architecture {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--home-line);
+  border-radius: 26px;
+  background:
+    linear-gradient(rgba(92, 121, 179, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(92, 121, 179, 0.05) 1px, transparent 1px),
+    rgba(6, 14, 28, 0.78);
+  background-size: 30px 30px;
+}
+
+.conversion {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(112, 111, 242, 0.23);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 82% 50%, rgba(93, 70, 229, 0.22), transparent 27%),
+    linear-gradient(130deg, rgba(14, 31, 57, 0.94), rgba(6, 13, 26, 0.98));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes route-flow { to { stroke-dashoffset: -120; } }
+@keyframes orbit-turn { to { transform: rotate(360deg); } }
+
+@media (max-width: 1023px) {
+  .hero { grid-template-columns: 1fr; min-height: 0; padding-block: 4.5rem; }
+  .routingFrame { min-height: 450px; transform: none; }
+  .workflowVisual { position: relative; top: auto; min-height: 430px; }
+  .section { padding-block: 5.5rem; }
+}
+
+@media (max-width: 639px) {
+  .hero { width: min(100% - 1.5rem, 1380px); padding: 3.25rem 0.25rem 2.5rem; }
+  .hero::before { display: none; }
+  .routingFrame { min-height: 580px; border-radius: 18px; }
+  .section { width: min(100% - 1.5rem, 1280px); padding-block: 4.5rem; }
+  .sourceRail { width: 100%; }
+  .leakVisual { min-height: 360px; }
+  .leakRoute { grid-template-columns: 1fr; }
+  .leakLine { width: 1px; height: 30px; margin-inline: auto; }
+  .workspaceFrame { border-radius: 18px; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .routePath, .evidenceCore::before, .evidenceCore::after { animation: none; }
+  .workflowBeam { transition: none; }
+}

@@ -259,6 +259,44 @@ code, kbd, pre, .font-mono { font-family: var(--font-geist-mono), ui-monospace, 
   .evidence-network__stage { transform:translate(-50%,-50%) scale(.82); }
 }
 
+/* Discover cinematic command deck: depth belongs to the frame, not the data. */
+.discover-command-deck {
+  position: relative;
+  margin-bottom: 28px;
+  padding: 16px;
+  border: 1px solid rgba(105,126,255,.28);
+  border-radius: 22px;
+  background: linear-gradient(145deg,rgba(17,29,55,.96),rgba(7,15,31,.98));
+  box-shadow: 0 0 0 1px rgba(126,92,255,.12),0 0 42px rgba(78,72,255,.08),0 32px 90px rgba(0,0,0,.45),inset 0 1px rgba(255,255,255,.04);
+}
+.discover-command-deck::before {
+  content:""; position:absolute; inset:-1px; pointer-events:none; border-radius:22px;
+  background:linear-gradient(115deg,rgba(51,213,255,.5),transparent 17%,transparent 70%,rgba(135,92,255,.55));
+  padding:1px; mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0); mask-composite:exclude; opacity:.55;
+}
+.discover-command-deck__topline { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; padding:0 4px; color:#a78bfa; font-size:9px; font-weight:650; text-transform:uppercase; letter-spacing:.16em; }
+.discover-command-deck__status { display:flex; align-items:center; gap:6px; color:var(--text-muted); font-weight:500; letter-spacing:.08em; }
+.discover-command-deck__status i { width:6px; height:6px; border-radius:50%; background:var(--accent-mint); box-shadow:0 0 10px rgba(56,215,165,.6); }
+.discover-command-deck .discover-operating-hero { border-color:rgba(105,126,255,.18)!important; background:rgba(6,14,27,.64)!important; box-shadow:inset 0 1px rgba(255,255,255,.03)!important; }
+.discover-command-deck .discover-section-stack { margin-top:14px; }
+.discover-command-intents .discover-job-tile { min-height:38px; width:auto; flex:0 0 auto; gap:7px; padding:7px 10px; border-radius:9px; }
+.discover-command-intents .discover-job-tile__icon { width:23px; height:23px; border-radius:7px; }
+.discover-command-intents .discover-job-tile .text-sm { font-size:11px; }
+.discover-command-intents .discover-job-tile>svg { width:11px; }
+.evidence-network__core::before { content:""; position:absolute; z-index:-1; width:68px; height:68px; border:1px solid rgba(135,92,255,.55); border-radius:50%; box-shadow:0 0 28px rgba(78,72,255,.22),inset 0 0 20px rgba(51,213,255,.08); animation:evidence-core-breathe 4s ease-in-out infinite; }
+@keyframes evidence-core-breathe { 0%,100%{transform:scale(.96);opacity:.72} 50%{transform:scale(1.04);opacity:1} }
+
+@media (max-width: 639px) {
+  .discover-command-deck { padding:10px; border-radius:17px; box-shadow:0 22px 50px rgba(0,0,0,.36); }
+  .discover-command-deck::before { border-radius:17px; }
+  .discover-command-deck__topline { align-items:flex-start; }
+  .discover-command-deck__status { text-align:right; font-size:8px; }
+  .discover-command-intents { flex-wrap:nowrap!important; overflow-x:auto; padding-bottom:3px; scrollbar-width:none; }
+  .discover-command-intents::-webkit-scrollbar { display:none; }
+}
+
+@media (prefers-reduced-motion: reduce) { .evidence-network__core::before { animation:none; } }
+
 /* Mission Capital Compiler */
 .capital-compiler { position:relative; min-height:230px; overflow:hidden; border:1px solid rgba(135,92,255,.22); border-radius:16px; background:radial-gradient(circle at 40% 50%,rgba(135,92,255,.14),transparent 30%),linear-gradient(145deg,rgba(6,14,27,.96),rgba(13,26,44,.9)); box-shadow:inset 0 1px rgba(255,255,255,.04),0 22px 48px rgba(0,4,12,.25); }
 .capital-compiler__grid { position:absolute; inset:0; opacity:.18; background-image:linear-gradient(rgba(101,168,255,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(101,168,255,.14) 1px,transparent 1px); background-size:22px 22px; mask-image:linear-gradient(90deg,black,transparent 92%); }

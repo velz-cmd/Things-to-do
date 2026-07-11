@@ -1,22 +1,34 @@
 .page {
-  --home-line: rgba(139, 164, 215, 0.14);
-  --home-panel: rgba(8, 18, 35, 0.82);
-  --home-blue: #4b8dff;
-  --home-violet: #8a63ff;
-  --home-mint: #42d7ac;
+  --home-bg: #030711;
+  --home-bg-soft: #060c18;
+  --home-surface: #091221;
+  --home-surface-raised: #0d182b;
+  --home-surface-muted: #101a2b;
+  --home-line: rgba(143, 165, 210, 0.15);
+  --home-border-strong: rgba(113, 111, 255, 0.35);
+  --home-text: #f7f8fc;
+  --home-text-secondary: #a8b5ca;
+  --home-text-muted: #6f809d;
+  --home-blue: #369cff;
+  --home-violet: #805fff;
+  --home-purple: #a15dff;
+  --home-cyan: #39d2ff;
+  --home-mint: #3bd7a4;
+  --home-amber: #e5b85a;
   position: relative;
   overflow: clip;
   background:
-    radial-gradient(circle at 79% 4%, rgba(78, 69, 220, 0.13), transparent 25rem),
-    radial-gradient(circle at 8% 28%, rgba(23, 123, 199, 0.08), transparent 32rem),
-    #050b15;
+    radial-gradient(circle at 70% 8%, rgba(69, 95, 255, 0.13), transparent 30%),
+    radial-gradient(circle at 16% 34%, rgba(127, 75, 255, 0.07), transparent 32%),
+    linear-gradient(180deg, #030711 0%, #050b16 45%, #030711 100%);
+  color: var(--home-text);
 }
 
 .section {
   position: relative;
   margin-inline: auto;
   width: min(100% - 2.5rem, 1280px);
-  padding-block: 7rem;
+  padding-block: 6.5rem;
 }
 
 .hero {
@@ -55,8 +67,9 @@
     linear-gradient(145deg, rgba(12, 26, 49, 0.98), rgba(5, 12, 25, 0.97));
   background-size: 28px 28px, 28px 28px, auto, auto;
   box-shadow: 0 34px 80px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.05);
-  transform: perspective(1200px) rotateY(-2deg) rotateX(1deg);
+  transform: perspective(1100px) rotateX(2deg) rotateY(-4deg);
   transform-origin: center;
+  transition: transform 220ms ease;
 }
 
 .routingFrame::after {
@@ -69,7 +82,25 @@
 
 .routePath {
   stroke-dasharray: 7 8;
-  animation: route-flow 8s linear infinite;
+  opacity: 0.16;
+  animation: signal-travel 8s ease-in-out infinite;
+}
+
+.sourceEvent {
+  position: relative;
+  animation: source-event 8s ease-in-out infinite;
+}
+
+.sourceEvent::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border: 1px solid rgba(57, 210, 255, 0.46);
+  border-radius: inherit;
+  opacity: 0;
+  animation: source-ring 8s ease-in-out infinite;
+  animation-delay: inherit;
 }
 
 .evidenceCore {
@@ -81,6 +112,7 @@
   border-radius: 999px;
   background: radial-gradient(circle, rgba(73, 91, 219, 0.22), rgba(6, 13, 27, 0.9) 58%);
   box-shadow: 0 0 55px rgba(78, 75, 235, 0.26), inset 0 0 30px rgba(78, 133, 255, 0.12);
+  animation: evidence-activate 8s ease-in-out infinite;
 }
 
 .evidenceCore::before,
@@ -94,6 +126,11 @@
 
 .evidenceCore::before { inset: -18px; border-style: dashed; }
 .evidenceCore::after { inset: -34px; border-color: rgba(66, 176, 255, 0.14); animation-direction: reverse; }
+.staticCore, .staticCore::before, .staticCore::after { animation: none !important; }
+
+.blueprintPulse { animation: blueprint-ready 8s ease-in-out infinite; }
+.receiptPulse { animation: receipt-ready 8s ease-in-out infinite; }
+.motionPaused, .motionPaused * { animation-play-state: paused !important; }
 
 .sourceRail {
   width: min(100% - 3rem, 1280px);
@@ -104,6 +141,7 @@
 
 .sourceScroller { scrollbar-width: none; }
 .sourceScroller::-webkit-scrollbar { display: none; }
+.mobileRouteSummary { display: none; }
 
 .leakVisual {
   position: relative;
@@ -149,8 +187,10 @@
 }
 
 .workflowBeam {
-  width: 0;
-  transition: width 550ms cubic-bezier(.2,.7,.2,1);
+  width: 86%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 550ms cubic-bezier(.2,.7,.2,1);
 }
 
 .workspaceFrame {
@@ -160,7 +200,8 @@
   border-radius: 24px;
   background: #07101d;
   box-shadow: 0 42px 90px rgba(0, 0, 0, 0.42), inset 0 1px rgba(255, 255, 255, 0.06);
-  transform: perspective(1400px) rotateX(1.2deg);
+  transform: perspective(1400px) rotateX(3deg);
+  transform-origin: center top;
 }
 
 .workspaceFrame::before {
@@ -203,8 +244,63 @@
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
 }
 
-@keyframes route-flow { to { stroke-dashoffset: -120; } }
+.quietCard {
+  border: 1px solid rgba(143, 165, 210, 0.12);
+  background: rgba(9, 18, 33, 0.74);
+}
+
+.operationalCard {
+  border: 1px solid rgba(112, 140, 205, 0.2);
+  background: linear-gradient(145deg, rgba(15, 27, 48, 0.98), rgba(6, 13, 25, 0.98));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.tabPanel { animation: tab-crossfade 220ms ease both; }
+.workspaceTab { min-height: 44px; }
+.workspaceTab:focus-visible { outline: 2px solid rgba(54, 156, 255, 0.8); outline-offset: 2px; }
+
+.roleGrid { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.architectureGrid { display: grid; gap: 0.75rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.architectureArrow { display: none; }
+
+.primaryActions button,
+.primaryActions a { transition: transform 150ms ease, border-color 150ms ease, filter 150ms ease; }
+.primaryActions button:active,
+.primaryActions a:active { transform: scale(0.985); }
+
+.microArrow { transition: transform 160ms ease; }
+a:hover .microArrow, button:hover .microArrow { transform: translateX(3px); }
+
+.receiptPulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  border: 1px solid rgba(59, 215, 164, 0.34);
+  opacity: 0;
+  animation: receipt-confirmation 8s ease-in-out infinite;
+}
+
+@keyframes signal-travel {
+  0%, 8%, 26%, 100% { opacity: 0.14; stroke-dashoffset: 0; }
+  11%, 20% { opacity: 0.95; }
+  24% { opacity: 0.18; stroke-dashoffset: -42; }
+}
+@keyframes source-event { 0%, 7%, 21%, 100% { transform: translateZ(0); } 10%, 17% { transform: translateZ(8px) scale(1.012); } }
+@keyframes source-ring { 0%, 7%, 22%, 100% { opacity: 0; transform: scale(.98); } 11%, 17% { opacity: .62; transform: scale(1.02); } }
+@keyframes evidence-activate { 0%, 20%, 42%, 100% { transform: scale(1); } 26%, 35% { transform: scale(1.025); } }
+@keyframes blueprint-ready { 0%, 37%, 58%, 100% { opacity: .82; transform: translateZ(0); } 43%, 53% { opacity: 1; transform: translateZ(12px) scale(1.012); } }
+@keyframes receipt-ready { 0%, 54%, 75%, 100% { opacity: .82; transform: translateZ(0); } 60%, 70% { opacity: 1; transform: translateZ(14px) scale(1.012); } }
+@keyframes receipt-confirmation { 0%, 57%, 76%, 100% { opacity: 0; transform: scale(.985); } 63%, 70% { opacity: .75; transform: scale(1); } }
+@keyframes tab-crossfade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes orbit-turn { to { transform: rotate(360deg); } }
+
+@media (min-width: 1440px) {
+  .roleGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .architectureGrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .architectureArrow { display: block; }
+}
 
 @media (max-width: 1023px) {
   .hero { grid-template-columns: 1fr; min-height: 0; padding-block: 4.5rem; }
@@ -216,7 +312,7 @@
 @media (max-width: 639px) {
   .hero { width: min(100% - 1.5rem, 1380px); padding: 3.25rem 0.25rem 2.5rem; }
   .hero::before { display: none; }
-  .routingFrame { min-height: 580px; border-radius: 18px; }
+  .routingFrame { min-height: 440px; border-radius: 18px; }
   .section { width: min(100% - 1.5rem, 1280px); padding-block: 4.5rem; }
   .sourceRail { width: 100%; }
   .leakVisual { min-height: 360px; }
@@ -225,7 +321,29 @@
   .workspaceFrame { border-radius: 18px; transform: none; }
 }
 
+@media (max-width: 767px) {
+  .roleGrid, .architectureGrid { grid-template-columns: 1fr; }
+  .primaryActions { display: grid; width: 100%; grid-template-columns: 1fr; }
+  .primaryActions > *, .primaryActions button, .primaryActions a { width: 100%; min-height: 44px; }
+  .routingFrame { transform: none; }
+  .routingFrame, .routingFrame *, .routingFrame *::before, .routingFrame *::after { animation: none !important; }
+  .routingContent { min-height: 390px !important; grid-template-columns: 1fr !important; padding: 1rem !important; }
+  .routingPaths, .routingSources, .routingOutputs { display: none !important; }
+  .mobileRouteSummary { display: grid; width: min(100%, 290px); grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; margin-top: 3.5rem; }
+  .mobileRouteSummary span { min-width: 0; border: 1px solid rgba(143, 165, 210, .12); border-radius: 8px; background: rgba(9, 18, 33, .78); padding: .5rem .25rem; color: var(--home-text-secondary); font-size: 8px; text-align: center; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .routePath, .evidenceCore::before, .evidenceCore::after { animation: none; }
-  .workflowBeam { transition: none; }
+  .routePath,
+  .sourceEvent,
+  .sourceEvent::after,
+  .evidenceCore,
+  .evidenceCore::before,
+  .evidenceCore::after,
+  .blueprintPulse,
+  .receiptPulse,
+  .receiptPulse::after,
+  .tabPanel { animation: none !important; }
+  .routingFrame, .workspaceFrame { transform: none; transition: none; }
+  .workflowBeam, .microArrow { transition: none; }
 }

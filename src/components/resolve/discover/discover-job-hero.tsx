@@ -7,22 +7,30 @@ import { DISCOVER_JOBS, type DiscoverJobId } from "@/lib/discover/discover-jobs"
 import { DISCOVER_HERO_SUBTITLE, DISCOVER_HERO_TITLE } from "@/lib/discover/discover-lane-copy";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { EvidenceNetworkVisual } from "@/components/resolve/visuals/evidence-network";
+import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 
 export function DiscoverJobHero({
   activeJob,
   onSelectJob,
   className,
+  signedIn,
+  query,
+  onQueryChange,
 }: {
   activeJob?: DiscoverJobId | null;
   onSelectJob: (jobId: DiscoverJobId, role: DiscoverRole, scrollTo: string) => void;
   className?: string;
+  signedIn: boolean;
+  query: string;
+  onQueryChange: (query: string) => void;
 }) {
   return (
     <header className={clsx("discover-on-canvas relative mb-7", className)}>
       <DiscoverCapitalCard className="discover-operating-hero" padding={false} hover={false}>
-        <div className="relative overflow-hidden px-5 py-5 sm:px-7 sm:py-6">
+        <div className="relative overflow-hidden px-4 py-4 sm:px-7 sm:py-6 lg:px-8">
           <div aria-hidden className="discover-operating-hero__flare" />
-          <div className="relative grid items-center gap-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,.95fr)]">
+          <DiscoverGlobalSearch signedIn={signedIn} query={query} onQueryChange={onQueryChange} />
+          <div className="relative mt-5 grid items-center gap-7 lg:grid-cols-[minmax(0,1.38fr)_minmax(360px,1fr)] xl:gap-8">
             <div>
             <p className="discover-eyebrow text-[10px] font-semibold uppercase tracking-[0.24em]">
               Discover OS

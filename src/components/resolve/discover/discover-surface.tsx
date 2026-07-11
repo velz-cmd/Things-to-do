@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
-import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
 import { DiscoverLiveArcStrip } from "@/components/resolve/discover/discover-live-arc-strip";
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
@@ -129,15 +128,13 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   return (
     <div className="resolve-grid-bg min-h-screen pb-12">
       <div className="relative mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">
-        <div className="mb-5">
-          <DiscoverGlobalSearch
-            signedIn={Boolean(user)}
-            query={query}
-            onQueryChange={setQuery}
-          />
-        </div>
-
-        <DiscoverJobHero activeJob={activeJob} onSelectJob={handleJobSelect} />
+        <DiscoverJobHero
+          activeJob={activeJob}
+          onSelectJob={handleJobSelect}
+          signedIn={Boolean(user)}
+          query={query}
+          onQueryChange={setQuery}
+        />
 
         <DiscoverLiveArcStrip className="discover-section-stack" />
 

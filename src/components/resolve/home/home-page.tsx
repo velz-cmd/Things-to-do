@@ -53,11 +53,11 @@ export function HomePage() {
           <p className="mt-6 max-w-[560px] text-[15px] leading-7 text-resolve-muted">
             RESOLVE observes verified activity across code, research, music, media, and communities—then turns the evidence into funding programs, payout policies, and Arc settlement.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <HomePrimaryCta />
+          <div className={`${styles.primaryActions} mt-8 flex flex-wrap gap-3`}>
+            <span className="contents"><HomePrimaryCta /></span>
             <Link href="#how-it-works">
               <Button variant="secondary" size="lg" className="gap-2 bg-white/[0.035]">
-                See how value moves <ArrowRight className="h-4 w-4" />
+                See how value moves <ArrowRight className={`${styles.microArrow} h-4 w-4`} />
               </Button>
             </Link>
           </div>
@@ -97,14 +97,14 @@ export function HomePage() {
       <section className="border-y border-white/[0.07] bg-[#06101d]/55">
         <div className={styles.section}>
           <SectionHeading eyebrow="Who RESOLVE serves" title="A place for everyone who creates, funds, or operates value" body="Each role enters through a concrete workflow and leaves with evidence, a decision, or a settlement path." />
-          <div className="mt-12 grid gap-4 md:grid-cols-2">
+          <div className={`${styles.roleGrid} mt-12`}>
             {ROLES.map(({ role, icon: Icon, value, flow, href, cta }, index) => (
-              <article key={role} className="group rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 transition hover:-translate-y-0.5 hover:border-blue-400/20 hover:bg-blue-400/[0.035] sm:p-6">
+              <article key={role} className={`${styles.quietCard} group rounded-2xl p-5 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400/20 sm:p-6`}>
                 <div className="flex items-start justify-between gap-4"><span className="grid h-10 w-10 place-items-center rounded-xl border border-blue-400/20 bg-blue-400/[0.07] text-blue-300"><Icon className="h-4 w-4" /></span><span className="font-mono text-[9px] text-resolve-muted-dim">0{index + 1}</span></div>
                 <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.15em] text-resolve-muted">{role}</p>
                 <h3 className="mt-2 text-xl font-semibold tracking-tight text-white">{value}</h3>
                 <div className="mt-5 flex flex-wrap gap-2">{flow.map((item) => <span key={item} className="rounded-full border border-white/[0.07] bg-black/15 px-2.5 py-1.5 text-[10px] text-resolve-muted">{item}</span>)}</div>
-                <Link href={href} className="mt-6 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 transition group-hover:text-white">{cta}<ArrowRight className="h-3.5 w-3.5" /></Link>
+                <Link href={href} className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-semibold text-blue-300 transition group-hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">{cta}<ArrowRight className={`${styles.microArrow} h-3.5 w-3.5`} /></Link>
               </article>
             ))}
           </div>
@@ -127,8 +127,8 @@ export function HomePage() {
         <div className={styles.section}>
           <SectionHeading eyebrow="Open architecture" title="Built for an open, composable internet economy" body="Sources remain sources, evidence remains inspectable, and settlement remains explicit. The stack uses the technologies already present in RESOLVE." />
           <div className={`${styles.architecture} mt-12 p-5 sm:p-7`}>
-            <div className="grid gap-3 lg:grid-cols-6">
-              {ARCHITECTURE.map((layer, index) => <div key={layer.label} className="relative rounded-2xl border border-white/[0.07] bg-[#081629]/80 p-4"><span className="font-mono text-[8px] text-blue-300">0{index + 1}</span><h3 className="mt-2 min-h-9 text-[11px] font-semibold leading-snug text-white">{layer.label}</h3><div className="mt-4 space-y-2">{layer.items.map((item) => <span key={item} className="block rounded-lg border border-white/[0.06] bg-black/15 px-2 py-1.5 text-[9px] text-resolve-muted">{item}</span>)}</div>{index < ARCHITECTURE.length - 1 && <ArrowRight className="absolute -right-2 top-1/2 z-10 hidden h-3 w-3 text-blue-300/50 lg:block" />}</div>)}
+            <div className={styles.architectureGrid}>
+              {ARCHITECTURE.map((layer, index) => <div key={layer.label} className="relative rounded-2xl border border-white/[0.07] bg-[#081629]/80 p-4"><span className="font-mono text-[10px] text-blue-300">0{index + 1}</span><h3 className="mt-2 min-h-9 text-[12px] font-semibold leading-snug text-white">{layer.label}</h3><div className="mt-4 space-y-2">{layer.items.map((item) => <span key={item} className="block rounded-lg border border-white/[0.06] bg-black/15 px-2 py-1.5 text-[10px] text-resolve-muted">{item}</span>)}</div>{index < ARCHITECTURE.length - 1 && <ArrowRight className={`${styles.architectureArrow} absolute -right-2 top-1/2 z-10 h-3 w-3 text-blue-300/50`} />}</div>)}
             </div>
             <div id="open-source" className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.07] pt-6"><div className="flex items-center gap-3"><Code2 className="h-5 w-5 text-white" /><div><p className="text-sm font-semibold text-white">Open-source product infrastructure</p><p className="mt-0.5 text-[10px] text-resolve-muted">Inspect the implementation and contribute through the real repository.</p></div></div><a href={REPOSITORY_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-2.5 text-xs font-semibold text-white transition hover:border-blue-400/30 hover:bg-blue-400/[0.07]">View source <ExternalLink className="h-3.5 w-3.5" /></a></div>
           </div>
@@ -137,7 +137,7 @@ export function HomePage() {
 
       <section className={`${styles.section} !pb-20`}>
         <div className={`${styles.conversion} grid min-h-[330px] items-center gap-8 px-6 py-12 sm:px-10 lg:grid-cols-[1fr_300px] lg:px-14`}>
-          <div className="relative z-10"><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-300">Enter the product</p><h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-5xl">Value is already being created.<br />RESOLVE makes it fundable.</h2><p className="mt-5 max-w-xl text-sm leading-7 text-resolve-muted">Discover the evidence, prepare the decision, and move capital when you are ready.</p><div className="mt-7 flex flex-wrap gap-3"><HomePrimaryCta /><a href={REPOSITORY_URL} target="_blank" rel="noreferrer"><Button variant="secondary" size="lg"><Code2 className="h-4 w-4" />View source code</Button></a></div></div>
+          <div className="relative z-10"><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-300">Enter the product</p><h2 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-5xl">Value is already being created.<br />RESOLVE makes it fundable.</h2><p className="mt-5 max-w-xl text-[17px] leading-7 text-resolve-muted">Discover the evidence, prepare the decision, and move capital when you are ready.</p><div className={`${styles.primaryActions} mt-7 flex flex-wrap gap-3`}><span className="contents"><HomePrimaryCta /></span><a href={REPOSITORY_URL} target="_blank" rel="noreferrer"><Button variant="secondary" size="lg"><Code2 className="h-4 w-4" />View source code</Button></a></div></div>
           <div className="relative z-0 hidden min-h-[250px] lg:block"><ValueRoutingEngine compact /></div>
         </div>
       </section>
@@ -148,7 +148,7 @@ export function HomePage() {
 }
 
 function SectionHeading({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
-  return <div className="max-w-3xl"><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-300">{eyebrow}</p><h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-5xl">{title}</h2><p className="mt-5 max-w-2xl text-sm leading-7 text-resolve-muted">{body}</p></div>;
+  return <div className="max-w-3xl"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-300">{eyebrow}</p><h2 className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-5xl">{title}</h2><p className="mt-5 max-w-2xl text-[17px] leading-7 text-resolve-muted">{body}</p></div>;
 }
 
 function ExampleReceipt() {

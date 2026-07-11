@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleDollarSign, Code2, FileText, Music2, Play } from "lucide-react";
 
 const signals = [
@@ -8,8 +11,19 @@ const signals = [
 ] as const;
 
 export function EvidenceNetworkVisual({ className = "" }: { className?: string }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(Boolean(entry?.isIntersecting)), { threshold: 0.08 });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className={`evidence-network relative overflow-hidden rounded-2xl ${className}`} aria-label="Evidence flows into funding policy and Arc settlement">
+    <div ref={rootRef} className={`evidence-network relative overflow-hidden ${visible ? "is-visible" : "is-paused"} ${className}`} aria-label="Evidence flows into funding policy and Arc settlement">
       <div className="evidence-network__grid" aria-hidden />
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 420 240" fill="none" aria-hidden>
         <defs>
@@ -28,9 +42,12 @@ export function EvidenceNetworkVisual({ className = "" }: { className?: string }
         ))}
         <path d="M222 120H268" stroke="url(#evidence-path)" strokeWidth="1.5" />
         <path d="M318 120H362" stroke="url(#evidence-path)" strokeWidth="1.5" />
-        <circle cx="205" cy="120" r="27" stroke="#65a8ff" strokeOpacity=".65" filter="url(#evidence-core-glow)" />
-        <circle cx="205" cy="120" r="19" stroke="#875cff" strokeOpacity=".5" />
+        <circle className="evidence-network__orbit" cx="205" cy="120" r="56" stroke="#65a8ff" strokeOpacity=".18" strokeDasharray="8 12" />
+        <circle className="evidence-network__orbit evidence-network__orbit--inner" cx="205" cy="120" r="38" stroke="#875cff" strokeOpacity=".32" strokeDasharray="4 7" />
+        <circle cx="205" cy="120" r="29" fill="rgba(6,13,25,.86)" stroke="#65a8ff" strokeOpacity=".65" filter="url(#evidence-core-glow)" />
+        <circle cx="205" cy="120" r="20" stroke="#875cff" strokeOpacity=".55" />
         <circle cx="205" cy="120" r="4" fill="#f7f9fc" />
+        {visible && <circle className="evidence-network__traveller" r="2.5" fill="#33d5ff"><animateMotion dur="5.5s" repeatCount="indefinite" path="M55 32 C120 32,120 120,188 120" /></circle>}
       </svg>
 
       {signals.map(({ x, y, label, Icon, tone }) => (
@@ -39,7 +56,7 @@ export function EvidenceNetworkVisual({ className = "" }: { className?: string }
         </div>
       ))}
 
-      <div className="evidence-network__core"><span>RESOLVE</span><small>Evidence core</small></div>
+      <div className="evidence-network__core"><span>R</span><small>Evidence core</small></div>
       <div className="evidence-network__stage evidence-network__stage--policy"><CheckCircle2 /><span>Program</span><small>policy</small></div>
       <div className="evidence-network__stage evidence-network__stage--settle"><CircleDollarSign /><span>Arc</span><small>settlement</small></div>
       <div className="evidence-network__legend"><span>Signals</span><i /> <span>Evidence</span><i /> <span>Capital</span></div>

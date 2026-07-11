@@ -2442,3 +2442,197 @@ html.discover-route body {
     }
   }
 }
+
+/* Discover hero proportion and finish pass. */
+@layer components {
+  .discover-operating-hero {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+  }
+
+  .discover-operating-hero h1 {
+    max-width: 560px;
+    font-size: clamp(2.45rem, 3.15vw, 2.9rem) !important;
+    line-height: 1.055 !important;
+    letter-spacing: -0.038em !important;
+  }
+
+  .discover-operating-hero p.text-sm {
+    max-width: 590px;
+    font-size: 0.875rem !important;
+    line-height: 1.55 !important;
+  }
+
+  .discover-operating-hero .discover-job-tile {
+    grid-template-columns: 34px minmax(0, 1fr) 14px;
+    height: 84px;
+    min-height: 84px;
+    max-height: 84px;
+    gap: 10px !important;
+    overflow: hidden;
+    padding: 11px !important;
+  }
+
+  .discover-operating-hero .discover-job-tile__icon {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .discover-operating-hero .discover-job-tile .text-sm {
+    font-size: 0.875rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .discover-operating-hero .discover-job-tile .text-\[11px\] {
+    margin-top: 0.25rem !important;
+    font-size: 0.6875rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .discover-operating-hero .discover-search-card input {
+    height: 50px;
+    padding-right: 3rem !important;
+    overflow: hidden;
+    font-size: 0.8125rem !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .discover-hero-visual-column .evidence-network,
+  .discover-operating-hero .evidence-network {
+    min-height: 286px !important;
+    margin-inline: 0;
+  }
+
+  .discover-operating-hero .evidence-network__grid {
+    opacity: 0.22;
+  }
+
+  .evidence-network__signal {
+    border-color: rgba(132, 162, 214, 0.2) !important;
+    background: rgba(5, 13, 27, 0.9) !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  }
+
+  .evidence-network__core {
+    width: 68px;
+    height: 68px;
+    box-shadow: 0 0 34px rgba(82, 92, 255, 0.32), inset 0 0 20px rgba(92, 112, 255, 0.14);
+  }
+
+  .evidence-network__core::before {
+    width: 104px !important;
+    height: 104px !important;
+  }
+
+  .evidence-network__logo {
+    width: 50px !important;
+    height: 50px !important;
+    border-radius: 0 !important;
+    object-fit: contain;
+    filter: none !important;
+  }
+
+  .evidence-network__stage {
+    width: 78px;
+    height: 74px;
+    border-color: rgba(132, 162, 214, 0.22) !important;
+    background: linear-gradient(145deg, rgba(21, 34, 59, 0.94), rgba(6, 13, 27, 0.96)) !important;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22), inset 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .evidence-network__stage span { font-size: 10px; }
+
+  .evidence-network__stage small {
+    max-width: 66px;
+    margin-top: 2px;
+    overflow: hidden;
+    font-size: 7px;
+    line-height: 1.2;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .discover-live-operational { overflow: hidden !important; }
+
+  .discover-live-rail__header + .discover-live-rail__rows {
+    height: 50px;
+    overflow-x: auto;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .discover-live-rail__rows::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .discover-live-rail__row {
+    position: relative;
+    display: grid;
+    width: 290px;
+    min-width: 290px !important;
+    height: 42px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 14px 20px;
+    column-gap: 8px;
+    padding: 3px 10px !important;
+  }
+
+  .discover-live-rail__row > div:first-child {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .discover-live-rail__row > p:first-of-type {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: center;
+  }
+
+  .discover-live-rail__row > div:last-child {
+    position: static !important;
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    margin: 0 !important;
+    white-space: nowrap;
+  }
+
+  @media (min-width: 1280px) {
+    .discover-operating-hero > .relative {
+      padding-top: 1.4rem !important;
+      padding-bottom: 1.4rem !important;
+    }
+
+    .discover-operating-hero .relative.grid.items-start {
+      grid-template-columns: minmax(0, 1.12fr) minmax(440px, 0.88fr);
+      gap: 2rem;
+    }
+  }
+
+  @media (max-width: 1279px) {
+    .discover-operating-hero h1 {
+      font-size: clamp(2.25rem, 4vw, 2.7rem) !important;
+    }
+
+    .discover-operating-hero .evidence-network { min-height: 260px !important; }
+  }
+
+  @media (max-width: 767px) {
+    .discover-operating-hero { overflow: visible !important; }
+
+    .discover-operating-hero .discover-job-tile {
+      height: auto;
+      min-height: 80px;
+      max-height: none;
+    }
+
+    .discover-operating-hero .evidence-network { min-height: 224px !important; }
+  }
+}

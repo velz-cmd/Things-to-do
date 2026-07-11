@@ -59,7 +59,7 @@ export function EvidenceNetworkVisual({ className = "" }: { className?: string }
       ))}
 
       <div className="evidence-network__core">
-        <Image src={BRAND_LOGO_PATH} alt="RESOLVE" width={50} height={50} className="evidence-network__logo" priority />
+        <Image src={BRAND_LOGO_PATH} alt="RESOLVE" width={60} height={60} className="evidence-network__logo" priority />
         <small>Evidence core</small>
       </div>
       <div className="evidence-network__stage evidence-network__stage--policy"><CheckCircle2 /><span>Program</span><small>Funding policy</small></div>

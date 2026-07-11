@@ -2447,32 +2447,35 @@ html.discover-route body {
 @layer components {
   .discover-operating-hero {
     height: auto !important;
+    width: 100%;
+    max-width: 1180px !important;
     min-height: 0 !important;
     max-height: none !important;
+    margin-inline: auto;
     overflow: hidden !important;
   }
 
   .discover-operating-hero h1 {
-    max-width: 560px;
-    font-size: clamp(2.45rem, 3.15vw, 2.9rem) !important;
+    max-width: 520px;
+    font-size: clamp(2.3rem, 2.8vw, 2.65rem) !important;
     line-height: 1.055 !important;
     letter-spacing: -0.038em !important;
   }
 
   .discover-operating-hero p.text-sm {
-    max-width: 590px;
-    font-size: 0.875rem !important;
-    line-height: 1.55 !important;
+    max-width: 560px;
+    font-size: 0.8125rem !important;
+    line-height: 1.48 !important;
   }
 
   .discover-operating-hero .discover-job-tile {
     grid-template-columns: 34px minmax(0, 1fr) 14px;
-    height: 84px;
-    min-height: 84px;
-    max-height: 84px;
-    gap: 10px !important;
+    height: 74px;
+    min-height: 74px;
+    max-height: 74px;
+    gap: 9px !important;
     overflow: hidden;
-    padding: 11px !important;
+    padding: 10px !important;
   }
 
   .discover-operating-hero .discover-job-tile__icon {
@@ -2481,18 +2484,21 @@ html.discover-route body {
   }
 
   .discover-operating-hero .discover-job-tile .text-sm {
-    font-size: 0.875rem !important;
+    font-size: 0.8125rem !important;
     line-height: 1.2 !important;
   }
 
   .discover-operating-hero .discover-job-tile .text-\[11px\] {
     margin-top: 0.25rem !important;
-    font-size: 0.6875rem !important;
-    line-height: 1.35 !important;
+    overflow: hidden;
+    font-size: 0.625rem !important;
+    line-height: 1.25 !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .discover-operating-hero .discover-search-card input {
-    height: 50px;
+    height: 46px;
     padding-right: 3rem !important;
     overflow: hidden;
     font-size: 0.8125rem !important;
@@ -2502,7 +2508,7 @@ html.discover-route body {
 
   .discover-hero-visual-column .evidence-network,
   .discover-operating-hero .evidence-network {
-    min-height: 286px !important;
+    min-height: 248px !important;
     margin-inline: 0;
   }
 
@@ -2517,27 +2523,33 @@ html.discover-route body {
   }
 
   .evidence-network__core {
-    width: 68px;
-    height: 68px;
-    box-shadow: 0 0 34px rgba(82, 92, 255, 0.32), inset 0 0 20px rgba(92, 112, 255, 0.14);
+    width: 62px;
+    height: 62px;
+    background: transparent !important;
+    box-shadow: 0 0 32px rgba(82, 92, 255, 0.28);
   }
 
   .evidence-network__core::before {
-    width: 104px !important;
-    height: 104px !important;
+    width: 90px !important;
+    height: 90px !important;
+  }
+
+  .evidence-network__core small {
+    margin-top: 78px !important;
+    font-size: 7px;
   }
 
   .evidence-network__logo {
-    width: 50px !important;
-    height: 50px !important;
+    width: 60px !important;
+    height: 60px !important;
     border-radius: 0 !important;
     object-fit: contain;
     filter: none !important;
   }
 
   .evidence-network__stage {
-    width: 78px;
-    height: 74px;
+    width: 72px;
+    height: 66px;
     border-color: rgba(132, 162, 214, 0.22) !important;
     background: linear-gradient(145deg, rgba(21, 34, 59, 0.94), rgba(6, 13, 27, 0.96)) !important;
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22), inset 0 1px rgba(255, 255, 255, 0.06);
@@ -2606,22 +2618,22 @@ html.discover-route body {
 
   @media (min-width: 1280px) {
     .discover-operating-hero > .relative {
-      padding-top: 1.4rem !important;
-      padding-bottom: 1.4rem !important;
+      padding-top: 1.15rem !important;
+      padding-bottom: 1.15rem !important;
     }
 
     .discover-operating-hero .relative.grid.items-start {
       grid-template-columns: minmax(0, 1.12fr) minmax(440px, 0.88fr);
-      gap: 2rem;
+      gap: 1.5rem;
     }
   }
 
   @media (max-width: 1279px) {
     .discover-operating-hero h1 {
-      font-size: clamp(2.25rem, 4vw, 2.7rem) !important;
+      font-size: clamp(2.15rem, 3.7vw, 2.5rem) !important;
     }
 
-    .discover-operating-hero .evidence-network { min-height: 260px !important; }
+    .discover-operating-hero .evidence-network { min-height: 235px !important; }
   }
 
   @media (max-width: 767px) {

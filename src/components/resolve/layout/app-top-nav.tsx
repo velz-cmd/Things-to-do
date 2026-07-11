@@ -104,13 +104,32 @@ export function AppTopNav() {
 }
 
 export function MarketingTopNav() {
+  const publicLinks = [
+    { label: "Product", href: "#product" },
+    { label: "How it works", href: "#how-it-works" },
+    { label: "Use cases", href: "#use-cases" },
+    { label: "Architecture", href: "#architecture" },
+    { label: "Open source", href: "#open-source" },
+  ] as const;
+
   return (
-    <header className="sticky top-0 z-40 border-b border-resolve-border/80 resolve-glass-subtle">
-      <div className="mx-auto flex h-[3.75rem] max-w-6xl items-center justify-between px-6 lg:px-8">
-        <ResolveLogo />
-        <div className="flex items-center gap-5">
+    <header className="sticky top-0 z-40 border-b border-white/[0.07] bg-[#050b16]/80 backdrop-blur-xl">
+      <div className="mx-auto grid h-[70px] max-w-[1380px] grid-cols-[1fr_auto] items-center gap-5 px-5 sm:px-7 lg:grid-cols-[1fr_auto_1fr] lg:px-9">
+        <ResolveLogo wordmark className="justify-self-start" />
+        <nav className="hidden items-center gap-7 lg:flex" aria-label="Homepage sections">
+          {publicLinks.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              className="text-[12px] font-medium text-resolve-muted transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resolve-accent"
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+        <div className="flex items-center justify-self-end gap-3 sm:gap-4">
           <Link href="/mission">
-            <span className="resolve-btn-shine inline-flex rounded-resolve-lg resolve-accent-gradient px-5 py-2.5 text-xs font-semibold text-white shadow-resolve-accent">
+            <span className="resolve-btn-shine inline-flex rounded-[10px] border border-white/10 bg-gradient-to-r from-[#315fd6] to-[#7655d9] px-4 py-2.5 text-xs font-semibold text-white shadow-[0_8px_24px_rgba(67,86,211,.2)] sm:px-5">
               Open Mission
             </span>
           </Link>

@@ -9,6 +9,7 @@ import {
   MISSION_PRIMARY_INTENTS,
 } from "@/lib/mission/mission-lane-copy";
 import { MissionPipelineStepper } from "@/components/resolve/mission-control/mission-pipeline-stepper";
+import { CapitalCompilerVisual } from "@/components/resolve/visuals/capital-compiler";
 
 export function MissionCommandHero({
   onSubmit,
@@ -20,8 +21,8 @@ export function MissionCommandHero({
   return (
     <header className={clsx("mission-on-canvas", className)}>
       <div className="mission-hero-panel">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,.9fr)_minmax(420px,1.1fr)]">
+          <div className="min-w-0">
             <p className="mission-eyebrow">
               <Sparkles className="inline h-3.5 w-3.5 text-violet-300" aria-hidden />
               {MISSION_HERO_EYEBROW}
@@ -32,11 +33,12 @@ export function MissionCommandHero({
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-resolve-muted">
               {MISSION_HERO_SUBTITLE}
             </p>
+            <MissionPipelineStepper activeStep="signal" className="mt-5" />
           </div>
-          <MissionPipelineStepper activeStep="signal" className="shrink-0" />
+          <CapitalCompilerVisual />
         </div>
 
-        <div className="mt-6 grid gap-2.5 sm:grid-cols-3" role="list" aria-label="Start a mission">
+        <div className="mt-5 grid gap-2.5 sm:grid-cols-3" role="list" aria-label="Start a mission">
           {MISSION_PRIMARY_INTENTS.map((intent) => {
             const Icon = intent.icon;
             return (

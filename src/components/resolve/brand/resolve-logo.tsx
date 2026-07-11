@@ -8,8 +8,8 @@ import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
 
 type ResolveLogoProps = {
   className?: string;
-  /** Nav bar — compact height */
   size?: "nav" | "signin";
+  wordmark?: boolean;
 };
 
 function ResolveLogoFallback({ className, size = "nav" }: { className?: string; size?: "nav" | "signin" }) {
@@ -29,7 +29,7 @@ function ResolveLogoFallback({ className, size = "nav" }: { className?: string; 
   );
 }
 
-export function ResolveLogo({ className, size = "nav" }: ResolveLogoProps) {
+export function ResolveLogo({ className, size = "nav", wordmark = false }: ResolveLogoProps) {
   const [broken, setBroken] = useState(false);
   const dim = size === "signin" ? 56 : 48;
 
@@ -53,6 +53,11 @@ export function ResolveLogo({ className, size = "nav" }: ResolveLogoProps) {
           )}
           onError={() => setBroken(true)}
         />
+      )}
+      {!broken && wordmark && (
+        <span className="hidden text-[13px] font-semibold tracking-[0.16em] text-white sm:inline">
+          RESOLVE
+        </span>
       )}
     </Link>
   );

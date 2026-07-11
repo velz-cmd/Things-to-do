@@ -121,7 +121,7 @@ export function MarketingTopNav() {
             <a
               key={item.href}
               href={item.href}
-              className="text-[12px] font-medium text-resolve-muted transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resolve-accent"
+              className="min-h-11 inline-flex items-center text-[12px] font-medium text-resolve-muted transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resolve-accent"
             >
               {item.label}
             </a>
@@ -129,7 +129,7 @@ export function MarketingTopNav() {
         </nav>
         <div className="flex items-center justify-self-end gap-3 sm:gap-4">
           <Link href="/mission">
-            <span className="resolve-btn-shine inline-flex rounded-[10px] border border-white/10 bg-gradient-to-r from-[#315fd6] to-[#7655d9] px-4 py-2.5 text-xs font-semibold text-white shadow-[0_8px_24px_rgba(67,86,211,.2)] sm:px-5">
+            <span className="resolve-btn-shine inline-flex min-h-11 items-center rounded-[10px] border border-white/10 bg-gradient-to-r from-[#315fd6] to-[#7655d9] px-4 py-2.5 text-xs font-semibold text-white shadow-[0_8px_24px_rgba(67,86,211,.2)] transition active:scale-[.985] sm:px-5">
               Open Mission
             </span>
           </Link>

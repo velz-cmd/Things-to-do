@@ -99,7 +99,7 @@ export function MissionReportView({ reportId }: { reportId: string }) {
         : "Draft";
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10 lg:px-8">
+    <div className="mission-report-view mx-auto max-w-4xl px-4 py-10 lg:px-8">
       <Link
         href="/mission"
         className="inline-flex items-center gap-1 text-xs text-resolve-muted hover:text-white"

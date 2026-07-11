@@ -24,6 +24,7 @@ import {
 } from "@/lib/mission/client-api";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { useAuth } from "@/components/auth/auth-provider";
+import { Skeleton } from "@/components/resolve/ui/skeleton";
 
 function sessionPreview(s: MissionSession): string {
   const userMsgs =
@@ -153,7 +154,14 @@ export function MissionHistorySidebar({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {storageMode === "loading" ? (
-          <p className="px-2 py-4 text-xs text-resolve-muted-dim">Loading chats…</p>
+          <div className="space-y-2 px-1 py-2" aria-label="Loading chats" aria-busy="true">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="rounded-lg border border-white/[0.04] p-2.5">
+                <Skeleton className="h-3 w-4/5" />
+                <Skeleton className="mt-2 h-2.5 w-3/5" />
+              </div>
+            ))}
+          </div>
         ) : sessions.length === 0 ? (
           <p className="px-2 py-4 text-xs leading-relaxed text-resolve-muted-dim">
             {storageMode === "server"

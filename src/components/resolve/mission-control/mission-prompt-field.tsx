@@ -34,6 +34,7 @@ export function MissionPromptField({
     <div className={clsx("mission-prompt-shell", className)}>
       <form onSubmit={handleSubmit} className="relative">
         <input
+          aria-label="Mission objective or question"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}

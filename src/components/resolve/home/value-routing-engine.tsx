@@ -1,4 +1,8 @@
+"use client";
+
 import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import clsx from "clsx";
 import {
   CheckCircle2,
   CircleDollarSign,
@@ -20,8 +24,30 @@ const EVENTS = [
 ] as const;
 
 export function ValueRoutingEngine({ compact = false }: { compact?: boolean }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node || compact) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { rootMargin: "120px 0px", threshold: 0.05 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [compact]);
+
   return (
-    <div className={compact ? "relative" : styles.routingFrame} aria-label="Example value routing workflow">
+    <div
+      ref={rootRef}
+      className={clsx(compact ? "relative" : styles.routingFrame, !compact && !isVisible && styles.motionPaused)}
+      aria-label="Example value routing workflow"
+    >
+      <p className="sr-only">
+        A verified source event enters the RESOLVE Evidence Core, where proof, identity, policy,
+        and allocation are resolved into a Funding Blueprint before an approved Arc USDC receipt.
+      </p>
       {!compact && (
         <div className="relative z-10 flex h-11 items-center justify-between border-b border-white/[0.07] px-4">
           <div className="flex items-center gap-2">
@@ -38,9 +64,9 @@ export function ValueRoutingEngine({ compact = false }: { compact?: boolean }) {
         </div>
       )}
 
-      <div className={compact ? "relative min-h-[220px]" : "relative z-10 grid min-h-[438px] grid-cols-[1fr_1.05fr_1fr] items-center gap-3 p-5"}>
+      <div className={compact ? "relative min-h-[220px]" : clsx(styles.routingContent, "relative z-10 grid min-h-[438px] grid-cols-[1fr_1.05fr_1fr] items-center gap-3 p-5")}>
         {!compact && (
-          <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 720 438" preserveAspectRatio="none" aria-hidden>
+          <svg className={clsx(styles.routingPaths, "pointer-events-none absolute inset-0 h-full w-full")} viewBox="0 0 720 438" preserveAspectRatio="none" aria-hidden>
             <defs>
               <linearGradient id="home-route" x1="0" x2="1">
                 <stop offset="0" stopColor="#35c8ff" stopOpacity=".28" />
@@ -48,19 +74,19 @@ export function ValueRoutingEngine({ compact = false }: { compact?: boolean }) {
                 <stop offset="1" stopColor="#42d7ac" stopOpacity=".55" />
               </linearGradient>
             </defs>
-            {[105, 180, 255, 330].map((y) => (
-              <path key={y} d={`M 146 ${y} C 242 ${y}, 240 219, 348 219`} fill="none" stroke="url(#home-route)" strokeWidth="1.2" className={styles.routePath} />
+            {[105, 180, 255, 330].map((y, index) => (
+              <path key={y} d={`M 146 ${y} C 242 ${y}, 240 219, 348 219`} fill="none" stroke="url(#home-route)" strokeWidth="1.2" className={styles.routePath} style={{ animationDelay: `${index * 0.9}s` }} />
             ))}
-            <path d="M 405 219 C 485 219, 480 155, 548 155" fill="none" stroke="url(#home-route)" strokeWidth="1.4" className={styles.routePath} />
-            <path d="M 405 219 C 500 219, 487 294, 552 294" fill="none" stroke="url(#home-route)" strokeWidth="1.4" className={styles.routePath} />
+            <path d="M 405 219 C 485 219, 480 155, 548 155" fill="none" stroke="url(#home-route)" strokeWidth="1.4" className={styles.routePath} style={{ animationDelay: "3.4s" }} />
+            <path d="M 405 219 C 500 219, 487 294, 552 294" fill="none" stroke="url(#home-route)" strokeWidth="1.4" className={styles.routePath} style={{ animationDelay: "5s" }} />
           </svg>
         )}
 
         {!compact && (
-          <div className="relative z-10 space-y-2.5">
+          <div className={clsx(styles.routingSources, "relative z-10 space-y-2.5")}>
             <p className="mb-3 text-[9px] font-semibold uppercase tracking-[0.17em] text-resolve-muted-dim">Source activity</p>
-            {EVENTS.map(({ icon: Icon, label, meta, tone }) => (
-              <div key={label} className="flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-[#071426]/90 p-2.5 shadow-[0_9px_24px_rgba(0,0,0,.18)]">
+            {EVENTS.map(({ icon: Icon, label, meta, tone }, index) => (
+              <div key={label} className={clsx(styles.sourceEvent, "flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-[#071426]/90 p-2.5 shadow-[0_9px_24px_rgba(0,0,0,.18)]")} style={{ animationDelay: `${index * 0.9}s` }}>
                 <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/[0.08] bg-black/20 ${tone}`}>
                   <Icon className="h-3.5 w-3.5" strokeWidth={1.7} />
                 </span>
@@ -75,7 +101,7 @@ export function ValueRoutingEngine({ compact = false }: { compact?: boolean }) {
         )}
 
         <div className={compact ? "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" : "relative z-10 flex flex-col items-center"}>
-          <div className={styles.evidenceCore}>
+          <div className={clsx(styles.evidenceCore, compact && styles.staticCore)}>
             <Image src={BRAND_LOGO_PATH} alt="RESOLVE" width={84} height={84} className="h-[84px] w-[84px] object-contain" priority={!compact} />
             <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-[#071426] px-2 py-1 text-[7px] uppercase tracking-wider text-blue-200">Proof</span>
             <span className="absolute -right-10 top-3 rounded-full border border-white/10 bg-[#071426] px-2 py-1 text-[7px] uppercase tracking-wider text-violet-200">Identity</span>
@@ -83,11 +109,12 @@ export function ValueRoutingEngine({ compact = false }: { compact?: boolean }) {
             <span className="absolute -left-12 top-3 rounded-full border border-white/10 bg-[#071426] px-2 py-1 text-[7px] uppercase tracking-wider text-violet-200">Allocation</span>
           </div>
           {!compact && <p className="mt-12 text-center text-[9px] font-semibold uppercase tracking-[0.16em] text-white/70">RESOLVE Evidence Core</p>}
+          {!compact && <div className={styles.mobileRouteSummary} aria-hidden><span>Source</span><span>Evidence</span><span>Blueprint</span><span>Arc</span></div>}
         </div>
 
         {!compact && (
-          <div className="relative z-10 space-y-3">
-            <div className="rounded-2xl border border-violet-400/20 bg-[#0b1730]/95 p-4 shadow-[0_16px_35px_rgba(0,0,0,.25)]">
+          <div className={clsx(styles.routingOutputs, "relative z-10 space-y-3")}>
+            <div className={clsx(styles.blueprintPulse, "rounded-2xl border border-violet-400/20 bg-[#0b1730]/95 p-4 shadow-[0_16px_35px_rgba(0,0,0,.25)]")}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-violet-200">Funding Blueprint</span>
                 <Users className="h-3.5 w-3.5 text-violet-300" />
@@ -102,7 +129,7 @@ export function ValueRoutingEngine({ compact = false }: { compact?: boolean }) {
               <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.05]"><div className="h-full w-4/5 rounded-full bg-gradient-to-r from-blue-400 to-violet-400" /></div>
             </div>
 
-            <div className="rounded-2xl border border-emerald-400/20 bg-[#081b21]/95 p-4 shadow-[0_16px_35px_rgba(0,0,0,.25)]">
+            <div className={clsx(styles.receiptPulse, "relative rounded-2xl border border-emerald-400/20 bg-[#081b21]/95 p-4 shadow-[0_16px_35px_rgba(0,0,0,.25)]")}>
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-200">Arc settlement</span>
                 <CircleDollarSign className="h-4 w-4 text-emerald-300" />

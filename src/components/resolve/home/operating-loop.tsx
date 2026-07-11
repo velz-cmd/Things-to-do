@@ -62,7 +62,10 @@ export function OperatingLoop() {
 
         <div className="relative mt-8">
           <div className="absolute left-[7%] right-[7%] top-5 h-px bg-white/[0.07]" />
-          <div className={clsx(styles.workflowBeam, "absolute left-[7%] top-5 h-px bg-gradient-to-r from-cyan-400 via-violet-400 to-emerald-400 shadow-[0_0_14px_rgba(85,104,255,.7)]")} style={{ width: `${(active / (STAGES.length - 1)) * 86}%` }} />
+          <div
+            className={clsx(styles.workflowBeam, "absolute left-[7%] top-5 h-px bg-gradient-to-r from-cyan-400 via-violet-400 to-emerald-400 shadow-[0_0_14px_rgba(85,104,255,.7)]")}
+            style={{ transform: `scaleX(${active / (STAGES.length - 1)})` }}
+          />
           <div className="relative grid grid-cols-5 gap-1">
             {STAGES.map((stage, index) => {
               const Icon = stage.icon;
@@ -85,7 +88,7 @@ export function OperatingLoop() {
           <div className="rounded-2xl border border-violet-400/18 bg-violet-400/[0.05] p-4">
             <div className="flex items-center justify-between"><p className="text-[9px] uppercase tracking-[0.16em] text-violet-200">Funding Blueprint</p><span className="font-mono text-[8px] text-resolve-muted-dim">EXAMPLE</span></div>
             <div className="mt-4 space-y-3">
-              {["Payee plan", "Allocation policy", "Funding requirement", "Settlement path"].map((line, index) => <div key={line} className="flex items-center justify-between gap-3"><span className="text-[10px] text-resolve-muted">{line}</span><span className={clsx("h-1.5 w-20 overflow-hidden rounded-full bg-white/[0.06]")}><span className={clsx("block h-full rounded-full transition-all duration-500", active >= Math.min(index + 2, 4) ? "w-full bg-gradient-to-r from-blue-400 to-violet-400" : "w-0")} /></span></div>)}
+              {["Payee plan", "Allocation policy", "Funding requirement", "Settlement path"].map((line, index) => <div key={line} className="flex items-center justify-between gap-3"><span className="text-[10px] text-resolve-muted">{line}</span><span className="h-1.5 w-20 overflow-hidden rounded-full bg-white/[0.06]"><span className="block h-full w-full origin-left rounded-full bg-gradient-to-r from-blue-400 to-violet-400 transition-transform duration-500" style={{ transform: `scaleX(${active >= Math.min(index + 2, 4) ? 1 : 0})` }} /></span></div>)}
             </div>
             <div className={clsx("mt-5 rounded-xl border p-3 transition", active >= 4 ? "border-emerald-400/25 bg-emerald-400/[0.07]" : "border-white/[0.07] bg-black/10")}><div className="flex items-center justify-between"><span className="text-[9px] text-resolve-muted">Arc receipt</span><span className={clsx("text-[8px] font-medium", active >= 4 ? "text-emerald-300" : "text-resolve-muted-dim")}>{active >= 4 ? "Ready after approval" : "Pending authorization"}</span></div></div>
           </div>

@@ -471,7 +471,10 @@ export function DiscoverValueBubblemap({
               return (
                 <g
                   key={b.id}
-                  className="discover-bubble-node cursor-pointer"
+                  className={clsx(
+                    "discover-bubble-node cursor-pointer",
+                    active && "discover-bubble-node--active",
+                  )}
                   style={{ animationDelay: `${(bubbleIndex % 8) * 0.35}s` }}
                   onMouseEnter={() => setHovered(b.id)}
                   onMouseLeave={() => setHovered(null)}

@@ -43,7 +43,7 @@ export function EvidenceNetworkVisual({ className = "" }: { className?: string }
           <path key={signal.label} d={`M55 ${signal.y} C120 ${signal.y}, 120 120, 188 120`} stroke="url(#evidence-path)" strokeWidth="1.2" strokeDasharray="3 5" />
         ))}
         <path d="M222 120H268" stroke="url(#evidence-path)" strokeWidth="1.5" />
-        <path d="M318 120H362" stroke="url(#evidence-path)" strokeWidth="1.5" />
+        <path className="evidence-network__settlement-path" d="M318 120H362" stroke="url(#evidence-path)" strokeWidth="1.5" strokeDasharray="8 5" />
         <circle className="evidence-network__orbit" cx="205" cy="120" r="56" stroke="#65a8ff" strokeOpacity=".18" strokeDasharray="8 12" />
         <circle className="evidence-network__orbit evidence-network__orbit--inner" cx="205" cy="120" r="38" stroke="#875cff" strokeOpacity=".32" strokeDasharray="4 7" />
         <circle cx="205" cy="120" r="29" fill="rgba(6,13,25,.86)" stroke="#65a8ff" strokeOpacity=".65" filter="url(#evidence-core-glow)" />

@@ -368,6 +368,43 @@ code, kbd, pre, .font-mono { font-family: var(--font-geist-mono), ui-monospace, 
   .discover-bubblemap-stage { min-height:260px; }
 }
 
+/* Discover Phase 2: brand accents, restrained motion, and accessibility. */
+.discover-operating-hero { background:radial-gradient(circle at 76% 38%,rgba(104,74,255,.10),transparent 34%),radial-gradient(circle at 58% 100%,rgba(34,143,255,.07),transparent 38%),linear-gradient(135deg,rgba(14,27,50,.98),rgba(6,14,28,.98))!important; border-color:rgba(108,92,255,.25)!important; box-shadow:0 24px 70px rgba(0,0,0,.32),0 0 38px rgba(68,81,255,.055),inset 0 1px rgba(255,255,255,.03)!important; }
+.evidence-network__core { background:radial-gradient(circle,rgba(123,87,255,.20),rgba(18,31,61,.93) 48%,rgba(5,12,24,.98) 76%)!important; box-shadow:0 0 24px rgba(78,105,255,.20),inset 0 0 18px rgba(92,112,255,.12); animation:evidence-core-ambient 6s ease-in-out infinite; }
+@keyframes evidence-core-ambient { 0%,100%{scale:1;opacity:.98} 50%{scale:1.012;opacity:1} }
+.evidence-network__logo { filter:none!important; image-rendering:auto; }
+.evidence-network__signal--cyan { border-color:rgba(54,213,255,.18)!important; }
+.evidence-network__signal--mint { border-color:rgba(131,95,255,.22)!important; }
+.evidence-network__signal--violet { border-color:rgba(177,151,255,.20)!important; }
+.evidence-network__signal--blue { border-color:rgba(65,104,230,.22)!important; }
+.evidence-network__stage--policy { border-color:rgba(131,95,255,.25)!important; }
+.evidence-network__stage--settle { border-color:rgba(61,217,170,.28)!important; }
+.evidence-network__settlement-path { animation:evidence-settlement-ready 4.8s ease-in-out infinite; }
+@keyframes evidence-settlement-ready { 0%,100%{stroke-opacity:.32;stroke-dashoffset:0} 50%{stroke-opacity:.85;stroke-dashoffset:-13} }
+.discover-job-tile__icon { background:rgba(5,12,24,.82)!important; transition:color 160ms ease,border-color 160ms ease,filter 160ms ease!important; }
+.discover-job-tile--earn .discover-job-tile__icon { color:#a260ff!important; border-color:rgba(162,96,255,.24)!important; }
+.discover-job-tile--fund .discover-job-tile__icon { color:#379cff!important; border-color:rgba(55,156,255,.24)!important; }
+.discover-job-tile--run .discover-job-tile__icon { color:#3dd9aa!important; border-color:rgba(61,217,170,.24)!important; }
+.discover-job-tile--automate .discover-job-tile__icon { color:#36d5ff!important; border-color:rgba(54,213,255,.24)!important; }
+.discover-job-tile--grants .discover-job-tile__icon { color:#835fff!important; border-color:rgba(131,95,255,.24)!important; }
+.discover-job-tile--find .discover-job-tile__icon { color:#e6b957!important; border-color:rgba(230,185,87,.24)!important; }
+.discover-job-tile:hover .discover-job-tile__icon,.discover-job-tile:focus-visible .discover-job-tile__icon { filter:brightness(1.18); }
+.discover-job-tile { transition:transform 160ms ease,border-color 160ms ease,background 160ms ease!important; }
+.discover-job-tile>svg { transition:transform 160ms ease,color 160ms ease!important; }
+.discover-job-tile:hover>svg,.discover-job-tile:focus-visible>svg { transform:translateX(2px); }
+.discover-workspace-tab { transition:background 180ms ease,border-color 180ms ease,color 180ms ease,box-shadow 180ms ease!important; }
+.discover-live-operational .text-emerald-400 { animation:discover-live-opacity 2.8s ease-in-out infinite; }
+@keyframes discover-live-opacity { 0%,100%{opacity:.55} 50%{opacity:1} }
+.discover-on-canvas :where(button,a,[role="tab"]):focus-visible { outline:2px solid rgba(101,139,255,.72)!important; outline-offset:2px; }
+.discover-on-canvas :where(button,[role="tab"]):not(.discover-chip-pill):not(.discover-status-badge) { min-height:40px; }
+.discover-premium-section .animate-pulse { border-radius:8px; background:linear-gradient(100deg,rgba(255,255,255,.035),rgba(101,139,255,.08),rgba(255,255,255,.035)); background-size:220% 100%; }
+.discover-bubble-node--active>circle:last-of-type { animation:discover-selected-node 1.8s ease-in-out infinite!important; }
+@keyframes discover-selected-node { 0%,100%{stroke-opacity:.62} 50%{stroke-opacity:1} }
+
+@media (max-width:767px),(prefers-reduced-motion:reduce) {
+  .evidence-network__core,.evidence-network__settlement-path,.discover-live-operational .text-emerald-400,.discover-bubble-node--active>circle:last-of-type { animation:none!important; }
+}
+
 /* --------------------------------------------------------------------------
    Mission complete visual system
    -------------------------------------------------------------------------- */

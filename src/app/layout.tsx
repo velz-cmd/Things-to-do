@@ -38,10 +38,8 @@ export default async function RootLayout({
   );
 
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
-      >
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="font-sans antialiased">
         <Providers initialState={initialState}>{children}</Providers>
       </body>
     </html>

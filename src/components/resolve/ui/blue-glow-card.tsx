@@ -28,9 +28,9 @@ export function BlueGlowCard({
   return (
     <div
       className={clsx(
-        "relative overflow-hidden rounded-resolve-lg",
+        "relative overflow-hidden rounded-[var(--radius-card)]",
         variants[variant],
-        hover && "resolve-card-hover",
+        hover && "resolve-card-hover resolve-interactive-card",
         padding && "p-5",
         className,
       )}

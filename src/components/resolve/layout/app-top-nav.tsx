@@ -45,7 +45,7 @@ export function ProductNav({ compact = false }: { compact?: boolean }) {
   return (
     <nav
       className={clsx(
-        "flex items-center gap-0.5 rounded-2xl resolve-glass-subtle p-1 shadow-resolve",
+        "resolve-segmented flex max-w-[58vw] items-center gap-0.5 overflow-x-auto rounded-xl p-1",
         compact && "hidden sm:flex",
       )}
     >
@@ -62,10 +62,10 @@ export function ProductNav({ compact = false }: { compact?: boolean }) {
             onMouseEnter={() => onNavPrefetch(item.href)}
             onFocus={() => onNavPrefetch(item.href)}
             className={clsx(
-              "relative flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition-all duration-300",
+              "relative flex min-h-9 shrink-0 items-center gap-2 rounded-[9px] px-3 py-2 text-[12px] font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resolve-accent",
               active
-                ? "bg-resolve-accent-muted text-white ring-1 ring-resolve-brand-periwinkle/35"
-                : "text-resolve-muted hover:bg-resolve-accent-muted/60 hover:text-white",
+                ? "bg-[#142640] text-white ring-1 ring-resolve-accent/35 shadow-[0_5px_16px_rgba(0,0,0,.22)]"
+                : "text-resolve-muted hover:bg-white/[0.045] hover:text-white",
             )}
           >
             <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
@@ -79,8 +79,8 @@ export function ProductNav({ compact = false }: { compact?: boolean }) {
 
 export function AppTopNav() {
   return (
-    <header className="sticky top-0 z-40 border-b border-resolve-border resolve-glass-subtle">
-      <div className="mx-auto flex h-[3.75rem] max-w-[1400px] items-center justify-between gap-4 px-4 lg:px-8">
+    <header className="resolve-topnav sticky top-0 z-40 border-b border-resolve-border">
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4 lg:gap-6">
           <ResolveLogo />
           <ProductNav />

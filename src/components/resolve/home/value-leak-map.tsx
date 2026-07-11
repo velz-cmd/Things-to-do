@@ -38,7 +38,7 @@ export function ValueLeakMap() {
   const active = LEAKS.find((item) => item.id === activeId) ?? LEAKS[0];
 
   return (
-    <div className="mt-12 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+    <div className="mt-12 grid gap-5 md:grid-cols-[0.9fr_1.1fr]">
       <div className="space-y-2" role="tablist" aria-label="Value leak industries">
         {LEAKS.map((item) => {
           const Icon = item.icon;
@@ -64,10 +64,10 @@ export function ValueLeakMap() {
                   <span className="block text-sm font-semibold text-white">{item.label}</span>
                   <span className="mt-0.5 block truncate text-[11px] text-resolve-muted">{item.observed}</span>
                 </span>
-                <ChevronDown className={clsx("h-4 w-4 text-resolve-muted transition lg:-rotate-90", selected && "rotate-180 text-blue-300 lg:rotate-0")} />
+                <ChevronDown className={clsx("h-4 w-4 text-resolve-muted transition md:-rotate-90", selected && "rotate-180 text-blue-300 md:rotate-0")} />
               </div>
               {selected && (
-                <div className="mt-4 grid gap-3 border-t border-white/[0.07] pt-4 lg:hidden">
+                <div className="mt-4 grid gap-3 border-t border-white/[0.07] pt-4 md:hidden">
                   <MobileDetail label="Current leak" value={item.leak} />
                   <MobileDetail label="RESOLVE mechanism" value={item.mechanism} />
                   <MobileDetail label="Potential outcome" value={item.outcome} />
@@ -78,7 +78,7 @@ export function ValueLeakMap() {
         })}
       </div>
 
-      <div className={clsx(styles.leakVisual, "hidden p-6 lg:block")} role="tabpanel">
+      <div className={clsx(styles.leakVisual, "hidden p-6 md:block")} role="tabpanel">
         <div className="flex items-start justify-between gap-5 border-b border-white/[0.07] pb-5">
           <div>
             <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-blue-300">Active route · {active.label}</p>
@@ -89,7 +89,7 @@ export function ValueLeakMap() {
 
         <div className="mt-8 grid grid-cols-2 gap-3">
           <Detail label="Observed work" value={active.observed} tone="blue" />
-          <Detail label="Current leak" value={active.leak} tone="rose" />
+          <Detail label="Current leak" value={active.leak} tone="amber" />
         </div>
 
         <div className={clsx(styles.leakRoute, "mt-10")}>
@@ -109,8 +109,8 @@ export function ValueLeakMap() {
   );
 }
 
-function Detail({ label, value, tone }: { label: string; value: string; tone: "blue" | "rose" }) {
-  return <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className={clsx("text-[9px] font-semibold uppercase tracking-[0.14em]", tone === "rose" ? "text-rose-300/80" : "text-blue-300")}>{label}</p><p className="mt-2 text-xs leading-relaxed text-resolve-muted">{value}</p></div>;
+function Detail({ label, value, tone }: { label: string; value: string; tone: "blue" | "amber" }) {
+  return <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className={clsx("text-[10px] font-semibold uppercase tracking-[0.12em]", tone === "amber" ? "text-amber-300/85" : "text-blue-300")}>{label}</p><p className="mt-2 text-xs leading-relaxed text-resolve-muted">{value}</p></div>;
 }
 
 function MobileDetail({ label, value }: { label: string; value: string }) {

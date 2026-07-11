@@ -450,6 +450,30 @@ code, kbd, pre, .font-mono { font-family: var(--font-geist-mono), ui-monospace, 
   [data-testid="mission-artifact-stage"] { animation:none; }
 }
 
+/* Reference-informed compact layout: copy and actions left, command + core right. */
+.discover-operating-hero { overflow:visible!important; }
+.discover-hero-visual-column { position:relative; z-index:5; }
+.discover-hero-visual-column .discover-search-card { position:relative; z-index:20; }
+.discover-hero-visual-column .evidence-network { margin-inline:-8px; min-height:300px!important; }
+.discover-hero-visual-column .evidence-network__grid { mask-image:radial-gradient(ellipse at 50% 50%,black,transparent 78%); }
+.discover-operating-hero .discover-job-tile { min-height:84px; max-height:92px; padding:12px!important; }
+.discover-operating-hero .discover-job-tile__icon { width:34px!important; height:34px!important; }
+.discover-operating-hero .discover-job-tile .text-sm { font-size:14px!important; }
+.discover-operating-hero .discover-job-tile .text-\[11px\] { font-size:11px!important; }
+
+@media (min-width:1280px) {
+  .discover-operating-hero { max-height:500px; }
+}
+@media (min-width:900px) and (max-width:1199px) {
+  .discover-operating-hero .relative.grid.items-start { grid-template-columns:minmax(0,1.08fr) minmax(400px,.92fr); }
+  .discover-hero-visual-column .evidence-network { min-height:280px!important; }
+}
+@media (max-width:899px) {
+  .discover-hero-visual-column { display:flex; flex-direction:column; }
+  .discover-hero-visual-column .discover-search-card { order:-2; }
+  .discover-hero-visual-column .evidence-network { min-height:225px!important; margin-inline:0; }
+}
+
 /* Focused Discover Command Hero */
 .discover-operating-hero { min-height:0; max-height:520px; border-radius:22px!important; border:1px solid rgba(107,91,255,.28)!important; background:radial-gradient(circle at 82% 38%,rgba(105,75,255,.16),transparent 32%),radial-gradient(circle at 65% 90%,rgba(31,142,255,.09),transparent 36%),linear-gradient(135deg,rgba(15,29,54,.98),rgba(6,14,29,.98))!important; box-shadow:0 24px 80px rgba(0,0,0,.34),0 0 45px rgba(69,82,255,.07),inset 0 1px rgba(255,255,255,.035)!important; }
 .discover-operating-hero__flare { display:none!important; }

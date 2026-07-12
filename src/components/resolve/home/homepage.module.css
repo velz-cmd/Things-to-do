@@ -744,7 +744,10 @@ a:hover .microArrow, button:hover .microArrow { transform: translateX(3px); }
 
   .workflowStage:last-child { min-height: 110vh; }
   .workflowMobileVisual { display: none; }
-  .workflowVisualColumn { display: block; }
+  .workflowVisualColumn {
+    display: block;
+    align-self: stretch;
+  }
 
   .workflowSticky {
     position: sticky;

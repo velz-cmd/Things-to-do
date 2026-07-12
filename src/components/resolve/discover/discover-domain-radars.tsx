@@ -168,7 +168,7 @@ export function DiscoverDomainRadars({
           {feedLoading ? (
             <p className="text-xs text-resolve-muted">Loading verified radar…</p>
           ) : displayRows.length > 0 ? (
-            <ul>
+            <ul className={styles.signalList}>
               {displayRows.map((gap, i) => (
                 <DiscoverFeatureRow
                   key={gap.id}

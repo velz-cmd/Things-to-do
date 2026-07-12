@@ -470,6 +470,8 @@
   opacity: 0.58;
 }
 
+.previewRecord::before { background: var(--discover-violet) !important; opacity: 0.68 !important; }
+
 .selectedRecord {
   border-color: rgba(103, 124, 255, 0.44) !important;
   background-color: rgba(102, 121, 255, 0.035);
@@ -478,8 +480,8 @@
 
 .opportunityMain {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(210px, 0.72fr) minmax(190px, 0.54fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(230px, 0.58fr) minmax(250px, 0.62fr);
+  gap: 16px;
   align-items: start;
 }
 
@@ -509,16 +511,17 @@
 }
 
 .recordActionBar {
-  display: grid !important;
-  grid-template-columns: 1fr;
-  gap: 7px !important;
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px !important;
   margin-top: 8px !important;
 }
 
-.recordActionBar > div { width: 100%; }
+.recordActionBar > div { width: auto; max-width: 100%; }
 .recordActionBar button,
-.recordActionBar a { width: 100%; min-height: 40px !important; justify-content: center; }
-.recordActionBar > button { width: auto; justify-self: start; }
+.recordActionBar a { width: auto; min-height: 40px !important; justify-content: center; gap: 7px; }
+.recordActionBar > button { width: auto; }
 
 .metricStrip {
   display: grid;
@@ -536,27 +539,11 @@
 
 .metric:first-child { border-left: 0; padding-left: 0; }
 .metricLabel { color: var(--discover-text-muted); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
-.metricValue { margin-top: 3px; color: var(--discover-text); font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.metricValueAmber { color: var(--discover-amber); }
-.metricValueBlue { color: #85c0ff; }
-
-.economicsMetricStrip {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px 0;
-  margin-top: 7px;
-  border-block: 0;
-  padding-block: 0;
-}
-
-.economicsMetricStrip .metric { padding-inline: 9px; }
-.economicsMetricStrip .metric:nth-child(odd) { border-left: 0; padding-left: 0; }
-.economicsMetricStrip .metricValue { font-size: 15px; }
-
-.recordFooter {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+.metricValue { margin-top: 3px; color: var(--discover-text×Íí¢G§²ÚîÆ­yÒid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
   gap: 18px;
-  margin-top: 12px;
+  margin-top: 14px;
+  border-top: 1px solid rgba(135, 161, 206, 0.12);
+  padding-top: 14px;
 }
 
 .progressBlock { min-width: 0; }
@@ -576,9 +563,11 @@
 
 .payeePanel { margin-top: 0; border: 0; border-radius: 0; background: transparent; }
 .payeeToggle { min-height: 36px; padding: 0; }
-.payeePreview { display: grid; gap: 5px; margin-top: 6px; border-top: 0; padding: 0; }
+.payeePreview { display: grid; margin-top: 6px; border-top: 0; padding: 0; }
 .payeePreviewRow,
-.payeeRow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; color: var(--discover-text-secondary); font-size: 10px; }
+.payeeRow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-bottom: 1px solid rgba(135, 161, 206, 0.1); padding-block: 6px; color: var(--discover-text-secondary); font-size: 10px; }
+.payeePreviewRow:last-child,
+.payeeRow:last-child { border-bottom: 0; }
 .payeeInitial { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 999px; background: rgba(128, 95, 255, 0.13); color: #cfc4ff; font-size: 7px; font-weight: 700; }
 .payeeAmount { color: var(--discover-amber); font-variant-numeric: tabular-nums; }
 .payeeExpanded { display: grid; max-height: 180px; gap: 6px; overflow-y: auto; margin-top: 8px; border-top: 1px solid rgba(135, 161, 206, 0.08); padding-top: 8px; }
@@ -586,42 +575,60 @@
 .signalRecord {
   position: relative;
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr) minmax(190px, auto);
-  gap: 16px;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(300px, 0.42fr);
+  gap: 14px;
   align-items: center;
-  border-bottom: 1px solid rgba(135, 161, 206, 0.09);
-  padding: 14px 2px;
+  overflow: visible;
+  border-bottom: 1px solid rgba(135, 161, 206, 0.14);
+  background: rgba(8, 18, 34, 0.36);
+  padding: 16px 14px 16px 18px;
 }
 
 .signalRecord:last-child { border-bottom: 0; }
-.signalTime { align-self: start; color: var(--discover-cyan); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-variant-numeric: tabular-nums; }
-.signalSource { display: block; margin-top: 4px; color: var(--discover-text-muted); font-family: inherit; font-size: 9px; text-transform: uppercase; }
+.signalRecord::before,
+.fundingRecord::before,
+.communityRecord::before {
+  content: "";
+  position: absolute;
+  inset-block: 12px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 999px 999px 0;
+}
+.signalRecord::before { background: var(--discover-cyan); opacity: 0.72; }
+.signalIdentity { display: flex; flex-direction: column; align-items: center; gap: 5px; align-self: start; }
+.rowNumber { color: var(--discover-text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; font-variant-numeric: tabular-nums; }
+.signalKicker { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; margin-bottom: 5px; color: var(--discover-text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; text-transform: uppercase; }
+.signalKicker span:first-child { color: var(--discover-cyan); }
 .signalMain { min-width: 0; }
 .signalTitle { color: var(--discover-text); font-size: 14px; font-weight: 650; line-height: 1.35; }
 .signalEvidence { margin-top: 4px; color: var(--discover-text-secondary); font-size: 11px; line-height: 1.5; }
 .signalMetrics { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; color: var(--discover-text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
-.signalActions { min-width: 0; }
-.signalActions .recordActionBar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.signalActions { display: flex; min-width: 0; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: 8px; }
+.signalActions .recordActionBar { margin-top: 0 !important; }
+.secondaryRecordAction { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--discover-border); border-radius: 9px; background: rgba(8, 18, 34, 0.8); padding-inline: 11px; color: var(--discover-text-secondary); font-size: 11px; font-weight: 600; transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease; }
+.secondaryRecordAction:hover { border-color: rgba(102, 121, 255, 0.35); background: rgba(17, 31, 55, 0.9); color: white; }
 .signalLiveDot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 999px; background: var(--discover-cyan); animation: live-pulse 2.8s ease-in-out infinite; }
 
+.signalList { display: grid; gap: 10px; }
+
 .fundingQueue {
-  overflow: hidden;
-  border: 1px solid rgba(135, 161, 206, 0.12);
-  border-radius: 13px;
-  background: rgba(5, 13, 25, 0.46);
+  overflow: visible;
 }
+
+.fundingQueue > ul { display: grid; gap: 10px; margin-top: 10px; }
 
 .fundingQueueHeader,
 .fundingRecord {
   display: grid;
-  grid-template-columns: minmax(260px, 1.35fr) repeat(3, minmax(110px, 0.55fr)) minmax(190px, 0.7fr);
-  gap: 14px;
+  grid-template-columns: minmax(260px, 1.3fr) minmax(86px, 0.42fr) minmax(86px, 0.42fr) minmax(110px, 0.5fr) minmax(120px, 0.56fr) minmax(260px, 0.92fr);
+  gap: 12px;
   align-items: center;
 }
 
 .fundingQueueHeader {
-  border-bottom: 1px solid rgba(135, 161, 206, 0.1);
-  padding: 9px 14px;
+  border-bottom: 1px solid rgba(135, 161, 206, 0.12);
+  padding: 9px 16px;
   color: var(--discover-text-muted);
   font-size: 9px;
   font-weight: 650;
@@ -630,13 +637,16 @@
 }
 
 .fundingRecord {
-  border-bottom: 1px solid rgba(135, 161, 206, 0.08);
-  padding: 13px 14px;
-  transition: background-color 160ms ease;
+  position: relative;
+  border: 1px solid rgba(135, 161, 206, 0.14);
+  border-radius: 12px;
+  background: rgba(8, 18, 34, 0.42);
+  padding: 16px 14px 16px 18px;
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
 
-.fundingRecord:last-child { border-bottom: 0; }
-.fundingRecord:hover { background: rgba(54, 156, 255, 0.035); }
+.fundingRecord::before { background: var(--discover-mint); opacity: 0.7; }
+.fundingRecord:hover { border-color: rgba(102, 121, 255, 0.26); background: rgba(54, 156, 255, 0.04); }
 .fundingIdentity { display: flex; min-width: 0; align-items: center; gap: 10px; }
 .fundingTitle { overflow: hidden; color: var(--discover-text); font-size: 13px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .fundingMeta { margin-top: 3px; color: var(--discover-text-muted); font-size: 9px; }
@@ -644,18 +654,29 @@
 .readiness { display: inline-flex; align-items: center; gap: 6px; color: var(--discover-text-secondary); font-size: 10px; }
 .readinessDot { width: 6px; height: 6px; border-radius: 999px; background: var(--discover-amber); }
 .readinessReady .readinessDot { background: var(--discover-mint); }
-.fundingActions { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 7px; align-items: center; }
-.fundingActions input { min-height: 40px; width: 70px; border: 1px solid var(--discover-border); border-radius: 9px; background: rgba(3, 9, 20, 0.72); padding-inline: 9px; color: var(--discover-text); font-size: 12px; }
+.fundingActions { display: flex; min-width: 0; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.fundingActions input { min-height: 40px; width: 64px; border: 1px solid var(--discover-border); border-radius: 9px; background: rgba(3, 9, 20, 0.72); padding-inline: 8px; color: var(--discover-text); font-size: 11px; }
 .fundingActions button,
-.fundingActions a { min-height: 40px; }
+.fundingActions a { min-height: 40px; width: auto; }
+.fundingActions > div { width: auto; }
 
+.communityList { display: grid; gap: 10px; margin-top: 12px; }
 .communityRecord {
-  border-bottom: 1px solid rgba(135, 161, 206, 0.08);
-  padding: 13px 2px;
+  position: relative;
+  border: 1px solid rgba(135, 161, 206, 0.14);
+  border-radius: 12px;
+  background: rgba(8, 18, 34, 0.38);
+  padding: 16px 14px 16px 18px;
 }
 
-.communityRecord:last-child { border-bottom: 0; }
-.communityMain { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 0.45fr); gap: 18px; align-items: center; }
+.communityRecord::before { background: var(--discover-mint); opacity: 0.7; }
+.communityMain { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.3fr); gap: 18px; align-items: center; }
+.communityIdentity { display: flex; min-width: 0; align-items: flex-start; gap: 12px; }
+.communityActions { min-width: 0; border-left: 1px solid rgba(135, 161, 206, 0.12); padding-left: 18px; }
+.communityActionRow { display: flex; min-width: 0; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.compactActionBar { margin-top: 0 !important; }
+.compactActionBar > div { max-width: 150px; }
+.compactActionBar button { padding-inline: 10px !important; font-size: 11px !important; }
 
 .graphSection { margin-top: 24px; }
 .graphStage { border-color: var(--discover-border-soft) !important; background-color: var(--discover-bg-deep) !important; background-image: linear-gradient(rgba(101, 168, 255, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(101, 168, 255, 0.025) 1px, transparent 1px) !important; background-size: 26px 26px !important; }
@@ -693,11 +714,8 @@
   .commandHeader { min-height: 0; }
   .opportunityMain { grid-template-columns: minmax(0, 1.25fr) minmax(210px, 0.75fr); }
   .actionsZone { grid-column: 1 / -1; border-top: 1px solid rgba(135, 161, 206, 0.09); border-left: 0; padding-top: 11px; padding-left: 0; }
-  .recordActionBar { grid-template-columns: repeat(3, minmax(0, max-content)); }
-  .recordActionBar button,
-  .recordActionBar a { width: auto; }
   .fundingQueueHeader,
-  .fundingRecord { grid-template-columns: minmax(220px, 1.2fr) repeat(3, minmax(90px, 0.5fr)) minmax(180px, 0.68fr); }
+  .fundingRecord { grid-template-columns: minmax(220px, 1.1fr) minmax(76px, 0.4fr) minmax(76px, 0.4fr) minmax(100px, 0.48fr) minmax(110px, 0.52fr) minmax(230px, 0.88fr); }
 }
 
 @media (max-width: 1023px) {
@@ -714,12 +732,15 @@
   .opportunityMain { grid-template-columns: minmax(0, 1fr) minmax(190px, 0.72fr); }
   .recordFooter { grid-template-columns: 1fr; }
   .contributorsPanel { border-top: 1px solid rgba(135, 161, 206, 0.09); border-left: 0; padding-top: 10px; padding-left: 0; }
-  .signalRecord { grid-template-columns: 70px minmax(0, 1fr); }
+  .signalRecord { grid-template-columns: 52px minmax(0, 1fr); }
   .signalActions { grid-column: 2; }
   .fundingQueueHeader { display: none; }
-  .fundingRecord { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fundingRecord { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .fundingIdentity { grid-column: 1 / -1; }
-  .fundingActions { grid-column: 1 / -1; }
+  .fundingActions { grid-column: 1 / -1; justify-content: flex-start; }
+  .communityMain { grid-template-columns: 1fr; }
+  .communityActions { border-top: 1px solid rgba(135, 161, 206, 0.12); border-left: 0; padding-top: 12px; padding-left: 0; }
+  .communityActionRow { justify-content: flex-start; }
 }
 
 @media (max-width: 767px) {
@@ -746,26 +767,31 @@
   .opportunityMain { grid-template-columns: 1fr; gap: 12px; }
   .economicsZone,
   .actionsZone { border-top: 1px solid rgba(135, 161, 206, 0.09); border-left: 0; padding-top: 11px; padding-left: 0; }
-  .recordActionBar { grid-template-columns: 1fr; }
   .recordActionBar button,
-  .recordActionBar a { width: 100%; min-height: 44px !important; }
+  .recordActionBar a { min-height: 44px !important; }
+  .recordActionBar > div { flex: 1 1 100%; }
+  .recordActionBar > div button { width: 100%; }
+  .recordActionBar :global(.record-action-secondary-control) { display: none; }
   .metricStrip { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 10px; }
   .metric:nth-child(3) { border-left: 0; padding-left: 0; }
   .metricValue { font-size: 17px; }
-  .signalRecord { grid-template-columns: 1fr; gap: 7px; padding-block: 13px; }
-  .signalTime { display: flex; align-items: center; gap: 6px; }
-  .signalSource { display: inline; margin-top: 0; }
-  .signalActions { grid-column: auto; }
-  .signalActions .recordActionBar { grid-template-columns: 1fr; }
+  .signalRecord { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 14px 12px 14px 16px; }
+  .signalActions { grid-column: 1 / -1; justify-content: flex-start; padding-left: 54px; }
+  .signalActions .recordActionBar { flex: 1 1 auto; }
+  .signalActions .secondaryRecordAction { min-height: 44px; border-color: transparent; background: transparent; padding-inline: 0; color: var(--discover-text-muted); }
   .fundingRecord { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 13px; }
   .fundingIdentity,
   .fundingActions { grid-column: 1 / -1; }
   .fundingTitle { overflow: visible; text-overflow: clip; white-space: normal; }
-  .fundingActions { grid-template-columns: 84px minmax(0, 1fr); }
+  .fundingActions { justify-content: flex-start; }
   .fundingActions input,
   .fundingActions button,
   .fundingActions a { min-height: 44px; }
-  .communityMain { grid-template-columns: 1fr; }
+  .fundingActions > div { flex: 1 1 100%; }
+  .fundingActions > div a { width: 100%; }
+  .communityActionRow > * { flex: 1 1 auto; }
+  .communityActionRow > div a,
+  .communityActionRow > div button { width: 100%; }
   .graphSection { margin-top: 18px; }
 }
 

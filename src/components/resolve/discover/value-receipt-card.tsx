@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { CheckCircle2, Clock3, FileCheck2, Loader2, Radio, Users } from "lucide-react";
+import { CheckCircle2, Clock3, FileCheck2, Loader2, Radio, Users, WalletCards } from "lucide-react";
 import type { DiscoverAction, DiscoverCardLane, DiscoverIntent, TrendingValueGap } from "@/lib/discover/types";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
@@ -27,6 +27,7 @@ import { resolveGapDisplayAmounts } from "@/lib/discover/gap-display-amounts";
 import { gapProofHref } from "@/lib/discover/gap-rules";
 import { buildPreviewCohortPayees } from "@/lib/discover/preview-cohort-payees";
 import { latestFundForCommunity } from "@/lib/capital/fund-action-store";
+import { DiscoverSolveButton } from "@/components/resolve/discover/discover-solve-button";
 import styles from "./discover-workspace.module.css";
 
 const DOMAIN_BADGE_CLASS: Record<string, string> = {
@@ -190,6 +191,8 @@ export function ValueReceiptCard({
   const summary = pool?.sourcedHook ?? gap.why;
   const evidenceLabel = domainEvidenceLabel(gap.domain);
   const confidence = gap.opportunityScorecard?.chips.find((chip) => chip.dimension === "confidence");
+  const isPreview = ["catalog_preview", "community_catalog", "local_seed"].includes(gap.dataSource);
+  const relativeSignal = formatRelativeSignal(gap.updatedAt);
   const [selected, setSelected] = useState(false);
 
   useEffect(() => {
@@ -214,12 +217,16 @@ export function ValueReceiptCard({
 
   if (lane === "radars") {
     return (
-      <article className={clsx(styles.signalRecord, selected && styles.selectedRecord, className)} onFocusCapture={announceSelection}>
-        <div className={styles.signalTime}>
-          <span><span className={styles.signalLiveDot} aria-hidden="true" />{formatRelativeSignal(gap.updatedAt)}</span>
-          <span className={styles.signalSource}>{gap.ecosystem ?? gap.domain}</span>
+      <article className={clsx(styles.signalRecord, isPreview && styles.previewRecord, selected && styles.selectedRecord, className)} onFocusCapture={announceSelection}>
+        <div className={styles.signalIdentity}>
+          <DiscoverCommunityLogo gap={gap} className="!h-11 !w-11 !rounded-xl" />
+          {rank != null && <span className={styles.rowNumber}>#{rank}</span>}
         </div>
         <div className={styles.signalMain}>
+          <div className={styles.signalKicker}>
+            <span><span className={styles.signalLiveDot} aria-hidden="true" />Source event</span>
+            <span>{relativeSignal === "Source event" ? gap.ecosystem ?? gap.domain : `${relativeSignal} · ${gap.ecosystem ?? gap.domain}`}</span>
+          </div>
           <div className={styles.badges}>
             <DiscoverSourceBadge source={gap.dataSource} estimate={!gap.amountVerified} />
             {gap.needType && (
@@ -238,14 +245,20 @@ export function ValueReceiptCard({
           </div>
         </div>
         <div className={styles.signalActions}>
+          {proofHref && (
+            <Link href={proofHref} className={styles.secondaryRecordAction}>
+              <FileCheck2 className="h-4 w-4" />
+              Inspect proof
+            </Link>
+          )}
           <DiscoverActionBar
             slots={card.actionSlots}
             advanced={[]}
             connections={connections}
             onAction={handleAction}
             className={styles.recordActionBar}
+            secondaryLimit={0}
           />
-          {proofHref && <Link href={proofHref} className="mt-2 inline-flex text-[10px] text-blue-300 hover:text-white">Inspect proof →</Link>}
         </div>
       </article>
     );
@@ -256,10 +269,11 @@ export function ValueReceiptCard({
     const remainingUsd = Math.max(0, requiredUsd - poolBalanceUsd);
     const evidenceReady = gap.amountVerified && gap.dataSource !== "community_catalog";
     return (
-      <article className={clsx(styles.fundingRecord, selected && styles.selectedRecord, className)} onFocusCapture={announceSelection}>
+      <article className={clsx(styles.fundingRecord, isPreview && styles.previewRecord, selected && styles.selectedRecord, className)} onFocusCapture={announceSelection}>
         <div className={styles.fundingIdentity}>
-          <DiscoverCommunityLogo gap={gap} />
+          <DiscoverCommunityLogo gap={gap} className="!h-11 !w-11 !rounded-xl" />
           <div className="min-w-0">
+            {rank != null && <span className={styles.rowNumber}>#{rank}</span>}
             <h3 className={styles.fundingTitle}>{card.title}</h3>
             <p className={styles.fundingMeta}>
               {source.program.communityName} · {evidenceLabel} · {source.program.status.replace(/_/g, " ")}
@@ -269,6 +283,12 @@ export function ValueReceiptCard({
         </div>
         <div className={styles.fundingCell}><Money amount={requiredUsd} size="sm" className="inline" /></div>
         <div className={styles.fundingCell}><Money amount={poolBalanceUsd} size="sm" className="inline text-blue-200" /></div>
+        <div className={styles.fundingCell}>
+          <span className="block text-white">{contributorCount} contributors</span>
+          <span className="mt-1 block text-[9px] text-resolve-muted-dim">
+            {confidence ? `${confidence.value}% confidence` : "Confidence pending"}
+          </span>
+        </div>
         <div className={styles.fundingCell}>
           <span className={clsx(styles.readiness, evidenceReady && styles.readinessReady)}>
             <span className={styles.readinessDot} aria-hidden="true" />
@@ -293,25 +313,34 @@ export function ValueReceiptCard({
                 onClick={() => onFund()}
                 className="discover-action-btn discover-action-btn--primary discover-action-btn--fund px-4 text-[12px] font-semibold"
               >
-                {fundingBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Fund"}
+                {fundingBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <WalletCards className="h-4 w-4" />}
+                Fund
               </button>
             </>
           ) : (
-            <Link href="/login?next=/discover%23opportunities" className="discover-action-btn discover-action-btn--primary col-span-2 px-4 text-[12px] font-semibold">
+            <Link href="/login?next=/discover%23opportunities" className="discover-action-btn discover-action-btn--primary px-3 text-[11px] font-semibold">
+              <WalletCards className="h-4 w-4" />
               Sign in to fund
             </Link>
           )}
+          {proofHref && (
+            <Link href={proofHref} className={styles.secondaryRecordAction}>
+              <FileCheck2 className="h-4 w-4" />
+              View proof
+            </Link>
+          )}
+          <DiscoverSolveButton gap={gap} compact mode="mission" />
         </div>
       </article>
     );
   }
 
   return (
-    <article className={clsx(styles.opportunityRecord, selected && styles.selectedRecord, className)} tabIndex={0} onFocusCapture={announceSelection}>
+    <article className={clsx(styles.opportunityRecord, isPreview && styles.previewRecord, selected && styles.selectedRecord, className)} tabIndex={0} onFocusCapture={announceSelection}>
       <div className={styles.opportunityMain}>
         <div className={styles.identityZone}>
           <div className={styles.identityHeader}>
-            <DiscoverCommunityLogo gap={gap} />
+            <DiscoverCommunityLogo gap={gap} className="!h-11 !w-11 !rounded-xl" />
             <div className="min-w-0 flex-1">
               <div className={styles.badges}>
                 {rank != null && <span className="font-mono text-[9px] tabular-nums text-resolve-muted-dim">#{rank}</span>}

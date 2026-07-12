@@ -287,7 +287,7 @@ export function MissionWorkspace({
       <article className="mission-answer-card">
         <div className="mission-answer-card__meta">
           <span>RESOLVE decision support</span>
-          <span className="mission-source-badge">Local analysis</span>
+          <span className="mission-source-badge">No linked evidence</span>
         </div>
         <p>{turn.text}</p>
         {turn.findings && turn.findings.length > 0 && (

@@ -16,7 +16,7 @@ export function CapitalCompilerVisual({ className = "" }: { className?: string }
       <CompilerNode className="left-[4%] top-[43%]" icon={<FileCheck2 />} label="Scope" meta="objective" />
       <CompilerNode className="left-[4%] top-[69%]" icon={<UsersRound />} label="Identity" meta="contributors" />
       <div className="capital-compiler__engine"><span className="capital-compiler__rings" /><ShieldCheck /><strong>Policy engine</strong><small>rules · confidence</small></div>
-      <div className="capital-compiler__table"><span>PAYEE TABLE</span><i /><i /><i /><small>3 verified rows</small></div>
+      <div className="capital-compiler__table"><span>PAYEE TABLE</span><i /><i /><i /><small>Preview schema</small></div>
       <div className="capital-compiler__allocation"><BadgeDollarSign /><strong>Allocation</strong><div><i style={{width:"64%"}} /><i style={{width:"46%"}} /><i style={{width:"30%"}} /></div></div>
       <div className="capital-compiler__arc"><span>ARC</span><strong>Authorize</strong><small>USDC settlement</small></div>
       <div className="capital-compiler__caption">Evidence → policy → payees → capital</div>

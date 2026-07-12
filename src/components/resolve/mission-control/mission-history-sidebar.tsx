@@ -101,6 +101,12 @@ export function MissionHistorySidebar({
     void loadAll();
   }, [libraryVersion, loadAll, user?.id]);
 
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1099px)").matches) {
+      setCollapsed(true);
+    }
+  }, []);
+
   async function handleDeleteSession(id: string, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();

@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import type { ReactNode } from "react";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
+import styles from "./discover-workspace.module.css";
 
 /** Discover section shell — Capital glass card with accent headline strip. */
 export function DiscoverPremiumSection({
@@ -32,6 +33,7 @@ export function DiscoverPremiumSection({
       as="section"
       className={clsx(
         "discover-premium-section scroll-mt-24",
+        styles.premiumSection,
         variant === "featured" && "discover-premium-section--featured",
         variant === "compact" && "discover-premium-section--compact",
         className,
@@ -41,6 +43,7 @@ export function DiscoverPremiumSection({
       <div
         className={clsx(
           "discover-premium-section__header relative flex flex-wrap items-center justify-between gap-3 border-b border-resolve-border/40 bg-gradient-to-r from-white/[0.04] via-resolve-accent/[0.06] to-white/[0.02]",
+          styles.premiumHeader,
           variant === "compact" ? "px-3.5 py-2.5 sm:px-4" : "px-4 py-3 sm:px-5",
         )}
       >
@@ -69,6 +72,7 @@ export function DiscoverPremiumSection({
       <div
         className={clsx(
           "relative",
+          styles.premiumBody,
           variant === "compact" ? "px-3.5 py-3 sm:px-4" : "px-4 py-4 sm:px-5",
         )}
       >

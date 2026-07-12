@@ -10,6 +10,8 @@ import { DiscoverLiveArcStrip } from "@/components/resolve/discover/discover-liv
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
+import { DiscoverNeedTypeFilters } from "@/components/resolve/discover/discover-need-type-filters";
+import styles from "./discover-workspace.module.css";
 
 const DiscoverValueBubblemap = dynamic(
   () =>
@@ -126,8 +128,8 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
   }
 
   return (
-    <div className="resolve-grid-bg min-h-screen pb-12">
-      <div className="relative mx-auto w-full max-w-6xl overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">
+    <div className={styles.page}>
+      <div className={styles.pageInner}>
         <DiscoverJobHero
           activeJob={activeJob}
           onSelectJob={handleJobSelect}
@@ -136,14 +138,19 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           onQueryChange={setQuery}
         />
 
-        <DiscoverLiveArcStrip className="discover-section-stack" />
+        <div className={styles.operationalRail} aria-label="Discover operational status">
+          <DiscoverLiveArcStrip />
+          {showPulse && <DiscoverNetworkPulse variant="strip" />}
+        </div>
 
-        {showPulse && <DiscoverNetworkPulse variant="strip" className="discover-section-stack" />}
+        <section id="discover-workspace" className={`${styles.workspaceSection} scroll-mt-24`}>
+          <div className={styles.workspaceSticky}>
+            <DiscoverWorkspaceNav lane={lane} onLaneChange={switchLane}>
+              <DiscoverNeedTypeFilters value={needType} onChange={setNeedType} />
+            </DiscoverWorkspaceNav>
+          </div>
 
-        <section id="discover-workspace" className="discover-section-stack scroll-mt-24 space-y-4">
-          <DiscoverWorkspaceNav lane={lane} onLaneChange={switchLane} />
-
-          <div key={lane} className="min-h-[200px]">
+          <div key={lane} className={styles.workspaceContent}>
             {lane === "gaps" && (
               <DiscoverTrendingGaps
                 signedIn={Boolean(user)}
@@ -179,7 +186,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           </div>
         </section>
 
-        <div id="value-bubblemap" className="discover-section-stack scroll-mt-24">
+        <div id="value-bubblemap" className={`${styles.graphSection} scroll-mt-24`}>
           <DiscoverValueBubblemap
             intent={intent}
             role={role}

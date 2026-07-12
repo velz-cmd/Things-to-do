@@ -56,12 +56,13 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
     return (
       <div
         className={clsx(
-          "flex items-center gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-[11px] text-resolve-muted-dim",
+          "flex min-h-[48px] items-center gap-2 rounded-xl border border-amber-500/15 bg-amber-500/[0.035] px-3 py-2 text-[11px] text-resolve-muted",
           className,
         )}
       >
-        <Activity className="h-3.5 w-3.5 shrink-0 opacity-60" />
-        <span>No pool activity on the ledger yet — fulfill a program to fund creators.</span>
+        <Activity className="h-3.5 w-3.5 shrink-0 text-amber-300/80" />
+        <span>Ledger waiting for its first pool fulfillment.</span>
+        <Link href="#opportunities" className="ml-auto shrink-0 text-[10px] font-medium text-blue-300 hover:text-white">Review programs →</Link>
       </div>
     );
   }
@@ -69,13 +70,13 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
   return (
     <div
       className={clsx(
-        "discover-live-operational flex h-[52px] items-center overflow-hidden rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04]",
+        "discover-live-operational flex h-[52px] items-center overflow-hidden rounded-xl border border-cyan-500/18 bg-cyan-500/[0.035]",
         className,
       )}
     >
       <div className="discover-live-rail__header flex items-center gap-2 px-3">
-        <Activity className="h-3.5 w-3.5 text-emerald-400" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90">
+        <Activity className="h-3.5 w-3.5 text-cyan-300" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-200/90">
           Live pools
         </span>
         <span className="text-[10px] text-resolve-muted-dim">· real USD + contributor counts</span>

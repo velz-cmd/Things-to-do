@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
+import clsx from "clsx";
 import type { DiscoverAction, DiscoverSearchResult } from "@/lib/discover/types";
 import { DiscoverActionChip } from "@/components/resolve/discover/discover-action-card";
 import { useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
@@ -19,6 +20,7 @@ type DiscoverGlobalSearchProps = {
   query: string;
   onQueryChange: (q: string) => void;
   onQueueFilter?: (filter: string | null) => void;
+  className?: string;
 };
 
 export function DiscoverGlobalSearch({
@@ -26,6 +28,7 @@ export function DiscoverGlobalSearch({
   query,
   onQueryChange,
   onQueueFilter,
+  className,
 }: DiscoverGlobalSearchProps) {
   const { runAction } = useDiscoverActions();
   const [results, setResults] = useState<DiscoverSearchResult[]>([]);
@@ -99,7 +102,7 @@ export function DiscoverGlobalSearch({
   }
 
   return (
-    <DiscoverCapitalCard className="discover-search-card" padding={false}>
+    <DiscoverCapitalCard className={clsx("discover-search-card", className)} padding={false}>
       <div className="relative p-3.5">
       <form onSubmit={(e) => void handleSubmit(e)} className="relative">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-resolve-accent" />
@@ -107,8 +110,11 @@ export function DiscoverGlobalSearch({
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           placeholder="owner/repo | @maintainer | artist | fund react | launch royalty pool | 0x..."
-          className="w-full rounded-xl border border-resolve-accent/25 bg-[#060a12]/80 py-3 pl-11 pr-4 text-sm text-white shadow-[0_0_32px_rgba(96,165,250,0.06)] placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
+          className="w-full rounded-xl border border-resolve-accent/25 bg-[#060a12]/80 py-3 pl-11 pr-16 text-sm text-white shadow-[0_0_32px_rgba(96,165,250,0.06)] placeholder:text-resolve-muted-dim focus:border-resolve-accent/50 focus:outline-none"
         />
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-white/10 bg-white/[0.035] px-2 py-1 font-mono text-[9px] text-resolve-muted-dim">
+          ⌘K
+        </span>
       </form>
 
       <p className="mt-2 text-[11px] text-resolve-muted-dim">

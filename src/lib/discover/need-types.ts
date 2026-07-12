@@ -59,7 +59,7 @@ const AGENT_SERVICE_BY_NEED: Partial<Record<DiscoverNeedType, string>> = {
 const NEED_BADGE_CLASS: Record<DiscoverNeedType, string> = {
   funding: "border-amber-500/30 bg-amber-500/10 text-amber-100",
   docs: "border-blue-500/30 bg-blue-500/10 text-blue-100",
-  reviewers: "border-rose-500/30 bg-rose-500/10 text-rose-100",
+  reviewers: "border-sky-500/30 bg-sky-500/10 text-sky-100",
   translators: "border-cyan-500/30 bg-cyan-500/10 text-cyan-100",
   moderators: "border-violet-500/30 bg-violet-500/10 text-violet-100",
   artists: "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",

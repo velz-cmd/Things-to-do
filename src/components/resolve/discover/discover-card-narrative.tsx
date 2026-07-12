@@ -6,6 +6,7 @@ import type { DiscoverCardNarrative } from "@/lib/discover/discover-card-narrati
 type Props = {
   narrative: DiscoverCardNarrative;
   className?: string;
+  compact?: boolean;
 };
 
 const AMOUNT_TONE_CLASS: Record<DiscoverCardNarrative["opportunityTone"], string> = {
@@ -29,13 +30,15 @@ function splitOpportunity(narrative: DiscoverCardNarrative): {
   return { amount: null, detail: opportunity };
 }
 
-export function DiscoverCardNarrativeBlock({ narrative, className }: Props) {
+export function DiscoverCardNarrativeBlock({ narrative, className, compact = false }: Props) {
   const { amount, detail } = splitOpportunity(narrative);
 
   return (
     <div
       className={clsx(
-        "mt-2 space-y-2 rounded-lg border border-white/8 bg-black/20 p-3",
+        compact
+          ? "mt-2 space-y-2 rounded-lg border border-white/[0.05] bg-white/[0.025] px-3 py-2.5"
+          : "mt-2 space-y-2 rounded-lg border border-white/8 bg-black/20 p-3",
         className,
       )}
       aria-label="Value opportunity story"
@@ -52,7 +55,7 @@ export function DiscoverCardNarrativeBlock({ narrative, className }: Props) {
         {narrative.problem}
       </p>
 
-      <div className="grid gap-2 border-t border-white/8 pt-2 sm:grid-cols-4">
+      <div className={clsx("grid gap-2 border-t border-white/8 pt-2 sm:grid-cols-4", compact && "grid-cols-2")}>
         <Metric
           label={narrative.valueLabel}
           value={amount ?? narrative.valueText}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Command } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import type { DiscoverAction } from "@/lib/discover/types";
 import type { DiscoverCardState } from "@/lib/discover/discover-card-state";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
@@ -14,7 +15,8 @@ export type QuickAction = {
   hint?: string;
   disabled?: boolean;
   disabledReason?: string;
-  onSelect: () => void;
+  onSelect?: () => void;
+  href?: string;
 };
 
 type DiscoverQuickActionsProps = {
@@ -38,6 +40,7 @@ export function DiscoverQuickActions({
   triggerClassName,
   label = "Quick actions",
 }: DiscoverQuickActionsProps) {
+  const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -79,7 +82,11 @@ export function DiscoverQuickActions({
     const item = items[index];
     if (!item || item.disabled) return;
     onOpenChange(false);
-    item.onSelect();
+    if (item.href) {
+      router.push(item.href);
+      return;
+    }
+    item.onSelect?.();
   }
 
   function onMenuKeyDown(e: React.KeyboardEvent) {
@@ -109,11 +116,11 @@ export function DiscoverQuickActions({
         aria-label={label}
         onClick={() => onOpenChange(!open)}
         className={clsx(
-          "inline-flex h-8 items-center justify-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 text-[11px] font-medium text-resolve-muted-dim transition hover:bg-white/[0.08] hover:text-white",
+          "inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-medium text-resolve-muted transition hover:bg-white/[0.08] hover:text-white",
           triggerClassName,
         )}
       >
-        <Command className="h-3.5 w-3.5" />
+        <MoreHorizontal className="h-4 w-4" />
         More
       </button>
 

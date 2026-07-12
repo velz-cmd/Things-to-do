@@ -314,11 +314,12 @@ export function DiscoverOpportunityQueue({
             <span>Program</span>
             <span>Required</span>
             <span>Funded</span>
+            <span>People / confidence</span>
             <span>Readiness</span>
             <span>Action</span>
           </div>
         <ul aria-label="Ready-to-fund programs">
-          {boardProgramRows.map((o) => {
+          {boardProgramRows.map((o, index) => {
             const program = o as FundableOpportunity & { needType?: import("@/lib/discover/need-types").DiscoverNeedType };
             return (
             <li key={program.programId}>
@@ -328,6 +329,7 @@ export function DiscoverOpportunityQueue({
                 role={role}
                 surface="opportunity-board"
                 lane="graph"
+                rank={index + 1}
                 fundAmountUsd={amountByProgram[program.programId] ?? "5"}
                 onFundAmountChange={(value) =>
                   setAmountByProgram((prev) => ({ ...prev, [program.programId]: value }))
@@ -347,13 +349,14 @@ export function DiscoverOpportunityQueue({
               <p className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
                 {boardProgramRows.length > 0 ? "Unpaid value to act on" : "Set up communities"}
               </p>
-              <ul className="mt-3 divide-y divide-white/[0.06]">
-                {boardCommunityRows.map((o) => (
+              <ul className={styles.communityList}>
+                {boardCommunityRows.map((o, index) => (
                   <DiscoverBoardCommunityRow
                     key={o.programId}
                     item={o}
                     signedIn={signedIn}
                     role={role}
+                    rank={index + 1}
                   />
                 ))}
               </ul>

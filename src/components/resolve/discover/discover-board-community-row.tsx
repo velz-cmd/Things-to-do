@@ -15,7 +15,10 @@ import { DiscoverProofPipeline } from "@/components/resolve/discover/discover-pr
 import { DiscoverCardNarrativeBlock } from "@/components/resolve/discover/discover-card-narrative";
 import { DiscoverActionBar } from "@/components/resolve/discover/discover-action-bar";
 import { DiscoverCommunityLogo } from "@/components/resolve/discover/discover-community-logo";
-import { DiscoverSolveButton } from "@/components/resolve/discover/discover-solve-button";
+import {
+  DiscoverSolveButton,
+  solveLinksForGap,
+} from "@/components/resolve/discover/discover-solve-button";
 import {
   DiscoverQuickActions,
   buildCardQuickActions,
@@ -27,6 +30,7 @@ type DiscoverBoardCommunityRowProps = {
   item: Extract<DiscoverBoardItem, { boardKind: "community" }>;
   signedIn: boolean;
   role?: DiscoverRole;
+  rank?: number;
 };
 
 /** Funding board community row — state-aware primary CTA + real action buttons. */
@@ -34,12 +38,13 @@ export function DiscoverBoardCommunityRow({
   item,
   signedIn,
   role = "all",
+  rank,
 }: DiscoverBoardCommunityRowProps) {
   const { runAction, wallet } = useDiscoverActions();
   const { registerVisibleAction } = useDiscoverActionAudit();
   const { state: connections } = useUserConnections();
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
+  const [desktopQuickOpen, setDesktopQuickOpen] = useState(false);
+  const [mobileQuickOpen, setMobileQuickOpen] = useState(false);
 
   const gap = useMemo(
     () => boardCommunityItemToGap(item, role, connections),
@@ -59,11 +64,8 @@ export function DiscoverBoardCommunityRow({
   );
 
   const allVisible = useMemo(
-    () => [
-      ...card.actionSlots.map((s) => s.action),
-      ...(showAdvanced ? card.advancedActions : []),
-    ],
-    [card, showAdvanced],
+    () => [...card.actionSlots.map((s) => s.action), ...card.advancedActions],
+    [card],
   );
 
   useEffect(() => {
@@ -80,31 +82,67 @@ export function DiscoverBoardCommunityRow({
     void runAction(action, "opportunity-board-explore");
   };
 
-  const quickItems = buildCardQuickActions({
+  const primarySlot = card.actionSlots.find((slot) => slot.variant === "primary");
+  const secondarySlot = card.actionSlots.find((slot) => slot.variant === "secondary");
+  const visibleSlot = primarySlot ?? secondarySlot;
+  const desktopVisibleActionIds = new Set(
+    [visibleSlot]
+      .filter(Boolean)
+      .map((slot) => `${slot!.action.id}-${slot!.action.kind}`),
+  );
+  const primaryActionId = visibleSlot ? `${visibleSlot.action.id}-${visibleSlot.action.kind}` : null;
+  const allQuickItems = buildCardQuickActions({
     card,
     connections,
     onAction: handleAction,
     solve: null,
   });
+  const desktopQuickItems = allQuickItems.filter((item) => !desktopVisibleActionIds.has(item.id));
+  const mobileQuickItems = allQuickItems.filter((item) => item.id !== primaryActionId);
   const hasAnalysisAction = allVisible.some((a) => a.kind === "analyze");
+  const solveLinks = solveLinksForGap(gap);
+  if (!hasAnalysisAction) {
+    desktopQuickItems.push({
+      id: "mission-intel",
+      label: solveLinks.intelLabel,
+      href: solveLinks.intelHref,
+    });
+    mobileQuickItems.push(
+      {
+        id: "mission-fund",
+        label: "Open in Mission",
+        href: solveLinks.fundHref,
+      },
+      {
+        id: "mission-intel",
+        label: solveLinks.intelLabel,
+        href: solveLinks.intelHref,
+      },
+    );
+  }
 
   return (
     <li
-      className={clsx(styles.communityRecord, "group relative focus:outline-none focus-visible:rounded-lg focus-visible:ring-1 focus-visible:ring-resolve-accent/40")}
+      className={clsx(styles.communityRecord, styles.previewRecord, "group relative focus:outline-none focus-visible:rounded-lg focus-visible:ring-1 focus-visible:ring-resolve-accent/40")}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return;
         if (e.key === "." || e.key === " ") {
           e.preventDefault();
-          setQuickOpen(true);
+          if (window.matchMedia("(max-width: 639px)").matches) {
+            setMobileQuickOpen(true);
+          } else {
+            setDesktopQuickOpen(true);
+          }
         }
       }}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <DiscoverCommunityLogo gap={gap} />
+      <div className={styles.communityMain}>
+        <div className={styles.communityIdentity}>
+          <DiscoverCommunityLogo gap={gap} className="!h-11 !w-11 !rounded-xl" />
           <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
+            {rank != null && <span className="font-mono text-[9px] tabular-nums text-resolve-muted-dim">#{rank}</span>}
             <p className="text-sm font-medium text-white">{card.title}</p>
             <span
               className={clsx(
@@ -125,30 +163,38 @@ export function DiscoverBoardCommunityRow({
               {installed ? "Proof connected" : "Connect proof source"}
             </span>
           </div>
-          <DiscoverCardNarrativeBlock narrative={card.narrative} />
+          <DiscoverCardNarrativeBlock narrative={card.narrative} compact />
           <DiscoverProofPipeline stages={card.pipeline} className="mt-2" />
           </div>
         </div>
-
-        <DiscoverQuickActions
-          items={quickItems}
-          open={quickOpen}
-          onOpenChange={setQuickOpen}
-          triggerClassName="opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100"
-        />
+        <div className={styles.communityActions}>
+          <p className={styles.zoneLabel}>Actions</p>
+          <div className={styles.communityActionRow}>
+            <DiscoverActionBar
+              slots={visibleSlot ? [visibleSlot] : []}
+              advanced={[]}
+              connections={connections}
+              onAction={handleAction}
+              primarySubtext={card.narrative.primarySubtext}
+              showOverflowMenu={false}
+              className={styles.compactActionBar}
+            />
+            {!hasAnalysisAction && <DiscoverSolveButton gap={gap} compact mode="mission" className="hidden sm:flex" />}
+            <DiscoverQuickActions
+              items={desktopQuickItems}
+              open={desktopQuickOpen}
+              onOpenChange={setDesktopQuickOpen}
+              triggerClassName="max-sm:hidden"
+            />
+            <DiscoverQuickActions
+              items={mobileQuickItems}
+              open={mobileQuickOpen}
+              onOpenChange={setMobileQuickOpen}
+              triggerClassName="sm:hidden"
+            />
+          </div>
+        </div>
       </div>
-
-      <DiscoverActionBar
-        slots={card.actionSlots}
-        advanced={card.advancedActions}
-        connections={connections}
-        showAdvanced={showAdvanced}
-        onToggleAdvanced={() => setShowAdvanced((v) => !v)}
-        onAction={handleAction}
-        primarySubtext={card.narrative.primarySubtext}
-        trailing={hasAnalysisAction ? null : <DiscoverSolveButton gap={gap} />}
-        className={styles.recordActionBar}
-      />
     </li>
   );
 }

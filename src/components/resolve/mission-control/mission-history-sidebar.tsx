@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
-import { MessageSquarePlus, PanelLeftClose, PanelLeft, Trash2 } from "lucide-react";
+import { Library, MessageSquarePlus, PanelLeftClose, PanelLeft, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   formatSessionTime,
@@ -39,6 +39,20 @@ function applySidebarFilters(sessions: MissionSession[]): MissionSession[] {
   return filterMeaningfulMissionSessions(filterOutTombstonedSessions(sessions));
 }
 
+function sessionStatus(status?: string) {
+  if (status === "completed") return { label: "Complete", tone: "complete" };
+  if (status === "awaiting_user") return { label: "Review", tone: "review" };
+  if (status === "executing" || status === "running") return { label: "Running", tone: "running" };
+  return { label: "Draft", tone: "draft" };
+}
+
+function sessionDateGroup(updatedAt: string) {
+  const ageDays = Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86_400_000);
+  if (ageDays <= 0) return "Today";
+  if (ageDays <= 7) return "Previous 7 days";
+  return "Older";
+}
+
 /** Mission chat history — only conversations you started (user message required). */
 export function MissionHistorySidebar({
   onNewMission,
@@ -59,6 +73,11 @@ export function MissionHistorySidebar({
   const [sessions, setSessions] = useState<MissionSession[]>([]);
   const [storageMode, setStorageMode] = useState<"local" | "server" | "loading">("loading");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const groupedSessions = sessions.reduce<Record<string, MissionSession[]>>((groups, item) => {
+    const group = sessionDateGroup(item.updatedAt);
+    (groups[group] ??= []).push(item);
+    return groups;
+  }, {});
 
   const loadAll = useCallback(async () => {
     const serverAvailable = user ? await isMissionServerAvailable() : false;
@@ -134,7 +153,10 @@ export function MissionHistorySidebar({
   return (
     <aside className="mission-history-sidebar" data-testid="mission-chat-sidebar">
       <div className="flex items-center justify-between gap-2 border-b border-violet-400/10 px-3 py-3">
-        <p className="text-sm font-medium text-violet-100/95">Your chats</p>
+        <p className="inline-flex items-center gap-2 text-sm font-medium text-violet-100/95">
+          <Library className="h-3.5 w-3.5 text-violet-300" aria-hidden />
+          Mission library
+        </p>
         <button
           type="button"
           onClick={() => setCollapsed(true)}
@@ -148,7 +170,7 @@ export function MissionHistorySidebar({
       <div className="px-3 py-2.5">
         <button type="button" onClick={onNewMission} className="mission-btn mission-btn--primary w-full">
           <MessageSquarePlus className="h-4 w-4 shrink-0" />
-          New chat
+          New mission
         </button>
       </div>
 
@@ -169,11 +191,16 @@ export function MissionHistorySidebar({
               : "Chats save in this browser after you send a message."}
           </p>
         ) : (
-          <ul className="space-y-1">
-            {sessions.map((s) => {
+          <div className="space-y-4">
+            {Object.entries(groupedSessions).map(([group, groupSessions]) => (
+              <section key={group}>
+                <p className="px-2 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-resolve-muted-dim">{group}</p>
+                <ul className="space-y-1">
+            {groupSessions.map((s) => {
               const active = activeSessionId === s.id;
               const title = sessionDisplayTitle(s);
               const isDeleting = deletingId === s.id;
+              const status = sessionStatus(s.status);
               return (
                 <li key={s.id} className="group relative">
                   <button
@@ -182,8 +209,9 @@ export function MissionHistorySidebar({
                     className={clsx("mission-history-item", active && "mission-history-item--active")}
                   >
                     <span className="block truncate text-[13px] font-medium leading-snug">{title}</span>
-                    <span className="mt-0.5 block truncate text-[11px] text-resolve-muted-dim">
-                      {sessionPreview(s)}
+                    <span className="mt-1 flex items-center gap-1.5 truncate text-[10px] text-resolve-muted-dim">
+                      <span className={`mission-session-status mission-session-status--${status.tone}`}>{status.label}</span>
+                      <span className="truncate">{sessionPreview(s)}</span>
                     </span>
                   </button>
                   <button
@@ -201,7 +229,10 @@ export function MissionHistorySidebar({
                 </li>
               );
             })}
-          </ul>
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
       </div>
 

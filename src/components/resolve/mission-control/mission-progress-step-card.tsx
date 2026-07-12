@@ -23,6 +23,7 @@ export function MissionProgressStepCard({
   steps?: readonly string[];
 }) {
   const [stepIndex, setStepIndex] = useState(0);
+  const [takingLonger, setTakingLonger] = useState(false);
 
   useEffect(() => {
     if (!active) {
@@ -38,6 +39,15 @@ export function MissionProgressStepCard({
     if (complete && active) setStepIndex(steps.length - 1);
   }, [complete, active, steps.length]);
 
+  useEffect(() => {
+    if (!active || complete) {
+      setTakingLonger(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setTakingLonger(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [active, complete]);
+
   if (!active) return null;
 
   const done = Boolean(complete);
@@ -49,7 +59,11 @@ export function MissionProgressStepCard({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-white">{title}</p>
           <p className="mt-0.5 text-xs text-resolve-muted">
-            {done ? "Almost ready…" : `Step ${Math.min(stepIndex + 1, steps.length)} of ${steps.length}`}
+            {done
+              ? "Almost ready…"
+              : takingLonger
+                ? "Still working — connected evidence can take a little longer."
+                : `Step ${Math.min(stepIndex + 1, steps.length)} of ${steps.length}`}
           </p>
           <ol className="mt-3 space-y-2">
             {steps.map((step, i) => {

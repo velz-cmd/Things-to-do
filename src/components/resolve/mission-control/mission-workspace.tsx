@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MissionEmptyState } from "@/components/resolve/mission-control/mission-empty-state";
 import { MissionThinkingBubble } from "@/components/resolve/mission-control/mission-chat-bubble";
 import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
 import { MissionReportCard } from "@/components/resolve/mission-control/mission-report-card";
@@ -21,12 +20,14 @@ import { MissionAgentSignalCard } from "@/components/resolve/mission-control/mis
 import { MissionBlueprintPanel } from "@/components/resolve/mission-control/mission-blueprint-panel";
 import { MissionCommunalPoolPanel } from "@/components/resolve/mission-control/mission-communal-pool-panel";
 import { MissionBatchAllocationPanel } from "@/components/resolve/mission-control/mission-batch-allocation-panel";
-import { MissionObjectiveBar } from "@/components/resolve/mission-control/mission-objective-bar";
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
 import { MissionCreatorValuePanel } from "@/components/resolve/mission-control/mission-creator-value-panel";
 import { MissionFunderToolsPanel } from "@/components/resolve/mission-control/mission-funder-tools-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
 import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
+import { MissionCommandHero } from "@/components/resolve/mission-control/mission-command-hero";
+import { MissionWorkspaceHeader } from "@/components/resolve/mission-control/mission-workspace-header";
+import { MissionDecisionPanel } from "@/components/resolve/mission-control/mission-decision-panel";
 import { useMissionBlueprintCommand } from "@/components/resolve/mission-control/mission-blueprint-command-context";
 import { shouldShowExecuteBar, shouldShowPlanningBar } from "@/lib/mission/phases";
 import type { OperatingMode, CapitalLoopPhase } from "@/lib/mission/capital-os";
@@ -65,6 +66,7 @@ export type MissionTurn = {
   blueprint?: { prompt: string; initialBudgetUsd?: number };
   communalPool?: { prompt: string; communitySlug?: string };
   batchAllocation?: { prompt: string; communitySlug?: string; initialBudgetUsd?: number };
+  error?: { summary: string; technical?: string };
 };
 
 function isArtifactTurn(turn: MissionTurn): boolean {
@@ -159,6 +161,7 @@ export function MissionWorkspace({
     scopeLabel: scope?.label ?? objective,
   });
   const [evidenceCount, setEvidenceCount] = useState(0);
+  const [decisionPanelCollapsed, setDecisionPanelCollapsed] = useState(false);
   const executeBlocked = showExecute && evidenceCount < 1;
 
   const lastArtifactIndex = turns.findLastIndex(
@@ -169,27 +172,29 @@ export function MissionWorkspace({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns, loading, thinkingComplete]);
 
-  if (!started) {
-    return (
-      <MissionEmptyState
-        input={input}
-        onInputChange={onInputChange}
-        onSubmit={onSubmit}
-        loading={loading}
-        onNewMission={onNewMission}
-        onSelectSession={onSelectSession}
-        onSessionDeleted={onSessionDeleted}
-        activeSessionId={activeSessionId}
-        libraryTick={libraryTick}
-        scopeHint={scopePromptHint}
-        onAcceptScopeHint={onAcceptScopeHint}
-        onDismissScopeHint={onDismissScopeHint}
-      />
-    );
-  }
-
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1359px)").matches) {
+      setDecisionPanelCollapsed(true);
+    }
+  }, []);
 
   function renderResolveTurn(turn: MissionTurn, isCurrent: boolean) {
+    if (turn.error) {
+      return (
+        <article className="mission-error-card" role="alert">
+          <p className="mission-kicker">Mission interrupted</p>
+          <h3>{turn.error.summary}</h3>
+          <p>Your objective and previous artifacts are still available. Refine the request or try again.</p>
+          {turn.error.technical && (
+            <details>
+              <summary>Technical details</summary>
+              <code>{turn.error.technical}</code>
+            </details>
+          )}
+        </article>
+      );
+    }
+
     if (turn.communalPool) {
       return (
         <MissionArtifactStage label="Communal pool">
@@ -278,11 +283,29 @@ export function MissionWorkspace({
       );
     }
 
-    return <p className="text-sm text-resolve-muted">{turn.text}</p>;
+    return (
+      <article className="mission-answer-card">
+        <div className="mission-answer-card__meta">
+          <span>RESOLVE decision support</span>
+          <span className="mission-source-badge">Local analysis</span>
+        </div>
+        <p>{turn.text}</p>
+        {turn.findings && turn.findings.length > 0 && (
+          <ul>
+            {turn.findings.slice(0, 4).map((finding) => (
+              <li key={finding.id}>
+                <strong>{finding.title}</strong>
+                <span>{finding.insight}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </article>
+    );
   }
 
   return (
-    <div className="mission-workspace-shell flex h-[calc(100vh-3.75rem)] min-h-[560px]">
+    <div className="mission-workspace-shell mission-workspace-shell--command">
       <MissionHistorySidebar
         onNewMission={onNewMission}
         onSelectSession={onSelectSession}
@@ -291,30 +314,44 @@ export function MissionWorkspace({
         libraryVersion={libraryTick}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {objective && (
-          <MissionObjectiveBar
-            objective={objective}
-            loopPhase={loopPhase}
-            blueprintActive={blueprintActive}
-            simulated={simulated}
-          />
-        )}
+      <main className="mission-main-workspace">
+        <MissionWorkspaceHeader
+          operatingMode={operatingMode}
+          loopPhase={loopPhase}
+          hasBlueprint={blueprintActive}
+          simulated={simulated}
+          objective={objective}
+        />
 
+        <div className="mission-main-workspace__scroll">
+          <div className="mission-main-workspace__content">
+            {!started ? (
+              <>
+                <MissionCommandHero onSubmit={onSubmit} />
 
-        {displayTopic && displayTopic.kind !== "general" && (
-          <div className="mx-auto w-full max-w-4xl px-4 lg:px-8">
-            <MissionWorldSnapshot
-              topic={displayTopic.name}
-              kind={displayTopic.kind}
-              report={lastReport}
-            />
-          </div>
-        )}
+                {scopePromptHint && onAcceptScopeHint && (
+                  <div className="mission-scope-hint">
+                    <p className="text-sm text-white/90">Continue with <span className="font-medium text-sky-200">{scope?.label}</span>?</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-resolve-muted">{scopePromptHint}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" className="mission-btn mission-btn--primary" onClick={onAcceptScopeHint}>Run scoped mission</button>
+                      <button type="button" className="mission-btn mission-btn--ghost" onClick={onDismissScopeHint}>Dismiss</button>
+                    </div>
+                  </div>
+                )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8">
-          <div className="mx-auto max-w-4xl space-y-4">
-            {turns.map((turn, index) => {
+                <div className="mission-launcher-grid">
+                  <MissionCreatorValuePanel onTryPrompt={onSubmit} loading={loading} />
+                  <MissionFunderToolsPanel onSubmit={onSubmit} loading={loading} />
+                </div>
+              </>
+            ) : (
+              <>
+                {displayTopic && displayTopic.kind !== "general" && (
+                  <MissionWorldSnapshot topic={displayTopic.name} kind={displayTopic.kind} report={lastReport} />
+                )}
+
+                {turns.map((turn, index) => {
               const isCurrentArtifact =
                 turn.role === "resolve" && index === lastArtifactIndex;
 
@@ -345,26 +382,26 @@ export function MissionWorkspace({
                 );
               }
 
-              return (
-                <div key={turn.id}>{renderResolveTurn(turn, isCurrentArtifact)}</div>
-              );
-            })}
+                  return <div key={turn.id}>{renderResolveTurn(turn, isCurrentArtifact)}</div>;
+                })}
 
             {loading && (
               <MissionThinkingBubble>
                 <MissionProgressStepCard
                   active
                   complete={thinkingComplete}
-                  title="Working on your mission"
+                  title="Compiling mission evidence"
                   steps={thinkingSteps}
                 />
               </MissionThinkingBubble>
             )}
-            <div ref={endRef} />
+                <div ref={endRef} />
+              </>
+            )}
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-resolve-border/60 bg-[#0a0f18]/85 px-4 py-3 backdrop-blur-md lg:px-8">
+        <div className="mission-composer-dock">
           {blueprintActive && blueprintCommand?.handle ? (
             <MissionCommandBar
               handle={blueprintCommand.handle}
@@ -373,15 +410,8 @@ export function MissionWorkspace({
             />
           ) : (
             <>
-              {!showPlanning && !showExecute && (
-                <div className="mx-auto mb-3 max-w-4xl space-y-3">
-                  <MissionCreatorValuePanel onTryPrompt={onSubmit} loading={loading} />
-                  <MissionFunderToolsPanel onSubmit={onSubmit} loading={loading} />
-                </div>
-              )}
-
               {onOperatingModeChange && !blueprintActive && (
-                <div className="mx-auto mb-3 max-w-4xl">
+                <div className="mission-composer-mode">
                   <MissionOperatingMode
                     active={operatingMode}
                     onChange={onOperatingModeChange}
@@ -445,13 +475,35 @@ export function MissionWorkspace({
                   onChange={onInputChange}
                   onSubmit={() => onSubmit(input.trim())}
                   loading={loading}
+                  footer={
+                    <div className="mission-composer-footer">
+                      <span>No funds move from this field</span>
+                      <span>Paid signals show price and wallet readiness before authorization</span>
+                    </div>
+                  }
                   placeholder="Refine objective or run another signal…"
                 />
               )}
             </>
           )}
         </div>
-      </div>
+      </main>
+
+      <MissionDecisionPanel
+        collapsed={decisionPanelCollapsed}
+        onToggle={() => setDecisionPanelCollapsed((value) => !value)}
+        objective={objective}
+        lastResolve={lastResolve}
+        hasBlueprint={blueprintActive}
+        simulated={simulated}
+        authorizing={blueprintCommand?.handle?.state.authorizing ?? false}
+        loopPhase={loopPhase}
+        timeline={timeline}
+        timelineLoading={timelineLoading}
+        treasuryBalanceUsd={treasuryBalanceUsd}
+        onAction={onAction}
+        loading={loading}
+      />
     </div>
   );
 }

@@ -489,13 +489,15 @@ export function MissionControl() {
         setMissionStatus(execute ? "completed" : "awaiting_user");
         setLibraryTick((n) => n + 1);
       } catch (e) {
+        const technical = e instanceof Error ? e.message : "Execution failed";
         setTurns((prev) => [
           ...prev,
           {
             id: `r-${Date.now()}`,
             role: "resolve",
-            text: e instanceof Error ? e.message : "Execution failed",
+            text: "We could not prepare this settlement.",
             phase: "plan",
+            error: { summary: "Settlement preparation did not complete", technical },
           },
         ]);
       } finally {
@@ -834,12 +836,11 @@ export function MissionControl() {
         });
       } catch (e) {
         setThinkingComplete(true);
-        const message =
-          e instanceof DOMException && e.name === "AbortError"
-            ? "Mission took too long — try a shorter question or check your connection."
-            : e instanceof Error
-              ? e.message
-              : "Could not complete analysis.";
+        const timedOut = e instanceof DOMException && e.name === "AbortError";
+        const message = timedOut
+          ? "This evidence run took longer than expected."
+          : "We could not complete this analysis.";
+        const technical = e instanceof Error ? e.message : "Analysis request failed";
         setTurns([
           ...nextTurns,
           {
@@ -847,6 +848,7 @@ export function MissionControl() {
             role: "resolve",
             text: message,
             phase: "discover",
+            error: { summary: message, technical },
           },
         ]);
         setLibraryTick((n) => n + 1);
@@ -926,13 +928,15 @@ export function MissionControl() {
           );
           setLibraryTick((n) => n + 1);
         } catch (e) {
+          const technical = e instanceof Error ? e.message : "Action failed";
           setTurns((prev) => [
             ...prev,
             {
               id: `r-${Date.now()}`,
               role: "resolve",
-              text: e instanceof Error ? e.message : "Action failed",
+              text: "We could not complete that mission action.",
               phase: "discover",
+              error: { summary: "Mission action did not complete", technical },
             },
           ]);
         } finally {

@@ -21,6 +21,7 @@ import {
   buildCardQuickActions,
 } from "@/components/resolve/discover/discover-quick-actions";
 import type { DiscoverAction } from "@/lib/discover/types";
+import styles from "./discover-workspace.module.css";
 
 type DiscoverBoardCommunityRowProps = {
   item: Extract<DiscoverBoardItem, { boardKind: "community" }>;
@@ -89,7 +90,7 @@ export function DiscoverBoardCommunityRow({
 
   return (
     <li
-      className="group relative py-3 first:pt-0 last:pb-0 focus:outline-none focus-visible:rounded-lg focus-visible:ring-1 focus-visible:ring-resolve-accent/40"
+      className={clsx(styles.communityRecord, "group relative focus:outline-none focus-visible:rounded-lg focus-visible:ring-1 focus-visible:ring-resolve-accent/40")}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return;
@@ -146,6 +147,7 @@ export function DiscoverBoardCommunityRow({
         onAction={handleAction}
         primarySubtext={card.narrative.primarySubtext}
         trailing={hasAnalysisAction ? null : <DiscoverSolveButton gap={gap} />}
+        className={styles.recordActionBar}
       />
     </li>
   );

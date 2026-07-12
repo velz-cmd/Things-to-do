@@ -31,6 +31,8 @@ import { DiscoverBoardCommunityRow } from "@/components/resolve/discover/discove
 import { ValueReceiptCard } from "@/components/resolve/discover/value-receipt-card";
 import { BOARD_MAX_ROWS } from "@/lib/discover/discover-row-limits";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
+import styles from "./discover-workspace.module.css";
+import { DiscoverFundingSkeleton } from "@/components/resolve/discover/discover-skeletons";
 
 type DiscoverOpportunityQueueProps = {
   signedIn: boolean;
@@ -241,42 +243,21 @@ export function DiscoverOpportunityQueue({
       actions={<DiscoverSectionRefresh sectionId="opportunity-board" onRefresh={loadQueue} />}
     >
       {hasVerifiedPrograms && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-            Sort by
-          </span>
-          {(
-            [
-              ["reward", "Reward"],
-              ["urgency", "Urgency"],
-              ["confidence", "Confidence"],
-              ["impact", "Impact"],
-              ["difficulty", "Ease"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setSortKey(key)}
-              className={clsx(
-                "rounded-lg border px-2.5 py-1 text-[10px] font-medium transition",
-                sortKey === key
-                  ? "border-resolve-accent/40 bg-resolve-accent/15 text-white"
-                  : "border-white/10 text-resolve-muted hover:text-white",
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="mb-3 flex justify-end">
+          <label className={styles.sortControl}>
+            <span>Sort</span>
+            <select value={sortKey} onChange={(event) => setSortKey(event.target.value as OpportunitySortKey)}>
+              <option value="reward">Funding need</option>
+              <option value="urgency">Urgency</option>
+              <option value="confidence">Readiness</option>
+              <option value="impact">Impact</option>
+              <option value="difficulty">Ease</option>
+            </select>
+          </label>
         </div>
       )}
       {loading && !board.length ? (
-        <DiscoverStatePanel variant="loading">
-          <div className="flex items-center justify-center gap-2 text-sm text-resolve-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading programs…
-          </div>
-        </DiscoverStatePanel>
+        <DiscoverFundingSkeleton />
       ) : error && !hasVerifiedPrograms && !exploreFiltered.length ? (
         <DiscoverStatePanel variant="error">
           <p className="text-sm text-resolve-muted">{error}</p>
@@ -328,14 +309,19 @@ export function DiscoverOpportunityQueue({
           <div className="min-w-0 flex-1">
         <>
           {boardProgramRows.length > 0 && (
-        <ul className="divide-y divide-white/[0.06]">
+        <div className={styles.fundingQueue}>
+          <div className={styles.fundingQueueHeader} aria-hidden="true">
+            <span>Program</span>
+            <span>Required</span>
+            <span>Funded</span>
+            <span>Readiness</span>
+            <span>Action</span>
+          </div>
+        <ul aria-label="Ready-to-fund programs">
           {boardProgramRows.map((o) => {
             const program = o as FundableOpportunity & { needType?: import("@/lib/discover/need-types").DiscoverNeedType };
             return (
-            <li
-              key={program.programId}
-              className="resolve-signal-service-row px-1 py-3 first:pt-0 last:pb-0"
-            >
+            <li key={program.programId}>
               <ValueReceiptCard
                 source={{ kind: "program", program }}
                 signedIn={signedIn}
@@ -353,6 +339,7 @@ export function DiscoverOpportunityQueue({
             );
           })}
         </ul>
+        </div>
           )}
 
           {boardCommunityRows.length > 0 && (

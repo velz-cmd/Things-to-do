@@ -36,6 +36,8 @@ import { DiscoverActionChip } from "@/components/resolve/discover/discover-actio
 import { gapsPrimaryActions } from "@/lib/discover/gaps-empty-state";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { useInView } from "@/hooks/use-in-view";
+import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
+import styles from "./discover-workspace.module.css";
 
 type RadarPayload = {
   graph: { nodes: DiscoverGraphNode[]; edges: DiscoverGraphEdge[] };
@@ -75,14 +77,17 @@ const PAD_X = 16;
 const PAD_Y = 14;
 
 const NODE_COLORS: Record<string, string> = {
-  creator: "#34d399",
-  mission: "#60a5fa",
-  connector: "#a78bfa",
-  ecosystem: "#64748b",
-  repository: "#64748b",
-  person: "#fb923c",
-  community: "#2dd4bf",
-  treasury: "#f87171",
+  creator: "#e4b755",
+  person: "#e4b755",
+  mission: "#805fff",
+  program: "#805fff",
+  connector: "#6679ff",
+  ecosystem: "#36d2ff",
+  repository: "#36d2ff",
+  community: "#36d2ff",
+  treasury: "#369cff",
+  capital: "#369cff",
+  settlement: "#3bd7a5",
 };
 
 function layoutBubblemap(nodes: DiscoverGraphNode[]): BubbleNode[] {
@@ -164,11 +169,35 @@ export function DiscoverValueBubblemap({
   const [domainFilter, setDomainFilter] = useState<GraphDomainFilter>("all");
   const [panel, setPanel] = useState<BubbleOperatorAnchor | null>(null);
   const [stripSelectedId, setStripSelectedId] = useState<string | null>(null);
+  const [externalSelection, setExternalSelection] = useState<{
+    id?: string;
+    programId?: string | null;
+    communitySlug?: string;
+  } | null>(null);
   const [panelTab, setPanelTab] = useState<CommunityConsoleTab>("console");
   const [panelTrigger, setPanelTrigger] = useState<AutomationTrigger | undefined>();
   const [panelContext, setPanelContext] = useState<CommunityConsoleActionContext | undefined>();
   const consoleBridge = useCommunityConsoleOptional();
   const isMobile = useMediaQuery("(max-width: 640px)");
+
+  useEffect(() => {
+    const handleSelection = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; programId?: string | null; communitySlug?: string }>).detail;
+      if (detail) setExternalSelection(detail);
+    };
+    window.addEventListener("resolve.discover.entity-selected", handleSelection);
+    return () => window.removeEventListener("resolve.discover.entity-selected", handleSelection);
+  }, []);
+
+  useEffect(() => {
+    if (!externalSelection || !data?.graph.nodes.length) return;
+    const node = data.graph.nodes.find((candidate) =>
+      candidate.id === externalSelection.id
+      || (externalSelection.programId && candidate.programId === externalSelection.programId)
+      || (externalSelection.communitySlug && candidate.communitySlug === externalSelection.communitySlug),
+    );
+    if (node) setStripSelectedId(node.id);
+  }, [externalSelection, data?.graph.nodes]);
 
   const loadRadar = useCallback(async () => {
     setLoading(true);
@@ -252,12 +281,24 @@ export function DiscoverValueBubblemap({
     return bubbleOperatorActions(panel.node, data?.graph.edges ?? []);
   }, [panel, data?.graph.edges]);
 
+  const announceGraphSelection = (node: DiscoverGraphNode) => {
+    window.dispatchEvent(new CustomEvent("resolve.discover.entity-selected", {
+      detail: {
+        id: node.id,
+        programId: node.programId,
+        communitySlug: node.communitySlug,
+        label: node.label,
+      },
+    }));
+  };
+
   const handleNodeClick = (b: BubbleNode) => {
     setPanelTab("console");
     setPanelTrigger(undefined);
     setPanelContext(undefined);
     setStripSelectedId(b.id);
     setPanel({ node: b });
+    announceGraphSelection(b);
   };
 
   const handleStripSelect = (node: DiscoverGraphNode) => {
@@ -266,6 +307,7 @@ export function DiscoverValueBubblemap({
     setPanelContext(undefined);
     setStripSelectedId(node.id);
     setPanel({ node });
+    announceGraphSelection(node);
   };
 
   useEffect(() => {
@@ -319,6 +361,11 @@ export function DiscoverValueBubblemap({
         />
       )}
 
+      <p className="sr-only">
+        Value graph summary: {filteredGraph.nodes.length} entities and {filteredGraph.edges.length} relationships.
+        {stripSelectedId ? ` Selected entity ${filteredGraph.nodes.find((node) => node.id === stripSelectedId)?.label ?? stripSelectedId}.` : ""}
+      </p>
+
       <div className="mt-3 flex flex-wrap gap-1.5 border-b border-white/[0.04] px-0 pb-2">
         {GRAPH_DOMAIN_CHIPS.map((chip) => (
           <button
@@ -344,7 +391,9 @@ export function DiscoverValueBubblemap({
       </div>
 
       {loading && !data ? (
-        <DiscoverBubblemapSkeleton />
+        <div className={clsx("discover-bubblemap-stage overflow-hidden rounded-xl border p-1.5", styles.graphStage)}>
+          <DiscoverBubblemapSkeleton />
+        </div>
       ) : error && !hasGraph ? (
         <div className="px-6 py-16 text-center">
           <p className="text-sm text-resolve-muted">{error}</p>
@@ -387,7 +436,7 @@ export function DiscoverValueBubblemap({
       ) : (
         <>
           <p className="mb-2 text-[10px] text-resolve-muted-dim">{VALUE_GRAPH_MAP_HINT}</p>
-        <div className="discover-bubblemap-stage relative overflow-hidden rounded-xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-black/20 p-1.5">
+        <div className={clsx("discover-bubblemap-stage relative overflow-hidden rounded-xl border p-1.5", styles.graphStage)}>
           <svg
             viewBox={`0 0 ${viewW} ${viewH}`}
             className={clsx(
@@ -443,6 +492,8 @@ export function DiscoverValueBubblemap({
               const to = positions.get(e.to);
               if (!from || !to) return null;
               const gap = e.kind === "funding_gap";
+              const selectedNodeId = stripSelectedId ?? panel?.node.id ?? null;
+              const selectedRelationship = Boolean(selectedNodeId && (e.from === selectedNodeId || e.to === selectedNodeId));
               return (
                 <line
                   key={e.id}
@@ -450,8 +501,8 @@ export function DiscoverValueBubblemap({
                   y1={from.y * scaleY}
                   x2={to.x * scaleX}
                   y2={to.y * scaleY}
-                  stroke={gap ? "rgba(251,191,36,0.35)" : "rgba(96,165,250,0.12)"}
-                  strokeWidth={Math.min(2, 0.4 + Math.log10(e.weight + 1))}
+                  stroke={selectedRelationship ? "rgba(102,121,255,0.78)" : gap ? "rgba(228,183,85,0.38)" : "rgba(96,165,250,0.12)"}
+                  strokeWidth={selectedRelationship ? 1.8 : Math.min(2, 0.4 + Math.log10(e.weight + 1))}
                   strokeDasharray={gap ? "4 3" : undefined}
                 />
               );
@@ -460,7 +511,7 @@ export function DiscoverValueBubblemap({
             {bubbles.map((b, bubbleIndex) => {
               const isHub = b.id === "pool:ledger" || b.id === bubbles[0]?.id;
               const isEcosystem = b.type === "ecosystem" || b.type === "repository";
-              const active = hovered === b.id || panel?.node.id === b.id;
+              const active = inView && (hovered === b.id || panel?.node.id === b.id || stripSelectedId === b.id);
               const fill = NODE_COLORS[b.type] ?? "#94a3b8";
               const pending = b.pendingFunding;
               const synthetic = b.synthetic;
@@ -471,6 +522,9 @@ export function DiscoverValueBubblemap({
               return (
                 <g
                   key={b.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${b.label}, ${b.type}${b.pendingFunding ? ", pending funding" : ""}`}
                   className={clsx(
                     "discover-bubble-node cursor-pointer",
                     active && "discover-bubble-node--active",
@@ -478,7 +532,15 @@ export function DiscoverValueBubblemap({
                   style={{ animationDelay: `${(bubbleIndex % 8) * 0.35}s` }}
                   onMouseEnter={() => setHovered(b.id)}
                   onMouseLeave={() => setHovered(null)}
+                  onFocus={() => setHovered(b.id)}
+                  onBlur={() => setHovered(null)}
                   onClick={() => handleNodeClick(b)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleNodeClick(b);
+                    }
+                  }}
                 >
                   {synthetic && (
                     <circle
@@ -512,16 +574,25 @@ export function DiscoverValueBubblemap({
                     filter={active || isHub ? "url(#bubble-glow-strong)" : "url(#bubble-glow)"}
                   />
                   {isHub && (
-                    <text
-                      x={b.cx * scaleX}
-                      y={b.cy * scaleY}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      className="fill-white font-semibold"
-                      style={{ fontSize: 9 * Math.min(scaleX, scaleY) }}
-                    >
-                      {b.id === "pool:ledger" ? "LEDGER" : "VALUE"}
-                    </text>
+                    <>
+                      <image
+                        href={BRAND_LOGO_PATH}
+                        x={b.cx * scaleX - Math.min(18, r * 0.44)}
+                        y={b.cy * scaleY - Math.min(18, r * 0.44)}
+                        width={Math.min(36, r * 0.88)}
+                        height={Math.min(36, r * 0.88)}
+                        preserveAspectRatio="xMidYMid meet"
+                      />
+                      <text
+                        x={b.cx * scaleX}
+                        y={b.cy * scaleY + Math.min(27, r * 0.7)}
+                        textAnchor="middle"
+                        className="fill-white/80 font-semibold"
+                        style={{ fontSize: 7 * Math.min(scaleX, scaleY) }}
+                      >
+                        RESOLVE
+                      </text>
+                    </>
                   )}
                   {!isHub && (active || b.r > 18) && r > 12 && (
                     <text

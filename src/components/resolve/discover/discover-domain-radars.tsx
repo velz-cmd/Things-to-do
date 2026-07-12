@@ -18,6 +18,7 @@ import { collectRadarRows, RADAR_MAX_ROWS } from "@/lib/discover/discover-row-li
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 import { LANE_PURPOSE, WORKSPACE_LANE_LABELS } from "@/lib/discover/discover-lane-copy";
+import styles from "./discover-workspace.module.css";
 
 const RADAR_ICONS = {
   oss: GitBranch,
@@ -110,11 +111,13 @@ export function DiscoverDomainRadars({
         />
       }
     >
-      <div className="mb-4 flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-black/20 p-1">
+      <div className="mb-3 flex flex-wrap gap-1 rounded-lg bg-black/15 p-1" role="tablist" aria-label="Live signal domains">
         {RADAR_TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
+            role="tab"
+            aria-selected={activeRadar === tab.id}
             onClick={() => setActiveRadar(tab.id)}
             className={clsx(
               "rounded-md px-3 py-1.5 text-[11px] font-medium transition",
@@ -142,9 +145,9 @@ export function DiscoverDomainRadars({
 
         <div
           id={`radar-${activeRadar}`}
-          className="min-w-0 flex-1 scroll-mt-24 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:p-4"
+          className="min-w-0 flex-1 scroll-mt-24"
         >
-          <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="mb-2 flex items-start justify-between gap-2 border-b border-white/[0.06] pb-3">
             <div className="flex items-center gap-2">
               <Icon className="h-4 w-4 shrink-0 text-resolve-accent" />
               <div>
@@ -152,8 +155,8 @@ export function DiscoverDomainRadars({
               </div>
             </div>
             {live ? (
-              <span className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-300">
-                Live
+              <span className="shrink-0 rounded-full border border-cyan-500/25 bg-cyan-500/[0.07] px-2 py-0.5 text-[9px] text-cyan-200">
+                <span className={styles.signalLiveDot} aria-hidden="true" />Live evidence
               </span>
             ) : displayRows.length > 0 ? (
               <span className="shrink-0 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-200/90">
@@ -165,7 +168,7 @@ export function DiscoverDomainRadars({
           {feedLoading ? (
             <p className="text-xs text-resolve-muted">Loading verified radar…</p>
           ) : displayRows.length > 0 ? (
-            <ul className="divide-y divide-white/[0.06]">
+            <ul>
               {displayRows.map((gap, i) => (
                 <DiscoverFeatureRow
                   key={gap.id}

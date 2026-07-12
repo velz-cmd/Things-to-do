@@ -1,30 +1,23 @@
 import { Skeleton } from "@/components/resolve/ui/skeleton";
+import styles from "./discover-workspace.module.css";
 
 export function DiscoverTrendingSkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="Loading opportunities">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0 flex-1 space-y-3">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-6 w-6 rounded-lg" />
-                <Skeleton className="h-4 w-44" />
-                <Skeleton className="h-4 w-20 rounded-full" />
-              </div>
-              <Skeleton className="h-3 w-full max-w-xl" />
-              <Skeleton className="h-3 w-4/5 max-w-lg" />
-              <div className="flex gap-2 pt-1">
-                <Skeleton className="h-5 w-24 rounded-full" />
-                <Skeleton className="h-5 w-20 rounded-full" />
-                <Skeleton className="h-5 w-24 rounded-full" />
-              </div>
+    <div className={styles.opportunityList} aria-busy="true" aria-label="Loading opportunities">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className={styles.skeletonRecord}>
+          <div className="grid gap-5 lg:grid-cols-[1.35fr_.72fr_.54fr]">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3"><Skeleton className="h-10 w-10 rounded-xl" /><Skeleton className="h-5 w-56" /></div>
+              <Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-4/5" />
             </div>
-            <div className="flex min-w-[12rem] flex-col gap-2">
-              <Skeleton className="h-8 w-full rounded-lg" />
-              <Skeleton className="h-8 w-full rounded-lg" />
-            </div>
+            <div className="space-y-3"><Skeleton className="h-5 w-24" /><Skeleton className="h-8 w-32" /><Skeleton className="h-3 w-full" /></div>
+            <div className="space-y-2"><Skeleton className="h-10 w-full rounded-lg" /><Skeleton className="h-10 w-full rounded-lg" /></div>
           </div>
+          <div className="mt-4 grid grid-cols-4 gap-4 border-y border-white/[0.06] py-3">
+            {Array.from({ length: 4 }).map((__, metric) => <Skeleton key={metric} className="h-8 w-full" />)}
+          </div>
+          <Skeleton className="mt-4 h-2 w-full rounded-full" />
         </div>
       ))}
     </div>
@@ -50,6 +43,22 @@ export function DiscoverFeedSkeleton() {
         </li>
       ))}
     </ul>
+  );
+}
+
+export function DiscoverFundingSkeleton() {
+  return (
+    <div className={styles.fundingQueue} aria-busy="true" aria-label="Loading ready-to-fund programs">
+      <div className={styles.fundingQueueHeader} aria-hidden="true">
+        <span>Program</span><span>Required</span><span>Funded</span><span>Readiness</span><span>Action</span>
+      </div>
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className={styles.fundingRecord}>
+          <div className="flex items-center gap-3"><Skeleton className="h-9 w-9 rounded-xl" /><Skeleton className="h-4 w-40" /></div>
+          <Skeleton className="h-4 w-16" /><Skeleton className="h-4 w-16" /><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full rounded-lg" />
+        </div>
+      ))}
+    </div>
   );
 }
 

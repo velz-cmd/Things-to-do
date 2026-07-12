@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import clsx from "clsx";
 import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverPremiumSection } from "@/components/resolve/discover/discover-premium-section";
 import { DiscoverTrendingSkeleton } from "@/components/resolve/discover/discover-skeletons";
@@ -23,6 +22,7 @@ import { DiscoverFeatureRow } from "@/components/resolve/discover/discover-featu
 import { collectGapsRows, GAPS_MAX_ROWS } from "@/lib/discover/discover-row-limits";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { ACTION_ERRORS } from "@/lib/copy/action-errors";
+import styles from "./discover-workspace.module.css";
 
 import type { DiscoverWorkspaceLane } from "@/components/resolve/discover/discover-workspace-nav";
 
@@ -117,33 +117,17 @@ export function DiscoverTrendingGaps({
           <div className="min-w-0 flex-1">
             {displayRows.length > 0 && (
               <>
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-resolve-muted-dim">
-                    Sort by
-                  </span>
-                  {(
-                    [
-                      ["reward", "Reward"],
-                      ["urgency", "Urgency"],
-                      ["confidence", "Confidence"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setSortKey(key)}
-                      className={clsx(
-                        "rounded-lg border px-2.5 py-1 text-[10px] font-medium transition",
-                        sortKey === key
-                          ? "border-resolve-accent/40 bg-resolve-accent/15 text-white"
-                          : "border-white/10 text-resolve-muted hover:text-white",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div className="mb-3 flex justify-end">
+                  <label className={styles.sortControl}>
+                    <span>Sort</span>
+                    <select value={sortKey} onChange={(event) => setSortKey(event.target.value as OpportunitySortKey)}>
+                      <option value="reward">Reward</option>
+                      <option value="urgency">Urgency</option>
+                      <option value="confidence">Confidence</option>
+                    </select>
+                  </label>
                 </div>
-                <ul className="divide-y divide-white/[0.06]">
+                <ul className={styles.opportunityList}>
                   {displayRows.map((gap, i) => (
                     <DiscoverFeatureRow
                       key={gap.id}

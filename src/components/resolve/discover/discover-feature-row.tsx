@@ -26,7 +26,7 @@ export function DiscoverFeatureRow({
   lane = "gaps",
 }: DiscoverFeatureRowProps) {
   return (
-    <li className="resolve-signal-service-row px-1 py-3 first:pt-0 last:pb-0">
+    <li>
       <ValueReceiptCard
         source={{ kind: "gap", gap }}
         signedIn={signedIn}

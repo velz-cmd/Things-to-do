@@ -17,6 +17,7 @@ type DiscoverActionBarProps = {
   /** Extra CTA rendered alongside primary/secondary — e.g. "Solve with AI". */
   trailing?: ReactNode;
   primarySubtext?: string;
+  className?: string;
 };
 
 /** Real action buttons — primary CTA + secondary, not hashtag pills. */
@@ -29,6 +30,7 @@ export function DiscoverActionBar({
   onToggleAdvanced,
   trailing,
   primarySubtext,
+  className,
 }: DiscoverActionBarProps) {
   const primary = slots.find((s) => s.variant === "primary");
   const primaryLabel = primary ? normalizeLabel(friendlyDiscoverActionLabel(primary.action, connections)) : null;
@@ -49,7 +51,7 @@ export function DiscoverActionBar({
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+    <div className={clsx("mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center", className)}>
       {primary && (
         <ActionButton
           slot={primary}

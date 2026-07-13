@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { Check, Loader2 } from "lucide-react";
-import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
+import { Check, Circle, Loader2 } from "lucide-react";
 
 const DEFAULT_STEPS = [
-  "Understanding your objective",
+  "Objective understood",
+  "Wallet and price checked",
   "Gathering evidence",
-  "Building recommendation",
+  "Resolving contributors",
+  "Preparing result",
 ] as const;
 
 export function MissionProgressStepCard({
@@ -53,53 +54,39 @@ export function MissionProgressStepCard({
   const done = Boolean(complete);
 
   return (
-    <DiscoverCapitalCard accent="violet" className="shadow-lg shadow-black/15">
-      <div className="flex items-start gap-3">
-        {!done && <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-violet-300" />}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-white">{title}</p>
-          <p className="mt-0.5 text-xs text-resolve-muted">
-            {done
-              ? "Almost ready…"
-              : takingLonger
-                ? "Still working — connected evidence can take a little longer."
-                : `Step ${Math.min(stepIndex + 1, steps.length)} of ${steps.length}`}
-          </p>
-          <ol className="mt-3 space-y-2">
-            {steps.map((step, i) => {
-              const checked = done || i < stepIndex;
-              const current = !done && i === stepIndex;
-              return (
-                <li
-                  key={step}
-                  className={clsx(
-                    "flex items-center gap-2 text-xs transition",
-                    checked ? "text-emerald-300/95" : current ? "text-white" : "text-resolve-muted-dim",
-                  )}
-                >
-                  {checked ? (
-                    <Check className="h-3.5 w-3.5 shrink-0" />
-                  ) : current ? (
-                    <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-violet-400" />
-                    </span>
-                  ) : (
-                    <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-white/15" />
-                  )}
-                  {step}
-                </li>
-              );
-            })}
-          </ol>
+    <article className="mission-execution-progress" aria-live="polite">
+      <header>
+        {!done ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+        <div>
+          <p>{title}</p>
+          <span>{done ? "Result ready" : `Step ${Math.min(stepIndex + 1, steps.length)} of ${steps.length}`}</span>
         </div>
-      </div>
-    </DiscoverCapitalCard>
+      </header>
+      <ol>
+        {steps.map((step, i) => {
+          const checked = done || i < stepIndex;
+          const current = !done && i === stepIndex;
+          return (
+            <li key={step} className={clsx(checked && "is-complete", current && "is-current")}>
+              {checked ? <Check /> : current ? <span aria-hidden /> : <Circle />}
+              {step}
+            </li>
+          );
+        })}
+      </ol>
+      {takingLonger && !done && (
+        <p className="mission-execution-progress__long">
+          The provider is still processing. Your Mission remains available while the signal syncs.
+        </p>
+      )}
+    </article>
   );
 }
 
 export const AGENT_INVOKE_STEPS = [
-  "Confirming wallet and budget",
-  "Charging USDC on Arc",
-  "Running agent signal",
-  "Preparing your report",
+  "Objective understood",
+  "Wallet and price checked",
+  "Gathering evidence",
+  "Resolving contributors",
+  "Preparing result",
 ] as const;

@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
+  BarChart3,
   Check,
-  ChevronDown,
-  ChevronRight,
   CircleDollarSign,
   FileCheck2,
+  FileStack,
   FlaskConical,
   PanelRightClose,
   PanelRightOpen,
   ShieldCheck,
+  Target,
 } from "lucide-react";
 import clsx from "clsx";
 import type { MissionTurn } from "@/components/resolve/mission-control/mission-workspace";
@@ -20,9 +21,19 @@ import type { CapitalLoopPhase } from "@/lib/mission/capital-os";
 import type { ServerTimelineEvent } from "@/lib/mission/client-api";
 import { MissionTimeline } from "@/components/resolve/mission-control/mission-timeline";
 
-function statusLabel(active: boolean, complete: boolean) {
-  if (complete) return "Complete";
-  return active ? "In review" : "Waiting";
+const TABS = [
+  { id: "objective", label: "Objective", icon: Target },
+  { id: "evidence", label: "Evidence", icon: FileCheck2 },
+  { id: "blueprint", label: "Blueprint", icon: FileStack },
+  { id: "simulation", label: "Simulation", icon: FlaskConical },
+  { id: "authorize", label: "Authorize", icon: ShieldCheck },
+] as const;
+
+type DecisionTab = (typeof TABS)[number]["id"];
+
+function formatUsd(value?: number) {
+  if (value === undefined) return "—";
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
 export function MissionDecisionPanel({
@@ -54,145 +65,212 @@ export function MissionDecisionPanel({
   onAction: (action: CapabilityAction) => void;
   loading?: boolean;
 }) {
-  const [assemblyOpen, setAssemblyOpen] = useState(false);
   const report = lastResolve?.report;
-  const evidence = report?.evidenceLinks ?? [];
+  const blueprint = report?.capitalBlueprint;
   const findings = lastResolve?.findings ?? report?.findings ?? [];
-  const decisions = lastResolve?.nextSteps ?? report?.actions ?? [];
+  const evidenceLinks = report?.evidenceLinks ?? [];
+  const sourceLabels = Array.from(
+    new Set([...(report?.sourcesScanned ?? []), ...evidenceLinks.map((item) => item.source)]),
+  );
+  const hasEvidence = sourceLabels.length > 0 || findings.length > 0;
   const authorized = Boolean(report?.settlement?.txHash || loopPhase === "measure");
-  const settlement = report?.settlement;
+  const meaningful = Boolean(objective || lastResolve || hasBlueprint || simulated || authorizing);
+  const [activeTab, setActiveTab] = useState<DecisionTab>("objective");
+
+  useEffect(() => {
+    if (authorized || authorizing) setActiveTab("authorize");
+    else if (simulated) setActiveTab("simulation");
+    else if (hasBlueprint) setActiveTab("blueprint");
+    else if (hasEvidence) setActiveTab("evidence");
+    else setActiveTab("objective");
+  }, [authorized, authorizing, hasBlueprint, hasEvidence, simulated]);
+
+  const relevantActions = (report?.actions ?? lastResolve?.nextSteps ?? []).filter((action) => {
+    if (activeTab === "blueprint") return action.kind === "simulate" || action.kind === "plan";
+    if (activeTab === "simulation") return action.kind === "simulate" || action.kind === "execute";
+    if (activeTab === "authorize") return action.kind === "execute";
+    if (activeTab === "evidence") return action.kind === "explore";
+    return action.kind === "plan" || action.kind === "explore";
+  });
 
   if (collapsed) {
     return (
       <aside className="mission-decision-panel mission-decision-panel--collapsed">
-        <button type="button" onClick={onToggle} className="mission-panel-toggle" aria-label="Open decision panel">
+        <button type="button" onClick={onToggle} className="mission-panel-toggle" aria-label="Open decision workspace">
           <PanelRightOpen className="h-4 w-4" />
+          {meaningful && <span className="mission-panel-toggle__signal" aria-hidden />}
         </button>
       </aside>
     );
   }
 
   return (
-    <aside className="mission-decision-panel" aria-label="Mission decision panel">
+    <aside className="mission-decision-panel" aria-label="Mission decision workspace">
       <div className="mission-decision-panel__header">
         <div>
           <p className="mission-kicker">Decision workspace</p>
-          <h2>Capital decision</h2>
+          <h2>{objective ? "Active decision" : "No artifact yet"}</h2>
         </div>
-        <button type="button" onClick={onToggle} className="mission-panel-toggle" aria-label="Collapse decision panel">
+        <button type="button" onClick={onToggle} className="mission-panel-toggle" aria-label="Collapse decision workspace">
           <PanelRightClose className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="mission-decision-panel__scroll">
-        {!objective ? (
-          <div className="mission-decision-empty">
-            <ShieldCheck className="h-5 w-5 text-violet-300" aria-hidden />
-            <p className="mt-3 text-sm font-medium text-white">Nothing executes without approval.</p>
-            <p className="mt-1 text-xs leading-relaxed text-resolve-muted">
-              Objective, evidence, payees, policy, simulation, and authorization will assemble here as the mission progresses.
-            </p>
+      {!meaningful ? (
+        <div className="mission-decision-empty">
+          <Target className="h-4 w-4" aria-hidden />
+          <div>
+            <strong>No decision artifact yet</strong>
+            <span>Run a signal or ask Mission to begin.</span>
           </div>
-        ) : (
-          <>
-            <ol className="mission-decision-stages">
-              <li className="is-complete">
-                <span><Check className="h-3 w-3" /></span>
-                <div><strong>Objective</strong><small>Locked</small></div>
-              </li>
-              <li className={clsx((evidence.length || findings.length) && "is-complete", !lastResolve && "is-active")}>
-                <span><FileCheck2 className="h-3 w-3" /></span>
-                <div><strong>Evidence</strong><small>{statusLabel(!lastResolve, Boolean(evidence.length || findings.length))}</small></div>
-              </li>
-              <li className={clsx(hasBlueprint && "is-complete", lastResolve && !hasBlueprint && "is-active")}>
-                <span><CircleDollarSign className="h-3 w-3" /></span>
-                <div><strong>Blueprint</strong><small>{statusLabel(Boolean(lastResolve && !hasBlueprint), hasBlueprint)}</small></div>
-              </li>
-              <li className={clsx(simulated && "is-complete", hasBlueprint && !simulated && "is-active")}>
-                <span><FlaskConical className="h-3 w-3" /></span>
-                <div><strong>Simulation</strong><small>{statusLabel(hasBlueprint && !simulated, simulated)}</small></div>
-              </li>
-              <li className={clsx(authorized && "is-complete", (simulated || authorizing) && !authorized && "is-active")}>
-                <span><ShieldCheck className="h-3 w-3" /></span>
-                <div><strong>Authorization</strong><small>{authorizing ? "Pending" : statusLabel(simulated, authorized)}</small></div>
-              </li>
-            </ol>
-
-            {(evidence.length > 0 || findings.length > 0) && (
-              <section className="mission-decision-section">
-                <div className="mission-decision-section__heading">
-                  <span>Evidence packet</span>
-                  <span>{evidence.length || findings.length} source{(evidence.length || findings.length) === 1 ? "" : "s"}</span>
-                </div>
-                <ul className="mission-evidence-list">
-                  {evidence.slice(0, 4).map((item) => (
-                    <li key={`${item.source}-${item.label}`}>
-                      <span className="mission-source-badge">{item.source}</span>
-                      <span>{item.label}</span>
-                    </li>
-                  ))}
-                  {evidence.length === 0 && findings.slice(0, 4).map((item) => (
-                    <li key={item.id}>
-                      <span className="mission-source-badge">Analysis</span>
-                      <span>{item.title}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {decisions.length > 0 && (
-              <section className="mission-decision-section">
-                <div className="mission-decision-section__heading"><span>Recommended decisions</span></div>
-                <div className="mission-recommendation-stack">
-                  {decisions.slice(0, 3).map((action, index) => (
-                    <button
-                      key={action.id}
-                      type="button"
-                      disabled={loading}
-                      onClick={() => onAction(action)}
-                      className={clsx("mission-recommendation-row", index === 0 && "is-primary")}
-                    >
-                      <span>{action.label}</span><ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {(lastResolve || treasuryBalanceUsd !== undefined) && (
-              <section className="mission-decision-section">
-                <button type="button" onClick={() => setAssemblyOpen((value) => !value)} className="mission-assembly-toggle">
-                  <span><Activity className="h-3.5 w-3.5 text-cyan-300" />Capital assembly line</span>
-                  <ChevronDown className={clsx("h-3.5 w-3.5 transition", assemblyOpen && "rotate-180")} />
+        </div>
+      ) : (
+        <>
+          <div className="mission-decision-tabs" role="tablist" aria-label="Decision artifacts">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  title={tab.label}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={clsx(activeTab === tab.id && "is-active")}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                  <span>{tab.label}</span>
                 </button>
-                {assemblyOpen && (
-                  <div className="mission-assembly-line">
-                    <span>Signal</span><i /><span>Policy</span><i /><span>Arc</span>
-                    {treasuryBalanceUsd !== undefined && <p>Treasury ${treasuryBalanceUsd.toLocaleString()}</p>}
+              );
+            })}
+          </div>
+
+          <div className="mission-decision-panel__scroll">
+            {activeTab === "objective" && (
+              <section className="mission-decision-artifact mission-decision-artifact--objective">
+                <div className="mission-decision-artifact__label"><Target className="h-3.5 w-3.5" /> Objective</div>
+                <h3>{objective}</h3>
+                <dl className="mission-decision-metrics">
+                  <div><dt>Scope</dt><dd>{report?.capitalBlueprint?.community ?? "Current Mission"}</dd></div>
+                  <div><dt>Mode</dt><dd>{report?.operatingMode ?? "Decision support"}</dd></div>
+                  <div><dt>Status</dt><dd>{lastResolve ? "Analyzed" : "Understanding"}</dd></div>
+                </dl>
+              </section>
+            )}
+
+            {activeTab === "evidence" && (
+              <section className="mission-decision-artifact mission-decision-artifact--evidence">
+                <div className="mission-decision-artifact__label"><FileCheck2 className="h-3.5 w-3.5" /> Evidence</div>
+                <div className="mission-evidence-summary">
+                  <strong>{sourceLabels.length || findings.length}</strong>
+                  <span>{sourceLabels.length === 1 ? "source checked" : "sources checked"}</span>
+                  {report && <b>{Math.round(report.confidence * 100)}% confidence</b>}
+                </div>
+                {hasEvidence ? (
+                  <ul className="mission-evidence-list">
+                    {(evidenceLinks.length ? evidenceLinks : sourceLabels.map((source) => ({ source, label: "Evidence recorded" })))
+                      .slice(0, 6)
+                      .map((item, index) => (
+                        <li key={`${item.source}-${item.label}-${index}`}>
+                          <span className="mission-source-badge">{item.source}</span>
+                          <span>{item.label}</span>
+                          <small>Recorded</small>
+                        </li>
+                      ))}
+                  </ul>
+                ) : (
+                  <p className="mission-artifact-placeholder">Evidence will appear after Mission completes its first analysis.</p>
+                )}
+              </section>
+            )}
+
+            {activeTab === "blueprint" && (
+              <section className="mission-decision-artifact mission-decision-artifact--blueprint">
+                <div className="mission-decision-artifact__label"><FileStack className="h-3.5 w-3.5" /> Funding Blueprint</div>
+                {blueprint ? (
+                  <>
+                    <h3>{blueprint.title}</h3>
+                    <dl className="mission-decision-metrics mission-decision-metrics--grid">
+                      <div><dt>Budget</dt><dd>{formatUsd(blueprint.totalCapitalUsd)}</dd></div>
+                      <div><dt>Payees</dt><dd>{blueprint.recipients.length}</dd></div>
+                      <div><dt>Policy</dt><dd>{blueprint.flows[0]?.mechanism ?? "Evidence weighted"}</dd></div>
+                      <div><dt>Confidence</dt><dd>{Math.round(blueprint.confidence * 100)}%</dd></div>
+                    </dl>
+                    <div className="mission-blueprint-mini-ledger">
+                      {blueprint.distribution.slice(0, 4).map((line) => (
+                        <div key={line.category}>
+                          <span>{line.category}</span><i style={{ width: `${Math.min(100, line.percent)}%` }} /><strong>{line.percent}%</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="mission-artifact-placeholder">A structured budget, payee ledger, and policy will appear here.</p>
+                )}
+              </section>
+            )}
+
+            {activeTab === "simulation" && (
+              <section className="mission-decision-artifact mission-decision-artifact--simulation">
+                <div className="mission-decision-artifact__label"><BarChart3 className="h-3.5 w-3.5" /> Simulation</div>
+                {report?.simulations?.length ? (
+                  <dl className="mission-simulation-list">
+                    {report.simulations.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}
+                  </dl>
+                ) : (
+                  <p className="mission-artifact-placeholder">Simulate the Blueprint to preview recipients, amounts, and funding readiness.</p>
+                )}
+                <p className={clsx("mission-artifact-state", simulated && "is-complete")}>
+                  {simulated ? <><Check className="h-3.5 w-3.5" /> Simulation complete</> : <><FlaskConical className="h-3.5 w-3.5" /> Awaiting simulation</>}
+                </p>
+              </section>
+            )}
+
+            {activeTab === "authorize" && (
+              <section className="mission-decision-artifact mission-decision-artifact--authorize">
+                <div className="mission-decision-artifact__label"><ShieldCheck className="h-3.5 w-3.5" /> Authorization</div>
+                <dl className="mission-decision-metrics mission-decision-metrics--grid">
+                  <div><dt>Treasury</dt><dd>{formatUsd(treasuryBalanceUsd)}</dd></div>
+                  <div><dt>Network</dt><dd>{report?.settlement?.network ?? "Arc"}</dd></div>
+                  <div><dt>Recipients</dt><dd>{report?.settlement?.recipientCount ?? blueprint?.recipients.length ?? "—"}</dd></div>
+                  <div><dt>Status</dt><dd>{authorized ? "Settled" : authorizing ? "Pending" : "Review"}</dd></div>
+                </dl>
+                {report?.settlement?.txHash && (
+                  <div className="mission-receipt-summary">
+                    <p>{formatUsd(report.settlement.amountUsd)} USDC</p>
+                    <small>Settlement confirmed</small>
+                    {report.settlement.explorerUrl && <a href={report.settlement.explorerUrl} target="_blank" rel="noreferrer">View receipt</a>}
+                  </div>
+                )}
+                {(timeline.length > 0 || timelineLoading) && (
+                  <div className="mission-decision-timeline">
+                    <p><Activity className="h-3.5 w-3.5" /> Execution timeline</p>
+                    <MissionTimeline events={timeline} loading={timelineLoading} />
                   </div>
                 )}
               </section>
             )}
 
-            {settlement?.txHash && (
-              <section className="mission-decision-section mission-receipt-summary">
-                <div className="mission-decision-section__heading"><span>Receipt</span><span>Confirmed</span></div>
-                {settlement.amountUsd !== undefined && <p>${settlement.amountUsd.toLocaleString()} USDC</p>}
-                <small>{settlement.network ?? "Settlement network"} · {settlement.recipientCount ?? 0} recipients</small>
-                {settlement.explorerUrl && <a href={settlement.explorerUrl} target="_blank" rel="noreferrer">Open explorer</a>}
-              </section>
+            {relevantActions.length > 0 && (
+              <div className="mission-decision-actions">
+                {relevantActions.slice(0, 2).map((action, index) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => onAction(action)}
+                    className={clsx("mission-btn", index === 0 ? "mission-btn--primary" : "mission-btn--ghost")}
+                  >
+                    {activeTab === "blueprint" && index === 0 ? <FlaskConical className="h-4 w-4" /> : <CircleDollarSign className="h-4 w-4" />}
+                    {action.label}
+                  </button>
+                ))}
+              </div>
             )}
-
-            {(timeline.length > 0 || timelineLoading) && (
-              <section className="mission-decision-section">
-                <div className="mission-decision-section__heading"><span>Execution timeline</span></div>
-                <MissionTimeline events={timeline} loading={timelineLoading} />
-              </section>
-            )}
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
     </aside>
   );
 }

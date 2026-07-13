@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Check } from "lucide-react";
+import { Check, ReceiptText } from "lucide-react";
 
 const STEPS = [
   { id: "signal", label: "Signal" },
@@ -15,10 +15,12 @@ export type MissionPipelineStep = (typeof STEPS)[number]["id"];
 export function MissionPipelineStepper({
   activeStep = "blueprint",
   simulated = false,
+  paidSignal = false,
   className,
 }: {
   activeStep?: MissionPipelineStep;
   simulated?: boolean;
+  paidSignal?: boolean;
   className?: string;
 }) {
   const activeIndex = STEPS.findIndex((s) => s.id === activeStep);
@@ -34,45 +36,28 @@ export function MissionPipelineStepper({
   return (
     <nav
       aria-label="Mission decision loop"
-      className={clsx("flex items-center gap-1 sm:gap-2", className)}
+      className={clsx("mission-workflow-rail", className)}
     >
       {STEPS.map((step, i) => {
         const state = stepState(i);
         const isLast = i === STEPS.length - 1;
         return (
-          <div key={step.id} className="flex min-w-0 items-center gap-1 sm:gap-2">
+          <div key={step.id} className="mission-workflow-step" data-state={state}>
             <div
-              className={clsx(
-                "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium transition",
-                state === "active" && "bg-sky-500/15 text-sky-100 ring-1 ring-sky-400/30",
-                state === "done" && "text-emerald-300/90",
-                state === "upcoming" && "text-resolve-muted-dim",
-              )}
+              className="mission-workflow-step__label"
             >
               {state === "done" ? (
                 <Check className="h-3 w-3 shrink-0" aria-hidden />
               ) : (
-                <span
-                  className={clsx(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
-                    state === "active"
-                      ? "bg-sky-500/30 text-sky-100"
-                      : "bg-white/[0.06] text-resolve-muted-dim",
-                  )}
-                >
-                  {i + 1}
-                </span>
+                <span>{String(i + 1).padStart(2, "0")}</span>
               )}
-              <span className="hidden truncate sm:inline">{step.label}</span>
+              <strong>{step.label}</strong>
+              {paidSignal && step.id === "signal" && (
+                <ReceiptText className="mission-workflow-step__receipt" aria-label="Paid signal receipt recorded" />
+              )}
             </div>
             {!isLast && (
-              <span
-                className={clsx(
-                  "h-px w-3 sm:w-6",
-                  state === "done" ? "bg-emerald-500/40" : "bg-white/[0.08]",
-                )}
-                aria-hidden
-              />
+              <span className="mission-workflow-step__connector" aria-hidden />
             )}
           </div>
         );

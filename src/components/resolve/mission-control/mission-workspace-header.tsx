@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, CircleDollarSign, Sparkles, UserRound } from "lucide-react";
+import { Bot, CircleDollarSign, Target, UserRound } from "lucide-react";
 import clsx from "clsx";
 import type { CapitalLoopPhase, OperatingMode } from "@/lib/mission/capital-os";
 import { MissionPipelineStepper } from "@/components/resolve/mission-control/mission-pipeline-stepper";
@@ -28,12 +28,14 @@ export function MissionWorkspaceHeader({
   loopPhase,
   hasBlueprint,
   simulated,
+  paidSignal,
   objective,
 }: {
   operatingMode: OperatingMode;
   loopPhase: CapitalLoopPhase;
   hasBlueprint: boolean;
   simulated: boolean;
+  paidSignal?: boolean;
   objective?: string | null;
 }) {
   const role = ROLE_LABELS[operatingMode];
@@ -41,26 +43,32 @@ export function MissionWorkspaceHeader({
 
   return (
     <header className="mission-command-header">
-      <div className="mission-command-header__identity">
-        <span className="mission-command-header__mark" aria-hidden>
-          <Sparkles className="h-3.5 w-3.5" />
-        </span>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="mission-command-header__title">MISSION</p>
-            <span className="mission-role-badge">
-              <RoleIcon className="h-3 w-3" aria-hidden />
-              {role}
-            </span>
+      <div className="mission-command-header__topline">
+        <div className="mission-command-header__identity">
+          <span className="mission-command-header__mark" aria-hidden>
+            <Target className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="mission-command-header__title">MISSION</p>
+              <span className="mission-role-badge">
+                <RoleIcon className="h-3 w-3" aria-hidden />
+                {role}
+              </span>
+            </div>
+            <p className={clsx("mission-command-header__tagline", objective && "truncate")}>
+              {objective ?? "Question → evidence → capital decision"}
+            </p>
           </div>
-          <p className={clsx("mission-command-header__tagline", objective && "truncate")}>
-            {objective ?? "Turn verified signals into capital decisions."}
-          </p>
         </div>
+        <span className="mission-command-header__status">
+          <i aria-hidden /> Decision engine ready
+        </span>
       </div>
       <MissionPipelineStepper
         activeStep={pipelineStep(loopPhase, hasBlueprint, simulated)}
         simulated={simulated}
+        paidSignal={paidSignal}
         className="mission-command-header__pipeline"
       />
     </header>

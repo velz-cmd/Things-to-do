@@ -21,8 +21,6 @@ import { MissionBlueprintPanel } from "@/components/resolve/mission-control/miss
 import { MissionCommunalPoolPanel } from "@/components/resolve/mission-control/mission-communal-pool-panel";
 import { MissionBatchAllocationPanel } from "@/components/resolve/mission-control/mission-batch-allocation-panel";
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
-import { MissionCreatorValuePanel } from "@/components/resolve/mission-control/mission-creator-value-panel";
-import { MissionFunderToolsPanel } from "@/components/resolve/mission-control/mission-funder-tools-panel";
 import { MissionCommandBar } from "@/components/resolve/mission-control/mission-command-bar";
 import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
 import { MissionCommandHero } from "@/components/resolve/mission-control/mission-command-hero";
@@ -161,8 +159,11 @@ export function MissionWorkspace({
     scopeLabel: scope?.label ?? objective,
   });
   const [evidenceCount, setEvidenceCount] = useState(0);
-  const [decisionPanelCollapsed, setDecisionPanelCollapsed] = useState(false);
+  const [decisionPanelCollapsed, setDecisionPanelCollapsed] = useState(true);
+  const hadDecisionState = useRef(false);
   const executeBlocked = showExecute && evidenceCount < 1;
+  const hasPaidSignal = turns.some((turn) => Boolean(turn.agentSignal));
+  const hasDecisionState = Boolean(objective || lastResolve || blueprintActive || simulated);
 
   const lastArtifactIndex = turns.findLastIndex(
     (t) => t.role === "resolve" && isArtifactTurn(t),
@@ -173,10 +174,13 @@ export function MissionWorkspace({
   }, [turns, loading, thinkingComplete]);
 
   useEffect(() => {
-    if (window.matchMedia("(max-width: 1359px)").matches) {
+    if (!hasDecisionState) {
       setDecisionPanelCollapsed(true);
+    } else if (!hadDecisionState.current && window.matchMedia("(min-width: 1360px)").matches) {
+      setDecisionPanelCollapsed(false);
     }
-  }, []);
+    hadDecisionState.current = hasDecisionState;
+  }, [hasDecisionState]);
 
   function renderResolveTurn(turn: MissionTurn, isCurrent: boolean) {
     if (turn.error) {
@@ -320,6 +324,7 @@ export function MissionWorkspace({
           loopPhase={loopPhase}
           hasBlueprint={blueprintActive}
           simulated={simulated}
+          paidSignal={hasPaidSignal}
           objective={objective}
         />
 
@@ -327,7 +332,12 @@ export function MissionWorkspace({
           <div className="mission-main-workspace__content">
             {!started ? (
               <>
-                <MissionCommandHero onSubmit={onSubmit} />
+                <MissionCommandHero
+                  input={input}
+                  onInputChange={onInputChange}
+                  onSubmit={onSubmit}
+                  loading={loading}
+                />
 
                 {scopePromptHint && onAcceptScopeHint && (
                   <div className="mission-scope-hint">
@@ -339,11 +349,6 @@ export function MissionWorkspace({
                     </div>
                   </div>
                 )}
-
-                <div className="mission-launcher-grid">
-                  <MissionCreatorValuePanel onTryPrompt={onSubmit} loading={loading} />
-                  <MissionFunderToolsPanel onSubmit={onSubmit} loading={loading} />
-                </div>
               </>
             ) : (
               <>
@@ -401,7 +406,7 @@ export function MissionWorkspace({
           </div>
         </div>
 
-        <div className="mission-composer-dock">
+        {started && <div className="mission-composer-dock">
           {blueprintActive && blueprintCommand?.handle ? (
             <MissionCommandBar
               handle={blueprintCommand.handle}
@@ -410,16 +415,6 @@ export function MissionWorkspace({
             />
           ) : (
             <>
-              {onOperatingModeChange && !blueprintActive && (
-                <div className="mission-composer-mode">
-                  <MissionOperatingMode
-                    active={operatingMode}
-                    onChange={onOperatingModeChange}
-                    disabled={loading}
-                  />
-                </div>
-              )}
-
               <MissionEvidencePanel
                 visible={showPlanning || showExecute}
                 missionId={missionId}
@@ -475,10 +470,18 @@ export function MissionWorkspace({
                   onChange={onInputChange}
                   onSubmit={() => onSubmit(input.trim())}
                   loading={loading}
+                  leading={
+                    onOperatingModeChange ? (
+                      <MissionOperatingMode
+                        active={operatingMode}
+                        onChange={onOperatingModeChange}
+                        disabled={loading}
+                      />
+                    ) : undefined
+                  }
                   footer={
                     <div className="mission-composer-footer">
-                      <span>No funds move from this field</span>
-                      <span>Paid signals show price and wallet readiness before authorization</span>
+                      <span>{hasPaidSignal ? "Paid signal · wallet readiness shown before execution" : "Free analysis"}</span>
                     </div>
                   }
                   placeholder="Refine objective or run another signal…"
@@ -486,7 +489,7 @@ export function MissionWorkspace({
               )}
             </>
           )}
-        </div>
+        </div>}
       </main>
 
       <MissionDecisionPanel

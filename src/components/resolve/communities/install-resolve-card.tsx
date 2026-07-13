@@ -10,7 +10,7 @@ import { useUserConnections } from "@/components/resolve/profile/user-connection
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { CommunityVitalsSummary } from "@/lib/communities/types";
-import { CommunityDomainIcon } from "./community-identity";
+import { CommunityDomainIcon, communityOperationsDescription } from "./community-identity";
 import styles from "./communities.module.css";
 
 type Props = {
@@ -56,10 +56,10 @@ export function InstallResolveCard({ community, installed = false, vitals = null
         <div><h3>{community.name}</h3><p>{community.upstream}</p></div>
         <span className={styles.attachBadge}>{community.attachShape}</span>
       </div>
-      {!compact && <p className={styles.installCopy}>{community.tagline}</p>}
+      {!compact && <p className={styles.installCopy}>{communityOperationsDescription(community.kind)}</p>}
       <div className={styles.installHealth}>
-        <span><i data-active={vitals?.sensor.ready || undefined} />Evidence source</span>
-        <strong>{vitals?.sensor.ready ? "Ready" : "Connection required"}</strong>
+        <span><i data-active={vitals?.sensor.ready || undefined} />Connector availability</span>
+        <strong>{vitals?.sensor.ready ? "Available" : "Platform setup pending"}</strong>
       </div>
       {showInstalled ? (
         <Link href={`/communities/${community.slug}`} className={styles.cardPrimary}>

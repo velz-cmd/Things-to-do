@@ -11,6 +11,10 @@ export type CommunityHubOpsStats = {
   pendingObligationsUsd: number;
   pendingCount: number;
   builderCount: number;
+  resolvedIdentityCount: number;
+  unresolvedIdentityCount: number;
+  simulationComplete: boolean;
+  settlementReady: boolean;
 };
 
 /** Per-user ops stats for hub console cards — ledger-backed, not catalog estimates. */
@@ -44,6 +48,23 @@ export async function buildUserCommunityHubOps(
   }
 
   const treasuryUsd = programs.reduce((s, p) => s + p.budgetUsd, 0);
+  const [resolvedIdentities, blueprints] = await Promise.all([
+    prisma.observedIdentity.findMany({
+      where: { userId, communitySlug: slug, status: "resolved" },
+      select: { externalRef: true },
+    }),
+    prisma.blueprint.findMany({
+      where: { userId, communitySlug: slug },
+      select: { id: true },
+    }),
+  ]);
+  const resolvedRefs = new Set(resolvedIdentities.map((row) => row.externalRef));
+  const resolvedIdentityCount = [...builders].filter((builder) => resolvedRefs.has(builder)).length;
+  const simulationComplete = blueprints.length > 0 && await prisma.simulation.count({
+    where: { blueprintId: { in: blueprints.map((row) => row.id) }, status: "completed" },
+  }) > 0;
+  const unresolvedIdentityCount = Math.max(0, builders.size - resolvedIdentityCount);
+  const settlementReady = pendingCount > 0 && unresolvedIdentityCount === 0 && simulationComplete && treasuryUsd >= pendingObligationsUsd;
 
   return {
     programCount: programs.length,
@@ -51,6 +72,10 @@ export async function buildUserCommunityHubOps(
     pendingObligationsUsd: Math.round(pendingObligationsUsd * 100) / 100,
     pendingCount,
     builderCount: builders.size,
+    resolvedIdentityCount,
+    unresolvedIdentityCount,
+    simulationComplete,
+    settlementReady,
   };
 }
 
@@ -85,6 +110,10 @@ export async function buildUserHubOpsMap(
       pendingObligationsUsd: 0,
       pendingCount: 0,
       builderCount: 0,
+      resolvedIdentityCount: 0,
+      unresolvedIdentityCount: 0,
+      simulationComplete: false,
+      settlementReady: false,
     };
   }
 
@@ -117,6 +146,41 @@ export async function buildUserHubOpsMap(
   for (const [slug, stats] of Object.entries(out)) {
     stats.pendingObligationsUsd = Math.round(stats.pendingObligationsUsd * 100) / 100;
     stats.builderCount = buildersBySlug.get(slug)?.size ?? 0;
+  }
+
+  const [resolvedRows, blueprintRows] = await Promise.all([
+    prisma.observedIdentity.findMany({
+      where: { userId, communitySlug: { in: installs.map((install) => install.communitySlug) }, status: "resolved" },
+      select: { communitySlug: true, externalRef: true },
+    }),
+    prisma.blueprint.findMany({
+      where: { userId, communitySlug: { in: installs.map((install) => install.communitySlug) } },
+      select: { id: true, communitySlug: true },
+    }),
+  ]);
+  const simulations = blueprintRows.length
+    ? await prisma.simulation.findMany({
+        where: { blueprintId: { in: blueprintRows.map((row) => row.id) }, status: "completed" },
+        select: { blueprintId: true },
+      })
+    : [];
+  const simulatedBlueprints = new Set(simulations.map((row) => row.blueprintId));
+  const simulatedSlugs = new Set(
+    blueprintRows.filter((row) => simulatedBlueprints.has(row.id)).flatMap((row) => row.communitySlug ? [row.communitySlug] : []),
+  );
+  const resolvedBySlug = new Map<string, Set<string>>();
+  for (const row of resolvedRows) {
+    const refs = resolvedBySlug.get(row.communitySlug) ?? new Set<string>();
+    refs.add(row.externalRef);
+    resolvedBySlug.set(row.communitySlug, refs);
+  }
+  for (const [slug, stats] of Object.entries(out)) {
+    const builders = buildersBySlug.get(slug) ?? new Set<string>();
+    const resolved = resolvedBySlug.get(slug) ?? new Set<string>();
+    stats.resolvedIdentityCount = [...builders].filter((builder) => resolved.has(builder)).length;
+    stats.unresolvedIdentityCount = Math.max(0, stats.builderCount - stats.resolvedIdentityCount);
+    stats.simulationComplete = simulatedSlugs.has(slug);
+    stats.settlementReady = stats.pendingCount > 0 && stats.unresolvedIdentityCount === 0 && stats.simulationComplete && stats.treasuryUsd >= stats.pendingObligationsUsd;
   }
 
   return out;

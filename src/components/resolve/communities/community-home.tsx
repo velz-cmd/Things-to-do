@@ -44,6 +44,10 @@ type CachedCommunitySummary = {
     pendingObligationsUsd?: number;
     programCount?: number;
     builderCount?: number;
+    resolvedIdentityCount?: number;
+    unresolvedIdentityCount?: number;
+    simulationComplete?: boolean;
+    settlementReady?: boolean;
   } | null;
 };
 
@@ -153,6 +157,12 @@ export function CommunityHome({ slug }: { slug: string }) {
       observatory: [],
       economicMemory: [],
       authorizations: [],
+      operatingFacts: {
+        resolvedIdentityCount: cachedSummary?.hubOps?.resolvedIdentityCount ?? 0,
+        unresolvedIdentityCount: cachedSummary?.hubOps?.unresolvedIdentityCount ?? builderCount,
+        simulationComplete: cachedSummary?.hubOps?.simulationComplete ?? false,
+        authorizationStatus: null,
+      },
       timeline: [
         {
           id: `cached-${slug}`,

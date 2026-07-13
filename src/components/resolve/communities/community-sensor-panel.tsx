@@ -135,6 +135,8 @@ export function CommunitySensorPanel({ slug, installed = true, onSynced }: Props
           </p>
         )}
         <Button
+          data-action-id="source.sync"
+          data-testid={`source-sync-${slug}`}
           type="button"
           variant="secondary"
           size="sm"
@@ -153,6 +155,7 @@ export function CommunitySensorPanel({ slug, installed = true, onSynced }: Props
       {isQf && (
         <p className="text-[11px] text-resolve-muted">
           <Link
+            data-action-id="source.view_status"
             href="https://opencollective.com"
             target="_blank"
             rel="noreferrer"

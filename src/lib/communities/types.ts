@@ -22,6 +22,8 @@ export type ProgramRules = {
   minDurationSec?: number;
   minLines?: number;
   splitMode?: string;
+  allocationRule?: "verified_activity" | "equal_recipients" | "hybrid";
+  eligibilityMode?: "resolved_only" | "manual_review";
   connectorId?: string;
   eventType?: string;
   /** RFB #6 — sponsor match pool and QF exponent */
@@ -131,7 +133,18 @@ export type CommunitySurface = {
     treasuryUsd: number;
     obligationsUsd: number;
     communityObligationsUsd: number;
-    connectorStatus: Array<{ id: string; health: string; label: string }>;
+    connectorStatus: Array<{
+      id: string;
+      health: string;
+      label: string;
+      connectionId?: string | null;
+      accountLabel?: string | null;
+      lastSuccessfulSync?: string | null;
+      currentSyncState?: string | null;
+      recordsObserved?: number;
+      authExpiresAt?: string | null;
+      cachedAt?: string | null;
+    }>;
     scrobbleBridge: boolean;
     lastScrobbleAt: string | null;
   };
@@ -139,6 +152,12 @@ export type CommunitySurface = {
   observatory: ObservatoryAlert[];
   economicMemory: EconomicMemoryEntry[];
   authorizations: AuthorizationPreview[];
+  operatingFacts: {
+    resolvedIdentityCount: number;
+    unresolvedIdentityCount: number;
+    simulationComplete: boolean;
+    authorizationStatus: string | null;
+  };
   timeline: Array<{
     id: string;
     eventType: string;

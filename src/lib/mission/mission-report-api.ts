@@ -71,6 +71,7 @@ export async function authorizeBlueprintServer(input: {
   preview?: BlueprintSettlementPreview;
   fundTxHash?: string;
   fundTxLabel?: string;
+  fundingIntentId?: string;
   capitalHref?: string;
   error?: string;
 }> {
@@ -78,7 +79,10 @@ export async function authorizeBlueprintServer(input: {
     const res = await fetch("/api/mission/blueprint/authorize", {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": `mission:${input.pkg.id}:authorization`,
+      },
       body: JSON.stringify({
         package: input.pkg,
         amountUsd: input.amountUsd,
@@ -91,6 +95,7 @@ export async function authorizeBlueprintServer(input: {
       preview?: BlueprintSettlementPreview;
       fundTxHash?: string;
       fundTxLabel?: string;
+      fundingIntentId?: string;
       capitalHref?: string;
       error?: string;
     };
@@ -103,6 +108,7 @@ export async function authorizeBlueprintServer(input: {
       preview: data.preview,
       fundTxHash: data.fundTxHash,
       fundTxLabel: data.fundTxLabel,
+      fundingIntentId: data.fundingIntentId,
       capitalHref: data.capitalHref,
     };
   } catch (e) {

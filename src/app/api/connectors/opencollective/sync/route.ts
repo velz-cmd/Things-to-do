@@ -5,10 +5,11 @@ import { getCommunityBySlug } from "@/lib/communities/catalog";
 import { syncOpenCollectiveCommunitySensors } from "@/lib/sensors/sync";
 import { isOpenCollectiveConfigured } from "@/lib/integrations/opencollective";
 import { getCronSecret } from "@/lib/env/cron-secret";
+import { completeSourceSync, failSourceSync, startSourceSync } from "@/lib/sources/sync-lifecycle";
 
 function authorizeCron(req: Request): boolean {
   const secret = getCronSecret();
-  if (!secret) return true;
+  if (!secret) return false;
   return req.headers.get("authorization")?.trim() === `Bearer ${secret}`;
 }
 
@@ -41,12 +42,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Community not found" }, { status: 404 });
   }
 
-  const result = await syncOpenCollectiveCommunitySensors({
-    communitySlug,
-    missionId: parsed.data.missionId,
-    founderUserId,
-    openCollectiveSlug: parsed.data.openCollectiveSlug,
-  });
+  const lifecycle = founderUserId
+    ? await startSourceSync({ userId: founderUserId, communitySlug, provider: "opencollective", displayLabel: "Open Collective" })
+    : null;
+  let result: Awaited<ReturnType<typeof syncOpenCollectiveCommunitySensors>>;
+  try {
+    result = await syncOpenCollectiveCommunitySensors({
+      communitySlug,
+      missionId: parsed.data.missionId,
+      founderUserId,
+      openCollectiveSlug: parsed.data.openCollectiveSlug,
+    });
+    if (lifecycle && founderUserId) {
+      await completeSourceSync({ userId: founderUserId, connectionId: lifecycle.connection.id, syncRunId: lifecycle.run.id, communitySlug, provider: "opencollective", evidenceCount: result.ingested ?? result.observations ?? 0, result });
+    }
+  } catch (error) {
+    if (lifecycle && founderUserId) {
+      await failSourceSync({ userId: founderUserId, connectionId: lifecycle.connection.id, syncRunId: lifecycle.run.id, communitySlug, provider: "opencollective", error }).catch(() => null);
+    }
+    return NextResponse.json({ error: "Open Collective synchronization failed; the last confirmed snapshot is unchanged" }, { status: 502 });
+  }
 
   return NextResponse.json({
     ok: true,

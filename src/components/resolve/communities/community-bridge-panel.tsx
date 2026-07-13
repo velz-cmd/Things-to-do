@@ -134,6 +134,8 @@ export function CommunityBridgePanel({
       <div className="flex flex-wrap gap-2">
         {!connected && (
           <Link
+            data-action-id="source.connect"
+            data-testid="source-connect-listenbrainz"
             href="/api/connectors/listenbrainz/authorize?returnTo=/communities/independent-music"
             className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-white hover:bg-white/[0.08]"
           >
@@ -142,6 +144,8 @@ export function CommunityBridgePanel({
         )}
         {connected && (
           <Button
+            data-action-id="source.sync"
+            data-testid="source-sync-music"
             type="button"
             variant="secondary"
             size="sm"

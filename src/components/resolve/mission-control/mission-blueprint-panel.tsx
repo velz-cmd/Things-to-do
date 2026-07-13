@@ -259,8 +259,8 @@ export const MissionBlueprintPanel = forwardRef<
       if (!result.ok) {
         if (result.preview) setSettlementPreview(result.preview);
         if (result.capitalHref) {
-          toast.error(result.error ?? "Could not fund on Arc", {
-            description: "Open Capital with this plan pre-filled.",
+          toast.error(result.error ?? "Could not prepare the authorization", {
+            description: "Review the blocker, then continue in Capital.",
             action: {
               label: "Capital",
               onClick: () => router.push(result.capitalHref!),
@@ -271,14 +271,13 @@ export const MissionBlueprintPanel = forwardRef<
         }
       } else {
         if (result.preview) setSettlementPreview(result.preview);
-        if (result.fundTxHash) setFundTxHash(result.fundTxHash);
         const fundTxLabel = result.fundTxLabel;
         const record = createReportFromPackage(pkg, "authorized", { fundTxLabel });
         saveMissionReport(record);
-        toast.success("Authorized in Mission", {
-          description: fundTxLabel ?? "Pool funded · receipt saved",
+        toast.success("Authorization package prepared", {
+          description: "No funds moved. Capital will verify the wallet and execute the funding intent.",
         });
-        router.push(`/mission/report/${pkg.id}`);
+        router.push(result.capitalHref ?? `/capital?missionReport=${encodeURIComponent(pkg.id)}`);
       }
     } finally {
       setAuthorizing(false);
@@ -577,11 +576,12 @@ export const MissionBlueprintPanel = forwardRef<
 
       {!commandBarMode && (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" size="sm" className="gap-1.5" onClick={handleSimulate}>
+          <Button data-action-id="mission.simulate" type="button" variant="secondary" size="sm" className="gap-1.5" onClick={handleSimulate}>
             <LineChart className="h-3.5 w-3.5" />
             Simulate
           </Button>
           <Button
+            data-action-id="mission.prepare_authorization"
             type="button"
             size="sm"
             className="gap-1.5"
@@ -593,7 +593,7 @@ export const MissionBlueprintPanel = forwardRef<
             ) : (
               <Shield className="h-3.5 w-3.5" />
             )}
-            Authorize
+            Prepare authorization
           </Button>
           {reportId && (
             <Link

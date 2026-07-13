@@ -62,11 +62,11 @@ export function InstallResolveCard({ community, installed = false, vitals = null
         <strong>{vitals?.sensor.ready ? "Available" : "Platform setup pending"}</strong>
       </div>
       {showInstalled ? (
-        <Link href={`/communities/${community.slug}`} className={styles.cardPrimary}>
+        <Link data-action-id="community.open" href={`/communities/${community.slug}`} className={styles.cardPrimary}>
           <CheckCircle2 /> Open console <ArrowRight />
         </Link>
       ) : (
-        <button type="button" className={styles.cardPrimary} disabled={busy} onClick={() => void install()}>
+        <button data-action-id="community.install" type="button" className={styles.cardPrimary} disabled={busy} onClick={() => void install()}>
           {busy ? <Loader2 className="animate-spin" /> : <PlugZap />} {busy ? "Installing…" : "Install ecosystem"}
         </button>
       )}

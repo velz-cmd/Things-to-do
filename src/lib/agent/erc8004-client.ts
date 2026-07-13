@@ -9,6 +9,7 @@ import {
 } from "@/lib/agent/erc8004-config";
 import { ARC_RPC_URL } from "@/lib/settlement/arc-config";
 import { executeCircleContractOn } from "@/lib/settlement/circle-client";
+import { arcFeatureFlags } from "@/lib/arc/feature-flags";
 import { hasCircleCredentials } from "@/lib/settlement/arc-config";
 import { prisma } from "@/lib/db";
 
@@ -29,6 +30,13 @@ export async function ensureResolveAgentRegistered(): Promise<{
   mode: "live" | "mock";
 }> {
   const existing = await getResolveAgentRecord();
+  if (!arcFeatureFlags.erc8004) {
+    return {
+      agentTokenId: existing.agentTokenId,
+      registerTxHash: existing.registerTxHash,
+      mode: "mock",
+    };
+  }
   if (existing.agentTokenId) {
     return {
       agentTokenId: existing.agentTokenId,
@@ -91,6 +99,9 @@ export async function recordMissionReputation(input: {
   proofHash: string;
   recoveredUsd: number;
 }): Promise<{ txHash: string | null; score: number; mode: "live" | "mock" }> {
+  if (!arcFeatureFlags.erc8004) {
+    return { txHash: null, score: 0, mode: "mock" };
+  }
   const agent = await ensureResolveAgentRegistered();
   if (!agent.agentTokenId) {
     return { txHash: null, score: 0, mode: "mock" };
@@ -108,14 +119,7 @@ export async function recordMissionReputation(input: {
     !ARC_AGENT_VALIDATOR_WALLET_ADDRESS ||
     !canRegisterAgent()
   ) {
-    await prisma.resolveAgent.update({
-      where: { id: "resolve" },
-      data: {
-        reputationCount: { increment: 1 },
-        lastReputationScore: score,
-      },
-    });
-    return { txHash: null, score, mode: "mock" };
+    return { txHash: null, score: 0, mode: "mock" };
   }
 
   const txHash = await executeCircleContractOn({

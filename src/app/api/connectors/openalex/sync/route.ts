@@ -4,10 +4,11 @@ import { requireReadyUser } from "@/lib/auth/session";
 import { syncOpenAlexCommunitySensors } from "@/lib/sensors/sync";
 import { INTEGRATIONS } from "@/lib/integrations/config";
 import { getCronSecret } from "@/lib/env/cron-secret";
+import { completeSourceSync, failSourceSync, startSourceSync } from "@/lib/sources/sync-lifecycle";
 
 function authorizeCron(req: Request): boolean {
   const secret = getCronSecret();
-  if (!secret) return true;
+  if (!secret) return false;
   return req.headers.get("authorization")?.trim() === `Bearer ${secret}`;
 }
 
@@ -34,11 +35,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const result = await syncOpenAlexCommunitySensors({
-    communitySlug: parsed.data.communitySlug,
-    missionId: parsed.data.missionId,
-    founderUserId,
-  });
+  const communitySlug = parsed.data.communitySlug ?? "open-research";
+  const lifecycle = founderUserId
+    ? await startSourceSync({ userId: founderUserId, communitySlug, provider: "openalex", displayLabel: "OpenAlex" })
+    : null;
+  let result: Awaited<ReturnType<typeof syncOpenAlexCommunitySensors>>;
+  try {
+    result = await syncOpenAlexCommunitySensors({
+      communitySlug,
+      missionId: parsed.data.missionId,
+      founderUserId,
+    });
+    if (lifecycle && founderUserId) {
+      await completeSourceSync({ userId: founderUserId, connectionId: lifecycle.connection.id, syncRunId: lifecycle.run.id, communitySlug, provider: "openalex", evidenceCount: result.ingested ?? result.observations ?? 0, result });
+    }
+  } catch (error) {
+    if (lifecycle && founderUserId) {
+      await failSourceSync({ userId: founderUserId, connectionId: lifecycle.connection.id, syncRunId: lifecycle.run.id, communitySlug, provider: "openalex", error }).catch(() => null);
+    }
+    return NextResponse.json({ error: "OpenAlex synchronization failed; cached evidence remains available" }, { status: 502 });
+  }
 
   return NextResponse.json({
     ok: true,

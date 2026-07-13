@@ -1,114 +1,97 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Layers } from "lucide-react";
-import clsx from "clsx";
-import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
-import { Money } from "@/components/resolve/ui/money";
+import { ArrowRight, ArrowUpRight, Ellipsis, Radio, Route, UserRoundCheck } from "lucide-react";
 import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { CommunityHubOpsStats } from "@/lib/communities/hub-ops-stats";
-import { communityConsolePath } from "@/lib/communities/community-nav";
+import type { CommunityVitalsSummary } from "@/lib/communities/types";
+import { communityConsolePath, profileConnectPath } from "@/lib/communities/community-nav";
+import { CommunityDomainIcon } from "./community-identity";
+import styles from "./communities.module.css";
 
-const accentRing: Record<string, string> = {
-  violet: "from-violet-500/20 to-resolve-accent/10",
-  emerald: "from-emerald-500/20 to-teal-500/10",
-  blue: "from-blue-500/20 to-resolve-accent/10",
-  orange: "from-orange-500/20 to-amber-500/10",
+export type CommunityOperationalState = "healthy" | "setup" | "review" | "ready";
+
+export function getCommunityOperationalState(
+  hubOps: CommunityHubOpsStats | null,
+  vitals: CommunityVitalsSummary | null,
+): CommunityOperationalState {
+  const programs = hubOps?.programCount ?? vitals?.programCount ?? 0;
+  const pending = hubOps?.pendingObligationsUsd ?? 0;
+  const available = hubOps?.treasuryUsd ?? vitals?.fundingTotalUsd ?? 0;
+  if (pending > 0.01 && available >= pending) return "ready";
+  if ((hubOps?.pendingCount ?? 0) > 0 || pending > 0.01) return "review";
+  if (!vitals?.sensor.ready || programs === 0) return "setup";
+  return "healthy";
+}
+
+const STATE_LABEL: Record<CommunityOperationalState, string> = {
+  healthy: "Healthy",
+  setup: "Needs setup",
+  review: "Needs review",
+  ready: "Settlement ready",
 };
 
 type Props = {
-  community: Pick<
-    CommunityCatalogEntry,
-    "slug" | "name" | "tagline" | "accent" | "kind" | "upstream"
-  >;
+  community: Pick<CommunityCatalogEntry, "slug" | "name" | "tagline" | "kind" | "upstream">;
   hubOps: CommunityHubOpsStats | null;
-  programCountFallback?: number;
-  pendingFallbackUsd?: number;
-  treasuryFallbackUsd?: number;
+  vitals: CommunityVitalsSummary | null;
+  compact?: boolean;
 };
 
-export function CommunityOperateCard({
-  community,
-  hubOps,
-  programCountFallback = 0,
-  pendingFallbackUsd = 0,
-  treasuryFallbackUsd = 0,
-}: Props) {
-  const programCount = hubOps?.programCount ?? programCountFallback;
-  const treasuryUsd = hubOps?.treasuryUsd ?? treasuryFallbackUsd;
-  const pendingUsd = hubOps?.pendingObligationsUsd ?? pendingFallbackUsd;
-  const operateHref =
-    pendingUsd > 0.01
-      ? communityConsolePath(community.slug, "approve_payouts")
-      : programCount > 0
-        ? communityConsolePath(community.slug)
-        : communityConsolePath(community.slug, "create_program");
-  const payeeCount = hubOps?.builderCount ?? 0;
-  const primaryLabel =
-    pendingUsd > 0.01
-      ? `Review $${pendingUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} pending`
-      : programCount > 0
-        ? "Open Console"
-        : "Create first program";
+export function CommunityOperateCard({ community, hubOps, vitals, compact = false }: Props) {
+  const state = getCommunityOperationalState(hubOps, vitals);
+  const programs = hubOps?.programCount ?? vitals?.programCount ?? 0;
+  const obligationCount = hubOps?.pendingCount ?? 0;
+  const identities = hubOps?.builderCount ?? 0;
+  const sourceLabel = vitals?.sensor.ready ? "Connected" : vitals?.sensor.live ? "Syncing" : "Needs connection";
+  const primary =
+    !vitals?.sensor.ready
+      ? { label: "Connect source", href: profileConnectPath(`/communities/${community.slug}`) }
+      : programs === 0
+        ? { label: "Create program", href: communityConsolePath(community.slug, "create_program") }
+        : state === "review"
+          ? { label: "Review obligations", href: communityConsolePath(community.slug, "review_obligations") }
+          : state === "ready"
+            ? { label: "Open settlement review", href: `${communityConsolePath(community.slug)}#settlement-readiness` }
+            : { label: "Open console", href: communityConsolePath(community.slug) };
+  const nextStep =
+    !vitals?.sensor.ready
+      ? "Connect the evidence source and run the first synchronization."
+      : programs === 0
+        ? "Configure a policy for verified activity in this ecosystem."
+        : state === "review"
+          ? `Review ${obligationCount} recognized obligation${obligationCount === 1 ? "" : "s"}.`
+          : state === "ready"
+            ? "Review the package before handing authorization to Capital."
+            : "Sources and program policy are operating normally.";
 
   return (
-    <BlueGlowCard className="relative overflow-hidden" hover>
-      <div
-        aria-hidden
-        className={clsx(
-          "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-40",
-          accentRing[community.accent] ?? accentRing.violet,
-        )}
-      />
-      <div className="relative space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow">
-            <Layers className="h-5 w-5 text-white" />
-          </div>
-          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-300">
-            Operating
-          </span>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-semibold text-white">{community.name}</h3>
-          <p className="mt-0.5 text-[11px] uppercase tracking-[0.12em] text-resolve-muted-dim">
-            {community.kind} - {community.upstream}
-          </p>
-          <p className="mt-1 line-clamp-2 text-sm text-resolve-muted">{community.tagline}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-          <div className="rounded-lg border border-white/[0.06] bg-black/25 px-2 py-2">
-            <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Treasury</p>
-            <p className="mt-0.5 text-sm font-semibold text-white">
-              <Money amount={treasuryUsd} size="sm" className="inline" />
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/[0.06] bg-black/25 px-2 py-2">
-            <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Pending payouts</p>
-            <p className="mt-0.5 text-sm font-semibold text-amber-100">
-              <Money amount={pendingUsd} size="sm" className="inline" />
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/[0.06] bg-black/25 px-2 py-2">
-            <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Programs</p>
-            <p className="mt-0.5 text-sm font-semibold text-white">{programCount}</p>
-          </div>
-          <div className="rounded-lg border border-white/[0.06] bg-black/25 px-2 py-2">
-            <p className="text-[9px] uppercase tracking-wider text-resolve-muted">Payees</p>
-            <p className="mt-0.5 text-sm font-semibold text-white">{payeeCount}</p>
-          </div>
-        </div>
-
-        <Link
-          href={operateHref}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-resolve-accent/35 bg-resolve-accent/10 py-2.5 text-sm font-medium text-resolve-accent transition hover:bg-resolve-accent/15"
-        >
-          {primaryLabel}
-          <ArrowRight className="h-4 w-4" />
-        </Link>
+    <article className={styles.communityCard} data-kind={community.kind} data-compact={compact || undefined}>
+      <div className={styles.cardIdentity}>
+        <div className={styles.domainIcon}><CommunityDomainIcon slug={community.slug} kind={community.kind} /></div>
+        <div><h3>{community.name}</h3><p>{community.upstream}</p></div>
+        <span className={styles.stateBadge} data-state={state}><i />{STATE_LABEL[state]}</span>
       </div>
-    </BlueGlowCard>
+      <p className={styles.cardTagline}>{community.tagline}</p>
+      <div className={styles.cardSignals}>
+        <div><Radio /><span>Source health</span><strong data-tone={vitals?.sensor.ready ? "healthy" : "attention"}>{sourceLabel}</strong></div>
+        <div><UserRoundCheck /><span>Attributed identities</span><strong>{identities}</strong></div>
+        <div><Route /><span>Active programs</span><strong>{programs}</strong></div>
+        <div><ArrowUpRight /><span>Open obligations</span><strong>{obligationCount}</strong></div>
+      </div>
+      <div className={styles.nextStep}><span>Recommended next step</span><p>{nextStep}</p></div>
+      <div className={styles.cardActions}>
+        <Link href={primary.href} className={styles.cardPrimary}>{primary.label}<ArrowRight /></Link>
+        {primary.label === "Open console" ? (
+          <Link href={`/mission?community=${community.slug}`} className={styles.cardSecondary}>Run Mission</Link>
+        ) : (
+          <Link href={communityConsolePath(community.slug)} className={styles.cardSecondary}>Open console</Link>
+        )}
+        <details className={styles.moreMenu}>
+          <summary aria-label={`More actions for ${community.name}`}><Ellipsis /></summary>
+          <div><Link href={`/mission?community=${community.slug}`}>Analyze in Mission</Link><Link href={profileConnectPath(`/communities/${community.slug}`)}>Manage source</Link></div>
+        </details>
+      </div>
+    </article>
   );
 }

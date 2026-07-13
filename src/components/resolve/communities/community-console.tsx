@@ -1,217 +1,78 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Activity,
+  ArrowDown,
+  ArrowRight,
   ArrowUpRight,
+  BadgeCheck,
+  BookOpenCheck,
   CheckCircle2,
-  ChevronDown,
+  CircleAlert,
+  Clock3,
+  FileSearch,
+  Fingerprint,
+  Gauge,
+  GitMerge,
   Loader2,
-  Users,
-  Wallet,
-  Layers,
-  AlertCircle,
+  MoreHorizontal,
+  Radio,
+  RefreshCw,
+  Route,
+  ScrollText,
+  ShieldCheck,
+  Sparkles,
+  type LucideIcon,
+  UserRoundSearch,
+  UsersRound,
+  WalletCards,
 } from "lucide-react";
 import clsx from "clsx";
-import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
-import { Button } from "@/components/resolve/ui/button";
-import { Money } from "@/components/resolve/ui/money";
 import { CommunitySensorPanel } from "@/components/resolve/communities/community-sensor-panel";
 import { CommunityBridgePanel } from "@/components/resolve/communities/community-bridge-panel";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
 import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
-import {
-  quickActionsForKind,
-  type CommunityQuickActionId,
-} from "@/lib/communities/console-quick-actions";
 import { profileConnectPath } from "@/lib/communities/community-nav";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
-import { platformConnected } from "@/lib/profile/connection-state-types";
-import { ACTION_ERRORS } from "@/lib/copy/action-errors";
-import { PoolCheckpointPanel } from "@/components/resolve/communities/pool-checkpoint-panel";
-import { ProgramPayeeRulesPanel } from "@/components/resolve/communities/program-payee-rules-panel";
+import { CommunityDomainIcon } from "./community-identity";
+import styles from "./communities.module.css";
 
-function programRulesLabel(program: ProgramRecord): string {
-  const t = PROGRAM_TEMPLATES[program.templateId as keyof typeof PROGRAM_TEMPLATES];
-  if (t?.description) return t.description;
-  if (program.rules.perPlayUsd) return `$${program.rules.perPlayUsd} per verified play`;
-  if (program.rules.perCitationUsd) return `$${program.rules.perCitationUsd} per citation`;
-  if (program.rules.perMergeUsd) return `$${program.rules.perMergeUsd} per docs merge`;
-  return program.templateId;
-}
+type ConsoleTab = "overview" | "programs" | "obligations" | "identities" | "sources" | "activity";
 
-function programFundLabel(program: ProgramRecord): string {
-  if (program.templateId === "docs-bounty") return "Fund Docs Pool";
-  if (program.templateId === "security-fund") return "Fund Security Pool";
-  if (program.templateId === "citation-toll") return "Fund Citation Pool";
-  if (program.templateId === "video-royalties") return "Fund Creator Pool";
-  if (program.templateId === "user-centric-royalties") return "Fund Royalty Pool";
-  return "Fund Program Pool";
-}
-
-function fundingGapLabel(amountUsd: number): string {
-  return `Fund $${amountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} gap`;
-}
-
-const CONSOLE_SECTIONS = [
+const TABS: Array<{ id: ConsoleTab; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "obligations", label: "Obligations" },
   { id: "programs", label: "Programs" },
+  { id: "obligations", label: "Obligations" },
+  { id: "identities", label: "Identity Desk" },
   { id: "sources", label: "Sources" },
+  { id: "activity", label: "Activity" },
 ];
 
-function ProgramCard({
-  program,
-  slug,
-  communityKind,
-  onDeploy,
-  onFund,
-  deploying,
-  readiness,
-  sourcesConnected,
-  connections,
-}: {
-  program: ProgramRecord;
-  slug: string;
-  communityKind: string;
-  onDeploy: (id: string) => void;
-  onFund: (programId: string, label?: string, amountUsd?: number) => void;
-  deploying: string | null;
-  readiness?: ProgramRecord["deployReadiness"];
-  sourcesConnected?: boolean;
-  connections: UserConnectionState;
-}) {
-  const isDeploying = deploying === program.id;
-  const canRedeploy = (readiness?.authorizedCount ?? 0) > 0;
-  const fundingGapUsd = readiness?.fundingGapUsd ?? 0;
-  const needsFunding = fundingGapUsd > 0.01;
-  const deployDisabled =
-    isDeploying || needsFunding || (program.status === "deployed" && !canRedeploy);
-  const deployLabel =
-    readiness?.pendingObligationsUsd && readiness.pendingObligationsUsd > 0
-      ? `Settle $${readiness.pendingObligationsUsd.toLocaleString(undefined, {
-          maximumFractionDigits: 0,
-        })} on Arc`
-      : "Settle on Arc";
+const PENDING_STATUSES = new Set(["authorized", "pending_funding"]);
 
-  return (
-    <div id={`program-${program.id}`}>
-    <BlueGlowCard variant="subtle" className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-resolve-accent">
-            Program
-          </p>
-          <h3 className="mt-1 text-base font-semibold text-white">{program.name}</h3>
-          <p className="mt-1 text-xs text-resolve-muted">{programRulesLabel(program)}</p>
-        </div>
-        <span
-          className={clsx(
-            "rounded-full px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider",
-            program.status === "deployed"
-              ? "bg-emerald-500/15 text-emerald-300"
-              : program.status === "active"
-                ? "bg-resolve-accent/15 text-resolve-accent"
-                : "bg-white/5 text-resolve-muted",
-          )}
-        >
-          {program.status}
-        </span>
-      </div>
+function humanize(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
 
-      <div className="grid grid-cols-3 gap-3 text-center">
-        <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Budget</p>
-          <p className="mt-0.5 text-sm font-semibold text-white">
-            <Money amount={program.budgetUsd} size="sm" className="inline" />
-          </p>
-        </div>
-        <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Authorized</p>
-          <p className="mt-0.5 text-sm font-semibold text-white">
-            <Money amount={readiness?.authorizedUsd ?? 0} size="sm" className="inline" />
-          </p>
-        </div>
-        <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-resolve-muted">Pending</p>
-          <p className="mt-0.5 text-sm font-semibold text-amber-100">
-            <Money amount={readiness?.pendingObligationsUsd ?? 0} size="sm" className="inline" />
-          </p>
-        </div>
-      </div>
+function programRulesLabel(program: ProgramRecord): string {
+  const template = PROGRAM_TEMPLATES[program.templateId as keyof typeof PROGRAM_TEMPLATES];
+  if (program.rules.perPlayUsd) return `$${program.rules.perPlayUsd} per verified play`;
+  if (program.rules.perWatchUsd) return `$${program.rules.perWatchUsd} per verified watch`;
+  if (program.rules.perCitationUsd) return `$${program.rules.perCitationUsd} per verified citation`;
+  if (program.rules.perMergeUsd) return `$${program.rules.perMergeUsd} per accepted contribution`;
+  return template?.description ?? humanize(program.templateId);
+}
 
-      <PoolCheckpointPanel communitySlug={slug} programId={program.id} compact />
-
-      <ProgramPayeeRulesPanel
-        program={program}
-        communitySlug={slug}
-        githubConnected={platformConnected(connections, "github")}
-        githubUsername={connections.githubUsername}
-      />
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() =>
-            onFund(
-              program.id,
-              needsFunding ? fundingGapLabel(fundingGapUsd) : programFundLabel(program),
-              needsFunding ? Math.max(5, fundingGapUsd) : undefined,
-            )
-          }
-        >
-          {needsFunding ? fundingGapLabel(fundingGapUsd) : programFundLabel(program)}
-        </Button>
-        <Button
-          size="sm"
-          disabled={deployDisabled || !readiness?.canDeploy}
-          onClick={() => onDeploy(program.id)}
-        >
-          {isDeploying ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Settling on Arc...
-            </>
-          ) : program.status === "deployed" && !canRedeploy ? (
-            <>
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Deployed
-            </>
-          ) : (
-            deployLabel
-          )}
-        </Button>
-        <Link
-          href={`/mission?community=${slug}&program=${program.missionId ?? program.id}`}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-resolve-accent/30 px-3 py-1.5 text-xs text-resolve-accent hover:bg-resolve-accent/10"
-        >
-          Mission
-          <ArrowUpRight className="h-3 w-3" />
-        </Link>
-        {!sourcesConnected && (
-          <Link
-            href={profileConnectPath(`/communities/${slug}`)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-resolve-muted hover:text-white"
-          >
-            Connect source
-            <ArrowUpRight className="h-3 w-3" />
-          </Link>
-        )}
-      </div>
-
-      {readiness?.reasons && readiness.reasons.length > 0 && !readiness.canDeploy && (
-        <ul className="space-y-1 text-[11px] text-amber-200/90">
-          {readiness.reasons.map((r) => (
-            <li key={r}>- {r}</li>
-          ))}
-        </ul>
-      )}
-    </BlueGlowCard>
-    </div>
-  );
+function eventIcon(eventType: string) {
+  if (eventType.includes("identity")) return Fingerprint;
+  if (eventType.includes("source") || eventType.includes("sync")) return Radio;
+  if (eventType.includes("settle") || eventType.includes("receipt")) return BadgeCheck;
+  if (eventType.includes("program") || eventType.includes("policy")) return ScrollText;
+  return Activity;
 }
 
 type Props = {
@@ -220,17 +81,12 @@ type Props = {
   surface: CommunitySurface;
   connections: UserConnectionState;
   busy: boolean;
-  deploying: string | null;
   obligationsFilter: "all" | "pending";
-  onObligationsFilterChange: (f: "all" | "pending") => void;
-  onRequestDeploy: (programId: string) => void;
-  onFund: (programId: string, label?: string, amountUsd?: number) => void;
+  onObligationsFilterChange: (filter: "all" | "pending") => void;
   onRequestCreateProgram: () => void;
-  onRequestApprovePayouts: () => void;
   onRefresh: () => void;
+  initialTab?: ConsoleTab;
 };
-
-const PENDING_STATUSES = new Set(["authorized", "pending_funding"]);
 
 export function CommunityConsole({
   slug,
@@ -238,298 +94,246 @@ export function CommunityConsole({
   surface,
   connections,
   busy,
-  deploying,
   obligationsFilter,
   onObligationsFilterChange,
-  onRequestDeploy,
-  onFund,
   onRequestCreateProgram,
-  onRequestApprovePayouts,
   onRefresh,
+  initialTab = "overview",
 }: Props) {
-  const [sensorsOpen, setSensorsOpen] = useState(false);
-  const quickActions = quickActionsForKind(catalog.kind);
-  const sourcesConnected =
-    connections.hasAnyConnector || communityLinkedViaProfile(slug, connections);
-  const programCount = surface.programs.length;
-  const builderCount = surface.impact?.artistCount ?? 0;
-  const pendingUsd = surface.deployReadiness?.pendingObligationsUsd ?? 0;
+  const [tab, setTab] = useState<ConsoleTab>(initialTab);
+  const sourcesConnected = connections.hasAnyConnector || communityLinkedViaProfile(slug, connections);
+  const programs = surface.programs ?? [];
+  const authorizations = surface.authorizations ?? [];
+  const readiness = surface.deployReadiness;
+  const identityResolved = readiness?.walletMappedCount ?? 0;
+  const identityUnresolved = Math.max(0, (readiness?.authorizedCount ?? 0) - identityResolved);
+  const connectorHealthy = surface.health.connectorStatus.filter((source) => ["healthy", "connected", "live"].includes(source.health.toLowerCase())).length;
+  const pendingAuthorizations = authorizations.filter((item) => PENDING_STATUSES.has(item.status));
+  const visibleAuthorizations = obligationsFilter === "pending" ? pendingAuthorizations : authorizations;
+  const activePrograms = programs.filter((program) => ["active", "deployed"].includes(program.status)).length;
 
-  const filteredAuthorizations = (surface.authorizations ?? []).filter((a) =>
-    obligationsFilter === "pending" ? PENDING_STATUSES.has(a.status) : true,
-  );
+  useEffect(() => {
+    setTab(initialTab);
+    const hash = window.location.hash;
+    if (hash === "#settlement-readiness") setTab("overview");
+    if (hash === "#obligations") setTab("obligations");
+    if (hash === "#programs") setTab("programs");
+  }, [initialTab]);
 
-  function scrollTo(id: string) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  const recommended = useMemo(() => {
+    if (!sourcesConnected) {
+      return {
+        eyebrow: "Connection required",
+        title: `Connect ${catalog.upstream.split(" · ")[0]} as an evidence source.`,
+        why: "The community cannot synchronize activity or recognize obligations until a source identity is connected.",
+        result: "Verified source events become available to program policy.",
+        action: "Connect source",
+        href: profileConnectPath(`/communities/${slug}`),
+      };
+    }
+    if (programs.length === 0) {
+      return {
+        eyebrow: "Policy required",
+        title: "Create the first operating program.",
+        why: "Evidence is available, but no policy currently converts verified activity into obligations.",
+        result: "Eligible evidence can be recognized under a reviewable rule.",
+        action: "Create program",
+        onClick: onRequestCreateProgram,
+      };
+    }
+    if (identityUnresolved > 0) {
+      return {
+        eyebrow: "Identity review",
+        title: `Resolve ${identityUnresolved} unmatched payout ${identityUnresolved === 1 ? "identity" : "identities"}.`,
+        why: "Unmatched identities cannot receive a settlement until a payout destination is confirmed.",
+        result: `${readiness?.authorizedCount ?? 0} recognized payees can move toward settlement review.`,
+        action: "Open Identity Desk",
+        onClick: () => setTab("identities"),
+      };
+    }
+    if ((readiness?.pendingObligationsUsd ?? 0) > 0) {
+      return {
+        eyebrow: readiness?.canDeploy ? "Settlement package ready" : "Operational review",
+        title: readiness?.canDeploy ? "Review the settlement package before Capital authorization." : "Review recognized obligations and current blockers.",
+        why: readiness?.reasons?.[0] ?? "Recognized obligations must pass identity, policy, simulation, and capital checks.",
+        result: "A controlled handoff to Mission or Capital with community context preserved.",
+        action: readiness?.canDeploy ? "Open Capital" : "Review obligations",
+        href: readiness?.canDeploy ? `/capital?community=${encodeURIComponent(slug)}` : undefined,
+        onClick: readiness?.canDeploy ? undefined : () => setTab("obligations"),
+      };
+    }
+    return {
+      eyebrow: "Operational health",
+      title: "Synchronize sources for the next evidence cycle.",
+      why: "Programs are configured and no recognized obligations currently require review.",
+      result: "Fresh source activity is evaluated against active policy.",
+      action: "Open Sources",
+      onClick: () => setTab("sources"),
+    };
+  }, [catalog.upstream, identityUnresolved, onRequestCreateProgram, programs.length, readiness, slug, sourcesConnected]);
 
-  async function runQuickAction(actionId: CommunityQuickActionId) {
-    switch (actionId) {
-      case "create_program":
-        onRequestCreateProgram();
-        break;
-      case "connect_source":
-        window.location.href = profileConnectPath(`/communities/${slug}`);
-        break;
-      case "review_obligations":
-        onObligationsFilterChange("pending");
-        scrollTo("obligations");
-        break;
-      case "approve_payouts":
-        onRequestApprovePayouts();
-        break;
-    }
-  }
-
-  function quickActionDisabled(actionId: CommunityQuickActionId): { disabled: boolean; reason?: string } {
-    if (actionId === "create_program" && busy) {
-      return { disabled: true, reason: "Creating payout program..." };
-    }
-    if (actionId === "connect_source" && sourcesConnected) {
-      return { disabled: true, reason: "Source linked via Profile" };
-    }
-    if (
-      actionId === "review_obligations" &&
-      (surface.authorizations?.length ?? 0) === 0 &&
-      pendingUsd < 0.01
-    ) {
-      return { disabled: true, reason: "No obligations yet - sync sources first" };
-    }
-    if (actionId === "approve_payouts") {
-      const fundingGapUsd = surface.deployReadiness?.fundingGapUsd ?? 0;
-      if (!surface.programs.length) {
-        return { disabled: true, reason: "Create a payout program before settlement" };
-      }
-      if (fundingGapUsd > 0.01) {
-        return {
-          disabled: true,
-          reason: `$${fundingGapUsd.toFixed(2)} more funding is required before Arc settlement.`,
-        };
-      }
-      if (pendingUsd < 0.01 && !surface.deployReadiness?.canDeploy) {
-        return { disabled: true, reason: "No pending payouts - sync sources for activity" };
-      }
-    }
-    return { disabled: false };
+  function openTab(nextTab: ConsoleTab) {
+    setTab(nextTab);
+    window.requestAnimationFrame(() => document.getElementById("community-console-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   return (
-    <div id="console" className="scroll-mt-24 space-y-8">
-      <nav className="flex flex-wrap gap-2 rounded-2xl border border-white/[0.08] bg-[#07111f]/70 p-1">
-        {CONSOLE_SECTIONS.map((section) => (
-          <button
-            key={section.id}
-            type="button"
-            onClick={() => scrollTo(section.id)}
-            className="rounded-xl px-3 py-2 text-xs font-medium text-resolve-muted transition hover:bg-white/[0.06] hover:text-white"
-          >
-            {section.label}
-          </button>
-        ))}
+    <div className={styles.console}>
+      <header className={styles.consoleHeader}>
+        <div className={styles.consoleIdentity}>
+          <span className={styles.domainIcon}><CommunityDomainIcon slug={slug} kind={catalog.kind} /></span>
+          <div>
+            <p className={styles.eyebrow}>Community console</p>
+            <h1>{catalog.name}</h1>
+            <p>{catalog.tagline}</p>
+          </div>
+        </div>
+        <div className={styles.consoleStatus}>
+          <span data-state={readiness?.canDeploy ? "ready" : sourcesConnected ? "healthy" : "setup"}><i />{readiness?.canDeploy ? "Settlement ready" : sourcesConnected ? "Operating" : "Needs setup"}</span>
+          <div className={styles.consoleActions}>
+            {!recommended.href && <button type="button" className={styles.primaryButton} onClick={() => recommended.onClick?.()}><Sparkles /> {recommended.action}</button>}
+            {recommended.href && <Link href={recommended.href} className={styles.primaryButton}><ArrowRight /> {recommended.action}</Link>}
+            <Link href={`/mission?community=${slug}`} className={styles.secondaryButton}>Run Mission <ArrowUpRight /></Link>
+            <details className={styles.moreMenu}><summary aria-label="More community actions"><MoreHorizontal /></summary><div><Link href={profileConnectPath(`/communities/${slug}`)}>Manage connections</Link><Link href={`/discover?community=${slug}`}>View in Discover</Link></div></details>
+          </div>
+        </div>
+      </header>
+
+      <nav id="community-console-tabs" className={styles.consoleTabs} aria-label="Community console sections">
+        {TABS.map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}>{item.label}</button>)}
       </nav>
 
-      <section id="overview" className="grid scroll-mt-24 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <BlueGlowCard variant="subtle" className="space-y-1.5">
-          <div className="flex items-center gap-2 text-resolve-muted">
-            <Wallet className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Treasury</span>
-          </div>
-          <p className="text-2xl font-semibold text-white">
-            <Money amount={surface.health.treasuryUsd} />
-          </p>
-          <p className="text-[11px] text-resolve-muted">
-            Available program funding -{" "}
-            <Money amount={surface.health.communityObligationsUsd} size="sm" className="inline" />{" "}
-            obligations
-          </p>
-        </BlueGlowCard>
-
-        <BlueGlowCard variant="subtle" className="space-y-1.5">
-          <div className="flex items-center gap-2 text-resolve-muted">
-            <Layers className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Programs</span>
-          </div>
-          <p className="text-2xl font-semibold text-white">{programCount}</p>
-          <p className="text-[11px] text-resolve-muted">Active payout pools</p>
-        </BlueGlowCard>
-
-        <BlueGlowCard variant="subtle" className="space-y-1.5">
-          <div className="flex items-center gap-2 text-resolve-muted">
-            <Users className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Builders</span>
-          </div>
-          <p className="text-2xl font-semibold text-white">{builderCount}</p>
-          <p className="text-[11px] text-resolve-muted">Unique payees authorized</p>
-        </BlueGlowCard>
-
-        <BlueGlowCard variant="subtle" className="space-y-1.5">
-          <div className="flex items-center gap-2 text-amber-200/80">
-            <AlertCircle className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Pending</span>
-          </div>
-          <p className="text-2xl font-semibold text-amber-100">
-            <Money amount={pendingUsd} />
-          </p>
-          <p className="text-[11px] text-resolve-muted">
-            {surface.deployReadiness?.authorizedCount ?? 0} payouts waiting for settlement
-          </p>
-        </BlueGlowCard>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold text-white">Quick actions</h2>
-        <p className="mt-1 text-xs text-resolve-muted">
-          Manage programs, funding, and payouts using live community proof.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {quickActions.map((action) => {
-            const gate = quickActionDisabled(action.id);
-            return (
-              <div key={action.id} className="flex max-w-[220px] flex-col gap-1">
-                <button
-                  type="button"
-                  disabled={gate.disabled || busy}
-                  title={gate.reason}
-                  onClick={() => void runQuickAction(action.id)}
-                  className={clsx(
-                    "rounded-xl border px-4 py-2.5 text-xs font-medium transition",
-                    gate.disabled || busy
-                      ? "cursor-not-allowed border-white/[0.06] bg-white/[0.02] text-resolve-muted-dim"
-                      : "border-resolve-accent/30 bg-resolve-accent/10 text-resolve-accent hover:bg-resolve-accent/15",
-                  )}
-                >
-                  {action.label}
-                </button>
-                <span className="text-[10px] leading-snug text-resolve-muted-dim">
-                  {gate.reason ?? action.description}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="obligations" className="scroll-mt-24">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-white">Obligations</h2>
-            <p className="mt-1 text-xs text-resolve-muted">
-              Verified activity from sources - fund programs, then settle payouts on Arc.
-            </p>
-          </div>
-          <div className="flex gap-1 rounded-lg border border-white/[0.08] p-0.5">
-            {(["all", "pending"] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => onObligationsFilterChange(f)}
-                className={clsx(
-                  "rounded-md px-2.5 py-1 text-[10px] font-medium capitalize transition",
-                  obligationsFilter === f
-                    ? "bg-white/10 text-white"
-                    : "text-resolve-muted hover:text-white",
-                )}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        </div>
-        {filteredAuthorizations.length > 0 ? (
-          <ul className="mt-4 divide-y divide-white/[0.06] rounded-xl border border-white/[0.06]">
-            {filteredAuthorizations.map((a) => (
-              <li key={a.id} className="flex items-start justify-between gap-4 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-white">{a.contextLabel ?? a.payeeKey}</p>
-                  <p className="mt-0.5 text-[11px] text-resolve-muted">
-                    {a.payeeKey} - {a.status}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <Money amount={a.amountUsd} size="sm" className="text-white" />
-                  <time className="mt-0.5 block text-[10px] text-resolve-muted-dim">
-                    {new Date(a.createdAt).toLocaleDateString()}
-                  </time>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-sm text-resolve-muted">
-            {obligationsFilter === "pending"
-              ? pendingUsd > 0.01
-                ? `$${pendingUsd.toFixed(2)} pending is known. ${ACTION_ERRORS.obligationsLoading}`
-                : "No pending obligations - sync sources or switch to All."
-              : "No authorizations yet. Connect sources in Profile and sync sensors below."}
-          </p>
-        )}
-      </section>
-
-      <section id="programs" className="scroll-mt-24">
-        <h2 className="text-sm font-semibold text-white">Programs</h2>
-        <p className="mt-1 text-xs text-resolve-muted">
-          Fund active programs, review verified obligations, and settle payouts on Arc when ready.
-        </p>
-        {surface.programs.length > 0 ? (
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            {surface.programs.map((p) => (
-              <ProgramCard
-                key={p.id}
-                program={p}
-                slug={slug}
-                communityKind={catalog.kind}
-                onDeploy={onRequestDeploy}
-                onFund={onFund}
-                deploying={deploying}
-                readiness={p.deployReadiness ?? surface.deployReadiness}
-                sourcesConnected={sourcesConnected}
-                connections={connections}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center">
-            <p className="text-sm text-resolve-muted">
-              No payout programs yet. Create a draft rule before funding or settlement.
-            </p>
-            <Button
-              size="sm"
-              className="mt-3"
-              disabled={busy}
-              onClick={() => onRequestCreateProgram()}
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Payout Program"}
-            </Button>
-          </div>
-        )}
-      </section>
-
-      <section
-        id="sources"
-        className="scroll-mt-24 rounded-xl border border-white/[0.08] bg-[#0a0f18]/40"
-      >
-        <button
-          type="button"
-          onClick={() => setSensorsOpen((o) => !o)}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-        >
-          <div>
-            <p className="text-sm font-medium text-white">Sensor health</p>
-            <p className="text-[11px] text-resolve-muted">Bridge sync and connector status</p>
-          </div>
-          <ChevronDown
-            className={clsx("h-4 w-4 text-resolve-muted transition", sensorsOpen && "rotate-180")}
-          />
-        </button>
-        {sensorsOpen && (
-          <div className="border-t border-white/[0.06] px-4 pb-4 pt-3">
-            <CommunitySensorPanel slug={slug} installed onSynced={onRefresh} />
-            <div className="mt-4">
-              <CommunityBridgePanel communitySlug={slug} onSynced={onRefresh} />
+      {tab === "overview" && (
+        <div className={styles.tabPanel}>
+          <section className={styles.operationsMap} aria-labelledby="operations-map-title">
+            <div className={styles.panelHeading}><div><p className={styles.sectionKicker}>Live architecture</p><h2 id="operations-map-title">Community Operations Map</h2></div><span>Evidence → readiness</span></div>
+            <div className={styles.mapFlow}>
+              <MapNode icon={Radio} label="Sources" value={`${connectorHealthy}/${surface.health.connectorStatus.length} healthy`} tone={connectorHealthy > 0 ? "healthy" : "attention"} onClick={() => openTab("sources")} />
+              <ArrowDown />
+              <MapNode icon={Fingerprint} label="Identities" value={`${identityResolved} resolved · ${identityUnresolved} review`} tone={identityUnresolved ? "review" : "healthy"} onClick={() => openTab("identities")} />
+              <ArrowDown />
+              <MapNode icon={ShieldCheck} label="Program rules" value={programs.length ? `${programs.length} configured` : "Not configured"} tone={programs.length ? "policy" : "attention"} onClick={() => openTab("programs")} />
+              <ArrowDown />
+              <MapNode icon={ScrollText} label="Obligations" value={`${readiness?.authorizedCount ?? 0} recognized`} tone={(readiness?.authorizedCount ?? 0) ? "evidence" : "muted"} onClick={() => openTab("obligations")} />
+              <ArrowDown />
+              <MapNode icon={Route} label="Settlement" value={readiness?.canDeploy ? "Ready" : "Blocked"} tone={readiness?.canDeploy ? "healthy" : "review"} onClick={() => document.getElementById("settlement-readiness")?.scrollIntoView({ behavior: "smooth" })} />
             </div>
-          </div>
-        )}
-      </section>
+          </section>
+
+          <section className={styles.overviewGrid}>
+            <div className={styles.recommendedPanel}>
+              <p className={styles.sectionKicker}>Next operation · {recommended.eyebrow}</p>
+              <h2>{recommended.title}</h2>
+              <dl><div><dt>Why</dt><dd>{recommended.why}</dd></div><div><dt>Expected result</dt><dd>{recommended.result}</dd></div></dl>
+              <div className={styles.inlineActions}>
+                {recommended.href ? <Link href={recommended.href} className={styles.primaryButton}>{recommended.action}<ArrowRight /></Link> : <button type="button" className={styles.primaryButton} onClick={recommended.onClick}>{recommended.action}<ArrowRight /></button>}
+                <Link href={`/mission?community=${slug}`} className={styles.secondaryButton}>Run Mission analysis</Link>
+              </div>
+            </div>
+            <div className={styles.operationsSummary}>
+              <p className={styles.sectionKicker}>Operations summary</p>
+              <div>
+                <Metric label="Programs" value={`${activePrograms} active`} />
+                <Metric label="Sources" value={`${connectorHealthy} healthy`} />
+                <Metric label="Identities" value={`${identityResolved} resolved`} />
+                <Metric label="Obligations" value={`${readiness?.authorizedCount ?? 0} recognized`} />
+                <Metric label="Last sync" value={surface.health.lastScrobbleAt ? new Date(surface.health.lastScrobbleAt).toLocaleString() : "No sync recorded"} />
+                <Metric label="Settlement" value={readiness?.canDeploy ? "Ready" : "Needs review"} tone={readiness?.canDeploy ? "healthy" : "review"} />
+              </div>
+            </div>
+          </section>
+
+          <SettlementReadiness slug={slug} surface={surface} unresolved={identityUnresolved} onTab={openTab} />
+
+          <section className={styles.bottomGrid}>
+            <div className={styles.ledgerPanel}><div className={styles.panelHeading}><div><p className={styles.sectionKicker}>Recent operations</p><h2>Activity ledger</h2></div><button type="button" onClick={() => openTab("activity")}>View all</button></div><ActivityRows timeline={surface.timeline.slice(0, 4)} /></div>
+            <div className={styles.attentionPanel}><p className={styles.sectionKicker}>Attention items</p><h2>Operational blockers</h2>{readiness?.reasons?.length ? <ul>{readiness.reasons.map((reason) => <li key={reason}><CircleAlert />{reason}</li>)}</ul> : <p className={styles.cleanState}><CheckCircle2 /> No current blockers in the settlement-readiness model.</p>}</div>
+          </section>
+        </div>
+      )}
+
+      {tab === "programs" && <ProgramsTab slug={slug} programs={programs} busy={busy} onCreate={onRequestCreateProgram} />}
+      {tab === "obligations" && <ObligationsTab slug={slug} authorizations={visibleAuthorizations} filter={obligationsFilter} onFilter={onObligationsFilterChange} />}
+      {tab === "identities" && <IdentityDesk slug={slug} authorizations={authorizations} />}
+      {tab === "sources" && <SourcesTab slug={slug} surface={surface} connected={sourcesConnected} onRefresh={onRefresh} />}
+      {tab === "activity" && <ActivityTab timeline={surface.timeline} />}
     </div>
   );
+}
+
+function MapNode({ icon: Icon, label, value, tone, onClick }: { icon: LucideIcon; label: string; value: string; tone: string; onClick: () => void }) {
+  return <button type="button" className={styles.mapNode} data-tone={tone} onClick={onClick}><Icon /><span>{label}</span><strong>{value}</strong></button>;
+}
+
+function Metric({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return <div className={styles.metric}><span>{label}</span><strong data-tone={tone}>{value}</strong></div>;
+}
+
+function SettlementReadiness({ slug, surface, unresolved, onTab }: { slug: string; surface: CommunitySurface; unresolved: number; onTab: (tab: ConsoleTab) => void }) {
+  const readiness = surface.deployReadiness;
+  const simulationComplete = surface.timeline.some((event) => event.eventType.toLowerCase().includes("simulat"));
+  return (
+    <section id="settlement-readiness" className={styles.settlementDesk}>
+      <div className={styles.panelHeading}><div><p className={styles.sectionKicker}>Capital handoff</p><h2>Settlement Readiness Desk</h2></div><span data-state={readiness.canDeploy ? "ready" : "review"}>{readiness.canDeploy ? "Ready" : "Blocked"}</span></div>
+      <div className={styles.readinessGrid}>
+        <Metric label="Programs" value={`${surface.programs.length} configured`} />
+        <Metric label="Obligations" value={`${readiness.authorizedCount} recognized`} />
+        <Metric label="Identities" value={unresolved ? `${unresolved} unresolved` : `${readiness.walletMappedCount} resolved`} tone={unresolved ? "review" : "healthy"} />
+        <Metric label="Policy" value={surface.programs.length ? "Configured" : "Required"} />
+        <Metric label="Simulation" value={simulationComplete ? "Completed" : "Not completed"} tone={simulationComplete ? "healthy" : "review"} />
+        <Metric label="Capital" value={readiness.fundingGapUsd > 0 ? "Required" : "Available"} tone={readiness.fundingGapUsd > 0 ? "review" : "healthy"} />
+      </div>
+      <div className={styles.readinessActions}>
+        {unresolved > 0 && <button type="button" onClick={() => onTab("identities")}><Fingerprint /> Resolve identities</button>}
+        {!simulationComplete && <Link href={`/mission?community=${slug}`}><Gauge /> Run simulation in Mission</Link>}
+        {readiness.fundingGapUsd > 0 && <Link href={`/capital?community=${slug}`}><WalletCards /> Open Capital</Link>}
+        {readiness.canDeploy && <Link href={`/capital?community=${slug}`} className={styles.cardPrimary}>Review authorization <ArrowRight /></Link>}
+      </div>
+    </section>
+  );
+}
+
+function ProgramsTab({ slug, programs, busy, onCreate }: { slug: string; programs: ProgramRecord[]; busy: boolean; onCreate: () => void }) {
+  return (
+    <section className={styles.tabPanel}>
+      <div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Policy operations</p><h2>Programs</h2><p>Programs convert verified evidence into recognized obligations. Capital requirements are handed to Capital.</p></div><button type="button" className={styles.primaryButton} onClick={onCreate} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <GitMerge />} Create program</button></div>
+      {programs.length ? <div className={styles.programList}>{programs.map((program) => {
+        const readiness = program.deployReadiness;
+        return <article key={program.id} className={styles.programRecord}>
+          <div className={styles.programTitle}><span><ShieldCheck /></span><div><h3>{program.name}</h3><p>{humanize(program.templateId)}</p></div><strong data-state={program.status}>{humanize(program.status)}</strong></div>
+          <dl>
+            <div><dt>Evidence source</dt><dd>{program.rules.connectorId ? humanize(program.rules.connectorId) : "Not configured"}</dd></div>
+            <div><dt>Rule</dt><dd>{programRulesLabel(program)}</dd></div>
+            <div><dt>Eligibility</dt><dd>Verified source identity required</dd></div>
+            <div><dt>Recognized obligations</dt><dd>${(readiness?.pendingObligationsUsd ?? 0).toFixed(2)}</dd></div>
+            <div><dt>Status</dt><dd>{readiness?.canDeploy ? "Settlement ready" : readiness?.reasons?.[0] ?? "Review required"}</dd></div>
+          </dl>
+          {readiness && readiness.fundingGapUsd > 0 && <div className={styles.capitalRequirement}><span><WalletCards /> Capital requirement</span><strong>${readiness.fundingGapUsd.toFixed(2)} required before settlement</strong><Link href={`/capital?community=${slug}&program=${program.id}`}>Open Capital <ArrowUpRight /></Link></div>}
+          <div className={styles.inlineActions}><Link href={`/mission?community=${slug}&program=${program.missionId ?? program.id}`} className={styles.secondaryButton}>Review policy</Link><Link href={`/mission?community=${slug}&program=${program.missionId ?? program.id}&mode=simulate`} className={styles.secondaryButton}>Simulate in Mission</Link></div>
+        </article>;
+      })}</div> : <div className={styles.emptyState}><BookOpenCheck /><p>No operating policy exists yet. Create a draft program to evaluate verified evidence.</p><button type="button" onClick={onCreate}>Create program</button></div>}
+    </section>
+  );
+}
+
+function ObligationsTab({ slug, authorizations, filter, onFilter }: { slug: string; authorizations: CommunitySurface["authorizations"]; filter: "all" | "pending"; onFilter: (filter: "all" | "pending") => void }) {
+  return <section className={styles.tabPanel}><div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Recognition ledger</p><h2>Obligations</h2><p>Evidence-backed value awaiting identity, policy, or settlement operations.</p></div><div className={styles.segmented}>{(["all", "pending"] as const).map((item) => <button key={item} type="button" aria-pressed={filter === item} onClick={() => onFilter(item)}>{humanize(item)}</button>)}</div></div>{authorizations.length ? <div className={styles.tableWrap}><table><thead><tr><th>Payee</th><th>Evidence</th><th>Recognized value</th><th>Identity</th><th>Settlement status</th><th>Action</th></tr></thead><tbody>{authorizations.map((item) => <tr key={item.id}><td><strong>{item.contextLabel ?? item.payeeKey}</strong><span>{item.payeeKey}</span></td><td>{item.payeeKeyType ? humanize(item.payeeKeyType) : "Verified source record"}</td><td>${item.amountUsd.toFixed(2)}</td><td><span className={styles.tableStatus} data-state={item.entityId ? "healthy" : "review"}>{item.entityId ? "Resolved" : "Needs identity"}</span></td><td>{humanize(item.status)}</td><td>{item.entityPath ? <Link href={item.entityPath}>View evidence</Link> : <Link href={profileConnectPath(`/communities/${slug}`)}>Resolve identity</Link>}</td></tr>)}</tbody></table></div> : <div className={styles.emptyState}><ScrollText /><p>No obligation records match this view. Synchronize sources to evaluate new evidence.</p><Link href={profileConnectPath(`/communities/${slug}`)}>Manage sources</Link></div>}</section>;
+}
+
+function IdentityDesk({ slug, authorizations }: { slug: string; authorizations: CommunitySurface["authorizations"] }) {
+  const identities = Array.from(new Map(authorizations.map((item) => [item.payeeKey, item])).values());
+  return <section className={styles.tabPanel}><div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Communities-native resolution</p><h2>Identity Resolution Desk</h2><p>Review observed source identities before obligations can reach a payout destination.</p></div><Link href={profileConnectPath(`/communities/${slug}`)} className={styles.secondaryButton}>Link payout identity <ArrowUpRight /></Link></div>{identities.length ? <div className={styles.tableWrap}><table><thead><tr><th>Observed identity</th><th>Suggested match</th><th>Evidence</th><th>Status</th><th>Actions</th></tr></thead><tbody>{identities.map((item) => <tr key={item.payeeKey}><td><strong>{item.contextLabel ?? item.payeeKey}</strong><span>{item.payeeKeyType ? humanize(item.payeeKeyType) : "Source identity"}</span></td><td>{item.entityId ?? "No verified match"}</td><td>${item.amountUsd.toFixed(2)} recognized</td><td><span className={styles.tableStatus} data-state={item.entityId ? "healthy" : "review"}>{item.entityId ? "Resolved" : "Review"}</span></td><td><div className={styles.tableActions}>{item.entityPath && <Link href={item.entityPath}>Open evidence</Link>}<Link href={profileConnectPath(`/communities/${slug}`)}>{item.entityId ? "Link payout" : "Resolve"}</Link></div></td></tr>)}</tbody></table></div> : <div className={styles.emptyState}><UserRoundSearch /><p>No observed identities are waiting for resolution. New identities appear after source synchronization recognizes obligations.</p><Link href={profileConnectPath(`/communities/${slug}`)}>Manage connections</Link></div>}</section>;
+}
+
+function SourcesTab({ slug, surface, connected, onRefresh }: { slug: string; surface: CommunitySurface; connected: boolean; onRefresh: () => void }) {
+  return <section className={styles.tabPanel}><div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Evidence infrastructure</p><h2>Sources</h2><p>Connection, synchronization, and operational health for every configured evidence source.</p></div><Link href={profileConnectPath(`/communities/${slug}`)} className={styles.secondaryButton}>Manage connections <ArrowUpRight /></Link></div><div className={styles.sourceList}>{surface.health.connectorStatus.map((source) => <article key={source.id} className={styles.sourceRecord}><span className={styles.sourceIcon}><Radio /></span><div><h3>{humanize(source.label || source.id)}</h3><p>Evidence connector</p></div><dl><div><dt>Status</dt><dd data-tone={["healthy", "connected", "live"].includes(source.health.toLowerCase()) ? "healthy" : "review"}>{humanize(source.health)}</dd></div><div><dt>Last sync</dt><dd>{surface.health.lastScrobbleAt ? new Date(surface.health.lastScrobbleAt).toLocaleString() : "No sync recorded"}</dd></div><div><dt>Used by</dt><dd>{surface.programs.filter((program) => program.rules.connectorId === source.id).map((program) => program.name).join(", ") || "No program"}</dd></div></dl></article>)}</div><div className={styles.sensorWorkspace}><CommunitySensorPanel slug={slug} installed={connected} onSynced={onRefresh} /><CommunityBridgePanel communitySlug={slug} onSynced={onRefresh} /></div><button type="button" className={styles.tertiaryButton} onClick={onRefresh}><RefreshCw /> Refresh console state</button></section>;
+}
+
+function ActivityRows({ timeline }: { timeline: CommunitySurface["timeline"] }) {
+  if (!timeline.length) return <p className={styles.emptyInline}>No operational events have been recorded yet.</p>;
+  return <ol className={styles.activityList}>{timeline.map((event) => { const Icon = eventIcon(event.eventType); return <li key={event.id}><span><Icon /></span><div><strong>{event.title}</strong>{event.detail && <p>{event.detail}</p>}</div><time>{new Date(event.createdAt).toLocaleString()}</time></li>; })}</ol>;
+}
+
+function ActivityTab({ timeline }: { timeline: CommunitySurface["timeline"] }) {
+  return <section className={styles.tabPanel}><div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Chronological record</p><h2>Operations ledger</h2><p>Real source, policy, authorization, and settlement events for this community.</p></div><span className={styles.ledgerCount}><Clock3 />{timeline.length} events</span></div><div className={styles.ledgerPanel}><ActivityRows timeline={timeline} /></div></section>;
 }

@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
-import { Library, MessageSquarePlus, PanelLeftClose, PanelLeft, Trash2 } from "lucide-react";
+import {
+  BookOpenCheck,
+  Code2,
+  Library,
+  MessageSquarePlus,
+  Music2,
+  PanelLeftClose,
+  PanelLeft,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   formatSessionTime,
@@ -27,12 +37,20 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { Skeleton } from "@/components/resolve/ui/skeleton";
 
 function sessionPreview(s: MissionSession): string {
-  const userMsgs =
-    s.userTurnCount ??
-    s.turns?.filter((t) => t.role === "user").length ??
-    0;
-  const msgs = userMsgs > 0 ? `${userMsgs} message${userMsgs === 1 ? "" : "s"}` : "Empty";
-  return `${formatSessionTime(s.updatedAt)} · ${msgs}`;
+  const lastResolve = [...(s.turns ?? [])].reverse().find((turn) => turn.role === "resolve");
+  if (lastResolve?.report?.settlement?.txHash) return `Receipt · ${formatSessionTime(s.updatedAt)}`;
+  if (lastResolve?.blueprint || lastResolve?.report?.capitalBlueprint) return `Blueprint ready · ${formatSessionTime(s.updatedAt)}`;
+  if (lastResolve?.report || lastResolve?.findings?.length) return `Evidence collected · ${formatSessionTime(s.updatedAt)}`;
+  if (lastResolve?.agentSignal) return `Signal selected · ${formatSessionTime(s.updatedAt)}`;
+  return `Answer · ${formatSessionTime(s.updatedAt)}`;
+}
+
+function sessionSourceIcon(session: MissionSession) {
+  const searchable = `${session.title} ${session.query} ${session.scope ?? ""}`.toLowerCase();
+  if (/music|royalt|artist|track|navidrome/.test(searchable)) return Music2;
+  if (/research|citation|paper|openalex|author/.test(searchable)) return BookOpenCheck;
+  if (/community|dao|collective|pool/.test(searchable)) return UsersRound;
+  return Code2;
 }
 
 function applySidebarFilters(sessions: MissionSession[]): MissionSession[] {
@@ -183,10 +201,10 @@ export function MissionHistorySidebar({
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {storageMode === "loading" ? (
           <div className="space-y-2 px-1 py-2" aria-label="Loading chats" aria-busy="true">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="rounded-lg border border-white/[0.04] p-2.5">
-                <Skeleton className="h-3 w-4/5" />
-                <Skeleton className="mt-2 h-2.5 w-3/5" />
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="mission-history-skeleton">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <span><Skeleton className="h-3 w-4/5" /><Skeleton className="mt-2 h-2.5 w-3/5" /></span>
               </div>
             ))}
           </div>
@@ -207,6 +225,7 @@ export function MissionHistorySidebar({
               const title = sessionDisplayTitle(s);
               const isDeleting = deletingId === s.id;
               const status = sessionStatus(s.status);
+              const SourceIcon = sessionSourceIcon(s);
               return (
                 <li key={s.id} className="group relative">
                   <button
@@ -214,10 +233,13 @@ export function MissionHistorySidebar({
                     onClick={() => onSelectSession(s)}
                     className={clsx("mission-history-item", active && "mission-history-item--active")}
                   >
-                    <span className="block truncate text-[13px] font-medium leading-snug">{title}</span>
-                    <span className="mt-1 flex items-center gap-1.5 truncate text-[10px] text-resolve-muted-dim">
-                      <span className={`mission-session-status mission-session-status--${status.tone}`}>{status.label}</span>
-                      <span className="truncate">{sessionPreview(s)}</span>
+                    <span className="mission-history-item__source"><SourceIcon className="h-3.5 w-3.5" aria-hidden /></span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[12px] font-medium leading-snug">{title}</span>
+                      <span className="mt-1 flex items-center gap-1.5 truncate text-[9px] text-resolve-muted-dim">
+                        <span className={`mission-session-status mission-session-status--${status.tone}`}>{status.label}</span>
+                        <span className="truncate">{sessionPreview(s)}</span>
+                      </span>
                     </span>
                   </button>
                   <button

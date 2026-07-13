@@ -1,11 +1,8 @@
 "use client";
 
 import { MissionCommandHero } from "@/components/resolve/mission-control/mission-command-hero";
-import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
 import { MissionHistorySidebar } from "@/components/resolve/mission-control/mission-history-sidebar";
 import { MissionProgressStepCard } from "@/components/resolve/mission-control/mission-progress-step-card";
-import { MissionCreatorValuePanel } from "@/components/resolve/mission-control/mission-creator-value-panel";
-import { MissionFunderToolsPanel } from "@/components/resolve/mission-control/mission-funder-tools-panel";
 import { useMissionScope } from "@/lib/mission/mission-context";
 
 export function MissionEmptyState({
@@ -49,7 +46,12 @@ export function MissionEmptyState({
 
       <div className="min-w-0 flex-1 overflow-y-auto px-4 py-6 lg:px-10 lg:py-8">
         <div className="mx-auto max-w-6xl space-y-6">
-          <MissionCommandHero onSubmit={onSubmit} />
+          <MissionCommandHero
+            input={input}
+            onInputChange={onInputChange}
+            onSubmit={onSubmit}
+            loading={loading}
+          />
 
           {scopeHint && onAcceptScopeHint && (
             <div className="mission-scope-hint">
@@ -68,18 +70,7 @@ export function MissionEmptyState({
             </div>
           )}
 
-          <MissionPromptField
-            value={input}
-            onChange={onInputChange}
-            onSubmit={() => onSubmit(input.trim())}
-            loading={loading}
-          />
-
           {loading && <MissionProgressStepCard active title="Working on your question" />}
-
-          <MissionCreatorValuePanel onTryPrompt={onSubmit} loading={loading} />
-
-          <MissionFunderToolsPanel onSubmit={onSubmit} loading={loading} />
         </div>
       </div>
     </div>

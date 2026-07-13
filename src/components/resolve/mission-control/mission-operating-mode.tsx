@@ -1,6 +1,6 @@
 "use client";
 
-import clsx from "clsx";
+import { ChevronDown } from "lucide-react";
 import type { OperatingMode } from "@/lib/mission/capital-os";
 
 const MISSION_ROLES: Array<{ id: OperatingMode; label: string; description: string }> = [
@@ -26,25 +26,20 @@ export function MissionOperatingMode({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 text-[10px] uppercase tracking-wide text-resolve-muted-dim">Mode</span>
-      {MISSION_ROLES.map((m) => (
-        <button
-          key={m.id}
-          type="button"
-          disabled={disabled}
-          title={m.description}
-          onClick={() => onChange(m.id)}
-          className={clsx(
-            "rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition disabled:opacity-40",
-            normalizedRole(active) === m.id ?
-              "border-violet-500/40 bg-violet-500/15 text-violet-200"
-            : "border-white/[0.08] text-resolve-muted hover:border-white/20 hover:text-white",
-          )}
-        >
-          {m.label}
-        </button>
-      ))}
-    </div>
+    <label className="mission-mode-select" title="Choose how Mission should frame the decision">
+      <span className="sr-only">Mission mode</span>
+      <select
+        value={normalizedRole(active)}
+        onChange={(event) => onChange(event.target.value as OperatingMode)}
+        disabled={disabled}
+      >
+        {MISSION_ROLES.map((mode) => (
+          <option key={mode.id} value={mode.id} title={mode.description}>
+            {mode.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+    </label>
   );
 }

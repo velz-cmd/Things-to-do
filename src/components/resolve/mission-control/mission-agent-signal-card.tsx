@@ -4,11 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  Check,
   CircleDollarSign,
+  Cpu,
   ExternalLink,
+  FileCheck2,
   Loader2,
+  Radar,
   Receipt,
   Sparkles,
+  Target,
+  WalletCards,
 } from "lucide-react";
 import clsx from "clsx";
 import { toast } from "sonner";
@@ -183,6 +189,74 @@ function signalExecutionFailed(execution?: ExecutionReport | null): boolean {
   );
 }
 
+function compactAddress(address?: string) {
+  if (!address) return "Wallet provisioning";
+  if (address.length < 13) return address;
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function CompactWalletSelector({
+  amountUsd,
+  disabled,
+  choice,
+}: {
+  amountUsd: number;
+  disabled?: boolean;
+  choice: ReturnType<typeof useFundingWalletChoice>;
+}) {
+  const options = [
+    {
+      id: "app" as const,
+      label: "RESOLVE wallet",
+      address: choice.spendable.appWalletAddress,
+      balance: choice.spendable.appSpendableUsd,
+      ready: choice.spendable.appSpendableUsd >= amountUsd,
+    },
+    ...(choice.hasLinkedExternal || choice.externalWalletReady
+      ? [{
+          id: "external" as const,
+          label: "Connected wallet",
+          address: choice.spendable.externalWalletAddress,
+          balance: choice.spendable.externalSpendableUsd,
+          ready: choice.externalWalletReady && choice.spendable.externalSpendableUsd >= amountUsd,
+        }]
+      : []),
+  ];
+
+  return (
+    <div className="mission-wallet-selector" role="radiogroup" aria-label="Pay from">
+      {options.map((option) => {
+        const selected = choice.fundingSource === option.id;
+        const reconnect = option.id === "external" && !choice.externalWalletReady;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={disabled}
+            className={clsx(selected && "is-selected", !option.ready && "is-unavailable")}
+            onClick={() => {
+              if (reconnect) choice.openConnectWallet();
+              choice.setChosenWallet(option.id);
+            }}
+          >
+            <span className="mission-wallet-selector__radio">{selected && <Check className="h-3 w-3" />}</span>
+            <span className="mission-wallet-selector__identity">
+              <strong>{option.label}</strong>
+              <small>{compactAddress(option.address)}</small>
+            </span>
+            <span className="mission-wallet-selector__balance">
+              <strong>${option.balance.toFixed(2)}</strong>
+              <small>{reconnect ? "Reconnect" : option.ready ? "Available" : "Insufficient"}</small>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MissionAgentSignalCard({
   prompt,
   initialServiceId,
@@ -200,7 +274,6 @@ export function MissionAgentSignalCard({
   const [catalog, setCatalog] = useState<ServicesPayload | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [serviceId, setServiceId] = useState(initialServiceId ?? "");
-  const [budgetUsd, setBudgetUsd] = useState(0.05);
   const [agentCapUsd, setAgentCapUsd] = useState(() => getMissionAgentBudgetCap());
   const [walletUsd, setWalletUsd] = useState<number | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
@@ -262,11 +335,6 @@ export function MissionAgentSignalCard({
     [catalog?.services, serviceId],
   );
 
-  const alternatives = useMemo(() => {
-    if (!catalog?.services || !selected) return [];
-    return catalog.services.filter((s) => s.id !== selected.id).slice(0, 4);
-  }, [catalog?.services, selected]);
-
   const pricePreview = selected?.priceUsd ?? 0.001;
   const walletChoice = useFundingWalletChoice(pricePreview);
   const canAfford =
@@ -312,7 +380,7 @@ export function MissionAgentSignalCard({
           serviceId: runServiceId,
           prompt: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
           text: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
-          maxSpendUsd: Math.min(budgetUsd, agentCapUsd),
+          maxSpendUsd: agentCapUsd,
           paymentTxHash,
         }),
       });
@@ -388,13 +456,90 @@ export function MissionAgentSignalCard({
   }
 
   return (
-    <div className="space-y-4">
-      <p className="rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-3 py-2.5 text-center text-xs font-medium leading-relaxed text-violet-100/95">
-        {catalog?.tagline ?? MISSION_AGENT_LANE_COPY.tagline}
-      </p>
+    <div className="mission-agent-workspace">
 
       {!result && selected && payDecision === "pending" && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-3 py-3">
+        <div className="mission-agent-execution">
+          <section className="mission-agent-objective-strip">
+            <span className="mission-agent-block-icon mission-agent-block-icon--violet"><Target className="h-4 w-4" /></span>
+            <div>
+              <p>Objective</p>
+              <h3>{prompt}</h3>
+              <span>Agent mode · verified context signal</span>
+            </div>
+          </section>
+
+          <section className="mission-agent-signal-block">
+            <div className="mission-agent-block-heading">
+              <span className="mission-agent-block-icon mission-agent-block-icon--amber"><Radar className="h-4 w-4" /></span>
+              <div><p>Signal</p><h3>{selected.name}</h3></div>
+              <span className="mission-agent-price">{formatAgentPrice(pricePreview)} USDC</span>
+            </div>
+            <dl className="mission-agent-signal-grid">
+              <div><dt>Returns</dt><dd>{selected.deliverables?.slice(0, 2).join(" · ") || selected.tagline}</dd></div>
+              <div><dt>Source</dt><dd>{selected.domain || "Connected source"}</dd></div>
+              <div><dt>Quality</dt><dd><FileCheck2 className="h-3.5 w-3.5" /> Verified context</dd></div>
+              <div><dt>Gateway</dt><dd><Cpu className="h-3.5 w-3.5" /> {catalog?.gatewayEnabled ? "Ready" : "Available"}</dd></div>
+            </dl>
+          </section>
+
+          <section className="mission-agent-payment-block">
+            <div className="mission-agent-block-heading">
+              <span className="mission-agent-block-icon mission-agent-block-icon--blue"><WalletCards className="h-4 w-4" /></span>
+              <div><p>Payment</p><h3>Choose wallet and execution cap</h3></div>
+            </div>
+
+            <CompactWalletSelector amountUsd={pricePreview} disabled={invoking} choice={walletChoice} />
+
+            <label className="mission-agent-budget-row">
+              <span><strong>Signal budget cap</strong><small>Maximum spend for this run</small></span>
+              <input
+                type="range"
+                min={0.01}
+                max={1}
+                step={0.01}
+                value={agentCapUsd}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setAgentCapUsd(value);
+                  setMissionAgentBudgetCap(value);
+                }}
+              />
+              <b>{formatAgentPrice(agentCapUsd)} max</b>
+            </label>
+
+            <details className="mission-agent-spend-details">
+              <summary>How agent spending works</summary>
+              <p>The selected signal is charged once on Arc. The cap prevents this run from exceeding your chosen limit.</p>
+            </details>
+
+            <div className="mission-agent-actionbar">
+              <Button
+                size="sm"
+                className="mission-agent-run gap-1.5"
+                disabled={!canAfford || invoking}
+                onClick={() => {
+                  setPayDecision("pay");
+                  void runAgent();
+                }}
+              >
+                <CircleDollarSign className="h-3.5 w-3.5" />
+                Run {selected.name} · {formatAgentPrice(pricePreview)}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setPayDecision("skip");
+                  onFollowUp?.(`Skip paid agent signal — give me a free analysis path for: ${prompt.trim()}`);
+                }}
+              >
+                Use free analysis
+              </Button>
+            </div>
+          </section>
+
+          <div className="mission-agent-legacy-payment" hidden>
           <label className="mb-3 block text-[10px] uppercase tracking-wider text-resolve-muted-dim">
             Agent budget cap (mission)
             <input
@@ -454,6 +599,7 @@ export function MissionAgentSignalCard({
             >
               Skip · free analysis
             </Button>
+          </div>
           </div>
         </div>
       )}

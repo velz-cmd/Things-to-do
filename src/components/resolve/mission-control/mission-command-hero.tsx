@@ -1,69 +1,140 @@
 "use client";
 
+import Image from "next/image";
 import clsx from "clsx";
-import { ArrowRight, Sparkles } from "lucide-react";
 import {
-  MISSION_HERO_EYEBROW,
-  MISSION_HERO_SUBTITLE,
-  MISSION_HERO_TITLE,
-  MISSION_PRIMARY_INTENTS,
+  Bot,
+  FileStack,
+  FlaskConical,
+  Link2,
+  Radar,
+  Wallet,
+} from "lucide-react";
+import { MissionPromptField } from "@/components/resolve/mission-control/mission-prompt-field";
+import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
+import {
+  MISSION_CREATOR_VALUE,
+  MISSION_FUNDER_INTENTS,
 } from "@/lib/mission/mission-lane-copy";
-import { MissionPipelineStepper } from "@/components/resolve/mission-control/mission-pipeline-stepper";
-import { CapitalCompilerVisual } from "@/components/resolve/visuals/capital-compiler";
+
+const QUICK_STARTS = [
+  {
+    id: "owed",
+    label: "What am I owed?",
+    detail: "Free earnings check",
+    prompt: MISSION_CREATOR_VALUE.actions[0].prompt,
+    icon: Wallet,
+    tone: "mint",
+  },
+  {
+    id: "gap",
+    label: "Investigate gap",
+    detail: "Map missing value",
+    prompt: "Investigate the largest verified funding gap and show the evidence behind it.",
+    icon: Radar,
+    tone: "cyan",
+  },
+  {
+    id: "blueprint",
+    label: "Build Blueprint",
+    detail: "Prepare payees + policy",
+    prompt: "Generate a Capital Blueprint — show objective, evidence, payees, policy, and funding requirement.",
+    icon: FileStack,
+    tone: "violet",
+  },
+  {
+    id: "simulate",
+    label: "Simulate payout",
+    detail: "Preview before capital moves",
+    prompt: "Simulate allocating $5,000 across React maintainers — show recipients and amounts.",
+    icon: FlaskConical,
+    tone: "blue",
+  },
+  {
+    id: "link",
+    label: "Link work",
+    detail: "Connect creator identity",
+    prompt: MISSION_CREATOR_VALUE.actions[1].prompt,
+    icon: Link2,
+    tone: "cyan",
+  },
+  {
+    id: "intel",
+    label: "Hire intel",
+    detail: "Verified signal from $0.001",
+    prompt: MISSION_FUNDER_INTENTS[1].prompt,
+    icon: Bot,
+    tone: "amber",
+  },
+] as const;
 
 export function MissionCommandHero({
+  input,
+  onInputChange,
   onSubmit,
+  loading,
   className,
 }: {
+  input: string;
+  onInputChange: (value: string) => void;
   onSubmit: (prompt: string) => void;
+  loading?: boolean;
   className?: string;
 }) {
   return (
-    <header className={clsx("mission-on-canvas", className)}>
-      <div className="mission-hero-panel">
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,.9fr)_minmax(420px,1.1fr)]">
-          <div className="min-w-0">
-            <p className="mission-eyebrow">
-              <Sparkles className="inline h-3.5 w-3.5 text-violet-300" aria-hidden />
-              {MISSION_HERO_EYEBROW}
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-[1.65rem]">
-              {MISSION_HERO_TITLE}
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-resolve-muted">
-              {MISSION_HERO_SUBTITLE}
-            </p>
-            <MissionPipelineStepper activeStep="signal" className="mt-5" />
-          </div>
-          <CapitalCompilerVisual />
+    <section className={clsx("mission-start-workspace", className)} aria-labelledby="mission-start-title">
+      <div className="mission-start-workspace__topline">
+        <div>
+          <p className="mission-kicker">Mission</p>
+          <h1 id="mission-start-title">What decision do you want to make?</h1>
+          <p>Ask what is owed, investigate a funding gap, or prepare a payout Blueprint.</p>
         </div>
 
-        <div className="mt-5 grid gap-2.5 sm:grid-cols-3" role="list" aria-label="Start a mission">
-          {MISSION_PRIMARY_INTENTS.map((intent) => {
-            const Icon = intent.icon;
+        <div className="mission-start-route" aria-label="Question becomes evidence, policy, and Blueprint">
+          <span>Question</span>
+          <i aria-hidden />
+          <span>Evidence</span>
+          <span className="mission-start-route__mark" aria-hidden>
+            <Image src={BRAND_LOGO_PATH} alt="" width={28} height={28} />
+          </span>
+          <i aria-hidden />
+          <span>Policy</span>
+          <i aria-hidden />
+          <span>Blueprint</span>
+        </div>
+      </div>
+
+      <MissionPromptField
+        value={input}
+        onChange={onInputChange}
+        onSubmit={() => onSubmit(input.trim())}
+        loading={loading}
+        placeholder="Ask Mission or describe an objective…"
+        className="mission-start-workspace__prompt"
+      />
+
+      <div className="mission-quick-starts">
+        <p>Quick starts</p>
+        <div role="list" aria-label="Mission quick starts">
+          {QUICK_STARTS.map((item) => {
+            const Icon = item.icon;
             return (
               <button
-                key={intent.id}
+                key={item.id}
                 type="button"
                 role="listitem"
-                onClick={() => onSubmit(intent.prompt)}
-                className={clsx("mission-intent-card group", `mission-intent-card--${intent.tone}`)}
+                onClick={() => onSubmit(item.prompt)}
+                disabled={loading}
+                className={`mission-quick-start mission-quick-start--${item.tone}`}
+                title={item.detail}
               >
-                <span className="mission-intent-card__icon">
-                  <Icon className="h-4 w-4" strokeWidth={1.9} />
-                </span>
-                <span className="min-w-0 flex-1 text-left">
-                  <span className="block text-sm font-semibold text-white">{intent.label}</span>
-                  <span className="mt-0.5 block text-[11px] leading-4 text-resolve-muted">
-                    {intent.detail}
-                  </span>
-                </span>
-                <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-40 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
+                <Icon className="h-4 w-4" aria-hidden />
+                <span>{item.label}</span>
               </button>
             );
           })}
         </div>
       </div>
-    </header>
+    </section>
   );
 }

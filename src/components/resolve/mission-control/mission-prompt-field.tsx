@@ -11,6 +11,7 @@ type MissionPromptFieldProps = {
   loading?: boolean;
   placeholder?: string;
   className?: string;
+  leading?: ReactNode;
   footer?: ReactNode;
 };
 
@@ -22,6 +23,7 @@ export function MissionPromptField({
   loading,
   placeholder = "Ask what's owed, link your work, or describe a payout — free paths need no pool…",
   className,
+  leading,
   footer,
 }: MissionPromptFieldProps) {
   function handleSubmit(e: FormEvent) {
@@ -32,14 +34,14 @@ export function MissionPromptField({
 
   return (
     <div className={clsx("mission-prompt-shell", className)}>
-      <form onSubmit={handleSubmit} className="relative">
+      <form onSubmit={handleSubmit} className="mission-prompt-form">
+        {leading && <div className="mission-prompt-leading">{leading}</div>}
         <input
           aria-label="Mission objective or question"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={loading}
-          autoFocus
           className="mission-prompt-input"
         />
         <button

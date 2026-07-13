@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, Music2, RefreshCw } from "lucide-react";
+import { ArrowLeft, CheckCircle2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { ProductPage } from "@/components/resolve/layout/product-page";
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import { CommunityIntentBanner } from "@/components/resolve/communities/community-intent-banner";
 import { CommunityConsole } from "@/components/resolve/communities/community-console";
@@ -14,10 +13,6 @@ import {
   CommunityConfirmSheet,
   type CommunityConfirmRequest,
 } from "@/components/resolve/communities/community-confirm-sheet";
-import {
-  CommunityFundSheetHost,
-  useCommunityOperationsHandlers,
-} from "@/components/resolve/communities/community-operations";
 import { CommunitySensorPanel } from "@/components/resolve/communities/community-sensor-panel";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { useCommunitiesHubQuery, useCommunitySurfaceQuery } from "@/lib/query/hooks";
@@ -35,6 +30,7 @@ import { defaultProgramTemplateForCommunity } from "@/lib/discover/community-str
 import { apiCreateProgram } from "@/lib/discover/discover-action-engine";
 import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
+import styles from "./communities.module.css";
 
 type CachedCommunitySummary = {
   slug: string;
@@ -94,12 +90,9 @@ export function CommunityHome({ slug }: { slug: string }) {
 
   const [discoverRole, setDiscoverRole] = useState<DiscoverRole | null>(null);
   const { state: connections } = useUserConnections();
-  const [deploying, setDeploying] = useState<string | null>(null);
   const [obligationsFilter, setObligationsFilter] = useState<"all" | "pending">("all");
   const [confirm, setConfirm] = useState<CommunityConfirmRequest | null>(null);
-  const [pendingProgramId, setPendingProgramId] = useState<string | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
-  const ops = useCommunityOperationsHandlers(slug);
   const cachedHub =
     (communitiesHubQuery.data as CommunitiesCache | undefined) ??
     queryClient.getQueryData<CommunitiesCache>(queryKeys.communities);
@@ -258,8 +251,6 @@ export function CommunityHome({ slug }: { slug: string }) {
     [queryClient, slug],
   );
 
-  const primaryProgram = surface?.programs[0];
-
   function openCreateConfirm() {
     const templateId = defaultProgramTemplateForCommunity(slug);
     const template = PROGRAM_TEMPLATES[templateId as keyof typeof PROGRAM_TEMPLATES];
@@ -274,74 +265,6 @@ export function CommunityHome({ slug }: { slug: string }) {
     });
   }
 
-  function openDeployConfirm(programId: string) {
-    const program = surface?.programs.find((p) => p.id === programId);
-    if (!program || !surface) return;
-    const readiness = program.deployReadiness ?? surface.deployReadiness;
-    setPendingProgramId(programId);
-    setConfirm({
-      kind: "deploy",
-      title: "Settle on Arc",
-      detail:
-        "Settles authorized obligations to mapped wallets from your program pool.",
-      programName: program.name,
-      pendingUsd: readiness?.pendingObligationsUsd ?? 0,
-      payeeCount: readiness?.authorizedCount ?? 0,
-      canDeploy: readiness?.canDeploy ?? false,
-      blockReason: readiness?.reasons?.[0],
-    });
-  }
-
-  function openApproveConfirm() {
-    if (!surface || !primaryProgram) return;
-    const readiness = primaryProgram.deployReadiness ?? surface.deployReadiness;
-    const fundingGapUsd = readiness?.fundingGapUsd ?? 0;
-    const needsFund = fundingGapUsd > 0.01;
-    setPendingProgramId(primaryProgram.id);
-    setConfirm({
-      kind: "approve_payouts",
-      title: needsFund ? "Fund payout gap" : "Approve payouts",
-      detail: needsFund
-        ? `This program has verified obligations, but needs $${fundingGapUsd.toFixed(2)} more funding before settlement.`
-        : "Settle the authorized Arc batch and record receipts for payees.",
-      programName: primaryProgram.name,
-      pendingUsd: readiness?.pendingObligationsUsd ?? 0,
-      needsFund,
-      fundingGapUsd,
-      canDeploy: readiness?.canDeploy ?? false,
-    });
-  }
-
-  async function executeDeploy(programId: string) {
-    setDeploying(programId);
-    try {
-      const res = await fetch(`/api/communities/${slug}/programs/${programId}/deploy`, {
-        method: "POST",
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? data.error ?? "Deploy failed");
-      toast.success(data.message);
-      if (data.settlementId) {
-        toast.message("Settlement recorded", {
-          description: `Batch ${data.settlementId}`,
-          action: data.explorerUrls?.[0]
-            ? { label: "Explorer", onClick: () => window.open(data.explorerUrls[0], "_blank") }
-            : undefined,
-        });
-      }
-      if (data.community) {
-        const mode = tab === "advanced" ? "full" : "lite";
-        queryClient.setQueryData(queryKeys.communitySurface(slug, mode), data.community);
-      } else await refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Deploy failed");
-      throw err;
-    } finally {
-      setDeploying(null);
-    }
-  }
-
   async function handleConfirm() {
     if (!confirm) return;
     setConfirmBusy(true);
@@ -354,7 +277,7 @@ export function CommunityHome({ slug }: { slug: string }) {
           if (!created.program) throw new Error("Program was not created");
           insertProgramIntoCache(created.program);
           toast.success(`${created.program.name} created as draft`, {
-            description: "Fund the pool or edit rules before settlement.",
+            description: "Review the policy and synchronize evidence before settlement preparation.",
           });
           setConfirm(null);
           void queryClient.invalidateQueries({ queryKey: queryKeys.communities });
@@ -373,24 +296,6 @@ export function CommunityHome({ slug }: { slug: string }) {
         return;
       }
 
-      if (!pendingProgramId) return;
-
-      if (confirm.kind === "approve_payouts" && confirm.needsFund) {
-        setConfirm(null);
-        ops.fundProgram(
-          pendingProgramId,
-          slug,
-          `Fund $${confirm.fundingGapUsd.toFixed(2)} gap`,
-          Math.max(5, confirm.fundingGapUsd),
-        );
-        return;
-      }
-
-      if (confirm.kind === "deploy" || confirm.kind === "approve_payouts") {
-        await executeDeploy(pendingProgramId);
-        setConfirm(null);
-        setPendingProgramId(null);
-      }
     } finally {
       setConfirmBusy(false);
     }
@@ -406,33 +311,20 @@ export function CommunityHome({ slug }: { slug: string }) {
 
   const surfaceLoading = loading && !surface;
 
-  const consoleHref = `/communities/${slug}`;
-  const advancedHref = `/communities/${slug}?tab=advanced`;
-
   return (
-    <ProductPage
-      icon={Music2}
-      title={catalog.name}
-      description={catalog.tagline}
-      workflows={[
-        { label: "Console", href: consoleHref, active: tab === "console" },
-        { label: "Sources", href: advancedHref, active: tab === "advanced" },
-        { label: "Discover", href: "/discover" },
-        { label: "Capital", href: "/capital" },
-      ]}
-      width="wide"
-      accent="emerald"
-      actions={
-        loadFailed && !activeSurface ? null : !installed ? (
-          <InstallResolveCard community={catalog} installed={false} compact />
-        ) : (
-          <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            RESOLVE connected
-          </span>
-        )
-      }
-    >
+    <main className={styles.workspace}>
+      <div className={styles.backdrop} aria-hidden />
+      <div className={styles.pageFrame}>
+      {(tab === "advanced" || !installed || (loadFailed && !activeSurface)) && (
+        <header className={styles.detailContextHeader}>
+          <div>
+            <Link href="/communities" className={styles.backLink}><ArrowLeft /> Communities</Link>
+            <h1>{catalog.name}</h1>
+            <p>{catalog.tagline}</p>
+          </div>
+          {!installed ? <InstallResolveCard community={catalog} installed={false} compact /> : <span className={styles.connectedLabel}><CheckCircle2 /> RESOLVE connected</span>}
+        </header>
+      )}
       <CommunityIntentBanner
         intent={pageIntent}
         role={discoverRole}
@@ -513,32 +405,32 @@ export function CommunityHome({ slug }: { slug: string }) {
             catalog={catalog}
             surface={activeSurface}
             connections={connections}
-            busy={ops.busy || Boolean(deploying) || confirmBusy}
-            deploying={deploying}
+            busy={confirmBusy}
             obligationsFilter={obligationsFilter}
             onObligationsFilterChange={setObligationsFilter}
-            onRequestDeploy={openDeployConfirm}
-            onFund={(programId, label, amountUsd) =>
-              ops.fundProgram(programId, slug, label, amountUsd)
-            }
             onRequestCreateProgram={openCreateConfirm}
-            onRequestApprovePayouts={openApproveConfirm}
             onRefresh={() => void refresh()}
+            initialTab={
+              pageIntent === "create_program" || pageIntent === "fund"
+                ? "programs"
+                : pageIntent === "review_obligations" || pageIntent === "approve_payouts"
+                  ? "obligations"
+                  : "overview"
+            }
           />
         </div>
       )}
 
-      <CommunityFundSheetHost slug={slug} ops={ops} />
       <CommunityConfirmSheet
         open={Boolean(confirm)}
         request={confirm}
-        busy={ops.busy || Boolean(deploying) || confirmBusy}
+        busy={confirmBusy}
         onClose={() => {
           setConfirm(null);
-          setPendingProgramId(null);
         }}
         onConfirm={() => void handleConfirm()}
       />
-    </ProductPage>
+      </div>
+    </main>
   );
 }

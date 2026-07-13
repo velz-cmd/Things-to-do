@@ -2,159 +2,74 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Loader2, Plug, ArrowRight } from "lucide-react";
-import clsx from "clsx";
+import { ArrowRight, CheckCircle2, Loader2, PlugZap } from "lucide-react";
 import { toast } from "sonner";
 import { apiInstallCommunity } from "@/lib/discover/discover-action-engine";
 import { ACTION_STATUS } from "@/lib/copy/action-status";
-import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
-import { Button } from "@/components/resolve/ui/button";
-import { CommunityVitalsRow } from "@/components/resolve/communities/community-vitals-row";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { CommunityVitalsSummary } from "@/lib/communities/types";
+import { CommunityDomainIcon } from "./community-identity";
+import styles from "./communities.module.css";
 
-type InstallResolveCardProps = {
-  community: Pick<
-    CommunityCatalogEntry,
-    "slug" | "name" | "tagline" | "installCta" | "accent" | "attachShape" | "upstream"
-  >;
+type Props = {
+  community: Pick<CommunityCatalogEntry, "slug" | "name" | "tagline" | "installCta" | "attachShape" | "upstream" | "kind">;
   installed?: boolean;
   vitals?: CommunityVitalsSummary | null;
   compact?: boolean;
   onInstalled?: (observeNarrative?: string) => void;
 };
 
-const accentRing: Record<string, string> = {
-  violet: "from-violet-500/20 to-resolve-accent/10",
-  emerald: "from-emerald-500/20 to-teal-500/10",
-  blue: "from-blue-500/20 to-resolve-accent/10",
-  orange: "from-orange-500/20 to-amber-500/10",
-};
-
-const consoleHref = (slug: string) => `/communities/${slug}`;
-
-export function InstallResolveCard({
-  community,
-  installed = false,
-  vitals = null,
-  compact = false,
-  onInstalled,
-}: InstallResolveCardProps) {
+export function InstallResolveCard({ community, installed = false, vitals = null, compact = false, onInstalled }: Props) {
   const [busy, setBusy] = useState(false);
+  const [attached, setAttached] = useState(false);
   const { refreshSync, state: connections } = useUserConnections();
-  const [observeNarrative, setObserveNarrative] = useState<string | null>(null);
   const profileReady = communityLinkedViaProfile(community.slug, connections);
-  const showInstalled = installed || profileReady || Boolean(observeNarrative);
+  const showInstalled = installed || profileReady || attached;
 
   async function install() {
     setBusy(true);
     try {
       const data = await apiInstallCommunity(community.slug);
-
-      const narrative =
-        vitals?.observeNarrative ?? `Connected to ${community.name}.`;
-
-      setObserveNarrative(narrative);
-      toast.success(
-        data.alreadyInstalled
-          ? `Already connected to ${community.name}`
-          : `Connected to ${community.name}`,
-        { description: "Available across Capital, Discover, and Communities" },
-      );
+      const narrative = vitals?.observeNarrative ?? `Connected to ${community.name}.`;
+      setAttached(true);
+      toast.success(data.alreadyInstalled ? `${community.name} is already installed` : `${community.name} installed`, {
+        description: "Open the console to synchronize sources and configure policy.",
+      });
       onInstalled?.(narrative);
       void refreshSync().catch(() => null);
-    } catch (err) {
-      toast.message(
-        err instanceof Error ? err.message : ACTION_STATUS.workingInstall,
-        { description: "Check Communities — attach may already be complete" },
-      );
+    } catch (error) {
+      toast.message(error instanceof Error ? error.message : ACTION_STATUS.workingInstall, {
+        description: "Check the Communities console—the installation may already be complete.",
+      });
       void refreshSync().catch(() => null);
     } finally {
       setBusy(false);
     }
   }
 
-  if (compact) {
-    return (
-      <div className="space-y-2 rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-white">{community.name}</p>
-            <p className="truncate text-xs text-resolve-muted">{community.tagline}</p>
-          </div>
-          {showInstalled ? (
-            <Link
-              href={consoleHref(community.slug)}
-              className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-400"
-            >
-              Manage
-              <ArrowRight className="h-3 w-3" />
-            </Link>
-          ) : (
-            <Button size="sm" variant="secondary" disabled={busy} onClick={() => void install()}>
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Install"}
-            </Button>
-          )}
-        </div>
-        {vitals && <CommunityVitalsRow vitals={vitals} compact />}
-      </div>
-    );
-  }
-
   return (
-    <BlueGlowCard className="relative overflow-hidden" hover>
-      <div
-        aria-hidden
-        className={clsx(
-          "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-50",
-          accentRing[community.accent] ?? accentRing.violet,
-        )}
-      />
-      <div className="relative space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl resolve-accent-gradient shadow-resolve-glow">
-            {showInstalled ? (
-              <CheckCircle2 className="h-5 w-5 text-white" />
-            ) : (
-              <Plug className="h-5 w-5 text-white" />
-            )}
-          </div>
-          <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-resolve-muted">
-            {community.attachShape}
-          </span>
-        </div>
-
-        <div>
-          <h3 className="text-lg font-semibold text-white">{community.name}</h3>
-          <p className="mt-1 text-sm text-resolve-muted">{community.tagline}</p>
-          <p className="mt-2 text-[11px] text-resolve-muted-dim">via {community.upstream}</p>
-        </div>
-
-        {vitals && <CommunityVitalsRow vitals={vitals} />}
-
-        {showInstalled ? (
-          <Link
-            href={consoleHref(community.slug)}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/15"
-          >
-            {profileReady && !installed ? "Open console" : "Manage community"}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        ) : (
-          <Button className="w-full" disabled={busy} onClick={() => void install()}>
-            {busy ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Connecting…
-              </>
-            ) : (
-              "Connect community"
-            )}
-          </Button>
-        )}
+    <article className={styles.installCard} data-compact={compact || undefined} data-kind={community.kind}>
+      <div className={styles.installIdentity}>
+        <span className={styles.domainIcon}><CommunityDomainIcon slug={community.slug} kind={community.kind} /></span>
+        <div><h3>{community.name}</h3><p>{community.upstream}</p></div>
+        <span className={styles.attachBadge}>{community.attachShape}</span>
       </div>
-    </BlueGlowCard>
+      {!compact && <p className={styles.installCopy}>{community.tagline}</p>}
+      <div className={styles.installHealth}>
+        <span><i data-active={vitals?.sensor.ready || undefined} />Evidence source</span>
+        <strong>{vitals?.sensor.ready ? "Ready" : "Connection required"}</strong>
+      </div>
+      {showInstalled ? (
+        <Link href={`/communities/${community.slug}`} className={styles.cardPrimary}>
+          <CheckCircle2 /> Open console <ArrowRight />
+        </Link>
+      ) : (
+        <button type="button" className={styles.cardPrimary} disabled={busy} onClick={() => void install()}>
+          {busy ? <Loader2 className="animate-spin" /> : <PlugZap />} {busy ? "Installing…" : "Install ecosystem"}
+        </button>
+      )}
+    </article>
   );
 }

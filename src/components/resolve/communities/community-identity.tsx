@@ -33,6 +33,15 @@ export function communityIconFor(slug: string, kind: string): LucideIcon {
   return SLUG_ICONS[slug] ?? KIND_ICONS[kind] ?? ServerCog;
 }
 
+export function communityOperationsDescription(kind: string): string {
+  if (kind === "music") return "Operate listening evidence, artist identity, and royalty policy.";
+  if (kind === "media") return "Operate verified viewing evidence, creator identity, and program policy.";
+  if (kind === "research") return "Operate citation evidence, author identity, and recognition policy.";
+  if (kind === "education") return "Operate contribution evidence, writer identity, and documentation policy.";
+  if (kind === "oss") return "Operate contribution evidence, maintainer identity, and program policy.";
+  return "Synchronize evidence, resolve identities, and operate program policy.";
+}
+
 export function CommunityDomainIcon({
   slug,
   kind,

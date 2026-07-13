@@ -38,7 +38,7 @@ import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
 import { profileConnectPath } from "@/lib/communities/community-nav";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
-import { CommunityDomainIcon } from "./community-identity";
+import { CommunityDomainIcon, communityOperationsDescription } from "./community-identity";
 import styles from "./communities.module.css";
 
 type ConsoleTab = "overview" | "programs" | "obligations" | "identities" | "sources" | "activity";
@@ -185,7 +185,7 @@ export function CommunityConsole({
           <div>
             <p className={styles.eyebrow}>Community console</p>
             <h1>{catalog.name}</h1>
-            <p>{catalog.tagline}</p>
+            <p>{communityOperationsDescription(catalog.kind)}</p>
           </div>
         </div>
         <div className={styles.consoleStatus}>

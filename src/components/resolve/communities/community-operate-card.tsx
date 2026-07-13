@@ -6,7 +6,7 @@ import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { CommunityHubOpsStats } from "@/lib/communities/hub-ops-stats";
 import type { CommunityVitalsSummary } from "@/lib/communities/types";
 import { communityConsolePath, profileConnectPath } from "@/lib/communities/community-nav";
-import { CommunityDomainIcon } from "./community-identity";
+import { CommunityDomainIcon, communityOperationsDescription } from "./community-identity";
 import styles from "./communities.module.css";
 
 export type CommunityOperationalState = "healthy" | "setup" | "review" | "ready";
@@ -72,7 +72,7 @@ export function CommunityOperateCard({ community, hubOps, vitals, compact = fals
         <div><h3>{community.name}</h3><p>{community.upstream}</p></div>
         <span className={styles.stateBadge} data-state={state}><i />{STATE_LABEL[state]}</span>
       </div>
-      <p className={styles.cardTagline}>{community.tagline}</p>
+      <p className={styles.cardTagline}>{communityOperationsDescription(community.kind)}</p>
       <div className={styles.cardSignals}>
         <div><Radio /><span>Source health</span><strong data-tone={vitals?.sensor.ready ? "healthy" : "attention"}>{sourceLabel}</strong></div>
         <div><UserRoundCheck /><span>Attributed identities</span><strong>{identities}</strong></div>

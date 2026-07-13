@@ -162,7 +162,7 @@ export function MissionWorkspace({
   const [decisionPanelCollapsed, setDecisionPanelCollapsed] = useState(true);
   const hadDecisionState = useRef(false);
   const executeBlocked = showExecute && evidenceCount < 1;
-  const hasPaidSignal = turns.some((turn) => Boolean(turn.agentSignal));
+  const hasAgentSignal = turns.some((turn) => Boolean(turn.agentSignal));
   const hasDecisionState = Boolean(objective || lastResolve || blueprintActive || simulated);
 
   const lastArtifactIndex = turns.findLastIndex(
@@ -324,7 +324,6 @@ export function MissionWorkspace({
           loopPhase={loopPhase}
           hasBlueprint={blueprintActive}
           simulated={simulated}
-          paidSignal={hasPaidSignal}
           objective={objective}
         />
 
@@ -481,7 +480,7 @@ export function MissionWorkspace({
                   }
                   footer={
                     <div className="mission-composer-footer">
-                      <span>{hasPaidSignal ? "Paid signal · wallet readiness shown before execution" : "Free analysis"}</span>
+                      <span>{hasAgentSignal ? "Paid signal · wallet readiness shown before execution" : "Free analysis"}</span>
                     </div>
                   }
                   placeholder="Refine objective or run another signal…"

@@ -10,10 +10,12 @@ import {
   ChevronDown,
   Copy,
   Landmark,
+  Loader2,
   RefreshCw,
   Sparkles,
   Wallet,
 } from "lucide-react";
+import { toast } from "sonner";
 import { BlueGlowCard } from "@/components/resolve/ui/blue-glow-card";
 import { Money } from "@/components/resolve/ui/money";
 import { Button } from "@/components/resolve/ui/button";
@@ -27,6 +29,9 @@ import { useSendFunds } from "@/components/wallet/send-funds-context";
 import { PendingAuthorizationsPanel } from "@/components/resolve/payments/pending-authorizations-panel";
 import { BANKING_UI, friendlyStatementLabel, friendlyStatus } from "@/lib/banking/copy";
 import type { BankingAccountSnapshot, StatementLine } from "@/lib/banking/types";
+import { useFundingIntentQuery, useSettlementBatchQuery } from "@/lib/query/hooks";
+import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
+import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel";
 
 type SettlementRow = {
   id: string;
@@ -63,6 +68,9 @@ type ResolveBankingProps = {
     missionReportId?: string | null;
     programId?: string | null;
     communitySlug?: string | null;
+    fundingIntentId?: string | null;
+    settlementBatchId?: string | null;
+    returnTo?: string | null;
   };
   walletViewProps?: {
     appAddress?: string | null;
@@ -72,668 +80,253 @@ type ResolveBankingProps = {
   };
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+type MissionHandoff = NonNullable<ResolveBankingProps["missionHandoff"]>;
 
-function Stat({
-  label,
-  amount,
-  unknown,
+function SettlementBatchCard({
+  handoff,
+  signedIn,
+  onSignIn,
 }: {
-  label: string;
-  amount: number;
-  unknown?: boolean;
+  handoff: MissionHandoff;
+  signedIn: boolean;
+  onSignIn: () => void;
 }) {
-  return (
-    <div>
-      <p className="text-[10px] uppercase tracking-wide text-resolve-muted-dim">{label}</p>
-      <p className="mt-1 text-sm font-medium text-white">
-        {unknown ?
-          <span className="text-resolve-muted">â€”</span>
-        : <Money amount={amount} size="sm" className="inline" />}
-      </p>
-    </div>
+  const query = useSettlementBatchQuery(
+    handoff.settlementBatchId,
+    handoff.returnTo,
+    signedIn,
   );
-}
+  const [submitting, setSubmitting] = useState(false);
 
-function ActivityRow({
-  title,
-  subtitle,
-  amountUsd,
-  direction,
-  badge,
-  receiptHref,
-}: {
-  title: string;
-  subtitle: string;
-  amountUsd: number;
-  direction?: "credit" | "debit";
-  badge?: string;
-  receiptHref?: string;
-}) {
-  const credit = direction !== "debit";
-  return (
-    <li className="flex items-center justify-between gap-3 border-b border-white/[0.04] py-3 last:border-0">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm text-white">{title}</p>
-          {badge && (
-            <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-resolve-muted ring-1 ring-white/10">
-              {badge}
-            </span>
-          )}
-        </div>
-        <p className="text-[11px] text-resolve-muted">
-          {subtitle}
-          {receiptHref && (
-            <>
-              {" Â· "}
-              <Link href={receiptHref} className="text-resolve-accent hover:underline">
-                View receipt
-              </Link>
-            </>
-          )}
-        </p>
+  if (!signedIn) {
+    return (
+      <div className="mb-6 rounded-xl border border-violet-400/25 bg-violet-400/[0.06] p-4">
+        <p className="text-sm font-medium text-white">Settlement package prepared</p>
+        <p className="mt-1 text-xs text-resolve-muted">Sign in to inspect the exact payee batch and provide final authorization.</p>
+        <Button className="mt-3" size="sm" onClick={onSignIn}>Sign in to review</Button>
       </div>
-      <p
-        className={`shrink-0 text-sm font-medium tabular-nums ${
-          credit ? "text-emerald-300" : "text-white"
-        }`}
-      >
-        {credit ? "+" : "âˆ’"}
-        <Money amount={amountUsd} size="sm" className="inline" />
-      </p>
-    </li>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition ${
-        active ?
-          "bg-white/[0.08] text-white"
-        : "text-resolve-muted hover:text-white"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function GuestLanding({ onSignIn }: { onSignIn: () => void }) {
-  return (
-    <BlueGlowCard className="mb-8">
-      <div className="flex items-start gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-resolve-accent/15">
-          <Sparkles className="h-5 w-5 text-resolve-accent" />
-        </div>
-        <div>
-          <p className="text-lg font-semibold text-white">{BANKING_UI.guestTitle}</p>
-          <p className="mt-2 text-sm leading-relaxed text-resolve-muted">{BANKING_UI.guestBody}</p>
-          <Button onClick={onSignIn} className="mt-5">
-            {BANKING_UI.signIn}
-          </Button>
-        </div>
+    );
+  }
+  if (query.isLoading) {
+    return <div className="mb-6 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 text-xs text-resolve-muted"><Loader2 className="h-4 w-4 animate-spin text-violet-300" />Verifying settlement packageÃ¢â‚¬Â¦</div>;
+  }
+  if (query.isError || !query.data?.batch) {
+    return (
+      <div className="mb-6 rounded-xl border border-rose-500/20 bg-rose-500/[0.05] p-4">
+        <p className="text-sm font-medium text-rose-100">Settlement package unavailable</p>
+        <p className="mt-1 text-xs text-resolve-muted">Nothing was submitted. Return to Communities or retry the package check.</p>
+        <Button className="mt-3" variant="secondary" size="sm" onClick={() => void query.refetch()}>Retry</Button>
       </div>
-      <ol className="mt-8 grid gap-3 sm:grid-cols-3">
-        {BANKING_UI.howItWorks.map((step) => (
-          <li
-            key={step.step}
-            className="rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-accent">
-              Step {step.step}
-            </p>
-            <p className="mt-1 text-sm font-medium text-white">{step.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-resolve-muted">{step.body}</p>
-          </li>
-        ))}
-      </ol>
-    </BlueGlowCard>
-  );
-}
+    );
+  }
 
-function TechnicalDetails({
-  account,
-  arc,
-}: {
-  account: BankingAccountSnapshot;
-  arc: BankingAccountSnapshot["arc"];
-}) {
-  const [copied, setCopied] = useState(false);
-  const address = arc.identityWallet?.depositAddress ?? account.walletAddress;
+  const { batch, execution } = query.data;
+  const amountUsd = Number(batch.totalUsd);
+  const confirmed = batch.status === "confirmed";
+  const inFlight = batch.status === "submitting";
+  const partial = batch.status === "partial" || batch.status === "failed";
+  const returnTo = batch.returnTo ?? handoff.returnTo ?? `/communities/${encodeURIComponent(batch.communitySlug ?? "")}`;
 
-  async function copyAddress() {
-    if (!address) return;
+  async function authorizeSettlement() {
+    setSubmitting(true);
     try {
-      await navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
+      const response = await fetch("/api/settlement/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settlementBatchId: batch.id, confirm: true }),
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string; failed?: number } | null;
+      if (!response.ok && response.status !== 207) throw new Error(payload?.error ?? "Settlement could not be submitted");
+      await query.refetch();
+      if (response.status === 207) toast.error(`${payload?.failed ?? "Some"} payouts require review; confirmed transfers were preserved.`);
+      else toast.success("Settlement confirmed on Arc");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Settlement could not be submitted");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
-    <details className="group mb-8 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-white [&::-webkit-details-marker]:hidden">
-        <span>
-          {BANKING_UI.technicalDetails}
-          <span className="mt-0.5 block text-xs font-normal text-resolve-muted">
-            {BANKING_UI.technicalHint}
-          </span>
-        </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-resolve-muted transition group-open:rotate-180" />
-      </summary>
-      <div className="space-y-4 border-t border-white/[0.06] px-4 py-4 text-xs text-resolve-muted">
-        <div className="flex flex-wrap gap-2">
-          <span
-            className={`rounded-full px-2 py-0.5 font-semibold uppercase ${
-              arc.canDistribute ?
-                "bg-emerald-500/15 text-emerald-200"
-              : "bg-amber-500/15 text-amber-200"
-            }`}
-          >
-            {arc.canDistribute ? "Payouts live" : "Payouts standby"}
-          </span>
-          <span className="rounded-full border border-white/10 px-2 py-0.5">
-            {arc.chain} Â· USDC
-          </span>
-          {arc.identityWallet?.provider === "circle" && (
-            <span className="rounded-full border border-white/10 px-2 py-0.5">Circle wallet</span>
+    <section className="mb-6 overflow-hidden rounded-2xl border border-violet-400/25 bg-gradient-to-br from-violet-500/[0.1] via-[#091320] to-cyan-500/[0.05] shadow-[0_18px_60px_rgba(0,0,0,0.24)]">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-4 sm:p-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2"><BadgeCheck className="h-4 w-4 text-violet-300" /><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-300">Communities Ã¢â€ â€™ Capital handoff</p></div>
+          <h2 className="mt-2 text-base font-semibold text-white">Review settlement authorization</h2>
+          <p className="mt-1 max-w-md text-xs leading-relaxed text-resolve-muted">Evidence, policy, identities, and simulation are already compiled. Capital will execute this immutable package only after your confirmation.</p>
+          <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+            <span className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 text-resolve-muted">{batch.payeeCount} payees</span>
+            <span className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 text-resolve-muted">Status Ã‚Â· {batch.status}</span>
+            {batch.packageHash && <span title={batch.packageHash} className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 font-mono text-resolve-muted">Proof Ã‚Â· {batch.packageHash.slice(0, 10)}Ã¢â‚¬Â¦</span>}
+          </div>
+        </div>
+        <div className="min-w-32 rounded-xl border border-white/[0.08] bg-black/25 px-4 py-3 text-right">
+          <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-resolve-muted-dim">Exact batch total</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums text-white"><Money amount={amountUsd} size="md" className="inline" /></p>
+          <p className="mt-0.5 text-[10px] text-resolve-muted">Arc testnet USDC</p>
+        </div>
+      </div>
+      <div className="border-t border-white/[0.07] bg-black/15 px-4 py-3 sm:px-5">
+        {!execution.enabled && !confirmed && <p className="mb-3 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-[11px] leading-relaxed text-amber-100">{execution.blocker} The package is preserved; no money has moved.</p>}
+        {partial && <p className="mb-3 rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-[11px] text-rose-100">One or more transfers failed. Confirmed payouts are preserved and retry is idempotent per obligation.</p>}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link href={returnTo} className="text-xs font-medium text-resolve-accent hover:underline">Return to Settlement Readiness</Link>
+          {confirmed ? (
+            <span className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.08] px-3 text-xs font-medium text-emerald-200"><BadgeCheck className="h-3.5 w-3.5" />{batch.payeeCount} payouts confirmed</span>
+          ) : inFlight ? (
+            <span className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.07] px-3 text-xs font-medium text-amber-100"><Loader2 className="h-3.5 w-3.5 animate-spin" />Submitting on Arc</span>
+          ) : (
+            <Button data-action-id="capital.authorize_settlement" data-testid="capital-authorize-settlement" size="sm" disabled={submitting || !execution.enabled} onClick={() => void authorizeSettlement()}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+              {submitting ? "AuthorizingÃ¢â‚¬Â¦" : `Authorize ${amountUsd.toFixed(2)} USDC`}
+            </Button>
           )}
         </div>
-
-        <div className="rounded-lg border border-white/[0.06] bg-black/20 p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
-            {BANKING_UI.paymentFlowTitle}
-          </p>
-          <ol className="mt-3 space-y-2">
-            {BANKING_UI.paymentFlow.map((step, i) => (
-              <li key={step} className="flex gap-2 text-[11px] leading-relaxed text-resolve-muted">
-                <span className="shrink-0 font-mono text-resolve-accent">{i + 1}.</span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        {address && (
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-200/90">
-              {BANKING_UI.walletAddress}
-            </p>
-            <p className="mt-0.5 text-[10px] text-resolve-muted-dim">Your USDC â€” only you can spend this</p>
-            <p className="mt-2 break-all font-mono text-[11px] text-white">{address}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <p className="text-sm font-medium text-white">
-                <Money
-                  amount={account.balances.onChainUsdcUsd ?? arc.identityWallet?.onChainUsdcUsd ?? 0}
-                  size="sm"
-                  className="inline"
-                />
-              </p>
-              <button
-                type="button"
-                onClick={() => void copyAddress()}
-                className="inline-flex items-center gap-1 text-resolve-accent hover:underline"
-              >
-                <Copy className="h-3 w-3" />
-                {copied ? BANKING_UI.copied : BANKING_UI.copyAddress}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {arc.settlementWallet && (
-          <div className="rounded-lg border border-white/[0.08] bg-black/20 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
-              {BANKING_UI.paymentRailTitle}
-            </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-resolve-muted">
-              {BANKING_UI.paymentRailBody}
-            </p>
-            <p className="mt-3 text-xs font-medium text-white">
-              {arc.canDistribute ? BANKING_UI.paymentRailStatusLive : BANKING_UI.paymentRailStatusStandby}
-            </p>
-            <p className="mt-2 break-all font-mono text-[10px] text-resolve-muted-dim">
-              {arc.settlementWallet}
-            </p>
-            <a
-              href={`${arc.explorerUrl}/address/${arc.settlementWallet}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-block text-resolve-accent hover:underline"
-            >
-              View on Arcscan
-            </a>
-          </div>
-        )}
-
-        {arc.recentMemos?.length ? (
-          <div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
-              Your program payouts
-            </p>
-          <ul className="space-y-2">
-            {arc.recentMemos.slice(0, 5).map((m) => (
-              <li key={m.id} className="flex items-center justify-between gap-2">
-                <span className="truncate text-white">{m.label}</span>
-                <a
-                  href={`${arc.explorerUrl}/tx/${m.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-resolve-accent hover:underline"
-                >
-                  View receipt
-                </a>
-              </li>
-            ))}
-          </ul>
-          </div>
-        ) : null}
-
-        {arc.blockers?.length ? (
-          <p className="text-amber-200/90">{arc.blockers[0]}</p>
-        ) : null}
       </div>
-    </details>
+    </section>
   );
 }
 
-/** RESOLVE Banking â€” simple on screen, Arc/Circle on the backend. */
-export function ResolveBanking({
-  account,
-  settlements,
-  initialLoading,
-  refreshing,
+function FundingIntentCard({
+  handoff,
   signedIn,
-  payoutWallet,
-  claiming,
-  lastRefreshedAt,
-  walletSync = "loading",
-  balanceKnown = false,
-  syncError,
-  walletHealth,
-  walletWarnings = [],
-  onClaim,
-  onRefresh,
   onSignIn,
-  onActivityOpen,
-  initialTab = "overview",
-  missionHandoff,
-  walletViewProps,
-}: ResolveBankingProps) {
-  const { openAddFunds } = useAddFunds();
-  const { openSendFunds } = useSendFunds();
-  const router = useRouter();
-  const pathname = usePathname();
-  const [tab, setTab] = useState<Tab>(initialTab);
-  const onActivityOpenRef = useRef(onActivityOpen);
-  onActivityOpenRef.current = onActivityOpen;
-
-  useEffect(() => {
-    setTab(initialTab);
-  }, [initialTab]);
-
-  useEffect(() => {
-    if (initialTab === "activity") {
-      onActivityOpenRef.current?.();
-    }
-  }, [initialTab]);
-
-  const selectTab = useCallback(
-    (next: Tab) => {
-      setTab(next);
-      const href = next === "activity" ? `${pathname}?tab=activity` : pathname;
-      router.replace(href, { scroll: false });
-      if (next === "activity") {
-        onActivityOpenRef.current?.();
-      }
-    },
-    [pathname, router],
+}: {
+  handoff: MissionHandoff;
+  signedIn: boolean;
+  onSignIn: () => void;
+}) {
+  const query = useFundingIntentQuery(handoff.fundingIntentId, signedIn);
+  const { executeFund, fundProgress } = useFundProgramExecution(
+    handoff.communitySlug ?? undefined,
   );
+  const [submitting, setSubmitting] = useState(false);
 
-  const balances = account?.balances;
-  const network = account?.network;
-  const arc = account?.arc;
-  const yourClaimable = balances?.earnedClaimableUsd ?? 0;
-  const yourDeposits = balances?.availableUsd ?? 0;
-  const reserved = balances?.reservedUsd ?? 0;
-  const onChainUsd = balances?.onChainUsdcUsd ?? null;
+  if (!signedIn) {
+    return (
+      <div className="mb-6 rounded-xl border border-sky-500/25 bg-sky-500/[0.06] p-4">
+        <p className="text-sm font-medium text-white">Authorization package ready</p>
+        <p className="mt-1 text-xs leading-relaxed text-resolve-muted">
+          Sign in to review the prepared amount and choose the wallet that will authorize it.
+        </p>
+        <Button className="mt-3" size="sm" onClick={onSignIn}>
+          Sign in to continue
+        </Button>
+      </div>
+    );
+  }
 
-  const showBalanceAmount =
-    balanceKnown &&
-    (walletSync !== "error" || yourDeposits > 0 || (onChainUsd ?? 0) > 0);
-  const showCachedBalance = walletSync === "cached";
-  const showSyncError =
-    walletSync === "error" &&
-    yourDeposits <= 0 &&
-    (onChainUsd ?? 0) <= 0 &&
-    !balanceKnown;
-  const showNoWallet = walletSync === "no_wallet" && !payoutWallet;
+  if (query.isLoading) {
+    return (
+      <div className="mb-6 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 text-xs text-resolve-muted">
+        <Loader2 className="h-4 w-4 animate-spin text-resolve-accent" />
+        Loading authorization packageâ€¦
+      </div>
+    );
+  }
 
-  const statementLines: StatementLine[] = account?.statement ?? [];
-  const activityItems = statementLines.map((line) => ({
-    id: line.id,
-    title: friendlyStatementLabel(line.label),
-    subtitle: formatDate(line.at),
-    amountUsd: line.amountUsd,
-    direction: line.direction,
-    badge:
-      line.reference === "connected_wallet"
-        ? "Connected wallet"
-        : line.reference === "pending"
-          ? "Pending"
-          : line.reference === "resolve_wallet"
-            ? "RESOLVE wallet"
-            : "Wallet",
-  }));
+  if (query.isError || !query.data?.intent) {
+    return (
+      <div className="mb-6 rounded-xl border border-rose-500/20 bg-rose-500/[0.05] p-4">
+        <p className="text-sm font-medium text-rose-100">Authorization package unavailable</p>
+        <p className="mt-1 text-xs text-resolve-muted">
+          It was not funded. Retry loading the package or return to Mission.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" onClick={() => void query.refetch()}>
+            Retry
+          </Button>
+          {handoff.missionReportId && (
+            <Link
+              href={`/mission/report/${encodeURIComponent(handoff.missionReportId)}`}
+              className="inline-flex min-h-9 items-center px-2 text-xs font-medium text-resolve-accent hover:underline"
+            >
+              Return to Mission
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const intent = query.data.intent;
+  const amountUsd = Number(intent.amountUsd);
+  const confirmed = intent.status === "confirmed";
+  const submitted = intent.status === "submitted";
+  const returnTo = intent.returnTo ?? handoff.returnTo ??
+    (handoff.missionReportId
+      ? `/mission/report/${encodeURIComponent(handoff.missionReportId)}`
+      : "/mission");
+
+  async function submitFunding() {
+    if (!Number.isFinite(amountUsd) || amountUsd < 5) {
+      toast.error("The prepared funding amount is invalid");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await executeFund({
+        programId: intent.programId ?? handoff.programId ?? undefined,
+        communitySlug: intent.communitySlug ?? handoff.communitySlug ?? undefined,
+        missionId: intent.blueprintId ?? handoff.missionReportId ?? undefined,
+        amountUsd,
+        label: intent.communitySlug
+          ? `${intent.communitySlug} authorization`
+          : "Mission authorization",
+      });
+
+      const status = result.txHash ? "confirmed" : "submitted";
+      if (!result.txHash && !result.activityId) {
+        throw new Error(
+          "Funding was accepted but no traceable transaction or activity ID was returned. Check Capital activity before retrying.",
+        );
+      }
+
+      const response = await fetch(
+        `/api/capital/funding-intents/${encodeURIComponent(intent.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status,
+            programId: result.programId,
+            activityId: result.activityId,
+            txHash: result.txHash,
+          }),
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Could not record funding status");
+
+      await query.refetch();
+      toast.success(
+        status === "confirmed"
+          ? "Funding confirmed on Arc"
+          : "Funding submitted â€” tracking confirmation in Capital",
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Funding could not be submitted");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 lg:px-8">
-      <header className="mb-6">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-resolve-accent">
-          {BANKING_UI.eyebrow}
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold text-white">{BANKING_UI.title}</h1>
-        <p className="mt-2 text-sm text-resolve-muted">{BANKING_UI.subtitle}</p>
-        {signedIn && account?.displayName && (
-          <p className="mt-3 text-xs text-resolve-muted">
-            {account.displayName}
-            {account.memberSince ? ` Â· since ${formatDate(account.memberSince)}` : ""}
-          </p>
-        )}
-      </header>
-
-      {missionHandoff?.missionReportId && (
-        <div className="mb-6 rounded-xl border border-sky-500/25 bg-sky-500/[0.06] px-4 py-3 text-sm text-sky-100">
-          <p className="font-medium text-white">Mission plan approved</p>
-          <p className="mt-1 text-xs text-resolve-muted">
-            {missionHandoff.communitySlug
-              ? `${missionHandoff.communitySlug} Â· `
-              : ""}
-            Activity and settlements for this authorization package.
-          </p>
-          <Link
-            href={`/mission/report/${missionHandoff.missionReportId}`}
-            className="mt-2 inline-block text-xs font-medium text-resolve-accent hover:underline"
-          >
-            View Mission receipt â†’
-          </Link>
-        </div>
-      )}
-
-      <div className="mb-6 flex gap-1 rounded-xl border border-white/[0.06] bg-black/20 p-1">
-        <TabButton active={tab === "overview"} onClick={() => selectTab("overview")}>
-          {BANKING_UI.overview}
-        </TabButton>
-        <TabButton active={tab === "activity"} onClick={() => selectTab("activity")}>
-          {BANKING_UI.activity}
-        </TabButton>
-      </div>
-
-      {!signedIn && tab === "overview" && <GuestLanding onSignIn={onSignIn} />}
-
-      {tab === "overview" && (
-        <>
-          {signedIn && walletHealth && (
-            <WalletHealthRow
-              health={walletHealth}
-              onRetry={onRefresh}
-              retrying={refreshing}
-            />
-          )}
-
-          {signedIn && walletViewProps && (
-            <div className="mb-4">
-              <WalletViewSelector {...walletViewProps} />
-            </div>
-          )}
-
-          {signedIn && walletWarnings.length > 0 && (
-            <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-100/90">
-              {walletWarnings.map((w) => (
-                <p key={w}>{w}</p>
-              ))}
-            </div>
-          )}
-
-          {signedIn && (
-            <BlueGlowCard className="mb-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-resolve-muted-dim">
-                    {BANKING_UI.balanceLabel}
-                  </p>
-                  {initialLoading ?
-                    <p className="mt-2 text-sm text-resolve-muted">{BANKING_UI.syncingBalance}</p>
-                  : showNoWallet ?
-                    <p className="mt-2 text-sm text-amber-200">Create or connect wallet</p>
-                  : showSyncError ?
-                    <div className="mt-2">
-                      <p className="text-sm text-amber-200">
-                        {syncError ?? "Could not sync Arc. Retry"}
-                      </p>
-                      {onRefresh && (
-                        <button
-                          type="button"
-                          onClick={onRefresh}
-                          disabled={refreshing}
-                          className="mt-2 text-xs text-resolve-accent hover:underline"
-                        >
-                          Retry sync
-                        </button>
-                      )}
-                    </div>
-                  : showBalanceAmount ?
-                    <>
-                      <p className="mt-2 text-4xl font-semibold tabular-nums text-white">
-                        <Money amount={yourDeposits} size="lg" />
-                      </p>
-                      <p className="mt-1 text-xs text-resolve-muted">
-                        {showCachedBalance
-                          ? (syncError ?? "Using last known Arc balance while the network syncs.")
-                          : BANKING_UI.balanceHint}
-                      </p>
-                    </>
-                  : <p className="mt-2 text-sm text-resolve-muted">{BANKING_UI.syncingBalance}</p>
-                  }
-                </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
-                  <Landmark className="h-5 w-5 text-resolve-accent" />
-                </div>
-              </div>
-
-              <div className="mt-5 grid grid-cols-3 gap-3 border-t border-white/[0.06] pt-5">
-                <Stat label={BANKING_UI.reserved} amount={showBalanceAmount ? reserved : 0} unknown={!showBalanceAmount} />
-                <Stat
-                  label={BANKING_UI.totalIn}
-                  amount={showBalanceAmount ? (onChainUsd ?? yourDeposits) : 0}
-                  unknown={!showBalanceAmount}
-                />
-                <Stat label={BANKING_UI.readyToClaim} amount={showBalanceAmount ? yourClaimable : 0} unknown={!showBalanceAmount} />
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Button onClick={() => openAddFunds()} className="gap-2">
-                  <ArrowDownLeft className="h-4 w-4" />
-                  {BANKING_UI.addMoney}
-                </Button>
-                <Button variant="secondary" onClick={() => openSendFunds()} className="gap-2">
-                  <ArrowUpRight className="h-4 w-4" />
-                  {BANKING_UI.sendMoney}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={onClaim}
-                  disabled={claiming || !payoutWallet || yourClaimable <= 0}
-                  className="gap-2"
-                >
-                  {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}
-                </Button>
-                {onRefresh && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onRefresh}
-                    disabled={refreshing}
-                    className="h-8 gap-1.5 px-2 text-xs text-resolve-muted"
-                    title={BANKING_UI.refreshHint}
-                  >
-                    <RefreshCw
-                      className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`}
-                    />
-                    {!refreshing && BANKING_UI.refresh}
-                  </Button>
-                )}
-                <Link
-                  href="/settings"
-                  className="inline-flex items-center justify-center gap-2 rounded-resolve px-5 py-2.5 text-sm font-semibold text-resolve-muted transition hover:bg-white/[0.06] hover:text-white"
-                >
-                  {BANKING_UI.connections}
-                </Link>
-              </div>
-              <p className="mt-3 text-[10px] text-resolve-muted-dim">
-                {refreshing ?
-                  BANKING_UI.syncingBalance
-                : lastRefreshedAt ?
-                  `${BANKING_UI.lastUpdated} ${lastRefreshedAt.toLocaleTimeString()} Â· ${BANKING_UI.autoRefresh}`
-                : BANKING_UI.autoRefresh}
-              </p>
-            </BlueGlowCard>
-          )}
-
-          {signedIn && <PendingAuthorizationsPanel signedIn={signedIn} />}
-
-          {signedIn && yourClaimable > 0 && (
-            <BlueGlowCard className="mb-6">
-              <p className="text-sm font-semibold text-white">Earnings ready to collect</p>
-              <p className="mt-1 text-sm text-resolve-muted">
-                Verified value from your connected ecosystems â€” collect to your Arc wallet.
-              </p>
-              <p className="mt-3 text-2xl font-semibold text-emerald-300">
-                <Money amount={yourClaimable} size="lg" className="inline" />
-              </p>
-              <Button
-                className="mt-4 gap-2"
-                onClick={onClaim}
-                disabled={claiming || !payoutWallet}
-              >
-                {claiming ? BANKING_UI.claimWorking : BANKING_UI.collectEarnings}
-              </Button>
-            </BlueGlowCard>
-          )}
-
-          {signedIn && <MoneyFlowExplainer />}
-
-          {!initialLoading && network && network.pendingFundingUsd > 0 && (
-            <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100/90">
-              {BANKING_UI.pendingFunding}
-            </div>
-          )}
-
-          {signedIn && account && arc && <TechnicalDetails account={account} arc={arc} />}
-
-          {!signedIn && network && (
-            <div className="mb-6 rounded-lg border border-white/[0.06] px-4 py-3 text-xs text-resolve-muted">
-              <p className="font-medium text-white">Network activity (all users)</p>
-              <p className="mt-2">
-                <Money amount={network.claimableUsd} size="sm" className="inline text-white" /> ready
-                to collect across RESOLVE Â·{" "}
-                <Money amount={network.settledUsd} size="sm" className="inline text-white" /> paid out
-              </p>
-            </div>
-          )}
-
-        </>
-      )}
-
-      {tab === "activity" && (
-        <section className="py-2">
-          {initialLoading ?
-            <p className="text-sm text-resolve-muted">Loadingâ€¦</p>
-          : !activityItems.length ?
-            <p className="text-sm text-resolve-muted">{BANKING_UI.activityEmpty}</p>
-          : <ul>
-              {activityItems.slice(0, 24).map((item) => (
-                <ActivityRow
-                  key={item.id}
-                  title={item.title}
-                  subtitle={item.subtitle}
-                  amountUsd={item.amountUsd}
-                  direction={item.direction}
-                  badge={item.badge}
-                  receiptHref={
-                    item.direction === "debit" ? `/receipt/${encodeURIComponent(item.id)}` : undefined
-                  }
-                />
-              ))}
-            </ul>
-          }
-          {settlements.some((s) => s.txHash) && (
-            <div className="mt-8">
-              <p className="text-sm font-semibold text-white">Payment receipts</p>
-              <p className="mt-1 text-xs text-resolve-muted">
-                Verified on-chain â€” only shown after confirmation.
-              </p>
-              <ul className="mt-4">
-                {settlements
-                  .filter((s) => s.txHash)
-                  .slice(0, 12)
-                  .map((s) => (
-                    <CapitalSettlementRow
-                      key={s.id}
-                      label={s.label}
-                      amountUsd={s.amountUsd}
-                      txHash={s.txHash}
-                      status={s.status}
-                      at={s.at}
-                      receiptId={s.id}
-                    />
-                  ))}
-              </ul>
-            </div>
-          )}
-        </section>
-      )}
-
-      {signedIn && account?.identities && tab === "overview" && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {account.identities.github ?
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-100">
-              <BadgeCheck className="h-3 w-3" /> GitHub {account.identities.github}
-            </span>
-          : null}
-          {account.identities.emailVerified && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-[11px] text-resolve-muted">
-              <BadgeCheck className="h-3 w-3" /> Email verified
-            </span>
-          )}
-          {payoutWallet && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-[11px] text-resolve-muted">
-              <Wallet className="h-3 w-3" />
-              {payoutWallet.slice(0, 6)}â€¦{payoutWallet.slice(-4)}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+    <section className="mb-6 overflow-hidden rounded-2xl border border-sky-400/25 bg-gradient-to-br from-sky-500/[0.09] via-[#091320] to-violet-500/[0.06] shadow-[0_18px_60px_rgba(0,0,0,0.24)]">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-4 sm:p-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <BadgeCheck className="h-4 w-4 text-sky-300" />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-300">
+              Mission â†’ Capital handoff
+            </p>
+          </div>
+          <h2 className="mt-2 text-base font-semibold text-white">Authorization package prepared</h2>
+          <p className="mt-1 max-w-md text-xs leading-relaxed text-resolve-muted">
+            Mission compiled the decision. Capital will now verify the wallet, request your
+            confirmation, submit the fundã¸¶‰ËkºwµçtÕÍ•MÑ…Ñ”ñQ…ˆø¡¥¹¥Ñ¥…±Q…ˆ¤ì4(€½¹ÍĞ½¹Ñ¥Ù¥Ñå=Á•¹I•˜€ôÕÍ•I•˜¡½¹Ñ¥Ù¥Ñå=Á•¸¤ì4(€½¹Ñ¥Ù¥Ñå=Á•¹I•˜¹ÕÉÉ•¹Ğ€ô½¹Ñ¥Ù¥Ñå=Á•¸ì4(4(€ÕÍ•™™•Ğ  ¤€ôøì4(€€€Í•ÑQ…ˆ¡¥¹¥Ñ¥…±Q…ˆ¤ì4(€ô°m¥¹¥Ñ¥…±Q…‰t¤ì4(4(€ÕÍ•™™•Ğ  ¤€ôøì4(€€€¥˜€¡¥¹¥Ñ¥…±Q…ˆ€ôôô€‰…Ñ¥Ù¥Ñäˆ¤ì4(€€€€€½¹Ñ¥Ù¥Ñå=Á•¹I•˜¹ÕÉÉ•¹Ğü¸ ¤ì4(€€€ô4(€ô°m¥¹¥Ñ¥…±Q…‰t¤ì4(4(€½¹ÍĞÍ•±•ÑQ…ˆ€ôÕÍ•…±±‰…¬ 4(€€€€¡¹•áĞèQ…ˆ¤€ôøì4(€€€€€Í•ÑQ…ˆ¡¹•áĞ¤ì4(€€€€€½¹ÍĞ¡É•˜€ô¹•áĞ€ôôô€‰…Ñ¥Ù¥Ñäˆ€ü€‘íÁ…Ñ¡¹…µ•ôıÑ…ˆõ…Ñ¥Ù¥Ñå€€èÁ…Ñ¡¹…µ”ì4(€€€€€É½ÕÑ•È¹É•Á±…”¡¡É•˜°ìÍÉ½±°è™…±Í”ô¤ì4(€€€€€¥˜€¡¹•áĞ€ôôô€‰…Ñ¥Ù¥Ñäˆ¤ì4(€€€€€€€½¹Ñ¥Ù¥Ñå=Á•¹I•˜¹ÕÉÉ•¹Ğü¸ ¤ì4(€€€€€ô4(€€€ô°4(€€€mÁ…Ñ¡¹…µ”°É½ÕÑ•Ét°4(€€¤ì4(4(€½¹ÍĞ‰…±…¹•Ì€ô…½Õ¹Ğü¹‰…±…¹•Ìì4(€½¹ÍĞ¹•Ñİ½É¬€ô…½Õ¹Ğü¹¹•Ñİ½É¬ì4(€½¹ÍĞ…ÉŒ€ô…½Õ¹Ğü¹…ÉŒì4(€½¹ÍĞå½ÕÉ±…¥µ…‰±”€ô‰…±…¹•Ìü¹•…É¹•‘±…¥µ…‰±•UÍ€üü€Àì4(€½¹ÍĞå½ÕÉ•Á½Í¥ÑÌ€ô‰…±…¹•Ìü¹…Ù…¥±…‰±•UÍ€üü€Àì4(€½¹ÍĞÉ•Í•ÉÙ•€ô‰…±…¹•Ìü¹É•Í•ÉÙ•‘UÍ€üü€Àì4(€½¹ÍĞ½¹¡…¥¹UÍ€ô‰…±…¹•Ìü¹½¹¡…¥¹UÍ‘UÍ€üü¹Õ±°ì4(4(€½¹ÍĞÍ¡½İ	…±…¹•µ½Õ¹Ğ€ô4(€€€‰…±…¹•-¹½İ¸€˜˜4(€€€€¡İ…±±•ÑMå¹Œ€„ôô€‰•ÉÉ½Èˆñğå½ÕÉ•Á½Í¥ÑÌ€ø€Àñğ€¡½¹¡…¥¹UÍ€üü€À¤€ø€À¤ì4(€½¹ÍĞÍ¡½İ…¡•‘	…±…¹”€ôİ…±±•ÑMå¹Œ€ôôô€‰…¡•ˆì4(€½¹ÍĞÍ¡½İMå¹ÉÉ½È€ô4(€€€İ…±±•ÑMå¹Œ€ôôô€‰•ÉÉ½Èˆ€˜˜4(€€€å½ÕÉ•Á½Í¥ÑÌ€ğô€À€˜˜4(€€€€¡½¹¡…¥¹UÍ€üü€À¤€ğô€À€˜˜4(€€€€…‰…±…¹•-¹½İ¸ì4(€½¹ÍĞÍ¡½İ9½]…±±•Ğ€ôİ…±±•ÑMå¹Œ€ôôô€‰¹½}İ…±±•Ğˆ€˜˜€…Á…å½ÕÑ]…±±•Ğì4(4(€½¹ÍĞÍÑ…Ñ•µ•¹Ñ1¥¹•ÌèMÑ…Ñ•µ•¹Ñ1¥¹•mt€ô…½Õ¹Ğü¹ÍÑ…Ñ•µ•¹Ğ€üümtì4(€½¹ÍĞ…Ñ¥Ù¥Ñå%Ñ•µÌ€ôÍÑ…Ñ•µ•¹Ñ1¥¹•Ì¹µ…À ¡±¥¹”¤€ôø€¡ì4(€€€¥è±¥¹”¹¥°4(€€€Ñ¥Ñ±”è™É¥•¹‘±åMÑ…Ñ•µ•¹Ñ1…‰•°¡±¥¹”¹±…‰•°¤°4(€€€ÍÕ‰Ñ¥Ñ±”è™½Éµ…Ñ…Ñ”¡±¥¹”¹…Ğ¤°4(€€€…µ½Õ¹ÑUÍè±¥¹”¹…µ½Õ¹ÑUÍ°4(€€€‘¥É•Ñ¥½¸è±¥¹”¹‘¥É•Ñ¥½¸°4(€€€‰…‘”è4(€€€€€±¥¹”¹É•™•É•¹”€ôôô€‰½¹¹•Ñ•‘}İ…±±•Ğˆ4(€€€€€€€€ü€‰½¹¹•Ñ•İ…±±•Ğˆ4(€€€€€€€€è±¥¹”¹É•™•É•¹”€ôôô€‰Á•¹‘¥¹œˆ4(€€€€€€€€€€ü€‰A•¹‘¥¹œˆ4(€€€€€€€€€€è±¥¹”¹É•™•É•¹”€ôôô€‰É•Í½±Ù•}İ…±±•Ğˆ4(€€€€€€€€€€€€ü€‰IM=1Yİ…±±•Ğˆ4(€€€€€€€€€€€€è€‰]…±±•Ğˆ°4(€ô¤¤ì4(4(€É•ÑÕÉ¸€ 4(€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µàµ…ÕÑ¼µ…àµÜ´Éá°Áà´ĞÁä´à±œéÁà´àˆø4(€€€€€€ñ¡•…‘•È±…ÍÍ9…µ”ô‰µˆ´Øˆø4(€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµlÄÁÁát™½¹ĞµÍ•µ¥‰½±ÕÁÁ•É…Í”ÑÉ…­¥¹œµlÀ¸É•µtÑ•áĞµÉ•Í½±Ù”µ…•¹Ğˆø4(€€€€€€€€€í	9-%9}U$¹•å•‰É½İô4(€€€€€€€€ğ½Àø4(€€€€€€€€ñ Ä±…ÍÍ9…µ”ô‰µĞ´ÈÑ•áĞ´Éá°™½¹ĞµÍ•µ¥‰½±Ñ•áĞµİ¡¥Ñ”ˆùí	9-%9}U$¹Ñ¥Ñ±•ôğ½ Äø4(€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÈÑ•áĞµÍ´Ñ•áĞµÉ•Í½±Ù”µµÕÑ•ˆùí	9-%9}U$¹ÍÕ‰Ñ¥Ñ±•ôğ½Àø4(€€€€€€€íÍ¥¹•‘%¸€˜˜…½Õ¹Ğü¹‘¥ÍÁ±…å9…µ”€˜˜€ 4(€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÌÑ•áĞµáÌÑ•áĞµÉ•Í½±Ù”µµÕÑ•ˆø4(€€€€€€€€€€€í…½Õ¹Ğ¹‘¥ÍÁ±…å9…µ•ô4(€€€€€€€€€€€í…½Õ¹Ğ¹µ•µ‰•ÉM¥¹”€ü€ƒ
+ÜÍ¥¹”€‘í™½Éµ…Ñ…Ñ”¡…½Õ¹Ğ¹µ•µ‰•ÉM¥¹”¥õ€€è€ˆ‰ô4(€€€€€€€€€€ğ½Àø4(€€€€€€€€¥ô4(€€€€€€ğ½¡•…‘•Èø4(4(€€€€€íµ¥ÍÍ¥½¹!…¹‘½™˜ü¹Í•ÑÑ±•µ•¹Ñ	…Ñ¡%€ü€ (€€€€€€€€ñM•ÑÑ±•µ•¹Ñ	…Ñ¡…É(€€€€€€€€€¡…¹‘½™˜õíµ¥ÍÍ¥½¹!…¹‘½™™ô(€€€€€€€€€Í¥¹•‘%¸õíÍ¥¹•‘%¹ô(€€€€€€€€€½¹M¥¹%¸õí½¹M¥¹%¹ô(€€€€€€€€¼ø(€€€€€€¤€èµ¥ÍÍ¥½¹!…¹‘½™˜ü¹™Õ¹‘¥¹%¹Ñ•¹Ñ%€ü€ (€€€€€€€€ñÕ¹‘¥¹%¹Ñ•¹Ñ…É(€€€€€€€€€¡…¹‘½™˜õíµ¥ÍÍ¥½¹!…¹‘½™™ô(€€€€€€€€€Í¥¹•‘%¸õíÍ¥¹•‘%¹ô(€€€€€€€€€½¹M¥¹%¸õí½¹M¥¹%¹ô(€€€€€€€€¼ø(€€€€€€¤€èµ¥ÍÍ¥½¹!…¹‘½™˜ü¹µ¥ÍÍ¥½¹I•Á½ÉÑ%€ü€ (€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µˆ´ØÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•ÈµÍ­ä´ÔÀÀ¼ÈÔ‰œµÍ­ä´ÔÀÀ½lÀ¸ÀÙtÁà´ĞÁä´ÌÑ•áĞµÍ´Ñ•áĞµÍ­ä´ÄÀÀˆø(€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰™½¹Ğµµ•‘¥Õ´Ñ•áĞµİ¡¥Ñ”ˆù5¥ÍÍ¥½¸…ÕÑ¡½É¥é…Ñ¥½¸Á…­…”ğ½Àø(€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÄÑ•áĞµáÌÑ•áĞµÉ•Í½±Ù”µµÕÑ•ˆø(€€€€€€€€€€€íµ¥ÍÍ¥½¹!…¹‘½™˜¹½µµÕ¹¥ÑåM±Õœ(€€€€€€€€€€€€€€ü€‘íµ¥ÍÍ¥½¹!…¹‘½™˜¹½µµÕ¹¥ÑåM±Õôƒ
+Ü€(€€€€€€€€€€€€€€è€ˆ‰ô(€€€€€€€€€€€I•Ù¥•Ü…Ñ¥Ù¥Ñä…¹Í•ÑÑ±•µ•¹ÑÌ¥¸…Á¥Ñ…°¸9¼™Õ¹‘Ìµ½Ù”İ¥Ñ¡½ÕĞ½¹™¥Éµ…Ñ¥½¸¸(€€€€€€€€€€ğ½Àø(€€€€€€€€€€ñ1¥¹¬4(€€€€€€€€€€€¡É•˜õí€½µ¥ÍÍ¥½¸½É•Á½ÉĞ¼‘íµ¥ÍÍ¥½¹!…¹‘½™˜¹µ¥ÍÍ¥½¹I•Á½ÉÑ%‘õô4(€€€€€€€€€€€±…ÍÍ9…µ”ô‰µĞ´È¥¹±¥¹”µ‰±½¬Ñ•áĞµáÌ™½¹Ğµµ•‘¥Õ´Ñ•áĞµÉ•Í½±Ù”µ…•¹Ğ¡½Ù•ÈéÕ¹‘•É±¥¹”ˆ4(€€€€€€€€€€ø4(€€€€€€€€€€€I•ÑÕÉ¸Ñ¼5¥ÍÍ¥½¸É••¥ÁĞƒŠH(€€€€€€€€€€ğ½1¥¹¬ø(€€€€€€€€ğ½‘¥Øø(€€€€€€¤€è¹Õ±±ô(4(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µˆ´Ø™±•à…À´ÄÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµİ¡¥Ñ”½lÀ¸ÀÙt‰œµ‰±…¬¼ÈÀÀ´Äˆø4(€€€€€€€€ñQ…‰	ÕÑÑ½¸…Ñ¥Ù”õíÑ…ˆ€ôôô€‰½Ù•ÉÙ¥•Ü‰ô½¹±¥¬õì ¤€ôøÍ•±•ÑQ…ˆ ‰½Ù•ÉÙ¥•Üˆ¥ôø4(€€€€€€€€€í	9-%9}U$¹½Ù•ÉÙ¥•İô4(€€€€€€€€ğ½Q…‰	ÕÑÑ½¸ø4(€€€€€€€€ñQ…‰	ÕÑÑ½¸…Ñ¥Ù”õíÑ…ˆ€ôôô€‰…Ñ¥Ù¥Ñä‰ô½¹±¥¬õì ¤€ôøÍ•±•ÑQ…ˆ ‰…Ñ¥Ù¥Ñäˆ¥ôø4(€€€€€€€€€í	9-%9}U$¹…Ñ¥Ù¥Ñåô4(€€€€€€€€ğ½Q…‰	ÕÑÑ½¸ø4(€€€€€€ğ½‘¥Øø4(4(€€€€€ì…Í¥¹•‘%¸€˜˜Ñ…ˆ€ôôô€‰½Ù•ÉÙ¥•Üˆ€˜˜€ñÕ•ÍÑ1…¹‘¥¹œ½¹M¥¹%¸õí½¹M¥¹%¹ô€¼ùô4(4(€€€€€íÑ…ˆ€ôôô€‰½Ù•ÉÙ¥•Üˆ€˜˜€ 4(€€€€€€€€ğø4(€€€€€€€€€íÍ¥¹•‘%¸€˜˜İ…±±•Ñ!•…±Ñ €˜˜€ 4(€€€€€€€€€€€€ñ]…±±•Ñ!•…±Ñ¡I½Ü4(€€€€€€€€€€€€€¡•…±Ñ õíİ…±±•Ñ!•…±Ñ¡ô4(€€€€€€€€€€€€€½¹I•ÑÉäõí½¹I•™É•Í¡ô4(€€€€€€€€€€€€€É•ÑÉå¥¹œõíÉ•™É•Í¡¥¹ô4(€€€€€€€€€€€€¼ø4(€€€€€€€€€€¥ô4(4(€€€€€€€€€íÍ¥¹•‘%¸€˜˜İ…±±•ÑY¥•İAÉ½ÁÌ€˜˜€ 4(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µˆ´Ğˆø4(€€€€€€€€€€€€€€ñ]…±±•ÑY¥•İM•±•Ñ½Èì¸¸¹İ…±±•ÑY¥•İAÉ½ÁÍô€¼ø4(€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€¥ô4(4(€€€€€€€€€íÍ¥¹•‘%¸€˜˜İ…±±•Ñ]…É¹¥¹Ì¹±•¹Ñ €ø€À€˜˜€ 4(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µˆ´ĞÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµ…µ‰•È´ÔÀÀ¼ÈÀ‰œµ…µ‰•È´ÔÀÀ¼ÔÁà´ĞÁä´ÌÑ•áĞµáÌÑ•áĞµ…µ‰•È´ÄÀÀ¼äÀˆø4(€€€€€€€€€€€€€íİ…±±•Ñ]…É¹¥¹Ì¹µ…À ¡Ü¤€ôø€ 4(€€€€€€€€€€€€€€€€ñÀ­•äõíİôùíİôğ½Àø4(€€€€€€€€€€€€€€¤¥ô4(€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€¥ô4(4(€€€€€€€€€íÍ¥¹•‘%¸€˜˜€ 4(€€€€€€€€€€€€ñ	±Õ•±½İ…É±…ÍÍ9…µ”ô‰µˆ´Øˆø4(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµÍÑ…ÉĞ©ÕÍÑ¥™äµ‰•Ñİ••¸…À´Ğˆø4(€€€€€€€€€€€€€€€€ñ‘¥Øø4(€€€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµlÄÁÁát™½¹ĞµÍ•µ¥‰½±ÕÁÁ•É…Í”ÑÉ…­¥¹œµİ¥‘”Ñ•áĞµÉ•Í½±Ù”µµÕÑ•µ‘¥´ˆø4(€€€€€€€€€€€€€€€€€€€í	9-%9}U$¹‰…±…¹•1…‰•±ô4(€€€€€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€€€€€€í¥¹¥Ñ¥…±1½…‘¥¹œ€ü4(€€€€€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÈÑ•áĞµÍ´Ñ•áĞµÉ•Í½±Ù”µµÕÑ•ˆùí	9-%9}U$¹Íå¹¥¹	…±…¹•ôğ½Àø4(€€€€€€€€€€€€€€€€€€èÍ¡½İ9½]…±±•Ğ€ü4(€€€€€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÈÑ•áĞµÍ´Ñ•áĞµ…µ‰•È´ÈÀÀˆùÉ•…Ñ”½È½¹¹•Ğİ…±±•Ğğ½Àø4(€€€€€€€€€€€€€€€€€€èÍ¡½İMå¹ÉÉ½È€ü4(€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µĞ´Èˆø4(€€€€€€€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµÍ´Ñ•áĞµ…µ‰•È´ÈÀÀˆø4(€€€€€€€€€€€€€€€€€€€€€€€íÍå¹ÉÉ½È€üü€‰½Õ±¹½ĞÍå¹ŒÉŒ¸I•ÑÉä‰ô4(€€€€€€€€€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€€€€€€€€€€í½¹I•™É•Í €˜˜€ 4(€€€€€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸4(€€€€€€€€€€€€€€€€€€€€€€€€€ÑåÁ”ô‰‰ÕÑÑ½¸ˆ4(€€€€€€€€€€€€€€€€€€€€€€€€€½¹±¥¬õí½¹I•™É•Í¡ô4(€€€€€€€€€€€€€€€€€€€€€€€€€‘¥Í…‰±•õíÉ•™É•Í¡¥¹ô4(€€€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰µĞ´ÈÑ•áĞµáÌÑ•áĞµÉ•Í½±Ù”µ…•¹Ğ¡½Ù•ÈéÕ¹‘•É±¥¹”ˆ4(€€€€€€€€€€€€€€€€€€€€€€€€ø4(€€€€€€€€€€€€€€€€€€€€€€€€€I•ÑÉäÍå¹Œ4(€€€€€€€€€€€€€€€€€€€€€€€€ğ½‰ÕÑÑ½¸ø4(€€€€€€€€€€€€€€€€€€€€€€¥ô4(€€€€€€€€€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€€€€€€€€€èÍ¡½İ	…±…¹•µ½Õ¹Ğ€ü4(€€€€€€€€€€€€€€€€€€€€ğø4(€€€€€€€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÈÑ•áĞ´Ñá°™½¹ĞµÍ•µ¥‰½±Ñ…‰Õ±…Èµ¹ÕµÌÑ•áĞµİ¡¥Ñ”ˆø4(€€€€€€€€€€€€€€€€€€€€€€€€ñ5½¹•ä…µ½Õ¹Ğõíå½ÕÉ•Á½Í¥ÑÍôÍ¥é”ô‰±œˆ€¼ø4(€€€€€€€€€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÄÑ•áĞµáÌÑ•áĞµÉ•Í½±Ù”µµÕÑ•ˆø4(€€€€€€€€€€€€€€€€€€€€€€€íÍ¡½İ…¡•‘	…±…¹”4(€€€€€€€€€€€€€€€€€€€€€€€€€€ü€¡Íå¹ÉÉ½È€üü€‰UÍ¥¹œ±…ÍĞ­¹½İ¸ÉŒ‰…±…¹”İ¡¥±”Ñ¡”¹•Ñİ½É¬Íå¹Ì¸ˆ¤4(€€€€€€€€€€€€€€€€€€€€€€€€€€è	9-%9}U$¹‰…±…¹•!¥¹Ñô4(€€€€€€€€€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€€€€€€€€€ğ¼ø4(€€€€€€€€€€€€€€€€€€è€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÈÑ•áĞµÍ´Ñ•áĞµÉ•Í½±Ù”µµÕÑ•ˆùí	9-%9}U$¹Íå¹¥¹	…±…¹•ôğ½Àø4(€€€€€€€€€€€€€€€€€ô4(€€€€€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à ´ÄÀÜ´ÄÀ¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ•¹Ñ•ÈÉ½Õ¹‘•µ™Õ±°‰½É‘•È‰½É‘•Èµİ¡¥Ñ”¼ÄÀ‰œµİ¡¥Ñ”½lÀ¸ÀÑtˆø4(€€€€€€€€€€€€€€€€€€ñ1…¹‘µ…É¬±…ÍÍ9…µ”ô‰ ´ÔÜ´ÔÑ•áĞµÉ•Í½±Ù”µ…•¹Ğˆ€¼ø4(€€€€€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€€€€€ğ½‘¥Øø4(4(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µĞ´ÔÉ¥É¥µ½±Ì´Ì…À´Ì‰½É‘•ÈµĞ‰½É‘•Èµİ¡¥Ñ”½lÀ¸ÀÙtÁĞ´Ôˆø4(€€€€€€€€€€€€€€€€ñMÑ…Ğ±…‰•°õí	9-%9}U$¹É•Í•ÉÙ•‘ô…µ½Õ¹ĞõíÍ¡½İ	…±…¹•µ½Õ¹Ğ€üÉ•Í•ÉÙ•€è€ÁôÕ¹­¹½İ¸õì…Í¡½İ	…±…¹•µ½Õ¹Ñô€¼ø4(€€€€€€€€€€€€€€€€ñMÑ…Ğ4(€€€€€€€€€€€€€€€€€±…‰•°õí	9-%9}U$¹Ñ½Ñ…±%¹ô4(€€€€€€€€€€€€€€€€€…µ½Õ¹ĞõíÍ¡½İ	…±…¹•µ½Õ¹Ğ€ü€¡½¹¡…¥¹UÍ€üüå½ÕÉ•Á½Í¥ÑÌ¤€è€Áô4(€€€€€€€€€€€€€€€€€Õ¹­¹½İ¸õì…Í¡½İ	…±…¹•µ½Õ¹Ñô4(€€€€€€€€€€€€€€€€¼ø4(€€€€€€€€€€€€€€€€ñMÑ…Ğ±…‰•°õí	9-%9}U$¹É•…‘åQ½±…¥µô…µ½Õ¹ĞõíÍ¡½İ	…±…¹•µ½Õ¹Ğ€üå½ÕÉ±…¥µ…‰±”€è€ÁôÕ¹­¹½İ¸õì…Í¡½İ	…±…¹•µ½Õ¹Ñô€¼ø4(€€€€€€€€€€€€€€ğ½‘¥Øø4(4(€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µĞ´Ô™±•à™±•àµİÉ…À…À´Èˆø4(€€€€€€€€€€€€€€€€ñ	ÕÑÑ½¸½¹±¥¬õì ¤€ôø½Á•¹‘‘Õ¹‘Ì ¥ô±…ÍÍ9…µ”ô‰…À´Èˆø4(€€€€€€€€€€€€€€€€€€ñÉÉ½İ½İ¹1•™Ğ±…ÍÍ9…µ”ô‰ ´ĞÜ´Ğˆ€¼ø4(€€€€€€€€€€€€€€€€€í	9-%9}U$¹…‘‘5½¹•åô4(€€€€€€€€€€€€€€€€ğ½	ÕÑÑ½¸ø4(€€€€€€€€€€€€€€€€ñ	ÕÑÑ½¸Ù…É¥…¹Ğô‰Í•½¹‘…Éäˆ½¹±¥¬õì ¤€ôø½Á•¹M•¹‘Õ¹‘Ì ¥ô±…ÍÍ9…µ”ô‰…À´Èˆø4(€€€€€€€€€€€€€€€€€€ñÉÉ½İUÁI¥¡Ğ±…ÍÍ9…µ”ô‰ ´ĞÜ´Ğˆ€¼ø4(€€€€€€€€€€€€€€€€€í	9-%9}U$¹Í•¹‘5½¹•åô4(€€€€€€€€€€€€€€€€ğ½	ÕÑÑ½¸ø4(€€€€€€€€€€€€€€€€ñ	ÕÑÑ½¸4(€€€€€€€€€€€€€€€€€Ù…É¥…¹Ğô‰Í•½¹‘…Éäˆ4(€€€€€€€€€€€€€€€€€½¹±¥¬õí½¹±…¥µô4(€€€€€€€€€€€€€€€€€‘¥Í…‰±•õí±…¥µ¥¹œñğ€…Á…å½ÕÑ]…±±•Ğñğå½ÕÉ±…¥µ…‰±”€ğô€Áô4(€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰…À´Èˆ4(€€€€€€€€€€€€€€€€ø4(€€€€€€€€€€€€€€€€€í±…¥µ¥¹œ€ü	9-%9}U$¹±…¥µ]½É­¥¹œ€è	9-%9}U$¹½±±•Ñ…É¹¥¹Íô4(€€€€€€€€€€€€€€€€ğ½	ÕÑÑ½¸ø4(€€€€€€€€€€€€€€€í½¹I•™É•Í €˜˜€ 4(€€€€€€€€€€€€€€€€€€ñ	ÕÑÑ½¸4(€€€€€€€€€€€€€€€€€€€Ù…É¥…¹Ğô‰¡½ÍĞˆ4(€€€€€€€€€€€€€€€€€€€Í¥é”ô‰Í´ˆ4(€€€€€€€€€€€€€€€€€€€½¹±¥¬õí½¹I•™É•Í¡ô4(€€€€€€€€€€€€€€€€€€€‘¥Í…‰±•õíÉ•™É•Í¡¥¹ô4(€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰ ´à…À´Ä¸ÔÁà´ÈÑ•áĞµáÌÑ•áĞµÉ•Í½±Ù”µµÕÑ•ˆ4(€€€€€€€€€€€€€€€€€€€Ñ¥Ñ±”õí	9-%9}U$¹É•™É•Í¡!¥¹Ñô4(€€€€€€€€€€€€€€€€€€ø4(€€€€€€€€€€€€€€€€€€€€ñI•™É•Í¡Ü4(€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”õí ´Ì¸ÔÜ´Ì¸Ô€‘íÉ•™É•Í¡¥¹œ€ü€‰…¹¥µ…Ñ”µÍÁ¥¸ˆ€è€ˆ‰õô4(€€€€€€€€€€€€€€€€€€€€¼ø4(€€€€€€€€€€€€€€€€€€€ì…É•™É•Í¡¥¹œ€˜˜	9-%9}U$¹É•™É•Í¡ô4(€€€€€€€€€€€€€€€€€€ğ½	ÕÑÑ½¸ø4(€€€€€€€€€€€€€€€€¥ô4(€€€€€€€€€€€€€€€€ñ1¥¹¬4(€€€€€€€€€€€€€€€€€¡É•˜ôˆ½Í•ÑÑ¥¹Ìˆ4(€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ•¹Ñ•È…À´ÈÉ½Õ¹‘•µÉ•Í½±Ù”Áà´ÔÁä´È¸ÔÑ•áĞµÍ´™½¹ĞµÍ•µ¥‰½±Ñ•áĞµÉ•Í½±Ù”µµÕÑ•ÑÉ…¹Í¥Ñ¥½¸¡½Ù•Èé‰œµİ¡¥Ñ”½lÀ¸ÀÙt¡½Ù•ÈéÑ•áĞµİ¡¥Ñ”ˆ4(€€€€€€€€€€€€€€€€ø4(€€€€€€€€€€€€€€€€€í	9-%9}U$¹½¹¹•Ñ¥½¹Íô4(€€€€€€€€€€€€€€€€ğ½1¥¹¬ø4(€€€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÌÑ•áĞµlÄÁÁátÑ•áĞµÉ•Í½±Ù”µµÕÑ•µ‘¥´ˆø4(€€€€€€€€€€€€€€€íÉ•™É•Í¡¥¹œ€ü4(€€€€€€€€€€€€€€€€€	9-%9}U$¹Íå¹¥¹	…±…¹”4(€€€€€€€€€€€€€€€€è±…ÍÑI•™É•Í¡•‘Ğ€ü4(€€€€€€€€€€€€€€€€€€‘í	9-%9}U$¹±…ÍÑUÁ‘…Ñ•‘ô€‘í±…ÍÑI•™É•Í¡•‘Ğ¹Ñ½1½…±•Q¥µ•MÑÉ¥¹œ ¥ôƒ
+Ü€‘í	9-%9}U$¹…ÕÑ½I•™É•Í¡õ€4(€€€€€€€€€€€€€€€€è	9-%9}U$¹…ÕÑ½I•™É•Í¡ô4(€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€ğ½	±Õ•±½İ…Éø4(€€€€€€€€€€¥ô4(4(€€€€€€€€€íÍ¥¹•‘%¸€˜˜€ñA•¹‘¥¹ÕÑ¡½É¥é…Ñ¥½¹ÍA…¹•°Í¥¹•‘%¸õíÍ¥¹•‘%¹ô€¼ùô4(4(€€€€€€€€€íÍ¥¹•‘%¸€˜˜å½ÕÉ±…¥µ…‰±”€ø€À€˜˜€ 4(€€€€€€€€€€€€ñ	±Õ•±½İ…É±…ÍÍ9…µ”ô‰µˆ´Øˆø4(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµÍ´™½¹ĞµÍ•µ¥‰½±Ñ•áĞµİ¡¥Ñ”ˆù…É¹¥¹ÌÉ•…‘äÑ¼½±±•Ğğ½Àø4(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÄÑ•áĞµÍ´Ñ•áĞµÉ•Í½±Ù”µµÕÑ•ˆø4(€€€€€€€€€€€€€€€Y•É¥™¥•Ù…±Õ”™É½´å½ÕÈ½¹¹•Ñ••½ÍåÍÑ•µÌƒŠP½±±•ĞÑ¼å½ÕÈÉŒİ…±±•Ğ¸4(€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÌÑ•áĞ´Éá°™½¹ĞµÍ•µ¥‰½±Ñ•áĞµ•µ•É…±´ÌÀÀˆø4(€€€€€€€€€€€€€€€€ñ5½¹•ä…µ½Õ¹Ğõíå½ÕÉ±…¥µ…‰±•ôÍ¥é”ô‰±œˆ±…ÍÍ9…µ”ô‰¥¹±¥¹”ˆ€¼ø4(€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€€€ñ	ÕÑÑ½¸4(€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰µĞ´Ğ…À´Èˆ4(€€€€€€€€€€€€€€€½¹±¥¬õí½¹±…¥µô4(€€€€€€€€€€€€€€€‘¥Í…‰±•õí±…¥µ¥¹œñğ€…Á…å½ÕÑ]…±±•Ñô4(€€€€€€€€€€€€€€ø4(€€€€€€€€€€€€€€€í±…¥µ¥¹œ€ü	9-%9}U$¹±…¥µ]½É­¥¹œ€è	9-%9}U$¹½±±•Ñ…É¹¥¹Íô4(€€€€€€€€€€€€€€ğ½	ÕÑÑ½¸ø4(€€€€€€€€€€€€ğ½	±Õ•±½İ…Éø4(€€€€€€€€€€¥ô4(4(€€€€€€€€€íÍ¥¹•‘%¸€˜˜€ñ5½¹•å±½İáÁ±…¥¹•È€¼ùô4(4(€€€€€€€€€ì…¥¹¥Ñ¥…±1½…‘¥¹œ€˜˜¹•Ñİ½É¬€˜˜¹•Ñİ½É¬¹Á•¹‘¥¹Õ¹‘¥¹UÍ€ø€À€˜˜€ 4(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µˆ´ØÉ½Õ¹‘•µá°‰½É‘•È‰½É‘•Èµ…µ‰•È´ÔÀÀ¼ÈÀ‰œµ…µ‰•È´ÔÀÀ¼ÔÁà´ĞÁä´ÌÑ•áĞµÍ´Ñ•áĞµ…µ‰•È´ÄÀÀ¼äÀˆø4(€€€€€€€€€€€€€í	9-%9}U$¹Á•¹‘¥¹Õ¹‘¥¹ô4(€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€¥ô4(4(€€€€€€€€€íÍ¥¹•‘%¸€˜˜…½Õ¹Ğ€˜˜…ÉŒ€˜˜€ñQ•¡¹¥…±•Ñ…¥±Ì…½Õ¹Ğõí…½Õ¹Ñô…ÉŒõí…Éô€¼ùô4(4(€€€€€€€€€ì…Í¥¹•‘%¸€˜˜¹•Ñİ½É¬€˜˜€ 4(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µˆ´ØÉ½Õ¹‘•µ±œ‰½É‘•È‰½É‘•Èµİ¡¥Ñ”½lÀ¸ÀÙtÁà´ĞÁä´ÌÑ•áĞµáÌÑ•áĞµÉ•Í½±Ù”µµÕÑ•ˆø4(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰™½¹Ğµµ•‘¥Õ´Ñ•áĞµİ¡¥Ñ”ˆù9•Ñİ½É¬…Ñ¥Ù¥Ñä€¡…±°ÕÍ•ÉÌ¤ğ½Àø4(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´Èˆø4(€€€€€€€€€€€€€€€€ñ5½¹•ä…µ½Õ¹Ğõí¹•Ñİ½É¬¹±…¥µ…‰±•UÍ‘ôÍ¥é”ô‰Í´ˆ±…ÍÍ9…µ”ô‰¥¹±¥¹”Ñ•áĞµİ¡¥Ñ”ˆ€¼øÉ•…‘ä4(€€€€€€€€€€€€€€€Ñ¼½±±•Ğ…É½ÍÌIM=1Yƒ
+İìˆ€‰ô4(€€€€€€€€€€€€€€€€ñ5½¹•ä…µ½Õ¹Ğõí¹•Ñİ½É¬¹Í•ÑÑ±•‘UÍ‘ôÍ¥é”ô‰Í´ˆ±…ÍÍ9…µ”ô‰¥¹±¥¹”Ñ•áĞµİ¡¥Ñ”ˆ€¼øÁ…¥½ÕĞ4(€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€¥ô4(4(€€€€€€€€ğ¼ø4(€€€€€€¥ô4(4(€€€€€íÑ…ˆ€ôôô€‰…Ñ¥Ù¥Ñäˆ€˜˜€ 4(€€€€€€€€ñÍ•Ñ¥½¸±…ÍÍ9…µ”ô‰Áä´Èˆø4(€€€€€€€€€í¥¹¥Ñ¥…±1½…‘¥¹œ€ü4(€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµÍ´Ñ•áĞµÉ•Í½±Ù”µµÕÑ•ˆù1½…‘¥¹ŸŠ˜ğ½Àø4(€€€€€€€€€€è€……Ñ¥Ù¥Ñå%Ñ•µÌ¹±•¹Ñ €ü4(€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµÍ´Ñ•áĞµÉ•Í½±Ù”µµÕÑ•ˆùí	9-%9}U$¹…Ñ¥Ù¥ÑåµÁÑåôğ½Àø4(€€€€€€€€€€è€ñÕ°ø4(€€€€€€€€€€€€€í…Ñ¥Ù¥Ñå%Ñ•µÌ¹Í±¥” À°€ÈĞ¤¹µ…À ¡¥Ñ•´¤€ôø€ 4(€€€€€€€€€€€€€€€€ñÑ¥Ù¥ÑåI½Ü4(€€€€€€€€€€€€€€€€€­•äõí¥Ñ•´¹¥‘ô4(€€€€€€€€€€€€€€€€€Ñ¥Ñ±”õí¥Ñ•´¹Ñ¥Ñ±•ô4(€€€€€€€€€€€€€€€€€ÍÕ‰Ñ¥Ñ±”õí¥Ñ•´¹ÍÕ‰Ñ¥Ñ±•ô4(€€€€€€€€€€€€€€€€€…µ½Õ¹ÑUÍõí¥Ñ•´¹…µ½Õ¹ÑUÍ‘ô4(€€€€€€€€€€€€€€€€€‘¥É•Ñ¥½¸õí¥Ñ•´¹‘¥É•Ñ¥½¹ô4(€€€€€€€€€€€€€€€€€‰…‘”õí¥Ñ•´¹‰…‘•ô4(€€€€€€€€€€€€€€€€€É••¥ÁÑ!É•˜õì4(€€€€€€€€€€€€€€€€€€€¥Ñ•´¹‘¥É•Ñ¥½¸€ôôô€‰‘•‰¥Ğˆ€ü€½É••¥ÁĞ¼‘í•¹½‘•UI%½µÁ½¹•¹Ğ¡¥Ñ•´¹¥¥õ€€èÕ¹‘•™¥¹•4(€€€€€€€€€€€€€€€€€ô4(€€€€€€€€€€€€€€€€¼ø4(€€€€€€€€€€€€€€¤¥ô4(€€€€€€€€€€€€ğ½Õ°ø4(€€€€€€€€€ô4(€€€€€€€€€íÍ•ÑÑ±•µ•¹ÑÌ¹Í½µ” ¡Ì¤€ôøÌ¹Ñá!…Í ¤€˜˜€ 4(€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µĞ´àˆø4(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰Ñ•áĞµÍ´™½¹ĞµÍ•µ¥‰½±Ñ•áĞµİ¡¥Ñ”ˆùA…åµ•¹ĞÉ••¥ÁÑÌğ½Àø4(€€€€€€€€€€€€€€ñÀ±…ÍÍ9…µ”ô‰µĞ´ÄÑ•áĞµáÌÑ•áĞµÉ•Í½±Ù”µµÕÑ•ˆø4(€€€€€€€€€€€€€€€Y•É¥™¥•½¸µ¡…¥¸ƒŠP½¹±äÍ¡½İ¸…™Ñ•È½¹™¥Éµ…Ñ¥½¸¸4(€€€€€€€€€€€€€€ğ½Àø4(€€€€€€€€€€€€€€ñÕ°±…ÍÍ9…µ”ô‰µĞ´Ğˆø4(€€€€€€€€€€€€€€€íÍ•ÑÑ±•µ•¹ÑÌ4(€€€€€€€€€€€€€€€€€€¹™¥±Ñ•È ¡Ì¤€ôøÌ¹Ñá!…Í ¤4(€€€€€€€€€€€€€€€€€€¹Í±¥” À°€ÄÈ¤4(€€€€€€€€€€€€€€€€€€¹µ…À ¡Ì¤€ôø€ 4(€€€€€€€€€€€€€€€€€€€€ñ…Á¥Ñ…±M•ÑÑ±•µ•¹ÑI½Ü4(€€€€€€€€€€€€€€€€€€€€€­•äõíÌ¹¥‘ô4(€€€€€€€€€€€€€€€€€€€€€±…‰•°õíÌ¹±…‰•±ô4(€€€€€€€€€€€€€€€€€€€€€…µ½Õ¹ÑUÍõíÌ¹…µ½Õ¹ÑUÍ‘ô4(€€€€€€€€€€€€€€€€€€€€€Ñá!…Í õíÌ¹Ñá!…Í¡ô4(€€€€€€€€€€€€€€€€€€€€€ÍÑ…ÑÕÌõíÌ¹ÍÑ…ÑÕÍô4(€€€€€€€€€€€€€€€€€€€€€…ĞõíÌ¹…Ñô4(€€€€€€€€€€€€€€€€€€€€€É••¥ÁÑ%õíÌ¹¥‘ô4(€€€€€€€€€€€€€€€€€€€€¼ø4(€€€€€€€€€€€€€€€€€€¤¥ô4(€€€€€€€€€€€€€€ğ½Õ°ø4(€€€€€€€€€€€€ğ½‘¥Øø4(€€€€€€€€€€¥ô4(€€€€€€€€ğ½Í•Ñ¥½¸ø4(€€€€€€¥ô4(4(€€€€€íÍ¥¹•‘%¸€˜˜…½Õ¹Ğü¹¥‘•¹Ñ¥Ñ¥•Ì€˜˜Ñ…ˆ€ôôô€‰½Ù•ÉÙ¥•Üˆ€˜˜€ 4(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µĞ´Ğ™±•à™±•àµİÉ…À…À´Èˆø4(€€€€€€€€€í…½Õ¹Ğ¹¥‘•¹Ñ¥Ñ¥•Ì¹¥Ñ¡Õˆ€ü4(€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÄÉ½Õ¹‘•µ™Õ±°‰½É‘•È‰½É‘•Èµ•µ•É…±´ÔÀÀ¼ÌÀ‰œµ•µ•É…±´ÔÀÀ¼ÄÀÁà´ÌÁä´ÄÑ•áĞµlÄÅÁátÑ•áĞµ•µ•É…±´ÄÀÀˆø4(€€€€€€€€€€€€€€ñ	…‘•¡•¬±…ÍÍ9…µ”ô‰ ´ÌÜ´Ìˆ€¼ø¥Ñ!Õˆí…½Õ¹Ğ¹¥‘•¹Ñ¥Ñ¥•Ì¹¥Ñ¡Õ‰ô4(€€€€€€€€€€€€ğ½ÍÁ…¸ø4(€€€€€€€€€€è¹Õ±±ô4(€€€€€€€€€í…½Õ¹Ğ¹¥‘•¹Ñ¥Ñ¥•Ì¹•µ…¥±Y•É¥™¥•€˜˜€ 4(€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÄÉ½Õ¹‘•µ™Õ±°‰½É‘•È‰½É‘•Èµİ¡¥Ñ”¼ÄÀÁà´ÌÁä´ÄÑ•áĞµlÄÅÁátÑ•áĞµÉ•Í½±Ù”µµÕÑ•ˆø4(€€€€€€€€€€€€€€ñ	…‘•¡•¬±…ÍÍ9…µ”ô‰ ´ÌÜ´Ìˆ€¼øµ…¥°Ù•É¥™¥•4(€€€€€€€€€€€€ğ½ÍÁ…¸ø4(€€€€€€€€€€¥ô4(€€€€€€€€€íÁ…å½ÕÑ]…±±•Ğ€˜˜€ 4(€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰¥¹±¥¹”µ™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÄÉ½Õ¹‘•µ™Õ±°‰½É‘•È‰½É‘•Èµİ¡¥Ñ”¼ÄÀÁà´ÌÁä´ÄÑ•áĞµlÄÅÁátÑ•áĞµÉ•Í½±Ù”µµÕÑ•ˆø4(€€€€€€€€€€€€€€ñ]…±±•Ğ±…ÍÍ9…µ”ô‰ ´ÌÜ´Ìˆ€¼ø4(€€€€€€€€€€€€€íÁ…å½ÕÑ]…±±•Ğ¹Í±¥” À°€Ø¥÷Š™íÁ…å½ÕÑ]…±±•Ğ¹Í±¥” ´Ğ¥ô4(€€€€€€€€€€€€ğ½ÍÁ…¸ø4(€€€€€€€€€€¥ô4(€€€€€€€€ğ½‘¥Øø4(€€€€€€¥ô4(€€€€ğ½‘¥Øø4(€€¤ì4)ô4(

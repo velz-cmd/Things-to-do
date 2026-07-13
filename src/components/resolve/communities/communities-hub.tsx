@@ -142,10 +142,10 @@ export function CommunitiesHub() {
             <p className={styles.headerCopy}>Connect evidence, resolve identities, configure programs, and prepare obligations for settlement.</p>
           </div>
           <div className={styles.headerActions}>
-            <button type="button" className={styles.primaryButton} onClick={() => setBrowseOpen(true)}>
+            <button data-action-id="community.install" type="button" className={styles.primaryButton} onClick={() => setBrowseOpen(true)}>
               <Plus className="h-4 w-4" /> Add community
             </button>
-            <Link href="/profile?section=connections&next=%2Fcommunities" className={styles.secondaryButton}>
+            <Link data-action-id="profile.manage_connections" href="/profile?section=connections&next=%2Fcommunities" className={styles.secondaryButton}>
               Manage connections <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -221,7 +221,7 @@ export function CommunitiesHub() {
           ) : (
             <div className={styles.emptyState}>
               <p>{operating.length ? "No installed communities match this operational view." : "No ecosystem is installed yet."}</p>
-              <button type="button" onClick={() => setBrowseOpen(true)}>Add a community</button>
+              <button data-action-id="community.install" type="button" onClick={() => setBrowseOpen(true)}>Add a community</button>
             </div>
           )}
         </section>

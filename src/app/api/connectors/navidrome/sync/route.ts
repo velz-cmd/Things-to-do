@@ -10,7 +10,7 @@ function authorize(req: Request): boolean {
   const secret =
     process.env.NAVIDROME_SYNC_SECRET?.trim() ||
     process.env.CRON_SECRET?.trim();
-  if (!secret) return true;
+  if (!secret) return false;
   const auth = req.headers.get("authorization");
   return auth === `Bearer ${secret}`;
 }

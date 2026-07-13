@@ -15,10 +15,6 @@ import {
 import { createReportFromPackage, saveMissionReport } from "@/lib/mission/mission-report-store";
 import { authorizeBlueprintServer, prepareBlueprintSettlement } from "@/lib/mission/mission-report-api";
 import { resolveMissionCommunitySlug } from "@/lib/mission/mission-community-slug";
-import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
-import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
-import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
-import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 import { DiscoverCapitalCard } from "@/components/resolve/discover/discover-capital-card";
 
 type PayeeRow = { id: string; label: string; percent: number };
@@ -61,8 +57,6 @@ export function MissionBatchAllocationPanel({
   const [authorizing, setAuthorizing] = useState(false);
 
   const fundAmount = Math.max(5, Math.round(budgetUsd));
-  const walletChoice = useFundingWalletChoice(fundAmount);
-  const { executeFund } = useFundProgramExecution(slug);
 
   const totalPercent = payees.reduce((s, p) => s + p.percent, 0);
 
@@ -158,34 +152,13 @@ export function MissionBatchAllocationPanel({
     }
     setAuthorizing(true);
     try {
-      let skipFund = false;
-      try {
-        const source = walletChoice.assertFundingSource();
-        if (source === "external" && pkg.programId) {
-          await executeFund(
-            {
-              programId: pkg.programId,
-              amountUsd: fundAmount,
-              communitySlug: slug,
-              label: "Mission batch",
-            },
-            source,
-          );
-          skipFund = true;
-        }
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Pick a wallet to pay from");
-        return;
-      }
-
       const preview = await prepareBlueprintSettlement(pkg);
       const result = await authorizeBlueprintServer({
         pkg,
         amountUsd: fundAmount,
-        skipFund,
       });
       if (!result.ok) {
-        toast.error(result.error ?? "Batch payout failed", {
+        toast.error(result.error ?? "Authorization preparation failed", {
           description: preview ? `Batch ${preview.batchHash}` : undefined,
         });
         return;
@@ -194,13 +167,10 @@ export function MissionBatchAllocationPanel({
         fundTxLabel: result.fundTxLabel,
       });
       saveMissionReport(record);
-      const paidFrom = walletChoice.fundingSource;
-      toast.success("Arc batch submitted", {
-        description: paidFrom
-          ? `${result.fundTxLabel ?? "Submitted"} · ${fundingSourceLabel(paidFrom)}`
-          : result.fundTxLabel,
+      toast.success("Batch authorization prepared", {
+        description: "No funds moved. Capital will verify the wallet and execute the batch.",
       });
-      router.push(`/mission/report/${pkg.id}`);
+      router.push(result.capitalHref ?? `/capital?missionReport=${encodeURIComponent(pkg.id)}`);
     } finally {
       setAuthorizing(false);
     }
@@ -308,17 +278,15 @@ export function MissionBatchAllocationPanel({
 
       <div className="mt-4 flex flex-wrap gap-2">
         {simulated && user && (
-          <PayFromWalletSection
-            amountUsd={fundAmount}
-            disabled={authorizing}
-            choice={walletChoice}
-            className="w-full basis-full"
-          />
+          <p className="w-full basis-full rounded-lg border border-sky-400/20 bg-sky-400/[0.05] px-3 py-2 text-xs text-resolve-muted">
+            Wallet selection and money movement happen in Capital after this package is prepared.
+          </p>
         )}
-        <Button type="button" variant="secondary" size="sm" onClick={() => void handleSimulate()}>
+        <Button data-action-id="mission.simulate" type="button" variant="secondary" size="sm" onClick={() => void handleSimulate()}>
           Simulate batch
         </Button>
         <Button
+          data-action-id="mission.prepare_authorization"
           type="button"
           size="sm"
           className="gap-1.5"
@@ -330,7 +298,7 @@ export function MissionBatchAllocationPanel({
           ) : (
             <Shield className="h-3.5 w-3.5" />
           )}
-          Execute Arc batch
+          Prepare for Capital
         </Button>
       </div>
       </div>

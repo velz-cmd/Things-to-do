@@ -11,6 +11,7 @@ import {
 import { ARC_CLIENT_WALLET_ADDRESS, ARC_USDC_CONTRACT } from "@/lib/settlement/arc-config";
 import { executeCircleContractOn } from "@/lib/settlement/circle-client";
 import { ARC_MEMO_CONTRACT, MEMO_ABI } from "./memo-abi";
+import { requireArcFeature } from "@/lib/arc/feature-flags";
 
 export type MemoPayoutInput = {
   recipient: Address;
@@ -37,6 +38,7 @@ export function buildMemoId(ref: string): `0x${string}` {
 export async function sendUsdcWithMemo(
   input: MemoPayoutInput,
 ): Promise<MemoPayoutResult> {
+  requireArcFeature("memo");
   if (!ARC_CLIENT_WALLET_ADDRESS) {
     throw new Error("ARC_CLIENT_WALLET_ADDRESS not configured");
   }
@@ -63,6 +65,7 @@ export async function sendUsdcWithMemo(
       memoBytes,
     ],
     label: `memo payout ${input.memoRef}`,
+    idempotencyKey: `memo:${input.memoRef}`,
   });
 
   return {

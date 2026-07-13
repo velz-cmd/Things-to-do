@@ -7,10 +7,11 @@ import { hasGithubToken } from "@/lib/github/client";
 import { COMMUNITY_GITHUB_TARGETS } from "@/lib/sensors/targets";
 
 import { getCronSecret } from "@/lib/env/cron-secret";
+import { completeSourceSync, failSourceSync, startSourceSync } from "@/lib/sources/sync-lifecycle";
 
 function authorizeCron(req: Request): boolean {
   const secret = getCronSecret();
-  if (!secret) return true;
+  if (!secret) return false;
   return req.headers.get("authorization")?.trim() === `Bearer ${secret}`;
 }
 
@@ -43,12 +44,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Community not found" }, { status: 404 });
   }
 
-  const result = await syncGithubCommunitySensors({
-    communitySlug,
-    missionId,
-    founderUserId,
-    includeSecurity,
-  });
+  const lifecycle = founderUserId
+    ? await startSourceSync({ userId: founderUserId, communitySlug, provider: "github", displayLabel: "GitHub" })
+    : null;
+  let result: Awaited<ReturnType<typeof syncGithubCommunitySensors>>;
+  try {
+    result = await syncGithubCommunitySensors({
+      communitySlug,
+      missionId,
+      founderUserId,
+      includeSecurity,
+    });
+    if (lifecycle && founderUserId) {
+      await completeSourceSync({
+        userId: founderUserId,
+        connectionId: lifecycle.connection.id,
+        syncRunId: lifecycle.run.id,
+        communitySlug,
+        provider: "github",
+        evidenceCount: result.ingested ?? result.observations ?? 0,
+        result,
+      });
+    }
+  } catch (error) {
+    if (lifecycle && founderUserId) {
+      await failSourceSync({ userId: founderUserId, connectionId: lifecycle.connection.id, syncRunId: lifecycle.run.id, communitySlug, provider: "github", error }).catch(() => null);
+    }
+    return NextResponse.json({ error: "GitHub synchronization failed; the last confirmed snapshot is still available" }, { status: 502 });
+  }
 
   return NextResponse.json({
     ok: true,

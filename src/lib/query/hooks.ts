@@ -21,6 +21,57 @@ const COMMUNITY_HUB_TIMEOUT_MS = 6_000;
 const COMMUNITY_SURFACE_TIMEOUT_MS = 10_000;
 const CAPITAL_FAST_TIMEOUT_MS = 6_000;
 
+export type FundingIntentPayload = {
+  intent: {
+    id: string;
+    blueprintId: string | null;
+    communitySlug: string | null;
+    programId: string | null;
+    amountUsd: string;
+    amountUsdcMicro: string;
+    status: string;
+    returnTo: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    transaction: {
+      txHash: string | null;
+      status: string;
+      providerTransactionId: string | null;
+    } | null;
+  };
+};
+
+export type SettlementBatchPayload = {
+  batch: {
+    id: string;
+    communitySlug: string | null;
+    status: string;
+    totalUsd: string;
+    totalUsdcMicro: string;
+    payeeCount: number;
+    programId: string | null;
+    policyVersionId: string | null;
+    simulationId: string | null;
+    packageHash: string | null;
+    evidenceRootHash: string | null;
+    preparedAt: string;
+    submittedAt: string | null;
+    confirmedAt: string | null;
+    returnTo: string | null;
+    transactions: Array<{
+      id: string;
+      providerTransactionId: string | null;
+      txHash: string | null;
+      status: string;
+      failureCode: string | null;
+      failureMessage: string | null;
+      amountUsdcMicro: string | null;
+    }>;
+  };
+  execution: { enabled: boolean; blocker: string | null };
+};
+
 async function fetchJsonWithTimeout<T>(
   url: string,
   timeoutMs: number,
@@ -153,6 +204,46 @@ export function useCapitalStateQuery(enabled: boolean) {
     refetchOnMount: false,
     gcTime: 300_000,
     placeholderData: (prev) => prev,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useFundingIntentQuery(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.fundingIntent(id ?? "missing"),
+    enabled: enabled && Boolean(id),
+    queryFn: ({ signal }) =>
+      fetchJsonWithTimeout<FundingIntentPayload>(
+        `/api/capital/funding-intents/${encodeURIComponent(id!)}`,
+        CAPITAL_FAST_TIMEOUT_MS,
+        signal,
+      ),
+    staleTime: 10_000,
+    gcTime: 300_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSettlementBatchQuery(
+  id: string | null | undefined,
+  returnTo: string | null | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.settlementBatch(id ?? "missing"),
+    enabled: enabled && Boolean(id),
+    queryFn: ({ signal }) => {
+      const suffix = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : "";
+      return fetchJsonWithTimeout<SettlementBatchPayload>(
+        `/api/capital/settlement-batches/${encodeURIComponent(id!)}${suffix}`,
+        CAPITAL_FAST_TIMEOUT_MS,
+        signal,
+      );
+    },
+    staleTime: 5_000,
+    gcTime: 300_000,
     retry: 1,
     refetchOnWindowFocus: false,
   });

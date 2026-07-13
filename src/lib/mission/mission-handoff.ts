@@ -16,12 +16,17 @@ export function discoverToMissionHref(input: {
 }
 
 /** Mission approve → Capital pre-filled execution view. */
-export function capitalHandoffFromBlueprint(pkg: MissionBlueprintPackage): string {
+export function capitalHandoffFromBlueprint(
+  pkg: MissionBlueprintPackage,
+  context?: { fundingIntentId?: string; returnTo?: string },
+): string {
   const params = new URLSearchParams();
   params.set("tab", "activity");
   if (pkg.programId) params.set("program", pkg.programId);
   params.set("community", pkg.communitySlug);
   if (pkg.id) params.set("missionReport", pkg.id);
+  if (context?.fundingIntentId) params.set("fundingIntent", context.fundingIntentId);
+  if (context?.returnTo) params.set("returnTo", context.returnTo);
   return `/capital?${params.toString()}`;
 }
 

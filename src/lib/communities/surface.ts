@@ -235,6 +235,18 @@ export async function buildCommunitySurface(
 
   const install = userId ? await getInstall(userId, slug) : null;
   const rawPrograms = userId ? await listProgramsForCommunity(userId, slug) : [];
+  const sourceConnections = userId
+    ? await prisma.sourceConnection.findMany({
+        where: { userId, OR: [{ communitySlug: slug }, { communitySlug: null }] },
+        orderBy: { updatedAt: "desc" },
+      })
+    : [];
+  const sourceRuns = sourceConnections.length
+    ? await prisma.sourceSyncRun.findMany({
+        where: { sourceConnectionId: { in: sourceConnections.map((row) => row.id) } },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
   let authorizedUsd = 0;
   let settledUsd = 0;
@@ -272,6 +284,35 @@ export async function buildCommunitySurface(
       });
     }
   }
+
+  const authorizationPayees = new Set(authorizationPreviews.map((row) => row.payeeKey));
+  const [resolvedObserved, communityBlueprints] = userId
+    ? await Promise.all([
+        prisma.observedIdentity.findMany({
+          where: { userId, communitySlug: slug, status: "resolved" },
+          select: { externalRef: true },
+        }),
+        prisma.blueprint.findMany({
+          where: { userId, communitySlug: slug },
+          select: { id: true },
+        }),
+      ])
+    : [[], []];
+  const resolvedRefs = new Set(resolvedObserved.map((row) => row.externalRef));
+  const resolvedIdentityCount = [...authorizationPayees].filter((payee) => resolvedRefs.has(payee)).length;
+  const unresolvedIdentityCount = Math.max(0, authorizationPayees.size - resolvedIdentityCount);
+  const simulationComplete = communityBlueprints.length > 0
+    ? await prisma.simulation.count({
+        where: { blueprintId: { in: communityBlueprints.map((row) => row.id) }, status: "completed" },
+      }) > 0
+    : false;
+  const authorizationStatus = userId
+    ? (await prisma.fundingIntent.findFirst({
+        where: { userId, communitySlug: slug },
+        orderBy: { updatedAt: "desc" },
+        select: { status: true },
+      }))?.status ?? null
+    : null;
 
   const missionSummaries = missionIds.length
     ? await Promise.all(missionIds.map((missionId) => getAuthorizationSummary({ missionId })))
@@ -316,10 +357,25 @@ export async function buildCommunitySurface(
 
   const connectorStatus = community.connectors.map((id) => {
     const live = connectors.find((c) => c.id === id);
+    const normalized = sourceConnections.find(
+      (source) =>
+        source.provider === id ||
+        source.provider.replaceAll("_", "") === id.replaceAll("_", ""),
+    );
+    const latestRun = normalized
+      ? sourceRuns.find((run) => run.sourceConnectionId === normalized.id)
+      : null;
     return {
       id,
-      health: live?.health ?? "unknown",
-      label: live?.label ?? id,
+      health: normalized?.status ?? live?.health ?? "unknown",
+      label: normalized?.displayLabel ?? live?.label ?? id,
+      connectionId: normalized?.id ?? null,
+      accountLabel: normalized?.displayLabel ?? null,
+      lastSuccessfulSync: normalized?.lastSyncedAt?.toISOString() ?? null,
+      currentSyncState: latestRun?.status ?? null,
+      recordsObserved: latestRun?.evidenceCount ?? 0,
+      authExpiresAt: normalized?.authExpiresAt?.toISOString() ?? null,
+      cachedAt: latestRun?.completedAt?.toISOString() ?? null,
     };
   });
 
@@ -384,6 +440,12 @@ export async function buildCommunitySurface(
     observatory,
     economicMemory,
     authorizations: authorizationPreviews.slice(0, lite ? 8 : 12),
+    operatingFacts: {
+      resolvedIdentityCount,
+      unresolvedIdentityCount,
+      simulationComplete,
+      authorizationStatus,
+    },
     timeline: timeline.slice(0, 20).map((t) => ({
       id: t.id,
       eventType: t.eventType,

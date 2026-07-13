@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   ArrowDown,
@@ -25,11 +26,11 @@ import {
   ShieldCheck,
   Sparkles,
   type LucideIcon,
-  UserRoundSearch,
   UsersRound,
   WalletCards,
 } from "lucide-react";
 import clsx from "clsx";
+import { toast } from "sonner";
 import { CommunitySensorPanel } from "@/components/resolve/communities/community-sensor-panel";
 import { CommunityBridgePanel } from "@/components/resolve/communities/community-bridge-panel";
 import { PROGRAM_TEMPLATES } from "@/lib/communities/catalog";
@@ -37,11 +38,14 @@ import type { CommunityCatalogEntry } from "@/lib/communities/catalog";
 import type { CommunitySurface, ProgramRecord } from "@/lib/communities/types";
 import { profileConnectPath } from "@/lib/communities/community-nav";
 import { communityLinkedViaProfile } from "@/lib/discover/community-profile-link";
+import { getCommunityNextBestAction } from "@/lib/communities/next-best-action";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { CommunityDomainIcon, communityOperationsDescription } from "./community-identity";
+import { CommunityIdentityDesk } from "./community-identity-desk";
+import { CommunityObligationsDesk } from "./community-obligations-desk";
 import styles from "./communities.module.css";
 
-type ConsoleTab = "overview" | "programs" | "obligations" | "identities" | "sources" | "activity";
+type ConsoleTab = "overview" | "programs" | "obligations" | "identities" | "sources" | "activity" | "readiness";
 
 const TABS: Array<{ id: ConsoleTab; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -50,9 +54,8 @@ const TABS: Array<{ id: ConsoleTab; label: string }> = [
   { id: "identities", label: "Identity Desk" },
   { id: "sources", label: "Sources" },
   { id: "activity", label: "Activity" },
+  { id: "readiness", label: "Settlement Readiness" },
 ];
-
-const PENDING_STATUSES = new Set(["authorized", "pending_funding"]);
 
 function humanize(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -88,6 +91,17 @@ type Props = {
   initialTab?: ConsoleTab;
 };
 
+type RecommendedActionView = {
+  actionId: import("@/lib/actions/types").ResolveActionId;
+  eyebrow: string;
+  title: string;
+  why: string;
+  result: string;
+  action: string;
+  href?: string;
+  onClick?: () => void;
+};
+
 export function CommunityConsole({
   slug,
   catalog,
@@ -103,74 +117,68 @@ export function CommunityConsole({
   const [tab, setTab] = useState<ConsoleTab>(initialTab);
   const sourcesConnected = connections.hasAnyConnector || communityLinkedViaProfile(slug, connections);
   const programs = surface.programs ?? [];
-  const authorizations = surface.authorizations ?? [];
   const readiness = surface.deployReadiness;
-  const identityResolved = readiness?.walletMappedCount ?? 0;
-  const identityUnresolved = Math.max(0, (readiness?.authorizedCount ?? 0) - identityResolved);
+  const identityResolved = surface.operatingFacts.resolvedIdentityCount;
+  const identityUnresolved = surface.operatingFacts.unresolvedIdentityCount;
   const connectorHealthy = surface.health.connectorStatus.filter((source) => ["healthy", "connected", "live"].includes(source.health.toLowerCase())).length;
-  const pendingAuthorizations = authorizations.filter((item) => PENDING_STATUSES.has(item.status));
-  const visibleAuthorizations = obligationsFilter === "pending" ? pendingAuthorizations : authorizations;
   const activePrograms = programs.filter((program) => ["active", "deployed"].includes(program.status)).length;
+  const simulationComplete = surface.operatingFacts.simulationComplete;
 
   useEffect(() => {
     setTab(initialTab);
     const hash = window.location.hash;
-    if (hash === "#settlement-readiness") setTab("overview");
+    if (hash === "#settlement-readiness") setTab("readiness");
     if (hash === "#obligations") setTab("obligations");
     if (hash === "#programs") setTab("programs");
   }, [initialTab]);
 
-  const recommended = useMemo(() => {
-    if (!sourcesConnected) {
-      return {
-        eyebrow: "Connection required",
-        title: `Connect ${catalog.upstream.split(" Â· ")[0]} as an evidence source.`,
-        why: "The community cannot synchronize activity or recognize obligations until a source identity is connected.",
-        result: "Verified source events become available to program policy.",
-        action: "Connect source",
-        href: profileConnectPath(`/communities/${slug}`),
-      };
-    }
-    if (programs.length === 0) {
-      return {
-        eyebrow: "Policy required",
-        title: "Create the first operating program.",
-        why: "Evidence is available, but no policy currently converts verified activity into obligations.",
-        result: "Eligible evidence can be recognized under a reviewable rule.",
-        action: "Create program",
-        onClick: onRequestCreateProgram,
-      };
-    }
-    if (identityUnresolved > 0) {
-      return {
-        eyebrow: "Identity review",
-        title: `Resolve ${identityUnresolved} unmatched payout ${identityUnresolved === 1 ? "identity" : "identities"}.`,
-        why: "Unmatched identities cannot receive a settlement until a payout destination is confirmed.",
-        result: `${readiness?.authorizedCount ?? 0} recognized payees can move toward settlement review.`,
-        action: "Open Identity Desk",
-        onClick: () => setTab("identities"),
-      };
-    }
-    if ((readiness?.pendingObligationsUsd ?? 0) > 0) {
-      return {
-        eyebrow: readiness?.canDeploy ? "Settlement package ready" : "Operational review",
-        title: readiness?.canDeploy ? "Review the settlement package before Capital authorization." : "Review recognized obligations and current blockers.",
-        why: readiness?.reasons?.[0] ?? "Recognized obligations must pass identity, policy, simulation, and capital checks.",
-        result: "A controlled handoff to Mission or Capital with community context preserved.",
-        action: readiness?.canDeploy ? "Open Capital" : "Review obligations",
-        href: readiness?.canDeploy ? `/capital?community=${encodeURIComponent(slug)}` : undefined,
-        onClick: readiness?.canDeploy ? undefined : () => setTab("obligations"),
-      };
-    }
-    return {
-      eyebrow: "Operational health",
-      title: "Synchronize sources for the next evidence cycle.",
-      why: "Programs are configured and no recognized obligations currently require review.",
-      result: "Fresh source activity is evaluated against active policy.",
-      action: "Open Sources",
-      onClick: () => setTab("sources"),
+  const nextAction = useMemo(
+    () =>
+      getCommunityNextBestAction({
+        installed: surface.installed,
+        sourceConnected: sourcesConnected,
+        sourceHealthy: connectorHealthy > 0,
+        syncCompleted: Boolean(surface.health.lastScrobbleAt || connectorHealthy > 0),
+        programCount: programs.length,
+        unresolvedIdentityCount: identityUnresolved,
+        obligationCount: readiness?.authorizedCount ?? 0,
+        simulationComplete,
+        fundingGapUsd: readiness?.fundingGapUsd ?? 0,
+        settlementReady: Boolean(readiness?.canDeploy && simulationComplete),
+      }),
+    [connectorHealthy, identityUnresolved, programs.length, readiness, simulationComplete, sourcesConnected, surface.health.lastScrobbleAt, surface.installed],
+  );
+
+  const recommended = useMemo<RecommendedActionView>(() => {
+    const base = {
+      actionId: nextAction.actionId,
+      eyebrow: humanize(nextAction.state),
+      title: nextAction.label,
+      why: nextAction.reason,
+      result: nextAction.expectedResult,
+      action: nextAction.label,
     };
-  }, [catalog.upstream, identityUnresolved, onRequestCreateProgram, programs.length, readiness, slug, sourcesConnected]);
+    switch (nextAction.actionId) {
+      case "source.connect":
+        return { ...base, href: profileConnectPath(`/communities/${slug}`) };
+      case "source.sync":
+      case "source.view_status":
+        return { ...base, onClick: () => setTab("sources") };
+      case "program.create_draft":
+        return { ...base, onClick: onRequestCreateProgram };
+      case "identity.confirm_match":
+        return { ...base, onClick: () => setTab("identities") };
+      case "obligation.review":
+        return { ...base, onClick: () => setTab("obligations") };
+      case "mission.simulate":
+        return { ...base, href: `/mission?community=${encodeURIComponent(slug)}&mode=simulate` };
+      case "capital.open_funding":
+      case "obligation.prepare_settlement":
+        return { ...base, href: `/capital?community=${encodeURIComponent(slug)}` };
+      default:
+        return { ...base, href: `/communities/${encodeURIComponent(slug)}` };
+    }
+  }, [nextAction, onRequestCreateProgram, slug]);
 
   function openTab(nextTab: ConsoleTab) {
     setTab(nextTab);
@@ -191,10 +199,10 @@ export function CommunityConsole({
         <div className={styles.consoleStatus}>
           <span data-state={readiness?.canDeploy ? "ready" : sourcesConnected ? "healthy" : "setup"}><i />{readiness?.canDeploy ? "Settlement ready" : sourcesConnected ? "Operating" : "Needs setup"}</span>
           <div className={styles.consoleActions}>
-            {!recommended.href && <button type="button" className={styles.primaryButton} onClick={() => recommended.onClick?.()}><Sparkles /> {recommended.action}</button>}
-            {recommended.href && <Link href={recommended.href} className={styles.primaryButton}><ArrowRight /> {recommended.action}</Link>}
-            <Link href={`/mission?community=${slug}`} className={styles.secondaryButton}>Run Mission <ArrowUpRight /></Link>
-            <details className={styles.moreMenu}><summary aria-label="More community actions"><MoreHorizontal /></summary><div><Link href={profileConnectPath(`/communities/${slug}`)}>Manage connections</Link><Link href={`/discover?community=${slug}`}>View in Discover</Link></div></details>
+            {!recommended.href && <button data-action-id={recommended.actionId} type="button" className={styles.primaryButton} onClick={() => recommended.onClick?.()}><Sparkles /> {recommended.action}</button>}
+            {recommended.href && <Link data-action-id={recommended.actionId} href={recommended.href} className={styles.primaryButton}><ArrowRight /> {recommended.action}</Link>}
+            <Link data-action-id="mission.create" href={`/mission?community=${slug}`} className={styles.secondaryButton}>Run Mission <ArrowUpRight /></Link>
+            <details className={styles.moreMenu}><summary aria-label="More community actions"><MoreHorizontal /></summary><div><Link data-action-id="source.connect" href={profileConnectPath(`/communities/${slug}`)}>Manage connections</Link><Link data-action-id="program.open_in_discover" href={`/discover?community=${slug}`}>View in Discover</Link></div></details>
           </div>
         </div>
       </header>
@@ -216,7 +224,7 @@ export function CommunityConsole({
               <ArrowDown />
               <MapNode icon={ScrollText} label="Obligations" value={`${readiness?.authorizedCount ?? 0} recognized`} tone={(readiness?.authorizedCount ?? 0) ? "evidence" : "muted"} onClick={() => openTab("obligations")} />
               <ArrowDown />
-              <MapNode icon={Route} label="Settlement" value={readiness?.canDeploy ? "Ready" : "Blocked"} tone={readiness?.canDeploy ? "healthy" : "review"} onClick={() => document.getElementById("settlement-readiness")?.scrollIntoView({ behavior: "smooth" })} />
+              <MapNode icon={Route} label="Settlement" value={readiness?.canDeploy ? "Ready" : "Blocked"} tone={readiness?.canDeploy ? "healthy" : "review"} onClick={() => openTab("readiness")} />
             </div>
           </section>
 
@@ -226,8 +234,8 @@ export function CommunityConsole({
               <h2>{recommended.title}</h2>
               <dl><div><dt>Why</dt><dd>{recommended.why}</dd></div><div><dt>Expected result</dt><dd>{recommended.result}</dd></div></dl>
               <div className={styles.inlineActions}>
-                {recommended.href ? <Link href={recommended.href} className={styles.primaryButton}>{recommended.action}<ArrowRight /></Link> : <button type="button" className={styles.primaryButton} onClick={recommended.onClick}>{recommended.action}<ArrowRight /></button>}
-                <Link href={`/mission?community=${slug}`} className={styles.secondaryButton}>Run Mission analysis</Link>
+                {recommended.href ? <Link data-action-id={recommended.actionId} href={recommended.href} className={styles.primaryButton}>{recommended.action}<ArrowRight /></Link> : <button data-action-id={recommended.actionId} type="button" className={styles.primaryButton} onClick={recommended.onClick}>{recommended.action}<ArrowRight /></button>}
+                <Link data-action-id="mission.create" href={`/mission?community=${slug}`} className={styles.secondaryButton}>Run Mission analysis</Link>
               </div>
             </div>
             <div className={styles.operationsSummary}>
@@ -243,6 +251,16 @@ export function CommunityConsole({
             </div>
           </section>
 
+          <CommunityActionQueue
+            slug={slug}
+            primary={recommended}
+            unresolved={identityUnresolved}
+            obligationCount={readiness?.authorizedCount ?? 0}
+            simulationComplete={simulationComplete}
+            fundingGapUsd={readiness?.fundingGapUsd ?? 0}
+            onTab={openTab}
+          />
+
           <SettlementReadiness slug={slug} surface={surface} unresolved={identityUnresolved} onTab={openTab} />
 
           <section className={styles.bottomGrid}>
@@ -252,88 +270,18 @@ export function CommunityConsole({
         </div>
       )}
 
-      {tab === "programs" && <ProgramsTab slug={slug} programs={programs} busy={busy} onCreate={onRequestCreateProgram} />}
-      {tab === "obligations" && <ObligationsTab slug={slug} authorizations={visibleAuthorizations} filter={obligationsFilter} onFilter={onObligationsFilterChange} />}
-      {tab === "identities" && <IdentityDesk slug={slug} authorizations={authorizations} />}
+      {tab === "programs" && <ProgramsTab slug={slug} programs={programs} busy={busy} onCreate={onRequestCreateProgram} onSaved={onRefresh} />}
+      {tab === "obligations" && <CommunityObligationsDesk slug={slug} filter={obligationsFilter} onFilter={onObligationsFilterChange} onOpenIdentityDesk={() => openTab("identities")} />}
+      {tab === "identities" && <CommunityIdentityDesk slug={slug} />}
       {tab === "sources" && <SourcesTab slug={slug} surface={surface} connected={sourcesConnected} onRefresh={onRefresh} />}
       {tab === "activity" && <ActivityTab timeline={surface.timeline} />}
+      {tab === "readiness" && <div className={styles.tabPanel}><SettlementReadiness slug={slug} surface={surface} unresolved={identityUnresolved} onTab={openTab} /></div>}
     </div>
   );
 }
 
 function MapNode({ icon: Icon, label, value, tone, onClick }: { icon: LucideIcon; label: string; value: string; tone: string; onClick: () => void }) {
-  return <button type="button" className={styles.mapNode} data-tone={tone} onClick={onClick}><Icon /><span>{label}</span><strong>{value}</strong></button>;
-}
-
-function Metric({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return <div className={styles.metric}><span>{label}</span><strong data-tone={tone}>{value}</strong></div>;
-}
-
-function SettlementReadiness({ slug, surface, unresolved, onTab }: { slug: string; surface: CommunitySurface; unresolved: number; onTab: (tab: ConsoleTab) => void }) {
-  const readiness = surface.deployReadiness;
-  const simulationComplete = surface.timeline.some((event) => event.eventType.toLowerCase().includes("simulat"));
-  return (
-    <section id="settlement-readiness" className={styles.settlementDesk}>
-      <div className={styles.panelHeading}><div><p className={styles.sectionKicker}>Capital handoff</p><h2>Settlement Readiness Desk</h2></div><span data-state={readiness.canDeploy ? "ready" : "review"}>{readiness.canDeploy ? "Ready" : "Blocked"}</span></div>
-      <div className={styles.readinessGrid}>
-        <Metric label="Programs" value={`${surface.programs.length} configured`} />
-        <Metric label="Obligations" value={`${readiness.authorizedCount} recognized`} />
-        <Metric label="Identities" value={unresolved ? `${unresolved} unresolved` : `${readiness.walletMappedCount} resolved`} tone={unresolved ? "review" : "healthy"} />
-        <Metric label="Policy" value={surface.programs.length ? "Configured" : "Required"} />
-        <Metric label="Simulation" value={simulationComplete ? "Completed" : "Not completed"} tone={simulationComplete ? "healthy" : "review"} />
-        <Metric label="Capital" value={readiness.fundingGapUsd > 0 ? "Required" : "Available"} tone={readiness.fundingGapUsd > 0 ? "review" : "healthy"} />
-      </div>
-      <div className={styles.readinessActions}>
-        {unresolved > 0 && <button type="button" onClick={() => onTab("identities")}><Fingerprint /> Resolve identities</button>}
-        {!simulationComplete && <Link href={`/mission?community=${slug}`}><Gauge /> Run simulation in Mission</Link>}
-        {readiness.fundingGapUsd > 0 && <Link href={`/capital?community=${slug}`}><WalletCards /> Open Capital</Link>}
-        {readiness.canDeploy && <Link href={`/capital?community=${slug}`} className={styles.cardPrimary}>Review authorization <ArrowRight /></Link>}
-      </div>
-    </section>
-  );
-}
-
-function ProgramsTab({ slug, programs, busy, onCreate }: { slug: string; programs: ProgramRecord[]; busy: boolean; onCreate: () => void }) {
-  return (
-    <section className={styles.tabPanel}>
-      <div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Policy operations</p><h2>Programs</h2><p>Programs convert verified evidence into recognized obligations. Capital requirements are handed to Capital.</p></div><button type="button" className={styles.primaryButton} onClick={onCreate} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <GitMerge />} Create program</button></div>
-      {programs.length ? <div className={styles.programList}>{programs.map((program) => {
-        const readiness = program.deployReadiness;
-        return <article key={program.id} className={styles.programRecord}>
-          <div className={styles.programTitle}><span><ShieldCheck /></span><div><h3>{program.name}</h3><p>{humanize(program.templateId)}</p></div><strong data-state={program.status}>{humanize(program.status)}</strong></div>
-          <dl>
-            <div><dt>Evidence source</dt><dd>{program.rules.connectorId ? humanize(program.rules.connectorId) : "Not configured"}</dd></div>
-            <div><dt>Rule</dt><dd>{programRulesLabel(program)}</dd></div>
-            <div><dt>Eligibility</dt><dd>Verified source identity required</dd></div>
-            <div><dt>Recognized obligations</dt><dd>${(readiness?.pendingObligationsUsd ?? 0).toFixed(2)}</dd></div>
-            <div><dt>Status</dt><dd>{readiness?.canDeploy ? "Settlement ready" : readiness?.reasons?.[0] ?? "Review required"}</dd></div>
-          </dl>
-          {readiness && readiness.fundingGapUsd > 0 && <div className={styles.capitalRequirement}><span><WalletCards /> Capital requirement</span><strong>${readiness.fundingGapUsd.toFixed(2)} required before settlement</strong><Link href={`/capital?community=${slug}&program=${program.id}`}>Open Capital <ArrowUpRight /></Link></div>}
-          <div className={styles.inlineActions}><Link href={`/mission?community=${slug}&program=${program.missionId ?? program.id}`} className={styles.secondaryButton}>Review policy</Link><Link href={`/mission?community=${slug}&program=${program.missionId ?? program.id}&mode=simulate`} className={styles.secondaryButton}>Simulate in Mission</Link></div>
-        </article>;
-      })}</div> : <div className={styles.emptyState}><BookOpenCheck /><p>No operating policy exists yet. Create a draft program to evaluate verified evidence.</p><button type="button" onClick={onCreate}>Create program</button></div>}
-    </section>
-  );
-}
-
-function ObligationsTab({ slug, authorizations, filter, onFilter }: { slug: string; authorizations: CommunitySurface["authorizations"]; filter: "all" | "pending"; onFilter: (filter: "all" | "pending") => void }) {
-  return <section className={styles.tabPanel}><div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Recognition ledger</p><h2>Obligations</h2><p>Evidence-backed value awaiting identity, policy, or settlement operations.</p></div><div className={styles.segmented}>{(["all", "pending"] as const).map((item) => <button key={item} type="button" aria-pressed={filter === item} onClick={() => onFilter(item)}>{humanize(item)}</button>)}</div></div>{authorizations.length ? <div className={styles.tableWrap}><table><thead><tr><th>Payee</th><th>Evidence</th><th>Recognized value</th><th>Identity</th><th>Settlement status</th><th>Action</th></tr></thead><tbody>{authorizations.map((item) => <tr key={item.id}><td><strong>{item.contextLabel ?? item.payeeKey}</strong><span>{item.payeeKey}</span></td><td>{item.payeeKeyType ? humanize(item.payeeKeyType) : "Verified source record"}</td><td>${item.amountUsd.toFixed(2)}</td><td><span className={styles.tableStatus} data-state={item.entityId ? "healthy" : "review"}>{item.entityId ? "Resolved" : "Needs identity"}</span></td><td>{humanize(item.status)}</td><td>{item.entityPath ? <Link href={item.entityPath}>View evidence</Link> : <Link href={profileConnectPath(`/communities/${slug}`)}>Resolve identity</Link>}</td></tr>)}</tbody></table></div> : <div className={styles.emptyState}><ScrollText /><p>No obligation records match this view. Synchronize sources to evaluate new evidence.</p><Link href={profileConnectPath(`/communities/${slug}`)}>Manage sources</Link></div>}</section>;
-}
-
-function IdentityDesk({ slug, authorizations }: { slug: string; authorizations: CommunitySurface["authorizations"] }) {
-  const identities = Array.from(new Map(authorizations.map((item) => [item.payeeKey, item])).values());
-  return <section className={styles.tabPanel}><div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Communities-native resolution</p><h2>Identity Resolution Desk</h2><p>Review observed source identities before obligations can reach a payout destination.</p></div><Link href={profileConnectPath(`/communities/${slug}`)} className={styles.secondaryButton}>Link payout identity <ArrowUpRight /></Link></div>{identities.length ? <div className={styles.tableWrap}><table><thead><tr><th>Observed identity</th><th>Suggested match</th><th>Evidence</th><th>Status</th><th>Actions</th></tr></thead><tbody>{identities.map((item) => <tr key={item.payeeKey}><td><strong>{item.contextLabel ?? item.payeeKey}</strong><span>{item.payeeKeyType ? humanize(item.payeeKeyType) : "Source identity"}</span></td><td>{item.entityId ?? "No verified match"}</td><td>${item.amountUsd.toFixed(2)} recognized</td><td><span className={styles.tableStatus} data-state={item.entityId ? "healthy" : "review"}>{item.entityId ? "Resolved" : "Review"}</span></td><td><div className={styles.tableActions}>{item.entityPath && <Link href={item.entityPath}>Open evidence</Link>}<Link href={profileConnectPath(`/communities/${slug}`)}>{item.entityId ? "Link payout" : "Resolve"}</Link></div></td></tr>)}</tbody></table></div> : <div className={styles.emptyState}><UserRoundSearch /><p>No observed identities are waiting for resolution. New identities appear after source synchronization recognizes obligations.</p><Link href={profileConnectPath(`/communities/${slug}`)}>Manage connections</Link></div>}</section>;
-}
-
-function SourcesTab({ slug, surface, connected, onRefresh }: { slug: string; surface: CommunitySurface; connected: boolean; onRefresh: () => void }) {
-  return <section className={styles.tabPanel}><div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Evidence infrastructure</p><h2>Sources</h2><p>Connection, synchronization, and operational health for every configured evidence source.</p></div><Link href={profileConnectPath(`/communities/${slug}`)} className={styles.secondaryButton}>Manage connections <ArrowUpRight /></Link></div><div className={styles.sourceList}>{surface.health.connectorStatus.map((source) => <article key={source.id} className={styles.sourceRecord}><span className={styles.sourceIcon}><Radio /></span><div><h3>{humanize(source.label || source.id)}</h3><p>Evidence connector</p></div><dl><div><dt>Status</dt><dd data-tone={["healthy", "connected", "live"].includes(source.health.toLowerCase()) ? "healthy" : "review"}>{humanize(source.health)}</dd></div><div><dt>Last sync</dt><dd>{surface.health.lastScrobbleAt ? new Date(surface.health.lastScrobbleAt).toLocaleString() : "No sync recorded"}</dd></div><div><dt>Used by</dt><dd>{surface.programs.filter((program) => program.rules.connectorId === source.id).map((program) => program.name).join(", ") || "No program"}</dd></div></dl></article>)}</div><div className={styles.sensorWorkspace}><CommunitySensorPanel slug={slug} installed={connected} onSynced={onRefresh} /><CommunityBridgePanel communitySlug={slug} onSynced={onRefresh} /></div><button type="button" className={styles.tertiaryButton} onClick={onRefresh}><RefreshCw /> Refresh console state</button></section>;
-}
-
-function ActivityRows({ timeline }: { timeline: CommunitySurface["timeline"] }) {
-  if (!timeline.length) return <p className={styles.emptyInline}>No operational events have been recorded yet.</p>;
-  return <ol className={styles.activityList}>{timeline.map((event) => { const Icon = eventIcon(event.eventType); return <li key={event.id}><span><Icon /></span><div><strong>{event.title}</strong>{event.detail && <p>{event.detail}</p>}</div><time>{new Date(event.createdAt).toLocaleString()}</time></li>; })}</ol>;
-}
-
-function ActivityTab({ timeline }: { timeline: CommunitySurface["timeline"] }) {
-  return <section className={styles.tabPanel}><div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Chronological record</p><h2>Operations ledger</h2><p>Real source, policy, authorization, and settlement events for this community.</p></div><span className={styles.ledgerCount}><Clock3 />{timeline.length} events</span></div><div className={styles.ledgerPanel}><ActivityRows timeline={timeline} /></div></section>;
-}
+  retuÛ^x¶‰žËkºwµçe¬õì ¤€ôø½¹Q…ˆ ‰Í½ÕÉ•Ìˆ¥ôøñI…‘¥¼€¼øMå¹¡É½¹¥é”Í½ÕÉ”ð½‰ÕÑÑ½¸ø(€€€€€€è€…¥‘•¹Ñ¥Ñ¥•ÍY…±¥(€€€€€€€€ü€ñ‰ÕÑÑ½¸‘…Ñ„µ…Ñ¥½¸µ¥ô‰¥‘•¹Ñ¥Ñä¹½¹™¥Éµ}µ…Ñ ˆ‘…Ñ„µÑ•ÍÑ¥ô‰É•…‘¥¹•ÍÌµÉ•Í½±Ù”µ¥‘•¹Ñ¥Ñ¥•ÌˆÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õì ¤€ôø½¹Q…ˆ ‰¥‘•¹Ñ¥Ñ¥•Ìˆ¥ôøñ¥¹•ÉÁÉ¥¹Ð€¼øI•Í½±Ù”¥‘•¹Ñ¥Ñ¥•Ìð½‰ÕÑÑ½¸ø(€€€€€€€€è€…Í¥µÕ±…Ñ¥½¹½µÁ±•Ñ”(€€€€€€€€€€ü€ñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰µ¥ÍÍ¥½¸¹Í¥µÕ±…Ñ”ˆ‘…Ñ„µÑ•ÍÑ¥ô‰É•…‘¥¹•ÍÌµÉÕ¸µÍ¥µÕ±…Ñ¥½¸ˆ¡É•˜õí€½µ¥ÍÍ¥½¸ý½µµÕ¹¥Ñäô‘í•¹½‘•UI%½µÁ½¹•¹Ð¡Í±Õœ¥ô™µ½‘”õÍ¥µÕ±…Ñ•ôøñ…Õ”€¼øIÕ¸Í¥µÕ±…Ñ¥½¸¥¸5¥ÍÍ¥½¸ð½1¥¹¬ø(€€€€€€€€€€è€……Á¥Ñ…±Y…±¥(€€€€€€€€€€€€ü€ñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰…Á¥Ñ…°¹½Á•¹}™Õ¹‘¥¹œˆ‘…Ñ„µÑ•ÍÑ¥ô‰É•…‘¥¹•ÍÌµ½Á•¸µ…Á¥Ñ…°ˆ¡É•˜õí€½…Á¥Ñ…°ý½µµÕ¹¥Ñäô‘í•¹½‘•UI%½µÁ½¹•¹Ð¡Í±Õœ¥õôøñ]…±±•Ñ…É‘Ì€¼ø=Á•¸…Á¥Ñ…°ð½1¥¹¬ø(€€€€€€€€€€€€è…ÕÑ¡½É¥é…Ñ¥½¹MÑ…ÑÕÌ€ôôô€‰ÍÕ‰µ¥ÑÑ•ˆ(€€€€€€€€€€€€€€ü€ñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰…Á¥Ñ…°¹É•ÑÉå}½¹™¥Éµ…Ñ¥½¸ˆ‘…Ñ„µÑ•ÍÑ¥ô‰É•…‘¥¹•ÍÌµÁ•¹‘¥¹œµÑÉ…¹Í…Ñ¥½¸ˆ¡É•˜õí€½…Á¥Ñ…°ý½µµÕ¹¥Ñäô‘í•¹½‘•UI%½µÁ½¹•¹Ð¡Í±Õœ¥ô™Ñ…ˆõ…Ñ¥Ù¥Ñåôøñ±½¬Ì€¼ø=Á•¸Á•¹‘¥¹œÑÉ…¹Í…Ñ¥½¸ð½1¥¹¬ø(€€€€€€€€€€€€€€è…ÕÑ¡½É¥é…Ñ¥½¹MÑ…ÑÕÌ€ôôô€‰½¹™¥Éµ•ˆ(€€€€€€€€€€€€€€€€ü€ñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰É••¥ÁÐ¹½Á•¸ˆ‘…Ñ„µÑ•ÍÑ¥ô‰É•…‘¥¹•ÍÌµÙ¥•ÜµÉ••¥ÁÐˆ¡É•˜õí€½…Á¥Ñ…°ý½µµÕ¹¥Ñäô‘í•¹½‘•UI%½µÁ½¹•¹Ð¡Í±Õœ¥ô™Ñ…ˆõ…Ñ¥Ù¥Ñåôøñ	…‘•¡•¬€¼øY¥•Ü½¹™¥Éµ•É••¥ÁÐð½1¥¹¬ø(€€€€€€€€€€€€€€€€è€ñ‰ÕÑÑ½¸‘…Ñ„µ…Ñ¥½¸µ¥ô‰½‰±¥…Ñ¥½¸¹ÁÉ•Á…É•}Í•ÑÑ±•µ•¹Ðˆ‘…Ñ„µÑ•ÍÑ¥ô‰É•…‘¥¹•ÍÌµÉ•Ù¥•Üµ…ÕÑ¡½É¥é…Ñ¥½¸ˆÑåÁ”ô‰‰ÕÑÑ½¸ˆ‘¥Í…‰±•õíÁÉ•Á…É¥¹ô½¹±¥¬õì ¤€ôøÙ½¥ÁÉ•Á…É•M•ÑÑ±•µ•¹ÑA…­…” ¥ô±…ÍÍ9…µ”õíÍÑå±•Ì¹…É‘AÉ¥µ…ÉåôùíÁÉ•Á…É¥¹œ€ü€ñ1½…‘•ÈÈ±…ÍÍ9…µ”ô‰…¹¥µ…Ñ”µÍÁ¥¸ˆ€¼ø€è€ñM¡¥•±‘¡•¬€¼ùõíÁÉ•Á…É¥¹œ€ü€‰½µÁ¥±¥¹œÁ…­…—‹Š
+³
+˜ˆ€è€‰I•Ù¥•Ü…ÕÑ¡½É¥é…Ñ¥½¸‰ô€ñÉÉ½ÝI¥¡Ð€¼øð½‰ÕÑÑ½¸øì(€É•ÑÕÉ¸€ (€€€€ñÍ•Ñ¥½¸¥ô‰Í•ÑÑ±•µ•¹ÐµÉ•…‘¥¹•ÍÌˆ±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•ÑÑ±•µ•¹Ñ•Í­ôø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Á…¹•±!•…‘¥¹ôøñ‘¥ØøñÀ±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•Ñ¥½¹-¥­•Éôù…Á¥Ñ…°¡…¹‘½™˜ð½Àøñ ÈùM•ÑÑ±•µ•¹ÐI•…‘¥¹•ÍÌ•Í¬ð½ Èøð½‘¥ØøñÍÁ…¸‘…Ñ„µÍÑ…Ñ”õíÁÉ•É•ÅÕ¥Í¥Ñ•ÍI•…‘ä€ü€‰É•…‘äˆ€è€‰É•Ù¥•Ü‰ôùíÁÉ•É•ÅÕ¥Í¥Ñ•ÍI•…‘ä€ü€‰I•…‘äÑ¼ÁÉ•Á…É”ˆ€è€‰	±½­•‰ôð½ÍÁ…¸øð½‘¥Øø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹É•…‘¥¹•ÍÍÉ¥‘ôø(€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰AÉ½É…´ˆÙ…±Õ”õíÁÉ½É…µY…±¥€ü€‰Y…±¥ˆ€è€‰I•ÅÕ¥É•‰ôÑ½¹”õíÁÉ½É…µY…±¥€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ô€¼ø(€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰Ù¥‘•¹”ˆÙ…±Õ”õí•Ù¥‘•¹•½µÁ±•Ñ”€ü€‘íÉ•…‘¥¹•ÍÌ¹…ÕÑ¡½É¥é•‘½Õ¹Ñô½µÁ±•Ñ•€€è€‰5¥ÍÍ¥¹œ‰ôÑ½¹”õí•Ù¥‘•¹•½µÁ±•Ñ”€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ô€¼ø(€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰%‘•¹Ñ¥Ñ¥•ÌˆÙ…±Õ”õíÕ¹É•Í½±Ù•€ü€‘íÕ¹É•Í½±Ù•‘ôÕ¹É•Í½±Ù•‘€€è€‘íÍÕÉ™…”¹½Á•É…Ñ¥¹…ÑÌ¹É•Í½±Ù•‘%‘•¹Ñ¥Ñå½Õ¹ÑôÉ•Í½±Ù•‘ôÑ½¹”õí¥‘•¹Ñ¥Ñ¥•ÍY…±¥€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ô€¼ø(€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰A½±¥äˆÙ…±Õ”õíÁ½±¥åY…±¥€ü€‰Y…±¥ˆ€è€‰I•ÅÕ¥É•‰ôÑ½¹”õíÁ½±¥åY…±¥€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ô€¼ø(€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰=‰±¥…Ñ¥½¹ÌˆÙ…±Õ”õí½‰±¥…Ñ¥½¹ÍY…±¥€ü€‘íÉ•…‘¥¹•ÍÌ¹…ÕÑ¡½É¥é•‘½Õ¹ÑôÉ•½¹¥é•‘€€è€‰9½¹”‰ôÑ½¹”õí½‰±¥…Ñ¥½¹ÍY…±¥€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ô€¼ø(€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰M¥µÕ±…Ñ¥½¸ˆÙ…±Õ”õíÍ¥µÕ±…Ñ¥½¹½µÁ±•Ñ”€ü€‰½µÁ±•Ñ•ˆ€è€‰9½Ð½µÁ±•Ñ•‰ôÑ½¹”õíÍ¥µÕ±…Ñ¥½¹½µÁ±•Ñ”€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ô€¼ø(€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰…Á¥Ñ…°ˆÙ…±Õ”õí…Á¥Ñ…±Y…±¥€ü€‰Ù…¥±…‰±”ˆ€è€‘íÉ•…‘¥¹•ÍÌ¹™Õ¹‘¥¹…ÁUÍ¹Ñ½¥á• È¥ôÉ•ÅÕ¥É•‘ôÑ½¹”õí…Á¥Ñ…±Y…±¥€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ô€¼ø(€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰ÕÑ¡½É¥é…Ñ¥½¸ˆÙ…±Õ”õí…ÕÑ¡½É¥é…Ñ¥½¹MÑ…ÑÕÌ€ü¡Õµ…¹¥é”¡…ÕÑ¡½É¥é…Ñ¥½¹MÑ…ÑÕÌ¤€è€‰9½ÐÍÑ…ÉÑ•‰ôÑ½¹”õí…ÕÑ¡½É¥é…Ñ¥½¹MÑ…ÑÕÌ€ôôô€‰½¹™¥Éµ•ˆ€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ô€¼ø(€€€€€€ð½‘¥Øø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹É•…‘¥¹•ÍÍÑ¥½¹ÍôùíÁÉ¥µ…Éåôð½‘¥Øø(€€€€ð½Í•Ñ¥½¸ø(€€¤ì)ô()™Õ¹Ñ¥½¸AÉ½É…µÍQ…ˆ¡ìÍ±Õœ°ÁÉ½É…µÌ°‰ÕÍä°½¹É•…Ñ”°½¹M…Ù•ôèìÍ±ÕœèÍÑÉ¥¹œìÁÉ½É…µÌèAÉ½É…µI•½É‘mtì‰ÕÍäè‰½½±•…¸ì½¹É•…Ñ”è€ ¤€ôøÙ½¥ì½¹M…Ù•è€ ¤€ôøÙ½¥ô¤ì(€É•ÑÕÉ¸€ (€€€€ñÍ•Ñ¥½¸±…ÍÍ9…µ”õíÍÑå±•Ì¹Ñ…‰A…¹•±ôø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Ñ…‰%¹ÑÉ½ôøñ‘¥ØøñÀ±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•Ñ¥½¹-¥­•ÉôùA½±¥ä½Á•É…Ñ¥½¹Ìð½Àøñ ÈùAÉ½É…µÌð½ ÈøñÀùAÉ½É…µÌ½¹Ù•ÉÐÙ•É¥™¥••Ù¥‘•¹”¥¹Ñ¼É•½¹¥é•½‰±¥…Ñ¥½¹Ì¸…Á¥Ñ…°É•ÅÕ¥É•µ•¹ÑÌ…É”¡…¹‘•Ñ¼…Á¥Ñ…°¸ð½Àøð½‘¥Øøñ‰ÕÑÑ½¸‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹É•…Ñ•}‘É…™ÐˆÑåÁ”ô‰‰ÕÑÑ½¸ˆ±…ÍÍ9…µ”õíÍÑå±•Ì¹ÁÉ¥µ…Éå	ÕÑÑ½¹ô½¹±¥¬õí½¹É•…Ñ•ô‘¥Í…‰±•õí‰ÕÍåôùí‰ÕÍä€ü€ñ1½…‘•ÈÈ±…ÍÍ9…µ”ô‰…¹¥µ…Ñ”µÍÁ¥¸ˆ€¼ø€è€ñ¥Ñ5•É”€¼ùôÉ•…Ñ”ÁÉ½É…´ð½‰ÕÑÑ½¸øð½‘¥Øø(€€€€€íÁÉ½É…µÌ¹±•¹Ñ €ü€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹ÁÉ½É…µ1¥ÍÑôùíÁÉ½É…µÌ¹µ…À ¡ÁÉ½É…´¤€ôøì(€€€€€€€½¹ÍÐÉ•…‘¥¹•ÍÌ€ôÁÉ½É…´¹‘•Á±½åI•…‘¥¹•ÍÌì(€€€€€€€É•ÑÕÉ¸€ñ…ÉÑ¥±”­•äõíÁÉ½É…´¹¥‘ô±…ÍÍ9…µ”õíÍÑå±•Ì¹ÁÉ½É…µI•½É‘ôø(€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹ÁÉ½É…µQ¥Ñ±•ôøñÍÁ…¸øñM¡¥•±‘¡•¬€¼øð½ÍÁ…¸øñ‘¥Øøñ ÌùíÁÉ½É…´¹¹…µ•ôð½ ÌøñÀùí¡Õµ…¹¥é”¡ÁÉ½É…´¹Ñ•µÁ±…Ñ•%¥ôð½Àøð½‘¥ØøñÍÑÉ½¹œ‘…Ñ„µÍÑ…Ñ”õíÁÉ½É…´¹ÍÑ…ÑÕÍôùí¡Õµ…¹¥é”¡ÁÉ½É…´¹ÍÑ…ÑÕÌ¥ôð½ÍÑÉ½¹œøð½‘¥Øø(€€€€€€€€€€ñ‘°ø(€€€€€€€€€€€€ñ‘¥Øøñ‘ÐùÙ¥‘•¹”Í½ÕÉ”ð½‘Ðøñ‘ùíÁÉ½É…´¹ÉÕ±•Ì¹½¹¹•Ñ½É%€ü¡Õµ…¹¥é”¡ÁÉ½É…´¹ÉÕ±•Ì¹½¹¹•Ñ½É%¤€è€‰9½Ð½¹™¥ÕÉ•‰ôð½‘øð½‘¥Øø(€€€€€€€€€€€€ñ‘¥Øøñ‘ÐùIÕ±”ð½‘Ðøñ‘ùíÁÉ½É…µIÕ±•Í1…‰•°¡ÁÉ½É…´¥ôð½‘øð½‘¥Øø(€€€€€€€€€€€€ñ‘¥Øøñ‘Ðù±¥¥‰¥±¥Ñäð½‘Ðøñ‘ùY•É¥™¥•Í½ÕÉ”¥‘•¹Ñ¥ÑäÉ•ÅÕ¥É•ð½‘øð½‘¥Øø(€€€€€€€€€€€€ñ‘¥Øøñ‘ÐùI•½¹¥é•½‰±¥…Ñ¥½¹Ìð½‘Ðøñ‘ø‘ì¡É•…‘¥¹•ÍÌü¹Á•¹‘¥¹=‰±¥…Ñ¥½¹ÍUÍ€üü€À¤¹Ñ½¥á• È¥ôð½‘øð½‘¥Øø(€€€€€€€€€€€€ñ‘¥Øøñ‘ÐùMÑ…ÑÕÌð½‘Ðøñ‘ùíÉ•…‘¥¹•ÍÌü¹…¹•Á±½ä€ü€‰M•ÑÑ±•µ•¹ÐÉ•…‘äˆ€èÉ•…‘¥¹•ÍÌü¹É•…Í½¹Ìü¹lÁt€üü€‰I•Ù¥•ÜÉ•ÅÕ¥É•‰ôð½‘øð½‘¥Øø(€€€€€€€€€€ð½‘°ø(€€€€€€€€€€ñA½±¥åM…¹‘‰½àÍ±ÕœõíÍ±ÕôÁÉ½É…´õíÁÉ½É…µô½¹M…Ù•õí½¹M…Ù•‘ô€¼ø(€€€€€€€€€íÉ•…‘¥¹•ÍÌ€˜˜É•…‘¥¹•ÍÌ¹™Õ¹‘¥¹…ÁUÍ€ø€À€˜˜€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹…Á¥Ñ…±I•ÅÕ¥É•µ•¹ÑôøñÍÁ…¸øñ]…±±•Ñ…É‘Ì€¼ø…Á¥Ñ…°É•ÅÕ¥É•µ•¹Ðð½ÍÁ…¸øñÍÑÉ½¹œø‘íÉ•…‘¥¹•ÍÌ¹™Õ¹‘¥¹…ÁUÍ¹Ñ½¥á• È¥ôÉ•ÅÕ¥É•‰•™½É”Í•ÑÑ±•µ•¹Ðð½ÍÑÉ½¹œøñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰…Á¥Ñ…°¹½Á•¹}™Õ¹‘¥¹œˆ¡É•˜õí€½…Á¥Ñ…°ý½µµÕ¹¥Ñäô‘íÍ±Õô™ÁÉ½É…´ô‘íÁÉ½É…´¹¥‘õôù=Á•¸…Á¥Ñ…°€ñÉÉ½ÝUÁI¥¡Ð€¼øð½1¥¹¬øð½‘¥Øùô(€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹¥¹±¥¹•Ñ¥½¹Íôø(€€€€€€€€€€€€ñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹ÕÁ‘…Ñ•}Á½±¥äˆ‘…Ñ„µÑ•ÍÑ¥õíÁÉ½É…´µÉ•Ù¥•Ü´‘íÁÉ½É…´¹¥‘õô¡É•˜õí€½µ¥ÍÍ¥½¸ý½µµÕ¹¥Ñäô‘íÍ±Õô™ÁÉ½É…´ô‘íÁÉ½É…´¹µ¥ÍÍ¥½¹%€üüÁÉ½É…´¹¥‘õô±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•½¹‘…Éå	ÕÑÑ½¹ôùI•Ù¥•ÜÁ½±¥äð½1¥¹¬ø(€€€€€€€€€€€€ñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹Í¥µÕ±…Ñ”ˆ‘…Ñ„µÑ•ÍÑ¥õíÁÉ½É…´µÍ¥µÕ±…Ñ”´‘íÁÉ½É…´¹¥‘õô¡É•˜õí€½µ¥ÍÍ¥½¸ý½µµÕ¹¥Ñäô‘íÍ±Õô™ÁÉ½É…´ô‘íÁÉ½É…´¹µ¥ÍÍ¥½¹%€üüÁÉ½É…´¹¥‘ô™µ½‘”õÍ¥µÕ±…Ñ•ô±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•½¹‘…Éå	ÕÑÑ½¹ôùM¥µÕ±…Ñ”¥¸5¥ÍÍ¥½¸ð½1¥¹¬ø(€€€€€€€€€€€€ñ‘•Ñ…¥±Ì±…ÍÍ9…µ”õíÍÑå±•Ì¹µ½É•5•¹ÕôøñÍÕµµ…Éä…É¥„µ±…‰•°õí5½É”…Ñ¥½¹Ì™½È€‘íÁÉ½É…´¹¹…µ•õôøñ5½É•!½É¥é½¹Ñ…°€¼øð½ÍÕµµ…Éäøñ‘¥Øøñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹½Á•¹}Á…ÍÍÁ½ÉÐˆ¡É•˜õí€½ÁÉ½É…µÌ¼‘íÁÉ½É…´¹¥‘õôùAÕ‰±¥ŒÁ…ÍÍÁ½ÉÐð½1¥¹¬øñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹½Á•¹}¥¹}‘¥Í½Ù•Èˆ¡É•˜õí€½‘¥Í½Ù•ÈýÁÉ½É…´ô‘íÁÉ½É…´¹¥‘õôùY¥•Ü½ÁÁ½ÉÑÕ¹¥Ñä¥¸¥Í½Ù•Èð½1¥¹¬øð½‘¥Øøð½‘•Ñ…¥±Ìø(€€€€€€€€€€ð½‘¥Øø(€€€€€€€€ð½…ÉÑ¥±”øì(€€€€€ô¥ôð½‘¥Øø€è€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹•µÁÑåMÑ…Ñ•ôøñ	½½­=Á•¹¡•¬€¼øñÀù9¼½Á•É…Ñ¥¹œÁ½±¥ä•á¥ÍÑÌå•Ð¸É•…Ñ”„‘É…™ÐÁÉ½É…´Ñ¼•Ù…±Õ…Ñ”Ù•É¥™¥••Ù¥‘•¹”¸ð½Àøñ‰ÕÑÑ½¸‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹É•…Ñ•}‘É…™ÐˆÑåÁ”ô‰‰ÕÑÑ½¸ˆ½¹±¥¬õí½¹É•…Ñ•ôùÉ•…Ñ”ÁÉ½É…´ð½‰ÕÑÑ½¸øð½‘¥Øùô(€€€€ð½Í•Ñ¥½¸ø(€€¤ì)ô()™Õ¹Ñ¥½¸A½±¥åM…¹‘‰½à¡ìÍ±Õœ°ÁÉ½É…´°½¹M…Ù•ôèìÍ±ÕœèÍÑÉ¥¹œìÁÉ½É…´èAÉ½É…µI•½Éì½¹M…Ù•è€ ¤€ôøÙ½¥ô¤ì(€½¹ÍÐm…±±½…Ñ¥½¹IÕ±”°Í•Ñ±±½…Ñ¥½¹IÕ±•t€ôÕÍ•MÑ…Ñ”ñ9½¹9Õ±±…‰±”ñAÉ½É…µI•½É‘l‰ÉÕ±•Ì‰ul‰…±±½…Ñ¥½¹IÕ±”‰tøø¡ÁÉ½É…´¹ÉÕ±•Ì¹…±±½…Ñ¥½¹IÕ±”€üü€‰Ù•É¥™¥•‘}…Ñ¥Ù¥Ñäˆ¤ì(€½¹ÍÐm•±¥¥‰¥±¥Ñå5½‘”°Í•Ñ±¥¥‰¥±¥Ñå5½‘•t€ôÕÍ•MÑ…Ñ”ñ9½¹9Õ±±…‰±”ñAÉ½É…µI•½É‘l‰ÉÕ±•Ì‰ul‰•±¥¥‰¥±¥Ñå5½‘”‰tøø¡ÁÉ½É…´¹ÉÕ±•Ì¹•±¥¥‰¥±¥Ñå5½‘”€üü€‰É•Í½±Ù•‘}½¹±äˆ¤ì(€½¹ÍÐmÍ…Ù¥¹œ°Í•ÑM…Ù¥¹t€ôÕÍ•MÑ…Ñ”¡™…±Í”¤ì(€½¹ÍÐÉ•…‘¥¹•ÍÌ€ôÁÉ½É…´¹‘•Á±½åI•…‘¥¹•ÍÌì(€½¹ÍÐÕ¹É•Í½±Ù•€ô5…Ñ ¹µ…à À°€¡É•…‘¥¹•ÍÌü¹…ÕÑ¡½É¥é•‘½Õ¹Ð€üü€À¤€´€¡É•…‘¥¹•ÍÌü¹Ý…±±•Ñ5…ÁÁ•‘½Õ¹Ð€üü€À¤¤ì((€…Íå¹Œ™Õ¹Ñ¥½¸Í…Ù•A½±¥åY•ÉÍ¥½¸ ¤ì(€€€Í•ÑM…Ù¥¹œ¡ÑÉÕ”¤ì(€€€ÑÉäì(€€€€€½¹ÍÐÉ•ÍÁ½¹Í”€ô…Ý…¥Ð™•Ñ ¡€½…Á¤½½µµÕ¹¥Ñ¥•Ì¼‘í•¹½‘•UI%½µÁ½¹•¹Ð¡Í±Õœ¥ô½ÁÉ½É…µÌ¼‘í•¹½‘•UI%½µÁ½¹•¹Ð¡ÁÉ½É…´¹¥¥õ€°ì(€€€€€€€µ•Ñ¡½è€‰AQ ˆ°(€€€€€€€É•‘•¹Ñ¥…±Ìè€‰¥¹±Õ‘”ˆ°(€€€€€€€¡•…‘•ÉÌèì(€€€€€€€€€€‰½¹Ñ•¹ÐµQåÁ”ˆè€‰…ÁÁ±¥…Ñ¥½¸½©Í½¸ˆ°(€€€€€€€€€€‰%‘•µÁ½Ñ•¹äµ-•äˆèÁÉ½É…´µÁ½±¥äè‘íÁÉ½É…´¹¥‘ôè‘í…±±½…Ñ¥½¹IÕ±•ôè‘í•±¥¥‰¥±¥Ñå5½‘•õ€°(€€€€€€€ô°(€€€€€€€‰½‘äè)M=8¹ÍÑÉ¥¹¥™ä¡ìÉÕ±•Ìèì…±±½…Ñ¥½¹IÕ±”°•±¥¥‰¥±¥Ñå5½‘”ôô¤°(€€€€€ô¤ì(€€€€€½¹ÍÐ‘…Ñ„€ô€¡…Ý…¥ÐÉ•ÍÁ½¹Í”¹©Í½¸ ¤¹…Ñ   ¤€ôø¹Õ±°¤¤…Ìì•ÉÉ½ÈüèÍÑÉ¥¹œôð¹Õ±°ì(€€€€€¥˜€ …É•ÍÁ½¹Í”¹½¬¤Ñ¡É½Ü¹•ÜÉÉ½È¡‘…Ñ„ü¹•ÉÉ½È€üü€‰A½±¥äÙ•ÉÍ¥½¸½Õ±¹½Ð‰”Í…Ù•ˆ¤ì(€€€€€Ñ½…ÍÐ¹ÍÕ•ÍÌ ‰9•Ü¥µµÕÑ…‰±”Á½±¥äÙ•ÉÍ¥½¸Í…Ù•ˆ¤ì(€€€€€½¹M…Ù• ¤ì(€€€ô…Ñ €¡•ÉÉ½È¤ì(€€€€€Ñ½…ÍÐ¹•ÉÉ½È¡•ÉÉ½È¥¹ÍÑ…¹•½˜ÉÉ½È€ü•ÉÉ½È¹µ•ÍÍ…”€è€‰A½±¥äÕÁ‘…Ñ”™…¥±•ˆ¤ì(€€€ô™¥¹…±±äì(€€€€€Í•ÑM…Ù¥¹œ¡™…±Í”¤ì(€€€ô(€ô((€É•ÑÕÉ¸€ (€€€€ñ‘•Ñ…¥±Ì±…ÍÍ9…µ”õíÍÑå±•Ì¹Á½±¥åM…¹‘‰½áôø(€€€€€€ñÍÕµµ…ÉäøñÍÁ…¸øñ…Õ”€¼øA½±¥äM…¹‘‰½àð½ÍÁ…¸øñÍµ…±°ùAÉ•Ù¥•Ü¥µÁ…Ðƒ
+Ü¹¼µ½¹•äµ½Ù•Ìð½Íµ…±°øð½ÍÕµµ…Éäø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Á½±¥åM…¹‘‰½á	½‘åôø(€€€€€€€€ñÀ±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•Ñ¥½¹-¥­•Éôù%˜Ñ¡¥ÌÁ½±¥äÝ•É”…Ñ¥Ù”ð½Àø(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Á½±¥å5•ÑÉ¥Íôø(€€€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰±¥¥‰±”É•…Ñ½ÉÌˆÙ…±Õ”õí€‘íÉ•…‘¥¹•ÍÌü¹Ý…±±•Ñ5…ÁÁ•‘½Õ¹Ð€üü€Áõô€¼ø(€€€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰U¹É•Í½±Ù•¥‘•¹Ñ¥Ñ¥•ÌˆÙ…±Õ”õí€‘íÕ¹É•Í½±Ù•‘õôÑ½¹”õíÕ¹É•Í½±Ù•€ü€‰É•Ù¥•Üˆ€è€‰¡•…±Ñ¡ä‰ô€¼ø(€€€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰I•½¹¥é•½‰±¥…Ñ¥½¹ÌˆÙ…±Õ”õí€‘ì¡É•…‘¥¹•ÍÌü¹Á•¹‘¥¹=‰±¥…Ñ¥½¹ÍUÍ€üü€À¤¹Ñ½¥á• È¥õô€¼ø(€€€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰Ù¥‘•¹”½Ù•É…”ˆÙ…±Õ”õì¡É•…‘¥¹•ÍÌü¹…ÕÑ¡½É¥é•‘½Õ¹Ð€üü€À¤€ø€À€ü€‰M½ÕÉ”µ‰…­•ˆ€è€‰9¼•Ù¥‘•¹”‰ô€¼ø(€€€€€€€€€€ñ5•ÑÉ¥Œ±…‰•°ô‰á•ÁÑ¥½¹ÌˆÙ…±Õ”õí€‘íÕ¹É•Í½±Ù•‘õôÑ½¹”õíÕ¹É•Í½±Ù•€ü€‰É•Ù¥•Üˆ€è€‰¡•…±Ñ¡ä‰ô€¼ø(€€€€€€€€ð½‘¥Øø(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Á½±¥å½¹ÑÉ½±Íôø(€€€€€€€€€€ñ™¥•±‘Í•Ðøñ±••¹ù±±½…Ñ¥½¸ÉÕ±”ð½±••¹øñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•µ•¹Ñ•‘ôùì¡l‰Ù•É¥™¥•‘}…Ñ¥Ù¥Ñäˆ°€‰•ÅÕ…±}É•¥Á¥•¹ÑÌˆ°€‰¡å‰É¥‰t…Ì½¹ÍÐ¤¹µ…À ¡Ù…±Õ”¤€ôø€ñ‰ÕÑÑ½¸‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹ÕÁ‘…Ñ•}Á½±¥äˆ‘…Ñ„µÑ•ÍÑ¥õíÁ½±¥äµ…±±½…Ñ¥½¸´‘íÙ…±Õ•õô­•äõíÙ…±Õ•ôÑåÁ”ô‰‰ÕÑÑ½¸ˆ…É¥„µÁÉ•ÍÍ•õí…±±½…Ñ¥½¹IÕ±”€ôôôÙ…±Õ•ô½¹±¥¬õì ¤€ôøÍ•Ñ±±½…Ñ¥½¹IÕ±”¡Ù…±Õ”¥ôùí¡Õµ…¹¥é”¡Ù…±Õ”¥ôð½‰ÕÑÑ½¸ø¥ôð½‘¥Øøð½™¥•±‘Í•Ðø(€€€€€€€€€€ñ™¥•±‘Í•Ðøñ±••¹ù±¥¥‰¥±¥Ñäð½±••¹øñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•µ•¹Ñ•‘ôùì¡l‰É•Í½±Ù•‘}½¹±äˆ°€‰µ…¹Õ…±}É•Ù¥•Ü‰t…Ì½¹ÍÐ¤¹µ…À ¡Ù…±Õ”¤€ôø€ñ‰ÕÑÑ½¸‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹ÕÁ‘…Ñ•}Á½±¥äˆ‘…Ñ„µÑ•ÍÑ¥õíÁ½±¥äµ•±¥¥‰¥±¥Ñä´‘íÙ…±Õ•õô­•äõíÙ…±Õ•ôÑåÁ”ô‰‰ÕÑÑ½¸ˆ…É¥„µÁÉ•ÍÍ•õí•±¥¥‰¥±¥Ñå5½‘”€ôôôÙ…±Õ•ô½¹±¥¬õì ¤€ôøÍ•Ñ±¥¥‰¥±¥Ñå5½‘”¡Ù…±Õ”¥ôùí¡Õµ…¹¥é”¡Ù…±Õ”¥ôð½‰ÕÑÑ½¸ø¥ôð½‘¥Øøð½™¥•±‘Í•Ðø(€€€€€€€€ð½‘¥Øø(€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹¥¹±¥¹•Ñ¥½¹Íôø(€€€€€€€€€€ñ‰ÕÑÑ½¸‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹ÕÁ‘…Ñ•}Á½±¥äˆ‘…Ñ„µÑ•ÍÑ¥õíÁ½±¥äµÍ…Ù”´‘íÁÉ½É…´¹¥‘õôÑåÁ”ô‰‰ÕÑÑ½¸ˆ±…ÍÍ9…µ”õíÍÑå±•Ì¹ÁÉ¥µ…Éå	ÕÑÑ½¹ô‘¥Í…‰±•õíÍ…Ù¥¹ôÑ¥Ñ±”õíÍ…Ù¥¹œ€ü€‰Q¡¥ÌÁ½±¥äÙ•ÉÍ¥½¸¥Ì‰•¥¹œÍ…Ù•ˆ€èÕ¹‘•™¥¹•‘ô½¹±¥¬õì ¤€ôøÙ½¥Í…Ù•A½±¥åY•ÉÍ¥½¸ ¥ôùíÍ…Ù¥¹œ€ü€ñ1½…‘•ÈÈ±…ÍÍ9…µ”ô‰…¹¥µ…Ñ”µÍÁ¥¸ˆ€¼ø€è€ñM¡¥•±‘¡•¬€¼ùôM…Ù”Á½±¥äÙ•ÉÍ¥½¸ð½‰ÕÑÑ½¸ø(€€€€€€€€€€ñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰ÁÉ½É…´¹Í¥µÕ±…Ñ”ˆ‘…Ñ„µÑ•ÍÑ¥õíÁ½±¥äµÍ¥µÕ±…Ñ”´‘íÁÉ½É…´¹¥‘õô¡É•˜õí€½µ¥ÍÍ¥½¸ý½µµÕ¹¥Ñäô‘í•¹½‘•UI%½µÁ½¹•¹Ð¡Í±Õœ¥ô™ÁÉ½É…´ô‘í•¹½‘•UI%½µÁ½¹•¹Ð¡ÁÉ½É…´¹µ¥ÍÍ¥½¹%€üüÁÉ½É…´¹¥¥ô™µ½‘”õÍ¥µÕ±…Ñ•ô±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•½¹‘…Éå	ÕÑÑ½¹ôù•¹•É…Ñ”Í¥µÕ±…Ñ¥½¸¥¸5¥ÍÍ¥½¸€ñÉÉ½ÝUÁI¥¡Ð€¼øð½1¥¹¬ø(€€€€€€€€ð½‘¥Øø(€€€€€€ð½‘¥Øø(€€€€ð½‘•Ñ…¥±Ìø(€€¤ì)ô()™Õ¹Ñ¥½¸M½ÕÉ•ÍQ…ˆ¡ìÍ±Õœ°ÍÕÉ™…”°½¹¹•Ñ•°½¹I•™É•Í ôèìÍ±ÕœèÍÑÉ¥¹œìÍÕÉ™…”è½µµÕ¹¥ÑåMÕÉ™…”ì½¹¹•Ñ•è‰½½±•…¸ì½¹I•™É•Í è€ ¤€ôøÙ½¥ô¤ì(€É•ÑÕÉ¸€ (€€€€ñÍ•Ñ¥½¸±…ÍÍ9…µ”õíÍÑå±•Ì¹Ñ…‰A…¹•±ôø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Ñ…‰%¹ÑÉ½ôø(€€€€€€€€ñ‘¥ØøñÀ±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•Ñ¥½¹-¥­•ÉôùÙ¥‘•¹”¥¹™É…ÍÑÉÕÑÕÉ”ð½Àøñ ÈùM½ÕÉ•Ìð½ ÈøñÀù½¹¹•Ñ¥½¸°Íå¹¡É½¹¥é…Ñ¥½¸°…¹½Á•É…Ñ¥½¹…°¡•…±Ñ ™½È•Ù•Éä½¹™¥ÕÉ••Ù¥‘•¹”Í½ÕÉ”¸ð½Àøð½‘¥Øø(€€€€€€€€ñ1¥¹¬‘…Ñ„µ…Ñ¥½¸µ¥ô‰Í½ÕÉ”¹½¹¹•Ðˆ‘…Ñ„µÑ•ÍÑ¥ô‰Í½ÕÉ•Ìµµ…¹…”µ½¹¹•Ñ¥½¹Ìˆ¡É•˜õíÁÉ½™¥±•½¹¹•ÑA…Ñ ¡€½½µµÕ¹¥Ñ¥•Ì¼‘íÍ±Õõ€¥ô±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•½¹‘…Éå	ÕÑÑ½¹ôù5…¹…”½¹¹•Ñ¥½¹Ì€ñÉÉ½ÝUÁI¥¡Ð€¼øð½1¥¹¬ø(€€€€€€ð½‘¥Øø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Í½ÕÉ•1¥ÍÑôø(€€€€€€€íÍÕÉ™…”¹¡•…±Ñ ¹½¹¹•Ñ½ÉMÑ…ÑÕÌ¹µ…À ¡Í½ÕÉ”¤€ôøì(€€€€€€€€€½¹ÍÐ¡•…±Ñ¡ä€ôl‰¡•…±Ñ¡äˆ°€‰½¹¹•Ñ•ˆ°€‰±¥Ù”‰t¹¥¹±Õ‘•Ì¡Í½ÕÉ”¹¡•…±Ñ ¹Ñ½1½Ý•É…Í” ¤¤ì(€€€€€€€€€½¹ÍÐÁÉ½É…µÌ€ôÍÕÉ™…”¹ÁÉ½É…µÌ¹™¥±Ñ•È ¡ÁÉ½É…´¤€ôøÁÉ½É…´¹ÉÕ±•Ì¹½¹¹•Ñ½É%€ôôôÍ½ÕÉ”¹¥¤¹µ…À ¡ÁÉ½É…´¤€ôøÁÉ½É…´¹¹…µ”¤ì(€€€€€€€€€É•ÑÕÉ¸€ (€€€€€€€€€€€€ñ…ÉÑ¥±”­•äõíÍ½ÕÉ”¹¥‘ô±…ÍÍ9…µ”õíÍÑå±•Ì¹Í½ÕÉ•I•½É‘ôø(€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”õíÍÑå±•Ì¹Í½ÕÉ•%½¹ôøñI…‘¥¼€¼øð½ÍÁ…¸ø(€€€€€€€€€€€€€€ñ‘¥Øøñ Ìùí¡Õµ…¹¥é”¡Í½ÕÉ”¹±…‰•°ñðÍ½ÕÉ”¹¥¥ôð½ ÌøñÀùíÍ½ÕÉ”¹…½Õ¹Ñ1…‰•°€üü€‰Ù¥‘•¹”½¹¹•Ñ½È‰ôð½Àøð½‘¥Øø(€€€€€€€€€€€€€€ñ‘°ø(€€€€€€€€€€€€€€€€ñ‘¥Øøñ‘Ðù!•…±Ñ ð½‘Ðøñ‘‘…Ñ„µÑ½¹”õí¡•…±Ñ¡ä€ü€‰¡•…±Ñ¡äˆ€è€‰É•Ù¥•Ü‰ôùí¡Õµ…¹¥é”¡Í½ÕÉ”¹¡•…±Ñ ¥ôð½‘øð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥Øøñ‘ÐùMå¹ŒÍÑ…Ñ”ð½‘Ðøñ‘ùíÍ½ÕÉ”¹ÕÉÉ•¹ÑMå¹MÑ…Ñ”€ü¡Õµ…¹¥é”¡Í½ÕÉ”¹ÕÉÉ•¹ÑMå¹MÑ…Ñ”¤€è€‰9¼¹½Éµ…±¥é•ÉÕ¸‰ôð½‘øð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥Øøñ‘Ðù1…ÍÐÍÕ•ÍÍ™Õ°Íå¹Œð½‘Ðøñ‘ùíÍ½ÕÉ”¹±…ÍÑMÕ•ÍÍ™Õ±Må¹Œ€ü¹•Ü…Ñ”¡Í½ÕÉ”¹±…ÍÑMÕ•ÍÍ™Õ±Må¹Œ¤¹Ñ½1½…±•MÑÉ¥¹œ ¤€èÍÕÉ™…”¹¡•…±Ñ ¹±…ÍÑMÉ½‰‰±•Ð€ü¹•Ü…Ñ”¡ÍÕÉ™…”¹¡•…±Ñ ¹±…ÍÑMÉ½‰‰±•Ð¤¹Ñ½1½…±•MÑÉ¥¹œ ¤€è€‰9¼Íå¹ŒÉ•½É‘•‰ôð½‘øð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥Øøñ‘ÐùI•½É‘Ì½‰Í•ÉÙ•ð½‘Ðøñ‘ùíÍ½ÕÉ”¹É•½É‘Í=‰Í•ÉÙ•€üü€Áôð½‘øð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥Øøñ‘ÐùAÉ½É…µÌÕÍ¥¹œÍ½ÕÉ”ð½‘Ðøñ‘ùíÁÉ½É…µÌ¹©½¥¸ ˆ°€ˆ¤ñð€‰9¼ÁÉ½É…´‰ôð½‘øð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥Øøñ‘ÐùÕÑ¡•¹Ñ¥…Ñ¥½¸ð½‘Ðøñ‘ùíÍ½ÕÉ”¹…ÕÑ¡áÁ¥É•ÍÐ€üáÁ¥É•Ì€‘í¹•Ü…Ñ”¡Í½ÕÉ”¹…ÕÑ¡áÁ¥É•ÍÐ¤¹Ñ½1½…±•…Ñ•MÑÉ¥¹œ ¥õ€€è€‰5…¹…•¥¸AÉ½™¥±”‰ôð½‘øð½‘¥Øø(€€€€€€€€€€€€€€ð½‘°ø(€€€€€€€€€€€€€€ñ‘•Ñ…¥±Ì±…ÍÍ9…µ”õíÍÑå±•Ì¹Í½ÕÉ••Ñ…¥±Íôø(€€€€€€€€€€€€€€€€ñÍÕµµ…ÉäùQ•¡¹¥…°‘•Ñ…¥±Ìð½ÍÕµµ…Éäø(€€€€€€€€€€€€€€€€ñ‘¥Øøñ½‘”ùíÍ½ÕÉ”¹½¹¹•Ñ¥½¹%€üü€‰±•…äµ½¹¹•Ñ½È‰ôð½½‘”øñÍÁ…¸ù…¡•Í¹…ÁÍ¡½ÐèíÍ½ÕÉ”¹…¡•‘Ð€ü¹•Ü…Ñ”¡Í½ÕÉ”¹…¡•‘Ð¤¹Ñ½1½…±•MÑÉ¥¹œ ¤€è€‰¹½ÐÉ•½É‘•‰ôð½ÍÁ…¸øð½‘¥Øø(€€€€€€€€€€€€€€ð½‘•Ñ…¥±Ìø(€€€€€€€€€€€€ð½…ÉÑ¥±”ø(€€€€€€€€€€¤ì(€€€€€€€ô¥ô(€€€€€€ð½‘¥Øø(€€€€€€ñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•¹Í½É]½É­ÍÁ…•ôøñ½µµÕ¹¥ÑåM•¹Í½ÉA…¹•°Í±ÕœõíÍ±Õô¥¹ÍÑ…±±•õí½¹¹•Ñ•‘ô½¹Må¹•õí½¹I•™É•Í¡ô€¼øñ½µµÕ¹¥Ñå	É¥‘•A…¹•°½µµÕ¹¥ÑåM±ÕœõíÍ±Õô½¹Må¹•õí½¹I•™É•Í¡ô€¼øð½‘¥Øø(€€€€€€ñ‰ÕÑÑ½¸‘…Ñ„µ…Ñ¥½¸µ¥ô‰½µµÕ¹¥Ñä¹É•™É•Í ˆ‘…Ñ„µÑ•ÍÑ¥ô‰½µµÕ¹¥ÑäµÉ•™É•Í µÍÑ…Ñ”ˆÑåÁ”ô‰‰ÕÑÑ½¸ˆ±…ÍÍ9…µ”õíÍÑå±•Ì¹Ñ•ÉÑ¥…Éå	ÕÑÑ½¹ô½¹±¥¬õí½¹I•™É•Í¡ôøñI•™É•Í¡Ü€¼øI•™É•Í ½¹Í½±”ÍÑ…Ñ”ð½‰ÕÑÑ½¸ø(€€€€ð½Í•Ñ¥½¸ø(€€¤ì)ô()™Õ¹Ñ¥½¸Ñ¥Ù¥ÑåI½ÝÌ¡ìÑ¥µ•±¥¹”ôèìÑ¥µ•±¥¹”è½µµÕ¹¥ÑåMÕÉ™…•l‰Ñ¥µ•±¥¹”‰tô¤ì(€¥˜€ …Ñ¥µ•±¥¹”¹±•¹Ñ ¤É•ÑÕÉ¸€ñÀ±…ÍÍ9…µ”õíÍÑå±•Ì¹•µÁÑå%¹±¥¹•ôù9¼½Á•É…Ñ¥½¹…°•Ù•¹ÑÌ¡…Ù”‰••¸É•½É‘•å•Ð¸ð½Àøì(€É•ÑÕÉ¸€ñ½°±…ÍÍ9…µ”õíÍÑå±•Ì¹…Ñ¥Ù¥Ñå1¥ÍÑôùíÑ¥µ•±¥¹”¹µ…À ¡•Ù•¹Ð¤€ôøì½¹ÍÐ%½¸€ô•Ù•¹Ñ%½¸¡•Ù•¹Ð¹•Ù•¹ÑQåÁ”¤ìÉ•ÑÕÉ¸€ñ±¤­•äõí•Ù•¹Ð¹¥‘ôøñÍÁ…¸øñ%½¸€¼øð½ÍÁ…¸øñ‘¥ØøñÍÑÉ½¹œùí•Ù•¹Ð¹Ñ¥Ñ±•ôð½ÍÑÉ½¹œùí•Ù•¹Ð¹‘•Ñ…¥°€˜˜€ñÀùí•Ù•¹Ð¹‘•Ñ…¥±ôð½Àùôð½‘¥ØøñÑ¥µ”ùí¹•Ü…Ñ”¡•Ù•¹Ð¹É•…Ñ•‘Ð¤¹Ñ½1½…±•MÑÉ¥¹œ ¥ôð½Ñ¥µ”øð½±¤øìô¥ôð½½°øì)ô()™Õ¹Ñ¥½¸Ñ¥Ù¥ÑåQ…ˆ¡ìÑ¥µ•±¥¹”ôèìÑ¥µ•±¥¹”è½µµÕ¹¥ÑåMÕÉ™…•l‰Ñ¥µ•±¥¹”‰tô¤ì(€É•ÑÕÉ¸€ñÍ•Ñ¥½¸±…ÍÍ9…µ”õíÍÑå±•Ì¹Ñ…‰A…¹•±ôøñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹Ñ…‰%¹ÑÉ½ôøñ‘¥ØøñÀ±…ÍÍ9…µ”õíÍÑå±•Ì¹Í•Ñ¥½¹-¥­•Éôù¡É½¹½±½¥…°É•½Éð½Àøñ Èù=Á•É…Ñ¥½¹Ì±•‘•Èð½ ÈøñÀùI•…°Í½ÕÉ”°Á½±¥ä°…ÕÑ¡½É¥é…Ñ¥½¸°…¹Í•ÑÑ±•µ•¹Ð•Ù•¹ÑÌ™½ÈÑ¡¥Ì½µµÕ¹¥Ñä¸ð½Àøð½‘¥ØøñÍÁ…¸±…ÍÍ9…µ”õíÍÑå±•Ì¹±•‘•É½Õ¹Ñôøñ±½¬Ì€¼ùíÑ¥µ•±¥¹”¹±•¹Ñ¡ô•Ù•¹ÑÌð½ÍÁ…¸øð½‘¥Øøñ‘¥Ø±…ÍÍ9…µ”õíÍÑå±•Ì¹±•‘•ÉA…¹•±ôøñÑ¥Ù¥ÑåI½ÝÌÑ¥µ•±¥¹”õíÑ¥µ•±¥¹•ô€¼øð½‘¥Øøð½Í•Ñ¥½¸øì)ô

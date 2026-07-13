@@ -1,30 +1,63 @@
 import { defineChain } from "viem";
 
+export const ARC_TESTNET_CHAIN_ID = 5_042_002;
+export const ARC_TESTNET_CAIP2 = `eip155:${ARC_TESTNET_CHAIN_ID}` as const;
+export const ARC_NATIVE_GAS_DECIMALS = 18;
+export const ARC_USDC_TOKEN_DECIMALS = 6;
+export const ARC_TESTNET_RPC_URL =
+  process.env.NEXT_PUBLIC_ARC_RPC_URL ??
+  process.env.ARC_RPC_URL ??
+  process.env.ARC_TESTNET_RPC_URL ??
+  "https://rpc.testnet.arc.network";
+export const ARC_TESTNET_WS_URL =
+  process.env.NEXT_PUBLIC_ARC_WS_URL ??
+  process.env.ARC_WS_URL ??
+  "wss://rpc.testnet.arc.network";
+export const ARC_TESTNET_EXPLORER_URL =
+  process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ??
+  process.env.ARC_EXPLORER_URL ??
+  "https://testnet.arcscan.app";
+
 /// Arc Testnet — native gas token is USDC (18 decimals). See docs.arc.network
 export const arcTestnet = defineChain({
-  id: 5042002,
+  id: ARC_TESTNET_CHAIN_ID,
   name: "Arc Testnet",
   nativeCurrency: {
     name: "USDC",
     symbol: "USDC",
-    decimals: 18,
+    decimals: ARC_NATIVE_GAS_DECIMALS,
   },
   rpcUrls: {
     default: {
-      http: [process.env.ARC_TESTNET_RPC_URL ?? "https://rpc.testnet.arc.network"],
+      http: [ARC_TESTNET_RPC_URL],
+      webSocket: [ARC_TESTNET_WS_URL],
     },
   },
   blockExplorers: {
     default: {
       name: "Arcscan",
-      url: "https://testnet.arcscan.app",
+      url: ARC_TESTNET_EXPLORER_URL,
     },
   },
 });
 
-export const USDC_ADDRESS =
-  (process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`) ??
+export const ARC_USDC_ADDRESS =
+  ((process.env.NEXT_PUBLIC_ARC_USDC_ADDRESS ??
+    process.env.NEXT_PUBLIC_USDC_ADDRESS) as `0x${string}` | undefined) ??
   "0x3600000000000000000000000000000000000000";
+
+export const ARC_MEMO_CONTRACT_ADDRESS =
+  ((process.env.NEXT_PUBLIC_ARC_MEMO_CONTRACT_ADDRESS ??
+    process.env.ARC_MEMO_CONTRACT_ADDRESS) as `0x${string}` | undefined) ??
+  "0x5294E9927c3306DcBaDb03fe70b92e01cCede505";
+
+export const ARC_MULTICALL_FROM_ADDRESS =
+  ((process.env.NEXT_PUBLIC_ARC_MULTICALL_CONTRACT_ADDRESS ??
+    process.env.ARC_MULTICALL_CONTRACT_ADDRESS) as `0x${string}` | undefined) ??
+  "0x522fAf9A91c41c443c66765030741e4AaCe147D0";
+
+/** @deprecated Use ARC_USDC_ADDRESS. */
+export const USDC_ADDRESS = ARC_USDC_ADDRESS;
 
 export const DEPUTY_ESCROW_ADDRESS = process.env
   .NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS as `0x${string}` | undefined;
@@ -121,5 +154,5 @@ export const DEPUTY_ESCROW_ABI = [
 ] as const;
 
 export function arcscanTxUrl(hash: string) {
-  return `https://testnet.arcscan.app/tx/${hash}`;
+  return `${ARC_TESTNET_EXPLORER_URL}/tx/${hash}`;
 }

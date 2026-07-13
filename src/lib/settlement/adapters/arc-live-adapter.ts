@@ -44,6 +44,7 @@ export class ArcLiveAdapter implements SettlementAdapter {
       const result = await createErc8183Escrow({
         jobDescription: input.description,
         budgetUsd: input.amountUsdc,
+        idempotencyKey: `task:${input.taskId}:escrow`,
       });
 
       const explorerUrls = [
@@ -80,7 +81,11 @@ export class ArcLiveAdapter implements SettlementAdapter {
     }
 
     try {
-      const txHash = await submitErc8183Proof(row.jobId, input.proofHash);
+      const txHash = await submitErc8183Proof(
+        row.jobId,
+        input.proofHash,
+        `task:${input.taskId}:proof:${input.proofHash}`,
+      );
       await verifyArcTx(txHash);
       return saveSettlement(input.taskId, {
         status: "proof_submitted",
@@ -109,7 +114,11 @@ export class ArcLiveAdapter implements SettlementAdapter {
       const reason = keccak256(
         toHex(input.reason ?? "deliverable-approved")
       );
-      const txHash = await completeErc8183Job(row.jobId, reason);
+      const txHash = await completeErc8183Job(
+        row.jobId,
+        reason,
+        `task:${input.taskId}:release:${reason}`,
+      );
       await verifyArcTx(txHash);
       return saveSettlement(input.taskId, {
         status: "released",
@@ -131,7 +140,7 @@ export class ArcLiveAdapter implements SettlementAdapter {
     }
 
     try {
-      const txHash = await refundErc8183Job(row.jobId);
+      const txHash = await refundErc8183Job(row.jobId, `task:${input.taskId}:refund`);
       await verifyArcTx(txHash);
       return saveSettlement(input.taskId, {
         status: "refunded",

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   getCommunityBySlug,
@@ -7,6 +9,7 @@ import {
 } from "@/lib/communities/catalog";
 import { DEFAULT_POOL_CHECKPOINT_THRESHOLDS_USD } from "@/lib/capital/pool-checkpoint-defaults";
 import type { ProgramRecord, ProgramRules } from "./types";
+import { appendOperationalEventInTransaction } from "@/lib/events/operational-event";
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -15,6 +18,71 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function toJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function policyHash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+async function persistProgramVersion(
+  tx: Prisma.TransactionClient,
+  input: {
+    programId: string;
+    version: number;
+    userId: string;
+    communitySlug: string;
+    name: string;
+    templateId: string;
+    status: string;
+    budgetUsd: number;
+    rules: ProgramRules;
+    eventType: "program.draft_created" | "program.policy_updated";
+  },
+) {
+  const snapshot = {
+    name: input.name,
+    templateId: input.templateId,
+    status: input.status,
+    budgetUsd: input.budgetUsd,
+    communitySlug: input.communitySlug,
+    rules: input.rules,
+  };
+  const programVersion = await tx.programVersion.create({
+    data: {
+      programId: input.programId,
+      version: input.version,
+      status: input.status,
+      snapshot: toJson(snapshot),
+      createdBy: input.userId,
+    },
+  });
+  const contentHash = policyHash(snapshot);
+  await tx.policyVersion.create({
+    data: {
+      programVersionId: programVersion.id,
+      version: 1,
+      evidenceRule: toJson({ source: input.rules.connectorId ?? "configured_sources", eventType: input.rules.eventType ?? "verified_activity" }),
+      eligibilityRule: toJson({ identity: "resolved", manualReview: false }),
+      allocationRule: toJson(input.rules),
+      settlementRule: toJson({ network: "eip155:5042002", asset: "USDC", humanAuthorization: true }),
+      contentHash,
+      createdBy: input.userId,
+    },
+  });
+  await appendOperationalEventInTransaction(tx, {
+    eventType: input.eventType,
+    aggregateType: "program",
+    aggregateId: input.programId,
+    userId: input.userId,
+    communitySlug: input.communitySlug,
+    correlationId: `${input.programId}:v${input.version}`,
+    idempotencyKey: `${input.eventType}:${input.programId}:v${input.version}`,
+    payload: toJson({ programId: input.programId, programVersionId: programVersion.id, version: input.version, contentHash }),
+  });
 }
 
 function toProgramRecord(
@@ -186,23 +254,39 @@ export async function createProgram(
     };
   }
 
-  const row = await prisma.resolveProgram.create({
-    data: {
+  const rules = {
+    ...template.defaultRules,
+    autoSettleCheckpoints: true,
+    checkpointThresholdsUsd: DEFAULT_POOL_CHECKPOINT_THRESHOLDS_USD,
+    ...input.rules,
+  } as ProgramRules;
+  const row = await prisma.$transaction(async (tx) => {
+    const created = await tx.resolveProgram.create({
+      data: {
+        userId,
+        installId: install.id,
+        templateId,
+        name: input.name ?? template.name,
+        status: "draft",
+        budgetUsd: input.budgetUsd ?? template.defaultBudgetUsd,
+        rulesJson: JSON.stringify(rules),
+        missionId: `program-${crypto.randomUUID().slice(0, 12)}`,
+        metadataJson: JSON.stringify({ communitySlug }),
+      },
+    });
+    await persistProgramVersion(tx, {
+      programId: created.id,
+      version: 1,
       userId,
-      installId: install.id,
-      templateId,
-      name: input.name ?? template.name,
-      status: "draft",
-      budgetUsd: input.budgetUsd ?? template.defaultBudgetUsd,
-      rulesJson: JSON.stringify({
-        ...template.defaultRules,
-        autoSettleCheckpoints: true,
-        checkpointThresholdsUsd: DEFAULT_POOL_CHECKPOINT_THRESHOLDS_USD,
-        ...input.rules,
-      }),
-      missionId: `program-${crypto.randomUUID().slice(0, 12)}`,
-      metadataJson: JSON.stringify({ communitySlug }),
-    },
+      communitySlug,
+      name: created.name,
+      templateId: created.templateId,
+      status: created.status,
+      budgetUsd: created.budgetUsd,
+      rules,
+      eventType: "program.draft_created",
+    });
+    return created;
   });
 
   return { ok: true as const, program: toProgramRecord(row, communitySlug) };
@@ -220,14 +304,34 @@ export async function updateProgram(
   if (!existing) return { ok: false as const, error: "Program not found" };
 
   const rules = parseJson(existing.rulesJson, {} as ProgramRules);
-  const row = await prisma.resolveProgram.update({
-    where: { id: programId },
-    data: {
-      ...(input.name ? { name: input.name } : {}),
-      ...(input.budgetUsd !== undefined ? { budgetUsd: input.budgetUsd } : {}),
-      ...(input.status ? { status: input.status } : {}),
-      ...(input.rules ? { rulesJson: JSON.stringify({ ...rules, ...input.rules }) } : {}),
-    },
+  const nextRules = { ...rules, ...input.rules };
+  const row = await prisma.$transaction(async (tx) => {
+    const latest = await tx.programVersion.aggregate({
+      where: { programId },
+      _max: { version: true },
+    });
+    const updated = await tx.resolveProgram.update({
+      where: { id: programId },
+      data: {
+        ...(input.name ? { name: input.name } : {}),
+        ...(input.budgetUsd !== undefined ? { budgetUsd: input.budgetUsd } : {}),
+        ...(input.status ? { status: input.status } : {}),
+        ...(input.rules ? { rulesJson: JSON.stringify(nextRules) } : {}),
+      },
+    });
+    await persistProgramVersion(tx, {
+      programId,
+      version: (latest._max.version ?? 0) + 1,
+      userId,
+      communitySlug: existing.install.communitySlug,
+      name: updated.name,
+      templateId: updated.templateId,
+      status: updated.status,
+      budgetUsd: updated.budgetUsd,
+      rules: nextRules,
+      eventType: "program.policy_updated",
+    });
+    return updated;
   });
 
   return {

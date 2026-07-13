@@ -8,7 +8,8 @@ import {
 import { getCircleEntitySecret } from "@/lib/wallet/circle-config";
 import { ERC8183_ABI, ERC20_APPROVE_ABI } from "@/lib/settlement/erc8183-abi";
 import { verifyArcTx } from "@/lib/settlement/arc-verify";
-import { usdcToWei } from "@/lib/arc/utils";
+import { uiUsdNumberToTokenUnits } from "@/lib/money/usdc";
+import { circleIdempotencyKey } from "@/lib/wallet/circle-idempotency";
 
 type CircleClient = ReturnType<
   typeof import("@circle-fin/developer-controlled-wallets").initiateDeveloperControlledWalletsClient
@@ -94,6 +95,7 @@ export async function executeCircleContract(input: {
   abiFunctionSignature: string;
   abiParameters: string[];
   label: string;
+  idempotencyKey?: string;
 }): Promise<string> {
   const contractAddress =
     input.contractAddress ??
@@ -107,6 +109,7 @@ export async function executeCircleContract(input: {
     abiFunctionSignature: input.abiFunctionSignature,
     abiParameters: input.abiParameters,
     label: input.label,
+    idempotencyKey: input.idempotencyKey,
   });
 }
 
@@ -116,6 +119,7 @@ export async function executeCircleContractOn(input: {
   abiFunctionSignature: string;
   abiParameters: string[];
   label: string;
+  idempotencyKey?: string;
 }): Promise<string> {
   const circle = await getCircleClient();
   if (!circle) {
@@ -123,7 +127,9 @@ export async function executeCircleContractOn(input: {
   }
 
   const res = await circle.createContractExecutionTransaction({
-    idempotencyKey: randomUUID(),
+    idempotencyKey: input.idempotencyKey
+      ? circleIdempotencyKey(input.idempotencyKey)
+      : randomUUID(),
     walletAddress: input.walletAddress,
     blockchain: "ARC-TESTNET",
     contractAddress: input.contractAddress,
@@ -141,6 +147,7 @@ export async function executeCircleContractOn(input: {
 export async function createErc8183Escrow(input: {
   jobDescription: string;
   budgetUsd: number;
+  idempotencyKey?: string;
 }): Promise<{
   jobId: string;
   createJobTxHash: string;
@@ -153,7 +160,8 @@ export async function createErc8183Escrow(input: {
   }
 
   const expiredAt = Math.floor(Date.now() / 1000) + 86400;
-  const amountWei = usdcToWei(input.budgetUsd).toString();
+  // Contract calls use Arc's six-decimal ERC-20 interface. Native gas is 18 decimals.
+  const amountTokenUnits = uiUsdNumberToTokenUnits(input.budgetUsd).toString();
 
   const createJobTxHash = await executeCircleContract({
     walletAddress: ARC_CLIENT_WALLET_ADDRESS,
@@ -166,6 +174,7 @@ export async function createErc8183Escrow(input: {
       "0x0000000000000000000000000000000000000000",
     ],
     label: "createJob",
+    idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:create-job` : undefined,
   });
 
   const { createPublicClient, http, decodeEventLog } = await import("viem");
@@ -201,15 +210,17 @@ export async function createErc8183Escrow(input: {
   await executeCircleContract({
     walletAddress: ARC_CLIENT_WALLET_ADDRESS,
     abiFunctionSignature: "setBudget(uint256,uint256,bytes)",
-    abiParameters: [jobId, amountWei, "0x"],
+    abiParameters: [jobId, amountTokenUnits, "0x"],
     label: "setBudget",
+    idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:set-budget:${jobId}` : undefined,
   });
 
   const approveTxHash = await executeCircleContract({
     walletAddress: ARC_CLIENT_WALLET_ADDRESS,
     abiFunctionSignature: "approve(address,uint256)",
-    abiParameters: [ARC_AGENTIC_COMMERCE_CONTRACT, amountWei],
+    abiParameters: [ARC_AGENTIC_COMMERCE_CONTRACT, amountTokenUnits],
     label: "approve USDC",
+    idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:approve:${jobId}` : undefined,
   });
 
   const fundTxHash = await executeCircleContract({
@@ -217,12 +228,13 @@ export async function createErc8183Escrow(input: {
     abiFunctionSignature: "fund(uint256,bytes)",
     abiParameters: [jobId, "0x"],
     label: "fund escrow",
+    idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:fund:${jobId}` : undefined,
   });
 
   return { jobId, createJobTxHash, approveTxHash, fundTxHash };
 }
 
-export async function submitErc8183Proof(jobId: string, proofHash: string) {
+export async function submitErc8183Proof(jobId: string, proofHash: string, idempotencyKey?: string) {
   if (!ARC_PROVIDER_WALLET_ADDRESS) {
     throw new Error("Provider wallet not configured");
   }
@@ -232,10 +244,11 @@ export async function submitErc8183Proof(jobId: string, proofHash: string) {
     abiFunctionSignature: "submit(uint256,bytes32,bytes)",
     abiParameters: [jobId, proofHash, "0x"],
     label: "submit proof",
+    idempotencyKey,
   });
 }
 
-export async function completeErc8183Job(jobId: string, reasonHash: string) {
+export async function completeErc8183Job(jobId: string, reasonHash: string, idempotencyKey?: string) {
   if (!ARC_CLIENT_WALLET_ADDRESS) {
     throw new Error("Client wallet not configured");
   }
@@ -245,10 +258,11 @@ export async function completeErc8183Job(jobId: string, reasonHash: string) {
     abiFunctionSignature: "complete(uint256,bytes32,bytes)",
     abiParameters: [jobId, reasonHash, "0x"],
     label: "complete job",
+    idempotencyKey,
   });
 }
 
-export async function refundErc8183Job(jobId: string) {
+export async function refundErc8183Job(jobId: string, idempotencyKey?: string) {
   if (!ARC_CLIENT_WALLET_ADDRESS) {
     throw new Error("Client wallet not configured");
   }
@@ -258,5 +272,6 @@ export async function refundErc8183Job(jobId: string) {
     abiFunctionSignature: "claimRefund(uint256)",
     abiParameters: [jobId],
     label: "claim refund",
+    idempotencyKey,
   });
 }

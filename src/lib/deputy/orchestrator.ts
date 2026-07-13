@@ -345,14 +345,12 @@ export async function settleTask(taskId: string, proofHash: string) {
       proofHash,
       recoveredUsd: task.recoveredUsd,
     });
-    if (reputation.txHash || reputation.mode === "mock") {
+    if (reputation.txHash) {
       await logEvent(
         taskId,
         "Verification",
         "reputation",
-        reputation.txHash
-          ? `ERC-8004 reputation recorded (score ${reputation.score})`
-          : `Reputation score ${reputation.score} (demo — awaiting Arc credentials)`,
+        `ERC-8004 reputation recorded (score ${reputation.score})`,
         { reputationTxHash: reputation.txHash, score: reputation.score }
       );
     }

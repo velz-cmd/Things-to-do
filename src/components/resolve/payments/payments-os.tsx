@@ -334,6 +334,9 @@ export function PaymentsOS() {
     missionReportId: searchParams.get("missionReport"),
     programId: searchParams.get("program"),
     communitySlug: searchParams.get("community"),
+    fundingIntentId: searchParams.get("fundingIntent"),
+    settlementBatchId: searchParams.get("settlementBatch"),
+    returnTo: searchParams.get("returnTo"),
   };
 
   const [banking, setBanking] = useState<BankingAccountSnapshot | null>(null);
@@ -745,7 +748,11 @@ export function PaymentsOS() {
       onActivityOpen={onActivityOpen}
       initialTab={initialTab}
       missionHandoff={
-        missionHandoff.missionReportId || missionHandoff.programId || missionHandoff.communitySlug
+        missionHandoff.missionReportId ||
+        missionHandoff.programId ||
+        missionHandoff.communitySlug ||
+        missionHandoff.fundingIntentId ||
+        missionHandoff.settlementBatchId
           ? missionHandoff
           : undefined
       }

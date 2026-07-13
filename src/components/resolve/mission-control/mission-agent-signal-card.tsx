@@ -460,62 +460,7 @@ export function MissionAgentSignalCard({
 
       {!result && selected && payDecision === "pending" && (
         <div className="mission-agent-execution">
-          <section className="mission-agent-objective-strip">
-            <span className="mission-agent-block-icon mission-agent-block-icon--violet"><Target className="h-4 w-4" /></span>
-            <div>
-              <p>Objective</p>
-              <h3>{prompt}</h3>
-              <span>Agent mode Â· verified context signal</span>
-            </div>
-          </section>
-
-          <section className="mission-agent-signal-block">
-            <div className="mission-agent-block-heading">
-              <span className="mission-agent-block-icon mission-agent-block-icon--amber"><Radar className="h-4 w-4" /></span>
-              <div><p>Signal</p><h3>{selected.name}</h3></div>
-              <span className="mission-agent-price">{formatAgentPrice(pricePreview)} USDC</span>
-            </div>
-            <dl className="mission-agent-signal-grid">
-              <div><dt>Returns</dt><dd>{selected.deliverables?.slice(0, 2).join(" Â· ") || selected.tagline}</dd></div>
-              <div><dt>Source</dt><dd>{selected.domain || "Connected source"}</dd></div>
-              <div><dt>Quality</dt><dd><FileCheck2 className="h-3.5 w-3.5" /> Verified context</dd></div>
-              <div><dt>Gateway</dt><dd><Cpu className="h-3.5 w-3.5" /> {catalog?.gatewayEnabled ? "Ready" : "Available"}</dd></div>
-            </dl>
-          </section>
-
-          <section className="mission-agent-payment-block">
-            <div className="mission-agent-block-heading">
-              <span className="mission-agent-block-icon mission-agent-block-icon--blue"><WalletCards className="h-4 w-4" /></span>
-              <div><p>Payment</p><h3>Choose wallet and execution cap</h3></div>
-            </div>
-
-            <CompactWalletSelector amountUsd={pricePreview} disabled={invoking} choice={walletChoice} />
-
-            <label className="mission-agent-budget-row">
-              <span><strong>Signal budget cap</strong><small>Maximum spend for this run</small></span>
-              <input
-                type="range"
-                min={0.01}
-                max={1}
-                step={0.01}
-                value={agentCapUsd}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setAgentCapUsd(value);
-                  setMissionAgentBudgetCap(value);
-                }}
-              />
-              <b>{formatAgentPrice(agentCapUsd)} max</b>
-            </label>
-
-            <details className="mission-agent-spend-details">
-              <summary>How agent spending works</summary>
-              <p>The selected signal is charged once on Arc. The cap prevents this run from exceeding your chosen limit.</p>
-            </details>
-
-            <div className="mission-agent-actionbar">
-              <Button
-                size="sm"
+          <section className="mission-agent-objective-st÷Ní¢G§²ÚîÆ­yÐ          size="sm"
                 className="mission-agent-run gap-1.5"
                 disabled={!canAfford || invoking}
                 onClick={() => {

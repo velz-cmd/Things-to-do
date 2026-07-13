@@ -237,3 +237,25 @@ CREATE TABLE "IdempotencyRecord" (
 );
 CREATE INDEX "IdempotencyRecord_scope_userId_createdAt_idx" ON "IdempotencyRecord"("scope", "userId", "createdAt");
 CREATE INDEX "IdempotencyRecord_status_expiresAt_idx" ON "IdempotencyRecord"("status", "expiresAt");
+
+-- These lifecycle tables are internal application infrastructure. Keep them
+-- unavailable to Supabase's Data API unless explicit policies are introduced
+-- in a later, reviewed migration. Direct server-side PostgreSQL access is
+-- unaffected, and service-role access continues to bypass RLS as designed.
+DO $$
+DECLARE
+  table_name TEXT;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'Wallet', 'PayoutDestination', 'SourceConnection', 'SourceSyncRun',
+    'Evidence', 'Identity', 'ObservedIdentity', 'IdentityCandidate',
+    'IdentityResolution', 'IdentityClaim', 'ProgramVersion', 'PolicyVersion',
+    'Obligation', 'Blueprint', 'Simulation', 'FundingIntent',
+    'SettlementBatch', 'ChainTransaction', 'Receipt', 'OperationalEvent',
+    'OutboxEvent', 'WebhookEvent', 'IdempotencyRecord'
+  ]
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
+    EXECUTE format('REVOKE ALL PRIVILEGES ON TABLE %I FROM anon, authenticated', table_name);
+  END LOOP;
+END $$;

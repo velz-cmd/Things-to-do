@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PRODUCTION_URL: https://things-to-do-eta.vercel.app
+  PRODUCTION_URL: https://resolve-self.vercel.app
   # Deploy hook removed from repo — manual Redeploy in Vercel duplicates production
   # queue entries and blocks Hobby-tier builds (1 concurrent). Use push-to-main only.
 

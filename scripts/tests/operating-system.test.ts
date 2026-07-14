@@ -16,6 +16,9 @@ import {
 } from "../../src/lib/actions/action-registry";
 import { runWithFallbackResult } from "../../src/lib/providers/provider-router";
 import { compileSettlementPackage, verifySettlementPackage } from "../../src/lib/settlement/settlement-package";
+import { calculateRecognition } from "../../src/lib/outcomes/policy-engine";
+import { outcomeAdapterRegistry } from "../../src/lib/outcomes/adapters/registry";
+import { calculateIncrementalUnits, transitionCampaignRuntimeState } from "../../src/lib/outcomes/campaign-lifecycle";
 
 const healthyFacts = {
   installed: true,
@@ -152,4 +155,36 @@ test("settlement package hashing is canonical and amount-exact", () => {
   assert.equal(first.packageHash, reordered.packageHash);
   assert.equal(verifySettlementPackage(first.package, first.packageHash), true);
   assert.equal(verifySettlementPackage({ ...first.package, totalUsdcMicro: "300000" }, first.packageHash), false);
+});
+
+test("outcome recognition is deterministic and respects every monetary cap", () => {
+  const result = calculateRecognition({
+    formula: { mode: "hybrid", approvedBaseMicroUsdc: 2_000_000n, rateMicroUsdc: 1_000n, maximumMicroUsdc: 25_000_000n },
+    verifiedUnits: 10_000n,
+    approved: true,
+    participantCapMicroUsdc: 9_000_000n,
+    campaignRemainingMicroUsdc: 7_500_000n,
+  });
+  assert.equal(result.amountMicroUsdc, 7_500_000n);
+});
+
+test("only PeerTube is labelled live for creator traction", () => {
+  assert.equal(outcomeAdapterRegistry.peertube.status, "live");
+  assert.equal(outcomeAdapterRegistry.youtube.status, "configuration_required");
+  assert.equal(outcomeAdapterRegistry.owncast.status, "configuration_required");
+  assert.equal(outcomeAdapterRegistry.rss.status, "planned");
+});
+
+test("campaign runtime transitions preserve closed-state finality", () => {
+  assert.equal(transitionCampaignRuntimeState("active", "pause"), "paused");
+  assert.equal(transitionCampaignRuntimeState("paused", "resume"), "active");
+  assert.equal(transitionCampaignRuntimeState("active", "close"), "closed");
+  assert.equal(transitionCampaignRuntimeState("closed", "resume"), null);
+  assert.equal(transitionCampaignRuntimeState("funding_required", "pause"), null);
+});
+
+test("outcome synchronization recognizes only growth since the latest snapshot", () => {
+  assert.equal(calculateIncrementalUnits(BigInt(15), BigInt(10)), BigInt(5));
+  assert.equal(calculateIncrementalUnits(BigInt(15), BigInt(15)), BigInt(0));
+  assert.equal(calculateIncrementalUnits(BigInt(10), BigInt(15)), BigInt(0));
 });

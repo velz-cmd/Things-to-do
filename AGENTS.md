@@ -88,7 +88,7 @@ Prisma + PostgreSQL. Contracts live in `contracts/` (Foundry) and are independen
 - **Treasury wallet IDs** — `ARC_CLIENT_WALLET_ID` / `ARC_PROVIDER_WALLET_ID` are operator-only.
   If unset but addresses match wallets in `CIRCLE_WALLET_SET_ID`, the server resolves IDs via
   Circle `listWallets` (`src/lib/settlement/arc-wallet-ids.ts`). Verify production:
-  `GET https://things-to-do-eta.vercel.app/api/health/env` → `arc.treasuryOutboundReady: true`.
+  `GET https://resolve-self.vercel.app/api/health/env` → `arc.treasuryOutboundReady: true`.
 - **External wallet fund** uses `POST /api/capital/fund-with-tx` after the user signs on Arc.
 - Capital **Activity** tab uses `?fast=1` on first load and lists **wallet transactions only**
   (deposits, fund_program stakes) — not timeline noise or unrelated authorizations.

@@ -230,10 +230,10 @@ Production demo **9/9** — live Arc, real sensors, real claims.
 
 ```bash
 # Full infrastructure manifest
-curl https://things-to-do-eta.vercel.app/api/economy/infrastructure
+curl https://resolve-self.vercel.app/api/economy/infrastructure
 
 # Repayment waterfall simulation
-curl -X POST https://things-to-do-eta.vercel.app/api/economy/repayment/simulate \
+curl -X POST https://resolve-self.vercel.app/api/economy/repayment/simulate \
   -H "Content-Type: application/json" \
   -d '{"principalUsd":1000,"futureInflowsUsd":[200,350,500,800]}'
 ```

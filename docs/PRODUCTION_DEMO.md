@@ -1,17 +1,17 @@
 # Production demo (Lepton / external users)
 
-Honest checklist for a real external-user demo on `https://things-to-do-eta.vercel.app`.
+Honest checklist for a real external-user demo on `https://resolve-self.vercel.app`.
 
 ## Quick verify
 
 ```bash
-APP_URL=https://things-to-do-eta.vercel.app npx tsx scripts/verify-production-demo.ts
+APP_URL=https://resolve-self.vercel.app npx tsx scripts/verify-production-demo.ts
 ```
 
 With operator cron (bootstrap + artist registry seed):
 
 ```bash
-APP_URL=https://things-to-do-eta.vercel.app CRON_SECRET=... npx tsx scripts/verify-production-demo.ts
+APP_URL=https://resolve-self.vercel.app CRON_SECRET=... npx tsx scripts/verify-production-demo.ts
 ```
 
 In-app: **Settings → Lepton / external-user demo** (live checklist).
@@ -34,7 +34,7 @@ API: `GET /api/status/demo-readiness`
 ## Operator bootstrap (one shot)
 
 ```bash
-curl -X POST https://things-to-do-eta.vercel.app/api/cron/bootstrap-sensors \
+curl -X POST https://resolve-self.vercel.app/api/cron/bootstrap-sensors \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json"
 ```
@@ -44,7 +44,7 @@ Installs React, Linux, Open Research, **Independent Music**, Navidrome communiti
 Seed artist wallets only:
 
 ```bash
-curl -X POST https://things-to-do-eta.vercel.app/api/registry/seed-production \
+curl -X POST https://resolve-self.vercel.app/api/registry/seed-production \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
@@ -55,7 +55,7 @@ On your Navidrome host (not Vercel):
 ```bash
 npm install better-sqlite3
 NAVIDROME_DB_PATH=/path/to/navidrome.db \
-RESOLVE_SYNC_URL=https://things-to-do-eta.vercel.app/api/connectors/navidrome/sync \
+RESOLVE_SYNC_URL=https://resolve-self.vercel.app/api/connectors/navidrome/sync \
 NAVIDROME_SYNC_SECRET=your-secret \
 NAVIDROME_PROGRAM_MISSION_ID=mission-from-community-page \
 npx tsx scripts/navidrome-bridge.ts

@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const appUrl =
     process.env.APP_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
-    "https://things-to-do-eta.vercel.app";
+    "https://resolve-self.vercel.app";
 
   const subject = isNewUser
     ? "Welcome to RESOLVE"

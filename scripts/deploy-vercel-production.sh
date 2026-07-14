@@ -21,5 +21,5 @@ npx vercel@54 deploy --prod --yes
 
 echo ""
 echo "==> Verify:"
-echo "  https://things-to-do-eta.vercel.app/api/health/env"
-echo "  https://things-to-do-eta.vercel.app/demo-portals/streamly"
+echo "  https://resolve-self.vercel.app/api/health/env"
+echo "  https://resolve-self.vercel.app/demo-portals/streamly"

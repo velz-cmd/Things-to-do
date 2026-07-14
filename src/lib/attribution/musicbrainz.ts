@@ -1,4 +1,4 @@
-const USER_AGENT = "RESOLVE/1.0 (https://things-to-do-eta.vercel.app)";
+const USER_AGENT = "RESOLVE/1.0 (https://resolve-self.vercel.app)";
 
 export type MusicCredit = {
   role: string;

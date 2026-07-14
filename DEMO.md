@@ -1,10 +1,10 @@
 # RESOLVE — 90-Second Hackathon Demo Script
 
-**Live:** https://resolve-task.vercel.app
+**Live:** https://resolve-self.vercel.app
 
 ## Setup (before judges)
 
-1. Open https://resolve-task.vercel.app
+1. Open https://resolve-self.vercel.app
 2. Confirm `/api/config` shows `escrowDeployed: true`, `resendEnabled: true`
 3. For crypto path: fund Arc Testnet USDC at https://faucet.circle.com
 
@@ -58,14 +58,14 @@ https://testnet.arcscan.app
 ## API smoke test
 
 ```bash
-curl https://resolve-task.vercel.app/api/config
-curl https://resolve-task.vercel.app/api/tasks
-curl -X POST https://resolve-task.vercel.app/api/email/test
+curl https://resolve-self.vercel.app/api/config
+curl https://resolve-self.vercel.app/api/tasks
+curl -X POST https://resolve-self.vercel.app/api/email/test
 ```
 
 ## Submission checklist
 
-- [x] Live URL — https://resolve-task.vercel.app
+- [x] Live URL — https://resolve-self.vercel.app
 - [x] GitHub — https://github.com/velz-cmd/Things-to-do
 - [ ] Demo video (this script)
 - [ ] Arc testnet tx screenshots

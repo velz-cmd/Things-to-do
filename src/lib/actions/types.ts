@@ -5,6 +5,7 @@ export type ProductOwner =
   | "mission"
   | "communities"
   | "capital"
+  | "earn"
   | "profile";
 
 export type ActionLifecycle =
@@ -71,6 +72,31 @@ export type ActionDefinition<Input = unknown, Output = unknown> = {
 };
 
 export const RESOLVE_ACTION_IDS = [
+  "asset.register",
+  "asset.verify_ownership",
+  "campaign.create_draft",
+  "campaign.simulate",
+  "campaign.approve_blueprint",
+  "campaign.create_funding_requirement",
+  "campaign.publish",
+  "campaign.pause",
+  "campaign.resume",
+  "campaign.close",
+  "campaign.join",
+  "campaign.leave",
+  "submission.create",
+  "submission.update",
+  "submission.withdraw",
+  "submission.submit_for_verification",
+  "outcome.capture_baseline",
+  "outcome.synchronize",
+  "outcome.verify",
+  "outcome.report_conflict",
+  "policy.create_version",
+  "policy.preview",
+  "policy.activate",
+  "earning.open",
+  "earning.claim",
   "community.install",
   "community.open",
   "community.follow",

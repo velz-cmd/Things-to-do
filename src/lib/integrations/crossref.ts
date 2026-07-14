@@ -8,7 +8,7 @@ export type CrossrefWork = {
   citations?: number;
 };
 
-const USER_AGENT = "RESOLVE/1.0 (https://things-to-do-eta.vercel.app; mailto:resolve@arc.network)";
+const USER_AGENT = "RESOLVE/1.0 (https://resolve-self.vercel.app; mailto:resolve@arc.network)";
 
 export async function searchCrossref(query: string, rows = 5): Promise<CrossrefWork[]> {
   const q = query.trim().slice(0, 200);

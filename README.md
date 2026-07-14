@@ -4,7 +4,7 @@
 
 Autonomous outcome-backed payments for the [Lepton Agents Hackathon](https://lepton.thecanteenapp.com/) — bounties, contributor payouts, founder distribution, Arc USDC escrow.
 
-**Live demo:** https://things-to-do-eta.vercel.app
+**Live demo:** https://resolve-self.vercel.app
 
 ## Routes
 
@@ -35,7 +35,7 @@ See [DEMO.md](./DEMO.md) for the full judge script.
 
 ## Stack
 
-**[Production stack page](https://things-to-do-eta.vercel.app/stack)** — full architecture for judges.  
+**[Production stack page](https://resolve-self.vercel.app/stack)** — full architecture for judges.
 **[Economic infrastructure](docs/ECONOMIC-INFRASTRUCTURE.md)** — six engines, seven doors, unified Codex roadmap.
 
 | Layer | Tech |

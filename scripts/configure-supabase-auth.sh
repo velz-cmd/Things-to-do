@@ -6,8 +6,8 @@
 set -euo pipefail
 
 PROJECT_REF="${SUPABASE_PROJECT_REF:-jjducnguljjddciczvuy}"
-SITE_URL="${SITE_URL:-https://things-to-do-eta.vercel.app}"
-REDIRECTS="${REDIRECT_ALLOW_LIST:-https://things-to-do-eta.vercel.app/**,http://localhost:3000/**}"
+SITE_URL="${SITE_URL:-https://resolve-self.vercel.app}"
+REDIRECTS="${REDIRECT_ALLOW_LIST:-https://resolve-self.vercel.app/**,http://localhost:3000/**}"
 
 if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
   echo "Set SUPABASE_ACCESS_TOKEN to patch Supabase Auth URL configuration."

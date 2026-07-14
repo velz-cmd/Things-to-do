@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { MissionControl } from "@/components/resolve/mission-control/mission-control";
+import { MissionCompiler } from "@/components/resolve/mission-control/mission-compiler";
 
 export const metadata: Metadata = {
   title: "Mission — RESOLVE",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function MissionPage() {
   return (
     <Suspense fallback={<p className="p-6 text-sm text-resolve-muted">Loading mission…</p>}>
-      <MissionControl />
+      <MissionCompiler />
     </Suspense>
   );
 }

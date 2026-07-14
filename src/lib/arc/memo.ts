@@ -5,6 +5,7 @@ import {
   getAddress,
   keccak256,
   parseUnits,
+  formatUnits,
   stringToHex,
   type Address,
 } from "viem";
@@ -15,7 +16,9 @@ import { requireArcFeature } from "@/lib/arc/feature-flags";
 
 export type MemoPayoutInput = {
   recipient: Address;
-  amountUsd: number;
+  amountUsd?: number;
+  /** Preferred exact settlement input; USDC uses six integer decimal places. */
+  amountMicroUsdc?: bigint;
   /** Human-readable memo, e.g. batch id or mission ref */
   memo: string;
   /** Stable lookup id — batch:event or mission id */
@@ -44,10 +47,12 @@ export async function sendUsdcWithMemo(
   }
 
   const recipient = getAddress(input.recipient);
+  const amountMicroUsdc = input.amountMicroUsdc ?? (typeof input.amountUsd === "number" ? parseUnits(input.amountUsd.toFixed(6), 6) : null);
+  if (amountMicroUsdc === null || amountMicroUsdc <= BigInt(0)) throw new Error("A positive exact USDC amount is required");
   const transferData = encodeFunctionData({
     abi: erc20Abi,
     functionName: "transfer",
-    args: [recipient, parseUnits(input.amountUsd.toFixed(6), 6)],
+    args: [recipient, amountMicroUsdc],
   });
 
   const memoId = buildMemoId(input.memoRef);
@@ -73,7 +78,7 @@ export async function sendUsdcWithMemo(
     memoId,
     memo: memoText,
     recipient,
-    amountUsd: input.amountUsd,
+    amountUsd: Number(formatUnits(amountMicroUsdc, 6)),
   };
 }
 

@@ -14,7 +14,7 @@ export function isDiscordConfigured(): boolean {
 function botHeaders(): Record<string, string> {
   return {
     Authorization: `Bot ${env("DISCORD_BOT_TOKEN")}`,
-    "User-Agent": "RESOLVE/1.0 (https://things-to-do-eta.vercel.app)",
+    "User-Agent": "RESOLVE/1.0 (https://resolve-self.vercel.app)",
   };
 }
 

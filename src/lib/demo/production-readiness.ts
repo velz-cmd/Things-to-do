@@ -48,7 +48,7 @@ export async function getProductionDemoReadiness(): Promise<ProductionDemoReadin
   const liveUrl =
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     process.env.APP_URL?.trim() ||
-    "https://things-to-do-eta.vercel.app";
+    "https://resolve-self.vercel.app";
 
   const demoMode = isDeputyDemoMode();
   const musicbrainzOAuth =

@@ -28,7 +28,7 @@ Free tier allows **100 deploys per 24 hours**. If you see:
 
 1. **Stop** clicking Redeploy in Vercel and **do not** run `vercel deploy` or deploy hooks.
 2. **Removing `VERCEL_TOKEN` from GitHub** was correct — it stopped duplicate CLI deploys.
-3. **Production stays live** on the last successful deploy ([things-to-do-eta.vercel.app](https://things-to-do-eta.vercel.app)).
+3. **Production stays live** on the last successful deploy ([resolve-self.vercel.app](https://resolve-self.vercel.app)).
 4. **Wait ~24 hours**, then merge to `main` — Vercel Git will deploy once automatically.
 5. **PR red X from Vercel** is expected while rate-limited; Playwright E2E can still pass. You can merge if branch protection allows (Vercel check is optional).
 6. Preview deploys on PRs are **skipped** (`vercel.json` `ignoreCommand`) so new PR pushes do not burn quota.
@@ -56,8 +56,8 @@ Error: The `CRON_SECRET` environment variable contains leading or trailing white
 Verify after deploy:
 
 ```text
-https://things-to-do-eta.vercel.app/api/health/deploy
-https://things-to-do-eta.vercel.app/api/health/env
+https://resolve-self.vercel.app/api/health/deploy
+https://resolve-self.vercel.app/api/health/env
 ```
 
 `commit` in `/api/health/deploy` should match the latest `main` SHA (e.g. `8ad8bc8`).
@@ -133,12 +133,16 @@ Also add these if missing (same screen):
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API |
 | `NEXT_PUBLIC_REOWN_PROJECT_ID` | [cloud.reown.com](https://cloud.reown.com) |
-| `NEXT_PUBLIC_APP_URL` | `https://things-to-do-eta.vercel.app` |
-| `APP_URL` | `https://things-to-do-eta.vercel.app` |
+| `NEXT_PUBLIC_APP_URL` | `https://resolve-self.vercel.app` |
+| `APP_URL` | `https://resolve-self.vercel.app` |
 | `PLAYWRIGHT_ENABLED` | `true` |
 | `NEXT_PUBLIC_RESOLVE_AGENT_ADDRESS` | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` |
-| `ARC_PROVIDER_WALLET_ADDRESS` | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` |
-| `ARC_CLIENT_WALLET_ADDRESS` | `0xDD81E79E22053a4d7036D6E9DB22Dad591b65511` (or separate funded Circle client wallet) |
+| `CIRCLE_WALLET_SET_ID` | `52cc4ccb-0d02-5d7c-9f62-8becc86c2825` |
+| `ARC_CLIENT_WALLET_ID` | `8680137f-c112-51ff-b544-e75ad58c3b9a` |
+| `ARC_CLIENT_WALLET_ADDRESS` | `0xd8c4bb234e42b87109c42a928e908d73c0e6bc3c` |
+| `ARC_PROVIDER_WALLET_ID` | `69885467-baa7-5175-ae57-d2af3e165133` |
+| `ARC_PROVIDER_WALLET_ADDRESS` | `0xaed9af58c965b8bc3aedb126522693ffcdb6d944` |
+| `RESOLVE_PLATFORM_FEE_WALLET` | `0xaed9af58c965b8bc3aedb126522693ffcdb6d944` |
 | `CIRCLE_API_KEY` | Circle Developer Console |
 | `CIRCLE_ENTITY_SECRET` | Circle Developer Console |
 | `DEPUTY_DEMO_MODE` | `false` for judge demo (real merchant step) |
@@ -165,9 +169,9 @@ After merging the community install + royalty loop branch:
 3. **Verify** after deploy:
 
 ```text
-https://things-to-do-eta.vercel.app/api/communities
-https://things-to-do-eta.vercel.app/discover
-https://things-to-do-eta.vercel.app/communities/independent-music
+https://resolve-self.vercel.app/api/communities
+https://resolve-self.vercel.app/discover
+https://resolve-self.vercel.app/communities/independent-music
 ```
 
 Full checklist: [docs/VERCEL_ENV.md](./docs/VERCEL_ENV.md#community-programs-phases-13--production-merge-checklist).
@@ -185,7 +189,7 @@ You are already on the right page (**Deployments**).
 3. Make sure **Environment** says **Production**
 4. Click **Deploy** and wait ~2 minutes until it says **Ready**
 
-Then open https://things-to-do-eta.vercel.app — you should see **RESOLVE** on the left, not the old DEPUTY landing.
+Then open https://resolve-self.vercel.app — you should see **RESOLVE** on the left, not the old DEPUTY landing.
 
 **Do not** click Redeploy on the old row (`4a7829a`) — that only rebuilds the old version.
 
@@ -224,7 +228,7 @@ After that, ask the agent to deploy again.
 
 | Check | Old (wrong) | New (correct) |
 |-------|-------------|---------------|
-| https://things-to-do-eta.vercel.app/tasks | 404 error | Tasks page loads |
+| https://resolve-self.vercel.app/tasks | 404 error | Tasks page loads |
 | Left sidebar | No sidebar / DEPUTY landing | **RESOLVE** + Overview / Tasks / Vault |
 | Title | DEPUTY | RESOLVE |
 

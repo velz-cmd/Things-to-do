@@ -5,7 +5,7 @@
  *   CIRCLE_API_KEY=... CIRCLE_ENTITY_SECRET=... npx tsx scripts/setup-circle-treasury.ts
  *
  * Or on production (after Circle keys are in Vercel):
- *   curl -X POST https://things-to-do-eta.vercel.app/api/cron/setup-circle-treasury \
+ *   curl -X POST https://resolve-self.vercel.app/api/cron/setup-circle-treasury \
  *     -H "Authorization: Bearer $CRON_SECRET"
  */
 import { setupCircleTreasuryWallets } from "../src/lib/wallet/setup-treasury";

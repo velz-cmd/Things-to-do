@@ -7,11 +7,11 @@ import { arcFeatureFlags } from "@/lib/arc/feature-flags";
 import { ARC_TESTNET_CHAIN_ID } from "@/lib/arc/config";
 import { sendUsdcWithMemo } from "@/lib/arc/memo";
 import { appendOperationalEvent } from "@/lib/events/operational-event";
-import { formatUsdcTokenUnits } from "@/lib/money/usdc";
 import {
   type CanonicalSettlementPackage,
   verifySettlementPackage,
 } from "@/lib/settlement/settlement-package";
+import { issueOutcomeReceipt } from "@/lib/outcomes/issue-receipt";
 
 const requestSchema = z.object({
   settlementBatchId: z.string().trim().min(1),
@@ -52,7 +52,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "This settlement package belongs to another account" }, { status: 403 });
   }
   if (batch.status === "confirmed") {
-    return NextResponse.json({ ok: true, status: "confirmed", replayed: true });
+    const receipt = batch.communitySlug === "outcome-campaign" ? await issueOutcomeReceipt(batch.id).catch(() => null) : null;
+    return NextResponse.json({ ok: true, status: "confirmed", replayed: true, receiptUrl: receipt ? `/outcomes/${encodeURIComponent(receipt.publicReference)}` : null, receiptRecovery: batch.communitySlug === "outcome-campaign" && !receipt ? "Retry this confirmed batch to recover receipt issuance." : null });
   }
   if (batch.status === "submitting") {
     return NextResponse.json({ error: "This settlement package is already being submitted" }, { status: 409 });
@@ -84,10 +85,9 @@ export async function POST(req: Request) {
       continue;
     }
     try {
-      const amountUsd = Number(formatUsdcTokenUnits(BigInt(payee.amountUsdcMicro)));
       const result = await sendUsdcWithMemo({
         recipient: payee.address as `0x${string}`,
-        amountUsd,
+        amountMicroUsdc: BigInt(payee.amountUsdcMicro),
         memo: JSON.stringify({ version: 1, settlementBatchId: batch.id, obligationId: payee.obligationId, packageHash: prepared.packageHash }),
         memoRef: `resolve:settlement:${batch.id}:${payee.obligationId}`,
       });
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
           update: { settlementBatchId: batch.id, providerTransactionId: payee.obligationId, status: "confirmed", confirmedAt: new Date() },
         }),
         prisma.obligation.updateMany({
-          where: { id: payee.obligationId, userId: ready.profile.id, settlementBatchId: batch.id },
+          where: batch.communitySlug === "outcome-campaign" ? { id: payee.obligationId, settlementBatchId: batch.id } : { id: payee.obligationId, userId: ready.profile.id, settlementBatchId: batch.id },
           data: { status: "settled" },
         }),
       ]);
@@ -148,5 +148,9 @@ export async function POST(req: Request) {
     payload: toJson({ settlementBatchId: batch.id, packageHash: prepared.packageHash, status: finalStatus, succeeded, failed: failures.length, failures }),
   });
 
-  return NextResponse.json({ ok: failures.length === 0, status: finalStatus, succeeded, failed: failures.length, failures }, { status: failures.length ? 207 : 200 });
+  const receipt = finalStatus === "confirmed" && batch.communitySlug === "outcome-campaign"
+    ? await issueOutcomeReceipt(batch.id).catch(() => null)
+    : null;
+
+  return NextResponse.json({ ok: failures.length === 0, status: finalStatus, succeeded, failed: failures.length, failures, receiptUrl: receipt ? `/outcomes/${encodeURIComponent(receipt.publicReference)}` : null, receiptRecovery: finalStatus === "confirmed" && batch.communitySlug === "outcome-campaign" && !receipt ? "Settlement confirmed. Retry this batch to recover receipt issuance." : null }, { status: failures.length ? 207 : 200 });
 }

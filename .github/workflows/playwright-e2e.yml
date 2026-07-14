@@ -44,6 +44,9 @@ jobs:
 
       - name: Validate Prisma schema
         run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/resolve_schema_validation
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/resolve_schema_validation
 
       - name: Verify Prisma formatting
         run: |

@@ -135,6 +135,7 @@ export const RESOLVE_ACTION_IDS = [
   "mission.simulate",
   "mission.prepare_authorization",
   "capital.open_funding",
+  "capital.refresh_snapshot",
   "capital.select_wallet",
   "capital.submit_funding",
   "capital.authorize_settlement",

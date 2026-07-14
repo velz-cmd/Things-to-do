@@ -4,7 +4,7 @@
 
 **One line:** Assign the problem. Come back when it's solved. Pay only on proof.
 
-**Live:** https://things-to-do-eta.vercel.app
+**Live:** https://resolve-self.vercel.app
 
 ---
 

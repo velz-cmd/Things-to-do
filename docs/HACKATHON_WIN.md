@@ -1,6 +1,6 @@
 # RESOLVE — Hackathon Win Playbook
 
-**Live app:** https://things-to-do-eta.vercel.app  
+**Live app:** https://resolve-self.vercel.app
 **Repo:** https://github.com/velz-cmd/Things-to-do  
 **Winning line:** *"RESOLVE is not pay-per-token. It is pay-per-resolution."*
 
@@ -18,7 +18,7 @@ Confirm **all** of these are set on Vercel → things-to-do → Settings → Env
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `NEXT_PUBLIC_REOWN_PROJECT_ID` | Reown / WalletConnect project ID |
-| `NEXT_PUBLIC_APP_URL` | `https://things-to-do-eta.vercel.app` |
+| `NEXT_PUBLIC_APP_URL` | `https://resolve-self.vercel.app` |
 | `NEXT_PUBLIC_DEPUTY_ESCROW_ADDRESS` | `0x4e9b728a3c46315d8ec4df19b972f78b1a4f669f` |
 | `DEPUTY_ORACLE_PRIVATE_KEY` | Oracle wallet (settles escrow on Arc) |
 | `RESEND_API_KEY` | Real outbound claim emails |
@@ -36,15 +36,15 @@ After adding/changing vars → **Redeploy** (or push to `main`).
 1. [Supabase Dashboard](https://supabase.com/dashboard) → your project → **Authentication**
 2. **Providers** → enable **Google** (add OAuth client from Google Cloud Console)
 3. **URL Configuration** → add redirect:
-   - `https://things-to-do-eta.vercel.app/auth/callback`
+   - `https://resolve-self.vercel.app/auth/callback`
    - `http://localhost:3000/auth/callback` (for local)
-4. **Site URL:** `https://things-to-do-eta.vercel.app` (and `http://localhost:3000/**` in redirect URLs for local dev)
+4. **Site URL:** `https://resolve-self.vercel.app` (and `http://localhost:3000/**` in redirect URLs for local dev)
 5. Enable **Email** provider (magic link)
 
 ### 3. Reown (WalletConnect)
 
 1. [dashboard.reown.com](https://dashboard.reown.com) → your project
-2. Add allowed domain: `things-to-do-eta.vercel.app`
+2. Add allowed domain: `resolve-self.vercel.app`
 3. Copy **Project ID** → `NEXT_PUBLIC_REOWN_PROJECT_ID` on Vercel
 
 ### 4. Arc testnet funds (crypto demo path)
@@ -60,16 +60,16 @@ Run these in terminal (or browser for GET):
 
 ```bash
 # Config — should show escrowDeployed: true, resendEnabled: true
-curl https://things-to-do-eta.vercel.app/api/config
+curl https://resolve-self.vercel.app/api/config
 
 # Tasks — should return 200 with tasks array (not 500)
-curl https://things-to-do-eta.vercel.app/api/tasks
+curl https://resolve-self.vercel.app/api/tasks
 
 # Stats
-curl https://things-to-do-eta.vercel.app/api/stats
+curl https://resolve-self.vercel.app/api/stats
 
 # Email smoke test
-curl -X POST https://things-to-do-eta.vercel.app/api/email/test
+curl -X POST https://resolve-self.vercel.app/api/email/test
 ```
 
 If `/api/tasks` returns **500**, redeploy from Vercel (build now runs `prisma db push` to sync tables).
@@ -91,7 +91,7 @@ If `/api/tasks` returns **500**, redeploy from Vercel (build now runs `prisma db
 | 5 | Task → Proof verified → Settled | "Payment releases only after verification." |
 
 ```bash
-curl -X POST https://things-to-do-eta.vercel.app/api/webhooks/github \
+curl -X POST https://resolve-self.vercel.app/api/webhooks/github \
   -H "Content-Type: application/json" \
   -d '{"pull_request":{"merged":true,"number":1,"title":"Logo approved"},"repository":{"full_name":"demo/logo-bounty"}}'
 ```
@@ -123,7 +123,7 @@ curl -X POST https://things-to-do-eta.vercel.app/api/webhooks/github \
 
 | Step | You do | You say |
 |------|--------|---------|
-| 1 | Open https://things-to-do-eta.vercel.app | "This is RESOLVE — assign a problem, come back when it's solved." |
+| 1 | Open https://resolve-self.vercel.app | "This is RESOLVE — assign a problem, come back when it's solved." |
 | 2 | Sidebar → **Sign in** → Google | "No crypto knowledge required. We create a secure wallet behind the scenes." |
 | 3 | **Add funds** → $50 → Credit card | "Deposits convert to USDC automatically." |
 | 4 | Overview → **Recover airline refund** | "User assigns: get my $43 flight delay refund." |
@@ -147,7 +147,7 @@ Same as Path A but step 2–5:
 
 ## Phase 4 — Submission package (Lepton / Canteen)
 
-- [ ] **Live URL:** https://things-to-do-eta.vercel.app
+- [ ] **Live URL:** https://resolve-self.vercel.app
 - [ ] **GitHub:** public repo link
 - [ ] **90-sec demo video** — record Path A with Loom/OBS (follow table above)
 - [ ] **Arc tx screenshot** — escrow lock + settlement on Arcscan

@@ -1147,3 +1147,230 @@ model IdempotencyRecord {
   @@index([scope, userId, createdAt])
   @@index([status, expiresAt])
 }
+
+/// Canonical creator work that can be promoted through an Outcome Campaign.
+model CreatorAsset {
+  id                  String    @id @default(cuid())
+  ownerUserId         String
+  type                String
+  canonicalUrl        String
+  title               String
+  description         String?
+  sourceAdapterId     String
+  externalId          String?
+  ownershipState      String    @default("unverified")
+  ownershipChallenge  String?
+  ownershipProof      Json?
+  ownershipVerifiedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([ownerUserId, canonicalUrl])
+  @@index([ownerUserId, ownershipState])
+}
+
+model OutcomeCampaign {
+  id                      String    @id @default(cuid())
+  creatorUserId           String
+  assetId                 String
+  name                    String
+  objective               String    @db.Text
+  contributionType        String
+  verificationAdapterId   String
+  status                  String    @default("draft")
+  totalBudgetMicroUsdc    BigInt
+  committedMicroUsdc      BigInt    @default(0)
+  recognizedMicroUsdc     BigInt    @default(0)
+  settledMicroUsdc        BigInt    @default(0)
+  participantCapMicroUsdc BigInt?
+  startsAt                DateTime
+  endsAt                  DateTime?
+  activePolicyVersionId   String?
+  fundingIntentId         String?
+  blueprintId             String?
+  simulationId            String?
+  approvedAt              DateTime?
+  publishedAt             DateTime?
+  closedAt                DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([creatorUserId, status])
+  @@index([status, startsAt, endsAt])
+  @@index([assetId])
+}
+
+model CampaignParticipant {
+  id         String   @id @default(cuid())
+  campaignId String
+  userId     String
+  identityId String?
+  status     String   @default("joined")
+  joinedAt   DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([campaignId, userId])
+  @@index([userId, status])
+}
+
+model WorkSubmission {
+  id                   String    @id @default(cuid())
+  campaignId           String
+  participantId        String
+  userId               String
+  workUrl              String
+  sourceReference      String?
+  status               String    @default("submitted")
+  latestSnapshotId     String?
+  latestOutcomeEventId String?
+  identityChallenge    String?
+  identityProof        Json?
+  identityVerifiedAt   DateTime?
+  submittedAt          DateTime  @default(now())
+  withdrawnAt          DateTime?
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([campaignId, workUrl])
+  @@index([userId, status])
+  @@index([campaignId, status])
+}
+
+model OutcomeSnapshot {
+  id             String   @id @default(cuid())
+  submissionId   String
+  adapterId      String
+  sourceObjectId String
+  unitType       String
+  value          BigInt
+  contentHash    String
+  observedAt     DateTime
+  createdAt      DateTime @default(now())
+
+  @@unique([submissionId, contentHash])
+  @@index([submissionId, observedAt])
+}
+
+model OutcomeEvent {
+  id               String   @id @default(cuid())
+  adapterId        String
+  sourceEventId    String
+  campaignId       String
+  submissionId     String
+  type             String
+  actorIdentityId  String?
+  objectUrl        String
+  objectLabel      String
+  unitType         String
+  unitValue        BigInt
+  baselineValue    BigInt?
+  currentValue     BigInt?
+  incrementalValue BigInt?
+  evidenceState    String
+  recognitionState String   @default("unreviewed")
+  contentHash      String
+  observedAt       DateTime
+  synchronizedAt   DateTime
+  createdAt        DateTime @default(now())
+
+  @@unique([adapterId, sourceEventId])
+  @@index([campaignId, recognitionState])
+  @@index([submissionId, observedAt])
+}
+
+model OutcomeEvidence {
+  id             String   @id @default(cuid())
+  outcomeEventId String
+  evidenceId     String?
+  provider       String
+  sourceUrl      String
+  state          String
+  payload        Json
+  contentHash    String
+  createdAt      DateTime @default(now())
+
+  @@unique([outcomeEventId, contentHash])
+  @@index([outcomeEventId, state])
+}
+
+model RecognitionPolicyVersion {
+  id                      String    @id @default(cuid())
+  campaignId              String
+  version                 Int
+  formula                 Json
+  evidenceRequirements    Json
+  identityRequirements    Json
+  reviewDelaySeconds      Int
+  participantCapMicroUsdc BigInt?
+  campaignCapMicroUsdc    BigInt
+  contentHash             String
+  activeFrom              DateTime
+  supersededAt            DateTime?
+  createdAt               DateTime  @default(now())
+
+  @@unique([campaignId, version])
+  @@index([campaignId, activeFrom])
+  @@index([contentHash])
+}
+
+model EarningsLedgerEntry {
+  id              String   @id @default(cuid())
+  userId          String
+  campaignId      String
+  submissionId    String?
+  obligationId    String?
+  receiptId       String?
+  type            String
+  state           String
+  amountMicroUsdc BigInt
+  referenceHash   String   @unique
+  createdAt       DateTime @default(now())
+
+  @@index([userId, state, createdAt])
+  @@index([campaignId, createdAt])
+}
+
+model CampaignFundingRequirement {
+  id              String   @id @default(cuid())
+  campaignId      String   @unique
+  fundingIntentId String?
+  amountMicroUsdc BigInt
+  status          String   @default("draft")
+  contentHash     String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model FraudReview {
+  id           String    @id @default(cuid())
+  submissionId String
+  state        String    @default("not_required")
+  reasons      Json
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([submissionId])
+  @@index([state, createdAt])
+}
+
+model ActionRun {
+  id                   String    @id @default(cuid())
+  userId               String?
+  actionId             String
+  aggregateType        String
+  aggregateId          String?
+  idempotencyKey       String    @unique
+  state                String    @default("validating")
+  recommendationReason String
+  input                Json
+  output               Json?
+  errorCode            String?
+  errorMessage         String?
+  startedAt            DateTime  @default(now())
+  completedAt          DateTime?
+
+  @@index([userId, startedAt])
+  @@index([aggregateType, aggregateId, startedAt])
+  @@index([actionId, state])
+}

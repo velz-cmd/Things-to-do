@@ -5,7 +5,7 @@
  *
  * Usage:
  *   NAVIDROME_DB_PATH=/path/to/navidrome.db \
- *   RESOLVE_SYNC_URL=https://things-to-do-eta.vercel.app/api/connectors/navidrome/sync \
+ *   RESOLVE_SYNC_URL=https://resolve-self.vercel.app/api/connectors/navidrome/sync \
  *   NAVIDROME_SYNC_SECRET=your-secret \
  *   npx tsx scripts/navidrome-bridge.ts
  */

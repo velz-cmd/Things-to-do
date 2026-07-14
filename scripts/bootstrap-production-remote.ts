@@ -2,7 +2,7 @@
  * Trigger production sensor bootstrap via cron secret.
  * Usage: CRON_SECRET=... npx tsx scripts/bootstrap-production-remote.ts
  */
-const BASE = process.env.PRODUCTION_URL?.trim() || "https://things-to-do-eta.vercel.app";
+const BASE = process.env.PRODUCTION_URL?.trim() || "https://resolve-self.vercel.app";
 const SECRET = process.env.CRON_SECRET?.trim() || process.env.BOOTSTRAP_SENSOR_SECRET?.trim();
 
 async function main() {

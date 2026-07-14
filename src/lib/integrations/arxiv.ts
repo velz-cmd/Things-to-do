@@ -10,7 +10,7 @@ export type ArxivPaper = {
   pdfUrl?: string;
 };
 
-const USER_AGENT = "RESOLVE/1.0 (https://things-to-do-eta.vercel.app)";
+const USER_AGENT = "RESOLVE/1.0 (https://resolve-self.vercel.app)";
 
 function decodeXml(text: string): string {
   return text

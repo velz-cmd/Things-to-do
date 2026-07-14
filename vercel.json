@@ -6,6 +6,7 @@
   "git": {
     "deploymentEnabled": {
       "main": true,
+      "release/**": false,
       "cursor/**": false,
       "codex/**": false,
       "*": false

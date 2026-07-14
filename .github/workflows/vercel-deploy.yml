@@ -17,7 +17,9 @@ on:
         type: boolean
 
 concurrency:
-  group: vercel-production
+  # Verification is read-only. Cancel an older SHA as soon as a newer main
+  # commit exists, so it can never report an older READY deployment as valid.
+  group: vercel-production-verification
   cancel-in-progress: true
 
 env:
@@ -35,26 +37,24 @@ jobs:
           echo "::warning::Deploy hook removed — push to main triggers one Vercel production build."
           echo "Cancel queued Redeploy rows in Vercel dashboard; do not click Redeploy repeatedly."
 
-      - name: Wait for production deployment
-        continue-on-error: true
+      - name: Verify the exact Git-integration deployment
         id: health
         run: |
-          echo "Verifying $PRODUCTION_URL (Vercel Git deploys automatically on push to main)..."
+          echo "Verifying the Git-integration deployment at $PRODUCTION_URL..."
           EXPECT_SHA="${{ github.sha }}"
-          for i in $(seq 1 40); do
+          for i in $(seq 1 80); do
             DEPLOY_JSON=$(curl -fsS "$PRODUCTION_URL/api/health/deploy" 2>/dev/null || echo '{}')
             COMMIT=$(echo "$DEPLOY_JSON" | grep -o '"commit":"[^"]*"' | head -1 | cut -d'"' -f4)
-            if curl -fsS "$PRODUCTION_URL/api/health/env" | grep -q '"ok":true'; then
-              if [ -n "$COMMIT" ] && [ "${EXPECT_SHA:0:7}" = "$COMMIT" ]; then
-                echo "✓ Production healthy · deploy commit $COMMIT matches push ${EXPECT_SHA:0:7}"
-                curl -fsS "$PRODUCTION_URL/api/config" | head -c 400 || true
-                echo ""
+            if [ -n "$COMMIT" ] && [ "$COMMIT" = "$EXPECT_SHA" ]; then
+              if curl -fsS "$PRODUCTION_URL/api/health/env" | grep -q '"ok":true'; then
+                echo "✓ Production healthy · exact deploy commit $COMMIT"
                 exit 0
               fi
-              echo "✓ Health OK but deploy commit=${COMMIT:-unknown} (expect ${EXPECT_SHA:0:7}) — attempt $i"
+              echo "Deploy $COMMIT is visible but health is not ready — attempt $i"
+            else
+              echo "Deployment commit=${COMMIT:-unknown}; waiting for exact SHA $EXPECT_SHA — attempt $i"
             fi
-            echo "Waiting for deployment... ($i/40)"
             sleep 15
           done
-          echo "::warning::Production not on latest commit yet — check Vercel deploy logs (CRON_SECRET whitespace is a common blocker)."
-          exit 0
+          echo "::error::Production did not become healthy on exact SHA $EXPECT_SHA within 20 minutes."
+          exit 1

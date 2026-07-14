@@ -21,7 +21,7 @@ export function WalletViewSelector({
   compact,
   className,
 }: WalletViewSelectorProps) {
-  const { view, setActiveWalletView } = useActiveWalletView();
+  const { view, setActiveWalletView, selectionPending } = useActiveWalletView();
 
   const options: Array<{ id: WalletView; disabled: boolean }> = [
     { id: "app", disabled: !appAddress },
@@ -46,9 +46,14 @@ export function WalletViewSelector({
             <button
               key={opt.id}
               type="button"
-              onClick={() => setActiveWalletView(opt.id)}
+              disabled={selectionPending}
+              aria-pressed={view === opt.id}
+              aria-label={`Use ${walletViewLabel(opt.id)} as the Capital transaction source`}
+              data-action-id="capital.select_wallet"
+              data-testid={`capital-select-wallet-${opt.id}`}
+              onClick={() => void setActiveWalletView(opt.id)}
               className={clsx(
-                "rounded-lg border px-3 py-2 text-left text-[11px] transition",
+                "min-h-11 rounded-lg border px-3 py-2 text-left text-[11px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resolve-accent disabled:cursor-wait disabled:opacity-60",
                 view === opt.id
                   ? "border-resolve-accent bg-resolve-accent/15 text-white"
                   : "border-white/10 bg-black/20 text-resolve-muted hover:border-white/20",

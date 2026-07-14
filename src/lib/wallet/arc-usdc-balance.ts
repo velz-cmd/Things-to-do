@@ -1,22 +1,46 @@
-import { createPublicClient, erc20Abi, formatUnits, http, type PublicClient } from "viem";
-import { arcTestnet } from "@/lib/arc/config";
+import { arcTestnet } from "viem/chains";
+import { arcRpcAttempt } from "@/lib/arc/rpc-router";
 import { ARC_CHAIN_ID, ARC_USDC_CONTRACT } from "@/lib/settlement/arc-config";
+import { isArcAlchemyConfigured } from "@/lib/wallet/arc-rpc-url";
 import {
-  allArcRpcUrls,
-  isArcAlchemyConfigured,
-  resolveArcAlchemyRpcUrl,
-} from "@/lib/wallet/arc-rpc-url";
+  microUsdcToString,
+  reconcileArcUsdcInterfaces,
+} from "@/lib/arc/usdc-units";
 
-const RPC_TIMEOUT_MS = 10_000;
-const RPC_RETRIES = 1;
+export {
+  erc20UnitsToMicroUsdc,
+  microUsdcToString,
+  nativeWeiToMicroUsdc,
+  reconcileArcUsdcInterfaces,
+} from "@/lib/arc/usdc-units";
 
+export type ArcBalanceRead = {
+  walletAddress: `0x${string}`;
+  chainId: 5042002;
+  amountMicroUsdc: bigint;
+  source: "native_rpc" | "erc20_rpc" | "circle_api" | "database_snapshot" | "browser_snapshot";
+  freshness: "live" | "recent" | "stale" | "unknown";
+  provider?: string;
+  blockNumber?: bigint;
+  readAt: string;
+  diagnostic?: {
+    nativeMicroUsdc?: bigint;
+    erc20MicroUsdc?: bigint;
+    mismatch?: boolean;
+  };
+};
+
+/** JSON-safe compatibility shape used by existing Capital routes. */
 export type ArcUsdcBalance = {
   address: string;
   chainId: typeof ARC_CHAIN_ID;
+  amountMicroUsdc: string;
   nativeUsdc: string;
   erc20Usdc: string;
   totalUsdc: string;
   blockNumber: number;
+  provider?: string;
+  diagnostic?: { mismatch: boolean };
   source: "arc_rpc";
   syncedAt: string;
 };
@@ -29,179 +53,76 @@ export class ArcRpcUnavailableError extends Error {
   }
 }
 
-function formatUsd(amount: number): string {
-  return (Math.round(amount * 100) / 100).toFixed(2);
-}
-
-function rpcUrls(): string[] {
-  return allArcRpcUrls();
-}
-
-function makeClient(rpcUrl: string): PublicClient {
-  return createPublicClient({
-    chain: arcTestnet,
-    transport: http(rpcUrl, { timeout: RPC_TIMEOUT_MS }),
-  });
-}
-
-async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < RPC_RETRIES; attempt++) {
-    try {
-      return await fn();
-    } catch (e) {
-      lastError = e;
-      if (attempt < RPC_RETRIES - 1) {
-        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
-      }
-    }
-  }
-  throw new ArcRpcUnavailableError(
-    lastError instanceof Error ? `${label}: ${lastError.message}` : label,
-  );
-}
-
-async function firstSuccessfulRpc<T>(
-  label: string,
-  tryOne: (rpcUrl: string) => Promise<T>,
-): Promise<T> {
-  const urls = rpcUrls();
-  const attempts = urls.map(async (rpcUrl) => {
-    try {
-      return await tryOne(rpcUrl);
-    } catch {
-      return null;
-    }
-  });
-  const settled = await Promise.all(attempts);
-  const hit = settled.find((v) => v != null);
-  if (hit != null) return hit;
-  throw new ArcRpcUnavailableError(`${label}: all Arc RPC endpoints failed`);
-}
-
-async function alchemyRpc<T>(method: string, params: unknown[]): Promise<T> {
-  const base = resolveArcAlchemyRpcUrl();
-  if (!base) throw new ArcRpcUnavailableError("Alchemy not configured");
-
-  const res = await fetch(base, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-    signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
-  });
-
-  if (!res.ok) throw new ArcRpcUnavailableError(`Alchemy HTTP ${res.status}`);
-
-  const data = (await res.json()) as { result?: T; error?: { message: string } };
-  if (data.error) throw new ArcRpcUnavailableError(data.error.message);
-  return data.result as T;
-}
-
-async function readNativeUsdc(address: string): Promise<number> {
-  if (isArcAlchemyConfigured()) {
-    try {
-      const hex = await alchemyRpc<string>("eth_getBalance", [address, "latest"]);
-      return Number(formatUnits(BigInt(hex), 18));
-    } catch {
-      /* fall through to public RPCs */
-    }
-  }
-
-  return withRetry(async () => {
-    return firstSuccessfulRpc("native balance", async (rpcUrl) => {
-      const client = makeClient(rpcUrl);
-      const wei = await client.getBalance({ address: address as `0x${string}` });
-      return Number(formatUnits(wei, 18));
-    });
-  }, "native balance");
-}
-
-async function readErc20Usdc(address: string): Promise<number> {
-  if (isArcAlchemyConfigured()) {
-    try {
-      const hex = await alchemyRpc<string>("eth_call", [
-        {
-          to: ARC_USDC_CONTRACT,
-          data: `0x70a08231${address.slice(2).padStart(64, "0")}`,
-        },
-        "latest",
-      ]);
-      return Number(formatUnits(BigInt(hex), 6));
-    } catch {
-      /* fall through */
-    }
-  }
-
-  return withRetry(async () => {
-    return firstSuccessfulRpc("erc20 balance", async (rpcUrl) => {
-      const client = makeClient(rpcUrl);
-      const wei = await client.readContract({
-        address: ARC_USDC_CONTRACT,
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        args: [address as `0x${string}`],
-      });
-      return Number(formatUnits(wei, 6));
-    });
-  }, "erc20 balance");
-}
-
-async function readBlockNumber(): Promise<number> {
-  if (isArcAlchemyConfigured()) {
-    try {
-      const hex = await alchemyRpc<string>("eth_blockNumber", []);
-      return Number(BigInt(hex));
-    } catch {
-      /* fall through */
-    }
-  }
-
-  try {
-    return await firstSuccessfulRpc("block number", async (rpcUrl) => {
-      const client = makeClient(rpcUrl);
-      const block = await client.getBlockNumber();
-      return Number(block);
-    });
-  } catch {
-    return 0;
-  }
-}
-
-/**
- * Read Arc testnet USDC from RPC — native (18 dec) + ERC-20 (6 dec).
- * Tries Alchemy (if configured) then all public Arc RPCs in parallel.
- */
-export async function getArcUsdcBalance(address: string): Promise<ArcUsdcBalance> {
+function normalizeAddress(address: string): `0x${string}` {
   const normalized = address.trim().toLowerCase();
   if (!/^0x[a-f0-9]{40}$/.test(normalized)) {
     throw new ArcRpcUnavailableError("Invalid wallet address");
   }
+  return normalized as `0x${string}`;
+}
 
-  try {
-    const [nativeUsd, erc20Usd] = await Promise.all([
-      readNativeUsdc(normalized),
-      readErc20Usdc(normalized).catch(() => 0),
-    ]);
+function balanceOfCallData(address: `0x${string}`): `0x${string}` {
+  return `0x70a08231${address.slice(2).padStart(64, "0")}` as `0x${string}`;
+}
 
-    const blockNumber = await readBlockNumber().catch(() => 0);
-    const totalUsd = Math.max(nativeUsd, erc20Usd);
-
-    return {
-      address: normalized,
-      chainId: ARC_CHAIN_ID as 5042002,
-      nativeUsdc: formatUsd(nativeUsd),
-      erc20Usdc: formatUsd(erc20Usd),
-      totalUsdc: formatUsd(totalUsd),
-      blockNumber,
-      source: "arc_rpc",
-      syncedAt: new Date().toISOString(),
-    };
-  } catch (e) {
-    if (e instanceof ArcRpcUnavailableError) throw e;
-    throw new ArcRpcUnavailableError(
-      e instanceof Error ? e.message : "Arc RPC request failed",
-    );
+async function readBalance(address: `0x${string}`): Promise<ArcBalanceRead> {
+  if (arcTestnet.id !== ARC_CHAIN_ID) {
+    throw new ArcRpcUnavailableError("Arc chain configuration mismatch");
   }
+
+  const native = await arcRpcAttempt<string>({
+    method: "eth_getBalance",
+    params: [address, "latest"],
+  });
+
+  // ERC-20 is a diagnostic/fallback interface for the same USDC balance, never an addend.
+  const erc20 = await arcRpcAttempt<string>({
+    method: "eth_call",
+    params: [{ to: ARC_USDC_CONTRACT, data: balanceOfCallData(address) }, "latest"],
+  });
+
+  const reconciled = reconcileArcUsdcInterfaces({
+    nativeWei: native.ok ? BigInt(native.data) : undefined,
+    erc20Units: erc20.ok ? BigInt(erc20.data) : undefined,
+  });
+
+  const block = await arcRpcAttempt<string>({ method: "eth_blockNumber", verifyChain: false });
+  return {
+    walletAddress: address,
+    chainId: ARC_CHAIN_ID as 5042002,
+    amountMicroUsdc: reconciled.amountMicroUsdc,
+    source: reconciled.source,
+    freshness: "live",
+    provider: native.ok ? native.provider : erc20.ok ? erc20.provider : undefined,
+    blockNumber: block.ok ? BigInt(block.data) : undefined,
+    readAt: new Date().toISOString(),
+    diagnostic: {
+      nativeMicroUsdc: reconciled.nativeMicroUsdc,
+      erc20MicroUsdc: reconciled.erc20MicroUsdc,
+      mismatch: reconciled.mismatch,
+    },
+  };
+}
+
+export async function getArcUsdcBalance(address: string): Promise<ArcUsdcBalance> {
+  const normalized = normalizeAddress(address);
+  const balance = await readBalance(normalized);
+  const native = balance.diagnostic?.nativeMicroUsdc;
+  const erc20 = balance.diagnostic?.erc20MicroUsdc;
+
+  return {
+    address: normalized,
+    chainId: balance.chainId,
+    amountMicroUsdc: balance.amountMicroUsdc.toString(),
+    nativeUsdc: native === undefined ? "0.00" : microUsdcToString(native),
+    erc20Usdc: erc20 === undefined ? "0.00" : microUsdcToString(erc20),
+    totalUsdc: microUsdcToString(balance.amountMicroUsdc),
+    blockNumber: Number(balance.blockNumber ?? 0n),
+    provider: balance.provider,
+    diagnostic: { mismatch: Boolean(balance.diagnostic?.mismatch) },
+    source: "arc_rpc",
+    syncedAt: balance.readAt,
+  };
 }
 
 export function isAlchemyConfigured(): boolean {
@@ -209,23 +130,10 @@ export function isAlchemyConfigured(): boolean {
 }
 
 export async function getArcTransactionCount(address: string): Promise<number> {
-  if (isArcAlchemyConfigured()) {
-    try {
-      const hex = await alchemyRpc<string>("eth_getTransactionCount", [address, "latest"]);
-      return Number(BigInt(hex));
-    } catch {
-      /* fall through */
-    }
-  }
-  try {
-    return await firstSuccessfulRpc("tx count", async (rpcUrl) => {
-      const client = makeClient(rpcUrl);
-      const hex = await client.getTransactionCount({
-        address: address as `0x${string}`,
-      });
-      return Number(hex);
-    });
-  } catch {
-    return 0;
-  }
+  const normalized = normalizeAddress(address);
+  const result = await arcRpcAttempt<string>({
+    method: "eth_getTransactionCount",
+    params: [normalized, "latest"],
+  });
+  return result.ok ? Number(BigInt(result.data)) : 0;
 }

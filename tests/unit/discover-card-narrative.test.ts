@@ -41,9 +41,9 @@ describe("buildDiscoverCardNarrative", () => {
     });
 
     expect(narrative.evidence).toMatch(/GitHub/i);
-    expect(narrative.problem).toMatch(/reward program/i);
-    expect(narrative.problem).toMatch(/cannot settle/i);
-    expect(narrative.opportunity).toMatch(/potential impact/i);
+    expect(narrative.problem).toMatch(/docs program/i);
+    expect(narrative.problem).toMatch(/no docs program is active/i);
+    expect(narrative.opportunity).toMatch(/estimated unpaid value/i);
     expect(narrative.opportunity).toMatch(/18/);
   });
 
@@ -59,8 +59,8 @@ describe("buildDiscoverCardNarrative", () => {
       opportunityState: "verified",
     });
 
-    expect(narrative.evidence).toMatch(/ledger now/i);
-    expect(narrative.problem).toMatch(/signal/i);
+    expect(narrative.evidence).toMatch(/fresh plays/i);
+    expect(narrative.problem).toMatch(/royalty pool/i);
   });
 
   it("explains disconnected source on funding board", () => {

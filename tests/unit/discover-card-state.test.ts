@@ -112,7 +112,7 @@ describe("deriveDiscoverCardState", () => {
       signedIn: true,
     });
     const primary = primarySlot(state);
-    expect(primary?.action.kind === "automate" || primary?.action.kind === "analyze").toBe(true);
+    expect(primary?.action.kind).toBe("fund");
     expect(state.actionSlots.some((s) => s.action.kind === "create_program")).toBe(false);
   });
 
@@ -125,7 +125,7 @@ describe("deriveDiscoverCardState", () => {
       ],
     });
     const state = deriveDiscoverCardState(gap, null, "graph", "founder", "board", { signedIn: true });
-    expect(primarySlot(state)?.action.kind).toBe("console");
+    expect(primarySlot(state)?.action.kind).toBe("fund");
   });
 
   it("prefers fund when rule exists but pool unfunded", () => {
@@ -178,7 +178,7 @@ describe("deriveDiscoverCardState", () => {
       spendableUsd: 2,
     });
     expect(primarySlot(state)?.disabled).toBe(true);
-    expect(primarySlot(state)?.disabledReason).toMatch(/Arc USDC/i);
+    expect(primarySlot(state)?.disabledReason).toMatch(/\$5 USDC/i);
   });
 
 
@@ -202,7 +202,7 @@ describe("deriveDiscoverCardState", () => {
     const state = deriveDiscoverCardState(gap, connections, "gaps", "founder", "trending-gaps", {
       signedIn: true,
     });
-    expect(primarySlot(state)?.action.kind).toBe("create_program");
+    expect(primarySlot(state)?.action.kind).toBe("fund");
   });
 
   it("treats 10 active rules as programmed not verified", () => {

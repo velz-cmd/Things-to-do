@@ -63,7 +63,7 @@ describe("bubble operator actions", () => {
     ];
     const repoActions = bubbleOperatorActions(repo, edges);
     expect(repoActions.map((a) => a.label)).toEqual(
-      expect.arrayContaining(["Fund", "Start bounty", "Sponsor", "Observe", "Automate"]),
+      expect.arrayContaining(["Fund this payout", "View rules", "Auto-pay on docs merge", "Settle queue"]),
     );
 
     const comm = node({
@@ -76,7 +76,7 @@ describe("bubble operator actions", () => {
     });
     const commActions = bubbleOperatorActions(comm, []);
     expect(commActions.map((a) => a.label)).toEqual(
-      expect.arrayContaining(["Start bounty", "Observe", "Automate"]),
+      expect.arrayContaining(["View rules", "Auto-pay on docs merge", "Settle queue"]),
     );
   });
 });

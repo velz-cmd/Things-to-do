@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import PaymentsPageClient from "../payments/payments-page-client";
+import {
+  CapitalCommandCenter,
+  CapitalCommandSkeleton,
+} from "@/components/resolve/capital/capital-command-center";
+import { getSessionUser } from "@/lib/auth/session";
+import { loadCapitalBootstrap } from "@/lib/capital/bootstrap";
 
 export const metadata: Metadata = {
   title: "Capital — RESOLVE",
-  description: "Where should money move? Treasury, claims, settlement.",
+  description: "Treasury control, authorization, settlement, reconciliation, and receipts.",
 };
 
-export default function CapitalPage() {
+export default async function CapitalPage() {
+  const user = await getSessionUser();
+  const initialData = user ? await loadCapitalBootstrap(user).catch(() => null) : null;
   return (
-    <Suspense fallback={<p className="p-6 text-sm text-resolve-muted">Loading capital…</p>}>
-      <PaymentsPageClient />
+    <Suspense fallback={<CapitalCommandSkeleton />}>
+      <CapitalCommandCenter initialData={initialData} />
     </Suspense>
   );
 }

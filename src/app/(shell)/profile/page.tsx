@@ -1,28 +1,14 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
-import { ProfileShell } from "@/components/resolve/profile/profile-shell";
-import { ProfileSectionSkeleton } from "@/components/resolve/profile/profile-section-skeleton";
-import { ProfileWorkServer } from "@/components/resolve/profile/profile-work-server";
-import { ProfileBootstrapProvider } from "@/components/resolve/profile/profile-bootstrap";
-import { ProfileContributorIdentity } from "@/components/resolve/profile/profile-contributor-identity";
-import { ProfileSettings } from "@/components/resolve/profile/profile-settings";
+import { ProfileControlPlane, ProfileControlPlaneSkeleton } from "@/components/resolve/profile/profile-control-plane";
 import { ProfileReturnBanner } from "@/components/resolve/profile/profile-return-banner";
+import { getSessionUser } from "@/lib/auth/session";
+import { loadProfileControlPlaneBootstrap } from "@/lib/profile/control-plane-bootstrap";
 
-/** Profile — identity & connections once; earnings live on Capital. */
-export default function ProfilePage() {
-  return (
-    <ProfileShell>
-      <Suspense fallback={null}>
-        <ProfileReturnBanner />
-      </Suspense>
-      <ProfileBootstrapProvider>
-        <ProfileSettings />
+export const metadata: Metadata = { title: "Profile — RESOLVE", description: "Identity, source, access, and payout controls." };
 
-        <Suspense fallback={<ProfileSectionSkeleton label="Connected work" />}>
-          <ProfileWorkServer />
-        </Suspense>
-
-        <ProfileContributorIdentity />
-      </ProfileBootstrapProvider>
-    </ProfileShell>
-  );
+export default async function ProfilePage() {
+  const user = await getSessionUser();
+  const initialData = user ? await loadProfileControlPlaneBootstrap(user).catch(() => null) : null;
+  return <><Suspense fallback={null}><ProfileReturnBanner /></Suspense><Suspense fallback={<ProfileControlPlaneSkeleton />}><ProfileControlPlane initialData={initialData} /></Suspense></>;
 }

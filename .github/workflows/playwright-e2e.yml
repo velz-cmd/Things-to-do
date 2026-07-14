@@ -67,6 +67,8 @@ jobs:
 
       - name: Run settlement integration tests
         run: npm run test:settlement
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096 --conditions=react-server"
 
       - name: Discover Playwright tests
         run: npx playwright test --list

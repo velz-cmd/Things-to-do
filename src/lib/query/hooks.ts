@@ -7,6 +7,7 @@ import { emptyRadarFeedPayload } from "@/lib/discover/radar-feed-fallback";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
 import type { CapitalStateResponse } from "@/lib/capital/state";
+import type { CapitalBootstrap } from "@/lib/capital/bootstrap";
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { credentials: "include", signal, cache: "no-store" });
@@ -209,6 +210,26 @@ export function useCapitalStateQuery(enabled: boolean) {
   });
 }
 
+export function useCapitalBootstrapQuery(enabled: boolean, initialData?: CapitalBootstrap | null) {
+  return useQuery({
+    queryKey: queryKeys.capitalBootstrap,
+    enabled,
+    initialData: initialData ?? undefined,
+    queryFn: ({ signal }) =>
+      fetchJsonWithTimeout<CapitalBootstrap>(
+        "/api/capital/bootstrap",
+        CAPITAL_FAST_TIMEOUT_MS,
+        signal,
+      ),
+    staleTime: 15_000,
+    gcTime: 300_000,
+    placeholderData: (previous) => previous,
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
 export function useFundingIntentQuery(id: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: queryKeys.fundingIntent(id ?? "missing"),
@@ -267,13 +288,13 @@ export function prefetchCommunitiesTab(queryClient: ReturnType<typeof useQueryCl
 
 export function prefetchWalletAndConnections(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.prefetchQuery({
-    queryKey: queryKeys.capitalState,
+    queryKey: queryKeys.capitalBootstrap,
     queryFn: () =>
-      fetchJsonWithTimeout<CapitalStateResponse>(
-        "/api/capital/state?fast=1",
+      fetchJsonWithTimeout<CapitalBootstrap>(
+        "/api/capital/bootstrap",
         CAPITAL_FAST_TIMEOUT_MS,
       ),
-    staleTime: 30_000,
+    staleTime: 15_000,
   });
   void queryClient.prefetchQuery({
     queryKey: queryKeys.profileState,

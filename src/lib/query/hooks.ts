@@ -8,6 +8,7 @@ import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
 import type { CapitalStateResponse } from "@/lib/capital/state";
 import type { CapitalBootstrap } from "@/lib/capital/bootstrap";
+import type { ProfileBootstrap } from "@/lib/profile/control-plane-bootstrap";
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { credentials: "include", signal, cache: "no-store" });
@@ -112,13 +113,14 @@ export async function discoverRadarFeedQueryFn(
   }
 }
 
-export function useProfileBootstrapQuery(enabled: boolean) {
+export function useProfileBootstrapQuery(enabled: boolean, initialData?: ProfileBootstrap | null) {
   return useQuery({
     queryKey: queryKeys.profileBootstrap,
     enabled,
+    initialData: initialData ?? undefined,
     queryFn: ({ signal }) =>
-      fetchJsonWithTimeout(
-        "/api/profile/bootstrap?fast=1",
+      fetchJsonWithTimeout<ProfileBootstrap>(
+        "/api/profile/bootstrap",
         PROFILE_FAST_TIMEOUT_MS,
         signal,
       ),

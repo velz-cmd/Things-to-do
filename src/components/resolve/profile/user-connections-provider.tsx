@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useState,
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +19,8 @@ import { PROFILE_REFRESH_EVENT } from "@/lib/profile/refresh-events";
 import {
   readConnectionSnapshot,
   writeConnectionSnapshot,
+  mergeConnectionStates,
+  CONNECTION_SNAPSHOT_EVENT,
 } from "@/lib/profile/connection-snapshot-client";
 
 type UserConnectionsContextValue = {
@@ -37,9 +40,10 @@ const UserConnectionsContext = createContext<UserConnectionsContextValue>({
 export function UserConnectionsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [snapshotRevision, setSnapshotRevision] = useState(0);
   const snapshot = useMemo(
     () => (user ? readConnectionSnapshot(user.id) : null),
-    [user],
+    [user, snapshotRevision],
   );
 
   const query = useUserConnectionsQuery(Boolean(user), snapshot);
@@ -47,10 +51,27 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
   const state = useMemo((): UserConnectionState => {
     if (!user) return emptyConnectionState();
     const body = query.data as (UserConnectionState & { ok?: boolean }) | undefined;
-    if (body?.signedIn) return body;
+    if (body?.signedIn) return snapshot?.signedIn ? mergeConnectionStates(snapshot, body) : body;
     if (snapshot?.signedIn) return snapshot;
     return emptyConnectionState();
   }, [user, query.data, snapshot]);
+
+  useEffect(() => {
+    if (!user) return;
+    const refreshSnapshot = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string }>).detail;
+      if (!detail?.userId || detail.userId === user.id) setSnapshotRevision((value) => value + 1);
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "resolve:connection-snapshot:v3") setSnapshotRevision((value) => value + 1);
+    };
+    window.addEventListener(CONNECTION_SNAPSHOT_EVENT, refreshSnapshot);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(CONNECTION_SNAPSHOT_EVENT, refreshSnapshot);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user || !query.data) return;

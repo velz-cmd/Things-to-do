@@ -39,27 +39,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Require isolated E2E configuration
-        shell: bash
-        run: |
-          required=(
-            DATABASE_URL
-            NEXT_PUBLIC_SUPABASE_URL
-            NEXT_PUBLIC_SUPABASE_ANON_KEY
-            SUPABASE_SERVICE_ROLE_KEY
-            E2E_TEST_EMAIL
-            E2E_TEST_PASSWORD
-          )
-          for name in "${required[@]}"; do
-            if [ -z "${!name:-}" ]; then
-              echo "::error::$name is required and must point to the isolated E2E environment."
-              exit 1
-            fi
-          done
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
       - name: Generate Prisma client
         run: npx prisma generate
 
@@ -91,6 +70,27 @@ jobs:
 
       - name: Build application
         run: npm run build
+
+      - name: Require isolated E2E configuration
+        shell: bash
+        run: |
+          required=(
+            DATABASE_URL
+            NEXT_PUBLIC_SUPABASE_URL
+            NEXT_PUBLIC_SUPABASE_ANON_KEY
+            SUPABASE_SERVICE_ROLE_KEY
+            E2E_TEST_EMAIL
+            E2E_TEST_PASSWORD
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required and must point to the isolated E2E environment."
+              exit 1
+            fi
+          done
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Verify Discover tab smoke
         run: |

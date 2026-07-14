@@ -25,14 +25,14 @@ describe("domain radar actions", () => {
     expect(labels).toContain("Fund maintainers");
     expect(labels).toContain("Docs bounty");
     expect(labels).toContain("Security fund");
-    expect(labels).toContain("GitHub sensor");
+    expect(labels).toContain("Explore ecosystem");
 
     const graph = actions.find((a) => a.id === "graph");
     expect(graph?.entityPath).toBe("/e/repo/facebook/react#people");
 
     const sensor = actions.find((a) => a.id === "sensor");
-    expect(sensor?.href).toBe("/communities/react#health");
-    expect(sensor?.kind).toBe("connect_sensor");
+    expect(sensor?.communitySlug).toBe("react");
+    expect(sensor?.kind).toBe("install");
 
     const fund = actions.find((a) => a.id === "fund");
     expect(fund?.templateId).toBe("docs-bounty");
@@ -66,7 +66,7 @@ describe("domain radar actions", () => {
     const labels = actions.map((a) => a.label);
     expect(labels).toContain("Fund grant pool");
     expect(labels).toContain("Contributor payroll");
-    expect(labels).toContain("Connect treasury");
+    expect(labels).toContain("Open treasury");
     expect(labels).not.toContain("Import members");
 
     const treasury = actions.find((a) => a.id === "treasury");

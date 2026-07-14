@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { buildFastIdentities } from "@/lib/profile/build-fast-identities";
 import { loadProfileFast } from "@/lib/profile/load-profile-fast";
 import { resolveCanonicalWalletRegistry } from "@/lib/wallet/canonical-wallet-registry";
+import { profileAuthorizeUrl } from "@/lib/profile/oauth-return";
 
 export type ProfileBlocker = {
   id: "identity" | "source" | "payout" | "security";
@@ -146,7 +147,7 @@ export async function loadProfileControlPlaneBootstrap(authUser: SupabaseUser): 
   });
   for (const row of fastIdentities) {
     if (identityProviders.has(row.id)) continue;
-    identities.push({ id: `profile:${row.id}`, provider: row.id, label: PROVIDERS[row.id]?.label ?? row.id, value: row.displayValue ?? null, status: row.connected ? "connected" : "not_connected", purpose: identityPurpose(row.id), verifiedAt: null, authorizeUrl: row.authorizeUrl ? `${row.authorizeUrl}${row.authorizeUrl.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent("/profile?view=identities")}` : PROVIDERS[row.id]?.authorizeUrl ?? null });
+    identities.push({ id: `profile:${row.id}`, provider: row.id, label: PROVIDERS[row.id]?.label ?? row.id, value: row.displayValue ?? null, status: row.connected ? "connected" : "not_connected", purpose: identityPurpose(row.id), verifiedAt: null, authorizeUrl: row.authorizeUrl ? profileAuthorizeUrl(row.authorizeUrl, "/profile?view=identities") : PROVIDERS[row.id]?.authorizeUrl ?? null });
   }
 
   const connectionProviders = new Set([...Object.keys(PROVIDERS), ...sourceRows.map((row) => row.provider.toLowerCase()), ...fastIdentities.map((row) => row.id)]);
@@ -157,7 +158,7 @@ export async function loadProfileControlPlaneBootstrap(authUser: SupabaseUser): 
     const expired = Boolean(persisted?.authExpiresAt && persisted.authExpiresAt.getTime() <= Date.now());
     const connected = persisted?.status === "connected" || Boolean(legacy?.connected);
     const status: ProfileConnectionSummary["status"] = expired ? "expired" : persisted?.status === "error" ? "error" : connected ? "connected" : "not_connected";
-    return { id: persisted?.id ?? `profile:${provider}`, provider, label: definition.label, group: definition.group, account: persisted?.displayLabel ?? legacy?.displayValue ?? null, status, health: status === "connected" ? "healthy" : status === "not_connected" ? "unknown" : "attention", lastSyncAt: persisted?.lastSyncedAt?.toISOString() ?? null, permissions: jsonStrings(persisted?.capabilitiesJson), purpose: definition.purpose, authorizeUrl: legacy?.authorizeUrl ? `${legacy.authorizeUrl}${legacy.authorizeUrl.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent("/profile?view=sources")}` : definition.authorizeUrl };
+    return { id: persisted?.id ?? `profile:${provider}`, provider, label: definition.label, group: definition.group, account: persisted?.displayLabel ?? legacy?.displayValue ?? null, status, health: status === "connected" ? "healthy" : status === "not_connected" ? "unknown" : "attention", lastSyncAt: persisted?.lastSyncedAt?.toISOString() ?? null, permissions: jsonStrings(persisted?.capabilitiesJson), purpose: definition.purpose, authorizeUrl: legacy?.authorizeUrl ? profileAuthorizeUrl(legacy.authorizeUrl, "/profile?view=sources") : definition.authorizeUrl };
   });
 
   const appWalletRecord = walletRows.find((row) => row.address.toLowerCase() === profile.walletAddress?.toLowerCase()) ?? walletRows.find((row) => row.custodyType !== "external");
@@ -166,7 +167,7 @@ export async function loadProfileControlPlaneBootstrap(authUser: SupabaseUser): 
   const connectedWallet = registry.connectedWallet ? { id: `connected:${registry.connectedWallet.address}`, address: registry.connectedWallet.address, network: "Arc Testnet", provider: registry.connectedWallet.connector, status: "connected" } satisfies ProfileWalletSummary : null;
   const payoutDestination = registry.payoutWallet ? { id: payout?.id ?? `payout:${registry.payoutWallet.address}`, address: registry.payoutWallet.address, network: payout?.network ?? "Arc Testnet", provider: "payout", status: payout?.status ?? registry.payoutWallet.verificationState, verificationState: registry.payoutWallet.verificationState } satisfies ProfileWalletSummary : null;
 
-  const identityReady = identities.some((row) => row.status === "verified" || row.status === "connected");
+  const identityReady = identities.some((row) => row.provider !== "gmail" && (row.status === "verified" || row.status === "connected"));
   const sourceReady = connections.some((row) => row.status === "connected");
   const payoutReady = payoutDestination?.verificationState === "verified";
   const emailVerified = Boolean(authUser.email_confirmed_at);

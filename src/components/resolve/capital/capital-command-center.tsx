@@ -178,7 +178,9 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
     setClaiming(true);
     setActionError(null);
     try {
-      const response = await fetch("/api/rewards/claim", { method: "POST", credentials: "include" });
+      const walletAddress = query.data?.wallets.appWallet?.address ?? initialData?.wallets.appWallet?.address;
+      if (!walletAddress) throw new Error("A RESOLVE wallet is required before earnings can be collected.");
+      const response = await fetch("/api/rewards/claim", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "idempotency-key": typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `capital-claim-${Date.now()}` }, body: JSON.stringify({ walletAddress }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Earnings could not be collected.");
       await Promise.all([
@@ -190,7 +192,7 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
     } finally {
       setClaiming(false);
     }
-  }, [queryClient]);
+  }, [initialData?.wallets.appWallet?.address, query.data?.wallets.appWallet?.address, queryClient]);
 
   const counts = useMemo(() => ({
     obligations: data?.authorizations.reduce((sum, item) => sum + item.obligationCount, 0) ?? 0,
@@ -284,9 +286,9 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
         </nav>
 
         <section className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-[#07111d] p-3" aria-label="Capital actions">
-          <button type="button" onClick={() => openAddFunds()} className="min-h-11 rounded-xl bg-blue-500 px-4 text-xs font-semibold text-white">Add USDC</button>
-          <button type="button" onClick={() => openSendFunds()} className="min-h-11 rounded-xl border border-white/10 px-4 text-xs font-semibold text-white">Send USDC</button>
-          <button type="button" onClick={() => selectView("authorizations")} className="min-h-11 rounded-xl border border-white/10 px-4 text-xs font-semibold text-white">Review authorizations</button>
+          <button type="button" onClick={() => openAddFunds()} data-action-id="capital.add_usdc" data-testid="capital-dock-add-usdc" className="min-h-11 rounded-xl bg-blue-500 px-4 text-xs font-semibold text-white">Add USDC</button>
+          <button type="button" onClick={() => openSendFunds()} data-action-id="capital.send_usdc" data-testid="capital-dock-send-usdc" className="min-h-11 rounded-xl border border-white/10 px-4 text-xs font-semibold text-white">Send USDC</button>
+          <button type="button" onClick={() => selectView("authorizations")} data-action-id="capital.review_authorization" data-testid="capital-dock-review-authorizations" className="min-h-11 rounded-xl border border-white/10 px-4 text-xs font-semibold text-white">Review authorizations</button>
           <button type="button" onClick={() => void collect()} disabled={claimable <= 0n || claiming} data-action-id="capital.collect_earnings" data-testid="capital-collect-earnings" className={`min-h-11 rounded-xl px-4 text-xs font-semibold ${claimable > 0n ? "bg-emerald-400 text-[#032016]" : "border border-white/[0.08] text-[#65758b]"}`}>{claiming ? "Collecting…" : `Collect ${micro(data.moneyState.claimableMicroUsdc)}`}</button>
         </section>
 

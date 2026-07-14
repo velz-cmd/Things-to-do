@@ -11,6 +11,7 @@ import { settleClaimBatch } from "@/lib/banking/claim-settlement";
 import { buildFxSwapHint } from "@/lib/settlement/fx";
 import { getContributorPayoutPreference } from "@/lib/identity/contributors";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 const bodySchema = z.object({
   walletAddress: z.string(),
@@ -33,6 +34,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: session.error }, { status: session.status });
   }
 
+  const requestedKey = req.headers.get("idempotency-key");
+  if (requestedKey) {
+    const replay = await prisma.actionRun.findUnique({ where: { idempotencyKey: requestedKey } });
+    if (replay?.state === "completed" && replay.output) return NextResponse.json({ ...(replay.output as Record<string, unknown>), replayed: true });
+    if (replay && ["validating", "running", "pending_external"].includes(replay.state)) return NextResponse.json({ error: "Collection is already in progress", actionRunId: replay.id }, { status: 409 });
+  }
   const parsed = bodySchema.safeParse(await req.json());
   if (!parsed.success || !parsed.data.walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
     return NextResponse.json({ error: "Valid walletAddress required" }, { status: 400 });
@@ -114,6 +121,12 @@ export async function POST(req: Request) {
       settlementId: r.settlementId,
     })),
   ];
+  const idempotencyKey = requestedKey ?? `capital.collect_earnings:${session.user.id}:${claimItems.map((item) => item.id).sort().join(",")}`;
+  const actionRun = await prisma.actionRun.upsert({
+    where: { idempotencyKey },
+    create: { userId: session.user.id, actionId: "capital.collect_earnings", aggregateType: "EarningClaim", idempotencyKey, state: "pending_external", recommendationReason: "Only currently claimable, attributed earnings are included in the settlement batch.", input: { walletAddress: payoutWallet, claimItemIds: claimItems.map((item) => item.id) } },
+    update: {},
+  });
 
   let batchTxHash: string | undefined;
   let batchMemo: string | undefined;
@@ -238,7 +251,7 @@ export async function POST(req: Request) {
     : "USDC";
   const fxHint = buildFxSwapHint(totalUsd, payoutCurrency);
 
-  return NextResponse.json({
+  const output = {
     ok: !settlementFailed,
     githubUsername,
     walletAddress: payoutWallet,
@@ -248,5 +261,8 @@ export async function POST(req: Request) {
     fxHint,
     batchId,
     arcBatch: true,
-  });
+  };
+  const persistedOutput = JSON.parse(JSON.stringify(output)) as Prisma.InputJsonValue;
+  await prisma.actionRun.update({ where: { id: actionRun.id }, data: { state: settlementFailed ? "sync_failed" : "completed", output: persistedOutput, errorCode: settlementFailed ? "ARC_SETTLEMENT_FAILED" : null, errorMessage: settlementFailed ? "Arc settlement did not confirm; claim items remain recoverable." : null, completedAt: new Date() } });
+  return NextResponse.json({ ...output, actionRunId: actionRun.id }, { status: settlementFailed ? 502 : 200 });
 }

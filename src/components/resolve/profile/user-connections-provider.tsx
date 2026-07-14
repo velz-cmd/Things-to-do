@@ -41,10 +41,10 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [snapshotRevision, setSnapshotRevision] = useState(0);
-  const snapshot = useMemo(
-    () => (user ? readConnectionSnapshot(user.id) : null),
-    [user, snapshotRevision],
-  );
+  const snapshot = useMemo(() => {
+    void snapshotRevision;
+    return user ? readConnectionSnapshot(user.id) : null;
+  }, [user, snapshotRevision]);
 
   const query = useUserConnectionsQuery(Boolean(user), snapshot);
 
@@ -100,17 +100,22 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
 
   const refreshSync = useCallback(async () => {
     if (!user) return;
-    await fetch("/api/profile/connections", {
-      method: "POST",
-      credentials: "include",
-    });
+    const provider = state.platforms.find((row) => row.connected && ["github", "listenbrainz", "navidrome", "jellyfin", "gmail"].includes(row.id))?.id;
+    if (provider) {
+      await fetch("/api/profile/connections", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider }),
+      });
+    }
     await queryClient.invalidateQueries({ queryKey: queryKeys.profileState });
     await queryClient.invalidateQueries({ queryKey: queryKeys.userConnections });
     await queryClient.invalidateQueries({ queryKey: queryKeys.profileBootstrap });
     await queryClient.invalidateQueries({ queryKey: queryKeys.communities });
     await queryClient.invalidateQueries({ queryKey: queryKeys.discoverRadarFeed(24) });
     void query.refetch();
-  }, [user, queryClient, query]);
+  }, [user, state.platforms, queryClient, query]);
 
   return (
     <UserConnectionsContext.Provider

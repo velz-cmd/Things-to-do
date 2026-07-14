@@ -11,6 +11,7 @@ import { syncUserMusicSensors } from "@/lib/connectors/user-music-sync";
 import { syncUserJellyfinSensors, connectJellyfinForUser } from "@/lib/connectors/user-jellyfin-sync";
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
+import { appendOperationalEventInTransaction } from "@/lib/events/operational-event";
 
 const navidromeSchema = z.object({
   url: z.string().url().max(512),
@@ -169,7 +170,7 @@ async function invalidateAfterDisconnect(userId: string) {
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ platform: string }> },
 ) {
   const { platform: raw } = await ctx.params;
@@ -183,12 +184,23 @@ export async function DELETE(
     return NextResponse.json({ error: ready.error }, { status: ready.status });
   }
 
-  await prisma.user.update({
-    where: { id: ready.user.id },
-    data: DISCONNECT_FIELDS[platform],
+  const idempotencyKey = req.headers.get("idempotency-key") ?? `profile.disconnect_source:${ready.user.id}:${platform}:${ready.profile.updatedAt.toISOString()}`;
+  const correlationId = req.headers.get("x-correlation-id") ?? idempotencyKey;
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.actionRun.findUnique({ where: { idempotencyKey } });
+    if (existing?.state === "completed") return { actionRunId: existing.id, replayed: true };
+    await tx.user.update({ where: { id: ready.user.id }, data: DISCONNECT_FIELDS[platform] });
+    await tx.sourceConnection.updateMany({ where: { userId: ready.user.id, provider: platform }, data: { status: "disconnected" } });
+    const run = await tx.actionRun.upsert({
+      where: { idempotencyKey },
+      create: { userId: ready.user.id, actionId: "profile.disconnect_source", aggregateType: "SourceConnection", aggregateId: platform, idempotencyKey, state: "completed", recommendationReason: "The user explicitly confirmed that this evidence source should be disconnected.", input: { provider: platform }, output: { status: "disconnected" }, completedAt: new Date() },
+      update: {},
+    });
+    await appendOperationalEventInTransaction(tx, { eventType: "profile.source_disconnected", aggregateType: "SourceConnection", aggregateId: platform, userId: ready.user.id, correlationId, idempotencyKey: `${idempotencyKey}:event`, payload: { provider: platform } });
+    return { actionRunId: run.id, replayed: false };
   });
 
   await invalidateAfterDisconnect(ready.user.id);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, ...result });
 }

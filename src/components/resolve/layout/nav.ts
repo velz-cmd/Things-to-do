@@ -1,15 +1,23 @@
 import {
   Compass,
+  House,
+  CircleDollarSign,
   Layers,
   Sparkles,
   Wallet,
-  User,
 } from "lucide-react";
 
 /**
  * FROZEN — five primary areas. Network folded into Discover; Communities = operate.
  */
 export const PRODUCT_NAV = [
+  {
+    href: "/",
+    label: "Home",
+    question: "How does verified work become an earning?",
+    icon: House,
+    exact: true as const,
+  },
   {
     href: "/discover",
     label: "Discover",
@@ -32,17 +40,17 @@ export const PRODUCT_NAV = [
     exact: false as const,
   },
   {
+    href: "/earn",
+    label: "Earn",
+    question: "What value did I create and what can I receive?",
+    icon: CircleDollarSign,
+    exact: false as const,
+  },
+  {
     href: "/capital",
     label: "Capital",
     question: "Where should money move?",
     icon: Wallet,
-    exact: false as const,
-  },
-  {
-    href: "/profile",
-    label: "Profile",
-    question: "Who am I in this ecosystem?",
-    icon: User,
     exact: false as const,
   },
 ] as const;

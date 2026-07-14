@@ -2,12 +2,12 @@
  * Verify production demo readiness against a live deployment.
  *
  * Usage:
- *   APP_URL=https://things-to-do-eta.vercel.app CRON_SECRET=... npx tsx scripts/verify-production-demo.ts
+ *   APP_URL=https://resolve-self.vercel.app CRON_SECRET=... npx tsx scripts/verify-production-demo.ts
  */
 const base =
   process.env.APP_URL?.replace(/\/$/, "") ||
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-  "https://things-to-do-eta.vercel.app";
+  "https://resolve-self.vercel.app";
 
 const cron = process.env.CRON_SECRET?.trim() || process.env.CLAIM_TOKEN_SECRET?.trim();
 

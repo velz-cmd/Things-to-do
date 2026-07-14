@@ -8,6 +8,7 @@ import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-dom
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
 import { DiscoverLiveArcStrip } from "@/components/resolve/discover/discover-live-arc-strip";
 import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
+import { OutcomeCampaignDiscover } from "@/components/resolve/outcomes/outcome-campaign-discover";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverNeedTypeFilters } from "@/components/resolve/discover/discover-need-type-filters";
@@ -137,6 +138,8 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           query={query}
           onQueryChange={setQuery}
         />
+
+        <OutcomeCampaignDiscover signedIn={Boolean(user)} />
 
         <div className={styles.operationalRail} aria-label="Discover operational status">
           <DiscoverLiveArcStrip />

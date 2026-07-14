@@ -18,13 +18,14 @@ jobs:
       PLAYWRIGHT_ENABLED: "true"
       CI: "true"
       NODE_OPTIONS: "--max-old-space-size=4096"
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.DIRECT_URL }}
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Authenticated E2E must never mutate the production Supabase project.
+      DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.E2E_DIRECT_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
       E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
       E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
     steps:
@@ -38,17 +39,58 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Sync database schema
-        run: npx prisma db push --skip-generate
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: Verify Prisma formatting
+        run: |
+          npx prisma format
+          git diff --exit-code -- prisma/schema.prisma
+
+      - name: Validate TypeScript
+        run: npx tsc --noEmit
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npx vitest run
+
+      - name: Run lifecycle tests
+        run: npm run test:operating-system
+
+      - name: Run settlement integration tests
+        run: npm run test:settlement
+
+      - name: Discover Playwright tests
+        run: npx playwright test --list
 
       - name: Build application
         run: npm run build
+
+      - name: Require isolated E2E configuration
+        shell: bash
+        run: |
+          required=(
+            DATABASE_URL
+            NEXT_PUBLIC_SUPABASE_URL
+            NEXT_PUBLIC_SUPABASE_ANON_KEY
+            SUPABASE_SERVICE_ROLE_KEY
+            E2E_TEST_EMAIL
+            E2E_TEST_PASSWORD
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required and must point to the isolated E2E environment."
+              exit 1
+            fi
+          done
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Verify Discover tab smoke
         run: |

@@ -20,8 +20,8 @@ Apply to **Production**, **Preview**, and **Development**.
 After deploy:
 
 ```bash
-curl https://things-to-do-eta.vercel.app/api/integrations/health
-curl https://things-to-do-eta.vercel.app/api/github/blueprint
+curl https://resolve-self.vercel.app/api/integrations/health
+curl https://resolve-self.vercel.app/api/github/blueprint
 ```
 
 All `live.*.ok` should be `true` when keys are set.

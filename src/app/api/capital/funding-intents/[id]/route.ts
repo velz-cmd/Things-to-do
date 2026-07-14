@@ -131,6 +131,16 @@ export async function PATCH(req: Request, context: RouteContext) {
     transactionId = transaction.id;
   }
 
+  if (current.communitySlug === "outcome-campaign" && current.programId) {
+    const campaign = await prisma.outcomeCampaign.findFirst({ where: { id: current.programId, creatorUserId: ready.profile.id, fundingIntentId: current.id } });
+    if (campaign) {
+      await prisma.$transaction([
+        prisma.outcomeCampaign.update({ where: { id: campaign.id }, data: { status: parsed.data.status === "confirmed" ? "ready_to_publish" : "funding_required" } }),
+        prisma.campaignFundingRequirement.update({ where: { campaignId: campaign.id }, data: { status: parsed.data.status === "confirmed" ? "funded" : "authorization_required" } }),
+      ]);
+    }
+  }
+
   await appendOperationalEvent({
     eventType: `capital.funding_${parsed.data.status}`,
     aggregateType: "funding_intent",

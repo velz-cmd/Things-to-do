@@ -518,6 +518,6 @@ export async function buildPublicReceipt(id: string): Promise<PublicReceipt | nu
 }
 
 export function receiptShareUrl(id: string, baseUrl?: string): string {
-  const origin = baseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://things-to-do-eta.vercel.app";
+  const origin = baseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://resolve-self.vercel.app";
   return `${origin.replace(/\/$/, "")}/receipt/${id}`;
 }

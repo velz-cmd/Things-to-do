@@ -13,8 +13,8 @@
 
 set -euo pipefail
 
-VERCEL_ORG_ID="${VERCEL_ORG_ID:-team_apDtKK364C3BW1LjG3M93rhI}"
-VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID:-prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd}"
+VERCEL_ORG_ID="${VERCEL_ORG_ID:-team_JE6WKRJNgG5DlDCnTMQA23pB}"
+VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID:-prj_0xIUtSzxZ2Cqeie8eHYB6iPAKIN0}"
 
 if [[ -z "${VERCEL_TOKEN:-}" ]]; then
   echo "Set VERCEL_TOKEN from https://vercel.com/account/tokens"
@@ -47,5 +47,4 @@ upsert_env "CLOUDFLARE_AI_GATEWAY_ENABLED" "${CLOUDFLARE_AI_GATEWAY_ENABLED:-fal
 upsert_env "CLOUDFLARE_API_TOKEN" "${CLOUDFLARE_API_TOKEN:-}"
 
 echo ""
-echo "Done. Trigger NEW deployment (not prebuilt redeploy):"
-echo "  curl -X POST https://api.vercel.com/v1/integrations/deploy/prj_bCorqG2sezHdXiRmedRRwV0Q7Rhd/krAQUtlB2i"
+echo "Done. Push the validated release to main once; the Vercel Git integration creates the production deployment."

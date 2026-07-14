@@ -34,7 +34,7 @@ A slow **deploy** does not make APIs hang. Infinite loading in the UI is caused 
 **Verify in production:**
 
 ```bash
-curl -s https://things-to-do-eta.vercel.app/api/health/cache | jq '.sentry'
+curl -s https://resolve-self.vercel.app/api/health/cache | jq '.sentry'
 ```
 
 Expected: `configured: true`, `sourcemapsOnBuild: true` when `SENTRY_AUTH_TOKEN` is set on Vercel.
@@ -46,7 +46,7 @@ Expected: `configured: true`, `sourcemapsOnBuild: true` when `SENTRY_AUTH_TOKEN`
 ## Upstash Redis verification
 
 ```bash
-curl -s https://things-to-do-eta.vercel.app/api/health/cache | jq '.redis'
+curl -s https://resolve-self.vercel.app/api/health/cache | jq '.redis'
 ```
 
 Expected: `configured: true`, `ping.ok: true`.
@@ -140,7 +140,7 @@ All return parseable JSON on failure; never throw to the client.
 ## Production smoke checklist
 
 ```bash
-BASE=https://things-to-do-eta.vercel.app
+BASE=https://resolve-self.vercel.app
 
 # Redis + Sentry config
 curl -s "$BASE/api/health/cache" | jq '{redis: .redis, sentry: .sentry}'

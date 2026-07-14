@@ -47,6 +47,11 @@ async function testMockAdapterNoFakeLinks() {
 }
 
 async function testReleaseBlockedUntilProof() {
+  if (!process.env.DATABASE_URL) {
+    console.log("○ release blocked test skipped (no DATABASE_URL)");
+    return;
+  }
+
   const adapter = new ArcMockAdapter();
   await assert.rejects(
     () => adapter.release({ taskId: "nonexistent-task", reason: "test" }),

@@ -14,6 +14,10 @@ import { withProviderTimeout } from "@/lib/providers/provider-router";
 import { finalizeAllPendingArcFundsForUser } from "@/lib/capital/fund-program-finalize";
 import type { CapitalWalletResponse } from "@/lib/capital/wallet-types";
 import type { ArcUsdcBalance } from "@/lib/wallet/arc-usdc-balance";
+import {
+  resolveCanonicalWalletRegistry,
+  type ResolvedUserWallets,
+} from "@/lib/wallet/canonical-wallet-registry";
 
 const ARC_CHAIN_ID = 5042002;
 const ARC_EXPLORER_URL = process.env.NEXT_PUBLIC_ARC_EXPLORER_URL ?? "https://testnet.arcscan.app";
@@ -27,6 +31,7 @@ type ProfileLight = {
   githubUsername: string | null;
   listenbrainzUsername: string | null;
   embeddedWallet: boolean;
+  selectedCapitalWallet: string;
   availableUsd: number;
   taskMemoryJson: string | null;
   updatedAt: Date;
@@ -65,6 +70,7 @@ export type CapitalStateResponse = {
   claimableAmount: number;
   lastSyncedAt: string | null;
   syncStatus: "live" | "cached" | "syncing" | "error" | "unknown" | "no_wallet";
+  networkHealth: "healthy" | "degraded" | "unavailable" | "unknown";
   syncError: string | null;
   account: {
     email: string | null;
@@ -85,6 +91,9 @@ export type CapitalStateResponse = {
   code?: string;
   message?: string;
   walletSlices?: WalletBalanceSlice[];
+  walletRegistry?: ResolvedUserWallets;
+  selectedWallet?: "app" | "connected";
+  portfolioTotalBalance?: number;
 };
 
 export type WalletBalanceSlice = {
@@ -109,6 +118,7 @@ async function loadProfileLight(userId: string): Promise<ProfileLight | null> {
       githubUsername: true,
       listenbrainzUsername: true,
       embeddedWallet: true,
+      selectedCapitalWallet: true,
       availableUsd: true,
       taskMemoryJson: true,
       updatedAt: true,
@@ -242,8 +252,9 @@ function formatUsd(amount: number): string {
 
 async function readAddressBalanceWithFallback(
   address: string,
-  cachedUsd?: number | null,
 ): Promise<ArcUsdcBalance> {
+  return getCachedArcUsdcBalance(address);
+  /* Legacy cached substitution intentionally disabled: a failed RPC must not be reported as live.
   try {
     return await getCachedArcUsdcBalance(address);
   } catch {
@@ -261,18 +272,18 @@ async function readAddressBalanceWithFallback(
     }
     throw new ArcRpcUnavailableError(`Could not read Arc balance for ${address.slice(0, 8)}…`);
   }
+  */
 }
 
 async function readAggregatedArcBalance(
   addresses: string[],
-  cachedByAddress?: Map<string, number>,
 ): Promise<{ combined: ArcUsdcBalance; perWallet: ArcUsdcBalance[] } | null> {
   const unique = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter(Boolean))];
   if (!unique.length) return null;
 
   const results = await Promise.allSettled(
     unique.map((addr) =>
-      readAddressBalanceWithFallback(addr, cachedByAddress?.get(addr) ?? null),
+      readAddressBalanceWithFallback(addr),
     ),
   );
   const perWallet = results
@@ -295,6 +306,9 @@ async function readAggregatedArcBalance(
     combined: {
       ...primary,
       address: primary.address,
+      amountMicroUsdc: perWallet
+        .reduce((sum, balance) => sum + BigInt(balance.amountMicroUsdc), 0n)
+        .toString(),
       nativeUsdc: formatUsd(totalNative),
       erc20Usdc: formatUsd(totalErc20),
       totalUsdc: formatUsd(totalUsd),
@@ -370,6 +384,7 @@ export async function loadCapitalState(
         githubUsername: ensured.githubUsername,
         listenbrainzUsername: ensured.listenbrainzUsername,
         embeddedWallet: Boolean(ensured.embeddedWallet),
+        selectedCapitalWallet: ensured.selectedCapitalWallet,
         availableUsd: ensured.availableUsd,
         taskMemoryJson: ensured.taskMemoryJson,
         updatedAt: ensured.updatedAt,
@@ -392,6 +407,7 @@ export async function loadCapitalState(
         githubUsername: ensured.githubUsername,
         listenbrainzUsername: ensured.listenbrainzUsername,
         embeddedWallet: Boolean(ensured.embeddedWallet),
+        selectedCapitalWallet: ensured.selectedCapitalWallet,
         availableUsd: ensured.availableUsd,
         taskMemoryJson: ensured.taskMemoryJson,
         updatedAt: ensured.updatedAt,
@@ -414,8 +430,6 @@ export async function loadCapitalState(
         "capital:finalize_pending_funds",
       ).catch(() => 0);
     }
-  } else if (profile) {
-    void syncIdentityBalance(profile.id).catch(() => null);
   }
 
   const walletResolved = resolveUserWallet(authUser.id, profile, authUser);
@@ -424,6 +438,30 @@ export async function loadCapitalState(
     : [walletResolved.address];
   const walletProvider =
     profile ? appWalletProvider(profile as Parameters<typeof appWalletProvider>[0]) : "embedded";
+  const [walletRecord, payoutDestination] = profile
+    ? await Promise.all([
+        prisma.wallet.findFirst({
+          where: { userId: profile.id, address: profile.walletAddress?.toLowerCase() },
+          orderBy: { updatedAt: "desc" },
+          select: { id: true },
+        }).catch(() => null),
+        prisma.payoutDestination.findFirst({
+          where: { userId: profile.id, status: { in: ["verified", "pending"] } },
+          orderBy: [{ verifiedAt: "desc" }, { updatedAt: "desc" }],
+          select: { address: true, status: true },
+        }).catch(() => null),
+      ])
+    : [null, null];
+  const walletRegistry = profile
+    ? resolveCanonicalWalletRegistry({
+        userId: profile.id,
+        profile,
+        appWalletId: walletRecord?.id,
+        appWalletProvider: walletProvider === "circle" ? "circle" : "embedded",
+        payoutDestination,
+      })
+    : null;
+  const selectedWallet = walletRegistry?.selectedCapitalWallet ?? "app";
   const base = {
     walletConnected: Boolean(walletResolved.address),
     walletAddress: walletResolved.address,
@@ -446,6 +484,8 @@ export async function loadCapitalState(
         null,
     },
     warnings,
+    networkHealth: "unknown" as const,
+    ...(walletRegistry ? { walletRegistry, selectedWallet } : {}),
   };
 
   const cachedBalance = cachedBalanceFromProfile(profile);
@@ -511,13 +551,19 @@ export async function loadCapitalState(
       reservedUsd,
       cachedAppUsd: fastBalance,
     });
+    const selectedKind = selectedWallet === "connected" ? "external" : "app";
+    const selectedSlice = walletSlices.find((slice) => slice.kind === selectedKind) ?? null;
+    const selectedOnChain = selectedSlice?.onChainUsd ?? 0;
+    const selectedSpendable = selectedSlice?.spendableUsd ?? 0;
+    const portfolioTotal = roundUsd(walletSlices.reduce((sum, slice) => sum + slice.onChainUsd, 0));
     return {
       ok: true,
       ...base,
-      usdcBalance: fastBalance,
-      spendableBalance: fastBalance,
-      lastKnownBalance: cachedBalance,
-      treasuryBalance: fastBalance,
+      usdcBalance: selectedOnChain,
+      spendableBalance: selectedSpendable,
+      lastKnownBalance: selectedWallet === "app" ? cachedBalance : null,
+      treasuryBalance: portfolioTotal,
+      portfolioTotalBalance: portfolioTotal,
       programBalances,
       pendingTransactions,
       claimableAmount,
@@ -534,26 +580,24 @@ export async function loadCapitalState(
         ...(walletResolved.externalAddress ? { externalAddress: walletResolved.externalAddress } : {}),
       },
       balance: {
-        totalUsdc: fastBalance.toFixed(2),
-        onChainUsd: fastBalance.toFixed(2),
-        nativeUsdc: fastBalance.toFixed(2),
+        totalUsdc: selectedOnChain.toFixed(2),
+        onChainUsd: selectedOnChain.toFixed(2),
+        nativeUsdc: selectedOnChain.toFixed(2),
         erc20Usdc: "0.00",
         chainId: ARC_CHAIN_ID,
         blockNumber: 0,
         syncedAt: cachedSyncedAt ?? new Date().toISOString(),
         reservedUsd,
-        spendableUsd: fastBalance.toFixed(2),
+        spendableUsd: selectedSpendable.toFixed(2),
       },
     };
   }
 
   try {
-    const cachedByAddress = new Map<string, number>();
     const appAddr =
       profile?.walletAddress?.trim().toLowerCase() ?? walletResolved.address;
     const extAddr = profile?.scanWalletAddress?.trim().toLowerCase();
-    if (appAddr && cachedBalance != null) cachedByAddress.set(appAddr, cachedBalance);
-    const aggregated = await readAggregatedArcBalance(onChainAddresses, cachedByAddress);
+    const aggregated = await readAggregatedArcBalance(onChainAddresses);
     if (!aggregated) {
       throw new ArcRpcUnavailableError("Arc RPC did not return a balance for your wallet(s).");
     }
@@ -561,11 +605,18 @@ export async function loadCapitalState(
     const { combined: chainBalance, perWallet } = aggregated;
     const appChain = perWallet.find((b) => b.address === appAddr);
     const extChain = extAddr ? perWallet.find((b) => b.address === extAddr) : undefined;
+    if (selectedWallet === "app" && !appChain) {
+      throw new ArcRpcUnavailableError("The selected RESOLVE wallet did not return a balance.");
+    }
+    if (selectedWallet === "connected" && !extChain) {
+      throw new ArcRpcUnavailableError("The selected connected wallet did not return a balance.");
+    }
     const appOnChain = appChain ? Number(appChain.totalUsdc) : 0;
     const extOnChain = extChain ? Number(extChain.totalUsdc) : 0;
     const totalOnChain = Number(chainBalance.totalUsdc);
     const appSpendable = Math.max(0, appOnChain - reservedUsd);
-    const spendable = roundUsd(appSpendable + extOnChain);
+    const spendable = roundUsd(selectedWallet === "connected" ? extOnChain : appSpendable);
+    const selectedOnChain = roundUsd(selectedWallet === "connected" ? extOnChain : appOnChain);
     const walletSlices = buildWalletSlices({
       profile,
       walletResolved,
@@ -574,21 +625,25 @@ export async function loadCapitalState(
     });
 
     if (profile) {
-      await syncIdentityBalance(profile.id).catch(() => null);
+      await syncIdentityBalance(profile.id, {
+        observedAmountMicroUsdc: appChain?.amountMicroUsdc,
+      }).catch(() => null);
     }
 
     return {
       ok: true,
       ...base,
-      usdcBalance: Number.isFinite(totalOnChain) ? totalOnChain : 0,
+      usdcBalance: selectedOnChain,
       spendableBalance: spendable,
       lastKnownBalance: cachedBalance,
       treasuryBalance: totalOnChain,
+      portfolioTotalBalance: totalOnChain,
       programBalances,
       pendingTransactions,
       claimableAmount,
       lastSyncedAt: chainBalance.syncedAt,
       syncStatus: "live",
+      networkHealth: "healthy",
       syncError: null,
       activity,
       walletSlices,
@@ -600,13 +655,13 @@ export async function loadCapitalState(
         ...(walletResolved.externalAddress ? { externalAddress: walletResolved.externalAddress } : {}),
       },
       balance: {
-        totalUsdc: chainBalance.totalUsdc,
-        onChainUsd: chainBalance.totalUsdc,
-        nativeUsdc: chainBalance.nativeUsdc,
-        erc20Usdc: chainBalance.erc20Usdc,
-        chainId: chainBalance.chainId,
-        blockNumber: chainBalance.blockNumber,
-        syncedAt: chainBalance.syncedAt,
+        totalUsdc: selectedOnChain.toFixed(2),
+        onChainUsd: selectedOnChain.toFixed(2),
+        nativeUsdc: selectedWallet === "connected" ? (extChain?.nativeUsdc ?? "0.00") : (appChain?.nativeUsdc ?? "0.00"),
+        erc20Usdc: selectedWallet === "connected" ? (extChain?.erc20Usdc ?? "0.00") : (appChain?.erc20Usdc ?? "0.00"),
+        chainId: selectedWallet === "connected" ? (extChain?.chainId ?? ARC_CHAIN_ID) : (appChain?.chainId ?? ARC_CHAIN_ID),
+        blockNumber: selectedWallet === "connected" ? (extChain?.blockNumber ?? 0) : (appChain?.blockNumber ?? 0),
+        syncedAt: selectedWallet === "connected" ? (extChain?.syncedAt ?? chainBalance.syncedAt) : (appChain?.syncedAt ?? chainBalance.syncedAt),
         reservedUsd,
         spendableUsd: spendable.toFixed(2),
       },
@@ -621,17 +676,25 @@ export async function loadCapitalState(
       reservedUsd,
       cachedAppUsd: cachedBalance ?? 0,
     });
+    const selectedKind = selectedWallet === "connected" ? "external" : "app";
+    const selectedSlice = walletSlices.find((slice) => slice.kind === selectedKind) ?? null;
+    const selectedOnChain = selectedSlice?.onChainUsd ?? 0;
+    const selectedSpendable = selectedSlice?.spendableUsd ?? 0;
+    const portfolioTotal = roundUsd(walletSlices.reduce((sum, slice) => sum + slice.onChainUsd, 0));
     return {
       ok: true,
       ...base,
-      usdcBalance: cachedBalance ?? 0,
-      spendableBalance: cachedBalance ?? 0,
-      lastKnownBalance: cachedBalance,
+      usdcBalance: selectedOnChain,
+      spendableBalance: selectedSpendable,
+      lastKnownBalance: selectedWallet === "app" ? cachedBalance : null,
+      treasuryBalance: portfolioTotal,
+      portfolioTotalBalance: portfolioTotal,
       programBalances,
       pendingTransactions,
       claimableAmount,
       lastSyncedAt: cachedSyncedAt,
       syncStatus: cachedBalance !== null ? "cached" : "error",
+      networkHealth: cachedBalance !== null ? "degraded" : "unavailable",
       syncError: message,
       activity,
       walletSlices,
@@ -645,15 +708,15 @@ export async function loadCapitalState(
         ...(walletResolved.externalAddress ? { externalAddress: walletResolved.externalAddress } : {}),
       },
       balance: {
-        totalUsdc: (cachedBalance ?? 0).toFixed(2),
-        onChainUsd: (cachedBalance ?? 0).toFixed(2),
-        nativeUsdc: "0.00",
+        totalUsdc: selectedOnChain.toFixed(2),
+        onChainUsd: selectedOnChain.toFixed(2),
+        nativeUsdc: selectedOnChain.toFixed(2),
         erc20Usdc: "0.00",
         chainId: ARC_CHAIN_ID,
         blockNumber: 0,
         syncedAt: cachedSyncedAt ?? new Date().toISOString(),
         reservedUsd,
-        spendableUsd: (cachedBalance ?? 0).toFixed(2),
+        spendableUsd: selectedSpendable.toFixed(2),
       },
     };
   }

@@ -111,6 +111,7 @@ model User {
   jellyfinAccessToken      String?
   taskMemoryJson           String?
   embeddedWallet           Boolean                   @default(false)
+  selectedCapitalWallet    String                    @default("app")
   availableUsd             Float                     @default(0)
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt

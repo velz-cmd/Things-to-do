@@ -30,6 +30,7 @@ import {
 } from "@/lib/auth/email-password";
 import { toast } from "sonner";
 import { mergeArcBalanceSnapshot, readArcBalanceSnapshot } from "@/lib/wallet/arc-balance-snapshot";
+import { readWalletView } from "@/lib/wallet/active-wallet-view";
 
 export interface WalletBalance {
   availableUsd: number;
@@ -320,17 +321,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if ((app != null && app >= 0) || (ext != null && ext >= 0)) {
       setBalance((current) => {
         if (current?.syncStatus === "live") return current;
-        const combined = Math.round(((app ?? 0) + (ext ?? 0)) * 100) / 100;
+        const portfolio = Math.round(((app ?? 0) + (ext ?? 0)) * 100) / 100;
+        const selected = readWalletView() === "external" ? (ext ?? 0) : (app ?? 0);
         return {
-          availableUsd: combined,
-          onChainUsd: combined,
+          availableUsd: selected,
+          onChainUsd: selected,
           walletAddress: snap.appAddress,
           appWalletAddress: snap.appAddress,
           externalWalletAddress: snap.externalAddress,
           appOnChainUsd: app ?? null,
           externalOnChainUsd: ext ?? null,
-          combinedOnChainUsd: combined,
-          combinedSpendableUsd: combined,
+          combinedOnChainUsd: portfolio,
+          combinedSpendableUsd: selected,
           syncStatus: "cached",
           lastSyncedAt: snap.updatedAt || null,
           lockedUsd: current?.lockedUsd ?? 0,

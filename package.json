@@ -18,6 +18,7 @@
     "verify:actions": "tsx scripts/audit-actions.ts --check",
     "verify:actions:strict": "tsx scripts/audit-actions.ts --strict",
     "test:operating-system": "tsx --test scripts/tests/operating-system.test.ts",
+    "test:capital-profile": "tsx --test scripts/tests/capital-wallet-correctness.test.ts",
     "deploy:escrow": "tsx scripts/deploy-escrow.ts",
     "test:integrations": "tsx scripts/test-integrations.ts",
     "test:github-integrations": "tsx scripts/test-github-integrations.ts",

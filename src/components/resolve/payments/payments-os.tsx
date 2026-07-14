@@ -19,6 +19,7 @@ import type {
 } from "@/lib/capital/wallet-types";
 import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
 import type { WalletView } from "@/lib/wallet/active-wallet-view";
+import { writeWalletView } from "@/lib/wallet/active-wallet-view";
 import {
   fundActionsToStatementLines,
   mergeStatementLines,
@@ -38,6 +39,7 @@ type CapitalStatePayload =
   | (Extract<CapitalWalletResponse, { ok: true }> & {
       claimableAmount?: number;
       walletSlices?: WalletBalanceSlice[];
+      selectedWallet?: "app" | "connected";
       pendingTransactions?: Array<{
         id: string;
         label: string;
@@ -380,16 +382,22 @@ export function PaymentsOS() {
     (capital: CapitalStatePayload, userId: string) => {
       if (!capital.ok) return false;
 
+      const effectiveWalletView: WalletView =
+        capital.selectedWallet === "connected" ? "external"
+        : capital.selectedWallet === "app" ? "app"
+        : walletView;
+      if (effectiveWalletView !== walletView) writeWalletView(effectiveWalletView);
+
       const claimable = Number(capital.claimableAmount ?? 0);
       const snap = snapshotFromCapitalWallet(
         capital,
         userId,
         claimable,
-        walletView,
+        effectiveWalletView,
         capital.walletSlices,
         capital.pendingTransactions,
       );
-      const viewSlice = capital.walletSlices?.find((s) => s.kind === walletView);
+      const viewSlice = capital.walletSlices?.find((s) => s.kind === effectiveWalletView);
       const spendable = viewSlice
         ? Number(viewSlice.spendableUsd)
         : Number(capital.balance.spendableUsd);
@@ -417,7 +425,7 @@ export function PaymentsOS() {
         prev ? mergeBankingSnapshots(mergedSnap, prev) : mergedSnap,
       );
       lastCapitalRef.current = capital;
-      setWalletHealth(buildHealthFromCapital(capital, walletView));
+      setWalletHealth(buildHealthFromCapital(capital, effectiveWalletView));
       const sync = capital.syncStatus;
       setWalletSync(
         sync === "live"

@@ -9,7 +9,6 @@ import { useActiveWalletView } from "@/hooks/use-active-wallet-view";
 import { isWalletConnectEnabled } from "@/lib/reown/config";
 import { pickSnapshotUsd, readArcBalanceSnapshot } from "@/lib/wallet/arc-balance-snapshot";
 import {
-  maxSpendableUsd,
   pickFundingSource,
   type FundingSource,
 } from "@/lib/wallet/funding-source";
@@ -91,12 +90,10 @@ export function useSpendableUsd(): SpendableUsdSnapshot {
     externalSpendableUsd = Math.round(externalSpendableUsd * 100) / 100;
 
     const balances = { appSpendableUsd, externalSpendableUsd };
-    const combinedSpendable = maxSpendableUsd(balances, externalReady, hasLinkedExternal);
-
-    const viewOnChain =
-      activeView === "external" && externalWalletAddress
-        ? externalOnChainUsd
-        : appOnChainUsd;
+    const selectedSpendable =
+      activeView === "external" && hasLinkedExternal
+        ? externalSpendableUsd
+        : appSpendableUsd;
 
     let source: SpendableUsdSnapshot["source"] = "ledger";
     if (balance?.syncStatus === "live" || balance?.syncStatus === "cached") {
@@ -115,15 +112,14 @@ export function useSpendableUsd(): SpendableUsdSnapshot {
       (balance != null || !balanceLoading || !account.walletsLoading);
 
     return {
-      spendableUsd: combinedSpendable,
+      spendableUsd: selectedSpendable,
       appSpendableUsd,
       externalSpendableUsd,
-      totalUsdc: Math.max(
-        viewOnChain ?? 0,
-        appOnChainUsd ?? 0,
-        externalOnChainUsd ?? 0,
-        combinedSpendable,
-      ),
+      totalUsdc:
+        Math.round(
+          ((appOnChainUsd ?? appSpendableUsd) +
+            (hasLinkedExternal ? (externalOnChainUsd ?? externalSpendableUsd) : 0)) * 100,
+        ) / 100,
       loaded: loaded || (externalConnected && connectedBalance.loaded),
       source,
       walletAddress:

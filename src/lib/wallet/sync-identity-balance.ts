@@ -38,7 +38,10 @@ export type IdentityBalanceSyncResult = {
  * Keep User.availableUsd aligned with real Arc USDC in the identity wallet.
  * Credits faucet/bridge deposits and removes demo-only ledger inflation.
  */
-export async function syncIdentityBalance(userId: string): Promise<IdentityBalanceSyncResult> {
+export async function syncIdentityBalance(
+  userId: string,
+  options?: { observedAmountMicroUsdc?: string },
+): Promise<IdentityBalanceSyncResult> {
   const profile = await prisma.user.findUnique({ where: { id: userId } });
   if (!profile) {
     return {
@@ -55,8 +58,12 @@ export async function syncIdentityBalance(userId: string): Promise<IdentityBalan
 
   let onChainUsd: number;
   try {
-    const bal = await getCachedArcUsdcBalance(walletAddress);
-    onChainUsd = round(Number(bal.totalUsdc));
+    if (options?.observedAmountMicroUsdc) {
+      onChainUsd = round(Number(BigInt(options.observedAmountMicroUsdc)) / 1_000_000);
+    } else {
+      const bal = await getCachedArcUsdcBalance(walletAddress);
+      onChainUsd = round(Number(bal.amountMicroUsdc) / 1_000_000);
+    }
   } catch {
     return {
       synced: false,

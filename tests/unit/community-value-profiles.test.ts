@@ -16,7 +16,7 @@ describe("community value profiles", () => {
     expect(jellyfin?.product).toBe("Jellyfin server");
 
     const react = getCommunityValueProfile("react");
-    expect(react?.unpaidTitle).toContain("payout program");
+    expect(react?.unpaidTitle).toContain("verified but unpaid");
     expect(react?.valueEvents.some((e) => e.event === "github.pr.merged")).toBe(true);
   });
 
@@ -25,7 +25,7 @@ describe("community value profiles", () => {
     const gaps = gapsHeadlineForProfile(profile);
     const radar = radarHeadlineForProfile(profile, "oss");
     expect(radar).not.toBe(gaps);
-    expect(gaps).toContain("payout program");
+    expect(gaps).toContain("verified but unpaid");
     expect(radar).toContain("maintainer");
   });
 
@@ -58,10 +58,10 @@ describe("community value profiles", () => {
       communityName: "Jellyfin",
       installed: false,
     });
-    expect(actions.some((a) => a.label.includes("Scan"))).toBe(true);
-    expect(actions.some((a) => a.label.includes("pay-per-minute"))).toBe(true);
+    expect(actions.some((a) => a.label.includes("Analyze Watch Time"))).toBe(true);
+    expect(actions.some((a) => a.label.includes("Pay-per-Minute"))).toBe(true);
     expect(actions.some((a) => a.kind === "fund")).toBe(true);
-    expect(actions.some((a) => a.label.includes("proof"))).toBe(true);
+    expect(actions.some((a) => a.label.includes("Proof"))).toBe(true);
   });
 
   it("preview value signals show honest unpaid metrics", () => {
@@ -72,7 +72,7 @@ describe("community value profiles", () => {
 
     const metrics = buildUnpaidValueMetrics("jellyfin", false);
     expect(metrics.observedEvents).toBe("Source not connected");
-    expect(metrics.payoutRules).toBe("Rule missing");
-    expect(metrics.settlement).toBe("Pool unfunded");
+    expect(metrics.payoutRules).toBe("No payout rule");
+    expect(metrics.settlement).toBe("Settlement blocked");
   });
 });

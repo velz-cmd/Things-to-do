@@ -45,16 +45,18 @@ jobs:
           for i in $(seq 1 80); do
             DEPLOY_JSON=$(curl -fsS "$PRODUCTION_URL/api/health/deploy" 2>/dev/null || echo '{}')
             COMMIT=$(echo "$DEPLOY_JSON" | grep -o '"commit":"[^"]*"' | head -1 | cut -d'"' -f4)
-            if [ -n "$COMMIT" ] && [ "$COMMIT" = "$EXPECT_SHA" ]; then
+            # Vercel exposes GIT_COMMIT_SHA as a seven-character SHA in this app.
+            # Accept it only when it is a prefix of the exact GitHub push SHA.
+            if [ ${#COMMIT} -ge 7 ] && [[ "$EXPECT_SHA" == "$COMMIT"* ]]; then
               if curl -fsS "$PRODUCTION_URL/api/health/env" | grep -q '"ok":true'; then
-                echo "✓ Production healthy · exact deploy commit $COMMIT"
+                echo "✓ Production healthy · deploy commit $COMMIT matches $EXPECT_SHA"
                 exit 0
               fi
               echo "Deploy $COMMIT is visible but health is not ready — attempt $i"
             else
-              echo "Deployment commit=${COMMIT:-unknown}; waiting for exact SHA $EXPECT_SHA — attempt $i"
+              echo "Deployment commit=${COMMIT:-unknown}; waiting for SHA $EXPECT_SHA — attempt $i"
             fi
             sleep 15
           done
-          echo "::error::Production did not become healthy on exact SHA $EXPECT_SHA within 20 minutes."
+          echo "::error::Production did not become healthy on SHA $EXPECT_SHA within 20 minutes."
           exit 1

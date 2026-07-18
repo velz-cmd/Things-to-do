@@ -1,5 +1,6 @@
 import { ingestRepository } from "@/lib/github/adapter";
 import { computeRepoHealth } from "@/lib/github/repo-health";
+import { buildGitHubFundingActivity } from "@/lib/github/funding-activity";
 import type { FundingOpportunity } from "@/lib/github/types";
 
 /** High-value OSS repos — Phase 1 GitHub radar targets. */
@@ -37,6 +38,7 @@ export async function scanFundingOpportunity(
     owner,
     repo,
     fullName: ingest.fullName,
+    description: ingest.description,
     stars: ingest.stars,
     forks: ingest.forks,
     health,
@@ -45,6 +47,7 @@ export async function scanFundingOpportunity(
     headline: health.headline,
     priority,
     live: true,
+    activity: buildGitHubFundingActivity(ingest),
   };
 }
 

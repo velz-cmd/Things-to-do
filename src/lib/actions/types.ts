@@ -72,6 +72,13 @@ export type ActionDefinition<Input = unknown, Output = unknown> = {
 };
 
 export const RESOLVE_ACTION_IDS = [
+  "discover.capture_repository_snapshot",
+  "discover.select_repository",
+  "discover.open_repository",
+  "discover.open_evidence",
+  "discover.start_mission",
+  "discover.open_program",
+  "discover.resolve_identity",
   "asset.register",
   "asset.verify_ownership",
   "campaign.create_draft",

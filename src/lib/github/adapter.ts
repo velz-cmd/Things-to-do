@@ -3,6 +3,7 @@ import type {
   GitHubContributor,
   GitHubIssue,
   GitHubPullRequest,
+  GitHubRelease,
   RepoIngestResult,
 } from "@/lib/github/types";
 
@@ -42,6 +43,20 @@ type GhIssue = {
   state: string;
   comments: number;
   labels: { name: string }[];
+  closed_at?: string;
+  updated_at?: string;
+  html_url: string;
+  pull_request?: unknown;
+};
+
+type GhRelease = {
+  id: number;
+  tag_name: string;
+  name?: string;
+  author?: { login?: string };
+  published_at?: string;
+  html_url: string;
+  draft: boolean;
 };
 
 const GRAPHQL_QUERY = `
@@ -100,7 +115,7 @@ async function fetchMergedPrsGraphQL(
               deletions: number;
               changedFiles: number;
               author?: { login?: string; id?: number };
-              reviews?: { nodes?: { author?: { login?: string }; state: string; body?: string }[] };
+              reviews?: { nodes?: { author?: { login?: string }; state: string; body?: string; createdAt?: string }[] };
               comments?: { totalCount: number };
               labels?: { nodes?: { name: string }[] };
             }>;
@@ -124,6 +139,13 @@ async function fetchMergedPrsGraphQL(
       reviewComments: pr.comments?.totalCount ?? 0,
       commits: 1,
       labels: pr.labels?.nodes?.map((l) => l.name) ?? [],
+      sourceUrl: `https://github.com/${owner}/${repo}/pull/${pr.number}`,
+      reviews: (pr.reviews?.nodes ?? []).map((review) => ({
+        author: review.author?.login ?? "unknown",
+        state: review.state,
+        body: review.body,
+        submittedAt: review.createdAt,
+      })),
       files: [],
     }));
   } catch {
@@ -194,7 +216,7 @@ export async function ingestRepository(
 ): Promise<RepoIngestResult | null> {
   const prLimit = options?.prLimit ?? 20;
 
-  const [meta, contribRes, issueRes, graphqlPrs] = await Promise.all([
+  const [meta, contribRes, issueRes, releaseRes, graphqlPrs] = await Promise.all([
     githubFetch<GhRepo>(`https://api.github.com/repos/${owner}/${repo}`, { revalidate: 1800 }),
     githubFetch<GhContributor[]>(
       `https://api.github.com/repos/${owner}/${repo}/contributors?per_page=20`,
@@ -203,6 +225,10 @@ export async function ingestRepository(
     githubFetch<GhIssue[]>(
       `https://api.github.com/repos/${owner}/${repo}/issues?state=all&per_page=15&sort=updated`,
       { revalidate: 3600 },
+    ),
+    githubFetch<GhRelease[]>(
+      `https://api.github.com/repos/${owner}/${repo}/releases?per_page=10`,
+      { revalidate: 1800 },
     ),
     fetchMergedPrsGraphQL(owner, repo, prLimit),
   ]);
@@ -232,6 +258,7 @@ export async function ingestRepository(
         commits: p.commits,
         labels: p.labels.map((l) => l.name),
         body: p.body,
+        sourceUrl: `https://github.com/${owner}/${repo}/pull/${p.number}`,
         files: [],
       }));
   }
@@ -240,7 +267,7 @@ export async function ingestRepository(
   const contributors = await fetchContributorProfiles(contribRes ?? []);
 
   const issues: GitHubIssue[] = (issueRes ?? [])
-    .filter((i) => !i.labels.some((l) => l.name === "pull_request"))
+    .filter((issue) => !issue.pull_request)
     .map((i) => ({
       number: i.number,
       title: i.title,
@@ -248,6 +275,20 @@ export async function ingestRepository(
       state: i.state,
       comments: i.comments,
       labels: i.labels.map((l) => l.name),
+      closedAt: i.closed_at,
+      updatedAt: i.updated_at,
+      sourceUrl: i.html_url,
+    }));
+
+  const releases: GitHubRelease[] = (releaseRes ?? [])
+    .filter((release) => !release.draft)
+    .map((release) => ({
+      id: release.id,
+      tagName: release.tag_name,
+      name: release.name ?? release.tag_name,
+      author: release.author?.login ?? owner,
+      publishedAt: release.published_at,
+      sourceUrl: release.html_url,
     }));
 
   return {
@@ -263,6 +304,7 @@ export async function ingestRepository(
     contributors,
     pullRequests: pullRequests.filter((p) => p.merged && p.additions + p.deletions >= 10),
     issues,
+    releases,
     ingestedAt: new Date().toISOString(),
   };
 }

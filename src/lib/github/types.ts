@@ -24,6 +24,8 @@ export interface GitHubPullRequest {
   commits: number;
   labels: string[];
   body?: string;
+  sourceUrl?: string;
+  reviews?: GitHubReview[];
   diffSnippet?: string;
   files: { path: string; additions: number; deletions: number }[];
 }
@@ -42,6 +44,18 @@ export interface GitHubIssue {
   state: string;
   comments: number;
   labels: string[];
+  closedAt?: string;
+  updatedAt?: string;
+  sourceUrl?: string;
+}
+
+export interface GitHubRelease {
+  id: number;
+  tagName: string;
+  name: string;
+  author: string;
+  publishedAt?: string;
+  sourceUrl: string;
 }
 
 export interface RepoIngestResult {
@@ -57,7 +71,43 @@ export interface RepoIngestResult {
   contributors: GitHubContributor[];
   pullRequests: GitHubPullRequest[];
   issues: GitHubIssue[];
+  releases: GitHubRelease[];
   ingestedAt: string;
+}
+
+export type GitHubWorkCategory =
+  | "code"
+  | "review"
+  | "documentation"
+  | "issue_resolution"
+  | "release_work"
+  | "support"
+  | "security";
+
+export interface GitHubFundingActivityRecord {
+  id: string;
+  category: GitHubWorkCategory;
+  title: string;
+  actor: string;
+  occurredAt: string;
+  sourceUrl: string;
+  sourceKind: "pull_request" | "review" | "issue" | "release";
+}
+
+export interface GitHubFundingContributor {
+  login: string;
+  avatarUrl?: string;
+  acceptedActivityCount: number;
+  categories: Partial<Record<GitHubWorkCategory, number>>;
+}
+
+export interface GitHubFundingActivitySnapshot {
+  observedAt: string;
+  rangeStart: string | null;
+  rangeEnd: string;
+  records: GitHubFundingActivityRecord[];
+  counts: Record<GitHubWorkCategory, number>;
+  contributors: GitHubFundingContributor[];
 }
 
 export interface TrustScore {
@@ -131,6 +181,7 @@ export interface FundingOpportunity {
   owner: string;
   repo: string;
   fullName: string;
+  description?: string;
   stars: number;
   forks: number;
   health: RepoHealthScore;
@@ -139,6 +190,7 @@ export interface FundingOpportunity {
   headline: string;
   priority: "critical" | "high" | "medium";
   live: boolean;
+  activity?: GitHubFundingActivitySnapshot;
 }
 
 export interface GitHubAllocationResult {

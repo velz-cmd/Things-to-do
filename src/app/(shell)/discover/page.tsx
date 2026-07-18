@@ -1,22 +1,18 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { DiscoverSurface } from "@/components/resolve/discover/discover-surface";
+import { DiscoverOpenSourceIntelligence } from "@/components/resolve/discover/discover-open-source-intelligence";
+import { buildDiscoverOssIntelligence } from "@/lib/discover/oss-intelligence";
 
 export const metadata: Metadata = {
-  title: "Discover — RESOLVE",
-  description: "Where should value move next? Find blocked value — fund, build, automate, or claim in one click.",
+  title: "Open-source funding intelligence — RESOLVE",
+  description: "See which repository work is accepted, what current programs miss, and where funding should go next.",
 };
 
-export default function DiscoverPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="resolve-grid-bg min-h-[40vh] px-4 py-16">
-          <p className="mx-auto max-w-6xl text-sm text-resolve-muted">Loading Discover…</p>
-        </div>
-      }
-    >
-      <DiscoverSurface />
-    </Suspense>
-  );
+export default async function DiscoverPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ repo?: string }>;
+}) {
+  const { repo } = await searchParams;
+  const intelligence = await buildDiscoverOssIntelligence({ repository: repo });
+  return <DiscoverOpenSourceIntelligence key={intelligence.selected?.fullName ?? "empty"} initialData={intelligence} />;
 }

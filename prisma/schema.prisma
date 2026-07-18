@@ -686,6 +686,22 @@ model GithubOssScan {
   @@index([scannedAt])
 }
 
+/// Immutable GitHub repository snapshots used for deterministic Discover deltas.
+model DiscoverRepositorySnapshot {
+  id          String   @id @default(cuid())
+  owner       String
+  repo        String
+  fullName    String
+  fingerprint String
+  payload     Json
+  observedAt  DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([fullName, fingerprint])
+  @@index([fullName, observedAt])
+  @@index([observedAt])
+}
+
 /// Per-user earnings aggregate — refreshed on cron and after ledger writes.
 model UserEarningsSnapshot {
   userId             String    @id

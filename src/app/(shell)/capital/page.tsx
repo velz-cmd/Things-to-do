@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import {
-  CapitalCommandCenter,
   CapitalCommandSkeleton,
 } from "@/components/resolve/capital/capital-command-center";
+import { CapitalOperations } from "@/components/resolve/capital/capital-operations";
 import { getSessionUser } from "@/lib/auth/session";
 import { loadCapitalBootstrap } from "@/lib/capital/bootstrap";
 
@@ -17,7 +17,7 @@ export default async function CapitalPage() {
   const initialData = user ? await loadCapitalBootstrap(user).catch(() => null) : null;
   return (
     <Suspense fallback={<CapitalCommandSkeleton />}>
-      <CapitalCommandCenter initialData={initialData} />
+      <CapitalOperations initialData={initialData} />
     </Suspense>
   );
 }

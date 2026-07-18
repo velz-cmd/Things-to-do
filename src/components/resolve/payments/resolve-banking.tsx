@@ -938,7 +938,7 @@ export function ResolveBanking({
                   </Button>
                 )}
                 <Link
-                  href="/settings"
+                  href="/profile?view=sources"
                   className="inline-flex items-center justify-center gap-2 rounded-resolve px-5 py-2.5 text-sm font-semibold text-resolve-muted transition hover:bg-white/[0.06] hover:text-white"
                 >
                   {BANKING_UI.connections}

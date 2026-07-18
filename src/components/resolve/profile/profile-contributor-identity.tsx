@@ -259,7 +259,7 @@ function CommunityIdentityPanel({
                 {CONTRIBUTOR_IDENTITY_COPY.needAccount.body}
               </p>
               <Link
-                href="/settings"
+                href="/profile?view=wallets"
                 className="mt-2 inline-block text-xs font-medium text-resolve-accent hover:underline"
               >
                 {CONTRIBUTOR_IDENTITY_COPY.needAccount.cta} →

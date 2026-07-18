@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Activity, ArrowRight, BadgeCheck, BookOpenCheck, Boxes, CheckCircle2,
-  CircleAlert, Clock3, ExternalLink, FileCode2, GitBranch, GitFork,
-  GitPullRequest, Landmark, Network, ScanSearch, ShieldCheck, Sparkles, Users,
+  CircleAlert, CircleDollarSign, Clock3, ExternalLink, FileCode2, GitBranch, GitFork,
+  GitPullRequest, Landmark, Network, ScanSearch, ShieldCheck, Sparkles, Users, WalletCards,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -38,6 +38,10 @@ function StatusDot({ state }: { state: "covered" | "uncovered" | "no_activity" }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return <div className={styles.metric}><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>;
+}
+
+function PoolProgress({ value }: { value: number }) {
+  return <div className={styles.poolProgress} aria-label={`${number.format(value)} percent funded toward the next checkpoint`}><i style={{ width: `${value}%` }} /></div>;
 }
 
 export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: DiscoverOssIntelligence }) {
@@ -233,6 +237,45 @@ export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: D
                 <span><CircleAlert />{blocker.label}<strong>{blocker.count}</strong></span>
                 {blocker.code === "insufficient_funding" ? <Link data-action-id="capital.open_funding" href={blocker.recoveryHref}>Review funding <ArrowRight /></Link> : <Link data-action-id="discover.resolve_identity" href={blocker.recoveryHref}>Resolve blocker <ArrowRight /></Link>}
               </div>) : <div className={styles.baselineNotice}><CheckCircle2 /> No persisted identity, payout, or funding blocker is currently recorded.</div>}</div>
+            </section>
+
+            <section className={styles.poolSection}>
+              <div className={styles.sectionHeading}>
+                <div><p className={styles.sectionKicker}>Allocation desk</p><h2>How real pool capital reaches recognized contributors</h2><p>Each row joins an active policy to its persisted stake pool, authorization ledger, checkpoint, and next payee queue. Discover explains the route; Capital remains the authorization surface.</p></div>
+                <span className={styles.persistedBadge}><WalletCards /> Ledger-backed values</span>
+              </div>
+              {initialData.pools.length ? <div className={styles.poolList}>{initialData.pools.map((pool) => <article key={pool.programId} className={styles.poolCard}>
+                <div className={styles.poolIdentity}>
+                  <span className={styles.poolIcon}><CircleDollarSign /></span>
+                  <div><span>{pool.status} program</span><h3>{pool.programName}</h3><p>{pool.rationale}</p></div>
+                  <div className={styles.poolLinks}><Link data-action-id="discover.open_program" href={pool.programHref}>Program <ArrowRight /></Link><Link data-action-id="capital.open_funding" href={pool.fundingHref}>Review in Capital <ArrowRight /></Link></div>
+                </div>
+                <div className={styles.poolEconomics}>
+                  <Metric label="Confirmed pool" value={usd.format(pool.poolBalanceUsd)} detail={`${pool.funderCount} persisted ${pool.funderCount === 1 ? "funder" : "funders"}`} />
+                  <Metric label="Available now" value={usd.format(pool.availableUsd)} detail="Deposits less released capital" />
+                  <Metric label="Recognized owed" value={usd.format(pool.recognizedOwedUsd)} detail={`${pool.authorizationCount} ledger ${pool.authorizationCount === 1 ? "authorization" : "authorizations"}`} />
+                  <Metric label="Already settled" value={usd.format(pool.settledUsd)} detail="Recorded by the authorization ledger" />
+                </div>
+                <div className={styles.poolOperationalGrid}>
+                  <div className={styles.checkpointPanel}>
+                    <div className={styles.poolSubhead}><span>Next checkpoint</span><strong>{pool.nextCheckpointUsd === null ? "No open checkpoint" : usd.format(pool.nextCheckpointUsd)}</strong></div>
+                    <PoolProgress value={pool.progressToNextPct} />
+                    <div className={styles.checkpointFacts}><span>{number.format(pool.progressToNextPct)}% funded</span><span>{pool.nextCheckpointUsd === null ? "Checkpoint ladder complete" : `${usd.format(pool.remainingToCheckpointUsd)} remaining`}</span></div>
+                    <p>{pool.autoSettleEnabled ? "Automatic settlement is permitted by this program policy after its checkpoint conditions are satisfied." : "This policy requires operator authorization after its checkpoint conditions are satisfied."}</p>
+                    {pool.policyCoverage.length > 0 && <div className={styles.coverageChips}>{pool.policyCoverage.map((label) => <span key={label}>{label}</span>)}</div>}
+                  </div>
+                  <div className={styles.queuePanel}>
+                    <div className={styles.poolSubhead}><span>Next verified allocation</span><strong>{pool.queuedPayees.length ? `${pool.queuedPayees.length} ${pool.payeeCategory}` : "Queue empty"}</strong></div>
+                    {pool.queuedPayees.length ? <div className={styles.payeeList}>{pool.queuedPayees.map((payee) => <div key={payee.label}><span>{payee.label}</span><strong>{usd.format(payee.owedUsd)}</strong></div>)}</div> : <p className={styles.inlineTruth}>No funded, claimable, or pending-funding authorization is queued for this program.</p>}
+                    <div className={styles.queueTotal}><span>Queued from persisted authorizations</span><strong>{usd.format(pool.queuedTotalUsd)}</strong></div>
+                  </div>
+                  <div className={styles.poolProofPanel}>
+                    <div className={styles.poolSubhead}><span>Distribution record</span><strong>{pool.contributorCount} contributors</strong></div>
+                    <div className={styles.proofFacts}><span><strong>{usd.format(pool.claimableUsd)}</strong> claimable</span><span><strong>{pool.paidCheckpoints.length}</strong> paid checkpoints recorded</span></div>
+                    {pool.paidCheckpoints.length > 0 ? <div className={styles.paidList}>{pool.paidCheckpoints.slice(0, 3).map((batch) => <div key={batch.id}><span>{formatDate(batch.at)} · {batch.payeeCount} payees</span><strong>{usd.format(batch.settledUsd)}</strong></div>)}</div> : <p className={styles.inlineTruth}>No paid checkpoint is recorded for this pool. Confirmed Arc outcomes appear only in the receipt section below.</p>}
+                  </div>
+                </div>
+              </article>)}</div> : <p className={styles.truthEmpty}>No active normalized funding pool is attached to this repository context. RESOLVE will not invent a milestone, deposit, allocation, or payout preview.</p>}
             </section>
 
             <section className={styles.outcomeSection}>

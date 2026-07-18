@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
 import { getProgramPoolState } from "@/lib/capital/pool-checkpoints";
+import type { ProgramPoolState } from "@/lib/capital/pool-checkpoint-types";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import {
   fingerprintFundingOpportunity,
@@ -65,6 +66,38 @@ export type DiscoverProgramSummary = {
   categories: GitHubWorkCategory[];
 };
 
+export type DiscoverPoolOperation = {
+  programId: string;
+  programName: string;
+  programHref: string;
+  fundingHref: string;
+  status: string;
+  policyCoverage: string[];
+  payeeCategory: string;
+  poolBalanceUsd: number;
+  availableUsd: number;
+  recognizedOwedUsd: number;
+  settledUsd: number;
+  claimableUsd: number;
+  funderCount: number;
+  contributorCount: number;
+  authorizationCount: number;
+  nextCheckpointUsd: number | null;
+  remainingToCheckpointUsd: number;
+  progressToNextPct: number;
+  autoSettleEnabled: boolean;
+  rationale: string;
+  queuedTotalUsd: number;
+  queuedPayees: Array<{ label: string; owedUsd: number }>;
+  paidCheckpoints: Array<{
+    id: string;
+    settledUsd: number;
+    payeeCount: number;
+    at: string;
+    checkpointThresholdUsd: number | null;
+  }>;
+};
+
 export type DiscoverOssIntelligence = {
   ok: boolean;
   repositories: DiscoverRepositoryOption[];
@@ -117,6 +150,7 @@ export type DiscoverOssIntelligence = {
     txHash: string;
     chainId: number;
   }>;
+  pools: DiscoverPoolOperation[];
   programs: DiscoverProgramSummary[];
   recentActivity: GitHubFundingActivityRecord[];
   meta: OssScanMeta;
@@ -133,6 +167,45 @@ const CATEGORY_LABELS: Record<GitHubWorkCategory, string> = {
   support: "Community support",
   security: "Security work",
 };
+
+export function buildDiscoverPoolOperation(
+  pool: ProgramPoolState,
+  program: DiscoverProgramSummary,
+  repository?: string,
+): DiscoverPoolOperation {
+  const nextCheckpointUsd = pool.nextCheckpointUsd;
+  const remainingToCheckpointUsd = nextCheckpointUsd === null
+    ? 0
+    : roundUsd(Math.max(0, nextCheckpointUsd - pool.poolBalanceUsd));
+  return {
+    programId: pool.programId,
+    programName: pool.programName,
+    programHref: `/programs/${encodeURIComponent(pool.programId)}`,
+    fundingHref: `/capital?community=${encodeURIComponent(pool.communitySlug)}&program=${encodeURIComponent(pool.programId)}&returnTo=${encodeURIComponent(repository ? `/discover?repo=${repository}` : "/discover")}`,
+    status: program.status,
+    policyCoverage: program.categories.map((category) => CATEGORY_LABELS[category]),
+    payeeCategory: pool.payeeCategory,
+    poolBalanceUsd: pool.poolBalanceUsd,
+    availableUsd: pool.availableUsd,
+    recognizedOwedUsd: pool.owedToCreatorsUsd,
+    settledUsd: pool.settledUsd,
+    claimableUsd: pool.claimableUsd,
+    funderCount: pool.funderCount,
+    contributorCount: pool.contributorCount,
+    authorizationCount: pool.authorizationCount,
+    nextCheckpointUsd,
+    remainingToCheckpointUsd,
+    progressToNextPct: Math.min(100, Math.max(0, pool.progressToNextPct)),
+    autoSettleEnabled: pool.autoSettleEnabled,
+    rationale: pool.sourcedHook,
+    queuedTotalUsd: pool.nextBatchTotalUsd,
+    queuedPayees: pool.nextBatchPayees.map((payee) => ({
+      label: payee.label,
+      owedUsd: payee.owedUsd,
+    })),
+    paidCheckpoints: pool.recentBatches,
+  };
+}
 
 function roundUsd(value: number) {
   return Math.round(value * 100) / 100;
@@ -317,6 +390,7 @@ export function emptyDiscoverOssIntelligence(meta?: OssScanMeta): DiscoverOssInt
     },
     blockers: [],
     outcomes: [],
+    pools: [],
     programs: [],
     recentActivity: [],
     meta: meta ?? { source: "empty", scannedAt: new Date(0).toISOString(), stale: true },
@@ -459,6 +533,12 @@ export async function buildDiscoverOssIntelligence(input: {
 
   const poolStates = await Promise.all(programIds.map((programId) =>
     resilient(`pool:${programId}`, degradedSources, () => getProgramPoolState(programId), null)));
+  const programById = new Map(programs.map((program) => [program.id, program]));
+  const pools = poolStates.flatMap((pool) => {
+    if (!pool) return [];
+    const program = programById.get(pool.programId);
+    return program ? [buildDiscoverPoolOperation(pool, program, selected.fullName)] : [];
+  });
   const confirmedPoolUsd = roundUsd(poolStates.reduce((sum, pool) => sum + (pool?.totalDepositedUsd ?? 0), 0));
   const availablePoolUsd = roundUsd(poolStates.reduce((sum, pool) => sum + (pool?.availableUsd ?? 0), 0));
   const recognizedUsd = roundUsd(obligations
@@ -572,6 +652,7 @@ export async function buildDiscoverOssIntelligence(input: {
         : `/profile?section=${code === "identity_unresolved" ? "identity" : "payouts"}&returnTo=${encodeURIComponent(`/discover?repo=${selected.fullName}`)}`,
     })),
     outcomes,
+    pools,
     programs,
     recentActivity: (selected.activity?.records ?? []).slice(0, 12),
     meta: stored.meta,

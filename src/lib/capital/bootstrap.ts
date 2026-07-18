@@ -42,6 +42,32 @@ export type CapitalBootstrap = {
     submittedAt: string | null;
     confirmedAt: string | null;
     updatedAt: string;
+    transactionHash: string | null;
+    transactionStatus: string | null;
+    failureMessage: string | null;
+    receiptReference: string | null;
+  }>;
+  fundingIntents: Array<{
+    id: string;
+    communitySlug: string | null;
+    programId: string | null;
+    amountMicroUsdc: string;
+    status: string;
+    returnTo: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+  }>;
+  claims: Array<{
+    id: string;
+    recipient: string;
+    communitySlug: string;
+    amountMicroUsdc: string;
+    status: string;
+    blockerCode: string | null;
+    identityId: string | null;
+    payoutDestinationId: string | null;
+    evidenceCount: number;
+    recognizedAt: string;
   }>;
   recentActivity: Array<{
     id: string;
@@ -119,7 +145,7 @@ function groupAuthorizations(
 export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<CapitalBootstrap> {
   const statePromise = loadCapitalState(authUser, { liveSync: false });
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1_000);
-  const [state, authorizationRows, settlementRows, settled] = await Promise.all([
+  const [state, authorizationRows, settlementRows, settled, fundingIntents, claimRows] = await Promise.all([
     statePromise,
     prisma.paymentAuthorization.findMany({
       where: {
@@ -158,6 +184,67 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
       where: { userId: authUser.id, status: "confirmed", confirmedAt: { gte: since } },
       _sum: { totalUsdcMicro: true },
     }).catch(() => ({ _sum: { totalUsdcMicro: null } })),
+    prisma.fundingIntent.findMany({
+      where: { userId: authUser.id },
+      select: {
+        id: true,
+        communitySlug: true,
+        programId: true,
+        amountUsdcMicro: true,
+        status: true,
+        returnTo: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }).catch(() => []),
+    prisma.obligation.findMany({
+      where: { userId: authUser.id },
+      select: {
+        id: true,
+        communitySlug: true,
+        identityId: true,
+        payoutDestinationId: true,
+        evidenceIds: true,
+        amountUsdcMicro: true,
+        status: true,
+        blockerCode: true,
+        recognizedAt: true,
+      },
+      orderBy: { recognizedAt: "desc" },
+      take: 80,
+    }).catch(() => []),
+  ]);
+
+  const settlementIds = settlementRows.map((row) => row.id);
+  const identityIds = claimRows.flatMap((row) => row.identityId ? [row.identityId] : []);
+  const [chainRows, receiptRows, claimIdentities] = await Promise.all([
+    settlementIds.length
+      ? prisma.chainTransaction.findMany({
+          where: { settlementBatchId: { in: settlementIds } },
+          select: {
+            settlementBatchId: true,
+            txHash: true,
+            status: true,
+            failureMessage: true,
+            updatedAt: true,
+          },
+          orderBy: { updatedAt: "desc" },
+        }).catch(() => [])
+      : [],
+    settlementIds.length
+      ? prisma.receipt.findMany({
+          where: { settlementBatchId: { in: settlementIds } },
+          select: { settlementBatchId: true, publicReference: true },
+        }).catch(() => [])
+      : [],
+    identityIds.length
+      ? prisma.identity.findMany({
+          where: { id: { in: identityIds } },
+          select: { id: true, displayName: true, canonicalRef: true },
+        }).catch(() => [])
+      : [],
   ]);
 
   if (!state.walletRegistry) throw new Error("capital_wallet_registry_missing");
@@ -187,6 +274,14 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
   const pending = settlementRows
     .filter((row) => ["prepared", "approved", "submitting", "pending"].includes(row.status))
     .reduce((sum, row) => sum + row.totalUsdcMicro, 0n);
+  const chainBySettlement = new Map<string, (typeof chainRows)[number]>();
+  for (const row of chainRows) {
+    if (row.settlementBatchId && !chainBySettlement.has(row.settlementBatchId)) {
+      chainBySettlement.set(row.settlementBatchId, row);
+    }
+  }
+  const receiptBySettlement = new Map(receiptRows.map((row) => [row.settlementBatchId, row]));
+  const identityById = new Map(claimIdentities.map((row) => [row.id, row]));
 
   return {
     ok: true,
@@ -206,16 +301,48 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
       settledThirtyDayMicroUsdc: (settled._sum.totalUsdcMicro ?? 0n).toString(),
     },
     authorizations,
-    settlementQueue: settlementRows.map((row) => ({
-      id: row.id,
-      communitySlug: row.communitySlug,
-      status: row.status,
-      totalMicroUsdc: row.totalUsdcMicro.toString(),
-      payeeCount: row.payeeCount,
-      submittedAt: row.submittedAt?.toISOString() ?? null,
-      confirmedAt: row.confirmedAt?.toISOString() ?? null,
-      updatedAt: row.updatedAt.toISOString(),
+    settlementQueue: settlementRows.map((row) => {
+      const transaction = chainBySettlement.get(row.id);
+      return {
+        id: row.id,
+        communitySlug: row.communitySlug,
+        status: row.status,
+        totalMicroUsdc: row.totalUsdcMicro.toString(),
+        payeeCount: row.payeeCount,
+        submittedAt: row.submittedAt?.toISOString() ?? null,
+        confirmedAt: row.confirmedAt?.toISOString() ?? null,
+        updatedAt: row.updatedAt.toISOString(),
+        transactionHash: transaction?.txHash ?? null,
+        transactionStatus: transaction?.status ?? null,
+        failureMessage: transaction?.failureMessage ?? null,
+        receiptReference: receiptBySettlement.get(row.id)?.publicReference ?? null,
+      };
+    }),
+    fundingIntents: fundingIntents.map((intent) => ({
+      id: intent.id,
+      communitySlug: intent.communitySlug,
+      programId: intent.programId,
+      amountMicroUsdc: intent.amountUsdcMicro.toString(),
+      status: intent.status,
+      returnTo: intent.returnTo,
+      expiresAt: intent.expiresAt?.toISOString() ?? null,
+      createdAt: intent.createdAt.toISOString(),
     })),
+    claims: claimRows.map((claim) => {
+      const identity = claim.identityId ? identityById.get(claim.identityId) : null;
+      return {
+        id: claim.id,
+        recipient: identity?.displayName ?? identity?.canonicalRef ?? "Identity required",
+        communitySlug: claim.communitySlug,
+        amountMicroUsdc: claim.amountUsdcMicro.toString(),
+        status: claim.status,
+        blockerCode: claim.blockerCode,
+        identityId: claim.identityId,
+        payoutDestinationId: claim.payoutDestinationId,
+        evidenceCount: claim.evidenceIds.length,
+        recognizedAt: claim.recognizedAt.toISOString(),
+      };
+    }),
     recentActivity: state.activity.map((row) => ({
       id: row.id,
       label: row.label,

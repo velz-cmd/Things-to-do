@@ -480,13 +480,11 @@ test.describe("Community phases — surfaces", () => {
     await expect(page).toHaveURL(/\/discover/);
   });
 
-  test("capital page loads with activity tab", async ({ page }) => {
+  test("capital page exposes the authenticated operations entry", async ({ page }) => {
     await page.goto("/capital", { waitUntil: "domcontentloaded" });
     await expect(
-      page.getByRole("heading", { level: 1, name: "Your treasury" }),
+      page.getByRole("heading", { name: "Sign in to open Capital" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Activity" }).click();
-    await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
   });
 
   test("communities hub loads and nav highlights Communities", async ({ page }) => {

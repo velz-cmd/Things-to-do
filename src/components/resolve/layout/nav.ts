@@ -4,6 +4,7 @@ import {
   CircleDollarSign,
   Layers,
   Sparkles,
+  UserRound,
   Wallet,
 } from "lucide-react";
 
@@ -51,6 +52,13 @@ export const PRODUCT_NAV = [
     label: "Capital",
     question: "Where should money move?",
     icon: Wallet,
+    exact: false as const,
+  },
+  {
+    href: "/profile",
+    label: "Profile",
+    question: "Who am I across this ecosystem?",
+    icon: UserRound,
     exact: false as const,
   },
 ] as const;

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("RESOLVE product surfaces", () => {
-  test("five-tab IA is reachable", async ({ page }) => {
+  test("primary product IA is reachable", async ({ page }) => {
     test.setTimeout(120_000);
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -31,11 +31,7 @@ test.describe("RESOLVE product surfaces", () => {
     });
 
     await page.goto("/capital", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await expect(page.getByRole("heading", { level: 1, name: "Your treasury" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
-    await expect(page.getByText("Your money, one simple account")).toBeVisible();
-    await page.getByRole("button", { name: "Activity" }).click();
-    await expect(page.getByText(/No activity yet|activity/i).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to open Capital" })).toBeVisible();
 
     await page.goto("/network", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(page).toHaveURL(/\/discover/);
@@ -50,8 +46,7 @@ test.describe("RESOLVE product surfaces", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Claim earnings" })).toBeVisible();
 
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Who am I in this ecosystem?" })).toBeVisible();
-    await expect(page.getByText("Your earnings", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Your identity control plane" })).toBeVisible();
 
     await page.goto("/control", { waitUntil: "commit" });
     await expect(page).toHaveURL(/\/mission/);

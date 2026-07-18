@@ -144,7 +144,7 @@ export function PendingAuthorizationsPanel({
                   Open community →
                 </Link>
                 <Link
-                  href="/capital?tab=programs"
+                  href="/capital?view=pending"
                   className="text-xs font-medium text-resolve-accent hover:underline"
                 >
                   Fund / fulfill →
@@ -201,7 +201,7 @@ export function PendingAuthorizationsPanel({
       )}
 
       <Link
-        href="/capital?tab=programs"
+        href="/capital?view=pending"
         className="mt-3 inline-block text-xs font-medium text-resolve-accent hover:underline"
       >
         Review all obligations →

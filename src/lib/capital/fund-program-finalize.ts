@@ -9,6 +9,7 @@ import {
   circleTxIdFromActivityLabel,
   stakeIdFromActivityLabel,
 } from "@/lib/capital/fund-pending-label";
+import { syncSupporterBenefitsForStake } from "@/lib/capital/supporter-benefits";
 
 export type FinalizeFundResult =
   | { ok: true; status: "completed"; activityId: string; txHash?: string }
@@ -117,6 +118,9 @@ export async function finalizePendingFundActivity(input: {
           label: `You funded ${stakeRow.program.name} · ${snapshot.txHash}`,
         },
       });
+    });
+    await syncSupporterBenefitsForStake(stakeRow.id).catch((error) => {
+      console.error("[fund-finalize] supporter benefit ledger sync failed", error);
     });
     return {
       ok: true,

@@ -16,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_ENABLED: "true"
+      # Node 22 synchronous loader hooks pass Set-based conditions; force the
+      # stable async loader until the transitive tsx loader accepts both forms.
+      PLAYWRIGHT_FORCE_ASYNC_LOADER: "1"
       CI: "true"
       NODE_OPTIONS: "--max-old-space-size=4096"
       # Authenticated E2E must never mutate the production Supabase project.

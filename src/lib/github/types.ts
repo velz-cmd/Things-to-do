@@ -58,6 +58,14 @@ export interface GitHubRelease {
   sourceUrl: string;
 }
 
+export interface GitHubDependency {
+  name: string;
+  requirement: string;
+  kind: "runtime" | "peer" | "optional";
+  manifestPath: string;
+  sourceUrl: string;
+}
+
 export interface RepoIngestResult {
   owner: string;
   repo: string;
@@ -72,6 +80,7 @@ export interface RepoIngestResult {
   pullRequests: GitHubPullRequest[];
   issues: GitHubIssue[];
   releases: GitHubRelease[];
+  dependencies: GitHubDependency[];
   ingestedAt: string;
 }
 
@@ -191,6 +200,7 @@ export interface FundingOpportunity {
   priority: "critical" | "high" | "medium";
   live: boolean;
   activity?: GitHubFundingActivitySnapshot;
+  dependencies?: GitHubDependency[];
 }
 
 export interface GitHubAllocationResult {

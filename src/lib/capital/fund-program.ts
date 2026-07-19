@@ -21,6 +21,7 @@ import { circleIdempotencyKey } from "@/lib/wallet/circle-idempotency";
 import { circleUserMessage } from "@/lib/wallet/circle-errors";
 import type { ProgramRules } from "@/lib/communities/types";
 import { isDeputyDemoMode, isProductionDeploy } from "@/lib/config/demo-mode";
+import { syncSupporterBenefitsForStake } from "@/lib/capital/supporter-benefits";
 
 const MIN_FUND_USD = 5;
 /** Keep HTTP response under Vercel maxDuration — finalize pending transfers async. */
@@ -351,6 +352,12 @@ export async function fundCommunityProgram(input: {
       rules,
       founderUserId: input.userId,
     }).catch(() => undefined);
+  }
+
+  if (fundStatus === "completed") {
+    await syncSupporterBenefitsForStake(funded.stake.id).catch((error) => {
+      console.error("[fund-program] supporter benefit ledger sync failed", error);
+    });
   }
 
   return {

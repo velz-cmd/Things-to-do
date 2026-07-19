@@ -72,6 +72,10 @@ export type ActionDefinition<Input = unknown, Output = unknown> = {
 };
 
 export const RESOLVE_ACTION_IDS = [
+  "auth.open_sign_in",
+  "discover.use_connected_ecosystem",
+  "discover.open_public_repository_analysis",
+  "discover.browse_community_pools",
   "discover.capture_repository_snapshot",
   "discover.select_repository",
   "discover.open_repository",

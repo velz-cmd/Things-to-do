@@ -7,6 +7,7 @@ import {
   diffRepositorySnapshots,
   inferProgramCategories,
 } from "../../src/lib/discover/oss-intelligence";
+import type { DiscoverProgramSummary } from "../../src/lib/discover/oss-intelligence";
 import type { FundingOpportunity, GitHubWorkCategory } from "../../src/lib/github/types";
 import type { ProgramPoolState } from "../../src/lib/capital/pool-checkpoint-types";
 
@@ -26,10 +27,26 @@ function opportunity(records: Array<{ id: string; category: GitHubWorkCategory; 
   };
 }
 
+function program(overrides: Partial<DiscoverProgramSummary> = {}): DiscoverProgramSummary {
+  return {
+    id: "docs",
+    name: "Docs bounty",
+    status: "active",
+    categories: ["documentation"],
+    programVersionId: "program-version-1",
+    policyVersionId: "policy-version-1",
+    policyVersion: 3,
+    retroactiveMode: false,
+    dependencySupportPercent: 0,
+    matchingMode: false,
+    ...overrides,
+  };
+}
+
 describe("Discover open-source intelligence", () => {
   it("does not call a category without activity a recognition gap", () => {
     const current = opportunity([{ id: "1", category: "documentation", actor: "ada" }]);
-    const programs = [{ id: "docs", name: "Docs bounty", status: "active", categories: ["documentation" as const] }];
+    const programs = [program()];
     const coverage = buildProgramCoverage(current, programs);
     expect(coverage.find((row) => row.category === "documentation")?.status).toBe("covered");
     expect(coverage.find((row) => row.category === "security")?.status).toBe("no_activity");
@@ -83,9 +100,11 @@ describe("Discover open-source intelligence", () => {
       nextBatchPayees: [{ label: "@ada", owedUsd: 100, payeeKey: "ada", payeeKeyType: "github" }],
       nextBatchTotalUsd: 100, activeMilestoneUsd: 500,
     };
-    const row = buildDiscoverPoolOperation(pool, {
-      id: "docs", name: "Docs bounty", status: "active", categories: ["documentation"],
-    });
+    const row = buildDiscoverPoolOperation(pool, program({
+      retroactiveMode: true,
+      dependencySupportPercent: 7.5,
+      matchingMode: true,
+    }));
     expect(row).toMatchObject({
       poolBalanceUsd: 320,
       availableUsd: 280,
@@ -93,9 +112,20 @@ describe("Discover open-source intelligence", () => {
       remainingToCheckpointUsd: 180,
       queuedTotalUsd: 100,
       policyCoverage: ["Documentation"],
+      policyVersion: 3,
+      retroactiveMode: true,
+      dependencySupportPercent: 7.5,
+      matchingMode: true,
     });
     expect(row.queuedPayees).toEqual([{ label: "@ada", owedUsd: 100 }]);
     expect(row.fundingHref).toContain("program=docs");
+    expect(row.milestoneConditions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "funding", met: false }),
+      expect.objectContaining({ id: "obligations", met: true }),
+      expect.objectContaining({ id: "recipients", met: true }),
+      expect.objectContaining({ id: "policy", met: true }),
+    ]));
+    expect(row.distributionState).toBe("confirmed");
   });
 
   it("clamps checkpoint progress and never invents a remaining target", () => {
@@ -108,7 +138,7 @@ describe("Discover open-source intelligence", () => {
       funder: { userId: null, yourDepositUsd: 0, yourSharePct: 0, yourReleasedUsd: 0, estimatedShareOfOwedUsd: 0, projectedImpactUsd: 0 },
       nextBatchPayees: [], nextBatchTotalUsd: 0, activeMilestoneUsd: 900,
     } satisfies ProgramPoolState;
-    const row = buildDiscoverPoolOperation(pool, { id: "code", name: "Merged code", status: "active", categories: ["code"] });
+    const row = buildDiscoverPoolOperation(pool, program({ id: "code", name: "Merged code", categories: ["code"] }));
     expect(row.progressToNextPct).toBe(100);
     expect(row.remainingToCheckpointUsd).toBe(0);
     expect(row.nextCheckpointUsd).toBeNull();

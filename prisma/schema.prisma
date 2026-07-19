@@ -603,6 +603,30 @@ model CommunityFundStake {
   @@index([status])
 }
 
+/// Persisted, non-financial benefits earned from a confirmed community-pool deposit.
+model SupporterBenefitLedger {
+  id                      String    @id @default(cuid())
+  stakeId                 String
+  programId               String
+  userId                  String
+  benefitKey              String
+  benefitLabel            String
+  status                  String    @default("pending")
+  policyVersion           String?
+  activationCheckpointUsd Float?
+  policySnapshot          Json
+  limitations             Json?
+  activatedAt             DateTime?
+  expiresAt               DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@unique([stakeId, benefitKey])
+  @@index([userId, status, createdAt])
+  @@index([programId, status])
+  @@index([stakeId])
+}
+
 /// One-click automation rule — when sensor event → authorize → notify
 model ResolveAutomationRule {
   id            String                  @id @default(cuid())

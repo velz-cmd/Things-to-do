@@ -48,6 +48,7 @@ export async function scanFundingOpportunity(
     priority,
     live: true,
     activity: buildGitHubFundingActivity(ingest),
+    dependencies: ingest.dependencies,
   };
 }
 

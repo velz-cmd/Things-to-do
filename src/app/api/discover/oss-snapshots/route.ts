@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -44,11 +44,79 @@ export async function POST(request: Request) {
   }
 
   const actionKey = `discover.capture_repository_snapshot:${ready.user.id}:${result.opportunity.fullName.toLowerCase()}:${result.fingerprint}`;
+  const sourceConnection = await prisma.sourceConnection.findFirst({
+    where: {
+      userId: ready.user.id,
+      provider: "github",
+      status: { in: ["connected", "healthy", "syncing", "stale"] },
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true },
+  }).catch(() => null);
+  const proofEvents = [
+    ...(result.opportunity.activity?.records ?? []).map((record) => ({
+      sourceConnectionId: sourceConnection?.id ?? null,
+      communitySlug: null,
+      externalId: record.id,
+      kind: `github.${record.sourceKind}.${record.category}`,
+      subjectRef: `github:${result.opportunity.fullName.toLowerCase()}`,
+      actorRef: `github:${record.actor.toLowerCase()}`,
+      occurredAt: new Date(record.occurredAt),
+      contentHash: createHash("sha256").update(JSON.stringify({
+        snapshot: result.fingerprint,
+        id: record.id,
+        category: record.category,
+        actor: record.actor.toLowerCase(),
+        occurredAt: record.occurredAt,
+      })).digest("hex"),
+      sourceUrl: record.sourceUrl,
+      payload: json({
+        repository: result.opportunity.fullName,
+        workType: record.category,
+        sourceKind: record.sourceKind,
+        title: record.title,
+        snapshotId: result.fingerprint,
+        verificationState: "verified_source",
+        freshness: result.observedAt,
+        attributionState: "observed",
+      }),
+      confidencePpm: 1_000_000,
+    })),
+    ...(result.opportunity.dependencies ?? []).map((dependency) => ({
+      sourceConnectionId: sourceConnection?.id ?? null,
+      communitySlug: null,
+      externalId: `dependency:${result.opportunity.fullName}:${dependency.name}`,
+      kind: "github.dependency.detected",
+      subjectRef: `github:${result.opportunity.fullName.toLowerCase()}`,
+      actorRef: null,
+      occurredAt: new Date(result.observedAt),
+      contentHash: createHash("sha256").update(JSON.stringify({
+        snapshot: result.fingerprint,
+        name: dependency.name,
+        requirement: dependency.requirement,
+        manifestPath: dependency.manifestPath,
+      })).digest("hex"),
+      sourceUrl: dependency.sourceUrl,
+      payload: json({
+        repository: result.opportunity.fullName,
+        dependency: dependency.name,
+        requirement: dependency.requirement,
+        dependencyKind: dependency.kind,
+        manifestPath: dependency.manifestPath,
+        snapshotId: result.fingerprint,
+        verificationState: "verified_source",
+        freshness: result.observedAt,
+        attributionState: "maintainer_unresolved",
+      }),
+      confidencePpm: 1_000_000,
+    })),
+  ];
   const output = {
     repository: result.opportunity.fullName,
     fingerprint: result.fingerprint,
     observedAt: result.observedAt,
     persisted: true,
+    proofEventCount: proofEvents.length,
   };
   try {
     await prisma.$transaction(async (tx) => {
@@ -68,6 +136,9 @@ export async function POST(request: Request) {
           completedAt: new Date(),
         },
       });
+      if (proofEvents.length) {
+        await tx.evidence.createMany({ data: proofEvents, skipDuplicates: true });
+      }
       await tx.operationalEvent.create({
         data: {
           eventType: "discover.repository_snapshot_captured",

@@ -48,6 +48,8 @@ export type ProfileWalletSummary = {
 export type ProfileBootstrap = {
   ok: true;
   signedIn: true;
+  degraded?: boolean;
+  degradedSections?: string[];
   user: {
     id: string;
     email: string | null;
@@ -160,27 +162,27 @@ export async function loadProfileControlPlaneBootstrap(authUser: SupabaseUser): 
     ledgerEntryCount,
     latestSettlement,
   ] = await Promise.all([
-    prisma.sourceConnection.findMany({ where: { userId: authUser.id }, orderBy: { updatedAt: "desc" }, take: 30 }),
-    prisma.identity.findMany({ where: { userId: authUser.id }, orderBy: { updatedAt: "desc" }, take: 30 }),
-    prisma.payoutDestination.findFirst({ where: { userId: authUser.id }, orderBy: [{ verifiedAt: "desc" }, { updatedAt: "desc" }] }),
-    prisma.wallet.findMany({ where: { userId: authUser.id, status: "active" }, orderBy: { updatedAt: "desc" }, take: 10 }),
+    prisma.sourceConnection.findMany({ where: { userId: authUser.id }, orderBy: { updatedAt: "desc" }, take: 30 }).catch(() => []),
+    prisma.identity.findMany({ where: { userId: authUser.id }, orderBy: { updatedAt: "desc" }, take: 30 }).catch(() => []),
+    prisma.payoutDestination.findFirst({ where: { userId: authUser.id }, orderBy: [{ verifiedAt: "desc" }, { updatedAt: "desc" }] }).catch(() => null),
+    prisma.wallet.findMany({ where: { userId: authUser.id, status: "active" }, orderBy: { updatedAt: "desc" }, take: 10 }).catch(() => []),
     prisma.operationalEvent.findMany({ where: { userId: authUser.id, OR: [
       { aggregateType: { in: ["Identity", "SourceConnection", "PayoutDestination", "Wallet", "User"] } },
       { eventType: { startsWith: "profile." } },
       { eventType: { startsWith: "source." } },
       { eventType: { startsWith: "identity." } },
-    ] }, orderBy: { occurredAt: "desc" }, take: 12 }),
+    ] }, orderBy: { occurredAt: "desc" }, take: 12 }).catch(() => []),
     prisma.identityClaim.findMany({
       where: { userId: authUser.id },
       orderBy: { updatedAt: "desc" },
       take: 20,
-    }),
+    }).catch(() => []),
     prisma.resolveCommunityInstall.findMany({
       where: { userId: authUser.id },
       select: { id: true, communitySlug: true, status: true, installedAt: true },
       orderBy: { updatedAt: "desc" },
       take: 12,
-    }),
+    }).catch(() => []),
     prisma.resolveProgram.findMany({
       where: { userId: authUser.id },
       select: {
@@ -191,15 +193,15 @@ export async function loadProfileControlPlaneBootstrap(authUser: SupabaseUser): 
       },
       orderBy: { updatedAt: "desc" },
       take: 12,
-    }),
-    prisma.communityFundStake.count({ where: { userId: authUser.id } }),
-    prisma.userEarningsSnapshot.findUnique({ where: { userId: authUser.id } }),
-    prisma.earningsLedgerEntry.count({ where: { userId: authUser.id } }),
+    }).catch(() => []),
+    prisma.communityFundStake.count({ where: { userId: authUser.id } }).catch(() => 0),
+    prisma.userEarningsSnapshot.findUnique({ where: { userId: authUser.id } }).catch(() => null),
+    prisma.earningsLedgerEntry.count({ where: { userId: authUser.id } }).catch(() => 0),
     prisma.settlementBatch.findFirst({
       where: { userId: authUser.id },
       select: { id: true, status: true, totalUsdcMicro: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
-    }),
+    }).catch(() => null),
   ]);
 
   const [claimIdentities, latestReceipt] = await Promise.all([
@@ -208,17 +210,24 @@ export async function loadProfileControlPlaneBootstrap(authUser: SupabaseUser): 
           where: { id: { in: claimRows.map((claim) => claim.observedIdentityId) } },
           select: { id: true, provider: true, displayLabel: true, externalRef: true },
         })
+          .catch(() => [])
       : [],
     latestSettlement
       ? prisma.receipt.findUnique({
           where: { settlementBatchId: latestSettlement.id },
           select: { publicReference: true, totalUsdcMicro: true, issuedAt: true },
-        })
+        }).catch(() => null)
       : null,
   ]);
 
   const fastIdentities = buildFastIdentities(profile).filter((row) => row.id !== "wallet");
-  const sourceByProvider = new Map(sourceRows.map((row) => [row.provider.toLowerCase(), row]));
+  const sourceByProvider = new Map<string, (typeof sourceRows)[number]>();
+  // Rows are newest-first. Keep the newest provider record instead of allowing
+  // an older community-scoped row to overwrite the canonical Profile state.
+  for (const row of sourceRows) {
+    const provider = row.provider.toLowerCase();
+    if (!sourceByProvider.has(provider)) sourceByProvider.set(provider, row);
+  }
   const identityProviders = new Set<string>();
   const identities: ProfileIdentitySummary[] = identityRows.map((row) => {
     const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
@@ -233,7 +242,7 @@ export async function loadProfileControlPlaneBootstrap(authUser: SupabaseUser): 
   }
 
   const connectionProviders = new Set([...Object.keys(PROVIDERS), ...sourceRows.map((row) => row.provider.toLowerCase()), ...fastIdentities.map((row) => row.id)]);
-  const connections: ProfileConnectionSummary[] = [...connectionProviders].filter((provider) => provider !== "wallet" && provider !== "musicbrainz").map((provider) => {
+  const connections: ProfileConnectionSummary[] = [...connectionProviders].filter((provider) => provider !== "wallet").map((provider) => {
     const persisted = sourceByProvider.get(provider);
     const legacy = fastIdentities.find((row) => row.id === provider);
     const definition = PROVIDERS[provider] ?? { label: provider, group: "community" as const, purpose: "Connected evidence source", authorizeUrl: null };

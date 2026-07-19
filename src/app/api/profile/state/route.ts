@@ -152,6 +152,7 @@ export async function GET(req: Request) {
     const empty = emptyConnectionState();
     return NextResponse.json({
       ok: false,
+      degraded: true,
       user: { id: authUser.id, email: authUser.email ?? null },
       email: authUser.email ?? null,
       connectors: {},
@@ -159,6 +160,6 @@ export async function GET(req: Request) {
       signedIn: true,
       userId: authUser.id,
       error: "profile_state_syncing",
-    });
+    }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   }
 }

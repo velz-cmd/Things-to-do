@@ -4,6 +4,7 @@ import { cacheDelete } from "@/lib/cache/kv";
 export async function invalidateConnectorCaches(userId: string) {
   await Promise.all([
     cacheDelete(`profile:state:${userId}`),
+    cacheDelete(`profile:state:fast:${userId}`),
     cacheDelete(`profile:control-plane:${userId}`),
     cacheDelete(`communities:list:${userId}`),
   ]);

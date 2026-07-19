@@ -9,11 +9,10 @@ import { emptyConnectionState } from "@/lib/profile/connection-state-types";
 import type { CapitalStateResponse } from "@/lib/capital/state";
 import type { CapitalBootstrap } from "@/lib/capital/bootstrap";
 import type { ProfileBootstrap } from "@/lib/profile/control-plane-bootstrap";
+import { fetchJson as requestJson } from "@/lib/api/client-json";
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(url, { credentials: "include", signal, cache: "no-store" });
-  if (!res.ok) throw new Error(`fetch_failed:${url}`);
-  return res.json() as Promise<T>;
+  return requestJson<T>(url, { credentials: "include", signal, cache: "no-store" });
 }
 
 const PROFILE_FAST_TIMEOUT_MS = 5_000;
@@ -129,7 +128,7 @@ export function useProfileBootstrapQuery(enabled: boolean, initialData?: Profile
     placeholderData: (prev) => prev,
     retry: 1,
     retryDelay: 800,
-    refetchOnMount: false,
+    refetchOnMount: initialData?.degraded ? "always" : false,
     refetchOnWindowFocus: false,
   });
 }
@@ -157,7 +156,7 @@ export function useUserConnectionsQuery(
     },
     staleTime: 45_000,
     gcTime: 300_000,
-    refetchOnMount: false,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });
 }
@@ -227,7 +226,7 @@ export function useCapitalBootstrapQuery(enabled: boolean, initialData?: Capital
     gcTime: 300_000,
     placeholderData: (previous) => previous,
     retry: 1,
-    refetchOnMount: false,
+    refetchOnMount: initialData?.dataQuality?.status === "degraded" ? "always" : false,
     refetchOnWindowFocus: false,
   });
 }

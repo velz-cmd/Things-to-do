@@ -11,6 +11,7 @@ import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 import { syncUserSensors } from "@/lib/connectors/user-sensor-sync";
 import { appOrigin } from "@/lib/integrations/musicbrainz-oauth";
 import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
+import { persistProfileConnection } from "@/lib/profile/persisted-connection";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,7 @@ export async function GET(req: Request) {
     });
 
     await ensureContributorFromGithub({ login, githubId: String(ghUser.id) });
+    await persistProfileConnection({ userId, provider: "github", displayLabel: `@${login}` });
     await invalidateConnectorCaches(userId);
     await autoInstallCommunitiesForUser(userId, { githubUsername: login }).catch(() => undefined);
     void syncUserSensors(userId).catch(() => undefined);

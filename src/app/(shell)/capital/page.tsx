@@ -6,6 +6,8 @@ import {
 import { CapitalOperations } from "@/components/resolve/capital/capital-operations";
 import { getSessionUser } from "@/lib/auth/session";
 import { loadCapitalBootstrap } from "@/lib/capital/bootstrap";
+import { offlineCapitalBootstrap } from "@/lib/capital/bootstrap-fallback";
+import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 export const metadata: Metadata = {
   title: "Capital — RESOLVE",
@@ -14,7 +16,13 @@ export const metadata: Metadata = {
 
 export default async function CapitalPage() {
   const user = await getSessionUser();
-  const initialData = user ? await loadCapitalBootstrap(user).catch(() => null) : null;
+  const initialData = user
+    ? await withTimeout(
+        loadCapitalBootstrap(user).catch(() => offlineCapitalBootstrap(user)),
+        7_000,
+        offlineCapitalBootstrap(user),
+      )
+    : null;
   return (
     <Suspense fallback={<CapitalCommandSkeleton />}>
       <CapitalOperations initialData={initialData} />

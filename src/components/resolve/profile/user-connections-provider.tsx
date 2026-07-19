@@ -15,6 +15,7 @@ import { useUserConnectionsQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 import { emptyConnectionState } from "@/lib/profile/connection-state-types";
+import { staleConnectionState } from "@/lib/profile/connection-state-types";
 import { PROFILE_REFRESH_EVENT } from "@/lib/profile/refresh-events";
 import {
   readConnectionSnapshot,
@@ -51,7 +52,10 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
   const state = useMemo((): UserConnectionState => {
     if (!user) return emptyConnectionState();
     const body = query.data as (UserConnectionState & { ok?: boolean }) | undefined;
-    if (body?.signedIn) return snapshot?.signedIn ? mergeConnectionStates(snapshot, body) : body;
+    if (body?.signedIn) {
+      if (body.degraded && snapshot?.signedIn) return staleConnectionState(snapshot);
+      return snapshot?.signedIn ? mergeConnectionStates(snapshot, body) : body;
+    }
     if (snapshot?.signedIn) return snapshot;
     return emptyConnectionState();
   }, [user, query.data, snapshot]);
@@ -76,7 +80,7 @@ export function UserConnectionsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user || !query.data) return;
     const body = query.data as UserConnectionState & { ok?: boolean };
-    if (body.signedIn) {
+    if (body.signedIn && !body.degraded) {
       writeConnectionSnapshot(user.id, body);
     }
   }, [user, query.data]);

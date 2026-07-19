@@ -6,10 +6,18 @@ export type ConnectionPlatformId =
   | "gmail"
   | "musicbrainz"
   | "wallet"
+  | "payout"
   | "mastodon"
   | "peertube";
 
-export type ConnectionSyncStatus = "connected" | "syncing" | "error" | "not_connected";
+export type ConnectionSyncStatus =
+  | "connected"
+  | "syncing"
+  | "stale"
+  | "failed"
+  | "reconnect_required"
+  | "error"
+  | "not_connected";
 
 export type PlatformConnection = {
   id: ConnectionPlatformId;
@@ -29,6 +37,8 @@ export type PlatformConnection = {
 
 export type UserConnectionState = {
   signedIn: boolean;
+  degraded?: boolean;
+  error?: string;
   userId?: string;
   updatedAt: string;
   lastSyncedAt: string | null;
@@ -37,6 +47,18 @@ export type UserConnectionState = {
   hasAnyConnector: boolean;
   githubUsername: string | null;
 };
+
+export function staleConnectionState(state: UserConnectionState): UserConnectionState {
+  return {
+    ...state,
+    degraded: true,
+    error: "profile_state_refresh_failed",
+    platforms: state.platforms.map((platform) => ({
+      ...platform,
+      syncStatus: platform.connected ? "stale" : platform.syncStatus,
+    })),
+  };
+}
 
 export function emptyConnectionState(): UserConnectionState {
   return {

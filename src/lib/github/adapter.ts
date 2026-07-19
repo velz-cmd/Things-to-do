@@ -1,6 +1,7 @@
 import { githubFetch } from "@/lib/github/client";
 import type {
   GitHubContributor,
+  GitHubDependency,
   GitHubIssue,
   GitHubPullRequest,
   GitHubRelease,
@@ -58,6 +59,48 @@ type GhRelease = {
   html_url: string;
   draft: boolean;
 };
+
+type GhContent = {
+  content?: string;
+  encoding?: string;
+  html_url?: string;
+  path?: string;
+};
+
+async function fetchPackageDependencies(
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<GitHubDependency[]> {
+  const manifest = await githubFetch<GhContent>(
+    `https://api.github.com/repos/${owner}/${repo}/contents/package.json?ref=${encodeURIComponent(branch)}`,
+    { revalidate: 3600 },
+  );
+  if (!manifest?.content || manifest.encoding !== "base64") return [];
+
+  try {
+    const parsed = JSON.parse(Buffer.from(manifest.content.replaceAll("\n", ""), "base64").toString("utf8")) as {
+      dependencies?: Record<string, unknown>;
+      peerDependencies?: Record<string, unknown>;
+      optionalDependencies?: Record<string, unknown>;
+    };
+    const sourceUrl = manifest.html_url ?? `https://github.com/${owner}/${repo}/blob/${branch}/package.json`;
+    const groups: Array<[GitHubDependency["kind"], Record<string, unknown> | undefined]> = [
+      ["runtime", parsed.dependencies],
+      ["peer", parsed.peerDependencies],
+      ["optional", parsed.optionalDependencies],
+    ];
+    const rows = groups.flatMap(([kind, dependencies]) => Object.entries(dependencies ?? {}).flatMap(([name, value]) =>
+      typeof value === "string"
+        ? [{ name, requirement: value, kind, manifestPath: manifest.path ?? "package.json", sourceUrl }]
+        : []));
+    return rows
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .slice(0, 80);
+  } catch {
+    return [];
+  }
+}
 
 const GRAPHQL_QUERY = `
   query RepoContributors($owner: String!, $repo: String!, $prCount: Int!) {
@@ -265,6 +308,7 @@ export async function ingestRepository(
 
   pullRequests = await enrichPrFiles(owner, repo, pullRequests);
   const contributors = await fetchContributorProfiles(contribRes ?? []);
+  const dependencies = await fetchPackageDependencies(owner, repo, meta.default_branch);
 
   const issues: GitHubIssue[] = (issueRes ?? [])
     .filter((issue) => !issue.pull_request)
@@ -305,6 +349,7 @@ export async function ingestRepository(
     pullRequests: pullRequests.filter((p) => p.merged && p.additions + p.deletions >= 10),
     issues,
     releases,
+    dependencies,
     ingestedAt: new Date().toISOString(),
   };
 }

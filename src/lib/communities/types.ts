@@ -34,6 +34,25 @@ export type ProgramRules = {
   checkpointThresholdsUsd?: number[];
   /** Auto-run Arc batch when a checkpoint is reached and obligations exist */
   autoSettleCheckpoints?: boolean;
+  /** Optional retroactive evaluation window. Work must already be verified. */
+  retroactiveFunding?: {
+    enabled: boolean;
+    evaluationDays: number;
+  };
+  /** Optional, evidence-backed allocation to verified upstream dependencies. */
+  dependencySupport?: {
+    percent: number;
+    evidenceRequired?: boolean;
+  };
+  /** Non-financial supporter benefits defined by the community program. */
+  supporterBenefits?: Array<{
+    key: string;
+    label: string;
+    activation: "confirmed_deposit" | "checkpoint";
+    checkpointUsd?: number;
+    expiresDays?: number;
+    limitations?: string[];
+  }>;
 };
 
 export type ProgramDeployReadiness = {

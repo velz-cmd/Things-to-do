@@ -7,10 +7,12 @@ import {
   Activity, ArrowRight, BadgeCheck, BookOpenCheck, Boxes, CheckCircle2,
   CircleAlert, CircleDollarSign, Clock3, ExternalLink, FileCode2, GitBranch, GitFork,
   GitPullRequest, Landmark, Network, ScanSearch, ShieldCheck, Sparkles, Users, WalletCards,
+  Cable, Database, Link2, Route, Scale,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import type { DiscoverOssIntelligence, DiscoverRepositoryChange } from "@/lib/discover/oss-intelligence";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import styles from "./discover-open-source-intelligence.module.css";
 
 const number = new Intl.NumberFormat("en-US");
@@ -44,14 +46,114 @@ function PoolProgress({ value }: { value: number }) {
   return <div className={styles.poolProgress} aria-label={`${number.format(value)} percent funded toward the next checkpoint`}><i style={{ width: `${value}%` }} /></div>;
 }
 
+function SupporterLedger({
+  data,
+  signedIn,
+  onSignIn,
+}: {
+  data: DiscoverOssIntelligence;
+  signedIn: boolean;
+  onSignIn: () => void;
+}) {
+  return (
+    <section className={styles.supportSection}>
+      <div className={styles.sectionHeading}>
+        <div>
+          <p className={styles.sectionKicker}>My support and benefits</p>
+          <h2>Confirmed deposits and community-defined benefits</h2>
+          <p>Benefits are persisted only after the deposit and activation condition are confirmed. They are non-financial unless a separate policy says otherwise.</p>
+        </div>
+        {!signedIn && <button type="button" data-action-id="auth.open_sign_in" onClick={onSignIn} className={styles.secondaryButton}>Sign in to view support</button>}
+      </div>
+      {signedIn ? (
+        <div className={styles.supportGrid}>
+          <div>
+            <h3>Deposits</h3>
+            {data.viewerSupport.deposits.length > 0 ? data.viewerSupport.deposits.map((deposit) => (
+              <article key={deposit.stakeId}>
+                <div><strong>{deposit.programName}</strong><span>{deposit.status.replaceAll("_", " ")}</span></div>
+                <p>{usd.format(deposit.amountUsd)} deposited · {formatDate(deposit.createdAt)}</p>
+              </article>
+            )) : <p className={styles.truthEmpty}>No confirmed or pending community-pool deposit is recorded for this account.</p>}
+          </div>
+          <div>
+            <h3>Benefit ledger</h3>
+            {data.viewerSupport.benefits.length > 0 ? data.viewerSupport.benefits.map((benefit) => (
+              <article key={benefit.id}>
+                <div><strong>{benefit.label}</strong><span>{benefit.status}</span></div>
+                <p>{benefit.activationCheckpointUsd === null ? "Activated by confirmed deposit" : `Activates at ${usd.format(benefit.activationCheckpointUsd)} checkpoint`}</p>
+                {benefit.expiresAt && <small>Expires {formatDate(benefit.expiresAt)}</small>}
+                {benefit.limitations.length > 0 && <small>{benefit.limitations.join(" · ")}</small>}
+              </article>
+            )) : <p className={styles.truthEmpty}>No community-defined supporter benefit is recorded. A deposit never creates an invented reward.</p>}
+          </div>
+        </div>
+      ) : <p className={styles.truthEmpty}>Sign in to read your persisted pool deposits and supporter-benefit history.</p>}
+    </section>
+  );
+}
+
+function AttributionPanel({ data }: { data: DiscoverOssIntelligence }) {
+  const repository = data.selected?.fullName ?? "repository";
+  return (
+    <section className={styles.attributionSection}>
+      <div className={styles.sectionHeading}>
+        <div>
+          <p className={styles.sectionKicker}>Proof and attribution graph</p>
+          <h2>Who created value and where policy routes it</h2>
+          <p>Every relationship below is derived from the selected snapshot, active policy, persisted pool records, or confirmed receipts.</p>
+        </div>
+        <span className={styles.persistedBadge}><Database /> {data.proof.persistedEvents} persisted proof {data.proof.persistedEvents === 1 ? "event" : "events"}</span>
+      </div>
+      <div className={styles.graphSummary}>
+        <Metric label="Source" value={data.proof.source} detail={data.proof.verificationState.replaceAll("_", " ")} />
+        <Metric label="Uncovered proof" value={number.format(data.recognitionSummary.uncoveredEvents)} detail={`${data.recognitionSummary.contributorCount} attributed contributors`} />
+        <Metric label="Graph records" value={number.format(data.attributionGraph.nodes.length)} detail={`${data.attributionGraph.edges.length} reproducible relationships`} />
+        <Metric label="Dependencies" value={number.format(data.dependencies.length)} detail="Detected from the repository manifest" />
+      </div>
+      <div className={styles.graphBody}>
+        <div className={styles.graphEdges}>
+          {data.attributionGraph.edges.slice(0, 18).map((edge, index) => {
+            const from = data.attributionGraph.nodes.find((node) => node.id === edge.from)?.label ?? edge.from;
+            const to = data.attributionGraph.nodes.find((node) => node.id === edge.to)?.label ?? edge.to;
+            return <div key={`${edge.from}:${edge.to}:${index}`}><span>{from}</span><Route aria-hidden="true" /><strong>{edge.relation}</strong><ArrowRight aria-hidden="true" /><span>{to}</span></div>;
+          })}
+          {data.attributionGraph.edges.length === 0 && <p className={styles.truthEmpty}>No attribution relationship is available for this snapshot.</p>}
+        </div>
+        <div className={styles.dependencyList}>
+          <h3>Upstream dependency evidence</h3>
+          {data.dependencies.length > 0 ? data.dependencies.slice(0, 12).map((dependency) => (
+            <article key={dependency.name}>
+              <div><Link2 aria-hidden="true" /><strong>{dependency.name}</strong><span>{dependency.requirement}</span></div>
+              <p>{dependency.kind} dependency in a verified manifest. Maintainer identity is unresolved.</p>
+              {dependency.splitPercent > 0 && <small>{dependency.splitPercent}% dependency-support policy applies only after maintainer identity and payout readiness are verified.</small>}
+              <a href={dependency.sourceUrl} target="_blank" rel="noreferrer" data-action-id="discover.open_evidence">Manifest proof <ExternalLink /></a>
+            </article>
+          )) : <p className={styles.truthEmpty}>No supported dependency manifest was captured for {repository}. No dependency split is inferred.</p>}
+        </div>
+      </div>
+      <details className={styles.evidenceDetails}>
+        <summary>Evidence details</summary>
+        <dl><div><dt>Snapshot ID</dt><dd>{data.proof.snapshotId ?? "Not available"}</dd></div><div><dt>Observed</dt><dd>{formatDate(data.proof.observedAt)}</dd></div><div><dt>Calculation</dt><dd>{data.recognitionSummary.calculationMethod}</dd></div></dl>
+      </details>
+    </section>
+  );
+}
+
 export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: DiscoverOssIntelligence }) {
   const router = useRouter();
   const { user } = useAuth();
   const { openSignIn } = useSignInModal();
+  const { state: connections, loading: connectionsLoading } = useUserConnections();
   const [repository, setRepository] = useState(initialData.selected?.fullName ?? "");
   const [pending, setPending] = useState<"snapshot" | "mission" | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const selected = initialData.selected;
+  const github = connections.platforms.find((platform) => platform.id === "github");
+  const githubUsername = connections.githubUsername?.toLowerCase() ?? null;
+  const connectedRepositories = githubUsername
+    ? initialData.repositories.filter((option) => option.owner.toLowerCase() === githubUsername)
+    : [];
 
   async function captureSnapshot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -127,10 +229,27 @@ export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: D
       <div className={styles.shell}>
         <header className={styles.hero}>
           <div className={styles.heroCopy}>
-            <div className={styles.eyebrow}><GitBranch aria-hidden="true" /> Open-source funding intelligence</div>
-            <h1>See the work your ecosystem depends on—and what its funding programs miss.</h1>
-            <p>Select a public repository. RESOLVE turns accepted GitHub activity into an auditable map of program coverage, recognition debt, maintainer concentration, funding readiness, and proven outcomes.</p>
-            <form className={styles.repoForm} data-action-id="discover.capture_repository_snapshot" onSubmit={captureSnapshot}>
+            <div className={styles.eyebrow}><GitBranch aria-hidden="true" /> Proof-to-Pool economic intelligence</div>
+            <h1>See which work your ecosystem depends on, what funding misses, and how shared capital reaches contributors.</h1>
+            <p>RESOLVE turns existing activity into verified proof, attribution, policy coverage, communal funding milestones, automatic distribution, and public receipts.</p>
+            <div className={styles.entryPaths} aria-label="Choose a Discover path">
+              <a href="#connected-ecosystem" data-action-id="discover.use_connected_ecosystem" className={styles.entryPath}>
+                <Cable aria-hidden="true" />
+                <span>Use my connected ecosystem</span>
+                <small>{connectionsLoading ? "Reading Profile connection" : github?.connected ? `Connected ${github.displayValue ?? "GitHub"}` : "Connect once in Profile"}</small>
+              </a>
+              <a href="#public-repository-analysis" data-action-id="discover.open_public_repository_analysis" className={styles.entryPath}>
+                <ScanSearch aria-hidden="true" />
+                <span>Analyze a public repository</span>
+                <small>Capture verified GitHub activity</small>
+              </a>
+              <a href="#community-pools" data-action-id="discover.browse_community_pools" className={styles.entryPath}>
+                <Landmark aria-hidden="true" />
+                <span>Browse community pools</span>
+                <small>{initialData.pools.length} active persisted {initialData.pools.length === 1 ? "pool" : "pools"}</small>
+              </a>
+            </div>
+            <form id="public-repository-analysis" className={styles.repoForm} data-action-id="discover.capture_repository_snapshot" onSubmit={captureSnapshot}>
               <label htmlFor="discover-repository">Public GitHub repository</label>
               <div className={styles.repoControls}>
                 <div className={styles.repoInputWrap}>
@@ -158,11 +277,44 @@ export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: D
           </div>
         </header>
 
+        <section id="connected-ecosystem" className={styles.connectionSection}>
+          <div className={styles.sectionHeading}>
+            <div>
+              <p className={styles.sectionKicker}>Profile connection state</p>
+              <h2>Your connected ecosystem</h2>
+              <p>Discover reads the canonical connection saved in Profile. It never creates a second GitHub connection.</p>
+            </div>
+            {github?.connected
+              ? <span className={styles.persistedBadge}><BadgeCheck /> Connected {github.displayValue ?? "GitHub"}</span>
+              : <Link href="/profile?view=sources&returnTo=/discover" data-action-id="profile.connect_source" className={styles.secondaryButton}>Connect in Profile <ArrowRight /></Link>}
+          </div>
+          {github?.connected ? (
+            connectedRepositories.length > 0 ? (
+              <div className={styles.connectedRepoGrid}>
+                {connectedRepositories.map((option) => (
+                  <button key={option.fullName} type="button" data-action-id="discover.select_repository" onClick={() => selectRepository(option.fullName)}>
+                    <FileCode2 aria-hidden="true" />
+                    <span>{option.fullName}</span>
+                    <small>Persisted snapshot · {formatDate(option.scannedAt)}</small>
+                  </button>
+                ))}
+              </div>
+            ) : <p className={styles.truthEmpty}>GitHub is connected in Profile, but no persisted repository snapshot belongs to this account yet. Analyze a public repository below to create the first one.</p>
+          ) : <p className={styles.truthEmpty}>No GitHub connection is saved in Profile. Public repository analysis remains available without creating a duplicate connection.</p>}
+        </section>
+
         {!selected ? (
-          <section className={styles.emptyState}>
-            <ScanSearch aria-hidden="true" />
-            <div><p className={styles.sectionKicker}>No persisted repository snapshot</p><h2>Start with a real public repository.</h2><p>Analysis appears only after GitHub returns a repository and RESOLVE persists its verified activity snapshot. No sample results are shown as live data.</p></div>
-          </section>
+          <>
+            <section className={styles.emptyState}>
+              <ScanSearch aria-hidden="true" />
+              <div><p className={styles.sectionKicker}>No persisted repository snapshot</p><h2>Start with a real public repository.</h2><p>Analysis appears only after GitHub returns a repository and RESOLVE persists its verified activity snapshot. No sample results are shown as live data.</p></div>
+            </section>
+            <section id="community-pools" className={styles.poolSection}>
+              <div className={styles.sectionHeading}><div><p className={styles.sectionKicker}>Community pools</p><h2>Browse shared capital already attached to active policy</h2></div></div>
+              {initialData.pools.length > 0 ? <div className={styles.compactPoolGrid}>{initialData.pools.map((pool) => <article key={pool.programId}><div><strong>{pool.programName}</strong><span>{pool.communitySlug}</span></div><p>{pool.rationale}</p><dl><div><dt>Confirmed</dt><dd>{usd.format(pool.poolBalanceUsd)}</dd></div><div><dt>Next checkpoint</dt><dd>{pool.nextCheckpointUsd === null ? "Complete" : usd.format(pool.nextCheckpointUsd)}</dd></div></dl><Link href={pool.fundingHref} data-action-id="capital.open_funding">Open pool <ArrowRight /></Link></article>)}</div> : <p className={styles.truthEmpty}>No active community pool exists yet. Discover will not create a sample pool.</p>}
+            </section>
+            <SupporterLedger data={initialData} signedIn={Boolean(user)} onSignIn={openSignIn} />
+          </>
         ) : (
           <>
             <section className={styles.contextBar} aria-label="Selected repository context">
@@ -207,6 +359,11 @@ export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: D
             <div className={styles.analysisGrid}>
               <section className={styles.panel}>
                 <div className={styles.panelHeading}><CircleAlert /><div><p className={styles.sectionKicker}>Recognition debt</p><h2>Verified work outside active policy</h2></div><strong>{number.format(initialData.recognitionDebt.length)}</strong></div>
+                <div className={styles.debtSummary}>
+                  <span>{initialData.recognitionSummary.categories.length ? initialData.recognitionSummary.categories.join(" · ") : "No uncovered category"}</span>
+                  <strong>{initialData.recognitionSummary.amountUsd === null ? "No amount available" : usd.format(initialData.recognitionSummary.amountUsd)}</strong>
+                  <small>{initialData.recognitionSummary.amountState === "modeled_estimate" ? "Modeled estimate — not owed or claimable" : initialData.recognitionSummary.amountState.replaceAll("_", " ")}</small>
+                </div>
                 {initialData.recognitionDebt.length ? <div className={styles.recordList}>{initialData.recognitionDebt.slice(0, 6).map((record) => <article key={record.id} className={styles.record}>
                   <div><span>{record.category.replaceAll("_", " ")}</span><time>{formatDate(record.occurredAt)}</time></div><h3>{record.title}</h3><p>{record.reason}</p>
                   <Link data-action-id="discover.open_evidence" href={`/api/discover/oss-evidence/${encodeURIComponent(record.id)}`} target="_blank" className={styles.inlineLink}>Proof on GitHub <ExternalLink /></Link>
@@ -221,6 +378,8 @@ export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: D
                 </article>)}</div>
               </section>
             </div>
+
+            <AttributionPanel data={initialData} />
 
             <section className={styles.fundingSection}>
               <div className={styles.sectionHeading}><div><p className={styles.sectionKicker}>Funding coverage</p><h2>Can recognized work actually be paid?</h2></div><span className={styles.persistedBadge}><Activity /> Persisted financial records only</span></div>
@@ -239,16 +398,16 @@ export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: D
               </div>) : <div className={styles.baselineNotice}><CheckCircle2 /> No persisted identity, payout, or funding blocker is currently recorded.</div>}</div>
             </section>
 
-            <section className={styles.poolSection}>
+            <section id="community-pools" className={styles.poolSection}>
               <div className={styles.sectionHeading}>
-                <div><p className={styles.sectionKicker}>Allocation desk</p><h2>How real pool capital reaches recognized contributors</h2><p>Each row joins an active policy to its persisted stake pool, authorization ledger, checkpoint, and next payee queue. Discover explains the route; Capital remains the authorization surface.</p></div>
+                <div><p className={styles.sectionKicker}>Community capital graph</p><h2>How shared capital reaches verified contributors</h2><p>Funders deposit into a communal pool. Versioned policy and verified obligations determine recipients; funders cannot manually change payees or weights.</p></div>
                 <span className={styles.persistedBadge}><WalletCards /> Ledger-backed values</span>
               </div>
               {initialData.pools.length ? <div className={styles.poolList}>{initialData.pools.map((pool) => <article key={pool.programId} className={styles.poolCard}>
                 <div className={styles.poolIdentity}>
                   <span className={styles.poolIcon}><CircleDollarSign /></span>
-                  <div><span>{pool.status} program</span><h3>{pool.programName}</h3><p>{pool.rationale}</p></div>
-                  <div className={styles.poolLinks}><Link data-action-id="discover.open_program" href={pool.programHref}>Program <ArrowRight /></Link><Link data-action-id="capital.open_funding" href={pool.fundingHref}>Review in Capital <ArrowRight /></Link></div>
+                  <div><span>{pool.communitySlug} · {pool.status} · {pool.distributionState.replaceAll("_", " ")}</span><h3>{pool.programName}</h3><p>{pool.rationale}</p></div>
+                  <div className={styles.poolLinks}><Link data-action-id="discover.open_program" href={pool.programHref}>Program <ArrowRight /></Link><Link data-action-id="capital.open_funding" href={pool.fundingHref}>Deposit in Capital <ArrowRight /></Link></div>
                 </div>
                 <div className={styles.poolEconomics}>
                   <Metric label="Confirmed pool" value={usd.format(pool.poolBalanceUsd)} detail={`${pool.funderCount} persisted ${pool.funderCount === 1 ? "funder" : "funders"}`} />
@@ -263,6 +422,13 @@ export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: D
                     <div className={styles.checkpointFacts}><span>{number.format(pool.progressToNextPct)}% funded</span><span>{pool.nextCheckpointUsd === null ? "Checkpoint ladder complete" : `${usd.format(pool.remainingToCheckpointUsd)} remaining`}</span></div>
                     <p>{pool.autoSettleEnabled ? "Automatic settlement is permitted by this program policy after its checkpoint conditions are satisfied." : "This policy requires operator authorization after its checkpoint conditions are satisfied."}</p>
                     {pool.policyCoverage.length > 0 && <div className={styles.coverageChips}>{pool.policyCoverage.map((label) => <span key={label}>{label}</span>)}</div>}
+                    <div className={styles.conditionList}>{pool.milestoneConditions.map((condition) => <div key={condition.id} data-ready={condition.met}><span>{condition.met ? <CheckCircle2 /> : <CircleAlert />}{condition.label}</span><small>{condition.detail}</small></div>)}</div>
+                    <div className={styles.policyModes}>
+                      {pool.policyVersionId ? <span><ShieldCheck /> Policy v{pool.policyVersion ?? "recorded"}</span> : <span><CircleAlert /> Normalized policy missing</span>}
+                      {pool.retroactiveMode && <span><Clock3 /> Retroactive funding</span>}
+                      {pool.matchingMode && <span><Scale /> Quadratic matching configured</span>}
+                      {pool.dependencySupportPercent > 0 && <span><Link2 /> {pool.dependencySupportPercent}% dependency support</span>}
+                    </div>
                   </div>
                   <div className={styles.queuePanel}>
                     <div className={styles.poolSubhead}><span>Next verified allocation</span><strong>{pool.queuedPayees.length ? `${pool.queuedPayees.length} ${pool.payeeCategory}` : "Queue empty"}</strong></div>
@@ -277,6 +443,8 @@ export function DiscoverOpenSourceIntelligence({ initialData }: { initialData: D
                 </div>
               </article>)}</div> : <p className={styles.truthEmpty}>No active normalized funding pool is attached to this repository context. RESOLVE will not invent a milestone, deposit, allocation, or payout preview.</p>}
             </section>
+
+            <SupporterLedger data={initialData} signedIn={Boolean(user)} onSignIn={openSignIn} />
 
             <section className={styles.outcomeSection}>
               <div className={styles.sectionHeading}><div><p className={styles.sectionKicker}>Outcome proof</p><h2>Confirmed distributions with receipts</h2><p>Submitted settlements never appear here. Every row requires a confirmed batch, persisted transaction hash, and issued receipt.</p></div></div>

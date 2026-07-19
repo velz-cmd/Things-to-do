@@ -3,6 +3,7 @@ import { getProgramPoolState } from "@/lib/capital/pool-checkpoints";
 import { recordPoolCheckpoint } from "@/lib/capital/pool-checkpoint-metadata";
 import { debitStakePool } from "@/lib/capital/yield-service";
 import { getProgram } from "@/lib/communities/programs";
+import { activateCheckpointSupporterBenefits } from "@/lib/capital/supporter-benefits";
 
 export type CheckpointSettleResult =
   | {
@@ -81,6 +82,9 @@ export async function tryCheckpointBatchSettle(
     paidUsd: settledUsd,
     payeeCount: deployed.payeeCount ?? 0,
     status: "paid",
+  });
+  await activateCheckpointSupporterBenefits(programId, target.thresholdUsd).catch((error) => {
+    console.error("[checkpoint-settle] supporter benefit activation failed", error);
   });
 
   void import("@/lib/capital/checkpoint-funder-bonus").then((m) =>

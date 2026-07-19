@@ -29,6 +29,10 @@ type CatalogRow = {
 };
 
 const rows: readonly CatalogRow[] = [
+  { id: "auth.open_sign_in", label: "Open sign-in", owner: "profile", execution: { kind: "client", handler: "open-sign-in-modal" }, risk: "read", queries: ["profile-state"] },
+  { id: "discover.use_connected_ecosystem", label: "Use connected ecosystem", owner: "discover", execution: { kind: "navigation", destination: "/discover#connected-ecosystem" }, risk: "read", queries: ["discover-oss-intelligence", "profile-state"] },
+  { id: "discover.open_public_repository_analysis", label: "Analyze a public repository", owner: "discover", execution: { kind: "navigation", destination: "/discover#public-repository-analysis" }, risk: "read", queries: ["discover-oss-intelligence"] },
+  { id: "discover.browse_community_pools", label: "Browse community pools", owner: "discover", execution: { kind: "navigation", destination: "/discover#community-pools" }, risk: "read", queries: ["discover-oss-intelligence", "communities"] },
   { id: "discover.capture_repository_snapshot", label: "Capture repository snapshot", owner: "discover", execution: { kind: "mutation", endpoint: "/api/discover/oss-snapshots", method: "POST" }, auth: true, risk: "write", recovery: "profile.connect_source", queries: ["discover", "discover-oss-intelligence"] },
   { id: "discover.select_repository", label: "Select repository", owner: "discover", execution: { kind: "navigation", destination: "/discover?repo=[repository]" }, risk: "read", queries: ["discover-oss-intelligence"] },
   { id: "discover.open_repository", label: "Open repository on GitHub", owner: "discover", execution: { kind: "navigation", destination: "https://github.com/[repository]" }, risk: "read", queries: ["discover-oss-intelligence"] },

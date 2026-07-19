@@ -44,6 +44,12 @@ export function fingerprintFundingOpportunity(opportunity: FundingOpportunity): 
       actor: record.actor,
       occurredAt: record.occurredAt,
     })),
+    dependencies: (opportunity.dependencies ?? []).map((dependency) => ({
+      name: dependency.name,
+      requirement: dependency.requirement,
+      kind: dependency.kind,
+      manifestPath: dependency.manifestPath,
+    })),
   };
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }

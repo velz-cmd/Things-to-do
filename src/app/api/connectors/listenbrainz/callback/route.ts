@@ -10,6 +10,7 @@ import { syncUserSensors } from "@/lib/connectors/user-sensor-sync";
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 import { appOrigin } from "@/lib/integrations/musicbrainz-oauth";
 import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
+import { persistProfileConnection } from "@/lib/profile/persisted-connection";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,11 @@ export async function GET(req: Request) {
         listenbrainzToken: null,
       },
     });
+
+    await Promise.all([
+      persistProfileConnection({ userId, provider: "listenbrainz", displayLabel: `@${username}` }),
+      persistProfileConnection({ userId, provider: "musicbrainz", displayLabel: `@${username}` }),
+    ]);
 
     await invalidateConnectorCaches(userId);
     await autoInstallCommunitiesForUser(userId, { listenbrainzUsername: username }).catch(

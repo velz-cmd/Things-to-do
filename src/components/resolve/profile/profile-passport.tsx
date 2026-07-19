@@ -23,6 +23,7 @@ import {
 import type { ProfileBootstrap } from "@/lib/profile/control-plane-bootstrap";
 import { useProfileBootstrapQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
+import { dispatchProfileRefresh } from "@/lib/profile/refresh-events";
 
 type VisibleTab = Exclude<ProfileTab, "security" | "activity">;
 
@@ -151,8 +152,12 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
     router.replace(`/profile?${next.toString()}`, { scroll: false });
   };
   const reload = async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.profileBootstrap });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.profileBootstrap }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.profileState }),
+    ]);
     await query.refetch();
+    dispatchProfileRefresh();
   };
   const refresh = async (provider: string) => {
     setBusy(provider);
@@ -229,7 +234,19 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
       </main>
     );
   }
-  if (!data) return <ProfileControlPlaneSkeleton />;
+  if (!data && query.isPending) return <ProfileControlPlaneSkeleton />;
+  if (!data) {
+    return (
+      <main className="min-h-[70vh] bg-[#040811] px-4 py-16">
+        <div className="mx-auto max-w-lg rounded-2xl border border-amber-300/20 bg-[#091321] p-8 text-center">
+          <CircleAlert className="mx-auto h-8 w-8 text-amber-200" />
+          <h1 className="mt-4 text-2xl font-semibold text-white">Profile could not load</h1>
+          <p className="mt-2 text-sm text-slate-400">Your account remains signed in. The persisted Profile request failed or timed out.</p>
+          <button type="button" onClick={() => void query.refetch()} className={`${button} mt-6`}>Retry Profile</button>
+        </div>
+      </main>
+    );
+  }
 
   const connectedCount = data.connections.filter((row) => row.status === "connected").length;
   return (
@@ -262,6 +279,16 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
         <nav aria-label="Profile sections" role="tablist" className="mt-4 flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#07101c] p-1">
           {TABS.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} onClick={() => select(tab.id)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition ${active === tab.id ? "bg-violet-400/15 text-violet-100 ring-1 ring-violet-300/20" : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-200"}`}>{tab.label}</button>)}
         </nav>
+        {(data.degraded || query.isError) && (
+          <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100">
+            <span>
+              {query.isError
+                ? "Refresh failed. Showing the last known Profile state."
+                : "Some persisted Profile records are temporarily unavailable. Unverified values are not being substituted."}
+            </span>
+            <button type="button" onClick={() => void query.refetch()} className={button}>Retry</button>
+          </div>
+        )}
         {notice && <div role="status" className="mt-3 rounded-lg border border-cyan-300/15 bg-cyan-300/[0.05] px-3 py-2 text-xs text-cyan-100">{notice}</div>}
 
         <div className="mt-4 space-y-4">

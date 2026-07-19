@@ -78,14 +78,58 @@ function Wallets({ data, busy = null, onSetPayout }: { data: ProfileBootstrap; b
 }
 
 function EconomicEntry({ data }: { data: ProfileBootstrap }) {
-  const money = (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const money = (value: number) => data.degraded
+    ? "Unavailable"
+    : `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const metrics = [
     ["Recognized", data.economics.earnedUsd],
     ["Claimable", data.economics.claimableUsd],
     ["Authorized", data.economics.authorizedUsd],
     ["Settled", data.economics.settledUsd],
   ] as const;
-  return <section className={`${panel} p-5`}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-300">Economic position</p><h2 className="mt-1 text-lg font-semibold text-white">Verified value, without a second wallet dashboard</h2></div><div className="flex gap-2"><Link href="/earn" className={button}>Open Earn</Link><Link href="/capital" className={button}>Open Capital<ArrowRight className="h-3.5 w-3.5" /></Link></div></div><dl className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(([label, value]) => <div key={label} className="rounded-xl border border-white/[0.07] bg-[#07101c] p-4"><dt className="text-[10px] uppercase tracking-[0.16em] text-slate-600">{label}</dt><dd className="mt-2 text-xl font-semibold tabular-nums text-white">{money(value)}</dd></div>)}</dl><div className="mt-4 grid gap-3 lg:grid-cols-2"><div className="rounded-xl border border-white/[0.07] bg-[#07101c] p-4"><span className="text-[10px] uppercase tracking-wider text-slate-600">Latest settlement</span><p className="mt-2 text-sm text-slate-200">{data.economics.latestSettlement ? `${money(data.economics.latestSettlement.amountUsd)} · ${data.economics.latestSettlement.status}` : "No settlement recorded"}</p>{data.economics.latestSettlement && <time className="mt-1 block text-xs text-slate-600">{relativeTime(data.economics.latestSettlement.updatedAt)}</time>}</div><div className="rounded-xl border border-white/[0.07] bg-[#07101c] p-4"><span className="text-[10px] uppercase tracking-wider text-slate-600">Latest receipt</span><p className="mt-2 truncate font-mono text-xs text-slate-300">{data.economics.latestReceipt?.reference ?? "No public receipt issued"}</p>{data.economics.latestReceipt && <time className="mt-1 block text-xs text-slate-600">{relativeTime(data.economics.latestReceipt.issuedAt)}</time>}</div></div></section>;
+  const settlementLabel = data.degraded
+    ? "Settlement data unavailable"
+    : data.economics.latestSettlement
+      ? `${money(data.economics.latestSettlement.amountUsd)} · ${data.economics.latestSettlement.status}`
+      : "No settlement recorded";
+  const receiptLabel = data.degraded
+    ? "Receipt data unavailable"
+    : data.economics.latestReceipt?.reference ?? "No public receipt issued";
+
+  return (
+    <section className={`${panel} p-5`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-300">Economic position</p>
+          <h2 className="mt-1 text-lg font-semibold text-white">Verified value, without a second wallet dashboard</h2>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/earn" className={button}>Open Earn</Link>
+          <Link href="/capital" className={button}>Open Capital<ArrowRight className="h-3.5 w-3.5" /></Link>
+        </div>
+      </div>
+      <dl className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-white/[0.07] bg-[#07101c] p-4">
+            <dt className="text-[10px] uppercase tracking-[0.16em] text-slate-600">{label}</dt>
+            <dd className="mt-2 text-xl font-semibold tabular-nums text-white">{money(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-white/[0.07] bg-[#07101c] p-4">
+          <span className="text-[10px] uppercase tracking-wider text-slate-600">Latest settlement</span>
+          <p className="mt-2 text-sm text-slate-200">{settlementLabel}</p>
+          {data.economics.latestSettlement && <time className="mt-1 block text-xs text-slate-600">{relativeTime(data.economics.latestSettlement.updatedAt)}</time>}
+        </div>
+        <div className="rounded-xl border border-white/[0.07] bg-[#07101c] p-4">
+          <span className="text-[10px] uppercase tracking-wider text-slate-600">Latest receipt</span>
+          <p className="mt-2 truncate font-mono text-xs text-slate-300">{receiptLabel}</p>
+          {data.economics.latestReceipt && <time className="mt-1 block text-xs text-slate-600">{relativeTime(data.economics.latestReceipt.issuedAt)}</time>}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function WorkAndClaims({ data }: { data: ProfileBootstrap }) {

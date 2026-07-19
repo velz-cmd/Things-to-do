@@ -12,6 +12,7 @@ import { syncUserJellyfinSensors, connectJellyfinForUser } from "@/lib/connector
 import { autoInstallCommunitiesForUser } from "@/lib/communities/auto-install";
 import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
 import { appendOperationalEventInTransaction } from "@/lib/events/operational-event";
+import { persistProfileConnection } from "@/lib/profile/persisted-connection";
 
 const navidromeSchema = z.object({
   url: z.string().url().max(512),
@@ -45,6 +46,12 @@ async function finalizeJellyfinConnect(
 ) {
   const url = data.url.trim().replace(/\/$/, "");
   const username = data.username.trim();
+
+  await persistProfileConnection({
+    userId,
+    provider: "jellyfin",
+    displayLabel: username || new URL(url).hostname,
+  });
 
   void autoInstallCommunitiesForUser(userId, {
     jellyfinUrl: url,
@@ -133,6 +140,12 @@ export async function POST(
         navidromeUsername: parsed.data.username.trim(),
         navidromePassword: parsed.data.password,
       },
+    });
+
+    await persistProfileConnection({
+      userId: ready.user.id,
+      provider: "navidrome",
+      displayLabel: parsed.data.username.trim(),
     });
 
     void autoInstallCommunitiesForUser(ready.user.id, {

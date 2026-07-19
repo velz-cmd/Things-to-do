@@ -26,6 +26,7 @@ import { WalletViewSelector } from "@/components/resolve/fund/wallet-view-select
 import { useCapitalBootstrapQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
 import type { CapitalBootstrap, CapitalAuthorizationSummary } from "@/lib/capital/bootstrap";
+import { readJsonResponse } from "@/lib/api/client-json";
 
 type CapitalView = "overview" | "authorizations" | "settlements" | "activity";
 const views: Array<{ id: CapitalView; label: string }> = [
@@ -135,7 +136,9 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
     let timer: number | undefined;
     const poll = async () => {
       const response = await fetch(`/api/actions/${encodeURIComponent(refreshRun)}`, { credentials: "include" }).catch(() => null);
-      const body = response?.ok ? await response.json() : null;
+      const body = response
+        ? await readJsonResponse<{ actionRun?: { state: string } }>(response).catch(() => null)
+        : null;
       if (cancelled || !body?.actionRun) return;
       setRefreshState(body.actionRun.state);
       if (body.actionRun.state === "confirmed") {
@@ -223,6 +226,7 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
     : data.sync.networkHealth === "degraded" ? "Arc synchronization delayed"
     : data.sync.networkHealth === "unavailable" ? "Arc live synchronization unavailable"
     : "Arc live state not checked";
+  const degraded = data.dataQuality?.status === "degraded";
 
   return (
     <main className="min-h-screen bg-[#030711] text-[#f5f8fc] [background-image:linear-gradient(rgba(72,115,169,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(72,115,169,.045)_1px,transparent_1px)] [background-size:40px_40px]">
@@ -248,11 +252,22 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
           </div>
         </header>
 
+        {(degraded || query.isError) && (
+          <section role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100">
+            <span>
+              {query.isError
+                ? "Refresh failed. Showing the last known Capital snapshot."
+                : data.dataQuality?.message ?? "Persisted Capital state is temporarily unavailable. No financial values were inferred."}
+            </span>
+            <button type="button" onClick={() => void query.refetch()} className="min-h-9 rounded-lg border border-amber-200/20 px-3 font-medium hover:bg-amber-200/10">Retry</button>
+          </section>
+        )}
+
         <section aria-labelledby="capital-pulse-title" className="grid overflow-hidden rounded-3xl border border-white/[0.09] bg-[#07111e]/95 shadow-[0_24px_80px_rgba(0,0,0,.25)] lg:grid-cols-[.86fr_1.14fr]">
           <div className="border-b border-white/[0.08] p-5 lg:border-b-0 lg:border-r lg:p-6">
             <p id="capital-pulse-title" className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Selected wallet</p>
             <div className="mt-3 flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-400/20 bg-cyan-400/10"><WalletCards className="h-5 w-5 text-cyan-300" /></div><div><p className="text-sm font-semibold text-white">{data.wallets.selectedCapitalWallet === "connected" ? "Connected wallet" : "RESOLVE wallet"}</p><p className="font-mono text-[11px] text-[#8192aa]">{short(selected?.address)}</p></div></div>
-            <div aria-live="polite" className="mt-6"><p className="text-4xl font-semibold tracking-[-.04em] text-white">{micro(data.moneyState.availableMicroUsdc)}</p><p className="mt-1 text-xs text-[#8fa0b6]">Available from this wallet</p></div>
+            <div aria-live="polite" className="mt-6"><p className="text-4xl font-semibold tracking-[-.04em] text-white">{degraded ? "Unavailable" : micro(data.moneyState.availableMicroUsdc)}</p><p className="mt-1 text-xs text-[#8fa0b6]">{degraded ? "Waiting for persisted treasury state" : "Available from this wallet"}</p></div>
             <dl className="mt-5 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
               <div><dt className="text-[#71839b]">Reserved</dt><dd className="mt-1 font-medium text-white">{micro(data.moneyState.reservedMicroUsdc)}</dd></div>
               <div><dt className="text-[#71839b]">Committed</dt><dd className="mt-1 font-medium text-white">{micro(data.moneyState.committedMicroUsdc)}</dd></div>
@@ -310,7 +325,7 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
           <section aria-labelledby="activity-heading"><div className="mb-3"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-blue-300">Ledger</p><h2 id="activity-heading" className="mt-1 text-lg font-semibold text-white">Capital activity</h2></div>{data.recentActivity.length ? <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#07111d]"><table className="w-full text-left text-xs"><thead className="border-b border-white/[0.08] text-[#71839b]"><tr><th className="px-4 py-3 font-medium">Event</th><th className="px-4 py-3 font-medium">Amount</th><th className="px-4 py-3 font-medium">Status</th><th className="hidden px-4 py-3 font-medium sm:table-cell">Time</th></tr></thead><tbody className="divide-y divide-white/[0.06]">{data.recentActivity.map((row) => <tr key={row.id}><td className="px-4 py-3"><p className="font-medium text-white">{row.label}</p><p className="mt-1 text-[10px] text-[#71839b]">{row.kind}</p></td><td className="px-4 py-3 font-mono text-white">{row.amountMicroUsdc ? micro(row.amountMicroUsdc) : "—"}</td><td className="px-4 py-3"><Status value={row.status} /></td><td className="hidden px-4 py-3 text-[#8192aa] sm:table-cell">{new Date(row.createdAt).toLocaleString()}</td></tr>)}</tbody></table></div> : <Empty title="No Capital activity yet" body="Confirmed deposits, sends, authorizations, settlements, claims, and reconciliation events will appear here." />}</section>
         )}
 
-        <details className="rounded-2xl border border-white/[0.07] bg-[#050c15] p-4 text-xs text-[#8192aa]"><summary className="cursor-pointer font-medium text-[#aab8c9]">Infrastructure diagnostics</summary><dl className="mt-4 grid gap-3 sm:grid-cols-3"><div><dt>Network</dt><dd className="mt-1 text-white">Arc Testnet · 5042002</dd></div><div><dt>Snapshot state</dt><dd className="mt-1 text-white">{data.sync.balanceState}</dd></div><div><dt>Generated</dt><dd className="mt-1 text-white">{new Date(data.generatedAt).toLocaleString()}</dd></div></dl><a href="https://testnet.arcscan.app" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1 text-blue-300">Open ArcScan <ExternalLink className="h-3.5 w-3.5" /></a></details>
+        <details className="rounded-2xl border border-white/[0.07] bg-[#050c15] p-4 text-xs text-[#8192aa]"><summary className="cursor-pointer font-medium text-[#aab8c9]">Infrastructure diagnostics</summary><dl className="mt-4 grid gap-3 sm:grid-cols-4"><div><dt>Network</dt><dd className="mt-1 text-white">Arc Testnet · 5042002</dd></div><div><dt>Snapshot state</dt><dd className="mt-1 text-white">{data.sync.balanceState}</dd></div><div><dt>Data source</dt><dd className="mt-1 text-white">{data.dataQuality?.source === "server_fallback" ? "Auth-backed fallback" : "Persisted snapshot"}</dd></div><div><dt>Last refresh</dt><dd className="mt-1 text-white">{data.sync.lastSuccessfulSyncAt ? new Date(data.sync.lastSuccessfulSyncAt).toLocaleString() : "No successful refresh recorded"}</dd></div></dl><a href="https://testnet.arcscan.app" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1 text-blue-300">Open ArcScan <ExternalLink className="h-3.5 w-3.5" /></a></details>
       </div>
     </main>
   );

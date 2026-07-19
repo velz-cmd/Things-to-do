@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { mergeArcBalanceSnapshot, readArcBalanceSnapshot } from "@/lib/wallet/arc-balance-snapshot";
 import { readWalletView } from "@/lib/wallet/active-wallet-view";
+import { readJsonResponse } from "@/lib/api/client-json";
 
 export interface WalletBalance {
   availableUsd: number;
@@ -157,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           cache: "no-store",
           signal: AbortSignal.timeout(mode === "fast" ? 8_000 : 22_000),
         });
-        const data = await res.json();
+        const data = await readJsonResponse<Record<string, any>>(res);
         let walletAddress =
           data.walletAddress ??
           data.wallet?.address ??
@@ -173,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             cache: "no-store",
             signal: AbortSignal.timeout(mode === "fast" ? 8_000 : 22_000),
           });
-          const retryData = await retry.json();
+          const retryData = await readJsonResponse<Record<string, any>>(retry);
           walletAddress =
             retryData.walletAddress ??
             retryData.wallet?.address ??
@@ -348,10 +349,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       credentials: "include",
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Wallet setup failed");
+    await readJsonResponse<{ error?: string } & Record<string, unknown>>(res);
     await refreshBalance();
-    return data;
   }, [refreshBalance]);
 
   useEffect(() => {

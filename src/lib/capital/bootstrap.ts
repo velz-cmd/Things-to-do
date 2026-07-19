@@ -17,6 +17,11 @@ export type CapitalAuthorizationSummary = {
 
 export type CapitalBootstrap = {
   ok: true;
+  dataQuality?: {
+    status: "current" | "stale" | "degraded";
+    source: "persisted_snapshot" | "server_fallback";
+    message: string | null;
+  };
   wallets: ResolvedUserWallets;
   balances: {
     app: WalletBalanceSlice | null;
@@ -285,6 +290,11 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
 
   return {
     ok: true,
+    dataQuality: {
+      status: freshness === "stale" ? "stale" : "current",
+      source: "persisted_snapshot",
+      message: state.syncError,
+    },
     wallets: state.walletRegistry,
     balances: {
       app,

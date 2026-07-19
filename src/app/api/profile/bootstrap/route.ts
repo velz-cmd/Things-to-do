@@ -5,8 +5,11 @@ import { reportApiError } from "@/lib/api/report-error";
 import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
 import { cacheGetOrSet } from "@/lib/cache/kv";
 import { loadProfileControlPlaneBootstrap } from "@/lib/profile/control-plane-bootstrap";
+import { offlineProfileBootstrap } from "@/lib/profile/bootstrap-fallback";
+import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 10;
 
 /** Persisted-only Profile control-plane bootstrap. Provider health refreshes happen separately. */
 export async function GET(req: Request) {
@@ -17,10 +20,16 @@ export async function GET(req: Request) {
   if (!rate.success) return NextResponse.json({ ok: false, error: "RATE_LIMITED" }, { status: 429, headers: { "Cache-Control": API_CACHE.noStore } });
 
   try {
-    const payload = await cacheGetOrSet(`profile:control-plane:${authUser.id}`, 15, () => loadProfileControlPlaneBootstrap(authUser));
+    const payload = await withTimeout(
+      cacheGetOrSet(`profile:control-plane:${authUser.id}`, 15, () => loadProfileControlPlaneBootstrap(authUser)),
+      7_000,
+      offlineProfileBootstrap(authUser, ["profile_database_timeout"]),
+    );
     return NextResponse.json(payload, { headers: { "Cache-Control": API_CACHE.privateShort } });
   } catch (error) {
     reportApiError("profile/bootstrap", error, { userId: authUser.id });
-    return NextResponse.json({ ok: false, signedIn: true, error: "PROFILE_BOOTSTRAP_UNAVAILABLE" }, { status: 503, headers: { "Cache-Control": API_CACHE.noStore } });
+    return NextResponse.json(offlineProfileBootstrap(authUser), {
+      headers: { "Cache-Control": API_CACHE.noStore },
+    });
   }
 }

@@ -148,6 +148,128 @@ describe("Discover funding coverage selectors", () => {
     });
   });
 
+  it("prioritizes source setup and stale evaluations before policy work", () => {
+    expect(deriveNextAction(input({ selected: null }))).toMatchObject({
+      id: "profile.connect_source",
+      label: "Connect GitHub",
+    });
+    expect(deriveNextAction(input({
+      selected: {
+        fullName: "velz-cmd/Things-to-do",
+        communitySlug: "resolve",
+        snapshotPersisted: true,
+        observedAt: "2026-07-28T12:00:00.000Z",
+        stale: true,
+      },
+    }))).toMatchObject({
+      id: "discover.capture_repository_snapshot",
+      label: "Refresh evaluation",
+    });
+  });
+
+  it("keeps optional financial failures behind the primary evaluation", () => {
+    expect(deriveNextAction(input({ degradedSources: ["receipts", "pool:program-1"] }))).toMatchObject({
+      id: "discover.start_mission",
+      label: "Design funding rule",
+    });
+  });
+
+  it("puts GitHub access and evidence review ahead of policy evaluation", () => {
+    expect(deriveNextAction(input({
+      blockers: [{ code: "github_permission_revoked", count: 1, recoveryHref: "/connect/github" }],
+    }))).toMatchObject({
+      id: "profile.connect_source",
+      label: "Reconnect GitHub",
+    });
+    expect(deriveNextAction(input({
+      blockers: [{ code: "evidence_review_required", count: 2, recoveryHref: "/discover" }],
+    }))).toMatchObject({
+      id: "discover.open_evidence",
+      label: "Inspect evidence",
+      recordCount: 2,
+    });
+  });
+
+  it("routes attribution, identity, funding, confirmation, and receipt states to their owners", () => {
+    const covered = [{
+      category: "review" as const,
+      label: "Peer review",
+      activityCount: 7,
+      status: "covered" as const,
+      programIds: ["program-1"],
+      programNames: ["Review program"],
+      mechanism: "Covered by the active policy.",
+    }];
+    expect(deriveNextAction(input({
+      coverage: covered,
+      blockers: [{ code: "attribution_conflict", count: 2, recoveryHref: "/profile" }],
+    }))).toMatchObject({ label: "Review attribution" });
+    expect(deriveNextAction(input({
+      coverage: covered,
+      funding: { shortfallUsd: 0, blockedRecipients: 2, eligibleRecipients: 0, obligationCount: 2 },
+    }))).toMatchObject({ label: "Resolve contributor identities" });
+    expect(deriveNextAction(input({
+      coverage: covered,
+      funding: { shortfallUsd: 50, blockedRecipients: 0, eligibleRecipients: 2, obligationCount: 2 },
+    }))).toMatchObject({ label: "Fund Pool" });
+    expect(deriveNextAction(input({
+      coverage: covered,
+      settlement: {
+        authorised: 0,
+        submitted: 1,
+        partiallyConfirmed: 0,
+        confirmed: 0,
+        reconciliationRequired: 0,
+      },
+    }))).toMatchObject({ label: "Track settlement" });
+    expect(deriveNextAction(input({
+      coverage: covered,
+      settlement: {
+        authorised: 0,
+        submitted: 0,
+        partiallyConfirmed: 1,
+        confirmed: 0,
+        reconciliationRequired: 0,
+      },
+    }))).toMatchObject({ label: "Review reconciliation" });
+    expect(deriveNextAction(input({
+      coverage: covered,
+      outcomes: [{ publicReference: "receipt-1", payeeCount: 2, issuedAt: "2026-07-28T12:00:00.000Z" }],
+      settlement: {
+        authorised: 0,
+        submitted: 0,
+        partiallyConfirmed: 0,
+        confirmed: 1,
+        reconciliationRequired: 0,
+      },
+    }))).toMatchObject({ label: "View confirmed outcome" });
+  });
+
+  it("sends authorized settlement review to Capital before submitted tracking", () => {
+    expect(deriveNextAction(input({
+      coverage: [{
+        category: "review",
+        label: "Peer review",
+        activityCount: 7,
+        status: "covered",
+        programIds: ["program-1"],
+        programNames: ["Review program"],
+        mechanism: "Covered by the active policy.",
+      }],
+      settlement: {
+        authorised: 2,
+        submitted: 1,
+        partiallyConfirmed: 0,
+        confirmed: 0,
+        reconciliationRequired: 0,
+      },
+    }))).toMatchObject({
+      id: "capital.authorize_settlement",
+      label: "Review in Capital",
+      recordCount: 2,
+    });
+  });
+
   it("builds a matrix with unavailable downstream values instead of false zeros", () => {
     const matrix = buildCoverageMatrix(input().coverage);
     const review = matrix.find((row) => row.category === "review");
@@ -163,8 +285,15 @@ describe("Discover funding coverage selectors", () => {
     expect(command.ledger[0]).toMatchObject({
       policyState: "uncovered",
       amountState: "no_amount",
-      filter: "needs_rule",
+      filter: "needs_action",
     });
+    expect(command.pulse.map((stage) => stage.label)).toEqual([
+      "Accepted Work",
+      "Covered",
+      "Ready",
+      "In Progress",
+      "Confirmed",
+    ]);
     expect(buildDeterministicSummary(input())).toContain("7 accepted records evaluated");
   });
 

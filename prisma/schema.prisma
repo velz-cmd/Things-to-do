@@ -449,21 +449,21 @@ model PaymentEvent {
 
 /// Mission OS — persistent economic intelligence sessions
 model ResolveMission {
-  id           String                  @id @default(cuid())
+  id           String                   @id @default(cuid())
   userId       String
-  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title        String
   scope        String?
-  status       String                  @default("created")
+  status       String                   @default("created")
   capability   String?
   phase        String?
   ecosystemId  String?
-  ecosystem    ResolveEcosystem?       @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
-  findingCount Int                     @default(0)
+  ecosystem    ResolveEcosystem?        @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
+  findingCount Int                      @default(0)
   capitalUsd   Float?
   metadataJson String?
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
   turns        ResolveMissionTurn[]
   timeline     ResolveTimelineEvent[]
   knowledge    ResolveKnowledgeEntry[]

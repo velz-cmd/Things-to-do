@@ -1,45 +1,120 @@
-import { z } from "zod";
+import {
+  registeredOperationTypeSchema,
+  registeredOperationTypes,
+  type RegisteredOperationType,
+} from "@/lib/mission/structured-contract";
 
-export const missionActionIds = [
-  "mission.answer", "mission.investigate", "mission.verify_claim", "mission.compare_options",
-  "mission.challenge_decision", "mission.trace_value", "mission.draft_policy", "mission.simulate_policy",
-  "mission.compile_blueprint", "mission.purchase_signal", "mission.commission_specialist",
-  "mission.approve_decision", "mission.send_to_communities", "mission.send_to_capital",
-] as const;
-
-export type MissionActionId = (typeof missionActionIds)[number];
-export type MissionActionState = "completed" | "partially_completed" | "blocked" | "rejected";
-
-const objectiveSchema = z.object({ objective: z.string().min(3).max(4000), claim: z.string().min(3).optional() });
+export { registeredOperationTypes as missionActionIds };
+export type MissionActionId = RegisteredOperationType;
 
 export type MissionActionDefinition = {
-  id: MissionActionId;
+  id: RegisteredOperationType;
   label: string;
-  outputType: string;
-  inputSchema: typeof objectiveSchema;
-  requiresEvidence?: boolean;
-  handoff?: "/communities" | "/capital";
+  description: string;
+  risk: "read" | "write" | "handoff";
+  requiresConfirmation: boolean;
+  resultingArtifact?: string;
 };
 
-const definitions: MissionActionDefinition[] = [
-  ["mission.answer", "Answer from evidence", "answer", true],
-  ["mission.investigate", "Investigate objective", "evidence_bundle"],
-  ["mission.verify_claim", "Verify claim", "claim_verification", true],
-  ["mission.compare_options", "Compare options", "comparison", true],
-  ["mission.challenge_decision", "Challenge decision", "counter_case", true],
-  ["mission.trace_value", "Trace value", "value_lineage", true],
-  ["mission.draft_policy", "Draft policy", "policy_draft", true],
-  ["mission.simulate_policy", "Simulate policy", "simulation", true],
-  ["mission.compile_blueprint", "Compile Blueprint", "funding_blueprint", true],
-  ["mission.purchase_signal", "Purchase signal", "paid_signal"],
-  ["mission.commission_specialist", "Commission specialist", "work_order"],
-  ["mission.approve_decision", "Approve decision", "decision_packet", true],
-  ["mission.send_to_communities", "Send to Communities", "handoff", true, "/communities"],
-  ["mission.send_to_capital", "Send to Capital", "handoff", true, "/capital"],
-].map(([id, label, outputType, requiresEvidence, handoff]) => ({ id, label, outputType, inputSchema: objectiveSchema, requiresEvidence, handoff })) as MissionActionDefinition[];
+const definitions = [
+  {
+    id: "mission.collect_evidence",
+    label: "Collect evidence",
+    description: "Compile persisted evidence from the selected sources.",
+    risk: "read",
+    requiresConfirmation: false,
+    resultingArtifact: "evidence",
+  },
+  {
+    id: "mission.verify_claim",
+    label: "Verify claim",
+    description: "Test the mission claim against collected evidence.",
+    risk: "read",
+    requiresConfirmation: false,
+    resultingArtifact: "claim",
+  },
+  {
+    id: "mission.compare_options",
+    label: "Compare options",
+    description: "Score the declared options using the manifest criteria.",
+    risk: "read",
+    requiresConfirmation: false,
+    resultingArtifact: "comparison",
+  },
+  {
+    id: "mission.run_simulation",
+    label: "Run simulation",
+    description: "Apply explicit assumptions to the current decision.",
+    risk: "read",
+    requiresConfirmation: false,
+    resultingArtifact: "simulation",
+  },
+  {
+    id: "mission.create_blueprint",
+    label: "Create Blueprint",
+    description: "Compile the evidence and decision into a versioned draft.",
+    risk: "write",
+    requiresConfirmation: false,
+    resultingArtifact: "blueprint",
+  },
+  {
+    id: "mission.request_approval",
+    label: "Request approval",
+    description: "Freeze the current Blueprint version for review.",
+    risk: "write",
+    requiresConfirmation: false,
+    resultingArtifact: "approval",
+  },
+  {
+    id: "mission.approve_blueprint",
+    label: "Approve Blueprint",
+    description: "Explicitly approve the immutable Blueprint version.",
+    risk: "write",
+    requiresConfirmation: true,
+    resultingArtifact: "approval",
+  },
+  {
+    id: "mission.handoff_communities",
+    label: "Hand off to Communities",
+    description: "Create a persisted Communities handoff receipt.",
+    risk: "handoff",
+    requiresConfirmation: true,
+    resultingArtifact: "handoff",
+  },
+  {
+    id: "mission.prepare_capital_review",
+    label: "Prepare for Capital review",
+    description: "Create a review package without moving funds.",
+    risk: "handoff",
+    requiresConfirmation: true,
+    resultingArtifact: "handoff",
+  },
+  {
+    id: "mission.modify_requirements",
+    label: "Modify requirements",
+    description: "Create a new manifest version and invalidate downstream drafts.",
+    risk: "write",
+    requiresConfirmation: false,
+    resultingArtifact: "manifest",
+  },
+  {
+    id: "mission.cancel",
+    label: "Cancel mission",
+    description: "Cancel the workflow while preserving its audit history.",
+    risk: "write",
+    requiresConfirmation: true,
+  },
+] as const satisfies readonly MissionActionDefinition[];
 
-export const MISSION_ACTION_REGISTRY = Object.fromEntries(definitions.map((definition) => [definition.id, definition])) as Record<MissionActionId, MissionActionDefinition>;
+export const MISSION_ACTION_REGISTRY = Object.fromEntries(
+  definitions.map((definition) => [definition.id, definition]),
+) as Record<RegisteredOperationType, MissionActionDefinition>;
 
-export function getMissionAction(id: string) {
-  return MISSION_ACTION_REGISTRY[id as MissionActionId] ?? null;
+export function getMissionAction(value: string): MissionActionDefinition | null {
+  const parsed = registeredOperationTypeSchema.safeParse(value);
+  return parsed.success ? MISSION_ACTION_REGISTRY[parsed.data] : null;
+}
+
+export function isRegisteredMissionOperation(value: string): value is RegisteredOperationType {
+  return registeredOperationTypes.includes(value as RegisteredOperationType);
 }

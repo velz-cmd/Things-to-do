@@ -76,11 +76,8 @@ export async function POST(req: Request) {
   }, { status: 400 });
 }
 
-export async function GET(req: Request) {
-  if (!authorize(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+/** Public capability metadata. Cursor values do not contain credentials or user content. */
+export async function GET() {
   const status = await getNavidromeSyncStatus();
   return NextResponse.json({ status });
 }

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Activity, ArrowRight, Check, CircleAlert, Fingerprint, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -24,6 +24,8 @@ import type { ProfileBootstrap } from "@/lib/profile/control-plane-bootstrap";
 import { useProfileBootstrapQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
 import { dispatchProfileRefresh } from "@/lib/profile/refresh-events";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
+import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
 type VisibleTab = Exclude<ProfileTab, "security" | "activity">;
 
@@ -73,6 +75,50 @@ function State({ ready, label }: { ready: boolean; label: string }) {
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="rounded-xl border border-dashed border-white/[0.1] px-4 py-7 text-center text-sm text-slate-500">{children}</div>;
+}
+
+function mergeConfirmedConnections(
+  data: ProfileBootstrap | null,
+  shared: UserConnectionState,
+): ProfileBootstrap | null {
+  if (!data || !shared.signedIn) return data;
+  const confirmed = shared.platforms.filter(
+    (row) => row.connected && row.id !== "wallet" && row.id !== "payout",
+  );
+  if (confirmed.length === 0) return data;
+  const connections = [...data.connections];
+  for (const platform of confirmed) {
+    const index = connections.findIndex((row) => row.provider === platform.id);
+    const existing = index >= 0 ? connections[index] : null;
+    const incoming = {
+      id: existing?.id ?? `shared:${platform.id}`,
+      provider: platform.id,
+      label: platform.label,
+      group: existing?.group ?? ("work" as const),
+      account: platform.displayValue ?? existing?.account ?? null,
+      status: "connected" as const,
+      health: platform.syncStatus === "stale" ? ("attention" as const) : ("healthy" as const),
+      lastSyncAt: platform.lastSyncAt ?? existing?.lastSyncAt ?? shared.lastSyncedAt,
+      permissions: existing?.permissions ?? platform.scopes ?? [],
+      purpose:
+        existing?.purpose ??
+        (platform.id === "github_app"
+          ? "Repository inventory and private repository evidence"
+          : "Confirmed account connection"),
+      authorizeUrl: existing?.authorizeUrl ?? platform.authorizeUrl ?? null,
+    };
+    if (index >= 0) connections[index] = incoming;
+    else connections.push(incoming);
+  }
+  return {
+    ...data,
+    connections,
+    readiness: {
+      ...data.readiness,
+      sourceReady: true,
+      blockers: data.readiness.blockers.filter((row) => row.id !== "source"),
+    },
+  };
 }
 
 function AccountView({ data, signOut }: { data: ProfileBootstrap; signOut: () => Promise<void> }) {
@@ -135,8 +181,13 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
   const router = useRouter();
   const params = useSearchParams();
   const queryClient = useQueryClient();
+  const { state: sharedConnections } = useUserConnections();
   const query = useProfileBootstrapQuery(Boolean(user || initialData), initialData);
-  const data = query.data ?? initialData;
+  const rawData = query.data ?? initialData;
+  const data = useMemo(
+    () => mergeConfirmedConnections(rawData, sharedConnections),
+    [rawData, sharedConnections],
+  );
   const requested = params.get("view") ?? ALIASES[params.get("section") ?? ""];
   const active: VisibleTab = TABS.some((tab) => tab.id === requested)
     ? requested as VisibleTab
@@ -249,6 +300,12 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
   }
 
   const connectedCount = data.connections.filter((row) => row.status === "connected").length;
+  const githubIdentityConnected = data.connections.some(
+    (row) => row.provider === "github" && row.status === "connected",
+  );
+  const githubRepositoryAccessConnected = data.connections.some(
+    (row) => row.provider === "github_app" && row.status === "connected",
+  );
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_15%_0%,rgba(130,103,244,0.12),transparent_28%),linear-gradient(180deg,#040811,#050a12)] px-4 py-5 text-slate-200 sm:px-6">
       <div className="mx-auto max-w-[1320px]">
@@ -271,7 +328,26 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
             </div>
           </div>
           <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
-            <p className="max-w-3xl text-sm leading-6 text-slate-400">One calm control plane for attribution, evidence sources, verified work, ecosystem relationships, and the destination where recognized value can settle.</p>
+            <div>
+              <p className="max-w-3xl text-sm leading-6 text-slate-400">One calm control plane for attribution, evidence sources, verified work, ecosystem relationships, and the destination where recognized value can settle.</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                <span className={githubIdentityConnected ? "text-emerald-300" : "text-amber-200"}>
+                  GitHub identity {githubIdentityConnected ? "connected" : "needs connection"}
+                </span>
+                <span className="text-slate-600">/</span>
+                {githubRepositoryAccessConnected ? (
+                  <span className="text-emerald-300">Repository access installed</span>
+                ) : !githubIdentityConnected ? (
+                  <Link href="/connect/github?returnTo=/profile?view=sources" className="text-violet-300 hover:text-violet-200">
+                    Connect GitHub first
+                  </Link>
+                ) : (
+                  <Link href="/connect/github/install?returnTo=/profile?view=sources" className="text-violet-300 hover:text-violet-200">
+                    Install repository access
+                  </Link>
+                )}
+              </div>
+            </div>
             <div className="flex flex-wrap gap-1.5">{data.roles.map((role) => <span key={role} className="rounded-full border border-violet-300/15 bg-violet-300/[0.06] px-2.5 py-1 text-[10px] font-medium text-violet-200">{role}</span>)}{data.roles.length === 0 && <span className="text-xs text-slate-600">Roles appear from verified activity.</span>}</div>
           </div>
         </header>
@@ -284,7 +360,7 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
             <span>
               {query.isError
                 ? "Refresh failed. Showing the last known Profile state."
-                : "Some persisted Profile records are temporarily unavailable. Unverified values are not being substituted."}
+                : "Some persisted Profile records are temporarily unavailable. Last confirmed connections remain visible while Profile retries."}
             </span>
             <button type="button" onClick={() => void query.refetch()} className={button}>Retry</button>
           </div>

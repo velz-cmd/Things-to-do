@@ -37,7 +37,8 @@ const views: Array<{ id: CapitalView; label: string }> = [
 ];
 
 function micro(value: string | null | undefined): string {
-  const amount = BigInt(value ?? "0");
+  if (value == null) return "Unavailable";
+  const amount = BigInt(value);
   const whole = amount / 1_000_000n;
   const fraction = (amount % 1_000_000n).toString().padStart(6, "0").slice(0, 2);
   return `$${whole.toLocaleString("en-US")}.${fraction}`;
@@ -274,7 +275,7 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
               <div><dt className="text-[#71839b]">Pending</dt><dd className="mt-1 font-medium text-white">{micro(data.moneyState.pendingMicroUsdc)}</dd></div>
               <div><dt className="text-[#71839b]">Claimable</dt><dd className="mt-1 font-medium text-white">{micro(data.moneyState.claimableMicroUsdc)}</dd></div>
             </dl>
-            <div className="mt-5 border-t border-white/[0.07] pt-4"><WalletViewSelector appAddress={data.wallets.appWallet?.address} externalAddress={data.wallets.connectedWallet?.address} appUsd={Number(BigInt(data.balances.app?.amountMicroUsdc ?? "0")) / 1_000_000} externalUsd={Number(BigInt(data.balances.connected?.amountMicroUsdc ?? "0")) / 1_000_000} selectedView={data.wallets.selectedCapitalWallet === "connected" ? "external" : "app"} compact /></div>
+            {!degraded && <div className="mt-5 border-t border-white/[0.07] pt-4"><WalletViewSelector appAddress={data.wallets.appWallet?.address} externalAddress={data.wallets.connectedWallet?.address} appUsd={Number(BigInt(data.balances.app?.amountMicroUsdc ?? "0")) / 1_000_000} externalUsd={Number(BigInt(data.balances.connected?.amountMicroUsdc ?? "0")) / 1_000_000} selectedView={data.wallets.selectedCapitalWallet === "connected" ? "external" : "app"} compact /></div>}
           </div>
           <div className="p-5 lg:p-6">
             <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-300">Capital pulse</p><p className="mt-1 text-xs text-[#8192aa]">Persisted operational state</p></div><span className={`rounded-full border px-2.5 py-1 text-[10px] ${data.sync.networkHealth === "healthy" ? "border-emerald-400/20 text-emerald-300" : "border-amber-400/20 text-amber-200"}`}>{networkCopy}</span></div>

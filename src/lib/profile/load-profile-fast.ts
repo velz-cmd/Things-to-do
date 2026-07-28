@@ -16,17 +16,19 @@ function authProviderFromUser(user: SupabaseUser) {
  * Use for Profile identity display and cross-tab connection state — must stay fast.
  */
 export async function loadProfileFast(authUser: SupabaseUser): Promise<User> {
-  await ensureUserProfile({
-    id: authUser.id,
-    email: authUser.email,
-    displayName:
-      (authUser.user_metadata?.full_name as string | undefined) ??
-      (authUser.user_metadata?.name as string | undefined) ??
-      authUser.email?.split("@")[0],
-    authProvider: authProviderFromUser(authUser),
-  });
-
-  const row = await prisma.user.findUnique({ where: { id: authUser.id } });
+  let row = await prisma.user.findUnique({ where: { id: authUser.id } });
+  if (!row) {
+    await ensureUserProfile({
+      id: authUser.id,
+      email: authUser.email,
+      displayName:
+        (authUser.user_metadata?.full_name as string | undefined) ??
+        (authUser.user_metadata?.name as string | undefined) ??
+        authUser.email?.split("@")[0],
+      authProvider: authProviderFromUser(authUser),
+    });
+    row = await prisma.user.findUnique({ where: { id: authUser.id } });
+  }
   if (!row) {
     throw new Error("profile_missing");
   }

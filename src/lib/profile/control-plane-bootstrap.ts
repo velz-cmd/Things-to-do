@@ -122,6 +122,7 @@ export type ProfileBootstrap = {
 
 const PROVIDERS: Record<string, { label: string; group: ProfileConnectionSummary["group"]; purpose: string; authorizeUrl: string | null }> = {
   github: { label: "GitHub", group: "work", purpose: "Code and documentation attribution", authorizeUrl: "/connect/github?returnTo=/profile?view=sources" },
+  github_app: { label: "GitHub repository access", group: "work", purpose: "Repository inventory and private repository evidence", authorizeUrl: "/connect/github/install?returnTo=/profile?view=sources" },
   listenbrainz: { label: "ListenBrainz", group: "music_media", purpose: "Verified listening activity", authorizeUrl: "/connect/listenbrainz?returnTo=/profile?view=sources" },
   musicbrainz: { label: "MusicBrainz", group: "music_media", purpose: "Artist and release identity", authorizeUrl: null },
   navidrome: { label: "Navidrome", group: "music_media", purpose: "Self-hosted music activity", authorizeUrl: null },

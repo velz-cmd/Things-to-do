@@ -29,6 +29,7 @@ import { ProfileLinkedInstallSync } from "@/components/wallet/profile-linked-ins
 import { JellyfinBackgroundSync } from "@/components/resolve/connectors/jellyfin-background-sync";
 import { AddFundsProvider } from "@/components/wallet/add-funds-context";
 import { SendFundsProvider } from "@/components/wallet/send-funds-context";
+import { ConnectionReturnSync } from "@/components/resolve/profile/connection-return-sync";
 
 const queryClient = createAppQueryClient();
 
@@ -75,6 +76,7 @@ export function Providers({
               <GmailAfterAuthEffect />
               <Suspense fallback={null}>
                 <AuthErrorEffect />
+                <ConnectionReturnSync />
               </Suspense>
               {children}
               <SignInModal />

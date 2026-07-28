@@ -27,7 +27,7 @@ export type CapitalBootstrap = {
     app: WalletBalanceSlice | null;
     connected: WalletBalanceSlice | null;
     selected: WalletBalanceSlice | null;
-    portfolioTotalMicroUsdc: string;
+    portfolioTotalMicroUsdc: string | null;
   };
   moneyState: {
     availableMicroUsdc: string;
@@ -258,6 +258,10 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
     : state.syncStatus === "cached" ? "recent"
     : state.lastSyncedAt ? "stale"
     : "unknown";
+  const balanceUnavailable =
+    state.syncStatus === "error" ||
+    state.syncStatus === "unknown" ||
+    state.networkHealth === "unavailable";
   const slices = state.walletSlices ?? [];
   const mapSlice = (kind: "app" | "external"): WalletBalanceSlice | null => {
     const slice = slices.find((row) => row.kind === kind);
@@ -291,7 +295,7 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
   return {
     ok: true,
     dataQuality: {
-      status: freshness === "stale" ? "stale" : "current",
+      status: balanceUnavailable ? "degraded" : freshness === "stale" ? "stale" : "current",
       source: "persisted_snapshot",
       message: state.syncError,
     },
@@ -300,7 +304,10 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
       app,
       connected,
       selected,
-      portfolioTotalMicroUsdc: usdToMicro(state.portfolioTotalBalance ?? state.treasuryBalance).toString(),
+      portfolioTotalMicroUsdc:
+        state.portfolioTotalBalance == null
+          ? null
+          : usdToMicro(state.portfolioTotalBalance).toString(),
     },
     moneyState: {
       availableMicroUsdc: usdToMicro(state.spendableBalance).toString(),

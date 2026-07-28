@@ -93,7 +93,7 @@ export type CapitalStateResponse = {
   walletSlices?: WalletBalanceSlice[];
   walletRegistry?: ResolvedUserWallets;
   selectedWallet?: "app" | "connected";
-  portfolioTotalBalance?: number;
+  portfolioTotalBalance?: number | null;
 };
 
 export type WalletBalanceSlice = {
@@ -337,29 +337,33 @@ function buildWalletSlices(input: {
   const slices: WalletBalanceSlice[] = [];
 
   const appChain = input.perWallet?.find((b) => b.address === appAddr);
-  const appOnChain = appChain ? Number(appChain.totalUsdc) : (input.cachedAppUsd ?? 0);
-  slices.push({
-    kind: "app",
-    address: appAddr,
-    shortAddress: shortWalletAddress(appAddr),
-    onChainUsd: roundUsd(appOnChain),
-    spendableUsd: roundUsd(Math.max(0, appOnChain - input.reservedUsd)),
-    nativeUsdc: appChain?.nativeUsdc ?? formatUsd(appOnChain),
-    erc20Usdc: appChain?.erc20Usdc ?? "0.00",
-  });
+  const appOnChain = appChain ? Number(appChain.totalUsdc) : input.cachedAppUsd;
+  if (appOnChain != null) {
+    slices.push({
+      kind: "app",
+      address: appAddr,
+      shortAddress: shortWalletAddress(appAddr),
+      onChainUsd: roundUsd(appOnChain),
+      spendableUsd: roundUsd(Math.max(0, appOnChain - input.reservedUsd)),
+      nativeUsdc: appChain?.nativeUsdc ?? formatUsd(appOnChain),
+      erc20Usdc: appChain?.erc20Usdc ?? "0.00",
+    });
+  }
 
   if (extAddr && extAddr !== appAddr) {
     const extChain = input.perWallet?.find((b) => b.address === extAddr);
-    const extOnChain = extChain ? Number(extChain.totalUsdc) : 0;
-    slices.push({
-      kind: "external",
-      address: extAddr,
-      shortAddress: shortWalletAddress(extAddr),
-      onChainUsd: roundUsd(extOnChain),
-      spendableUsd: roundUsd(extOnChain),
-      nativeUsdc: extChain?.nativeUsdc ?? "0.00",
-      erc20Usdc: extChain?.erc20Usdc ?? "0.00",
-    });
+    if (extChain) {
+      const extOnChain = Number(extChain.totalUsdc);
+      slices.push({
+        kind: "external",
+        address: extAddr,
+        shortAddress: shortWalletAddress(extAddr),
+        onChainUsd: roundUsd(extOnChain),
+        spendableUsd: roundUsd(extOnChain),
+        nativeUsdc: extChain.nativeUsdc,
+        erc20Usdc: extChain.erc20Usdc,
+      });
+    }
   }
 
   return slices;
@@ -544,25 +548,26 @@ export async function loadCapitalState(
   }
 
   if (!opts.liveSync) {
-    const fastBalance = cachedBalance ?? 0;
     const walletSlices = buildWalletSlices({
       profile,
       walletResolved,
       reservedUsd,
-      cachedAppUsd: fastBalance,
+      cachedAppUsd: cachedBalance,
     });
     const selectedKind = selectedWallet === "connected" ? "external" : "app";
     const selectedSlice = walletSlices.find((slice) => slice.kind === selectedKind) ?? null;
-    const selectedOnChain = selectedSlice?.onChainUsd ?? 0;
-    const selectedSpendable = selectedSlice?.spendableUsd ?? 0;
-    const portfolioTotal = roundUsd(walletSlices.reduce((sum, slice) => sum + slice.onChainUsd, 0));
+    const selectedOnChain = selectedSlice?.onChainUsd ?? null;
+    const selectedSpendable = selectedSlice?.spendableUsd ?? null;
+    const portfolioTotal = walletSlices.length
+      ? roundUsd(walletSlices.reduce((sum, slice) => sum + slice.onChainUsd, 0))
+      : null;
     return {
       ok: true,
       ...base,
       usdcBalance: selectedOnChain,
       spendableBalance: selectedSpendable,
       lastKnownBalance: selectedWallet === "app" ? cachedBalance : null,
-      treasuryBalance: portfolioTotal,
+      treasuryBalance: portfolioTotal ?? 0,
       portfolioTotalBalance: portfolioTotal,
       programBalances,
       pendingTransactions,
@@ -579,7 +584,7 @@ export async function loadCapitalState(
         provider: walletProvider === "circle" ? "circle" : "embedded",
         ...(walletResolved.externalAddress ? { externalAddress: walletResolved.externalAddress } : {}),
       },
-      balance: {
+      ...(selectedOnChain !== null && selectedSpendable !== null ? { balance: {
         totalUsdc: selectedOnChain.toFixed(2),
         onChainUsd: selectedOnChain.toFixed(2),
         nativeUsdc: selectedOnChain.toFixed(2),
@@ -589,7 +594,7 @@ export async function loadCapitalState(
         syncedAt: cachedSyncedAt ?? new Date().toISOString(),
         reservedUsd,
         spendableUsd: selectedSpendable.toFixed(2),
-      },
+      }} : {}),
     };
   }
 
@@ -674,20 +679,22 @@ export async function loadCapitalState(
       profile,
       walletResolved,
       reservedUsd,
-      cachedAppUsd: cachedBalance ?? 0,
+      cachedAppUsd: cachedBalance,
     });
     const selectedKind = selectedWallet === "connected" ? "external" : "app";
     const selectedSlice = walletSlices.find((slice) => slice.kind === selectedKind) ?? null;
-    const selectedOnChain = selectedSlice?.onChainUsd ?? 0;
-    const selectedSpendable = selectedSlice?.spendableUsd ?? 0;
-    const portfolioTotal = roundUsd(walletSlices.reduce((sum, slice) => sum + slice.onChainUsd, 0));
+    const selectedOnChain = selectedSlice?.onChainUsd ?? null;
+    const selectedSpendable = selectedSlice?.spendableUsd ?? null;
+    const portfolioTotal = walletSlices.length
+      ? roundUsd(walletSlices.reduce((sum, slice) => sum + slice.onChainUsd, 0))
+      : null;
     return {
       ok: true,
       ...base,
       usdcBalance: selectedOnChain,
       spendableBalance: selectedSpendable,
       lastKnownBalance: selectedWallet === "app" ? cachedBalance : null,
-      treasuryBalance: portfolioTotal,
+      treasuryBalance: portfolioTotal ?? 0,
       portfolioTotalBalance: portfolioTotal,
       programBalances,
       pendingTransactions,
@@ -707,7 +714,7 @@ export async function loadCapitalState(
         provider: walletProvider === "circle" ? "circle" : "embedded",
         ...(walletResolved.externalAddress ? { externalAddress: walletResolved.externalAddress } : {}),
       },
-      balance: {
+      ...(selectedOnChain !== null && selectedSpendable !== null ? { balance: {
         totalUsdc: selectedOnChain.toFixed(2),
         onChainUsd: selectedOnChain.toFixed(2),
         nativeUsdc: selectedOnChain.toFixed(2),
@@ -717,7 +724,7 @@ export async function loadCapitalState(
         syncedAt: cachedSyncedAt ?? new Date().toISOString(),
         reservedUsd,
         spendableUsd: selectedSpendable.toFixed(2),
-      },
+      }} : {}),
     };
   }
 }

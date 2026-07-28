@@ -6,11 +6,16 @@ test.describe("Discover Funding Coverage Command Centre", () => {
   test("shows one focused funding workflow without legacy duplicate surfaces", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/Accepted work|Economic attention/);
-    const setup = page.getByRole("heading", { name: "Connect a repository" });
+    const setup = page.getByRole("heading", {
+      name: /Connect your GitHub identity|Install repository access|Choose a repository/,
+    });
     const fundingCycle = page.getByRole("heading", { name: "Funding cycle" });
     await expect(setup.or(fundingCycle)).toBeVisible();
     if (await setup.count()) {
-      await expect(page.getByRole("link", { name: "Connect GitHub" })).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })
+          .or(page.getByRole("button", { name: "Evaluate repository" })),
+      ).toBeVisible();
       await expect(page.getByLabel("Funding cycle stages")).toHaveCount(0);
       await expect(page.getByRole("tablist", { name: "Funding cycle details" })).toHaveCount(0);
     } else {
@@ -27,7 +32,7 @@ test.describe("Discover Funding Coverage Command Centre", () => {
     await expect(page.getByText("Earn from my work", { exact: true })).toHaveCount(0);
     expect(
       await page.locator(
-        "[data-action-id='discover.capture_repository_snapshot'], [data-action-id='discover.select_repository'], [data-action-id='profile.connect_source']",
+        "[data-action-id='discover.capture_repository_snapshot'], [data-action-id='discover.select_repository'], [data-action-id='profile.connect_source'], [data-action-id='profile.install_github_app']",
       ).count(),
     ).toBeGreaterThan(0);
   });
@@ -36,11 +41,16 @@ test.describe("Discover Funding Coverage Command Centre", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    const setup = page.getByRole("heading", { name: "Connect a repository" });
+    const setup = page.getByRole("heading", {
+      name: /Connect your GitHub identity|Install repository access|Choose a repository/,
+    });
     const fundingCycle = page.getByRole("heading", { name: "Funding cycle" });
     await expect(setup.or(fundingCycle)).toBeVisible();
     if (await setup.count()) {
-      await expect(page.getByRole("link", { name: "Connect GitHub" })).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })
+          .or(page.getByRole("button", { name: "Evaluate repository" })),
+      ).toBeVisible();
     } else {
       await expect(page.getByRole("heading", { name: "Funding cycle" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Work requiring attention" })).toBeVisible();
@@ -51,7 +61,9 @@ test.describe("Discover Funding Coverage Command Centre", () => {
 
   test("keeps secondary details collapsed until requested", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    const setup = page.getByRole("heading", { name: "Connect a repository" });
+    const setup = page.getByRole("heading", {
+      name: /Connect your GitHub identity|Install repository access|Choose a repository/,
+    });
     const fundingCycle = page.getByRole("heading", { name: "Funding cycle" });
     await expect(setup.or(fundingCycle)).toBeVisible();
     if (await setup.count()) {

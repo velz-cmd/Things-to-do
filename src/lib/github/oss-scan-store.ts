@@ -129,6 +129,13 @@ export async function loadStoredOssOpportunities(): Promise<{
   try {
     const rows = await prisma.githubOssScan.findMany({
       orderBy: { scannedAt: "desc" },
+      take: 50,
+      select: {
+        payloadJson: true,
+        owner: true,
+        repo: true,
+        scannedAt: true,
+      },
     });
 
     if (!rows.length) {

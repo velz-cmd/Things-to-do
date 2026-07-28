@@ -8,14 +8,14 @@ function safeReturnTo(value: string | string[] | undefined) {
   const raw = Array.isArray(value) ? value[0] : value;
   return raw?.startsWith("/") && !raw.startsWith("//") && !raw.includes("\\")
     ? raw
-    : "/profile";
+    : "/profile?view=sources";
 }
 
-export default async function ConnectGithubPage({ searchParams }: PageProps) {
+export default async function InstallGithubAppPage({ searchParams }: PageProps) {
   const params = await searchParams;
   return (
     <OAuthConnectBridge
-      provider="github"
+      provider="github_app"
       returnTo={safeReturnTo(params.returnTo ?? params.returnUrl)}
     />
   );

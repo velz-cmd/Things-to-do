@@ -97,7 +97,8 @@
 }
 
 .repositorySelect select,
-.setupSelect select {
+.setupSelect select,
+.setupSelect input {
   width: 100%;
   min-height: 38px;
   margin-top: 5px;
@@ -111,7 +112,8 @@
 }
 
 .repositorySelect select:focus,
-.setupSelect select:focus {
+.setupSelect select:focus,
+.setupSelect input:focus {
   border-color: rgba(116, 116, 255, 0.7);
   box-shadow: 0 0 0 3px rgba(116, 116, 255, 0.13);
 }

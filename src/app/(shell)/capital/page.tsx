@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: "Treasury control, authorization, settlement, reconciliation, and receipts.",
 };
 
-export default async function CapitalPage() {
+async function CapitalContent() {
   const user = await getSessionUser();
   const initialData = user
     ? await withTimeout(
@@ -23,9 +23,13 @@ export default async function CapitalPage() {
         offlineCapitalBootstrap(user),
       )
     : null;
+  return <CapitalOperations initialData={initialData} />;
+}
+
+export default function CapitalPage() {
   return (
     <Suspense fallback={<CapitalCommandSkeleton />}>
-      <CapitalOperations initialData={initialData} />
+      <CapitalContent />
     </Suspense>
   );
 }

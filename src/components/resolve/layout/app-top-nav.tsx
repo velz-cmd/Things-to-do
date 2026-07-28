@@ -1,16 +1,17 @@
 "use client";
 
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Command } from "lucide-react";
+import { CircleAlert, Command, LoaderCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { ResolveLogo } from "@/components/resolve/brand/resolve-logo";
 import { PRODUCT_NAV } from "@/components/resolve/layout/nav";
 import { prefetchDiscoverTab, prefetchProfileTab, prefetchCommunitiesTab } from "@/lib/query/hooks";
 
-function isActive(pathname: string, href: string) {
+export function isProductRouteActive(pathname: string, href: string) {
   if (href === "/mission") {
     return (
       pathname === href ||
@@ -34,42 +35,108 @@ function isActive(pathname: string, href: string) {
 
 export function ProductNav({ compact = false }: { compact?: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const [hydrated, setHydrated] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [failedHref, setFailedHref] = useState<string | null>(null);
+  const pendingHrefRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setHydrated(true);
+    PRODUCT_NAV.forEach((item) => router.prefetch(item.href));
+  }, [router]);
+
+  useEffect(() => {
+    if (pendingHref && isProductRouteActive(pathname, pendingHref)) {
+      pendingHrefRef.current = null;
+      setPendingHref(null);
+      setFailedHref(null);
+      return;
+    }
+    if (failedHref && isProductRouteActive(pathname, failedHref)) {
+      setFailedHref(null);
+    }
+  }, [pathname, pendingHref, failedHref]);
+
+  useEffect(() => {
+    if (!pendingHref) return;
+    const timeout = window.setTimeout(() => {
+      pendingHrefRef.current = null;
+      setFailedHref(pendingHref);
+      setPendingHref(null);
+    }, 8_000);
+    return () => window.clearTimeout(timeout);
+  }, [pendingHref]);
 
   function onNavPrefetch(href: string) {
+    router.prefetch(href);
     if (href === "/discover") prefetchDiscoverTab(queryClient);
     if (href === "/profile") prefetchProfileTab(queryClient);
     if (href === "/communities") prefetchCommunitiesTab(queryClient);
   }
 
+  function onNavClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const currentPendingHref = pendingHrefRef.current;
+    if (currentPendingHref === href || (!currentPendingHref && isProductRouteActive(pathname, href))) {
+      event.preventDefault();
+      return;
+    }
+    pendingHrefRef.current = href;
+    setFailedHref(null);
+    setPendingHref(href);
+  }
+
   return (
     <nav
+      aria-label="Primary navigation"
+      aria-busy={pendingHref ? "true" : "false"}
+      data-hydrated={hydrated ? "true" : "false"}
       className={clsx(
         "resolve-segmented flex max-w-[58vw] items-center gap-0.5 overflow-x-auto rounded-xl p-1",
         compact && "hidden sm:flex",
       )}
     >
       {PRODUCT_NAV.map((item) => {
-        const active = isActive(pathname, item.href);
+        const active = isProductRouteActive(pathname, item.href);
+        const pending = pendingHref === item.href;
+        const failed = failedHref === item.href;
+        const selected = pendingHref ? pending : active;
         const Icon = item.icon;
         return (
           <Link
             key={item.href}
             href={item.href}
-            prefetch
-            title={item.question}
+            prefetch={true}
+            title={failed ? `Navigation to ${item.label} was delayed. Click to retry.` : item.question}
+            aria-label={pending ? `${item.label}, loading` : item.label}
+            aria-current={selected ? "page" : undefined}
+            aria-busy={pending ? "true" : undefined}
+            data-navigation-state={pending ? "pending" : failed ? "failed" : active ? "active" : "idle"}
+            data-testid={`primary-tab-${item.label.toLowerCase()}`}
+            onClick={(event) => onNavClick(event, item.href)}
             onPointerDown={() => onNavPrefetch(item.href)}
             onMouseEnter={() => onNavPrefetch(item.href)}
             onFocus={() => onNavPrefetch(item.href)}
             className={clsx(
               "relative flex min-h-9 shrink-0 items-center gap-2 rounded-[9px] px-3 py-2 text-[12px] font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-resolve-accent",
-              active
+              selected
                 ? "bg-[#142640] text-white ring-1 ring-resolve-accent/35 shadow-[0_5px_16px_rgba(0,0,0,.22)]"
                 : "text-resolve-muted hover:bg-white/[0.045] hover:text-white",
+              failed && "text-amber-200 ring-1 ring-amber-300/30",
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+            {pending ? (
+              <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden="true" />
+            ) : failed ? (
+              <CircleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            ) : (
+              <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} aria-hidden="true" />
+            )}
             {!compact && <span className="hidden md:inline">{item.label}</span>}
+            {pending && <span className="sr-only">Loading</span>}
+            {failed && <span className="sr-only">Navigation delayed. Click to retry.</span>}
           </Link>
         );
       })}

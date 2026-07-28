@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { withTimeout } from "@/lib/discover/fetch-timeout";
+import {
+  discoverIntelligenceTimeoutMs,
+  withTimeout,
+} from "@/lib/discover/fetch-timeout";
 
 describe("Discover deadlines", () => {
   it("returns the degraded fallback when a source never resolves", async () => {
@@ -17,5 +20,11 @@ describe("Discover deadlines", () => {
     await expect(withTimeout(Promise.resolve("live"), 3_500, "degraded")).resolves.toBe(
       "live",
     );
+  });
+
+  it("keeps normal tab entry fast while allowing a selected repository to finish", () => {
+    expect(discoverIntelligenceTimeoutMs()).toBe(3_500);
+    expect(discoverIntelligenceTimeoutMs("  ")).toBe(3_500);
+    expect(discoverIntelligenceTimeoutMs("velz-cmd/repodiet-e2e-test")).toBe(12_000);
   });
 });

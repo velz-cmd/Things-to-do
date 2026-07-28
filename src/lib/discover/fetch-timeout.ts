@@ -10,3 +10,7 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Pr
     if (timer) clearTimeout(timer);
   });
 }
+
+export function discoverIntelligenceTimeoutMs(repository?: string | null): number {
+  return repository?.trim() ? 12_000 : 3_500;
+}

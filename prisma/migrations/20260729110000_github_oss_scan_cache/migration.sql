@@ -17,3 +17,5 @@ ON "GithubOssScan"("owner", "repo");
 
 CREATE INDEX IF NOT EXISTS "GithubOssScan_scannedAt_idx"
 ON "GithubOssScan"("scannedAt");
+
+ALTER TABLE "GithubOssScan" ENABLE ROW LEVEL SECURITY;

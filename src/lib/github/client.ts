@@ -18,6 +18,7 @@ export async function githubFetch<T>(
   try {
     const res = await fetch(url, {
       ...init,
+      signal: init?.signal ?? AbortSignal.timeout(8_000),
       headers: { ...GITHUB_HEADERS, ...init?.headers },
       next: init?.revalidate ? { revalidate: init.revalidate } : undefined,
     });

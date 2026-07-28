@@ -3,14 +3,14 @@ import { Suspense } from "react";
 import { MissionCompiler } from "@/components/resolve/mission-control/mission-compiler";
 
 export const metadata: Metadata = {
-  title: "Mission — RESOLVE",
+  title: "Mission | RESOLVE",
   description:
-    "Intelligence workspace for the open internet. Ask about value, risk, funding, or claims — approve when ready.",
+    "Compile connected evidence into reviewable decisions, simulations, Blueprints, and approved handoffs.",
 };
 
 export default function MissionPage() {
   return (
-    <Suspense fallback={<p className="p-6 text-sm text-resolve-muted">Loading mission…</p>}>
+    <Suspense fallback={<p className="p-6 text-sm text-resolve-muted">Loading Mission...</p>}>
       <MissionCompiler />
     </Suspense>
   );

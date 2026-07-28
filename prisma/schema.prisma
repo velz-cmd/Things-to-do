@@ -449,28 +449,49 @@ model PaymentEvent {
 
 /// Mission OS — persistent economic intelligence sessions
 model ResolveMission {
-  id           String                  @id @default(cuid())
+  id           String                   @id @default(cuid())
   userId       String
-  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title        String
   scope        String?
-  status       String                  @default("created")
+  status       String                   @default("created")
   capability   String?
   phase        String?
   ecosystemId  String?
-  ecosystem    ResolveEcosystem?       @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
-  findingCount Int                     @default(0)
+  ecosystem    ResolveEcosystem?        @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
+  findingCount Int                      @default(0)
   capitalUsd   Float?
   metadataJson String?
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
   turns        ResolveMissionTurn[]
   timeline     ResolveTimelineEvent[]
   knowledge    ResolveKnowledgeEntry[]
+  artifacts    ResolveMissionArtifact[]
 
   @@index([userId, updatedAt])
   @@index([ecosystemId])
   @@index([status])
+}
+
+/// Versioned, runtime-validated Mission artifacts. Payload shape is selected by `kind`.
+model ResolveMissionArtifact {
+  id          String         @id @default(cuid())
+  missionId   String
+  mission     ResolveMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  kind        String
+  status      String         @default("draft")
+  version     Int            @default(1)
+  operationId String?
+  sourceRefs  String[]       @default([])
+  payload     Json
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([missionId, kind, version])
+  @@index([missionId, createdAt])
+  @@index([kind, status])
+  @@index([operationId])
 }
 
 model ResolveMissionTurn {

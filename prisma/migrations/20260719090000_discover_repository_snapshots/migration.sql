@@ -19,3 +19,5 @@ ON "DiscoverRepositorySnapshot"("fullName", "observedAt");
 
 CREATE INDEX IF NOT EXISTS "DiscoverRepositorySnapshot_observedAt_idx"
 ON "DiscoverRepositorySnapshot"("observedAt");
+
+ALTER TABLE "DiscoverRepositorySnapshot" ENABLE ROW LEVEL SECURITY;

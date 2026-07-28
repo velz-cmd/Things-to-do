@@ -50,7 +50,16 @@ export function githubAppSlug() {
 }
 
 export function githubAppPrivateKey() {
-  return env("GITHUB_APP_PRIVATE_KEY")?.replaceAll("\\n", "\n");
+  const raw = env("GITHUB_APP_PRIVATE_KEY")?.replaceAll("\\n", "\n");
+  if (raw) return raw;
+  const encoded = env("GITHUB_APP_PRIVATE_KEY_BASE64");
+  if (!encoded) return undefined;
+  try {
+    const decoded = Buffer.from(encoded, "base64").toString("utf8").trim();
+    return decoded.includes("PRIVATE KEY") ? decoded : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function githubAppInstallConfigured() {

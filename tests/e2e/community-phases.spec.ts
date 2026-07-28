@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { openDiscoverWorkspaceLane, openFundingBoard } from "./helpers/discover-fund";
 
 /** Phase 1–3 API and surface smoke tests */
 test.describe("Community phases — APIs", () => {
@@ -342,30 +341,24 @@ test.describe("Community phases — surfaces", () => {
     }
   });
 
-  test("discover funder role shows sortable opportunity board", async ({ page }) => {
+  test("discover keeps funding decisions focused and routes money to Capital", async ({ page }) => {
     test.setTimeout(120_000);
 
-    await openFundingBoard(page);
-
-    const board = page.locator("#opportunities");
-    const sortOrSetup = board
-      .getByText("Sort by")
-      .or(board.getByRole("button", { name: /Fulfill pool/i }))
-      .or(board.getByText(/Set up React|Set up Navidrome|Explore music program|Connect GitHub/i));
-    await expect(sortOrSetup.first()).toBeVisible({ timeout: 30_000 });
-    const hasSort = await board.getByText("Sort by").isVisible().catch(() => false);
-    if (hasSort) {
-      await expect(board.getByRole("button", { name: "Reward" })).toBeVisible();
+    await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Fulfill pool/i })).toHaveCount(0);
+    const addFunds = page.getByRole("link", { name: "Add Funds" });
+    if (await addFunds.count()) {
+      await expect(addFunds.first()).toHaveAttribute("href", /\/capital/);
     }
   });
 
-  test("discover founder role opens opportunity board", async ({ page }) => {
+  test("discover removes broad product shortcuts from the operator workflow", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await page.getByRole("tab", { name: /Run a program/i }).click();
-    const nav = page.getByRole("navigation", { name: "Discover workspace" });
-    await nav.getByRole("button", { name: "Ready to Fund" }).click();
-    await expect(page.locator("#opportunities")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("tab", { name: /Run a program/i })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: /Fund value/i })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Mission" })).toBeVisible();
   });
 
   test("mission runs agent signal from chat prompt", async ({ page }) => {
@@ -379,20 +372,13 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByText("Suggested service")).toBeVisible();
   });
 
-  test("discover community role opens unpaid value with operational rows", async ({ page }) => {
+  test("discover shows one setup or work-queue state without unpaid-value duplicates", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await openDiscoverWorkspaceLane(page, "Unpaid Value");
-
-    await expect(page.getByRole("heading", { name: "Unpaid Value" })).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.getByText(/Jellyfin|Navidrome|React|payout program|watch events/i).first()).toBeVisible({
-      timeout: 15_000,
-    });
-    await expect(page.getByRole("button", { name: /Set up|Connect|Scan/i }).first()).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Fulfill pool|Connect source|View proof/i }).first(),
-    ).toBeVisible();
+    const setup = page.getByRole("heading", { name: "Connect a repository" });
+    const queue = page.getByRole("heading", { name: "Work requiring attention" });
+    await expect(setup.or(queue)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Unpaid Value" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Fulfill pool/i })).toHaveCount(0);
   });
 
   test("communities hub shows install cards and vitals", async ({ page, request }) => {
@@ -436,43 +422,15 @@ test.describe("Community phases — surfaces", () => {
     }
   });
 
-  test("discover shows value graph and workspace lanes", async ({ page }) => {
+  test("discover removes the default value graph and legacy workspace lanes", async ({ page }) => {
     test.setTimeout(90_000);
 
-    const radarReady = page.waitForResponse(
-      (res) => res.url().includes("/api/discover/radar") && res.ok(),
-      { timeout: 45_000 },
-    );
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await radarReady;
-
-    await expect(
-      page.getByRole("heading", {
-        level: 1,
-        name: /What value do you want to unlock/i,
-      }),
-    ).toBeVisible();
-
-    const valueGraph = page.getByRole("heading", { name: "Value graph" });
-    await valueGraph.scrollIntoViewIfNeeded();
-
-    await expect(valueGraph).toBeVisible();
-    await expect(
-      page
-        .getByRole("main")
-        .getByText(/horizontal cards|Pick a node below|Map view shows how value connects|Ledger graph is empty/i)
-        .first(),
-    ).toBeVisible();
-    const svg = page.locator('svg[aria-label="Value bubblemap"]');
-    const emptyLedger = page.getByText(/Ledger graph is empty|No ledger nodes yet/i);
-    await expect(svg.or(emptyLedger).first()).toBeVisible({ timeout: 30_000 });
-
-    await openDiscoverWorkspaceLane(page, "Unpaid Value");
-    await expect(page.getByRole("heading", { name: "Unpaid Value" })).toBeVisible();
-
-    await openDiscoverWorkspaceLane(page, "Ready to Fund");
-    await expect(page.getByRole("heading", { name: "Ready to Fund" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Research" }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Value graph/i })).toHaveCount(0);
+    await expect(page.locator('svg[aria-label="Value bubblemap"]')).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Discover workspace" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Ready to Fund" })).toHaveCount(0);
   });
 
   test("network redirects to discover", async ({ page }) => {

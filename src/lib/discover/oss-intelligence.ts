@@ -574,129 +574,6 @@ async function resilient<T>(name: string, degraded: string[], run: () => Promise
   }
 }
 
-async function loadViewerSupport(
-  viewerUserId: string | null | undefined,
-  degraded: string[],
-): Promise<DiscoverOssIntelligence["viewerSupport"]> {
-  if (!viewerUserId) return { signedIn: false, deposits: [], benefits: [] };
-  const [stakes, benefits] = await Promise.all([
-    resilient("viewer_stakes", degraded, () => prisma.communityFundStake.findMany({
-      where: { userId: viewerUserId },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      include: { program: { select: { name: true } } },
-    }), []),
-    resilient("supporter_benefits", degraded, () => prisma.supporterBenefitLedger.findMany({
-      where: { userId: viewerUserId },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }), []),
-  ]);
-  return {
-    signedIn: true,
-    deposits: stakes.map((stake) => ({
-      stakeId: stake.id,
-      programId: stake.programId,
-      programName: stake.program.name,
-      amountUsd: roundUsd(stake.principalUsd),
-      status: stake.status,
-      createdAt: stake.createdAt.toISOString(),
-    })),
-    benefits: benefits.map((benefit) => ({
-      id: benefit.id,
-      programId: benefit.programId,
-      label: benefit.benefitLabel,
-      status: benefit.status,
-      activationCheckpointUsd: benefit.activationCheckpointUsd,
-      activatedAt: benefit.activatedAt?.toISOString() ?? null,
-      expiresAt: benefit.expiresAt?.toISOString() ?? null,
-      limitations: Array.isArray(benefit.limitations)
-        ? benefit.limitations.filter((value): value is string => typeof value === "string")
-        : [],
-    })),
-  };
-}
-
-async function loadBrowseablePools(
-  viewerUserId: string | null | undefined,
-  degraded: string[],
-): Promise<DiscoverPoolOperation[]> {
-  const rows = await resilient("pool_catalog", degraded, () => prisma.resolveProgram.findMany({
-    where: { status: { in: ["active", "deployed"] } },
-    orderBy: { updatedAt: "desc" },
-    take: 8,
-    select: {
-      id: true,
-      name: true,
-      status: true,
-      templateId: true,
-      rulesJson: true,
-    },
-  }), []);
-  if (!rows.length) return [];
-
-  const versions = await resilient("pool_policies", degraded, () => prisma.programVersion.findMany({
-    where: { programId: { in: rows.map((row) => row.id) }, status: { in: ["active", "published", "deployed"] } },
-    orderBy: { version: "desc" },
-  }), []);
-  const versionByProgram = new Map<string, (typeof versions)[number]>();
-  versions.forEach((version) => {
-    if (!versionByProgram.has(version.programId)) versionByProgram.set(version.programId, version);
-  });
-  const policies = versions.length
-    ? await resilient("pool_policies", degraded, () => prisma.policyVersion.findMany({
-        where: { programVersionId: { in: versions.map((version) => version.id) } },
-        orderBy: { version: "desc" },
-      }), [])
-    : [];
-  const policyByVersion = new Map<string, (typeof policies)[number]>();
-  policies.forEach((policy) => {
-    if (!policyByVersion.has(policy.programVersionId)) policyByVersion.set(policy.programVersionId, policy);
-  });
-
-  const summaries = new Map<string, DiscoverProgramSummary>();
-  for (const row of rows) {
-    const rules = parseObject(row.rulesJson) as {
-      retroactiveFunding?: { enabled?: unknown };
-      dependencySupport?: { percent?: unknown };
-    };
-    const version = versionByProgram.get(row.id);
-    const policy = version ? policyByVersion.get(version.id) : null;
-    const dependencySupportPercent = typeof rules.dependencySupport?.percent === "number"
-      ? Math.min(100, Math.max(0, rules.dependencySupport.percent))
-      : 0;
-    summaries.set(row.id, {
-      id: row.id,
-      name: row.name,
-      status: row.status,
-      categories: inferProgramCategories({
-        templateId: row.templateId,
-        name: row.name,
-        rules,
-        evidenceRule: policy?.evidenceRule,
-      }),
-      programVersionId: version?.id ?? null,
-      policyVersionId: policy?.id ?? null,
-      policyVersion: policy?.version ?? null,
-      retroactiveMode: rules.retroactiveFunding?.enabled === true,
-      dependencySupportPercent,
-      matchingMode: row.templateId === "quadratic-funding" && Boolean(policy),
-    });
-  }
-
-  const states = await Promise.all(rows.map((row) => resilient(
-    `pool:${row.id}`,
-    degraded,
-    () => getProgramPoolState(row.id, viewerUserId),
-    null,
-  )));
-  return states.flatMap((state) => {
-    if (!state) return [];
-    const summary = summaries.get(state.programId);
-    return summary ? [buildDiscoverPoolOperation(state, summary)] : [];
-  });
-}
-
 export async function buildDiscoverOssIntelligence(input: {
   repository?: string | null;
   viewerUserId?: string | null;
@@ -706,22 +583,38 @@ export async function buildDiscoverOssIntelligence(input: {
     opportunities: [],
     meta: { source: "empty", scannedAt: new Date(0).toISOString(), stale: true } as OssScanMeta,
   }));
-  const [browseablePools, viewerSupport] = await Promise.all([
-    loadBrowseablePools(input.viewerUserId, degradedSources),
-    loadViewerSupport(input.viewerUserId, degradedSources),
-  ]);
+  const viewerSupport: DiscoverOssIntelligence["viewerSupport"] = {
+    signedIn: Boolean(input.viewerUserId),
+    deposits: [],
+    benefits: [],
+  };
   if (!stored.opportunities.length) {
     return {
       ...emptyDiscoverOssIntelligence(stored.meta),
-      pools: browseablePools,
       viewerSupport,
       degradedSources: [...new Set(degradedSources)],
     };
   }
 
   const requested = input.repository?.trim().toLowerCase();
-  const selected = stored.opportunities.find((item) => item.fullName.toLowerCase() === requested)
-    ?? stored.opportunities[0]!;
+  const repositories = stored.opportunities.map((opportunity) => ({
+    fullName: opportunity.fullName,
+    owner: opportunity.owner,
+    repo: opportunity.repo,
+    stars: opportunity.stars,
+    scannedAt: opportunity.activity?.observedAt ?? stored.meta.scannedAt,
+  }));
+  const selected = requested
+    ? stored.opportunities.find((item) => item.fullName.toLowerCase() === requested)
+    : null;
+  if (!selected) {
+    return {
+      ...emptyDiscoverOssIntelligence(stored.meta),
+      repositories,
+      viewerSupport,
+      degradedSources: [...new Set(degradedSources)],
+    };
+  }
   const { communitySlug } = resolveCommunityForRepo(selected.owner, selected.repo);
   const history = await resilient("snapshot_history", degradedSources,
     () => loadRepositorySnapshotHistory(selected.fullName, 2), []);
@@ -1058,13 +951,7 @@ export async function buildDiscoverOssIntelligence(input: {
 
   return {
     ok: true,
-    repositories: stored.opportunities.map((opportunity) => ({
-      fullName: opportunity.fullName,
-      owner: opportunity.owner,
-      repo: opportunity.repo,
-      stars: opportunity.stars,
-      scannedAt: opportunity.activity?.observedAt ?? stored.meta.scannedAt,
-    })),
+    repositories,
     selected: selectedContext,
     changes: {
       kind: changesKind,

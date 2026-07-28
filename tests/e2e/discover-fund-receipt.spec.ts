@@ -1,31 +1,22 @@
-import { test, expect } from "@playwright/test";
-import {
-  creditE2EBalance,
-  ensureSignedInPage,
-  signInForE2E,
-} from "./helpers/auth";
+import { expect, test } from "@playwright/test";
+import { creditE2EBalance, signInForE2E } from "./helpers/auth";
 import {
   ensureFundableProgram,
   ensureProofReceipt,
   fetchProgramPool,
   fundProgram,
   openCapitalActivity,
-  openFundingBoard,
   refreshLedger,
 } from "./helpers/discover-fund";
 
-test.describe("Discover fund → pool → capital → proof", () => {
-  test("full E2E: sign in → fulfill $5 → pool bar → capital activity → receipt proof", async ({
-    page,
-  }) => {
+test.describe("Discover handoff to Capital and proof", () => {
+  test("full E2E: fund in Capital, inspect activity, and open receipt proof", async ({ page }) => {
     test.setTimeout(180_000);
 
     const signIn = await signInForE2E(page.request);
     test.skip(!signIn.ok, signIn.ok ? "" : signIn.reason);
 
-    const credited = await creditE2EBalance(page.request, 30);
-    expect(credited).toBeTruthy();
-
+    await creditE2EBalance(page.request, 30);
     const program = await ensureFundableProgram(page.request);
     test.skip(!program, "no fundable program");
 
@@ -39,23 +30,8 @@ test.describe("Discover fund → pool → capital → proof", () => {
           ?.poolBalanceUsd ?? 0
       : 0;
 
-    await openFundingBoard(page);
-
-    const board = page.locator("#opportunities");
-    const amountInput = board.locator('input[type="number"]').first();
-    await expect(amountInput).toBeVisible({ timeout: 30_000 });
-    await amountInput.fill("5");
-
-    const fundReady = page.waitForResponse(
-      (res) => res.url().includes("/api/capital/fund") && res.ok(),
-      { timeout: 90_000 },
-    );
-    await board.getByRole("button", { name: "Fulfill pool" }).first().click();
-    await fundReady;
-
-    await expect(board.getByText(/Pool checkpoint|in pool/i).first()).toBeVisible({
-      timeout: 30_000,
-    });
+    const fundRes = await fundProgram(page.request, program.programId, 5);
+    expect(fundRes.ok()).toBeTruthy();
 
     const poolAfterRes = await fetchProgramPool(
       page.request,
@@ -95,7 +71,7 @@ test.describe("Discover fund → pool → capital → proof", () => {
     });
   });
 
-  test("signed-in API fund $5 updates pool without UI", async ({ page }) => {
+  test("signed-in API funding updates the Pool", async ({ page }) => {
     test.setTimeout(120_000);
 
     const signIn = await signInForE2E(page.request);
@@ -130,31 +106,10 @@ test.describe("Discover fund → pool → capital → proof", () => {
     expect((poolAfter.pool?.poolBalanceUsd ?? 0) >= poolBefore + 4.99).toBeTruthy();
   });
 
-  test("UI fulfill pool on funding board", async ({ page }) => {
-    test.setTimeout(180_000);
-
-    const signIn = await ensureSignedInPage(page);
-    test.skip(!signIn.ok, signIn.ok ? "" : signIn.reason);
-
-    await creditE2EBalance(page.request, 30);
-    const program = await ensureFundableProgram(page.request);
-    test.skip(!program, "no fundable program");
-
-    await openFundingBoard(page);
-
-    const board = page.locator("#opportunities");
-    const amountInput = board.locator('input[type="number"]').first();
-    await amountInput.fill("5");
-
-    const fundReady = page.waitForResponse(
-      (res) => res.url().includes("/api/capital/fund") && res.ok(),
-      { timeout: 90_000 },
-    );
-    await board.getByRole("button", { name: "Fulfill pool" }).first().click();
-    await fundReady;
-
-    await expect(board.getByText(/Pool checkpoint|in pool/i).first()).toBeVisible({
-      timeout: 30_000,
-    });
+  test("Discover has no settlement authority or direct funding control", async ({ page }) => {
+    await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Fulfill pool/i })).toHaveCount(0);
+    await expect(page.getByRole("main").locator('input[type="number"]')).toHaveCount(0);
   });
 });

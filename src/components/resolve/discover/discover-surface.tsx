@@ -6,9 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
-import { DiscoverLiveArcStrip } from "@/components/resolve/discover/discover-live-arc-strip";
-import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
-import { OutcomeCampaignDiscover } from "@/components/resolve/outcomes/outcome-campaign-discover";
+import { DiscoverCoverageIntelligence } from "@/components/resolve/discover/discover-coverage-intelligence";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverNeedTypeFilters } from "@/components/resolve/discover/discover-need-type-filters";
@@ -27,7 +25,6 @@ const DiscoverValueBubblemap = dynamic(
   },
 );
 
-import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverCommunityConsoleProvider } from "@/components/resolve/discover/discover-community-console-provider";
 import { DiscoverUrlHandoff } from "@/components/resolve/discover/discover-url-handoff";
@@ -49,9 +46,14 @@ import {
   loadPersistedDiscoverRole,
   persistDiscoverRole,
 } from "@/lib/discover/discover-role-persist";
+import type { DiscoverOssIntelligence } from "@/lib/discover/oss-intelligence";
 
 /** Discover — workspace lanes above; relationship graph + operator console below. */
-export function DiscoverSurface() {
+export function DiscoverSurface({
+  intelligence,
+}: {
+  intelligence?: DiscoverOssIntelligence | null;
+}) {
   const { user } = useAuth();
   return (
     <DiscoverActionAuditProvider>
@@ -59,7 +61,7 @@ export function DiscoverSurface() {
         <DiscoverCommunityConsoleProvider>
           <DiscoverActionsProvider signedIn={Boolean(user)}>
             <DiscoverUrlHandoff />
-            <DiscoverSurfaceContent user={user} />
+            <DiscoverSurfaceContent user={user} intelligence={intelligence} />
             <DiscoverActionAuditPanel />
           </DiscoverActionsProvider>
         </DiscoverCommunityConsoleProvider>
@@ -80,17 +82,19 @@ function roleToIntent(role: DiscoverRole): DiscoverIntent {
   return map[role];
 }
 
-function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["user"] }) {
+function DiscoverSurfaceContent({
+  user,
+  intelligence,
+}: {
+  user: ReturnType<typeof useAuth>["user"];
+  intelligence?: DiscoverOssIntelligence | null;
+}) {
   const [role, setRole] = useState<DiscoverRole>("funder");
   const [activeJob, setActiveJob] = useState<DiscoverJobId | null>("fund");
   const [needType, setNeedType] = useState<DiscoverNeedTypeFilter>("all");
   const [lane, setLane] = useState<DiscoverWorkspaceLane>(laneForJob("fund"));
   const [query, setQuery] = useState("");
   const intent = roleToIntent(role);
-  const { feed } = useDiscoverRadarFeed();
-  const showPulse =
-    (feed?.realSignalCount ?? 0) > 0 || (feed?.intelligence?.leakingUsd ?? 0) > 0;
-
   useEffect(() => {
     const saved = loadPersistedDiscoverRole();
     if (saved) {
@@ -139,12 +143,7 @@ function DiscoverSurfaceContent({ user }: { user: ReturnType<typeof useAuth>["us
           onQueryChange={setQuery}
         />
 
-        <OutcomeCampaignDiscover signedIn={Boolean(user)} />
-
-        <div className={styles.operationalRail} aria-label="Discover operational status">
-          <DiscoverLiveArcStrip />
-          {showPulse && <DiscoverNetworkPulse variant="strip" />}
-        </div>
+        {intelligence && <DiscoverCoverageIntelligence data={intelligence} />}
 
         <section id="discover-workspace" className={`${styles.workspaceSection} scroll-mt-24`}>
           <div className={styles.workspaceSticky}>

@@ -1,29 +1,34 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Discover Proof-to-Pool economic intelligence", () => {
-  test("offers the three real entry paths and honest persisted states", async ({ page }) => {
+test.describe("Discover Funding Coverage Command Centre", () => {
+  test.setTimeout(120_000);
+
+  test("keeps the compact Discover identity and exposes the funding coverage workflow", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("work your ecosystem depends on");
-    await expect(page.getByRole("link", { name: /Use my connected ecosystem/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Analyze a public repository/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Browse community pools/ })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Your connected ecosystem" })).toBeVisible();
-    await expect(page.getByLabel("Public GitHub repository")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Analyze repository|Refresh snapshot/ })).toBeVisible();
-    const allocationDesk = page.getByRole("heading", { name: "How shared capital reaches verified contributors" });
-    const noSnapshot = page.getByRole("heading", { name: "Start with a real public repository." });
-    await expect(allocationDesk.or(noSnapshot)).toBeVisible();
-    if (await allocationDesk.isVisible()) {
-      await expect(page.getByText(/No active normalized funding pool|Ledger-backed values/).first()).toBeVisible();
-    }
-    await expect(page.getByRole("heading", { name: "Confirmed deposits and community-defined benefits" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1 })).not.toContainText(/Arc|Circle|blockchain/i);
+    await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
+    await expect(page.getByRole("tablist", { name: "Discover quick actions" })).toBeVisible();
+    const coverage = page.getByRole("region", { name: "Funding Coverage Command Centre" });
+    await expect(coverage.getByRole("heading", { name: "Funding Coverage Command Centre" })).toBeVisible();
+    await expect(coverage.getByLabel("Funding Cycle Pulse")).toBeVisible();
+    await expect(coverage.getByText("Funding Coverage Matrix", { exact: true })).toBeVisible();
+    await expect(coverage.getByRole("heading", { name: "Work Ledger" })).toBeVisible();
+    await expect(coverage.getByText("Pools", { exact: true }).first()).toBeVisible();
+    await expect(coverage.getByText("Contributors", { exact: true }).first()).toBeVisible();
+    await expect(coverage.getByText("Live Signals", { exact: true }).first()).toBeVisible();
+    await expect(coverage.getByText("Confirmed Outcomes", { exact: true }).first()).toBeVisible();
+    expect(
+      await page.locator(
+        "[data-action-id='discover.capture_repository_snapshot'], [data-action-id='discover.select_repository']",
+      ).count(),
+    ).toBeGreaterThan(0);
   });
 
   test("contains the flagship surface at mobile width", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Funding Coverage Command Centre" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Work Ledger" })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   });

@@ -14,12 +14,13 @@ export type OssScanMeta = {
 };
 
 function rowToOpportunity(row: {
-  payloadJson: string;
+  payloadJson?: string;
+  payload?: Prisma.JsonValue;
   owner: string;
   repo: string;
 }): FundingOpportunity | null {
   try {
-    return JSON.parse(row.payloadJson) as FundingOpportunity;
+    return (row.payloadJson ? JSON.parse(row.payloadJson) : row.payload) as FundingOpportunity;
   } catch {
     return null;
   }
@@ -61,8 +62,26 @@ export async function persistOssOpportunitySnapshot(
   const fingerprint = fingerprintFundingOpportunity(opportunity);
   const payload = serializableOpportunity(opportunity);
 
-  await prisma.$transaction([
-    prisma.githubOssScan.upsert({
+  // The immutable snapshot is the source of truth for user-requested analysis.
+  // Keep the legacy aggregate cache best-effort so a missing cache table cannot
+  // roll back a valid snapshot or leave Discover stuck after a GitHub scan.
+  await prisma.discoverRepositorySnapshot.upsert({
+    where: {
+      fullName_fingerprint: { fullName: opportunity.fullName, fingerprint },
+    },
+    create: {
+      owner: opportunity.owner,
+      repo: opportunity.repo,
+      fullName: opportunity.fullName,
+      fingerprint,
+      payload,
+      observedAt,
+    },
+    update: {},
+  });
+
+  try {
+    await prisma.githubOssScan.upsert({
       where: { owner_repo: { owner: opportunity.owner, repo: opportunity.repo } },
       create: {
         owner: opportunity.owner,
@@ -82,22 +101,10 @@ export async function persistOssOpportunitySnapshot(
         priority: opportunity.priority,
         scannedAt: observedAt,
       },
-    }),
-    prisma.discoverRepositorySnapshot.upsert({
-      where: {
-        fullName_fingerprint: { fullName: opportunity.fullName, fingerprint },
-      },
-      create: {
-        owner: opportunity.owner,
-        repo: opportunity.repo,
-        fullName: opportunity.fullName,
-        fingerprint,
-        payload,
-        observedAt,
-      },
-      update: {},
-    }),
-  ]);
+    });
+  } catch (error) {
+    if (!isMissingTableError(error) && !isPrismaUnavailableError(error)) throw error;
+  }
 
   return { fingerprint, observedAt: observedAt.toISOString() };
 }
@@ -126,8 +133,17 @@ export async function loadStoredOssOpportunities(): Promise<{
   opportunities: FundingOpportunity[];
   meta: OssScanMeta;
 }> {
+  let rows: Array<{
+    payloadJson?: string;
+    payload?: Prisma.JsonValue;
+    owner: string;
+    repo: string;
+    scannedAt?: Date;
+    observedAt?: Date;
+  }> = [];
+
   try {
-    const rows = await prisma.githubOssScan.findMany({
+    rows = await prisma.githubOssScan.findMany({
       orderBy: { scannedAt: "desc" },
       take: 50,
       select: {
@@ -137,37 +153,49 @@ export async function loadStoredOssOpportunities(): Promise<{
         scannedAt: true,
       },
     });
-
-    if (!rows.length) {
-      return {
-        opportunities: [],
-        meta: { scannedAt: new Date(0).toISOString(), source: "empty", stale: true },
-      };
-    }
-
-    const newest = rows[0]!.scannedAt;
-    const stale = Date.now() - newest.getTime() > STALE_MS;
-    const opportunities = rows
-      .map(rowToOpportunity)
-      .filter((o): o is FundingOpportunity => o !== null);
-
-    return {
-      opportunities,
-      meta: {
-        scannedAt: newest.toISOString(),
-        source: "database",
-        stale,
-      },
-    };
   } catch (e) {
-    if (isMissingTableError(e) || isPrismaUnavailableError(e)) {
-      return {
-        opportunities: [],
-        meta: { scannedAt: new Date(0).toISOString(), source: "empty", stale: true },
-      };
-    }
-    throw e;
+    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
   }
+
+  if (!rows.length) {
+    try {
+      rows = await prisma.discoverRepositorySnapshot.findMany({
+        orderBy: [{ observedAt: "desc" }, { createdAt: "desc" }],
+        distinct: ["fullName"],
+        take: 50,
+        select: {
+          payload: true,
+          owner: true,
+          repo: true,
+          observedAt: true,
+        },
+      });
+    } catch (e) {
+      if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
+    }
+  }
+
+  if (!rows.length) {
+    return {
+      opportunities: [],
+      meta: { scannedAt: new Date(0).toISOString(), source: "empty", stale: true },
+    };
+  }
+
+  const newest = rows[0]!.scannedAt ?? rows[0]!.observedAt ?? new Date(0);
+  const stale = Date.now() - newest.getTime() > STALE_MS;
+  const opportunities = rows
+    .map(rowToOpportunity)
+    .filter((o): o is FundingOpportunity => o !== null);
+
+  return {
+    opportunities,
+    meta: {
+      scannedAt: newest.toISOString(),
+      source: "database",
+      stale,
+    },
+  };
 }
 
 /** Cron / operator — live GitHub ingest persisted to Postgres. */

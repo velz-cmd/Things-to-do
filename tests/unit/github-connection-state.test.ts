@@ -3,6 +3,11 @@ import {
   buildGithubAppInstallUrl,
   githubAppPrivateKey,
 } from "@/lib/integrations/github-app";
+import {
+  buildGithubAppAuthorizeUrl,
+  buildGithubAuthorizeUrl,
+  githubAppOAuthConfigured,
+} from "@/lib/integrations/github-oauth";
 import { mergeConnectionStates } from "@/lib/profile/connection-snapshot-client";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
@@ -10,6 +15,9 @@ const originalInstallUrl = process.env.GITHUB_APP_INSTALL_URL;
 const originalSlug = process.env.GITHUB_APP_SLUG;
 const originalPrivateKey = process.env.GITHUB_APP_PRIVATE_KEY;
 const originalPrivateKeyBase64 = process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
+const originalAppClientId = process.env.GITHUB_APP_CLIENT_ID;
+const originalAppClientSecret = process.env.GITHUB_APP_CLIENT_SECRET;
+const originalOauthClientId = process.env.GITHUB_OAUTH_CLIENT_ID;
 
 function state(
   updatedAt: string,
@@ -36,6 +44,12 @@ afterEach(() => {
   else process.env.GITHUB_APP_PRIVATE_KEY = originalPrivateKey;
   if (originalPrivateKeyBase64 === undefined) delete process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
   else process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = originalPrivateKeyBase64;
+  if (originalAppClientId === undefined) delete process.env.GITHUB_APP_CLIENT_ID;
+  else process.env.GITHUB_APP_CLIENT_ID = originalAppClientId;
+  if (originalAppClientSecret === undefined) delete process.env.GITHUB_APP_CLIENT_SECRET;
+  else process.env.GITHUB_APP_CLIENT_SECRET = originalAppClientSecret;
+  if (originalOauthClientId === undefined) delete process.env.GITHUB_OAUTH_CLIENT_ID;
+  else process.env.GITHUB_OAUTH_CLIENT_ID = originalOauthClientId;
 });
 
 describe("shared GitHub connection state", () => {
@@ -91,5 +105,19 @@ describe("shared GitHub connection state", () => {
     ).toString("base64");
 
     expect(githubAppPrivateKey()).toContain("BEGIN PRIVATE KEY");
+  });
+
+  it("uses the GitHub App OAuth client for installation callbacks", () => {
+    process.env.GITHUB_APP_CLIENT_ID = "app-client";
+    process.env.GITHUB_APP_CLIENT_SECRET = "app-secret";
+    process.env.GITHUB_OAUTH_CLIENT_ID = "identity-client";
+
+    expect(githubAppOAuthConfigured()).toBe(true);
+    expect(buildGithubAppAuthorizeUrl("state-123", "https://resolve.example")).toContain(
+      "client_id=app-client",
+    );
+    expect(buildGithubAuthorizeUrl("state-123", "https://resolve.example")).toContain(
+      "client_id=identity-client",
+    );
   });
 });

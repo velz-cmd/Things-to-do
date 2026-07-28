@@ -425,6 +425,15 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
                 Select repository
               </button>
             )}
+            {criticalFailure && (
+              <button
+                type="button"
+                onClick={() => router.refresh()}
+              >
+                <RefreshCw aria-hidden="true" />
+                Retry data
+              </button>
+            )}
           </div>
           {criticalFailure && (
             <p className={styles.errorNotice} role="status">

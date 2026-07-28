@@ -7,6 +7,7 @@ import {
   emptyDiscoverOssIntelligence,
 } from "@/lib/discover/oss-intelligence";
 import { getSessionUser } from "@/lib/auth/session";
+import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 export const metadata: Metadata = {
   title: "Discover — RESOLVE",
@@ -19,14 +20,19 @@ type DiscoverPageProps = {
 
 async function DiscoverContent({ searchParams }: DiscoverPageProps) {
   const { repo } = await searchParams;
-  const user = await getSessionUser().catch(() => null);
-  const intelligence = await buildDiscoverOssIntelligence({
-    repository: repo,
-    viewerUserId: user?.id ?? null,
-  }).catch(() => ({
+  const degraded = {
     ...emptyDiscoverOssIntelligence(),
     degradedSources: ["discover_intelligence"],
-  }));
+  };
+  const user = await withTimeout(getSessionUser().catch(() => null), 1_200, null);
+  const intelligence = await withTimeout(
+    buildDiscoverOssIntelligence({
+      repository: repo,
+      viewerUserId: user?.id ?? null,
+    }).catch(() => degraded),
+    3_500,
+    degraded,
+  );
 
   return <DiscoverSurface intelligence={intelligence} />;
 }

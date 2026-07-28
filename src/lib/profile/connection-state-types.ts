@@ -1,5 +1,6 @@
 export type ConnectionPlatformId =
   | "github"
+  | "github_app"
   | "listenbrainz"
   | "jellyfin"
   | "navidrome"

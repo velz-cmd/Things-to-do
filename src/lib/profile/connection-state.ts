@@ -131,6 +131,12 @@ export async function getUserConnectionState(input: {
       authorizeUrl: "/connect/github",
     },
     {
+      id: "github_app",
+      label: "GitHub repository access",
+      connected: false,
+      authorizeUrl: "/connect/github/install",
+    },
+    {
       id: "listenbrainz",
       label: "ListenBrainz",
       connected: listenbrainzConnected,

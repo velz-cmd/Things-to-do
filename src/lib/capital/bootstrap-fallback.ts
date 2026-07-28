@@ -11,15 +11,6 @@ export function offlineCapitalBootstrap(authUser: SupabaseUser): CapitalBootstra
     address,
     provider: "resolve" as const,
   };
-  const appBalance = {
-    walletType: "app" as const,
-    address,
-    amountMicroUsdc: "0",
-    availableMicroUsdc: "0",
-    freshness: "unknown" as const,
-    readAt: null,
-  };
-
   return {
     ok: true,
     dataQuality: {
@@ -35,10 +26,10 @@ export function offlineCapitalBootstrap(authUser: SupabaseUser): CapitalBootstra
       updatedAt: generatedAt,
     },
     balances: {
-      app: appBalance,
+      app: null,
       connected: null,
-      selected: appBalance,
-      portfolioTotalMicroUsdc: "0",
+      selected: null,
+      portfolioTotalMicroUsdc: null,
     },
     moneyState: {
       availableMicroUsdc: "0",

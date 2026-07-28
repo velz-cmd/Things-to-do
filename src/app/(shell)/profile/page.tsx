@@ -15,7 +15,7 @@ async function ProfileContent() {
   const initialData = user
     ? await withTimeout(
         loadProfileControlPlaneBootstrap(user).catch(() => offlineProfileBootstrap(user)),
-        7_000,
+        2_500,
         offlineProfileBootstrap(user, ["profile_database_timeout"]),
       )
     : null;

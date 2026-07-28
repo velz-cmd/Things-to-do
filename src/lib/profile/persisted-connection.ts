@@ -8,9 +8,11 @@ export async function persistProfileConnection(input: {
   userId: string;
   provider: string;
   displayLabel: string;
+  externalAccountId?: string;
   capabilities?: Prisma.InputJsonValue;
 }) {
-  const externalAccountId = `${input.userId}:profile:${input.provider}`;
+  const externalAccountId =
+    input.externalAccountId ?? `${input.userId}:profile:${input.provider}`;
   return prisma.sourceConnection.upsert({
     where: {
       userId_provider_externalAccountId: {

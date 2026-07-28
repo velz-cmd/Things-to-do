@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSignInModal } from "@/components/auth/sign-in-context";
+import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import type { DiscoverOssIntelligence } from "@/lib/discover/oss-intelligence";
 import type {
   FundingCoverageAction,
@@ -103,6 +104,9 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const { openSignIn } = useSignInModal();
+  const { state: connections, loading: connectionsLoading } = useUserConnections();
+  const githubIdentity = connections.platforms.find((row) => row.id === "github");
+  const githubRepositoryAccess = connections.platforms.find((row) => row.id === "github_app");
   const command = data.commandCentre;
   const selected = data.selected;
   const initialFilter = searchParams.get("filter") as WorkLedgerFilter | null;
@@ -326,6 +330,20 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
   }
 
   if (!selected) {
+    const identityConnected = Boolean(githubIdentity?.connected);
+    const repositoryAccessConnected = Boolean(githubRepositoryAccess?.connected);
+    const setupTitle =
+      !identityConnected
+        ? "Connect your GitHub identity"
+        : !repositoryAccessConnected
+          ? "Install repository access"
+          : "Choose a repository";
+    const setupDescription =
+      !identityConnected
+        ? "Connect GitHub once, then RESOLVE will use the same confirmed account across Discover, Mission, Communities, Earn, Capital, and Profile."
+        : !repositoryAccessConnected
+          ? `${githubIdentity?.displayValue ?? "Your GitHub identity"} is connected. Install the RESOLVE GitHub App to select private or organization repositories.`
+          : `${githubRepositoryAccess?.displayValue ?? "Repository access is connected"}. Select a stored repository or enter an owner/repository name to evaluate it.`;
     return (
       <section className={styles.shell} aria-labelledby="discover-title">
         <header className={styles.pageHeader}>
@@ -340,11 +358,8 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
           <div className={styles.setupIcon}><GitBranch aria-hidden="true" /></div>
           <div>
             <p>Source setup</p>
-            <h2 id="connect-repository-title">Connect a repository</h2>
-            <span>
-              Connect GitHub and select the repositories whose accepted contributor work you want
-              RESOLVE to evaluate.
-            </span>
+            <h2 id="connect-repository-title">{setupTitle}</h2>
+            <span>{connectionsLoading ? "Checking your confirmed connections..." : setupDescription}</span>
           </div>
           {data.repositories.length > 0 && (
             <label className={styles.setupSelect}>
@@ -362,14 +377,45 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
               </select>
             </label>
           )}
+          {repositoryAccessConnected && data.repositories.length === 0 && (
+            <label className={styles.setupSelect}>
+              <span>GitHub repository</span>
+              <input
+                aria-label="GitHub repository"
+                value={repository}
+                placeholder="owner/repository"
+                onChange={(event) => setRepository(event.target.value)}
+              />
+            </label>
+          )}
           <div className={styles.setupActions}>
-            <Link
-              href={`/connect/github?returnTo=${encodeURIComponent("/discover")}`}
-              data-action-id="profile.connect_source"
-              className={styles.primaryAction}
-            >
-              Connect GitHub <ArrowRight aria-hidden="true" />
-            </Link>
+            {!identityConnected ? (
+              <Link
+                href={`/connect/github?returnTo=${encodeURIComponent("/discover")}`}
+                data-action-id="profile.connect_source"
+                className={styles.primaryAction}
+              >
+                Connect GitHub <ArrowRight aria-hidden="true" />
+              </Link>
+            ) : !repositoryAccessConnected ? (
+              <Link
+                href={`/connect/github/install?returnTo=${encodeURIComponent("/discover")}`}
+                data-action-id="profile.install_github_app"
+                className={styles.primaryAction}
+              >
+                Install GitHub App <ArrowRight aria-hidden="true" />
+              </Link>
+            ) : data.repositories.length === 0 ? (
+              <button
+                type="button"
+                className={styles.primaryAction}
+                disabled={pending === "snapshot" || !repository.trim()}
+                onClick={() => void captureSnapshot()}
+              >
+                {pending === "snapshot" ? "Evaluating..." : "Evaluate repository"}
+                <ArrowRight aria-hidden="true" />
+              </button>
+            ) : null}
             {data.repositories.length > 0 && (
               <button
                 type="button"

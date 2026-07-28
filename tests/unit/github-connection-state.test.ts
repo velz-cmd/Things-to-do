@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildGithubAppInstallUrl } from "@/lib/integrations/github-app";
+import {
+  buildGithubAppInstallUrl,
+  githubAppPrivateKey,
+} from "@/lib/integrations/github-app";
 import { mergeConnectionStates } from "@/lib/profile/connection-snapshot-client";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
 
 const originalInstallUrl = process.env.GITHUB_APP_INSTALL_URL;
 const originalSlug = process.env.GITHUB_APP_SLUG;
+const originalPrivateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+const originalPrivateKeyBase64 = process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
 
 function state(
   updatedAt: string,
@@ -27,6 +32,10 @@ afterEach(() => {
   else process.env.GITHUB_APP_INSTALL_URL = originalInstallUrl;
   if (originalSlug === undefined) delete process.env.GITHUB_APP_SLUG;
   else process.env.GITHUB_APP_SLUG = originalSlug;
+  if (originalPrivateKey === undefined) delete process.env.GITHUB_APP_PRIVATE_KEY;
+  else process.env.GITHUB_APP_PRIVATE_KEY = originalPrivateKey;
+  if (originalPrivateKeyBase64 === undefined) delete process.env.GITHUB_APP_PRIVATE_KEY_BASE64;
+  else process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = originalPrivateKeyBase64;
 });
 
 describe("shared GitHub connection state", () => {
@@ -73,5 +82,14 @@ describe("shared GitHub connection state", () => {
     expect(buildGithubAppInstallUrl("state-123")).toBe(
       "https://github.com/apps/resolve-example/installations/new?state=state-123",
     );
+  });
+
+  it("accepts the existing base64 GitHub App private-key configuration", () => {
+    delete process.env.GITHUB_APP_PRIVATE_KEY;
+    process.env.GITHUB_APP_PRIVATE_KEY_BASE64 = Buffer.from(
+      "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
+    ).toString("base64");
+
+    expect(githubAppPrivateKey()).toContain("BEGIN PRIVATE KEY");
   });
 });

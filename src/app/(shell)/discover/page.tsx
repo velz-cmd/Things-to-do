@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { DiscoverSurface } from "@/components/resolve/discover/discover-surface";
 import { PrimaryRouteLoading } from "@/components/resolve/layout/primary-route-loading";
-import { buildDiscoverOssIntelligence } from "@/lib/discover/oss-intelligence";
+import {
+  buildDiscoverOssIntelligence,
+  emptyDiscoverOssIntelligence,
+} from "@/lib/discover/oss-intelligence";
 import { getSessionUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
@@ -20,7 +23,10 @@ async function DiscoverContent({ searchParams }: DiscoverPageProps) {
   const intelligence = await buildDiscoverOssIntelligence({
     repository: repo,
     viewerUserId: user?.id ?? null,
-  }).catch(() => null);
+  }).catch(() => ({
+    ...emptyDiscoverOssIntelligence(),
+    degradedSources: ["discover_intelligence"],
+  }));
 
   return <DiscoverSurface intelligence={intelligence} />;
 }

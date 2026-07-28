@@ -32,9 +32,7 @@ export type FundingSettlementState =
   | "reconciled";
 export type WorkLedgerFilter =
   | "all"
-  | "needs_rule"
-  | "identity_blocked"
-  | "funding_needed"
+  | "needs_action"
   | "ready"
   | "in_progress"
   | "paid";
@@ -46,7 +44,9 @@ export type FundingCoverageAction = {
     | "discover.open_evidence"
     | "discover.resolve_identity"
     | "discover.open_program"
+    | "profile.connect_source"
     | "capital.open_funding"
+    | "capital.authorize_settlement"
     | "receipt.open";
   label: string;
   reason: string;
@@ -317,23 +317,63 @@ export function buildCoverageMatrix(coverage: CoverageInput[]): FundingCoverageM
 }
 
 export function deriveNextAction(input: FundingCoverageCommandInput): FundingCoverageAction | null {
+  const githubBlocker = input.blockers.find((item) =>
+    ["github_installation_missing", "github_permission_revoked"].includes(item.code));
+  if (githubBlocker) {
+    return {
+      id: "profile.connect_source",
+      label: "Reconnect GitHub",
+      reason: "The GitHub installation or repository permission needs attention before evaluation can continue.",
+      href: `/connect/github?returnTo=${encodeURIComponent(input.selected ? `/discover?repo=${input.selected.fullName}` : "/discover")}`,
+      recordCount: githubBlocker.count,
+    };
+  }
   const selected = input.selected;
   if (!selected) {
     return {
+      id: "profile.connect_source",
+      label: "Connect GitHub",
+      reason: "Connect GitHub and select a repository before RESOLVE can evaluate accepted work.",
+      href: `/connect/github?returnTo=${encodeURIComponent("/discover")}`,
+      recordCount: null,
+    };
+  }
+  const criticalEvaluationSources = new Set([
+    "discover_intelligence",
+    "snapshot_history",
+    "proof_events",
+    "programs",
+    "policies",
+  ]);
+  const evaluationUnavailable = input.degradedSources.some((source) =>
+    criticalEvaluationSources.has(source));
+  if (
+    evaluationUnavailable ||
+    selected.stale ||
+    input.proof.verificationState === "empty" ||
+    !selected.snapshotPersisted
+  ) {
+    return {
       id: "discover.capture_repository_snapshot",
-      label: "Select repository",
-      reason: "Select a persisted repository before RESOLVE can evaluate accepted work.",
+      label: "Refresh evaluation",
+      reason: selected.stale
+        ? "The last persisted repository evaluation is stale."
+        : evaluationUnavailable
+          ? "A required evaluation source is temporarily unavailable."
+          : "A persisted repository evaluation is required before evidence can be evaluated.",
       href: null,
       recordCount: null,
     };
   }
-  if (input.proof.verificationState === "empty" || !selected.snapshotPersisted) {
+  const evidenceBlocker = input.blockers.find((item) =>
+    ["evidence_review_required", "evidence_verification_failed"].includes(item.code));
+  if (evidenceBlocker) {
     return {
-      id: "discover.capture_repository_snapshot",
-      label: "Refresh evaluation",
-      reason: "A persisted repository snapshot is required before evidence can be evaluated.",
-      href: null,
-      recordCount: null,
+      id: "discover.open_evidence",
+      label: "Inspect evidence",
+      reason: `${evidenceBlocker.count} accepted ${evidenceBlocker.count === 1 ? "record needs" : "records need"} evidence review before policy evaluation can continue.`,
+      href: input.activity[0]?.sourceUrl ?? null,
+      recordCount: evidenceBlocker.count,
     };
   }
   const uncovered = input.coverage.reduce(
@@ -347,6 +387,17 @@ export function deriveNextAction(input: FundingCoverageCommandInput): FundingCov
       reason: `${uncovered} accepted ${uncovered === 1 ? "record is" : "records are"} outside the active funding policy.`,
       href: null,
       recordCount: uncovered,
+    };
+  }
+  const attributionBlocker = input.blockers.find((item) =>
+    ["attribution_conflict", "attribution_unresolved"].includes(item.code));
+  if (attributionBlocker) {
+    return {
+      id: "discover.resolve_identity",
+      label: "Review attribution",
+      reason: `${attributionBlocker.count} accepted ${attributionBlocker.count === 1 ? "record has" : "records have"} unresolved contributor attribution.`,
+      href: attributionBlocker.recoveryHref,
+      recordCount: attributionBlocker.count,
     };
   }
   if (input.funding.blockedRecipients > 0) {
@@ -369,13 +420,13 @@ export function deriveNextAction(input: FundingCoverageCommandInput): FundingCov
       recordCount: input.funding.obligationCount,
     };
   }
-  if (input.settlement.reconciliationRequired > 0 || input.settlement.partiallyConfirmed > 0) {
+  if (input.settlement.authorised > 0) {
     return {
-      id: "capital.open_funding",
-      label: "Review reconciliation",
-      reason: "A submitted settlement has an unresolved or partial confirmation state.",
+      id: "capital.authorize_settlement",
+      label: "Review in Capital",
+      reason: `${input.settlement.authorised} authorised ${input.settlement.authorised === 1 ? "settlement needs" : "settlements need"} operator review before submission.`,
       href: `/capital?community=${encodeURIComponent(selected.communitySlug)}&returnTo=${encodeURIComponent(`/discover?repo=${selected.fullName}`)}`,
-      recordCount: input.settlement.reconciliationRequired + input.settlement.partiallyConfirmed,
+      recordCount: input.settlement.authorised,
     };
   }
   if (input.settlement.submitted > 0) {
@@ -385,6 +436,15 @@ export function deriveNextAction(input: FundingCoverageCommandInput): FundingCov
       reason: `${input.settlement.submitted} submitted ${input.settlement.submitted === 1 ? "settlement is" : "settlements are"} awaiting authoritative confirmation.`,
       href: `/capital?community=${encodeURIComponent(selected.communitySlug)}&returnTo=${encodeURIComponent(`/discover?repo=${selected.fullName}`)}`,
       recordCount: input.settlement.submitted,
+    };
+  }
+  if (input.settlement.reconciliationRequired > 0 || input.settlement.partiallyConfirmed > 0) {
+    return {
+      id: "capital.open_funding",
+      label: "Review reconciliation",
+      reason: "A submitted settlement has an unresolved or partial confirmation state.",
+      href: `/capital?community=${encodeURIComponent(selected.communitySlug)}&returnTo=${encodeURIComponent(`/discover?repo=${selected.fullName}`)}`,
+      recordCount: input.settlement.reconciliationRequired + input.settlement.partiallyConfirmed,
     };
   }
   if (input.outcomes[0]) {
@@ -434,11 +494,6 @@ export function buildFundingCoverageCommandCentre(
   );
   const acceptedCount = input.coverage.reduce((sum, row) => sum + row.activityCount, 0);
   const authorisedCount = input.pools.reduce((sum, pool) => sum + pool.authorizationCount, 0);
-  const poolReadyCount = input.pools.reduce(
-    (sum, pool) => sum + (pool.availableUsd >= pool.recognizedOwedUsd ? pool.authorizationCount : 0),
-    0,
-  );
-
   const coverageByCategory = new Map(input.coverage.map((row) => [row.category, row]));
   const programByCategory = new Map<GitHubWorkCategory, ProgramInput>();
   input.programs.forEach((program) => {
@@ -512,7 +567,7 @@ export function buildFundingCoverageCommandCentre(
               ? "Pool funding is below persisted recognized obligations"
               : "No record-linked obligation is available in the current read model",
           nextAction,
-          filter: !covered ? "needs_rule" : poolState === "shortfall" ? "funding_needed" : "in_progress",
+          filter: !covered || poolState === "shortfall" ? "needs_action" : "in_progress",
           freshness: selected.stale ? "Source snapshot is stale" : "Current persisted snapshot",
           timeline: [
             { at: record.occurredAt, label: `${record.sourceKind.replaceAll("_", " ")} accepted on GitHub` },
@@ -546,12 +601,16 @@ export function buildFundingCoverageCommandCentre(
     },
     pulse: [
       { id: "accepted", label: "Accepted Work", value: acceptedCount, unit: "records", filter: "all", unavailableReason: null },
-      { id: "covered", label: "Policy Coverage", value: coveredCount, unit: "records", filter: "in_progress", unavailableReason: null },
-      { id: "contributors", label: "Contributor Ready", value: input.funding.eligibleRecipients, unit: "contributors", filter: "ready", unavailableReason: null },
-      { id: "obligations", label: "Obligations", value: input.funding.obligationCount, unit: "obligations", filter: "in_progress", unavailableReason: null },
-      { id: "pool", label: "Pool Ready", value: input.pools.length ? poolReadyCount : null, unit: "records", filter: "ready", unavailableReason: input.pools.length ? null : "No Pool is attached" },
-      { id: "authorised", label: "Authorised", value: input.pools.length ? authorisedCount : null, unit: "records", filter: "in_progress", unavailableReason: input.pools.length ? null : "Authorization records unavailable" },
-      { id: "submitted", label: "Submitted", value: input.settlement.submitted, unit: "batches", filter: "in_progress", unavailableReason: null },
+      { id: "covered", label: "Covered", value: coveredCount, unit: "records", filter: "in_progress", unavailableReason: null },
+      { id: "ready", label: "Ready", value: input.funding.eligibleRecipients, unit: "contributors", filter: "ready", unavailableReason: null },
+      {
+        id: "in-progress",
+        label: "In Progress",
+        value: authorisedCount + input.settlement.submitted + input.settlement.partiallyConfirmed,
+        unit: "records",
+        filter: "in_progress",
+        unavailableReason: null,
+      },
       { id: "confirmed", label: "Confirmed", value: input.settlement.confirmed, unit: "batches", filter: "paid", unavailableReason: null },
     ],
     nextAction: deriveNextAction(input),

@@ -10,7 +10,7 @@ import { withTimeout } from "@/lib/discover/fetch-timeout";
 
 export const metadata: Metadata = { title: "Profile — RESOLVE", description: "Identity, source, access, and payout controls." };
 
-export default async function ProfilePage() {
+async function ProfileContent() {
   const user = await getSessionUser();
   const initialData = user
     ? await withTimeout(
@@ -19,5 +19,18 @@ export default async function ProfilePage() {
         offlineProfileBootstrap(user, ["profile_database_timeout"]),
       )
     : null;
-  return <><Suspense fallback={null}><ProfileReturnBanner /></Suspense><Suspense fallback={<ProfileControlPlaneSkeleton />}><ProfilePassport initialData={initialData} /></Suspense></>;
+  return <ProfilePassport initialData={initialData} />;
+}
+
+export default function ProfilePage() {
+  return (
+    <>
+      <Suspense fallback={null}>
+        <ProfileReturnBanner />
+      </Suspense>
+      <Suspense fallback={<ProfileControlPlaneSkeleton />}>
+        <ProfileContent />
+      </Suspense>
+    </>
+  );
 }

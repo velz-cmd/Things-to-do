@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { formatUsdcTokenUnits } from "@/lib/money/usdc";
 import { OutcomeCreatorConsole, type CreatorAssetView, type CreatorCampaignView } from "@/components/resolve/outcomes/outcome-creator-console";
 import { OutcomeContributorConsole, type ContributorIdentityView, type ContributorPayoutView, type ContributorWorkView } from "@/components/resolve/outcomes/outcome-contributor-console";
+import { PrimaryRouteLoading } from "@/components/resolve/layout/primary-route-loading";
 
 export const metadata: Metadata = { title: "Earn — RESOLVE", description: "Verified work, recognized earnings, settlement state, and receipts." };
 const states = ["recognized", "awaiting_authorization", "awaiting_settlement", "claimable", "settled"] as const;
 const labels = { recognized: "Recognized", awaiting_authorization: "Awaiting authorization", awaiting_settlement: "Awaiting settlement", claimable: "Available to claim", settled: "Lifetime settled" } as const;
 const usdc = (value: bigint) => `$${formatUsdcTokenUnits(value)}`;
 
-export default async function EarnPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+async function EarnContent({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
   const mode = (await searchParams).mode === "creator" ? "creator" : "contributor";
   const user = await getSessionUser();
   const summary = Object.fromEntries(states.map((state) => [state, BigInt(0)])) as Record<(typeof states)[number], bigint>;
@@ -39,4 +41,12 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
     {mode === "contributor" && <><section className="mt-5 grid overflow-hidden rounded-xl border border-white/10 bg-slate-950/60 sm:grid-cols-5">{states.map((state) => <div key={state} className="border-b border-white/10 p-4 last:border-0 sm:border-b-0 sm:border-r"><p className="text-xs text-slate-500">{labels[state]}</p><strong className="mt-1 block font-mono text-lg text-white">{usdc(summary[state])}</strong></div>)}</section>{user ? <OutcomeContributorConsole identities={identities} payouts={payouts} work={work}/> : <section className="mt-5 rounded-xl border border-dashed border-white/10 p-5 text-sm text-slate-400">Sign in before joining or submitting to a funded campaign.</section>}</>}
     {mode === "creator" && (user ? <OutcomeCreatorConsole assets={assets} campaigns={campaigns}/> : <section className="mt-5 rounded-xl border border-dashed border-white/10 p-5 text-sm text-slate-400">Sign in before registering an asset or creating a campaign.</section>)}
   </main>;
+}
+
+export default function EarnPage(props: { searchParams: Promise<{ mode?: string }> }) {
+  return (
+    <Suspense fallback={<PrimaryRouteLoading label="Loading Earn" />}>
+      <EarnContent {...props} />
+    </Suspense>
+  );
 }

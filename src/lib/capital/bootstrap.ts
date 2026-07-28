@@ -2,6 +2,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { prisma } from "@/lib/db";
 import { loadCapitalState } from "@/lib/capital/state";
 import type { ResolvedUserWallets } from "@/lib/wallet/canonical-wallet-registry";
+import { capitalBalanceUnavailable } from "@/lib/capital/balance-availability";
 
 export type CapitalAuthorizationSummary = {
   id: string;
@@ -258,10 +259,6 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
     : state.syncStatus === "cached" ? "recent"
     : state.lastSyncedAt ? "stale"
     : "unknown";
-  const balanceUnavailable =
-    state.syncStatus === "error" ||
-    state.syncStatus === "unknown" ||
-    state.networkHealth === "unavailable";
   const slices = state.walletSlices ?? [];
   const mapSlice = (kind: "app" | "external"): WalletBalanceSlice | null => {
     const slice = slices.find((row) => row.kind === kind);
@@ -278,6 +275,11 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
   const app = mapSlice("app");
   const connected = mapSlice("external");
   const selected = state.selectedWallet === "connected" ? connected : app;
+  const balanceUnavailable = capitalBalanceUnavailable({
+    syncStatus: state.syncStatus,
+    networkHealth: state.networkHealth,
+    selectedBalancePresent: Boolean(selected),
+  });
   const authorizations = groupAuthorizations(authorizationRows);
   const committed = authorizationRows.reduce((sum, row) => sum + usdToMicro(row.amountUsd), 0n);
   const pending = settlementRows

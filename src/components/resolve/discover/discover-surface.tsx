@@ -6,10 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { DiscoverDomainRadars } from "@/components/resolve/discover/discover-domain-radars";
 import { DiscoverJobHero } from "@/components/resolve/discover/discover-job-hero";
-import { DiscoverLiveArcStrip } from "@/components/resolve/discover/discover-live-arc-strip";
-import { DiscoverNetworkPulse } from "@/components/resolve/discover/discover-network-pulse";
 import { DiscoverCoverageIntelligence } from "@/components/resolve/discover/discover-coverage-intelligence";
-import { OutcomeCampaignDiscover } from "@/components/resolve/outcomes/outcome-campaign-discover";
 import { DiscoverOpportunityQueue } from "@/components/resolve/discover/discover-opportunity-queue";
 import { DiscoverTrendingGaps } from "@/components/resolve/discover/discover-trending-gaps";
 import { DiscoverNeedTypeFilters } from "@/components/resolve/discover/discover-need-type-filters";
@@ -28,7 +25,6 @@ const DiscoverValueBubblemap = dynamic(
   },
 );
 
-import { useDiscoverRadarFeed } from "@/components/resolve/discover/discover-radar-feed-provider";
 import { DiscoverActionsProvider } from "@/components/resolve/discover/discover-actions-provider";
 import { DiscoverCommunityConsoleProvider } from "@/components/resolve/discover/discover-community-console-provider";
 import { DiscoverUrlHandoff } from "@/components/resolve/discover/discover-url-handoff";
@@ -99,10 +95,6 @@ function DiscoverSurfaceContent({
   const [lane, setLane] = useState<DiscoverWorkspaceLane>(laneForJob("fund"));
   const [query, setQuery] = useState("");
   const intent = roleToIntent(role);
-  const { feed } = useDiscoverRadarFeed();
-  const showPulse =
-    (feed?.realSignalCount ?? 0) > 0 || (feed?.intelligence?.leakingUsd ?? 0) > 0;
-
   useEffect(() => {
     const saved = loadPersistedDiscoverRole();
     if (saved) {
@@ -150,13 +142,6 @@ function DiscoverSurfaceContent({
           query={query}
           onQueryChange={setQuery}
         />
-
-        <OutcomeCampaignDiscover signedIn={Boolean(user)} />
-
-        <div className={styles.operationalRail} aria-label="Discover operational status">
-          <DiscoverLiveArcStrip />
-          {showPulse && <DiscoverNetworkPulse variant="strip" />}
-        </div>
 
         {intelligence && <DiscoverCoverageIntelligence data={intelligence} />}
 

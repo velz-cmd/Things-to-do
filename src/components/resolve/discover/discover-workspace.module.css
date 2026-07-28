@@ -67,33 +67,29 @@
 
 .commandHeader {
   position: relative;
-  min-height: 240px;
+  min-height: 0;
   overflow: visible;
   border: 1px solid rgba(102, 121, 255, 0.28);
-  border-radius: 20px;
+  border-radius: 14px;
   background:
-    linear-gradient(rgba(101, 139, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(101, 139, 255, 0.025) 1px, transparent 1px),
-    radial-gradient(circle at 84% 22%, rgba(104, 75, 255, 0.12), transparent 27%),
+    radial-gradient(circle at 84% 22%, rgba(104, 75, 255, 0.09), transparent 30%),
     linear-gradient(145deg, rgba(14, 27, 49, 0.97), rgba(7, 15, 28, 0.97));
-  background-size: 28px 28px, 28px 28px, auto, auto;
-  box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.035);
-  padding: 20px 22px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2), inset 0 1px rgba(255, 255, 255, 0.035);
+  padding: 10px 12px 8px;
 }
 
-.headerTopline {
-  display: flex;
+.compactIntro {
+  display: grid;
+  grid-template-columns: minmax(290px, 0.8fr) minmax(360px, 1.2fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: 24px;
 }
 
 .eyebrow {
   color: #9b8bff;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
@@ -124,19 +120,20 @@
 }
 
 .title {
-  max-width: 760px;
+  margin-top: 2px;
   color: var(--discover-text);
-  font-size: clamp(2.375rem, 3.1vw, 2.75rem);
+  font-size: clamp(1.45rem, 2vw, 1.8rem);
   font-weight: 650;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
+  letter-spacing: -0.035em;
+  line-height: 1;
 }
 
 .description {
-  margin-top: 8px;
+  max-width: 620px;
+  margin-top: 5px;
   color: var(--discover-text-secondary);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .routeIndicator {
@@ -182,8 +179,10 @@
 .searchWrap {
   position: relative;
   z-index: 20;
-  margin-top: 14px;
+  min-width: 0;
 }
+
+.searchWrap .headerStatus { justify-content: flex-end; margin-bottom: 5px; }
 
 .searchShell {
   min-height: 0 !important;
@@ -195,14 +194,15 @@
 }
 
 .searchShell > div { padding: 0 !important; }
+.searchShell p { display: none !important; }
 .searchShell input {
-  height: 54px !important;
+  height: 38px !important;
   border-color: rgba(135, 161, 206, 0.22) !important;
-  border-radius: 13px !important;
+  border-radius: 9px !important;
   background: rgba(3, 8, 18, 0.86) !important;
-  padding-right: 58px !important;
-  font-size: 14px !important;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.03), 0 12px 26px rgba(0, 0, 0, 0.18) !important;
+  padding-right: 44px !important;
+  font-size: 11px !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.03) !important;
 }
 
 .searchShell input:focus {
@@ -211,34 +211,33 @@
 }
 
 .quickRail {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.quickRail::-webkit-scrollbar { display: none; }
 
 .quickAction {
-  position: relative;
-  display: grid;
-  min-width: 0;
-  min-height: 64px;
-  grid-template-columns: 30px minmax(0, 1fr) 14px;
+  display: inline-flex;
+  min-width: max-content;
+  min-height: 30px;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
   border: 1px solid var(--discover-border-soft);
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(8, 18, 34, 0.76);
-  padding: 9px 10px;
+  padding: 4px 9px 4px 5px;
   color: var(--discover-text-secondary);
   text-align: left;
-  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
 
 .quickAction:hover,
 .quickAction:focus-visible {
   border-color: rgba(102, 121, 255, 0.42);
   background: rgba(17, 31, 55, 0.9);
-  transform: translateY(-2px);
 }
 
 .quickActionActive {
@@ -248,11 +247,11 @@
 
 .quickIcon {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 22px;
+  height: 22px;
   place-items: center;
   border: 1px solid rgba(135, 161, 206, 0.14);
-  border-radius: 9px;
+  border-radius: 6px;
   background: rgba(3, 9, 20, 0.72);
   color: var(--discover-violet);
 }
@@ -268,7 +267,7 @@
   display: block;
   overflow: hidden;
   color: var(--discover-text);
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 650;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -738,7 +737,7 @@
 
 @media (max-width: 1023px) {
   .pageInner { width: min(100% - 32px, 1380px); }
-  .headlineGrid { grid-template-columns: 1fr; gap: 12px; }
+  .compactIntro { grid-template-columns: 1fr; gap: 10px; }
   .routeIndicator { min-width: 0; width: min(100%, 430px); }
   .quickRail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .operationalRail { grid-template-columns: 1fr; }
@@ -763,14 +762,11 @@
 
 @media (max-width: 767px) {
   .pageInner { width: min(100% - 24px, 1380px); padding-top: 14px; }
-  .commandHeader { border-radius: 16px; padding: 16px; }
-  .headerTopline { align-items: flex-start; }
-  .title { font-size: clamp(2rem, 10vw, 2.35rem); }
-  .description { font-size: 13px; }
+  .commandHeader { border-radius: 13px; padding: 12px; }
+  .title { font-size: 1.5rem; }
+  .description { font-size: 11px; }
   .routeIndicator { overflow-x: auto; }
-  .quickRail { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
-  .quickRail::-webkit-scrollbar { display: none; }
-  .quickAction { width: 164px; min-height: 60px; flex: 0 0 164px; scroll-snap-align: start; }
+  .quickAction { min-height: 32px; flex: 0 0 auto; scroll-snap-align: start; }
   .workspaceSection { margin-top: 14px; }
   .workspaceSticky { top: 70px; margin-inline: -12px; padding: 6px 12px; }
   .workspaceTab { min-height: 44px; padding-inline: 12px; }

@@ -5,6 +5,12 @@ import { getProgramPoolState } from "@/lib/capital/pool-checkpoints";
 import type { ProgramPoolState } from "@/lib/capital/pool-checkpoint-types";
 import { resolveCommunityForRepo } from "@/lib/discover/repo-community";
 import {
+  buildFundingCoverageCommandCentre,
+  deriveSettlementState,
+  summarizeSettlementStates,
+  type FundingCoverageCommandCentre,
+} from "@/lib/discover/funding-coverage";
+import {
   fingerprintFundingOpportunity,
   loadRepositorySnapshotHistory,
   loadStoredOssOpportunities,
@@ -160,6 +166,14 @@ export type DiscoverOssIntelligence = {
     blockedRecipients: number;
     nextCheckpointUsd: number | null;
     programCount: number;
+    obligationCount: number;
+  };
+  settlement: {
+    authorised: number;
+    submitted: number;
+    partiallyConfirmed: number;
+    confirmed: number;
+    reconciliationRequired: number;
   };
   blockers: Array<{
     code: string;
@@ -203,6 +217,7 @@ export type DiscoverOssIntelligence = {
     amountUsd: number | null;
     calculationMethod: string;
   };
+  commandCentre: FundingCoverageCommandCentre;
   viewerSupport: {
     signedIn: boolean;
     deposits: Array<{ stakeId: string; programId: string; programName: string; amountUsd: number; status: string; createdAt: string }>;
@@ -495,6 +510,14 @@ export function emptyDiscoverOssIntelligence(meta?: OssScanMeta): DiscoverOssInt
       blockedRecipients: 0,
       nextCheckpointUsd: null,
       programCount: 0,
+      obligationCount: 0,
+    },
+    settlement: {
+      authorised: 0,
+      submitted: 0,
+      partiallyConfirmed: 0,
+      confirmed: 0,
+      reconciliationRequired: 0,
     },
     blockers: [],
     outcomes: [],
@@ -518,6 +541,20 @@ export function emptyDiscoverOssIntelligence(meta?: OssScanMeta): DiscoverOssInt
       amountUsd: null,
       calculationMethod: "No verified activity snapshot is selected.",
     },
+    commandCentre: buildFundingCoverageCommandCentre({
+      selected: null,
+      coverage: [],
+      activity: [],
+      programs: [],
+      pools: [],
+      outcomes: [],
+      proof: { persistedEvents: 0, verificationState: "empty", observedAt: null },
+      funding: { shortfallUsd: 0, blockedRecipients: 0, eligibleRecipients: 0, obligationCount: 0 },
+      blockers: [],
+      changes: { kind: "empty" },
+      settlement: { authorised: 0, submitted: 0, partiallyConfirmed: 0, confirmed: 0, reconciliationRequired: 0 },
+      degradedSources: [],
+    }),
     viewerSupport: { signedIn: false, deposits: [], benefits: [] },
     meta: meta ?? { source: "empty", scannedAt: new Date(0).toISOString(), stale: true },
     degradedSources: [],
@@ -824,11 +861,16 @@ export async function buildDiscoverOssIntelligence(input: {
     .sort((left, right) => left - right)[0] ?? null;
 
   const settlementRows = await resilient("settlements", degradedSources, () => prisma.settlementBatch.findMany({
-    where: { communitySlug, status: "confirmed", confirmedAt: { not: null } },
-    orderBy: { confirmedAt: "desc" },
-    take: 8,
+    where: { communitySlug },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
   }), []);
-  const settlementIds = settlementRows.map((settlement) => settlement.id);
+  const confirmedSettlements = settlementRows.filter((settlement) =>
+    deriveSettlementState({
+      status: settlement.status,
+      confirmedAt: settlement.confirmedAt?.toISOString() ?? null,
+    }) === "confirmed");
+  const settlementIds = confirmedSettlements.map((settlement) => settlement.id);
   const receiptRows = settlementIds.length
     ? await resilient("receipts", degradedSources, () => prisma.receipt.findMany({
         where: { settlementBatchId: { in: settlementIds } },
@@ -855,6 +897,12 @@ export async function buildDiscoverOssIntelligence(input: {
       chainId: transaction.chainId,
     }];
   });
+  const settlementSummary = summarizeSettlementStates(
+    settlementRows.map((settlement) => ({
+        status: settlement.status,
+        confirmedAt: settlement.confirmedAt?.toISOString() ?? null,
+      })),
+  );
 
   const evidenceRows = await resilient("proof_events", degradedSources, () => prisma.evidence.findMany({
     where: { subjectRef: `github:${selected.fullName.toLowerCase()}` },
@@ -948,6 +996,65 @@ export async function buildDiscoverOssIntelligence(input: {
       relation: "confirmed distribution receipt",
     })),
   ];
+  const changesKind = previousOpportunity ? "comparison" as const : "baseline" as const;
+  const activity = (selected.activity?.records ?? []).slice(0, 80);
+  const proof = {
+    persistedEvents: currentProofRows.length,
+    source: "GitHub",
+    snapshotId: fingerprint,
+    observedAt: currentObservedAt,
+    verificationState: currentProofRows.length > 0
+      ? "persisted" as const
+      : currentSnapshot
+        ? "snapshot_only" as const
+        : "empty" as const,
+  };
+  const funding = {
+    recognizedUsd,
+    confirmedPoolUsd,
+    availablePoolUsd,
+    shortfallUsd: roundUsd(Math.max(0, recognizedUsd - availablePoolUsd)),
+    repositoryGapEstimateUsd: selected.health.fundingGapUsd,
+    eligibleRecipients,
+    blockedRecipients,
+    nextCheckpointUsd,
+    programCount: programs.length,
+    obligationCount: obligations.length,
+  };
+  const selectedContext = {
+    fullName: selected.fullName,
+    owner: selected.owner,
+    repo: selected.repo,
+    description: selected.description ?? selected.headline,
+    sourceUrl: `https://github.com/${selected.fullName}`,
+    stars: selected.stars,
+    forks: selected.forks,
+    communitySlug,
+    fingerprint,
+    snapshotPersisted: Boolean(currentSnapshot),
+    observedAt: currentObservedAt,
+    stale: stored.meta.stale,
+  };
+  const commandCentre = buildFundingCoverageCommandCentre({
+    selected: selectedContext,
+    coverage,
+    activity,
+    programs,
+    pools: selectedPools,
+    outcomes,
+    proof,
+    funding,
+    blockers: [...blockerCounts.entries()].map(([code, count]) => ({
+      code,
+      count,
+      recoveryHref: code === "insufficient_funding"
+        ? `/capital?community=${encodeURIComponent(communitySlug)}&returnTo=${encodeURIComponent(`/discover?repo=${selected.fullName}`)}`
+        : `/profile?section=${code === "identity_unresolved" ? "identity" : "payouts"}&returnTo=${encodeURIComponent(`/discover?repo=${selected.fullName}`)}`,
+    })),
+    changes: { kind: changesKind },
+    settlement: settlementSummary,
+    degradedSources,
+  });
 
   return {
     ok: true,
@@ -958,22 +1065,9 @@ export async function buildDiscoverOssIntelligence(input: {
       stars: opportunity.stars,
       scannedAt: opportunity.activity?.observedAt ?? stored.meta.scannedAt,
     })),
-    selected: {
-      fullName: selected.fullName,
-      owner: selected.owner,
-      repo: selected.repo,
-      description: selected.description ?? selected.headline,
-      sourceUrl: `https://github.com/${selected.fullName}`,
-      stars: selected.stars,
-      forks: selected.forks,
-      communitySlug,
-      fingerprint,
-      snapshotPersisted: Boolean(currentSnapshot),
-      observedAt: currentObservedAt,
-      stale: stored.meta.stale,
-    },
+    selected: selectedContext,
     changes: {
-      kind: previousOpportunity ? "comparison" : "baseline",
+      kind: changesKind,
       currentObservedAt,
       previousObservedAt: previousSnapshot?.observedAt.toISOString() ?? null,
       rows: diffRepositorySnapshots(currentOpportunity, previousOpportunity),
@@ -981,17 +1075,8 @@ export async function buildDiscoverOssIntelligence(input: {
     coverage,
     recognitionDebt,
     concentration,
-    funding: {
-      recognizedUsd,
-      confirmedPoolUsd,
-      availablePoolUsd,
-      shortfallUsd: roundUsd(Math.max(0, recognizedUsd - availablePoolUsd)),
-      repositoryGapEstimateUsd: selected.health.fundingGapUsd,
-      eligibleRecipients,
-      blockedRecipients,
-      nextCheckpointUsd,
-      programCount: programs.length,
-    },
+    funding,
+    settlement: settlementSummary,
     blockers: [...blockerCounts.entries()].map(([code, count]) => ({
       code,
       label: blockerLabels[code] ?? code.replaceAll("_", " "),
@@ -1001,16 +1086,10 @@ export async function buildDiscoverOssIntelligence(input: {
         : `/profile?section=${code === "identity_unresolved" ? "identity" : "payouts"}&returnTo=${encodeURIComponent(`/discover?repo=${selected.fullName}`)}`,
     })),
     outcomes,
-    pools: browseablePools.length > 0 ? browseablePools : selectedPools,
+    pools: selectedPools,
     programs,
-    recentActivity: (selected.activity?.records ?? []).slice(0, 12),
-    proof: {
-      persistedEvents: currentProofRows.length,
-      source: "GitHub",
-      snapshotId: fingerprint,
-      observedAt: currentObservedAt,
-      verificationState: currentProofRows.length > 0 ? "persisted" : currentSnapshot ? "snapshot_only" : "empty",
-    },
+    recentActivity: activity,
+    proof,
     attributionGraph: { nodes: graphNodes, edges: graphEdges },
     dependencies,
     recognitionSummary: {
@@ -1025,6 +1104,7 @@ export async function buildDiscoverOssIntelligence(input: {
           ? "Repository sustainability model; not owed, authorized, or claimable money."
           : "No amount is available from persisted obligations or the repository model.",
     },
+    commandCentre,
     viewerSupport,
     meta: stored.meta,
     degradedSources: [...new Set(degradedSources)],

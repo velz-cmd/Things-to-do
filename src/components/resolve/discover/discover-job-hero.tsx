@@ -1,11 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import clsx from "clsx";
-import { ArrowRight, CircleDollarSign, Database, FileCheck2 } from "lucide-react";
-import { BRAND_LOGO_PATH } from "@/lib/brand/assets";
 import { DISCOVER_JOBS, type DiscoverJobId } from "@/lib/discover/discover-jobs";
-import { DISCOVER_HERO_SUBTITLE, DISCOVER_HERO_TITLE } from "@/lib/discover/discover-lane-copy";
 import type { DiscoverRole } from "@/lib/discover/role-filters";
 import { DiscoverGlobalSearch } from "@/components/resolve/discover/discover-global-search";
 import styles from "./discover-workspace.module.css";
@@ -27,54 +23,27 @@ export function DiscoverJobHero({
 }) {
   return (
     <header className={clsx(styles.commandHeader, className)}>
-      <div className={styles.headerTopline}>
-        <p className={styles.eyebrow}>Discover OS</p>
-        <div className={styles.headerStatus}>
-          <span className={styles.headerStatusDot} aria-hidden="true" />
-          <span>Operating desk</span>
-          <span aria-hidden="true">·</span>
-          <span>Arc testnet</span>
-        </div>
-      </div>
-
-      <div className={styles.headlineGrid}>
-        <div>
-          <h1 className={styles.title}>{DISCOVER_HERO_TITLE}</h1>
+      <div className={styles.compactIntro}>
+        <div className={styles.introCopy}>
+          <p className={styles.eyebrow}>RESOLVE Funding Coverage Monitor</p>
+          <h1 className={styles.title}>Discover</h1>
           <p className={styles.description}>
-            {DISCOVER_HERO_SUBTITLE.split(". Act in one click:")[0]}.
+            See which accepted work your funding rules cover, what they miss, and what is blocking the next payout.
           </p>
         </div>
 
-        <div className={styles.routeIndicator} aria-label="RESOLVE value route architecture preview">
-          <span className={styles.routeNode}>
-            <Database className="h-4 w-4" />
-            Sources
-          </span>
-          <span className={styles.routeLine} aria-hidden="true" />
-          <span className={styles.routeNode}>
-            <Image src={BRAND_LOGO_PATH} alt="RESOLVE" width={28} height={28} className={styles.routeLogo} />
-            Evidence
-          </span>
-          <span className={styles.routeLine} aria-hidden="true" />
-          <span className={styles.routeNode}>
-            <FileCheck2 className="h-4 w-4" />
-            Program
-          </span>
-          <span className={styles.routeLine} aria-hidden="true" />
-          <span className={styles.routeNode}>
-            <CircleDollarSign className="h-4 w-4" />
-            Arc
-          </span>
+        <div className={styles.searchWrap}>
+          <div className={styles.headerStatus}>
+            <span className={styles.headerStatusDot} aria-hidden="true" />
+            <span>Funding coverage</span>
+          </div>
+          <DiscoverGlobalSearch
+            signedIn={signedIn}
+            query={query}
+            onQueryChange={onQueryChange}
+            className={styles.searchShell}
+          />
         </div>
-      </div>
-
-      <div className={styles.searchWrap}>
-        <DiscoverGlobalSearch
-          signedIn={signedIn}
-          query={query}
-          onQueryChange={onQueryChange}
-          className={styles.searchShell}
-        />
       </div>
 
       <div className={styles.quickRail} role="tablist" aria-label="Discover quick actions">
@@ -91,12 +60,8 @@ export function DiscoverJobHero({
               onClick={() => onSelectJob(job.id, job.role, job.scrollTo)}
               className={clsx(styles.quickAction, selected && styles.quickActionActive)}
             >
-              <span className={styles.quickIcon}><Icon className="h-4 w-4" strokeWidth={1.8} /></span>
-              <span className={styles.quickCopy}>
-                <span className={styles.quickTitle}>{job.who}</span>
-                <span className={styles.quickDescription}>{job.surfaces}</span>
-              </span>
-              <ArrowRight className={styles.quickArrow} />
+              <span className={styles.quickIcon}><Icon className="h-3.5 w-3.5" strokeWidth={1.8} /></span>
+              <span className={styles.quickTitle}>{job.who}</span>
             </button>
           );
         })}

@@ -50,7 +50,7 @@ export async function GET(req: Request) {
   if (canonicalRedirect) return canonicalRedirect;
 
   try {
-    const session = await withTimeout(requireSessionUser(), 15_000);
+    const session = await withTimeout(requireSessionUser(), 4_000);
     if (session === "timeout") {
       return redirectToProfile(canonicalOrigin, "session_timeout");
     }
@@ -73,7 +73,7 @@ export async function GET(req: Request) {
 
     response.cookies.set("gh_oauth_state", state, COOKIE_OPTS);
     response.cookies.set("gh_oauth_user", session.user.id, COOKIE_OPTS);
-    if (returnTo?.startsWith("/")) {
+    if (returnTo?.startsWith("/") && !returnTo.startsWith("//") && !returnTo.includes("\\")) {
       response.cookies.set("gh_oauth_return", returnTo, COOKIE_OPTS);
     }
 

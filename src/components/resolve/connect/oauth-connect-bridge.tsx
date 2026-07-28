@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CircleAlert, Loader2 } from "lucide-react";
 import Link from "next/link";
 
-type Provider = "github" | "listenbrainz";
+type Provider = "github" | "github_app" | "listenbrainz";
 
 const PROVIDERS: Record<
   Provider,
@@ -22,7 +22,15 @@ const PROVIDERS: Record<
     authorizeApi: "/api/connectors/github/authorize",
     icon: "GH",
     externalNote:
-      "If you're signed in to GitHub, this is one click — RESOLVE only stores your @username.",
+      "If you're signed in to GitHub, this is one click. RESOLVE stores your verified username.",
+  },
+  github_app: {
+    title: "GitHub repository access",
+    subtitle: "Choose the repositories RESOLVE may evaluate",
+    authorizeApi: "/api/connectors/github/installation/authorize",
+    icon: "GH",
+    externalNote:
+      "GitHub will show the repositories you grant to the RESOLVE GitHub App. You can change or revoke access from GitHub.",
   },
   listenbrainz: {
     title: "MusicBrainz",
@@ -30,7 +38,7 @@ const PROVIDERS: Record<
     authorizeApi: "/api/connectors/listenbrainz/authorize",
     icon: "MB",
     externalNote:
-      "Uses your MusicBrainz account (same as ListenBrainz). If you're already signed in at musicbrainz.org, you'll only approve access once.",
+      "Uses your MusicBrainz account. If you're already signed in, you'll only approve access once.",
   },
 };
 
@@ -43,34 +51,36 @@ export function OAuthConnectBridge({
 }) {
   const config = PROVIDERS[provider];
   const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
+  const [delayed, setDelayed] = useState(false);
+  const target = useMemo(
+    () => `${config.authorizeApi}?returnTo=${encodeURIComponent(returnTo)}`,
+    [config.authorizeApi, returnTo],
+  );
 
   useEffect(() => {
     let cancelled = false;
+    if (provider !== "github_app") {
+      void fetch("/api/health/oauth", { credentials: "include" })
+        .then((response) => response.json())
+        .then((body) => {
+          if (cancelled) return;
+          const url =
+            provider === "github"
+              ? (body.github?.callbackUrl as string | undefined)
+              : (body.listenbrainz?.callbackUrl as string | undefined);
+          setCallbackUrl(url ?? null);
+        })
+        .catch(() => undefined);
+    }
 
-    void fetch(`/api/health/oauth`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((body) => {
-        if (cancelled) return;
-        const url =
-          provider === "github" ?
-            (body.github?.callbackUrl as string | undefined)
-          : (body.listenbrainz?.callbackUrl as string | undefined);
-        setCallbackUrl(url ?? null);
-      })
-      .catch(() => {
-        /* non-fatal */
-      });
-
-    const timer = window.setTimeout(() => {
-      const target = `${config.authorizeApi}?returnTo=${encodeURIComponent(returnTo)}`;
-      window.location.href = target;
-    }, 900);
-
+    const timer = window.setTimeout(() => window.location.replace(target), 250);
+    const delayedTimer = window.setTimeout(() => setDelayed(true), 8_000);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      window.clearTimeout(delayedTimer);
     };
-  }, [config.authorizeApi, provider, returnTo]);
+  }, [provider, target]);
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
@@ -89,39 +99,49 @@ export function OAuthConnectBridge({
         </div>
 
         <div className="mt-8 flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-          <Loader2 className="h-5 w-5 animate-spin text-resolve-accent" />
-          <p className="text-sm text-white">Redirecting securely to {config.title}…</p>
+          {delayed ? (
+            <CircleAlert className="h-5 w-5 text-amber-300" />
+          ) : (
+            <Loader2 className="h-5 w-5 animate-spin text-resolve-accent" />
+          )}
+          <p className="text-sm text-white">
+            {delayed
+              ? `${config.title} is taking longer than expected.`
+              : `Redirecting securely to ${config.title}...`}
+          </p>
         </div>
 
         {config.externalNote && (
-          <p className="mt-4 text-xs leading-relaxed text-resolve-muted-dim">{config.externalNote}</p>
+          <p className="mt-4 text-xs leading-relaxed text-resolve-muted-dim">
+            {config.externalNote}
+          </p>
         )}
-
 
         {callbackUrl && (
           <div className="mt-6 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-200/90">
-              If you see &quot;Invalid redirect URI&quot;
+              If GitHub reports an invalid redirect URI
             </p>
             <p className="mt-1 break-all font-mono text-[11px] text-amber-100/80">{callbackUrl}</p>
             <p className="mt-2 text-[11px] text-resolve-muted-dim">
-              Add this exact URL in your {config.title} OAuth app settings, then try again.
+              Add this exact URL in the provider settings, then retry.
             </p>
           </div>
         )}
 
         <div className="mt-6 flex items-center justify-between text-xs">
           <Link href={returnTo} className="text-resolve-muted hover:text-white">
-            ← Back to profile
+            Back
           </Link>
           <button
             type="button"
             className="font-medium text-resolve-accent hover:underline"
             onClick={() => {
-              window.location.href = `${config.authorizeApi}?returnTo=${encodeURIComponent(returnTo)}`;
+              setDelayed(false);
+              window.location.replace(target);
             }}
           >
-            Continue now
+            {delayed ? "Retry connection" : "Continue now"}
           </button>
         </div>
       </div>

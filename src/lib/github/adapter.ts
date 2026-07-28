@@ -134,6 +134,7 @@ async function fetchMergedPrsGraphQL(
   try {
     const res = await fetch("https://api.github.com/graphql", {
       method: "POST",
+      signal: AbortSignal.timeout(8_000),
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -306,9 +307,12 @@ export async function ingestRepository(
       }));
   }
 
-  pullRequests = await enrichPrFiles(owner, repo, pullRequests);
-  const contributors = await fetchContributorProfiles(contribRes ?? []);
-  const dependencies = await fetchPackageDependencies(owner, repo, meta.default_branch);
+  const [enrichedPullRequests, contributors, dependencies] = await Promise.all([
+    enrichPrFiles(owner, repo, pullRequests),
+    fetchContributorProfiles(contribRes ?? []),
+    fetchPackageDependencies(owner, repo, meta.default_branch),
+  ]);
+  pullRequests = enrichedPullRequests;
 
   const issues: GitHubIssue[] = (issueRes ?? [])
     .filter((issue) => !issue.pull_request)

@@ -441,6 +441,11 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
               replaced with placeholder data.
             </p>
           )}
+          {message && (
+            <p className={message.kind === "success" ? styles.successNotice : styles.errorNotice} role="status">
+              {message.text}
+            </p>
+          )}
         </section>
       </section>
     );

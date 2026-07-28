@@ -361,15 +361,12 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Mission" })).toBeVisible();
   });
 
-  test("mission runs agent signal from chat prompt", async ({ page }) => {
+  test("mission exposes the evidence-to-decision compiler", async ({ page }) => {
     await page.goto("/mission", { waitUntil: "domcontentloaded" });
-    await page
-      .getByPlaceholder(/Run intel, describe a funding objective/i)
-      .fill("Run intel on React maintainers — docs gaps and contributor health");
-    await page.getByRole("button", { name: "Submit" }).click();
-    await expect(page.getByText("What you get", { exact: true })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole("button", { name: /Run agent/i })).toBeVisible();
-    await expect(page.getByText("Suggested service")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Build a decision judges can inspect" })).toBeVisible();
+    await expect(page.getByLabel("Decision objective")).toBeVisible();
+    await expect(page.getByText("Mission plan")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Run agent/i })).toHaveCount(0);
   });
 
   test("discover shows one setup or work-queue state without unpaid-value duplicates", async ({ page }) => {
@@ -387,30 +384,21 @@ test.describe("Community phases — surfaces", () => {
     test.setTimeout(90_000);
 
     await page.goto("/communities", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
-    await page.waitForResponse(
-      (res) => res.url().includes("/api/communities") && res.ok(),
-      { timeout: 45_000 },
-    );
-
-    await expect(page.getByRole("heading", { name: "Your communities" })).toBeVisible({
+    await expect(page.getByRole("heading", { level: 1, name: "Operate the systems behind verified value." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Community operations" })).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByRole("heading", { name: "Add a community" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Connect another ecosystem" })).toBeVisible({
       timeout: 30_000,
     });
 
-    const connectCommunity = page.getByRole("button", { name: /Connect community|Install on/i });
+    const connectCommunity = page.getByRole("button", { name: /Add a community|Connect community|Install on/i });
     await expect(connectCommunity.first()).toBeVisible({ timeout: 30_000 });
 
     const operate = page.getByRole("link", { name: "Operate" });
     if ((await operate.count()) > 0) {
       await expect(operate.first()).toBeVisible();
-    }
-
-    const health = page.getByText("Health");
-    if ((await health.count()) > 0) {
-      await expect(health.first()).toBeVisible();
+      await expect(page.getByText("Health").first()).toBeVisible();
       await expect(page.getByText("Funding").first()).toBeVisible();
       await expect(page.getByText("Open work").first()).toBeVisible();
     }
@@ -449,8 +437,8 @@ test.describe("Community phases — surfaces", () => {
 
   test("communities hub loads and nav highlights Communities", async ({ page }) => {
     await page.goto("/communities", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Your communities" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Operate the systems behind verified value." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Community operations" })).toBeVisible();
     await expect(
       page.getByRole("navigation").getByRole("link", { name: "Communities" }).first(),
     ).toBeVisible();

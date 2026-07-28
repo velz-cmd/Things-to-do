@@ -564,7 +564,16 @@ export function emptyDiscoverOssIntelligence(meta?: OssScanMeta): DiscoverOssInt
 
 async function resilient<T>(name: string, degraded: string[], run: () => Promise<T>, fallback: T) {
   try {
-    return await run();
+    const timeoutMs = name === "snapshot_history" ? 2_500
+      : name === "proof_events" ? 1_500
+      : 800;
+    return await Promise.race([
+      run(),
+      new Promise<T>((_resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`${name} timed out`)), timeoutMs);
+        timer.unref?.();
+      }),
+    ]);
   } catch (error) {
     if (!isMissingTableError(error) && !isPrismaUnavailableError(error)) {
       console.warn(`[discover:${name}]`, error instanceof Error ? error.message : String(error));

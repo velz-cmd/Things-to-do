@@ -11,22 +11,16 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(
-      page.getByRole("heading", { level: 1, name: /What value do you want to unlock/i }),
+      page.getByRole("heading", { level: 1, name: /Accepted work that needs economic attention|Economic attention for accepted work/i }),
     ).toBeVisible();
 
     await page.goto("/mission", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await expect(page.getByRole("heading", { level: 1, name: "Mission" })).toBeVisible();
-    await expect(
-      page.getByPlaceholder(/Run intel, describe a funding objective/i),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Build a decision judges can inspect" })).toBeVisible();
+    await expect(page.getByLabel("Decision objective")).toBeVisible();
 
     await page.goto("/communities", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await expect(page.getByRole("heading", { level: 1, name: "Communities" })).toBeVisible();
-    await page.waitForResponse(
-      (res) => res.url().includes("/api/communities") && res.ok(),
-      { timeout: 45_000 },
-    );
-    await expect(page.getByRole("heading", { name: "Add a community" })).toBeVisible({
+    await expect(page.getByRole("heading", { level: 1, name: "Operate the systems behind verified value." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Connect another ecosystem" })).toBeVisible({
       timeout: 30_000,
     });
 
@@ -148,7 +142,7 @@ test.describe("RESOLVE product surfaces", () => {
   test("command palette opens", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(
-      page.getByRole("heading", { level: 1, name: /What value do you want to unlock/i }),
+      page.getByRole("heading", { level: 1, name: /Accepted work that needs economic attention|Economic attention for accepted work/i }),
     ).toBeVisible({ timeout: 30_000 });
     const openBtn = page.getByRole("button", { name: "Open command palette" });
     await openBtn.waitFor({ state: "visible", timeout: 15_000 });

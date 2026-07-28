@@ -2,10 +2,11 @@ import { after, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import {
-  buildGithubAuthorizeUrl,
+  buildGithubAppAuthorizeUrl,
+  exchangeGithubAppCode,
   exchangeGithubCode,
   fetchGithubUser,
-  githubOAuthConfigured,
+  githubAppOAuthConfigured,
 } from "@/lib/integrations/github-oauth";
 import { normalizeGithubLogin } from "@/lib/identity/github-login";
 import { ensureContributorFromGithub } from "@/lib/identity/contributors";
@@ -16,6 +17,7 @@ import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-ca
 import { persistProfileConnection } from "@/lib/profile/persisted-connection";
 import { loadGithubInstallationForUser } from "@/lib/integrations/github-app";
 import { getSessionUser } from "@/lib/auth/session";
+import { reconcileGithubInstallation } from "@/lib/integrations/github-installation-reconcile";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,35 @@ export async function GET(req: Request) {
   const userId = cookieStore.get("gh_oauth_user")?.value;
 
   if (!state || !expectedState || state !== expectedState || !userId) {
+    const setupAction = searchParams.get("setup_action");
+    if (
+      installationIdRaw &&
+      Number.isSafeInteger(installationId) &&
+      installationId! > 0 &&
+      ["install", "update"].includes(setupAction ?? "")
+    ) {
+      const sessionUser = await withTimeout(getSessionUser(), 4_000);
+      if (sessionUser) {
+        try {
+          const result = await reconcileGithubInstallation({
+            userId: sessionUser.id,
+            installationId: installationId!,
+          });
+          if (result.connected) {
+            const response = redirectWith(origin, returnTo ?? "/profile?view=sources", {
+              github_connected: "1",
+              ...(result.accountLogin ? { github_account: result.accountLogin } : {}),
+              github_installation: "1",
+              github_repository_count: String(result.repositoryCount ?? 0),
+            });
+            clearOAuthCookies(response);
+            return response;
+          }
+        } catch (reconcileError) {
+          console.error("[github/callback/reconcile]", reconcileError);
+        }
+      }
+    }
     const response = redirectWith(origin, returnTo, { github_error: "invalid_state" });
     clearOAuthCookies(response);
     return response;
@@ -91,9 +122,9 @@ export async function GET(req: Request) {
       installationIdRaw &&
       Number.isSafeInteger(installationId) &&
       installationId! > 0 &&
-      githubOAuthConfigured()
+      githubAppOAuthConfigured()
     ) {
-      const response = NextResponse.redirect(buildGithubAuthorizeUrl(state, origin));
+      const response = NextResponse.redirect(buildGithubAppAuthorizeUrl(state, origin));
       response.cookies.set("gh_installation_id", String(installationId), {
         httpOnly: true,
         secure: origin.startsWith("https://"),
@@ -118,7 +149,9 @@ export async function GET(req: Request) {
       return response;
     }
 
-    const tokens = await exchangeGithubCode(code, origin);
+    const tokens = installationIdRaw
+      ? await exchangeGithubAppCode(code, origin)
+      : await exchangeGithubCode(code, origin);
     const ghUser = await fetchGithubUser(tokens.access_token!);
     const login = normalizeGithubLogin(ghUser.login);
 

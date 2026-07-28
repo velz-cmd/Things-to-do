@@ -118,6 +118,7 @@ export async function POST(request: Request) {
     persisted: true,
     proofEventCount: proofEvents.length,
   };
+  let auditPersisted = true;
   try {
     await prisma.$transaction(async (tx) => {
       const existing = await tx.actionRun.findUnique({ where: { idempotencyKey: actionKey } });
@@ -151,13 +152,11 @@ export async function POST(request: Request) {
           payload: json(output),
         },
       });
-    });
-  } catch {
-    return NextResponse.json(
-      { ok: false, persisted: true, code: "SNAPSHOT_AUDIT_FAILED", error: "The repository snapshot was persisted, but its action audit record could not be completed. Refresh Discover before retrying." },
-      { status: 500 },
-    );
+    }, { maxWait: 5_000, timeout: 15_000 });
+  } catch (error) {
+    auditPersisted = false;
+    console.error("[discover] repository snapshot audit failed", error);
   }
 
-  return NextResponse.json({ ok: true, ...output });
+  return NextResponse.json({ ok: true, auditPersisted, ...output });
 }

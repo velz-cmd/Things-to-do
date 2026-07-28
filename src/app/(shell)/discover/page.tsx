@@ -7,7 +7,10 @@ import {
   emptyDiscoverOssIntelligence,
 } from "@/lib/discover/oss-intelligence";
 import { getSessionUser } from "@/lib/auth/session";
-import { withTimeout } from "@/lib/discover/fetch-timeout";
+import {
+  discoverIntelligenceTimeoutMs,
+  withTimeout,
+} from "@/lib/discover/fetch-timeout";
 
 export const metadata: Metadata = {
   title: "Discover — RESOLVE",
@@ -30,7 +33,7 @@ async function DiscoverContent({ searchParams }: DiscoverPageProps) {
       repository: repo,
       viewerUserId: user?.id ?? null,
     }).catch(() => degraded),
-    3_500,
+    discoverIntelligenceTimeoutMs(repo),
     degraded,
   );
 

@@ -27,13 +27,29 @@ export function githubClientSecret(): string | undefined {
   );
 }
 
+export function githubAppClientId(): string | undefined {
+  return env("GITHUB_APP_CLIENT_ID");
+}
+
+export function githubAppClientSecret(): string | undefined {
+  return env("GITHUB_APP_CLIENT_SECRET");
+}
+
+export function githubAppOAuthConfigured(): boolean {
+  return Boolean(githubAppClientId() && githubAppClientSecret());
+}
+
 export function githubOAuthRedirectUri(requestOrigin?: string) {
   return `${appOrigin(requestOrigin)}/api/connectors/github/callback`;
 }
 
-export function buildGithubAuthorizeUrl(state: string, requestOrigin?: string) {
+function githubAuthorizeUrl(
+  clientId: string | undefined,
+  state: string,
+  requestOrigin?: string,
+) {
   const params = new URLSearchParams({
-    client_id: githubClientId()!,
+    client_id: clientId ?? "",
     redirect_uri: githubOAuthRedirectUri(requestOrigin),
     scope: SCOPES.join(" "),
     state,
@@ -42,7 +58,20 @@ export function buildGithubAuthorizeUrl(state: string, requestOrigin?: string) {
   return `${GITHUB_OAUTH_BASE}/authorize?${params.toString()}`;
 }
 
-export async function exchangeGithubCode(code: string, requestOrigin?: string) {
+export function buildGithubAuthorizeUrl(state: string, requestOrigin?: string) {
+  return githubAuthorizeUrl(githubClientId(), state, requestOrigin);
+}
+
+export function buildGithubAppAuthorizeUrl(state: string, requestOrigin?: string) {
+  return githubAuthorizeUrl(githubAppClientId(), state, requestOrigin);
+}
+
+async function exchangeCode(
+  code: string,
+  clientId: string | undefined,
+  clientSecret: string | undefined,
+  requestOrigin?: string,
+) {
   const res = await fetch(`${GITHUB_OAUTH_BASE}/access_token`, {
     method: "POST",
     headers: {
@@ -51,8 +80,8 @@ export async function exchangeGithubCode(code: string, requestOrigin?: string) {
       "User-Agent": "RESOLVE/1.0",
     },
     body: JSON.stringify({
-      client_id: githubClientId(),
-      client_secret: githubClientSecret(),
+      client_id: clientId,
+      client_secret: clientSecret,
       code,
       redirect_uri: githubOAuthRedirectUri(requestOrigin),
     }),
@@ -72,6 +101,19 @@ export async function exchangeGithubCode(code: string, requestOrigin?: string) {
   }
 
   return data;
+}
+
+export function exchangeGithubCode(code: string, requestOrigin?: string) {
+  return exchangeCode(code, githubClientId(), githubClientSecret(), requestOrigin);
+}
+
+export function exchangeGithubAppCode(code: string, requestOrigin?: string) {
+  return exchangeCode(
+    code,
+    githubAppClientId(),
+    githubAppClientSecret(),
+    requestOrigin,
+  );
 }
 
 export type GithubUser = {

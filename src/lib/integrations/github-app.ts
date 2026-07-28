@@ -6,7 +6,7 @@ import { env } from "@/lib/integrations/config";
 const GITHUB_API = "https://api.github.com";
 const API_VERSION = "2022-11-28";
 
-type GithubInstallation = {
+export type GithubInstallation = {
   id: number;
   account: {
     id: number;
@@ -209,5 +209,31 @@ export async function loadGithubInstallationRepositoriesAsApp(installationId: nu
       private: repository.private,
       permissions: repository.permissions ?? {},
     }),
+  );
+}
+
+export async function findGithubAppInstallationForIdentity(input: {
+  githubId: string;
+  githubLogin?: string | null;
+}) {
+  const installations = await githubJson<GithubInstallation[]>(
+    `${GITHUB_API}/app/installations?per_page=100`,
+    createGithubAppJwt(),
+  );
+  const login = input.githubLogin?.trim().replace(/^@/, "").toLowerCase();
+  return (
+    installations.find((installation) => String(installation.account.id) === input.githubId) ??
+    installations.find(
+      (installation) =>
+        Boolean(login) && installation.account.login.toLowerCase() === login,
+    ) ??
+    null
+  );
+}
+
+export async function loadGithubAppInstallationAsApp(installationId: number) {
+  return githubJson<GithubInstallation>(
+    `${GITHUB_API}/app/installations/${installationId}`,
+    createGithubAppJwt(),
   );
 }

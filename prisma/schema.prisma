@@ -467,10 +467,31 @@ model ResolveMission {
   turns        ResolveMissionTurn[]
   timeline     ResolveTimelineEvent[]
   knowledge    ResolveKnowledgeEntry[]
+  artifacts    ResolveMissionArtifact[]
 
   @@index([userId, updatedAt])
   @@index([ecosystemId])
   @@index([status])
+}
+
+/// Versioned, runtime-validated Mission artifacts. Payload shape is selected by `kind`.
+model ResolveMissionArtifact {
+  id          String         @id @default(cuid())
+  missionId   String
+  mission     ResolveMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  kind        String
+  status      String         @default("draft")
+  version     Int            @default(1)
+  operationId String?
+  sourceRefs  String[]       @default([])
+  payload     Json
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([missionId, kind, version])
+  @@index([missionId, createdAt])
+  @@index([kind, status])
+  @@index([operationId])
 }
 
 model ResolveMissionTurn {

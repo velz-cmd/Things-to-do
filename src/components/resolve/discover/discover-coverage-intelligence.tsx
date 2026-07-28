@@ -1,23 +1,31 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Activity,
   ArrowRight,
   BadgeCheck,
-  ChevronRight,
+  ChevronDown,
   CircleAlert,
   Clock3,
   ExternalLink,
   FileCheck2,
-  Filter,
   GitBranch,
   Landmark,
   RefreshCw,
-  Search,
-  ShieldCheck,
+  Settings2,
   Sparkles,
+  UserRound,
   Users,
   X,
 } from "lucide-react";
@@ -40,18 +48,31 @@ const usd = new Intl.NumberFormat("en-US", {
 const dateTime = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
+  year: "numeric",
   hour: "numeric",
   minute: "2-digit",
 });
 
 const FILTERS: Array<{ id: WorkLedgerFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "needs_rule", label: "Needs Rule" },
-  { id: "identity_blocked", label: "Identity Blocked" },
-  { id: "funding_needed", label: "Funding Needed" },
+  { id: "needs_action", label: "Needs Action" },
   { id: "ready", label: "Ready" },
   { id: "in_progress", label: "In Progress" },
   { id: "paid", label: "Paid" },
+  { id: "all", label: "All" },
+];
+
+type SecondaryPanel = "pools" | "contributors" | "activity" | "outcomes" | "advanced";
+
+const SECONDARY_PANELS: Array<{
+  id: SecondaryPanel;
+  label: string;
+  icon: typeof Landmark;
+}> = [
+  { id: "pools", label: "Pools", icon: Landmark },
+  { id: "contributors", label: "Contributors", icon: Users },
+  { id: "activity", label: "Activity", icon: Activity },
+  { id: "outcomes", label: "Outcomes", icon: BadgeCheck },
+  { id: "advanced", label: "Advanced", icon: Settings2 },
 ];
 
 function formatDate(value: string | null | undefined) {
@@ -64,8 +85,17 @@ function humanize(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function actionId(action: FundingCoverageAction) {
-  return action.id;
+function recordState(record: FundingCoverageLedgerRecord) {
+  if (record.filter === "paid") return "Paid";
+  if (record.filter === "ready") return "Ready";
+  if (record.filter === "in_progress") return "In Progress";
+  return "Needs Action";
+}
+
+function appendReturnContext(href: string, returnTo: string) {
+  if (href.startsWith("http") || href.includes("returnTo=")) return href;
+  const separator = href.includes("?") ? "&" : "?";
+  return `${href}${separator}returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntelligence }) {
@@ -77,69 +107,89 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
   const selected = data.selected;
   const initialFilter = searchParams.get("filter") as WorkLedgerFilter | null;
   const [filter, setFilter] = useState<WorkLedgerFilter>(
-    FILTERS.some((item) => item.id === initialFilter) ? initialFilter! : "all",
+    FILTERS.some((item) => item.id === initialFilter) ? initialFilter! : "needs_action",
   );
-  const [category, setCategory] = useState<string>(searchParams.get("category") ?? "all");
-  const [ledgerSearch, setLedgerSearch] = useState(searchParams.get("q") ?? "");
   const [repository, setRepository] = useState(selected?.fullName ?? "");
   const [pending, setPending] = useState<"snapshot" | "mission" | null>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
-  const [visibleCount, setVisibleCount] = useState(12);
-  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [showAllWork, setShowAllWork] = useState(false);
   const [recordId, setRecordId] = useState(searchParams.get("record"));
+  const initialPanel = searchParams.get("panel") as SecondaryPanel | null;
+  const [secondaryPanel, setSecondaryPanel] = useState<SecondaryPanel | null>(
+    SECONDARY_PANELS.some((item) => item.id === initialPanel) ? initialPanel : null,
+  );
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  const filteredLedger = useMemo(() => {
-    const query = ledgerSearch.trim().toLowerCase();
-    return command.ledger.filter((record) => {
-      if (filter !== "all" && record.filter !== filter) return false;
-      if (category !== "all" && record.category !== category) return false;
-      if (!query) return true;
-      return [
-        record.repository,
-        record.workType,
-        record.title,
-        record.contributor,
-        record.blocker,
-      ].some((value) => value.toLowerCase().includes(query));
-    });
-  }, [category, command.ledger, filter, ledgerSearch]);
+  const filteredLedger = useMemo(
+    () => command.ledger.filter((record) => filter === "all" || record.filter === filter),
+    [command.ledger, filter],
+  );
+  const visibleLedger = showAllWork ? filteredLedger : filteredLedger.slice(0, 5);
   const activeRecord = command.ledger.find((record) => record.id === recordId) ?? null;
   const contributors = useMemo(() => {
     const rows = new Map<string, { login: string; count: number; categories: Set<string> }>();
     command.ledger.forEach((record) => {
       const key = record.contributor.toLowerCase();
-      const current = rows.get(key) ?? { login: record.contributor, count: 0, categories: new Set<string>() };
+      const current = rows.get(key) ?? {
+        login: record.contributor,
+        count: 0,
+        categories: new Set<string>(),
+      };
       current.count += 1;
       current.categories.add(record.workType);
       rows.set(key, current);
     });
-    return [...rows.values()].sort((left, right) => right.count - left.count).slice(0, 8);
+    return [...rows.values()].sort((left, right) => right.count - left.count);
   }, [command.ledger]);
+  const returnTo = selected
+    ? `/discover?repo=${encodeURIComponent(selected.fullName)}${recordId ? `&record=${encodeURIComponent(recordId)}` : ""}`
+    : "/discover";
+  const criticalFailure = data.degradedSources.some((source) =>
+    ["discover_intelligence", "snapshot_history", "proof_events", "programs", "policies"].includes(source));
+  const optionalFailures = data.degradedSources.filter((source) =>
+    !["discover_intelligence", "snapshot_history", "proof_events", "programs", "policies"].includes(source));
 
-  function updateUrl(values: Record<string, string | null>) {
+  const updateUrl = useCallback((values: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     Object.entries(values).forEach(([key, value]) => {
       if (value) params.set(key, value);
       else params.delete(key);
     });
-    router.replace(`/discover?${params.toString()}`, { scroll: false });
-  }
+    const query = params.toString();
+    router.replace(query ? `/discover?${query}` : "/discover", { scroll: false });
+  }, [router, searchParams]);
+
+  const closeRecord = useCallback(() => {
+    setRecordId(null);
+    updateUrl({ record: null });
+  }, [updateUrl]);
+
+  useEffect(() => {
+    if (!activeRecord) return;
+    closeButtonRef.current?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeRecord();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeRecord, closeRecord]);
 
   function selectRepository(value: string) {
     setRepository(value);
-    if (value) router.push(`/discover?repo=${encodeURIComponent(value)}#funding-coverage-command-centre`);
+    setMessage(null);
+    router.push(value ? `/discover?repo=${encodeURIComponent(value)}` : "/discover");
   }
 
-  function selectFilter(next: WorkLedgerFilter, nextCategory = category) {
+  function selectFilter(next: WorkLedgerFilter) {
     setFilter(next);
-    setCategory(nextCategory);
-    setVisibleCount(12);
-    updateUrl({
-      filter: next === "all" ? null : next,
-      category: nextCategory === "all" ? null : nextCategory,
-      record: null,
-    });
-    document.getElementById("discover-work-ledger")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setShowAllWork(false);
+    updateUrl({ filter: next === "needs_action" ? null : next, record: null });
+  }
+
+  function selectSecondaryPanel(next: SecondaryPanel) {
+    const selectedPanel = secondaryPanel === next ? null : next;
+    setSecondaryPanel(selectedPanel);
+    updateUrl({ panel: selectedPanel });
   }
 
   function openRecord(record: FundingCoverageLedgerRecord) {
@@ -147,16 +197,11 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
     updateUrl({ record: record.id });
   }
 
-  function closeRecord() {
-    setRecordId(null);
-    updateUrl({ record: null });
-  }
-
   async function captureSnapshot(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const target = repository.trim();
     if (!target) {
-      setMessage({ kind: "error", text: "Enter a public GitHub repository as owner/repository." });
+      setMessage({ kind: "error", text: "Select or enter a GitHub repository first." });
       return;
     }
     if (!user) {
@@ -177,7 +222,7 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
         throw new Error(body.error ?? "The repository evaluation could not be refreshed.");
       }
       setMessage({ kind: "success", text: `Evaluation persisted for ${body.repository}.` });
-      router.push(`/discover?repo=${encodeURIComponent(body.repository)}#funding-coverage-command-centre`);
+      router.push(`/discover?repo=${encodeURIComponent(body.repository)}`);
       router.refresh();
     } catch (error) {
       setMessage({
@@ -196,7 +241,7 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
       return;
     }
     if (!selected.snapshotPersisted) {
-      setMessage({ kind: "error", text: "Refresh the persisted evaluation before starting this Mission." });
+      setMessage({ kind: "error", text: "Refresh the persisted evaluation before opening Mission." });
       return;
     }
     setPending("mission");
@@ -206,7 +251,8 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
         ? evidenceIds
         : data.recognitionDebt.slice(0, 50).map((record) => record.id);
       const recordContext = evidenceIds?.[0] ? `&record=${encodeURIComponent(evidenceIds[0])}` : "";
-      const returnTo = `/discover?repo=${encodeURIComponent(selected.fullName)}${recordContext}#discover-work-ledger`;
+      const missionReturnTo =
+        `/discover?repo=${encodeURIComponent(selected.fullName)}${recordContext}`;
       const response = await fetch("/api/discover/oss-missions", {
         method: "POST",
         credentials: "include",
@@ -216,29 +262,34 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
           fingerprint: selected.fingerprint,
           objective: `Decide how active programs should recognize and fund accepted work in ${selected.fullName}.`,
           evidenceIds: selectedEvidenceIds,
-          returnTo,
+          returnTo: missionReturnTo,
         }),
       });
       const body = await response.json() as { ok?: boolean; href?: string; error?: string };
       if (!response.ok || !body.ok || !body.href) {
-        throw new Error(body.error ?? "Mission could not be started.");
+        throw new Error(body.error ?? "Mission could not be opened.");
       }
       router.push(body.href);
     } catch (error) {
       setMessage({
         kind: "error",
-        text: error instanceof Error ? error.message : "Mission could not be started.",
+        text: error instanceof Error ? error.message : "Mission could not be opened.",
       });
       setPending(null);
     }
   }
 
-  function renderAction(action: FundingCoverageAction, evidenceIds?: string[]) {
+  function renderAction(
+    action: FundingCoverageAction,
+    evidenceIds?: string[],
+    className?: string,
+  ): ReactNode {
     if (action.id === "discover.start_mission") {
       return (
         <button
           type="button"
-          data-action-id={actionId(action)}
+          className={className}
+          data-action-id={action.id}
           disabled={pending !== null}
           onClick={() => void startMission(evidenceIds)}
         >
@@ -251,8 +302,9 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
       return (
         <button
           type="button"
-          data-action-id={actionId(action)}
-          disabled={pending !== null}
+          className={className}
+          data-action-id={action.id}
+          disabled={pending !== null || !repository}
           onClick={() => void captureSnapshot()}
         >
           <RefreshCw aria-hidden="true" />
@@ -260,523 +312,348 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
         </button>
       );
     }
-    return action.href ? (
-      <Link href={action.href} data-action-id={actionId(action)}>
+    if (!action.href) return null;
+    return (
+      <Link
+        className={className}
+        href={appendReturnContext(action.href, returnTo)}
+        data-action-id={action.id}
+      >
         {action.label}
         <ArrowRight aria-hidden="true" />
       </Link>
-    ) : null;
+    );
+  }
+
+  if (!selected) {
+    return (
+      <section className={styles.shell} aria-labelledby="discover-title">
+        <header className={styles.pageHeader}>
+          <div>
+            <p>Discover</p>
+            <h1 id="discover-title">Accepted work that needs economic attention</h1>
+            <span>Connect one source, then RESOLVE will evaluate blockers and recommend the next action.</span>
+          </div>
+        </header>
+
+        <section className={styles.setupPanel} aria-labelledby="connect-repository-title">
+          <div className={styles.setupIcon}><GitBranch aria-hidden="true" /></div>
+          <div>
+            <p>Source setup</p>
+            <h2 id="connect-repository-title">Connect a repository</h2>
+            <span>
+              Connect GitHub and select the repositories whose accepted contributor work you want
+              RESOLVE to evaluate.
+            </span>
+          </div>
+          {data.repositories.length > 0 && (
+            <label className={styles.setupSelect}>
+              <span>Available repositories</span>
+              <select
+                aria-label="Select repository"
+                data-action-id="discover.select_repository"
+                value={repository}
+                onChange={(event) => selectRepository(event.target.value)}
+              >
+                <option value="">Select repository</option>
+                {data.repositories.map((option) => (
+                  <option key={option.fullName} value={option.fullName}>{option.fullName}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <div className={styles.setupActions}>
+            <Link
+              href={`/connect/github?returnTo=${encodeURIComponent("/discover")}`}
+              data-action-id="profile.connect_source"
+              className={styles.primaryAction}
+            >
+              Connect GitHub <ArrowRight aria-hidden="true" />
+            </Link>
+            {data.repositories.length > 0 && (
+              <button
+                type="button"
+                data-action-id="discover.select_repository"
+                onClick={() => document.querySelector<HTMLSelectElement>("[data-action-id='discover.select_repository']")?.focus()}
+              >
+                Select repository
+              </button>
+            )}
+          </div>
+          {criticalFailure && (
+            <p className={styles.errorNotice} role="status">
+              GitHub evaluation is temporarily unavailable. Existing production records were not
+              replaced with placeholder data.
+            </p>
+          )}
+        </section>
+      </section>
+    );
   }
 
   return (
-    <section
-      id="funding-coverage-command-centre"
-      className={styles.section}
-      aria-labelledby="funding-coverage-title"
-    >
-      <div className={styles.contextBar}>
-        <div className={styles.contextIdentity}>
-          <GitBranch aria-hidden="true" />
-          <div>
-            <span>Community</span>
-            <strong>{command.context.community ?? "No community selected"}</strong>
-          </div>
+    <section className={styles.shell} aria-labelledby="discover-title">
+      <header className={styles.pageHeader}>
+        <div>
+          <p>Discover</p>
+          <h1 id="discover-title">Economic attention for accepted work</h1>
+          <span>One repository, one funding cycle, and one recommended next action.</span>
         </div>
+        <div className={styles.pageStatus}>
+          <BadgeCheck aria-hidden="true" />
+          <span>{number.format(data.proof.persistedEvents)} persisted events</span>
+        </div>
+      </header>
 
+      <div className={styles.contextBar} aria-label="Funding evaluation context">
+        <ContextFact label="Community" value={command.context.community ?? "Unavailable"} />
         <label className={styles.repositorySelect}>
           <span>Repository</span>
           <select
             aria-label="Repository source"
             data-action-id="discover.select_repository"
-            value={selected?.fullName ?? ""}
+            value={selected.fullName}
             onChange={(event) => selectRepository(event.target.value)}
           >
-            {data.repositories.length === 0 && <option value="">Select a repository</option>}
             {data.repositories.map((option) => (
               <option key={option.fullName} value={option.fullName}>{option.fullName}</option>
             ))}
           </select>
         </label>
-
-        <div className={styles.contextFact}>
-          <span>Source</span>
-          <strong><ShieldCheck aria-hidden="true" />{command.context.sourceLabel}</strong>
-        </div>
-        <div className={styles.contextFact}>
-          <span>Evaluation period</span>
-          <strong>{formatDate(command.context.evaluationStart)} to {formatDate(command.context.evaluationEnd)}</strong>
-        </div>
-        <div className={styles.contextFact}>
-          <span>Latest verified event</span>
-          <strong>{formatDate(command.context.latestVerifiedEventAt)}</strong>
-        </div>
-        <div className={styles.contextFact}>
-          <span>Freshness</span>
-          <strong className={command.context.freshness === "current" ? styles.good : styles.warn}>
-            {humanize(command.context.freshness)}
-          </strong>
-        </div>
-
-        <div className={styles.contextActions}>
-          <button
-            type="button"
-            data-action-id="discover.compare_periods"
-            onClick={() => setComparisonOpen((current) => !current)}
-          >
-            Compare periods
-          </button>
-          <button
-            type="button"
-            className={styles.primaryButton}
-            data-action-id="discover.capture_repository_snapshot"
-            disabled={pending !== null || !repository}
-            onClick={() => void captureSnapshot()}
-          >
-            <RefreshCw aria-hidden="true" />
-            {pending === "snapshot" ? "Refreshing…" : "Refresh evaluation"}
-          </button>
-        </div>
+        <ContextFact
+          label="Evaluation period"
+          value={`${formatDate(command.context.evaluationStart)} to ${formatDate(command.context.evaluationEnd)}`}
+        />
+        <ContextFact
+          label="GitHub source"
+          value={criticalFailure ? "Needs attention" : command.context.sourceLabel}
+          tone={criticalFailure ? "warning" : "positive"}
+        />
+        <ContextFact
+          label="Last verified event"
+          value={formatDate(command.context.latestVerifiedEventAt)}
+        />
+        <button
+          type="button"
+          className={styles.refreshButton}
+          data-action-id="discover.capture_repository_snapshot"
+          disabled={pending !== null}
+          onClick={() => void captureSnapshot()}
+        >
+          <RefreshCw aria-hidden="true" />
+          {pending === "snapshot" ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
 
       {message && (
-        <p className={message.kind === "success" ? styles.success : styles.error} role="status">
+        <p className={message.kind === "success" ? styles.successNotice : styles.errorNotice} role="status">
           {message.text}
         </p>
       )}
-
-      <div className={styles.commandIntro}>
-        <div>
-          <p>Funding coverage</p>
-          <h2 id="funding-coverage-title">Funding Coverage Command Centre</h2>
-          <span>{command.summary}</span>
-        </div>
-        <div className={styles.proofStatus}>
-          <BadgeCheck aria-hidden="true" />
-          <span><strong>{number.format(data.proof.persistedEvents)}</strong> persisted proof events</span>
-        </div>
-      </div>
-
-      {comparisonOpen && (
-        <div className={styles.comparison} role="status">
-          {data.changes.kind === "comparison" ? (
-            data.changes.rows.slice(0, 4).map((row) => (
-              <span key={row.key}>
-                <strong>{row.label}</strong>
-                {row.delta === null ? "Unavailable" : `${row.delta > 0 ? "+" : ""}${row.delta} ${row.unit}`}
-              </span>
-            ))
-          ) : (
-            <p>Baseline established. Changes will appear after the next completed evaluation.</p>
-          )}
-        </div>
+      {selected.stale && (
+        <p className={styles.staleNotice} role="status">
+          <Clock3 aria-hidden="true" />
+          This repository evaluation is stale. Last-known persisted records remain visible while
+          RESOLVE prepares a fresh evaluation.
+        </p>
+      )}
+      {optionalFailures.length > 0 && (
+        <p className={styles.degradedNotice} role="status">
+          Some optional financial details are unavailable. The work evaluation remains usable.
+        </p>
       )}
 
-      <div className={styles.pulseSection}>
-        <div className={styles.sectionLabel}>
-          <div><p>Funding Cycle Pulse</p><span>Click a stage to filter the Work Ledger.</span></div>
-          <small>Counts retain their persisted unit</small>
+      <section className={styles.summaryPanel} aria-labelledby="funding-cycle-title">
+        <div className={styles.summaryCopy}>
+          <p>Autonomous evaluation</p>
+          <h2 id="funding-cycle-title">Funding cycle</h2>
+          <span>{command.summary}</span>
         </div>
-        <div className={styles.pulseRail} aria-label="Funding Cycle Pulse">
-          {command.pulse.map((stage, index) => (
+        <div className={styles.cycleRail} aria-label="Funding cycle stages">
+          {command.pulse.map((stage) => (
             <button
               key={stage.id}
               type="button"
               data-action-id="discover.filter_ledger"
-              className={filter === stage.filter ? styles.pulseActive : undefined}
+              className={filter === stage.filter ? styles.cycleActive : undefined}
               onClick={() => selectFilter(stage.filter)}
-              title={stage.unavailableReason ?? `${stage.value} ${stage.unit}`}
             >
-              <span>{index + 1}</span>
-              <div>
-                <strong>{stage.value === null ? "Unavailable" : number.format(stage.value)}</strong>
-                <small>{stage.label}</small>
-                <em>{stage.value === null ? stage.unavailableReason : stage.unit}</em>
-              </div>
-              {index < command.pulse.length - 1 && <ChevronRight aria-hidden="true" />}
+              <strong>{stage.value === null ? "—" : number.format(stage.value)}</strong>
+              <span>{stage.label}</span>
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className={styles.decisionGrid}>
-        <article className={styles.nextAction}>
-          <div className={styles.sectionLabel}>
-            <div><p>Next Action</p><span>Selected by deterministic lifecycle priority.</span></div>
-          </div>
+      <section className={styles.nextAction} aria-labelledby="next-action-title">
+        <div className={styles.nextActionIcon}><CircleAlert aria-hidden="true" /></div>
+        <div className={styles.nextActionCopy}>
+          <p>Recommended next action</p>
           {command.nextAction ? (
             <>
-              <div className={styles.nextActionBody}>
-                <CircleAlert aria-hidden="true" />
-                <div>
-                  <span>{command.nextAction.recordCount === null ? "Source context" : `${command.nextAction.recordCount} affected records`}</span>
-                  <h3>{command.nextAction.reason}</h3>
-                  <p>
-                    This action is recommended because it is the earliest unresolved blocker in the persisted funding cycle.
-                  </p>
-                </div>
-              </div>
-              <div className={styles.actionRow}>
-                {renderAction(command.nextAction)}
-                {command.ledger[0] && (
-                  <button
-                    type="button"
-                    data-action-id="discover.open_record"
-                    className={styles.secondaryButton}
-                    onClick={() => openRecord(command.ledger[0]!)}
-                  >
-                    Inspect evidence
-                  </button>
-                )}
-              </div>
+              <h2 id="next-action-title">{command.nextAction.reason}</h2>
+              <span>
+                RESOLVE selected the earliest unresolved blocker. Human approval remains required
+                for policy activation and financial authorization.
+              </span>
             </>
           ) : (
-            <p className={styles.empty}>No immediate operational action is recorded for this evaluation.</p>
+            <>
+              <h2 id="next-action-title">No action required</h2>
+              <span>The current persisted evaluation has no unresolved operator blocker.</span>
+            </>
           )}
-        </article>
-
-        <article className={styles.coverageMatrix}>
-          <div className={styles.sectionLabel}>
-            <div><p>Funding Coverage Matrix</p><span>Accepted work and active policy coverage.</span></div>
-            <small>
-              {data.programs[0]?.policyVersion
-                ? `Policy v${data.programs[0].policyVersion}`
-                : "No active matching policy"}
-            </small>
-          </div>
-          <div className={styles.matrixScroller}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Work type</th>
-                  <th>Accepted</th>
-                  <th>Covered</th>
-                  <th>Uncovered</th>
-                  <th>Attribution blocked</th>
-                  <th>Payout blocked</th>
-                  <th>Obligations</th>
-                  <th>Ready</th>
-                  <th>Submitted</th>
-                  <th>Confirmed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {command.matrix.map((row) => (
-                  <tr key={row.category}>
-                    <th>{row.label}</th>
-                    {([
-                      ["accepted", row.accepted, "all"],
-                      ["covered", row.covered, "in_progress"],
-                      ["uncovered", row.uncovered, "needs_rule"],
-                      ["attribution", row.attributionBlocked, "identity_blocked"],
-                      ["payout", row.payoutBlocked, "identity_blocked"],
-                      ["obligations", row.obligations, "in_progress"],
-                      ["ready", row.ready, "ready"],
-                      ["submitted", row.submitted, "in_progress"],
-                      ["confirmed", row.confirmed, "paid"],
-                    ] as Array<[string, number | null, WorkLedgerFilter]>).map(([key, value, targetFilter]) => (
-                      <td key={key}>
-                        {value === null ? (
-                          <span title="This state cannot be joined reliably to the selected work category.">—</span>
-                        ) : (
-                          <button
-                            type="button"
-                            data-action-id="discover.filter_ledger"
-                            onClick={() => selectFilter(targetFilter, row.category)}
-                          >
-                            {number.format(value)}
-                          </button>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {command.context.baseline && (
-            <p className={styles.baseline}>Baseline established. Changes will appear after the next completed evaluation.</p>
+        </div>
+        <div className={styles.nextActionButtons}>
+          {command.nextAction && renderAction(command.nextAction, undefined, styles.primaryAction)}
+          {command.ledger[0]?.evidenceState === "verified" && (
+            <button
+              type="button"
+              data-action-id="discover.open_record"
+              onClick={() => openRecord(command.ledger[0]!)}
+            >
+              Inspect evidence
+            </button>
           )}
-        </article>
-      </div>
+        </div>
+      </section>
 
-      <section id="discover-work-ledger" className={styles.ledgerSection} aria-labelledby="work-ledger-title">
-        <div className={styles.ledgerHeader}>
+      <section className={styles.queueSection} aria-labelledby="work-queue-title">
+        <div className={styles.queueHeader}>
           <div>
-            <p>Unpaid Work · Ready to Fund · Payment state</p>
-            <h3 id="work-ledger-title">Work Ledger</h3>
-            <span>Evidence-backed accepted activity, policy coverage, blockers, and the next valid action.</span>
+            <p>Priority queue</p>
+            <h2 id="work-queue-title">Work requiring attention</h2>
+            <span>Accepted records from {selected.fullName}, ordered by their current blocker.</span>
           </div>
-          <label className={styles.ledgerSearch}>
-            <Search aria-hidden="true" />
-            <span className="sr-only">Search Work Ledger</span>
-            <input
-              type="search"
-              value={ledgerSearch}
-              data-action-id="discover.search_ledger"
-              placeholder="Search work, contributor, or blocker"
-              onChange={(event) => {
-                setLedgerSearch(event.target.value);
-                setVisibleCount(12);
-              }}
-            />
-          </label>
+          <div className={styles.filterTabs} role="tablist" aria-label="Work queue filters">
+            {FILTERS.map((item) => {
+              const count = item.id === "all"
+                ? command.ledger.length
+                : command.ledger.filter((record) => record.filter === item.id).length;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === item.id}
+                  data-action-id="discover.filter_ledger"
+                  onClick={() => selectFilter(item.id)}
+                >
+                  {item.label}<span>{count}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className={styles.filterTabs} role="tablist" aria-label="Work Ledger filters">
-          {FILTERS.map((item) => {
-            const count = item.id === "all"
-              ? command.ledger.length
-              : command.ledger.filter((record) => record.filter === item.id).length;
+        <div className={styles.queueList}>
+          {visibleLedger.map((record) => (
+            <article key={record.id} className={styles.queueRow}>
+              <button
+                type="button"
+                className={styles.recordIdentity}
+                data-action-id="discover.open_record"
+                onClick={() => openRecord(record)}
+              >
+                <span>{record.workType}</span>
+                <strong>{record.title}</strong>
+                <small>{record.repository}</small>
+              </button>
+              <div className={styles.recordMeta}>
+                <span>Contributor</span>
+                <strong>@{record.contributor}</strong>
+              </div>
+              <div className={styles.recordMeta}>
+                <span>Accepted</span>
+                <strong>{formatDate(record.acceptedAt)}</strong>
+              </div>
+              <div className={styles.recordMeta}>
+                <span>State</span>
+                <strong className={record.filter === "needs_action" ? styles.warningText : undefined}>
+                  {recordState(record)}
+                </strong>
+              </div>
+              <div className={styles.recordBlocker}>
+                <span>Blocker</span>
+                <strong>{record.blocker}</strong>
+                <small>
+                  {record.amountUsd === null
+                    ? "No verified amount"
+                    : `${usd.format(record.amountUsd)} verified`}
+                </small>
+              </div>
+              <div className={styles.recordActions}>
+                {renderAction(record.nextAction, [record.evidenceId], styles.rowPrimaryAction)}
+                <button
+                  type="button"
+                  data-action-id="discover.open_record"
+                  onClick={() => openRecord(record)}
+                >
+                  Details
+                </button>
+              </div>
+            </article>
+          ))}
+          {visibleLedger.length === 0 && (
+            <p className={styles.emptyState}>
+              No persisted work records match this state. RESOLVE does not substitute example records.
+            </p>
+          )}
+        </div>
+
+        {filteredLedger.length > 5 && (
+          <button
+            type="button"
+            className={styles.viewAll}
+            data-action-id="discover.filter_ledger"
+            onClick={() => setShowAllWork((current) => !current)}
+          >
+            {showAllWork ? "Show priority five" : `View all work (${filteredLedger.length})`}
+            <ChevronDown aria-hidden="true" />
+          </button>
+        )}
+      </section>
+
+      <section className={styles.secondarySection} aria-label="Discover secondary details">
+        <div className={styles.secondaryTabs} role="tablist" aria-label="Funding cycle details">
+          {SECONDARY_PANELS.map((item) => {
+            const Icon = item.icon;
             return (
               <button
                 key={item.id}
                 type="button"
                 role="tab"
-                aria-selected={filter === item.id}
-                data-action-id="discover.filter_ledger"
-                onClick={() => selectFilter(item.id, "all")}
+                aria-selected={secondaryPanel === item.id}
+                data-action-id={`discover.open_${item.id}`}
+                onClick={() => selectSecondaryPanel(item.id)}
               >
-                {item.label}<span>{count}</span>
+                <Icon aria-hidden="true" />
+                {item.label}
+                <PanelCount panel={item.id} data={data} contributors={contributors.length} />
               </button>
             );
           })}
-          {(filter !== "all" || category !== "all") && (
-            <button
-              type="button"
-              data-action-id="discover.filter_ledger"
-              className={styles.clearFilter}
-              onClick={() => selectFilter("all", "all")}
-            >
-              <X aria-hidden="true" /> Clear
-            </button>
-          )}
         </div>
-
-        <div className={styles.ledgerTable}>
-          <div className={styles.ledgerColumns} aria-hidden="true">
-            <span>Accepted work</span>
-            <span>Evidence and policy</span>
-            <span>Money and Pool</span>
-            <span>Blocker and action</span>
-          </div>
-          {filteredLedger.slice(0, visibleCount).map((record) => (
-            <article key={record.id} className={styles.ledgerRow}>
-              <button
-                type="button"
-                className={styles.recordOpen}
-                data-action-id="discover.open_record"
-                onClick={() => openRecord(record)}
-                aria-label={`Inspect ${record.title}`}
-              >
-                <span className={styles.workType}>{record.workType}</span>
-                <strong>{record.title}</strong>
-                <small>{record.repository} · @{record.contributor}</small>
-                <time dateTime={record.acceptedAt}>{formatDate(record.acceptedAt)}</time>
-              </button>
-              <div className={styles.recordState}>
-                <span className={record.evidenceState === "verified" ? styles.statusGood : styles.statusNeutral}>
-                  <FileCheck2 aria-hidden="true" />{humanize(record.evidenceState)}
-                </span>
-                <strong className={record.policyState === "covered" ? styles.good : styles.warn}>
-                  {record.policyState === "covered"
-                    ? `Covered${record.policyVersion ? ` by policy v${record.policyVersion}` : ""}`
-                    : "No active funding rule"}
-                </strong>
-                <small>{record.policyReason}</small>
-              </div>
-              <div className={styles.recordState}>
-                <span>{humanize(record.amountState)}</span>
-                <strong>{record.amountUsd === null ? "No verified amount" : usd.format(record.amountUsd)}</strong>
-                <small>
-                  {record.poolName
-                    ? `${record.poolName} · ${humanize(record.poolState)}`
-                    : "No record-linked Pool"}
-                </small>
-              </div>
-              <div className={styles.recordAction}>
-                <span>{record.blocker}</span>
-                {renderAction(record.nextAction, [record.evidenceId])}
-                <button
-                  type="button"
-                  data-action-id="discover.open_record"
-                  className={styles.inspectButton}
-                  onClick={() => openRecord(record)}
-                >
-                  Inspect <ArrowRight aria-hidden="true" />
-                </button>
-              </div>
-            </article>
-          ))}
-          {filteredLedger.length === 0 && (
-            <p className={styles.empty}>
-              No persisted work records match this filter. This is not reported as zero activity for the source.
-            </p>
-          )}
-        </div>
-        {visibleCount < filteredLedger.length && (
-          <button
-            type="button"
-            className={styles.loadMore}
-            data-action-id="discover.filter_ledger"
-            onClick={() => setVisibleCount((count) => count + 12)}
-          >
-            Load 12 more records
-          </button>
-        )}
-      </section>
-
-      <div className={styles.operationsGrid}>
-        <section id="community-pools" className={styles.operationSection}>
-          <div className={styles.sectionLabel}>
-            <div><p>Pools</p><span>Confirmed communal capital and checkpoint readiness.</span></div>
-            <Landmark aria-hidden="true" />
-          </div>
-          {data.pools.length ? data.pools.slice(0, 3).map((pool) => (
-            <article key={pool.programId} className={styles.poolRow}>
-              <div className={styles.poolTitle}>
-                <span>Community Pool</span>
-                <strong>{pool.programName}</strong>
-                <small>{pool.communitySlug} · Policy {pool.policyVersion ?? "unavailable"}</small>
-              </div>
-              <dl>
-                <div><dt>Confirmed</dt><dd>{usd.format(pool.poolBalanceUsd)}</dd></div>
-                <div><dt>Reserved</dt><dd>{usd.format(Math.max(0, pool.poolBalanceUsd - pool.availableUsd))}</dd></div>
-                <div><dt>Available</dt><dd>{usd.format(pool.availableUsd)}</dd></div>
-                <div><dt>Pending deposits</dt><dd>Unavailable</dd></div>
-                <div><dt>Remaining</dt><dd>{usd.format(pool.remainingToCheckpointUsd)}</dd></div>
-                <div><dt>Valid obligations</dt><dd>{number.format(pool.authorizationCount)}</dd></div>
-                <div><dt>Ready contributors</dt><dd>{number.format(pool.queuedPayees.length)}</dd></div>
-                <div><dt>Queued amount</dt><dd>{usd.format(pool.queuedTotalUsd)}</dd></div>
-              </dl>
-              <div className={styles.poolProgress}>
-                <span><i style={{ width: `${pool.progressToNextPct}%` }} /></span>
-                <small>
-                  {pool.nextCheckpointUsd === null
-                    ? "Checkpoint ladder complete"
-                    : `${usd.format(pool.poolBalanceUsd)} of ${usd.format(pool.nextCheckpointUsd)} confirmed`}
-                </small>
-              </div>
-              <div className={styles.poolMeta}>
-                <span>{pool.autoSettleEnabled ? "Autopay at checkpoint" : "Operator approval required in Capital"}</span>
-                <span>{selected?.stale ? "Stale source data" : "Current evaluation"}</span>
-              </div>
-              <div className={styles.poolActions}>
-                <Link href={pool.programHref} data-action-id="discover.open_program">Open Pool</Link>
-                <Link href={pool.fundingHref} data-action-id="capital.open_funding">Add Funds</Link>
-                <Link href={pool.programHref} data-action-id="discover.open_program">View Checkpoint</Link>
-                <Link href={pool.fundingHref} data-action-id="capital.open_funding">View in Capital</Link>
-              </div>
-            </article>
-          )) : (
-            <p className={styles.empty}>
-              An active policy and selected repository do not currently resolve to a persisted Pool. No sample balance is shown.
-            </p>
-          )}
-        </section>
-
-        <section className={styles.operationSection}>
-          <div className={styles.sectionLabel}>
-            <div><p>Contributors</p><span>Accepted work observed in this evaluation.</span></div>
-            <Users aria-hidden="true" />
-          </div>
-          <div className={styles.contributorList}>
-            {contributors.map((contributor) => (
-              <article key={contributor.login}>
-                <div><strong>@{contributor.login}</strong><span>{contributor.count} accepted records</span></div>
-                <small>{[...contributor.categories].slice(0, 3).join(" · ")}</small>
-                <Link
-                  href={`/profile?section=identity&returnTo=${encodeURIComponent(`/discover?repo=${selected?.fullName ?? ""}`)}`}
-                  data-action-id="discover.resolve_identity"
-                >
-                  Open contributor
-                </Link>
-              </article>
-            ))}
-            {contributors.length === 0 && <p className={styles.empty}>No accepted contributor records are available.</p>}
-          </div>
-        </section>
-
-        <section className={styles.operationSection}>
-          <div className={styles.sectionLabel}>
-            <div><p>Live Signals</p><span>Persisted source activity, not generated network noise.</span></div>
-            <Clock3 aria-hidden="true" />
-          </div>
-          <div className={styles.signalList}>
-            {command.ledger.slice(0, 6).map((record) => (
-              <article key={record.id}>
-                <time dateTime={record.acceptedAt}>{formatDate(record.acceptedAt)}</time>
-                <div>
-                  <strong>{record.workType} accepted in {record.repository}</strong>
-                  <span>{record.title}</span>
-                </div>
-                <a href={record.sourceUrl} target="_blank" rel="noreferrer" data-action-id="discover.open_evidence">
-                  Inspect <ExternalLink aria-hidden="true" />
-                </a>
-              </article>
-            ))}
-            {command.ledger.length === 0 && <p className={styles.empty}>No persisted source signals are available.</p>}
-          </div>
-        </section>
-
-        <section className={styles.operationSection}>
-          <div className={styles.sectionLabel}>
-            <div><p>Confirmed Outcomes</p><span>Receipts appear only after authoritative confirmation.</span></div>
-            <BadgeCheck aria-hidden="true" />
-          </div>
-          <div className={styles.outcomeList}>
-            {data.outcomes.slice(0, 4).map((outcome) => (
-              <article key={outcome.receiptId}>
-                <div>
-                  <strong>{usd.format(outcome.totalUsd)} confirmed</strong>
-                  <span>{number.format(outcome.payeeCount)} contributors · {formatDate(outcome.issuedAt)}</span>
-                </div>
-                <Link href={`/outcomes/${encodeURIComponent(outcome.publicReference)}`} data-action-id="receipt.open">
-                  View receipt
-                </Link>
-                <a
-                  href={`https://testnet.arcscan.app/tx/${outcome.txHash}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  data-action-id="receipt.open_arcscan"
-                >
-                  View transaction <ExternalLink aria-hidden="true" />
-                </a>
-              </article>
-            ))}
-            {data.outcomes.length === 0 && (
-              <p className={styles.empty}>
-                No confirmed settlement receipt is attached to this evaluation. Submitted payments are kept under In Progress.
-              </p>
+        {secondaryPanel && (
+          <div className={styles.secondaryContent}>
+            {secondaryPanel === "pools" && (
+              <PoolsPanel data={data} returnTo={returnTo} />
+            )}
+            {secondaryPanel === "contributors" && (
+              <ContributorsPanel contributors={contributors} returnTo={returnTo} />
+            )}
+            {secondaryPanel === "activity" && (
+              <ActivityPanel records={command.ledger.slice(0, 5)} />
+            )}
+            {secondaryPanel === "outcomes" && (
+              <OutcomesPanel data={data} />
+            )}
+            {secondaryPanel === "advanced" && (
+              <AdvancedPanel data={data} />
             )}
           </div>
-        </section>
-      </div>
-
-      <details id="public-repository-analysis" className={styles.publicRepository}>
-        <summary data-action-id="discover.open_public_repository_analysis">Try a public repository</summary>
-        <form onSubmit={captureSnapshot} data-action-id="discover.capture_repository_snapshot">
-          <label htmlFor="discover-repository-source">Public GitHub repository</label>
-          <input
-            id="discover-repository-source"
-            aria-label="Public GitHub repository"
-            data-action-id="discover.capture_repository_snapshot"
-            value={repository}
-            onChange={(event) => setRepository(event.target.value)}
-            placeholder="owner/repository"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <button
-            type="submit"
-            data-action-id="discover.capture_repository_snapshot"
-            disabled={pending !== null}
-          >
-            <RefreshCw aria-hidden="true" />
-            {pending === "snapshot" ? "Evaluating…" : "Evaluate repository"}
-          </button>
-        </form>
-        <p>Manual public analysis is secondary to repositories authorized through the organisation installation flow.</p>
-      </details>
+        )}
+      </section>
 
       {activeRecord && (
         <div className={styles.drawerBackdrop} role="presentation" onMouseDown={closeRecord}>
@@ -790,67 +667,68 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
             <div className={styles.drawerHeader}>
               <div>
                 <span>{activeRecord.workType}</span>
-                <h3 id="record-detail-title">{activeRecord.title}</h3>
+                <h2 id="record-detail-title">{activeRecord.title}</h2>
                 <p>{activeRecord.repository} · @{activeRecord.contributor}</p>
               </div>
-              <button type="button" data-action-id="discover.open_record" onClick={closeRecord} aria-label="Close record detail">
+              <button
+                ref={closeButtonRef}
+                type="button"
+                data-action-id="discover.open_record"
+                onClick={closeRecord}
+                aria-label="Close record detail"
+              >
                 <X aria-hidden="true" />
               </button>
             </div>
-
             <div className={styles.drawerBody}>
-              <section>
-                <h4>What happened</h4>
+              <DrawerSection title="Accepted work">
                 <dl>
-                  <div><dt>Event type</dt><dd>{activeRecord.workType}</dd></div>
-                  <div><dt>Accepted</dt><dd>{formatDate(activeRecord.acceptedAt)}</dd></div>
-                  <div><dt>Contributor</dt><dd>@{activeRecord.contributor}</dd></div>
-                  <div><dt>Lifecycle</dt><dd>{activeRecord.filter === "needs_rule" ? "Accepted, policy blocked" : "Policy evaluated"}</dd></div>
+                  <DrawerFact label="Work type" value={activeRecord.workType} />
+                  <DrawerFact label="Accepted" value={formatDate(activeRecord.acceptedAt)} />
+                  <DrawerFact label="Contributor" value={`@${activeRecord.contributor}`} />
+                  <DrawerFact label="Current state" value={recordState(activeRecord)} />
                 </dl>
-                <a href={activeRecord.sourceUrl} target="_blank" rel="noreferrer" data-action-id="discover.open_evidence">
-                  Open source activity <ExternalLink aria-hidden="true" />
+                <a
+                  href={activeRecord.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-action-id="discover.open_evidence"
+                >
+                  Open GitHub activity <ExternalLink aria-hidden="true" />
                 </a>
-              </section>
-
-              <section>
-                <h4>Evidence</h4>
+              </DrawerSection>
+              <DrawerSection title="Evidence">
                 <dl>
-                  <div><dt>Verification</dt><dd>{humanize(activeRecord.evidenceState)}</dd></div>
-                  <div><dt>Evidence reference</dt><dd>{activeRecord.evidenceId}</dd></div>
-                  <div><dt>Snapshot fingerprint</dt><dd>{selected?.fingerprint ?? "Unavailable"}</dd></div>
-                  <div><dt>Duplicate handling</dt><dd>Content-hash uniqueness enforced by persistence</dd></div>
+                  <DrawerFact label="Verification" value={humanize(activeRecord.evidenceState)} />
+                  <DrawerFact label="Evidence reference" value={activeRecord.evidenceId} />
+                  <DrawerFact label="Snapshot fingerprint" value={selected.fingerprint} />
+                  <DrawerFact label="Freshness" value={activeRecord.freshness} />
                 </dl>
-              </section>
-
-              <section>
-                <h4>Funding-policy decision</h4>
+              </DrawerSection>
+              <DrawerSection title="Policy and attribution">
                 <p>{activeRecord.policyReason}</p>
                 <dl>
-                  <div><dt>Coverage</dt><dd>{humanize(activeRecord.policyState)}</dd></div>
-                  <div><dt>Policy version</dt><dd>{activeRecord.policyVersion ?? "No matching active policy"}</dd></div>
-                  <div><dt>Calculation</dt><dd>Deterministic category-to-active-policy match</dd></div>
+                  <DrawerFact label="Coverage" value={humanize(activeRecord.policyState)} />
+                  <DrawerFact
+                    label="Policy version"
+                    value={activeRecord.policyVersion?.toString() ?? "No matching active policy"}
+                  />
+                  <DrawerFact label="Identity" value={humanize(activeRecord.identityState)} />
+                  <DrawerFact label="Exact blocker" value={activeRecord.blocker} />
                 </dl>
-              </section>
-
-              <section>
-                <h4>Contributor readiness</h4>
-                <p>
-                  Record-level identity and payout joins are not available in the current read model. RESOLVE does not infer readiness from a matching GitHub label.
-                </p>
-              </section>
-
-              <section>
-                <h4>Money state</h4>
+              </DrawerSection>
+              <DrawerSection title="Pool and settlement">
                 <dl>
-                  <div><dt>Amount state</dt><dd>{humanize(activeRecord.amountState)}</dd></div>
-                  <div><dt>Verified amount</dt><dd>{activeRecord.amountUsd === null ? "No amount" : usd.format(activeRecord.amountUsd)}</dd></div>
-                  <div><dt>Pool</dt><dd>{activeRecord.poolName ?? "No record-linked Pool"}</dd></div>
-                  <div><dt>Exact blocker</dt><dd>{activeRecord.blocker}</dd></div>
+                  <DrawerFact label="Amount state" value={humanize(activeRecord.amountState)} />
+                  <DrawerFact
+                    label="Verified amount"
+                    value={activeRecord.amountUsd === null ? "No verified amount" : usd.format(activeRecord.amountUsd)}
+                  />
+                  <DrawerFact label="Pool" value={activeRecord.poolName ?? "No record-linked Pool"} />
+                  <DrawerFact label="Pool state" value={humanize(activeRecord.poolState)} />
                 </dl>
-              </section>
-
-              <section>
-                <h4>Timeline</h4>
+              </DrawerSection>
+              <DrawerSection title="Timeline">
                 <ol className={styles.timeline}>
                   {activeRecord.timeline.map((event) => (
                     <li key={`${event.at}:${event.label}`}>
@@ -859,16 +737,207 @@ export function DiscoverCoverageIntelligence({ data }: { data: DiscoverOssIntell
                     </li>
                   ))}
                 </ol>
-              </section>
+              </DrawerSection>
             </div>
-
             <div className={styles.drawerAction}>
-              <div><strong>Next valid action</strong><span>{activeRecord.nextAction.reason}</span></div>
-              {renderAction(activeRecord.nextAction, [activeRecord.evidenceId])}
+              <div>
+                <strong>Next valid action</strong>
+                <span>{activeRecord.nextAction.reason}</span>
+              </div>
+              {renderAction(activeRecord.nextAction, [activeRecord.evidenceId], styles.primaryAction)}
             </div>
           </aside>
         </div>
       )}
     </section>
   );
+}
+
+function ContextFact({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "positive" | "warning";
+}) {
+  return (
+    <div className={styles.contextFact}>
+      <span>{label}</span>
+      <strong className={tone === "positive" ? styles.positiveText : tone === "warning" ? styles.warningText : undefined}>
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+function PanelCount({
+  panel,
+  data,
+  contributors,
+}: {
+  panel: SecondaryPanel;
+  data: DiscoverOssIntelligence;
+  contributors: number;
+}) {
+  const counts: Record<SecondaryPanel, number | null> = {
+    pools: data.pools.length,
+    contributors,
+    activity: data.commandCentre.ledger.length,
+    outcomes: data.outcomes.length,
+    advanced: null,
+  };
+  return counts[panel] === null ? null : <span>{counts[panel]}</span>;
+}
+
+function PoolsPanel({
+  data,
+  returnTo,
+}: {
+  data: DiscoverOssIntelligence;
+  returnTo: string;
+}) {
+  if (data.pools.length === 0) {
+    return <p className={styles.emptyState}>No persisted Pool is attached to this repository and its active programs.</p>;
+  }
+  return (
+    <div className={styles.detailList}>
+      {data.pools.map((pool) => (
+        <article key={pool.programId}>
+          <div>
+            <span>{pool.policyCoverage.join(", ") || "Active program"}</span>
+            <strong>{pool.programName}</strong>
+            <small>
+              {usd.format(pool.availableUsd)} available · {number.format(pool.authorizationCount)} valid obligations
+            </small>
+          </div>
+          <Link
+            href={appendReturnContext(pool.programHref, returnTo)}
+            data-action-id="discover.open_program"
+          >
+            Open Pool
+          </Link>
+          <Link href={pool.fundingHref} data-action-id="capital.open_funding">Add Funds</Link>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ContributorsPanel({
+  contributors,
+  returnTo,
+}: {
+  contributors: Array<{ login: string; count: number; categories: Set<string> }>;
+  returnTo: string;
+}) {
+  if (contributors.length === 0) {
+    return <p className={styles.emptyState}>No contributors are present in this repository evaluation.</p>;
+  }
+  return (
+    <div className={styles.detailList}>
+      {contributors.map((contributor) => (
+        <article key={contributor.login}>
+          <div>
+            <span>{[...contributor.categories].join(", ")}</span>
+            <strong>@{contributor.login}</strong>
+            <small>{number.format(contributor.count)} accepted records</small>
+          </div>
+          <Link
+            href={`/profile?section=identity&returnTo=${encodeURIComponent(returnTo)}`}
+            data-action-id="discover.resolve_identity"
+          >
+            Open contributor
+          </Link>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ActivityPanel({ records }: { records: FundingCoverageLedgerRecord[] }) {
+  if (records.length === 0) {
+    return <p className={styles.emptyState}>No persisted source activity is available.</p>;
+  }
+  return (
+    <ol className={styles.activityList}>
+      {records.map((record) => (
+        <li key={record.id}>
+          <FileCheck2 aria-hidden="true" />
+          <div>
+            <strong>{record.workType} accepted</strong>
+            <span>{record.title}</span>
+          </div>
+          <time dateTime={record.acceptedAt}>{formatDate(record.acceptedAt)}</time>
+          <a href={record.sourceUrl} target="_blank" rel="noreferrer" data-action-id="discover.open_evidence">
+            Inspect <ExternalLink aria-hidden="true" />
+          </a>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function OutcomesPanel({ data }: { data: DiscoverOssIntelligence }) {
+  if (data.outcomes.length === 0) {
+    return <p className={styles.emptyState}>No confirmed outcome or receipt is attached to this evaluation.</p>;
+  }
+  return (
+    <div className={styles.detailList}>
+      {data.outcomes.map((outcome) => (
+        <article key={outcome.receiptId}>
+          <div>
+            <span>Confirmed {formatDate(outcome.issuedAt)}</span>
+            <strong>{usd.format(outcome.totalUsd)}</strong>
+            <small>{number.format(outcome.payeeCount)} contributors</small>
+          </div>
+          <Link href={`/outcomes/${encodeURIComponent(outcome.publicReference)}`} data-action-id="receipt.open">
+            View receipt
+          </Link>
+          <a
+            href={`https://testnet.arcscan.app/tx/${outcome.txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            data-action-id="receipt.open_arcscan"
+          >
+            View Arc transaction
+          </a>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function AdvancedPanel({ data }: { data: DiscoverOssIntelligence }) {
+  return (
+    <div className={styles.advancedGrid}>
+      <ContextFact label="Source" value={data.proof.source} />
+      <ContextFact label="Verification" value={humanize(data.proof.verificationState)} />
+      <ContextFact label="Snapshot" value={data.proof.snapshotId ?? "Unavailable"} />
+      <ContextFact label="Generated" value={formatDate(data.generatedAt)} />
+      <ContextFact
+        label="Optional sources"
+        value={data.degradedSources.length ? `${data.degradedSources.length} unavailable` : "Available"}
+        tone={data.degradedSources.length ? "warning" : "positive"}
+      />
+      <ContextFact
+        label="Evaluation change"
+        value={data.changes.kind === "comparison" ? "Compared with previous snapshot" : "Baseline"}
+      />
+    </div>
+  );
+}
+
+function DrawerSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section>
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function DrawerFact({ label, value }: { label: string; value: string }) {
+  return <div><dt>{label}</dt><dd>{value}</dd></div>;
 }

@@ -1,48 +1,36 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { DiscoverSurface } from "@/components/resolve/discover/discover-surface";
-import { PrimaryRouteLoading } from "@/components/resolve/layout/primary-route-loading";
+import { DiscoverMarketplace } from "@/components/resolve/discover/marketplace/discover-marketplace";
+import { DiscoverMarketplaceSkeleton } from "@/components/resolve/discover/marketplace/discover-marketplace-skeleton";
 import {
-  buildDiscoverOssIntelligence,
-  emptyDiscoverOssIntelligence,
-} from "@/lib/discover/oss-intelligence";
-import { getSessionUser } from "@/lib/auth/session";
-import {
-  discoverIntelligenceTimeoutMs,
-  withTimeout,
-} from "@/lib/discover/fetch-timeout";
+  parseDiscoverView,
+  parseOpportunityFilters,
+  type DiscoverSearchParams,
+} from "@/lib/discover/marketplace/filters";
+import { loadDiscoverPageData } from "@/lib/discover/marketplace/query";
 
 export const metadata: Metadata = {
-  title: "Discover — RESOLVE",
-  description: "Where should value move next? Find blocked value, fund pools, inspect evidence, or start a Mission.",
+  title: "Discover work, people and communities — RESOLVE",
+  description:
+    "Find funded opportunities, verified contributors, active communities and transparent funding pools.",
 };
 
 type DiscoverPageProps = {
-  searchParams: Promise<{ repo?: string }>;
+  searchParams: Promise<DiscoverSearchParams>;
 };
 
 async function DiscoverContent({ searchParams }: DiscoverPageProps) {
-  const { repo } = await searchParams;
-  const degraded = {
-    ...emptyDiscoverOssIntelligence(),
-    degradedSources: ["discover_intelligence"],
-  };
-  const user = await withTimeout(getSessionUser().catch(() => null), 1_200, null);
-  const intelligence = await withTimeout(
-    buildDiscoverOssIntelligence({
-      repository: repo,
-      viewerUserId: user?.id ?? null,
-    }).catch(() => degraded),
-    discoverIntelligenceTimeoutMs(repo),
-    degraded,
-  );
+  const params = await searchParams;
+  const view = parseDiscoverView(params.view);
+  const filters = parseOpportunityFilters(params);
+  const data = await loadDiscoverPageData(filters, view);
 
-  return <DiscoverSurface intelligence={intelligence} />;
+  return <DiscoverMarketplace data={data} filters={filters} />;
 }
 
 export default function DiscoverPage(props: DiscoverPageProps) {
   return (
-    <Suspense fallback={<PrimaryRouteLoading label="Loading Discover" />}>
+    <Suspense fallback={<DiscoverMarketplaceSkeleton />}>
       <DiscoverContent {...props} />
     </Suspense>
   );

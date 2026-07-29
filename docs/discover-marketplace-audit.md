@@ -1,6 +1,6 @@
 # Discover marketplace audit
 
-Audit date: 2026-07-29  
+Audit date: 2026-07-29
 Base commit: `2135dd5e1470ec3f5c8076ea5dee97658f31e071`
 
 ## Current production data flow

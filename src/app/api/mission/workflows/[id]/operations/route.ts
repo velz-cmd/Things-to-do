@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireReadyUser } from "@/lib/auth/session";
+import { requireSessionUser } from "@/lib/auth/session";
 import { missionOperationRequestSchema, resolveChatResponseSchema } from "@/lib/mission/structured-contract";
 import {
   getStructuredMission,
@@ -9,7 +9,7 @@ import {
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, { params }: Params) {
-  const ready = await requireReadyUser();
+  const ready = await requireSessionUser();
   if ("error" in ready) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
   }

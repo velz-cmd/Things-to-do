@@ -11,7 +11,7 @@ test.describe("RESOLVE product surfaces", () => {
 
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(
-      page.getByRole("heading", { level: 1, name: "Discover work, people and communities worth backing" }),
+      page.getByRole("heading", { level: 1, name: "Discover verified value" }),
     ).toBeVisible();
 
     await page.goto("/mission", { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -142,7 +142,7 @@ test.describe("RESOLVE product surfaces", () => {
   test("command palette opens", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(
-      page.getByRole("heading", { level: 1, name: "Discover work, people and communities worth backing" }),
+      page.getByRole("heading", { level: 1, name: "Discover verified value" }),
     ).toBeVisible({ timeout: 30_000 });
     const openBtn = page.getByRole("button", { name: "Open command palette" });
     await openBtn.waitFor({ state: "visible", timeout: 15_000 });

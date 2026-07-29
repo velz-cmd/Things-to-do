@@ -19,14 +19,19 @@ async function publicSurface() {
   const html = await response.text();
   assert(response.ok, `Discover page returns ${response.status}`);
   assert(
-    html.includes("Discover work, people and communities worth backing"),
-    "Discover has the public marketplace heading",
+    html.includes("Discover verified value"),
+    "Discover has the verified funding network heading",
   );
-  assert(html.includes("Opportunities"), "Discover exposes Opportunities");
-  assert(html.includes("People &amp; Agents") || html.includes("People & Agents"), "Discover exposes People and Agents");
-  assert(html.includes("Communities"), "Discover exposes Communities");
-  assert(html.includes("Funding Pools"), "Discover exposes Funding Pools");
-  assert(html.includes("Saved"), "Discover exposes Saved");
+  assert(html.includes("For You"), "Discover exposes For You");
+  assert(html.includes("People"), "Discover exposes People");
+  assert(html.includes("Verified Work"), "Discover exposes Verified Work");
+  assert(html.includes("Pools"), "Discover exposes Pools");
+  assert(html.includes("Programs"), "Discover exposes Programs");
+  assert(html.includes("Outcomes"), "Discover exposes Outcomes");
+  assert(html.includes("My Communities"), "Discover exposes My Communities");
+  assert(html.includes("Fund a person"), "Discover exposes direct support");
+  assert(html.includes("Back a Pool"), "Discover exposes Pool funding");
+  assert(html.includes("Fund verified work"), "Discover exposes evidence-backed funding");
   assert(!html.includes("Install GitHub App"), "Discover does not require a GitHub installation");
   assert(!html.includes("Connect GitHub"), "Discover does not require GitHub sign-in");
   assert(!html.includes("Accepted work that needs economic attention"), "Legacy repository-only heading is removed");

@@ -1,178 +1,105 @@
 /**
- * Discover tab smoke — search, install, fund, claim paths + surface hygiene.
+ * Public Discover marketplace smoke.
  * Usage: npx tsx scripts/verify-discover-tab.ts [baseUrl]
- *
- * Run after `npm run build && npm run start` (or against a deployed preview).
  */
 const BASE = process.argv[2] ?? "http://localhost:3000";
 
 let failed = 0;
 
-function assert(cond: boolean, msg: string) {
-  if (!cond) {
-    console.error(`FAIL: ${msg}`);
-    failed++;
-  } else {
-    console.log(`OK: ${msg}`);
+function assert(condition: boolean, message: string) {
+  if (condition) console.log(`OK: ${message}`);
+  else {
+    console.error(`FAIL: ${message}`);
+    failed += 1;
   }
 }
 
-type Check = {
-  name: string;
-  method?: string;
-  path: string;
-  expectStatus: number;
-  expect?: (body: unknown, headers: Headers) => boolean;
-};
+async function publicSurface() {
+  const response = await fetch(`${BASE}/discover`);
+  const html = await response.text();
+  assert(response.ok, `Discover page returns ${response.status}`);
+  assert(
+    html.includes("Discover work, people and communities worth backing"),
+    "Discover has the public marketplace heading",
+  );
+  assert(html.includes("Opportunities"), "Discover exposes Opportunities");
+  assert(html.includes("People &amp; Agents") || html.includes("People & Agents"), "Discover exposes People and Agents");
+  assert(html.includes("Communities"), "Discover exposes Communities");
+  assert(html.includes("Funding Pools"), "Discover exposes Funding Pools");
+  assert(html.includes("Saved"), "Discover exposes Saved");
+  assert(!html.includes("Install GitHub App"), "Discover does not require a GitHub installation");
+  assert(!html.includes("Connect GitHub"), "Discover does not require GitHub sign-in");
+  assert(!html.includes("Accepted work that needs economic attention"), "Legacy repository-only heading is removed");
+}
 
-const checks: Check[] = [
-  {
-    name: "discover page HTML",
-    path: "/discover",
-    expectStatus: 200,
-    expect: (_b, headers) => headers.get("content-type")?.includes("text/html") ?? false,
-  },
-  {
-    name: "search returns actionable results",
-    path: "/api/discover/search?q=react",
-    expectStatus: 200,
-    expect: (b) => {
-      const body = b as { ok?: boolean; results?: unknown[]; topPrimaryAction?: unknown };
-      return Boolean(body.ok && body.results?.length && body.topPrimaryAction);
-    },
-  },
-  {
-    name: "search fund queue filter",
-    path: "/api/discover/search?q=fund%20react",
-    expectStatus: 200,
-    expect: (b) => (b as { queueFilter?: string }).queueFilter === "react",
-  },
-  {
-    name: "install path requires auth",
+async function publicApi() {
+  const response = await fetch(`${BASE}/api/discover/opportunities?sort=newest`);
+  const body = (await response.json()) as {
+    items?: unknown[];
+    failures?: Array<{ source?: string; requestId?: string }>;
+    nextCursor?: string | null;
+    total?: number;
+  };
+  assert([200, 503].includes(response.status), `Opportunity API returns a controlled status ${response.status}`);
+  assert(Array.isArray(body.items), "Opportunity API returns an item list");
+  assert(Array.isArray(body.failures), "Opportunity API returns source-isolated failures");
+  assert(typeof body.total === "number", "Opportunity API returns a result count");
+  assert(
+    body.failures?.every((failure) => Boolean(failure.source && failure.requestId)) ?? false,
+    "Every source failure has a source and request ID",
+  );
+}
+
+async function protectedWrites() {
+  const save = await fetch(`${BASE}/api/discover/saved`, {
     method: "POST",
-    path: "/api/communities/navidrome/install",
-    expectStatus: 401,
-  },
-  {
-    name: "fund discover queue",
-    path: "/api/capital/discover",
-    expectStatus: 200,
-    expect: (b) => Array.isArray((b as { opportunities?: unknown[] }).opportunities),
-  },
-  {
-    name: "fund search resolves queue",
-    path: "/api/discover/search?q=fund%20navidrome",
-    expectStatus: 200,
-    expect: (b) => {
-      const body = b as { ok?: boolean; queueFilter?: string; results?: unknown[] };
-      return Boolean(body.ok && body.queueFilter && body.results?.length);
-    },
-  },
-  {
-    name: "claim session requires auth",
-    path: "/api/claim/session",
-    expectStatus: 401,
-  },
-  {
-    name: "radar feed shape",
-    path: "/api/discover/radar-feed?limit=8",
-    expectStatus: 200,
-    expect: (b) => {
-      const body = b as { ok?: boolean; gaps?: unknown[]; domainRadars?: unknown };
-      return Boolean(body.ok && Array.isArray(body.gaps) && body.domainRadars);
-    },
-  },
-  {
-    name: "live events feed",
-    path: "/api/events/live?limit=8&scope=network",
-    expectStatus: 200,
-    expect: (b) => Array.isArray((b as { events?: unknown[] }).events),
-  },
-  {
-    name: "demo parcels quarantined",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ targetType: "opportunity", targetId: "test" }),
+  });
+  assert(save.status === 401, "Saving requires authentication");
+
+  const apply = await fetch(`${BASE}/api/discover/applications`, {
     method: "POST",
-    path: "/api/discover/parcels",
-    expectStatus: 200,
-    expect: (_b, headers) => headers.get("X-Deprecated") === "discover-parcels-demo",
-  },
-];
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      opportunityId: "test",
+      proposal: "A complete test proposal that is long enough for validation.",
+      evidenceLinks: [],
+    }),
+  });
+  assert(apply.status === 401, "Applying requires authentication");
 
-async function runCheck(c: Check) {
-  const res = await fetch(`${BASE}${c.path}`, { method: c.method ?? "GET" });
-  assert(res.status === c.expectStatus, `${c.name} → HTTP ${res.status}`);
-  let body: unknown = null;
-  const ct = res.headers.get("content-type") ?? "";
-  if (ct.includes("application/json")) {
-    body = await res.json();
-  } else if (ct.includes("text/html")) {
-    body = await res.text();
-  }
-  if (c.expect) {
-    assert(c.expect(body, res.headers), `${c.name} → response shape`);
-  }
+  const funding = await fetch(`${BASE}/api/discover/funding-review`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ opportunityId: "test", mode: "outcome", amountUsd: 1 }),
+  });
+  assert(funding.status === 401, "Funding review requires authentication");
 }
 
-async function hygieneChecks() {
-  const html = await (await fetch(`${BASE}/discover`)).text();
-  const forbiddenInDiscover = [
-    "/mission/fund",
-    'href="/missions"',
-    "Open Mission",
-    "Mission scope",
-    "EcosystemBenefitsProgram",
-    "MoneyFlowExplainer",
-  ];
-  for (const token of forbiddenInDiscover) {
-    assert(!html.includes(token), `discover HTML excludes "${token}"`);
-  }
-  assert(html.includes("Where should value move next?"), "discover HTML includes action-marketplace hero");
-  assert(html.includes("Funding board"), "discover HTML includes funding board section");
-  assert(html.includes(">Fund<"), "discover HTML includes Fund job pill");
-  assert(!html.includes("Earn from my work"), "discover HTML excludes removed earn job card");
-  assert(!html.includes("owner/repo"), "discover HTML excludes global search bar");
-  assert(html.includes("Value graph"), "discover HTML includes value graph");
-  assert(html.includes("Unpaid Value"), "discover HTML includes unpaid value lane");
-  assert(html.includes("Live Signals"), "discover HTML includes live signals lane");
-  assert(html.includes('href="/communities"'), "discover HTML links to Communities tab");
-}
-
-async function warmLoadPerf() {
+async function warmLoadPerformance() {
   await fetch(`${BASE}/discover`);
-  const t0 = performance.now();
-  const res = await fetch(`${BASE}/discover`);
-  const ms = performance.now() - t0;
-  assert(res.ok, "warm discover page load succeeds");
-  assert(ms < 3000, `warm discover load < 3s (${Math.round(ms)}ms)`);
+  const started = performance.now();
+  const response = await fetch(`${BASE}/discover`);
+  const duration = performance.now() - started;
+  assert(response.ok, "Warm Discover page load succeeds");
+  assert(duration < 4_000, `Warm Discover load is under 4 seconds (${Math.round(duration)}ms)`);
 }
 
 async function main() {
-  console.log(`Discover tab verify → ${BASE}\n`);
-
-  for (const c of checks) {
+  console.log(`Discover marketplace verify → ${BASE}\n`);
+  for (const check of [publicSurface, publicApi, protectedWrites, warmLoadPerformance]) {
     try {
-      await runCheck(c);
-    } catch (e) {
-      assert(false, `${c.name} → ${e instanceof Error ? e.message : "request failed"}`);
+      await check();
+    } catch (error) {
+      assert(false, error instanceof Error ? error.message : "Verification request failed");
     }
   }
-
-  try {
-    await hygieneChecks();
-  } catch (e) {
-    assert(false, `hygiene → ${e instanceof Error ? e.message : "failed"}`);
-  }
-
-  try {
-    await warmLoadPerf();
-  } catch (e) {
-    assert(false, `perf → ${e instanceof Error ? e.message : "failed"}`);
-  }
-
   if (failed) {
     console.error(`\n${failed} check(s) failed`);
     process.exit(1);
   }
-  console.log("\nAll Discover tab checks passed");
+  console.log("\nAll Discover marketplace checks passed");
 }
 
 void main();

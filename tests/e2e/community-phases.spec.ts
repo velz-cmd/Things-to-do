@@ -369,13 +369,13 @@ test.describe("Community phases — surfaces", () => {
     await expect(page.getByRole("button", { name: /Run agent/i })).toHaveCount(0);
   });
 
-  test("discover shows one setup or work-queue state without unpaid-value duplicates", async ({ page }) => {
+  test("discover shows the public marketplace without repository setup gates", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
-    const setup = page.getByRole("heading", {
-      name: /Connect your GitHub identity|Install repository access|Choose a repository/,
-    });
-    const queue = page.getByRole("heading", { name: "Work requiring attention" });
-    await expect(setup.or(queue)).toBeVisible();
+    await expect(page.getByRole("heading", {
+      level: 1,
+      name: "Discover work, people and communities worth backing",
+    })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Unpaid Value" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Fulfill pool/i })).toHaveCount(0);
   });

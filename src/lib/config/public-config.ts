@@ -109,7 +109,6 @@ export async function buildPublicConfig(): Promise<Record<string, unknown>> {
       docs: "/docs/PAYMENT-LAYER.md",
       endpoints: {
         createSettlement: "/api/payment/create-settlement",
-        lockEscrow: "/api/payment/lock-escrow",
         executeBatch: "/api/payment/execute-batch",
         fromAllocation: "/api/payment/from-allocation",
         fromGithub: "/api/payment/from-github",

@@ -41,7 +41,7 @@ async function getReservedForPrograms(userId: string): Promise<number> {
 
 async function buildProgramWallets(userId: string): Promise<BankingProgramWallet[]> {
   const programs = await prisma.resolveProgram.findMany({
-    where: { userId },
+    where: { userId, status: { not: "quarantined_legacy_unit_error" } },
     include: { install: { select: { communitySlug: true } } },
     orderBy: { updatedAt: "desc" },
     take: 12,

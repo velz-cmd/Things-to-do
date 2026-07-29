@@ -3,9 +3,7 @@ export const DISCOVER_VIEWS = [
   "people",
   "work",
   "pools",
-  "programs",
   "outcomes",
-  "my_communities",
 ] as const;
 
 export type DiscoverView = (typeof DISCOVER_VIEWS)[number];
@@ -43,6 +41,15 @@ export type FundingStatus =
   | "funded"
   | "escrowed"
   | "milestone_funded";
+
+export type FundingAmountState =
+  | "configured_target"
+  | "proposed_reward"
+  | "policy_calculated"
+  | "funding_reserved"
+  | "submitted"
+  | "confirmed"
+  | "provenance_unavailable";
 
 export type ProviderPreference =
   | "open"
@@ -86,6 +93,7 @@ export type MarketplaceOpportunity = {
     source?: string;
     paymentMode?: string;
     distributionMethod?: string;
+    amountState?: FundingAmountState;
   };
   provider: {
     preference: ProviderPreference;
@@ -179,6 +187,7 @@ export type DiscoverPool = {
   fundedOutcomes?: number;
   funderCount?: number;
   verificationMechanism?: string;
+  balanceState?: FundingAmountState;
 };
 
 export type DiscoverNetworkStats = {
@@ -213,5 +222,10 @@ export type DiscoverPageData = {
     state: string;
     primaryAction: { label: string; href: string };
     secondaryActions: Array<{ label: string; href: string }>;
+  };
+  actions: {
+    directSupport: boolean;
+    poolFunding: boolean;
+    verifiedWorkFunding: boolean;
   };
 };

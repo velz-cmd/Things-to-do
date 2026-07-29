@@ -79,7 +79,8 @@ export async function getTreasurySnapshot(requiredUsd = 0): Promise<TreasurySnap
 
   let message = "Global settlement ready — fund once, batch pay contributors worldwide";
   if (!arc.liveArc) {
-    message = "Circle Arc not live — settlements recorded off-chain until treasury is configured";
+    message =
+      "Circle Arc settlement is unavailable. Authorizations remain pending and no financial success state is created.";
   } else if (balanceUsd < 0.01) {
     message = "Fund ARC_CLIENT_WALLET_ADDRESS on Arc testnet to enable global batch settlement";
   } else if (availableUsd < requiredUsd && requiredUsd > 0) {
@@ -108,7 +109,7 @@ export async function getTreasurySnapshot(requiredUsd = 0): Promise<TreasurySnap
 export async function assertTreasuryCanFund(amountUsd: number) {
   const snap = await getTreasurySnapshot(amountUsd);
   if (!snap.liveArc) {
-    return { ok: true as const, mode: "offchain" as const, snapshot: snap };
+    return { ok: false as const, mode: "blocked" as const, snapshot: snap };
   }
   if (snap.balanceUsd < amountUsd) {
     throw new TreasuryUnderfundedError(amountUsd, snap.availableUsd);

@@ -1,14 +1,5 @@
 import { prisma } from "@/lib/db";
-import { connectorLabel } from "@/lib/ledger/labels";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
-import { isOnChainTxHash } from "@/lib/payment/tx-utils";
-import { communityLabelForMission } from "@/lib/earn/community-label";
-import { getProgramPoolState } from "@/lib/capital/pool-checkpoints";
-import {
-  buildLiveFundHeadline,
-  buildLiveFundSubline,
-  buildSourcedPoolHook,
-} from "@/lib/discover/pool-discover-copy";
 
 export type LiveSettlementRow = {
   id: string;
@@ -22,14 +13,11 @@ export type LiveSettlementRow = {
   receiptHref?: string;
   explorerUrl?: string | null;
   at: string;
-  /** Enriched for fund rows — real pool USD on ledger */
   poolBalanceUsd?: number;
   contributorCount?: number;
   funderCount?: number;
   payeeCategory?: string;
-  /** Sourced one-liner for Discover strip */
   sourcedHook?: string;
-  /** Secondary line under title */
   subline?: string;
 };
 
@@ -40,172 +28,79 @@ export type LiveSettlementsPayload = {
   updatedAt: string;
 };
 
-function roundUsd(n: number) {
-  return Math.round(n * 100) / 100;
+type ConfirmedSettlementRecord = {
+  receipt_id: string;
+  public_reference: string;
+  total_micro_usdc: bigint;
+  community_slug: string | null;
+  issued_at: Date;
+  tx_hash: string;
+  chain_id: number;
+  from_address: string;
+  to_address: string;
+};
+
+function shortAddress(value: string) {
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-/** Recent real ledger + pool activity for Discover Arc strip — DB rows only. */
+/**
+ * Public settlement activity is sourced only from a receipt linked to a
+ * confirmed chain transaction. Authorisations, stake ledger rows, submitted
+ * transactions, and legacy mission settlements do not satisfy this contract.
+ */
 export async function buildLiveSettlements(limit = 12): Promise<LiveSettlementsPayload> {
-  const take = Math.min(Math.max(limit, 1), 24);
-  const rows: LiveSettlementRow[] = [];
+  const take = Math.min(Math.max(Math.trunc(limit), 1), 24);
+  const updatedAt = new Date().toISOString();
 
   if (!process.env.DATABASE_URL) {
-    return { ok: true, live: false, rows: [], updatedAt: new Date().toISOString() };
+    return { ok: true, live: false, rows: [], updatedAt };
   }
 
-  const [stakes, authorizations, settlements] = await Promise.all([
-    prisma.communityFundStake.findMany({
-      orderBy: { createdAt: "desc" },
-      take,
-      select: {
-        id: true,
-        principalUsd: true,
-        createdAt: true,
-        programId: true,
-        program: {
-          select: {
-            id: true,
-            name: true,
-            missionId: true,
-            templateId: true,
-            install: { select: { communitySlug: true } },
-          },
-        },
-      },
-    }),
-    prisma.paymentAuthorization.findMany({
-      where: { status: { in: ["settled", "claimable", "claimed", "authorized"] } },
-      orderBy: { updatedAt: "desc" },
-      take,
-      select: {
-        id: true,
-        amountUsd: true,
-        status: true,
-        connectorId: true,
-        missionId: true,
-        updatedAt: true,
-        settlementId: true,
-      },
-    }),
-    prisma.missionSettlement.findMany({
-      where: { escrowTxHash: { not: null } },
-      orderBy: { updatedAt: "desc" },
-      take: Math.ceil(take / 2),
-      select: {
-        id: true,
-        treasuryAmount: true,
-        status: true,
-        missionId: true,
-        escrowTxHash: true,
-        updatedAt: true,
-      },
-    }),
-  ]);
+  const records = await prisma.$queryRaw<ConfirmedSettlementRecord[]>`
+    SELECT
+      r.id AS receipt_id,
+      r."publicReference" AS public_reference,
+      r."totalUsdcMicro" AS total_micro_usdc,
+      r."communitySlug" AS community_slug,
+      r."issuedAt" AS issued_at,
+      t."txHash" AS tx_hash,
+      t."chainId" AS chain_id,
+      t."fromAddress" AS from_address,
+      t."toAddress" AS to_address
+    FROM "Receipt" r
+    INNER JOIN "ChainTransaction" t
+      ON t.id = r."chainTransactionId"
+    WHERE t.status = 'confirmed'
+      AND t."txHash" IS NOT NULL
+      AND t."confirmedAt" IS NOT NULL
+      AND t."fromAddress" IS NOT NULL
+      AND t."toAddress" IS NOT NULL
+      AND t."amountUsdcMicro" IS NOT NULL
+    ORDER BY r."issuedAt" DESC
+    LIMIT ${take}
+  `;
 
-  const missionCache = new Map<string, Awaited<ReturnType<typeof communityLabelForMission>>>();
-
-  async function missionMeta(missionId: string) {
-    let cached = missionCache.get(missionId);
-    if (!cached) {
-      cached = await communityLabelForMission(missionId);
-      missionCache.set(missionId, cached);
-    }
-    return cached;
-  }
-
-  for (const stake of stakes) {
-    const meta = stake.program.missionId ? await missionMeta(stake.program.missionId) : null;
-    const poolState = await getProgramPoolState(stake.programId).catch(() => null);
-    const programName = stake.program.name ?? meta?.programName ?? "Program pool";
-    const sourcedHook =
-      poolState?.sourcedHook ??
-      buildSourcedPoolHook({
-        programName,
-        poolBalanceUsd: stake.principalUsd,
-        owedToCreatorsUsd: 0,
-        claimableUsd: 0,
-        nextCheckpointUsd: null,
-        progressToNextPct: 0,
-        payeeCategory: poolState?.payeeCategory ?? "contributors",
-        funderCount: poolState?.funderCount ?? 1,
-        contributorCount: poolState?.contributorCount ?? 0,
-      });
-
-    const poolBalanceUsd = poolState?.poolBalanceUsd ?? roundUsd(stake.principalUsd);
-    const contributorCount = poolState?.contributorCount ?? 0;
-    const funderCount = poolState?.funderCount ?? 1;
-    const payeeCategory = poolState?.payeeCategory ?? "contributors";
-
-    rows.push({
-      id: `stake-${stake.id}`,
-      kind: "fund",
-      title: buildLiveFundHeadline({
-        programName,
-        amountUsd: roundUsd(stake.principalUsd),
-        poolBalanceUsd,
-        contributorCount,
-        funderCount,
-        payeeCategory,
-        sourcedHook,
-      }),
-      subline: buildLiveFundSubline(sourcedHook),
-      amountUsd: roundUsd(stake.principalUsd),
-      status: "funded",
-      communitySlug: stake.program.install?.communitySlug ?? meta?.communitySlug,
-      communityName: meta?.communityName,
-      poolBalanceUsd,
-      contributorCount,
-      funderCount,
-      payeeCategory,
-      sourcedHook,
-      receiptHref: stake.program.install?.communitySlug
-        ? `/communities/${stake.program.install.communitySlug}?intent=fund&program=${encodeURIComponent(stake.programId)}`
-        : "/capital",
-      at: stake.createdAt.toISOString(),
-    });
-  }
-
-  for (const auth of authorizations) {
-    const meta = await missionMeta(auth.missionId);
-    rows.push({
-      id: `auth-${auth.id}`,
-      kind: "authorization",
-      title: `$${roundUsd(auth.amountUsd).toFixed(2)} recognized · ${meta.programName ?? meta.communityName ?? "Verified value"}`,
-      subline: `${connectorLabel(auth.connectorId)} · ${auth.status.replace(/_/g, " ")}`,
-      amountUsd: roundUsd(auth.amountUsd),
-      status: auth.status,
-      communitySlug: meta.communitySlug,
-      communityName: meta.communityName,
-      connectorLabel: connectorLabel(auth.connectorId),
-      receiptHref: `/receipt/${auth.id}`,
-      at: auth.updatedAt.toISOString(),
-    });
-  }
-
-  for (const settlement of settlements) {
-    const meta = await missionMeta(settlement.missionId);
-    const tx = settlement.escrowTxHash;
-    rows.push({
-      id: `settlement-${settlement.id}`,
+  const rows = records.map<LiveSettlementRow>((record) => {
+    const amountUsd = Number(record.total_micro_usdc) / 1_000_000;
+    return {
+      id: `receipt-${record.receipt_id}`,
       kind: "settlement",
-      title: `$${roundUsd(settlement.treasuryAmount).toFixed(0)} batch · ${meta.programName ?? meta.communityName ?? "Settlement"}`,
-      subline: "2.5% platform fee · remainder to creators on Arc",
-      amountUsd: roundUsd(settlement.treasuryAmount),
-      status: settlement.status,
-      communitySlug: meta.communitySlug,
-      communityName: meta.communityName,
-      receiptHref: `/receipt/${settlement.id}`,
-      explorerUrl: isOnChainTxHash(tx) ? explorerTxUrl(tx!) : null,
-      at: settlement.updatedAt.toISOString(),
-    });
-  }
-
-  rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+      title: `$${amountUsd.toFixed(2)} USDC confirmed on Arc`,
+      subline: `${shortAddress(record.from_address)} to ${shortAddress(record.to_address)} · chain ${record.chain_id}`,
+      amountUsd,
+      status: "confirmed",
+      communitySlug: record.community_slug ?? undefined,
+      receiptHref: `/receipt/${encodeURIComponent(record.receipt_id)}`,
+      explorerUrl: explorerTxUrl(record.tx_hash),
+      at: record.issued_at.toISOString(),
+    };
+  });
 
   return {
     ok: true,
     live: rows.length > 0,
-    rows: rows.slice(0, take),
-    updatedAt: new Date().toISOString(),
+    rows,
+    updatedAt,
   };
 }

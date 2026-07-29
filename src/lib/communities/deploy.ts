@@ -34,6 +34,25 @@ export async function deployProgramOnArc(
     return { ok: false, message: "Program has no mission scope", error: "no_mission" };
   }
 
+  const duplicate = await prisma.resolveProgram.findFirst({
+    where: {
+      id: { not: programId },
+      userId,
+      install: { communitySlug: program.communitySlug },
+      templateId: program.templateId,
+      name: { equals: program.name, mode: "insensitive" },
+      status: { in: ["active", "deployed"] },
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    return {
+      ok: false,
+      message: "An active program with this template and name already exists",
+      error: "duplicate_active_program",
+    };
+  }
+
   const community = getCommunityBySlug(program.communitySlug);
   const summary = await getAuthorizationSummary({
     missionId: program.missionId,

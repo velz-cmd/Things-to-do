@@ -14,10 +14,20 @@ import { CAPITAL_YIELD_COPY } from "@/lib/capital/copy";
 import { fundingSourceLabel } from "@/lib/wallet/funding-source";
 import type { FundableOpportunity } from "@/lib/capital/community-yield";
 
-export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
+export function FunderDiscoveryPanel({
+  signedIn,
+  selectedProgramId,
+  returnTo,
+}: {
+  signedIn: boolean;
+  selectedProgramId?: string | null;
+  returnTo?: string | null;
+}) {
   const [opportunities, setOpportunities] = useState<FundableOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [fundingId, setFundingId] = useState<string | null>(null);
+  const [reviewProgramId, setReviewProgramId] = useState<string | null>(null);
   const [amountByProgram, setAmountByProgram] = useState<Record<string, string>>({});
   const [activeProgramId, setActiveProgramId] = useState<string | null>(null);
 
@@ -28,14 +38,41 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
     Number.isFinite(activeAmount) ? activeAmount : 25,
   );
   const { executeFund } = useFundProgramExecution();
+  const visibleOpportunities = selectedProgramId
+    ? opportunities.filter((opportunity) => opportunity.programId === selectedProgramId)
+    : opportunities;
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8_000);
     try {
-      const res = await fetch("/api/capital/discover");
-      const data = await res.json();
-      setOpportunities(data.opportunities ?? []);
+      const res = await fetch("/api/capital/discover", {
+        signal: controller.signal,
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => null)) as {
+        opportunities?: unknown;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Pool funding data could not be loaded");
+      }
+      if (!Array.isArray(data?.opportunities)) {
+        throw new Error("Pool funding data returned an invalid response");
+      }
+      setOpportunities(data.opportunities as FundableOpportunity[]);
+    } catch (error) {
+      setLoadError(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "Pool funding data timed out. No financial state was changed."
+          : error instanceof Error
+            ? error.message
+            : "Pool funding data could not be loaded",
+      );
     } finally {
+      window.clearTimeout(timeout);
       setLoading(false);
     }
   }, []);
@@ -67,6 +104,7 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
       toast.success(
         `${result.message} via ${fundingSourceLabel(result.fundingSource)}`,
       );
+      setReviewProgramId(null);
       void load();
       void walletChoice.spendable.refresh().catch(() => null);
     } catch (e) {
@@ -81,11 +119,20 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
       <div>
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-resolve-accent" />
-          <h2 className="text-sm font-semibold text-white">{CAPITAL_YIELD_COPY.discover.title}</h2>
+          <h2 className="text-sm font-semibold text-white">
+            {selectedProgramId ? "Review Pool funding" : CAPITAL_YIELD_COPY.discover.title}
+          </h2>
         </div>
         <p className="mt-1 text-xs leading-relaxed text-resolve-muted">
-          {CAPITAL_YIELD_COPY.discover.subtitle}
+          {selectedProgramId
+            ? "Confirm the selected Pool, amount, funding wallet, and Arc network before money moves."
+            : CAPITAL_YIELD_COPY.discover.subtitle}
         </p>
+        {returnTo && (
+          <Link href={returnTo} className="mt-2 inline-flex text-xs text-resolve-accent hover:underline">
+            Return to opportunity
+          </Link>
+        )}
       </div>
 
       <BlueGlowCard variant="subtle" className="text-xs leading-relaxed text-resolve-muted">
@@ -98,16 +145,24 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading programs…
         </div>
-      : !opportunities.length ?
+      : loadError ?
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-sm text-amber-100"
+        >
+          <p>{loadError}</p>
+          <Button className="mt-3" size="sm" variant="secondary" onClick={() => void load()}>
+            Retry Pool data
+          </Button>
+        </div>
+      : !visibleOpportunities.length ?
         <p className="text-sm text-resolve-muted">
-          No active programs yet.{" "}
-          <Link href="/discover" className="text-resolve-accent hover:underline">
-            Browse communities
-          </Link>{" "}
-          to install the first one.
+          {selectedProgramId
+            ? "This Pool is no longer available for funding. Return to Discover and choose an active published Pool."
+            : "No active programs yet. Browse communities to install the first one."}
         </p>
       : <ul className="space-y-3">
-          {opportunities.map((o) => (
+          {visibleOpportunities.map((o) => (
             <li
               key={o.programId}
               className="rounded-xl border border-white/[0.08] bg-[#0a0f18]/60 p-4"
@@ -178,13 +233,17 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
                     <Button
                       size="sm"
                       disabled={fundingId === o.programId}
-                      onClick={() => void fund(o.programId, o.communitySlug, o.programName)}
+                      onClick={() => {
+                        const amountUsd = Number(amountByProgram[o.programId] ?? "25");
+                        if (!Number.isFinite(amountUsd) || amountUsd < 5) {
+                          toast.error("Enter at least $5");
+                          return;
+                        }
+                        setActiveProgramId(o.programId);
+                        setReviewProgramId(o.programId);
+                      }}
                     >
-                      {fundingId === o.programId ?
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : o.templateId === "quadratic-funding" ?
-                        CAPITAL_YIELD_COPY.discover.fundCta
-                      : CAPITAL_YIELD_COPY.discover.fundFulfillCta}
+                      Review funding
                     </Button>
                   </>
                 : <p className="text-[11px] text-resolve-muted">Sign in to fund programs</p>}
@@ -196,6 +255,85 @@ export function FunderDiscoveryPanel({ signedIn }: { signedIn: boolean }) {
                   <ArrowUpRight className="h-3 w-3" />
                 </Link>
               </div>
+
+              {reviewProgramId === o.programId && signedIn && (
+                <div
+                  className="mt-4 rounded-xl border border-violet-300/20 bg-violet-300/[0.05] p-4"
+                  aria-label="Pool funding confirmation"
+                >
+                  <p className="text-sm font-semibold text-white">Confirm Pool funding</p>
+                  <p className="mt-1 text-xs leading-relaxed text-resolve-muted">
+                    Capital will add funds to this Pool. Its active program rule controls
+                    distribution, and this action does not guarantee payment to a specific
+                    recipient.
+                  </p>
+                  <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                    <div>
+                      <dt className="text-resolve-muted">Pool</dt>
+                      <dd className="mt-1 text-white">{o.programName}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-resolve-muted">Amount</dt>
+                      <dd className="mt-1 text-white">
+                        ${Number(amountByProgram[o.programId] ?? "25").toFixed(2)} USDC
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-resolve-muted">Network</dt>
+                      <dd className="mt-1 text-white">Arc Testnet</dd>
+                    </div>
+                    <div>
+                      <dt className="text-resolve-muted">RESOLVE fee</dt>
+                      <dd className="mt-1 text-white">$0.00</dd>
+                    </div>
+                    <div>
+                      <dt className="text-resolve-muted">Confirmed Pool balance</dt>
+                      <dd className="mt-1 text-white">
+                        ${o.principalFundedUsd.toFixed(2)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-resolve-muted">Expected after confirmation</dt>
+                      <dd className="mt-1 text-white">
+                        $
+                        {(
+                          o.principalFundedUsd +
+                          Number(amountByProgram[o.programId] ?? "25")
+                        ).toFixed(2)}
+                      </dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="text-resolve-muted">Distribution rule</dt>
+                      <dd className="mt-1 text-white">
+                        {o.templateLabel}. Recipient weights cannot be changed by the funder.
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={fundingId === o.programId}
+                      onClick={() => setReviewProgramId(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={fundingId === o.programId}
+                      onClick={() => void fund(o.programId, o.communitySlug, o.programName)}
+                    >
+                      {fundingId === o.programId ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        `Confirm and fund $${Number(
+                          amountByProgram[o.programId] ?? "25",
+                        ).toFixed(2)}`
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>

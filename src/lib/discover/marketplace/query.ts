@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { getSessionUser } from "@/lib/auth/session";
@@ -24,8 +25,12 @@ import type {
 import type { OpportunityFilters } from "./filters";
 
 const SOURCE_TIMEOUT_MS = 4_000;
+const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
+const MARKETPLACE_ACTIVITY_TIMEOUT_MS = 1_000;
+export const DISCOVER_MARKETPLACE_CACHE_TAG = "discover-marketplace-sources";
 const PAGE_SIZE = 18;
 const SOURCE_LIMIT = 100;
+const SOURCE_CACHE_SECONDS = 60;
 
 function withTimeout<T>(promise: Promise<T>, ms = SOURCE_TIMEOUT_MS): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -168,6 +173,33 @@ async function loadCampaignOpportunities() {
     ];
   });
 }
+
+const loadCachedPersistedOpportunities = unstable_cache(
+  loadPersistedOpportunities,
+  ["discover-marketplace-published-v1"],
+  {
+    revalidate: SOURCE_CACHE_SECONDS,
+    tags: [DISCOVER_MARKETPLACE_CACHE_TAG],
+  },
+);
+
+const loadCachedProgramOpportunities = unstable_cache(
+  loadProgramOpportunities,
+  ["discover-marketplace-programs-v1"],
+  {
+    revalidate: SOURCE_CACHE_SECONDS,
+    tags: [DISCOVER_MARKETPLACE_CACHE_TAG],
+  },
+);
+
+const loadCachedCampaignOpportunities = unstable_cache(
+  loadCampaignOpportunities,
+  ["discover-marketplace-campaigns-v1"],
+  {
+    revalidate: SOURCE_CACHE_SECONDS,
+    tags: [DISCOVER_MARKETPLACE_CACHE_TAG],
+  },
+);
 
 export function deduplicateMarketplaceOpportunities(items: MarketplaceOpportunity[]) {
   const seenSources = new Set<string>();
@@ -368,9 +400,27 @@ export async function listMarketplaceOpportunities(
 ): Promise<MarketplacePage<MarketplaceOpportunity>> {
   const requestId = randomUUID();
   const loaders = [
-    { source: "published_opportunities", promise: withTimeout(loadPersistedOpportunities()) },
-    { source: "community_programs", promise: withTimeout(loadProgramOpportunities()) },
-    { source: "outcome_campaigns", promise: withTimeout(loadCampaignOpportunities()) },
+    {
+      source: "published_opportunities",
+      promise: withTimeout(
+        loadCachedPersistedOpportunities(),
+        COLD_DATABASE_SOURCE_TIMEOUT_MS,
+      ),
+    },
+    {
+      source: "community_programs",
+      promise: withTimeout(
+        loadCachedProgramOpportunities(),
+        COLD_DATABASE_SOURCE_TIMEOUT_MS,
+      ),
+    },
+    {
+      source: "outcome_campaigns",
+      promise: withTimeout(
+        loadCachedCampaignOpportunities(),
+        COLD_DATABASE_SOURCE_TIMEOUT_MS,
+      ),
+    },
   ];
   const settled = await Promise.allSettled(loaders.map((loader) => loader.promise));
   const { items: loaded, failures } = collectMarketplaceSourceResults(
@@ -381,7 +431,10 @@ export async function listMarketplaceOpportunities(
 
   let unique = deduplicateMarketplaceOpportunities(loaded);
   try {
-    unique = await withTimeout(addMarketplaceActivity(unique), 1_500);
+    unique = await withTimeout(
+      addMarketplaceActivity(unique),
+      MARKETPLACE_ACTIVITY_TIMEOUT_MS,
+    );
   } catch (error) {
     failures.push(sourceFailure("marketplace_activity", requestId, error));
   }

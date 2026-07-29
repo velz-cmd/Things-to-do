@@ -55,6 +55,19 @@ Connection existence, synchronization health, payout readiness, and balance fres
 
 Discover may initiate a funding intent, but Capital remains the final financial authority.
 
+## Discover to Capital Pool handoff
+
+Published Pool actions pass the exact program ID and a safe Discover return path to
+Capital. Capital filters its fundable-program read model to that program and requires
+an explicit review before execution. The review identifies the Pool, amount, Arc
+Testnet USDC asset, RESOLVE fee, confirmed and expected balances, and the active
+distribution rule. The funder cannot edit recipient weights.
+
+The funding panel uses a bounded public read, shows a resource-specific retry when
+that read fails, disables duplicate submission while funding is in progress, and
+keeps submitted and confirmed settlement states separate through the existing
+Capital execution engine. Discover never receives settlement authority.
+
 ## Security and privacy
 
 Readiness snapshots contain only server-selected account state. They do not contain provider tokens, private keys, full raw provider responses, or raw exception text. Snapshot tables have RLS enabled and direct `anon` and `authenticated` Data API access revoked. Public Discover queries return only explicitly public records or safe derived fields.

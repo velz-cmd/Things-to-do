@@ -12,6 +12,7 @@ import { NewMissionModal } from "@/components/resolve/missions/new-mission-modal
 import { AppTopNav } from "@/components/resolve/layout/app-top-nav";
 import { MissionScopeBar } from "@/components/resolve/mission-control/mission-scope-bar";
 import { ResolveBackground } from "@/components/resolve/layout/resolve-background";
+import { PrimaryRouteLoading } from "@/components/resolve/layout/primary-route-loading";
 
 function MissionScopeBarGate() {
   const pathname = usePathname();
@@ -21,7 +22,8 @@ function MissionScopeBarGate() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isDiscover = pathname === "/discover" || pathname.startsWith("/discover/");
+  const isDiscover =
+    pathname === "/discover" || pathname.startsWith("/discover/");
   const isMission = pathname === "/mission" || pathname.startsWith("/mission/");
 
   useEffect(() => {
@@ -30,7 +32,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.toggle("mission-route", isMission);
     document.body.classList.toggle("mission-route", isMission);
     return () => {
-      document.documentElement.classList.remove("discover-route", "mission-route");
+      document.documentElement.classList.remove(
+        "discover-route",
+        "mission-route",
+      );
       document.body.classList.remove("discover-route", "mission-route");
     };
   }, [isDiscover, isMission]);
@@ -38,24 +43,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <CommandProvider>
       <MissionModalProvider>
-        <Suspense fallback={null}>
-          <MissionScopeProvider>
-            <div
-              className={clsx(
-                "relative min-h-screen text-white",
-                isDiscover && "discover-canvas",
-                isMission && "mission-canvas",
-              )}
-            >
-              <ResolveBackground variant={isDiscover || isMission ? "hero" : "app"} />
-              <AppTopNav />
+        <div
+          className={clsx(
+            "relative min-h-screen text-white",
+            isDiscover && "discover-canvas",
+            isMission && "mission-canvas",
+          )}
+        >
+          <ResolveBackground
+            variant={isDiscover || isMission ? "hero" : "app"}
+          />
+          <AppTopNav />
+          <Suspense
+            fallback={
+              <main className="relative flex-1 overflow-auto">
+                <PrimaryRouteLoading label="Loading workspace" />
+              </main>
+            }
+          >
+            <MissionScopeProvider>
               <MissionScopeBarGate />
               <main className="relative flex-1 overflow-auto">{children}</main>
-            </div>
-            <NewMissionModal />
-            <CommandPaletteHost />
-          </MissionScopeProvider>
-        </Suspense>
+            </MissionScopeProvider>
+          </Suspense>
+        </div>
+        <NewMissionModal />
+        <CommandPaletteHost />
       </MissionModalProvider>
     </CommandProvider>
   );

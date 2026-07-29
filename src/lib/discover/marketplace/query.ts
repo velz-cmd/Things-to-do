@@ -28,9 +28,12 @@ const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
 const MARKETPLACE_ACTIVITY_TIMEOUT_MS = 1_000;
 export const DISCOVER_MARKETPLACE_CACHE_TAG = "discover-marketplace-sources";
+export const DISCOVER_MARKETPLACE_ACTIVITY_CACHE_TAG =
+  "discover-marketplace-activity";
 const PAGE_SIZE = 18;
 const SOURCE_LIMIT = 100;
 const SOURCE_CACHE_SECONDS = 60;
+const ACTIVITY_CACHE_SECONDS = 30;
 
 function withTimeout<T>(promise: Promise<T>, ms = SOURCE_TIMEOUT_MS): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -272,6 +275,15 @@ async function addMarketplaceActivity(items: MarketplaceOpportunity[]) {
   });
 }
 
+const addCachedMarketplaceActivity = unstable_cache(
+  addMarketplaceActivity,
+  ["discover-marketplace-activity-v1"],
+  {
+    revalidate: ACTIVITY_CACHE_SECONDS,
+    tags: [DISCOVER_MARKETPLACE_ACTIVITY_CACHE_TAG],
+  },
+);
+
 export function marketplaceOpportunityMatches(
   item: MarketplaceOpportunity,
   filters: OpportunityFilters,
@@ -432,7 +444,7 @@ export async function listMarketplaceOpportunities(
   let unique = deduplicateMarketplaceOpportunities(loaded);
   try {
     unique = await withTimeout(
-      addMarketplaceActivity(unique),
+      addCachedMarketplaceActivity(unique),
       MARKETPLACE_ACTIVITY_TIMEOUT_MS,
     );
   } catch (error) {

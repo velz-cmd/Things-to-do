@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { requireSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { getMarketplaceOpportunityById } from "@/lib/discover/marketplace/query";
+import {
+  DISCOVER_MARKETPLACE_ACTIVITY_CACHE_TAG,
+  getMarketplaceOpportunityById,
+} from "@/lib/discover/marketplace/query";
 
 const schema = z.object({
   opportunityId: z.string().trim().min(1).max(240),
@@ -57,6 +61,7 @@ export async function POST(request: Request) {
       summary: "An application was submitted.",
     },
   });
+  revalidateTag(DISCOVER_MARKETPLACE_ACTIVITY_CACHE_TAG);
   return NextResponse.json(
     { applicationId: application.id, status: application.status },
     { status: 201 },

@@ -1,6 +1,7 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { embeddedWalletFor } from "@/lib/wallet/embedded";
 import type { ProfileBootstrap } from "@/lib/profile/control-plane-bootstrap";
+import type { WorkspaceReadiness } from "@/lib/workspace/readiness-contract";
 
 /**
  * Honest, auth-backed Profile payload when Postgres is unavailable.
@@ -9,8 +10,10 @@ import type { ProfileBootstrap } from "@/lib/profile/control-plane-bootstrap";
 export function offlineProfileBootstrap(
   authUser: SupabaseUser,
   degradedSections: string[] = ["profile_database"],
+  readiness?: WorkspaceReadiness | null,
 ): ProfileBootstrap {
-  const walletAddress = embeddedWalletFor(authUser.id).toLowerCase();
+  const walletAddress =
+    readiness?.wallets.app.address ?? embeddedWalletFor(authUser.id).toLowerCase();
   const generatedAt = new Date().toISOString();
   const emailVerified = Boolean(authUser.email_confirmed_at);
   const displayName =
@@ -38,43 +41,96 @@ export function offlineProfileBootstrap(
       emailVerified,
       displayName,
       avatarUrl: typeof authUser.user_metadata?.avatar_url === "string" ? authUser.user_metadata.avatar_url : null,
-      handle: null,
+      handle: readiness?.github.personal.account?.replace(/^@/, "") ?? null,
     },
     readiness: {
-      identityReady: false,
-      sourceReady: false,
-      payoutReady: false,
+      identityReady: Boolean(
+        readiness &&
+          ["connected", "syncing", "stale"].includes(readiness.identities.github.state),
+      ),
+      sourceReady: Boolean(
+        readiness?.sources.some((source) =>
+          ["connected", "syncing", "stale"].includes(source.state),
+        ),
+      ),
+      payoutReady: readiness?.wallets.payout.state === "connected",
       securityReady: emailVerified,
       blockers: [
-        { id: "identity", label: "Identity records are temporarily unavailable.", destination: "identities" },
-        { id: "source", label: "Connection records are temporarily unavailable.", destination: "sources" },
-        { id: "payout", label: "Payout records are temporarily unavailable.", destination: "wallets" },
+        ...(!readiness || !["connected", "syncing", "stale"].includes(readiness.identities.github.state)
+          ? [{ id: "identity" as const, label: "Connect a personal identity used for attribution.", destination: "identities" as const }]
+          : []),
+        ...(!readiness?.sources.some((source) => ["connected", "syncing", "stale"].includes(source.state))
+          ? [{ id: "source" as const, label: "Connect an evidence source for supported work.", destination: "sources" as const }]
+          : []),
+        ...(readiness?.wallets.payout.state !== "connected"
+          ? [{ id: "payout" as const, label: "Confirm a payout destination before settlement.", destination: "wallets" as const }]
+          : []),
       ],
     },
     identities: [],
-    connections: providers.map(([provider, label, group, purpose, authorizeUrl]) => ({
-      id: `degraded:${provider}`,
-      provider,
-      label,
-      group,
-      account: null,
-      status: "not_connected" as const,
-      health: "unknown" as const,
-      lastSyncAt: null,
-      permissions: [],
-      purpose,
-      authorizeUrl,
-    })),
+    connections: providers.map(([provider, label, group, purpose, authorizeUrl]) => {
+      const shared =
+        provider === "github"
+          ? readiness?.github.personal
+          : readiness?.sources.find((source) => source.provider === provider);
+      const connected = Boolean(
+        shared && ["connected", "syncing", "stale"].includes(shared.state),
+      );
+      return {
+        id: `degraded:${provider}`,
+        provider,
+        label,
+        group,
+        account: shared?.account ?? null,
+        status: connected ? ("connected" as const) : ("not_connected" as const),
+        health:
+          shared?.state === "sync_failed" || shared?.state === "permission_missing"
+            ? ("attention" as const)
+            : connected
+              ? ("healthy" as const)
+              : ("unknown" as const),
+        lastSyncAt: shared?.lastSuccessfulAt ?? null,
+        permissions: [],
+        purpose,
+        authorizeUrl,
+      };
+    }),
     wallets: {
-      appWallet: {
-        id: `embedded:${authUser.id}`,
-        address: walletAddress as `0x${string}`,
-        network: "Arc Testnet",
-        provider: "embedded",
-        status: "derived",
-      },
-      connectedWallet: null,
-      payoutDestination: null,
+      appWallet: readiness?.wallets.app.address
+        ? {
+            id: `persisted:${authUser.id}`,
+            address: readiness.wallets.app.address as `0x${string}`,
+            network: "Arc Testnet",
+            provider: "resolve",
+            status: readiness.wallets.app.state,
+          }
+        : {
+            id: `embedded:${authUser.id}`,
+            address: walletAddress as `0x${string}`,
+            network: "Arc Testnet",
+            provider: "embedded",
+            status: "derived",
+          },
+      connectedWallet: readiness?.wallets.connected.address
+        ? {
+            id: `connected:${readiness.wallets.connected.address}`,
+            address: readiness.wallets.connected.address as `0x${string}`,
+            network: "Arc Testnet",
+            provider: "reown",
+            status: readiness.wallets.connected.state,
+          }
+        : null,
+      payoutDestination: readiness?.wallets.payout.address
+        ? {
+            id: `payout:${readiness.wallets.payout.address}`,
+            address: readiness.wallets.payout.address as `0x${string}`,
+            network: readiness.wallets.payout.network ?? "Arc Testnet",
+            provider: "payout",
+            status: readiness.wallets.payout.state,
+            verificationState:
+              readiness.wallets.payout.state === "connected" ? "verified" : "pending",
+          }
+        : null,
     },
     roles: [],
     claims: [],
@@ -96,7 +152,11 @@ export function offlineProfileBootstrap(
       authenticationMethod: String(authUser.app_metadata?.provider ?? "unknown"),
     },
     activity: [],
-    freshness: { generatedAt, connectionState: "stale", version: generatedAt },
+    freshness: {
+      generatedAt,
+      connectionState: "stale",
+      version: readiness?.computedAt ?? generatedAt,
+    },
     userId: authUser.id,
     email: authUser.email ?? null,
     emailVerified,

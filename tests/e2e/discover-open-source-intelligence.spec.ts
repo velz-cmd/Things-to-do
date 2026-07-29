@@ -1,63 +1,53 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Discover public marketplace", () => {
+test.describe("Discover verified funding network", () => {
   test.setTimeout(120_000);
 
-  test("browses public sections without GitHub, wallet, or profile gates", async ({ page }) => {
+  test("browses every public view without GitHub, wallet, or profile gates", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(
-      page.getByRole("heading", {
-        level: 1,
-        name: "Discover work, people and communities worth backing",
-      }),
+      page.getByRole("heading", { level: 1, name: "Discover verified value" }),
     ).toBeVisible();
-    await expect(page.getByText("Public browsing, no wallet or GitHub connection required")).toBeVisible();
+    await expect(page.getByText("What do you want to support?")).toBeVisible();
     await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
-    await expect(page.getByRole("tablist", { name: "Discover sections" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Communities" }).click();
-    await expect(page).toHaveURL(/view=communities/);
-    await expect(page.getByRole("heading", { name: "Independent Music" })).toBeVisible();
-
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("tab", { name: "Communities" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-
-    await page.getByRole("tab", { name: "Funding Pools" }).click();
-    await expect(page).toHaveURL(/view=pools/);
+    const views = [
+      ["People", "people"],
+      ["Verified Work", "work"],
+      ["Pools", "pools"],
+      ["Programs", "programs"],
+      ["Outcomes", "outcomes"],
+      ["My Communities", "my_communities"],
+      ["For You", "for_you"],
+    ] as const;
+    for (const [label, value] of views) {
+      await page.getByRole("link", { name: label, exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`view=${value}`));
+      await expect(page.getByRole("heading", { level: 1, name: "Discover verified value" })).toBeVisible();
+    }
   });
 
-  test("keeps search and filter state in the URL", async ({ page }) => {
-    await page.goto("/discover?view=opportunities", {
+  test("keeps search and view state in the URL", async ({ page }) => {
+    await page.goto("/discover?view=work", {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
     const search = page.getByPlaceholder(
-      "Search work, skills, communities, creators or repositories",
+      "Search a creator, contributor, community, Pool, program, or verified work",
     );
     await search.fill("typescript");
     await search.press("Enter");
+    await expect(page).toHaveURL(/view=work/);
     await expect(page).toHaveURL(/q=typescript/, { timeout: 10_000 });
-    await page.getByLabel("Opportunity type").selectOption("grant");
-    await page.getByRole("button", { name: "Apply filters" }).click();
-    await expect(page).toHaveURL(/type=grant/);
-    await page.goBack();
-    await expect(page).toHaveURL(/q=typescript/);
   });
 
-  test("is usable at mobile width without horizontal overflow", async ({ page }) => {
+  test("is usable at mobile width without page-level horizontal overflow", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    const filters = page.getByRole("button", { name: /filters/i });
-    await expect(filters).toBeVisible();
-    await expect(filters).toBeEnabled({ timeout: 60_000 });
-    await filters.click();
-    await expect(page.getByRole("dialog", { name: "Filter opportunities" })).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Filter opportunities" })).toBeHidden();
+    await expect(page.getByText("Fund a person")).toBeVisible();
+    await expect(page.getByText("Back a Pool")).toBeVisible();
+    await expect(page.getByText("Fund verified work")).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
@@ -66,15 +56,13 @@ test.describe("Discover public marketplace", () => {
 
   test("opens a shareable opportunity detail when public work exists", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    const details = page.getByRole("link", { name: "View details" }).first();
+    const details = page.getByRole("link", { name: /View proof|Inspect details/ }).first();
     test.skip((await details.count()) === 0, "No public opportunity exists in this isolated database.");
     await details.click();
     await expect(page).toHaveURL(/\/opportunities\//);
     await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Funding" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "People" })).toBeVisible();
-    await page.getByRole("button", { name: "Apply" }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
   });
 
   test("keeps repository publication and Mission creation protected", async ({ request }) => {

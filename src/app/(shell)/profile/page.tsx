@@ -7,16 +7,22 @@ import { getSessionUser } from "@/lib/auth/session";
 import { offlineProfileBootstrap } from "@/lib/profile/bootstrap-fallback";
 import { loadProfileControlPlaneBootstrap } from "@/lib/profile/control-plane-bootstrap";
 import { withTimeout } from "@/lib/discover/fetch-timeout";
+import { loadWorkspaceReadiness } from "@/lib/workspace/readiness";
 
 export const metadata: Metadata = { title: "Profile — RESOLVE", description: "Identity, source, access, and payout controls." };
 
 async function ProfileContent() {
   const user = await getSessionUser();
+  const readiness = user
+    ? await withTimeout(loadWorkspaceReadiness(user.id).catch(() => null), 1_500, null)
+    : null;
   const initialData = user
     ? await withTimeout(
-        loadProfileControlPlaneBootstrap(user).catch(() => offlineProfileBootstrap(user)),
+        loadProfileControlPlaneBootstrap(user).catch(() =>
+          offlineProfileBootstrap(user, ["profile_database"], readiness),
+        ),
         2_500,
-        offlineProfileBootstrap(user, ["profile_database_timeout"]),
+        offlineProfileBootstrap(user, ["profile_database_timeout"], readiness),
       )
     : null;
   return <ProfilePassport initialData={initialData} />;

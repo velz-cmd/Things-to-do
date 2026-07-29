@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { importDiscoverOpportunities } from "@/lib/discover/marketplace/import";
+import { DISCOVER_MARKETPLACE_CACHE_TAG } from "@/lib/discover/marketplace/query";
 import { prisma } from "@/lib/db";
 
 function isAuthorized(request: Request) {
@@ -39,5 +41,6 @@ export async function POST(request: Request) {
       }),
     );
   }
+  revalidateTag(DISCOVER_MARKETPLACE_CACHE_TAG);
   return NextResponse.json({ ok: true, reprocessed: failed.length, reports });
 }

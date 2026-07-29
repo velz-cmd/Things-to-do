@@ -2,26 +2,22 @@
 
 import {
   ArrowRight,
-  Bot,
   BriefcaseBusiness,
   Building2,
-  CalendarClock,
   CheckCircle2,
-  ChevronDown,
   CircleDollarSign,
-  Filter,
+  FileCheck2,
+  History,
   LoaderCircle,
   Search,
   ShieldCheck,
   Sparkles,
+  UserRound,
   Users,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
-import { toast } from "sonner";
-import { useSignInModal } from "@/components/auth/sign-in-context";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type {
   DiscoverCommunity,
   DiscoverPageData,
@@ -29,34 +25,49 @@ import type {
   DiscoverPool,
   DiscoverView,
   MarketplaceOpportunity,
-  OpportunityType,
 } from "@/lib/discover/marketplace/contracts";
 import type {
   OpportunityFilters,
   OpportunitySort,
 } from "@/lib/discover/marketplace/filters";
 
-const views: Array<{ id: DiscoverView; label: string; icon: typeof BriefcaseBusiness }> = [
-  { id: "opportunities", label: "Opportunities", icon: BriefcaseBusiness },
-  { id: "people", label: "People & Agents", icon: Users },
-  { id: "communities", label: "Communities", icon: Building2 },
-  { id: "pools", label: "Funding Pools", icon: CircleDollarSign },
-  { id: "saved", label: "Saved", icon: Sparkles },
+const views: Array<{
+  id: DiscoverView;
+  label: string;
+  icon: typeof BriefcaseBusiness;
+}> = [
+  { id: "for_you", label: "For You", icon: Sparkles },
+  { id: "people", label: "People", icon: Users },
+  { id: "work", label: "Verified Work", icon: FileCheck2 },
+  { id: "pools", label: "Pools", icon: CircleDollarSign },
+  { id: "programs", label: "Programs", icon: BriefcaseBusiness },
+  { id: "outcomes", label: "Outcomes", icon: History },
+  { id: "my_communities", label: "My Communities", icon: Building2 },
 ];
 
-const typeLabels: Record<OpportunityType, string> = {
-  task: "Task",
-  bounty: "Bounty",
-  grant: "Grant",
-  campaign: "Campaign",
-  role: "Role",
-  project_contribution: "Project contribution",
-  repository_fix: "Repository fix",
-  research_request: "Research request",
-  community_proposal: "Community proposal",
-  creator_collaboration: "Creator collaboration",
-  agent_service_request: "Agent service request",
-};
+const pathActions = [
+  {
+    id: "discover.open_people",
+    title: "Fund a person",
+    copy: "Support a verified creator or contributor directly.",
+    href: "/discover?view=people",
+    icon: UserRound,
+  },
+  {
+    id: "discover.open_funding_pools",
+    title: "Back a Pool",
+    copy: "Add capital to a community program whose rules determine distribution.",
+    href: "/discover?view=pools",
+    icon: CircleDollarSign,
+  },
+  {
+    id: "discover.open_verified_work",
+    title: "Fund verified work",
+    copy: "Support completed or proposed work with inspectable evidence.",
+    href: "/discover?view=work",
+    icon: FileCheck2,
+  },
+] as const;
 
 function money(value?: number, token = "USDC") {
   if (value == null) return null;
@@ -64,29 +75,25 @@ function money(value?: number, token = "USDC") {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: value < 100 ? 2 : 0,
-  }).format(value)} ${token === "USDC" ? "USDC" : token}`;
+  }).format(value)}${token === "USDC" ? " USDC" : ` ${token}`}`;
 }
 
-function relativeDate(value: string) {
-  const days = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 86_400_000));
-  if (days === 0) return "Today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
-}
-
-function deadlineLabel(value?: string) {
+function shortAddress(value: string | null) {
   if (!value) return null;
-  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
-  if (days < 0) return "Closed";
-  if (days === 0) return "Closes today";
-  if (days === 1) return "1 day left";
-  return `${days} days left`;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-function track(event: string, properties?: Record<string, string | number | boolean>) {
-  const payload = JSON.stringify({ event, properties, path: window.location.pathname });
+function track(actionId: string, properties?: Record<string, string | number | boolean>) {
+  const payload = JSON.stringify({
+    event: actionId,
+    properties,
+    path: window.location.pathname,
+  });
   if (navigator.sendBeacon) {
-    navigator.sendBeacon("/api/discover/events", new Blob([payload], { type: "application/json" }));
+    navigator.sendBeacon(
+      "/api/discover/events",
+      new Blob([payload], { type: "application/json" }),
+    );
     return;
   }
   void fetch("/api/discover/events", {
@@ -98,100 +105,166 @@ function track(event: string, properties?: Record<string, string | number | bool
 }
 
 function Header({ data }: { data: DiscoverPageData }) {
-  const stats = [
+  const facts = [
     data.stats.openOpportunities
-      ? { label: "Open opportunities", value: data.stats.openOpportunities.toLocaleString() }
+      ? `${data.stats.openOpportunities} public opportunities`
       : null,
     data.stats.activeFundingUsd
-      ? { label: "Active funding", value: money(data.stats.activeFundingUsd) }
+      ? `${money(data.stats.activeFundingUsd)} confirmed funding`
       : null,
     data.stats.activeCommunities
-      ? { label: "Active communities", value: data.stats.activeCommunities.toLocaleString() }
+      ? `${data.stats.activeCommunities} active communities`
       : null,
-    data.stats.verifiedContributors
-      ? {
-          label: "Verified people & agents",
-          value: data.stats.verifiedContributors.toLocaleString(),
-        }
-      : null,
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
-
+  ].filter(Boolean) as string[];
   return (
-    <header className="overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#081222]/90 px-5 py-6 shadow-[0_24px_80px_rgba(0,0,0,.22)] sm:px-8 sm:py-9">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+    <header className="rounded-2xl border border-white/[0.08] bg-[#081321] px-5 py-6 sm:px-7 sm:py-7">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-300">
-            Resolve network
-          </p>
-          <h1 className="mt-2.5 text-3xl font-semibold tracking-[-0.035em] text-white sm:mt-3 sm:text-4xl lg:text-[46px] lg:leading-[1.08]">
-            Discover work, people and communities worth backing
+          <p className="text-xs font-semibold text-violet-300">Discover</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">
+            Discover verified value
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:mt-4 sm:text-base">
-            Find funded opportunities, verified contributors, active communities and transparent funding pools.
+          <p className="mt-3 text-[15px] leading-6 text-slate-300 sm:text-base">
+            Support a person directly, back a community Pool, or fund work with proof.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2 sm:mt-6 sm:gap-2.5">
-            <Link
-              href="/discover?view=opportunities"
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white transition hover:bg-violet-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
-            >
-              Browse opportunities <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/mission?intent=create-opportunity"
-              className="inline-flex min-h-11 items-center rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
-            >
-              Create opportunity
-            </Link>
-            <Link
-              href="/communities"
-              className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-slate-400 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
-            >
-              Create community
-            </Link>
-          </div>
         </div>
-        {stats.length > 0 && (
-          <dl
-            className={`grid min-w-0 gap-px overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.08] xl:w-[430px] ${
-              stats.length > 1 ? "sm:grid-cols-2" : ""
-            }`}
-          >
-            {stats.map((stat) => (
-              <div key={stat.label} className="bg-[#091525] px-4 py-4">
-                <dt className="text-[11px] text-slate-500">{stat.label}</dt>
-                <dd className="mt-1 text-base font-semibold text-white">{stat.value}</dd>
-              </div>
+        {facts.length > 0 && (
+          <ul className="flex max-w-xl flex-wrap gap-x-4 gap-y-2 text-sm text-slate-400">
+            {facts.map((fact) => (
+              <li key={fact} className="inline-flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-cyan-300" />
+                {fact}
+              </li>
             ))}
-          </dl>
+          </ul>
         )}
       </div>
     </header>
   );
 }
 
-function ViewTabs({ active }: { active: DiscoverView }) {
+function SearchBox({
+  filters,
+  view,
+}: {
+  filters: OpportunityFilters;
+  view: DiscoverView;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const currentQueryString = params.toString();
+  const [query, setQuery] = useState(filters.q ?? "");
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setQuery(filters.q ?? "");
+  }, [filters.q]);
+
+  useEffect(() => {
+    if (query === (filters.q ?? "")) return;
+    const timer = window.setTimeout(() => {
+      const next = new URLSearchParams(currentQueryString);
+      next.set("view", view);
+      next.delete("cursor");
+      if (query.trim()) next.set("q", query.trim());
+      else next.delete("q");
+      startTransition(() => router.replace(`${pathname}?${next.toString()}`, { scroll: false }));
+      if (query.trim()) track("discover.search", { queryLength: query.trim().length });
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [currentQueryString, filters.q, pathname, query, router, view]);
+
+  function submitSearch() {
+    const next = new URLSearchParams(currentQueryString);
+    next.set("view", view);
+    next.delete("cursor");
+    if (query.trim()) next.set("q", query.trim());
+    else next.delete("q");
+    startTransition(() => router.push(`${pathname}?${next.toString()}`, { scroll: false }));
+  }
+
+  return (
+    <form
+      className="relative"
+      role="search"
+      action={pathname}
+      method="get"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submitSearch();
+      }}
+    >
+      <input type="hidden" name="view" value={view} />
+      <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+      <input
+        type="search"
+        name="q"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Search a creator, contributor, community, Pool, program, or verified work"
+        aria-label="Search Discover"
+        className="min-h-12 w-full rounded-xl border border-white/10 bg-[#07111f] pl-11 pr-12 text-[15px] text-white outline-none placeholder:text-slate-600 focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/10"
+      />
+      {pending && (
+        <LoaderCircle
+          aria-label="Updating results"
+          className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-violet-300"
+        />
+      )}
+    </form>
+  );
+}
+
+function ViewTabs({ active, query }: { active: DiscoverView; query?: string }) {
+  const [selected, setSelected] = useState(active);
+
+  useEffect(() => {
+    setSelected(active);
+  }, [active]);
+
+  useEffect(() => {
+    if (selected === active) return;
+    const recovery = window.setTimeout(() => setSelected(active), 10_000);
+    return () => window.clearTimeout(recovery);
+  }, [active, selected]);
+
   return (
     <nav
       aria-label="Discover sections"
-      role="tablist"
-      className="mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-white/[0.08] bg-[#07111f]/90 p-1.5"
+      className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#07111f] p-1"
     >
       {views.map((view) => {
         const Icon = view.icon;
+        const suffix = query ? `&q=${encodeURIComponent(query)}` : "";
         return (
           <Link
             key={view.id}
-            href={`/discover?view=${view.id}`}
-            role="tab"
-            aria-selected={active === view.id}
-            className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 ${
-              active === view.id
-                ? "bg-[#17253a] font-semibold text-white shadow-sm"
-                : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"
+            href={`/discover?view=${view.id}${suffix}`}
+            prefetch
+            aria-current={selected === view.id ? "page" : undefined}
+            aria-disabled={selected === view.id && selected !== active}
+            onClick={(event) => {
+              if (selected === view.id && selected !== active) {
+                event.preventDefault();
+                return;
+              }
+              setSelected(view.id);
+            }}
+            className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 ${
+              selected === view.id
+                ? "bg-[#1a2940] font-semibold text-white"
+                : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
             }`}
           >
             <Icon className="h-4 w-4" />
             {view.label}
+            {selected === view.id && selected !== active && (
+              <LoaderCircle
+                aria-label={`Loading ${view.label}`}
+                className="h-3.5 w-3.5 animate-spin text-violet-300"
+              />
+            )}
           </Link>
         );
       })}
@@ -199,675 +272,185 @@ function ViewTabs({ active }: { active: DiscoverView }) {
   );
 }
 
-function SearchAndFilters({
-  filters,
-  total,
-}: {
-  filters: OpportunityFilters;
-  total: number;
-}) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const [query, setQuery] = useState(filters.q ?? "");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const filterButton = useRef<HTMLButtonElement>(null);
-  const closeButton = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-
-  const update = (changes: Record<string, string | undefined>, replace = true) => {
-    const next = new URLSearchParams(params.toString());
-    next.set("view", "opportunities");
-    next.delete("cursor");
-    for (const [key, value] of Object.entries(changes)) {
-      if (value) next.set(key, value);
-      else next.delete(key);
-    }
-    const href = `${pathname}?${next.toString()}`;
-    if (replace) window.history.replaceState(null, "", href);
-    else window.history.pushState(null, "", href);
-    startTransition(() => router.refresh());
-  };
-
-  useEffect(() => {
-    if (query === (filters.q ?? "")) return;
-    const timer = setTimeout(() => {
-      update({ q: query || undefined }, false);
-      if (query) track("discover_search_used", { queryLength: query.length });
-    }, 320);
-    return () => clearTimeout(timer);
-    // The current filters value is the server-confirmed query.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, filters.q]);
-
-  useEffect(() => {
-    if (!drawerOpen) return;
-    closeButton.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setDrawerOpen(false);
-        window.setTimeout(() => filterButton.current?.focus(), 0);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [drawerOpen]);
-
-  const closeDrawer = () => {
-    setDrawerOpen(false);
-    window.setTimeout(() => filterButton.current?.focus(), 0);
-  };
-
-  const filterCount = [
-    filters.type,
-    filters.fundingStatus,
-    filters.provider,
-    filters.remote,
-    filters.deadline,
-  ].filter(Boolean).length;
-  const activeFilters = [
-    filters.type ? { key: "type", label: typeLabels[filters.type] } : null,
-    filters.fundingStatus
-      ? {
-          key: "funding",
-          label: filters.fundingStatus.replaceAll("_", " "),
-        }
-      : null,
-    filters.provider
-      ? { key: "provider", label: filters.provider.replaceAll("_", " ") }
-      : null,
-    filters.remote ? { key: "remote", label: "Remote" } : null,
-    filters.deadline
-      ? {
-          key: "deadline",
-          label: filters.deadline === "week" ? "Closing this week" : "Closing this month",
-        }
-      : null,
-  ].filter(Boolean) as Array<{ key: string; label: string }>;
-
-  const withoutFilter = (key: string) => {
-    const next = new URLSearchParams(params.toString());
-    next.delete(key);
-    next.delete("cursor");
-    return `${pathname}?${next.toString()}`;
-  };
-
-  const controls = (
-    <>
-      <label className="block text-xs font-medium text-slate-400">
-        Opportunity type
-        <select
-          name="type"
-          defaultValue={filters.type ?? ""}
-          onChange={(event) => {
-            update({ type: event.target.value || undefined }, false);
-            if (event.target.value) track("discover_filter_applied", { filter: "type" });
-          }}
-          className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#07101d] px-3 text-sm text-white focus:border-violet-400 focus:outline-none"
-        >
-          <option value="">All types</option>
-          {(Object.keys(typeLabels) as OpportunityType[]).map((type) => (
-            <option key={type} value={type}>
-              {typeLabels[type]}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="block text-xs font-medium text-slate-400">
-        Funding
-        <select
-          name="funding"
-          defaultValue={filters.fundingStatus ?? ""}
-          onChange={(event) => update({ funding: event.target.value || undefined }, false)}
-          className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#07101d] px-3 text-sm text-white focus:border-violet-400 focus:outline-none"
-        >
-          <option value="">Any status</option>
-          <option value="unfunded">Unfunded</option>
-          <option value="partially_funded">Partially funded</option>
-          <option value="funded">Funded</option>
-          <option value="escrowed">Escrowed</option>
-          <option value="milestone_funded">Milestone funded</option>
-        </select>
-      </label>
-      <label className="block text-xs font-medium text-slate-400">
-        Provider
-        <select
-          name="provider"
-          defaultValue={filters.provider ?? ""}
-          onChange={(event) => update({ provider: event.target.value || undefined }, false)}
-          className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#07101d] px-3 text-sm text-white focus:border-violet-400 focus:outline-none"
-        >
-          <option value="">Any preference</option>
-          <option value="open">Open to applications</option>
-          <option value="preferred">Preferred provider</option>
-          <option value="selected">Provider selected</option>
-          <option value="invite_only">Invite only</option>
-        </select>
-      </label>
-      <label className="flex min-h-11 items-center gap-3 rounded-xl border border-white/10 px-3 text-sm text-slate-300">
-        <input
-          type="checkbox"
-          name="remote"
-          value="true"
-          defaultChecked={filters.remote === true}
-          onChange={(event) => update({ remote: event.target.checked ? "true" : undefined }, false)}
-          className="h-4 w-4 accent-violet-500"
-        />
-        Remote
-      </label>
-      <label className="block text-xs font-medium text-slate-400">
-        Deadline
-        <select
-          name="deadline"
-          defaultValue={filters.deadline ?? ""}
-          onChange={(event) => update({ deadline: event.target.value || undefined }, false)}
-          className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-[#07101d] px-3 text-sm text-white focus:border-violet-400 focus:outline-none"
-        >
-          <option value="">Any deadline</option>
-          <option value="week">Closing this week</option>
-          <option value="month">Closing this month</option>
-        </select>
-      </label>
-      <button
-        type="submit"
-        className="min-h-11 rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 hover:bg-violet-500/20"
-      >
-        Apply filters
-      </button>
-      {filterCount > 0 && (
-        <Link
-          href={`/discover?view=opportunities${filters.q ? `&q=${encodeURIComponent(filters.q)}` : ""}`}
-          className="min-h-11 text-sm font-medium text-violet-300 hover:text-violet-200"
-        >
-          Clear all filters
-        </Link>
-      )}
-    </>
-  );
-
+function FundingPaths() {
   return (
-    <section aria-label="Search and filter opportunities" className="mt-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <form
-          action="/discover"
-          method="get"
-          className="relative flex-1"
-          onSubmit={() => {
-            if (query) track("discover_search_used", { queryLength: query.length });
-          }}
-        >
-          <input type="hidden" name="view" value="opportunities" />
-          {filters.type && <input type="hidden" name="type" value={filters.type} />}
-          {filters.fundingStatus && (
-            <input type="hidden" name="funding" value={filters.fundingStatus} />
-          )}
-          {filters.provider && <input type="hidden" name="provider" value={filters.provider} />}
-          {filters.remote && <input type="hidden" name="remote" value="true" />}
-          {filters.deadline && <input type="hidden" name="deadline" value={filters.deadline} />}
-          {filters.sort !== "newest" && <input type="hidden" name="sort" value={filters.sort} />}
-          <label>
-            <span className="sr-only">Search opportunities</span>
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              name="q"
-              defaultValue={filters.q ?? ""}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search work, skills, communities, creators or repositories"
-              className="min-h-12 w-full rounded-2xl border border-white/10 bg-[#07111f] pl-11 pr-24 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-400/10"
-            />
-          </label>
-          <button
-            type="submit"
-            className="absolute right-2 top-1/2 min-h-9 -translate-y-1/2 rounded-xl px-3 text-xs font-semibold text-violet-200 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
-          >
-            {pending ? (
-              <LoaderCircle aria-label="Updating results" className="h-4 w-4 animate-spin" />
-            ) : (
-              "Search"
-            )}
-          </button>
-        </form>
-        <div className="flex items-center gap-2">
-          <button
-            ref={filterButton}
-            type="button"
-            disabled={!hydrated}
-            aria-busy={!hydrated}
-            onClick={() => setDrawerOpen(true)}
-            className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/10 bg-[#07111f] px-4 text-sm text-slate-200 disabled:cursor-wait disabled:text-slate-500 lg:hidden"
-          >
-            {hydrated ? <Filter className="h-4 w-4" /> : <LoaderCircle className="h-4 w-4 animate-spin" />}
-            {hydrated ? `Filters${filterCount > 0 ? ` (${filterCount})` : ""}` : "Loading filters"}
-          </button>
-          <label className="flex min-h-12 flex-1 items-center rounded-xl border border-white/10 bg-[#07111f] px-3 text-sm text-slate-400 lg:flex-none">
-            <span className="sr-only">Sort opportunities</span>
-            <select
-              value={filters.sort}
-              onChange={(event) => update({ sort: event.target.value }, false)}
-              className="w-full bg-transparent text-sm text-slate-200 outline-none"
-            >
-              <option value="newest">Newest</option>
-              <option value="closing_soon">Closing soon</option>
-              <option value="most_funded">Most funded</option>
-              <option value="most_active">Most active</option>
-            </select>
-            <ChevronDown className="ml-2 h-4 w-4" />
-          </label>
+    <section aria-labelledby="funding-paths-title">
+      <div className="mb-3 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold text-cyan-300">Choose a funding path</p>
+          <h2 id="funding-paths-title" className="mt-1 text-lg font-semibold text-white">
+            What do you want to support?
+          </h2>
         </div>
       </div>
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-        <p aria-live="polite">{total === 1 ? "1 opportunity" : `${total} opportunities`}</p>
-        <p>Public browsing, no wallet or GitHub connection required</p>
-      </div>
-      {activeFilters.length > 0 && (
-        <div aria-label="Active filters" className="mt-3 flex flex-wrap gap-2">
-          {activeFilters.map((filter) => (
+      <div className="grid gap-3 lg:grid-cols-3">
+        {pathActions.map((action) => {
+          const Icon = action.icon;
+          return (
             <Link
-              key={filter.key}
-              href={withoutFilter(filter.key)}
-              className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-violet-400/20 bg-violet-400/10 px-3 text-xs capitalize text-violet-200 hover:bg-violet-400/15"
-              aria-label={`Remove ${filter.label} filter`}
+              key={action.id}
+              href={action.href}
+              data-action-id={action.id}
+              onClick={() => track(action.id)}
+              className="group rounded-xl border border-white/[0.08] bg-[#091522] p-4 transition hover:border-violet-300/30 hover:bg-[#0b1929] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
             >
-              {filter.label}
-              <X className="h-3 w-3" />
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/10 text-violet-200">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div>
+                  <h3 className="font-semibold text-white">{action.title}</h3>
+                  <p className="mt-1 text-sm leading-5 text-slate-400">{action.copy}</p>
+                </div>
+                <ArrowRight className="ml-auto mt-1 h-4 w-4 text-slate-600 transition group-hover:translate-x-0.5 group-hover:text-violet-300" />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function Recommendation({ data }: { data: DiscoverPageData }) {
+  const recommendation = data.recommendation;
+  return (
+    <section className="rounded-xl border border-violet-300/15 bg-[linear-gradient(125deg,rgba(102,85,220,.13),rgba(7,17,31,.96)_48%)] p-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="max-w-3xl">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-violet-300" />
+            <p className="text-xs font-semibold text-violet-200">Recommended Now</p>
+            <span className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-slate-400">
+              {recommendation.state.replaceAll("_", " ")}
+            </span>
+          </div>
+          <h2 className="mt-2 text-lg font-semibold text-white">{recommendation.title}</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-400">{recommendation.reason}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {recommendation.secondaryActions.map((action) => (
+            <Link
+              key={action.href}
+              href={action.href}
+              className="inline-flex min-h-10 items-center rounded-lg border border-white/10 px-3 text-sm text-slate-300 hover:bg-white/[0.05]"
+            >
+              {action.label}
             </Link>
           ))}
           <Link
-            href={`/discover?view=opportunities${filters.q ? `&q=${encodeURIComponent(filters.q)}` : ""}`}
-            className="inline-flex min-h-8 items-center px-2 text-xs font-medium text-slate-400 hover:text-white"
+            href={recommendation.primaryAction.href}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white hover:bg-violet-400"
           >
-            Clear all
+            {recommendation.primaryAction.label}
+            <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
-      )}
-      {drawerOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="filter-title"
-          className="fixed inset-0 z-[80] flex items-end bg-black/65 lg:hidden"
-        >
-          <form
-            action="/discover"
-            method="get"
-            className="max-h-[85vh] w-full overflow-y-auto rounded-t-[28px] border border-white/10 bg-[#07111f] p-5"
-          >
-            <input type="hidden" name="view" value="opportunities" />
-            {filters.q && <input type="hidden" name="q" value={filters.q} />}
-            {filters.sort !== "newest" && <input type="hidden" name="sort" value={filters.sort} />}
-            <div className="flex items-center justify-between">
-              <h2 id="filter-title" className="text-lg font-semibold text-white">
-                Filter opportunities
-              </h2>
-              <button
-                ref={closeButton}
-                type="button"
-                aria-label="Close filters"
-                onClick={closeDrawer}
-                className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-slate-300"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mt-5 grid gap-4">{controls}</div>
-            <button
-              type="submit"
-              onClick={closeDrawer}
-              className="mt-6 min-h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold text-white"
-            >
-              Show {total} results
-            </button>
-          </form>
-        </div>
-      )}
-      <form
-        action="/discover"
-        method="get"
-        className="mt-5 hidden grid-cols-5 gap-3 lg:grid"
-      >
-        <input type="hidden" name="view" value="opportunities" />
-        {filters.q && <input type="hidden" name="q" value={filters.q} />}
-        {filters.sort !== "newest" && <input type="hidden" name="sort" value={filters.sort} />}
-        {controls}
-      </form>
+      </div>
     </section>
   );
 }
 
-function ProviderStatus({ opportunity }: { opportunity: MarketplaceOpportunity }) {
-  if (opportunity.provider.selected) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300">
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        Assigned to {opportunity.provider.selected.name}
-      </span>
-    );
-  }
-  if (opportunity.provider.preferred) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-violet-300">
-        <Sparkles className="h-3.5 w-3.5" />
-        Preferred: {opportunity.provider.preferred.name}
-      </span>
-    );
-  }
-  return (
-    <span className="text-xs text-slate-400">
-      {opportunity.provider.preference === "invite_only"
-        ? "Invite only"
-        : "Open to applications"}
-    </span>
-  );
-}
-
-function OpportunityCard({
-  opportunity,
-  saved,
-  signedIn,
-  onSave,
-}: {
-  opportunity: MarketplaceOpportunity;
-  saved: boolean;
-  signedIn: boolean;
-  onSave: (opportunity: MarketplaceOpportunity) => void;
-}) {
-  const reward = money(opportunity.reward?.amountUsd, opportunity.reward?.token);
-  const funded = money(opportunity.funding?.fundedAmountUsd);
-  const deadline = deadlineLabel(opportunity.deadline);
-
-  return (
-    <article className="group flex h-full flex-col rounded-2xl border border-white/[0.08] bg-[#091321]/95 p-5 transition hover:-translate-y-0.5 hover:border-violet-300/25 hover:shadow-[0_20px_50px_rgba(0,0,0,.2)] motion-reduce:transform-none sm:p-6">
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="rounded-full bg-violet-400/10 px-2.5 py-1 font-medium text-violet-200">
-          {typeLabels[opportunity.type]}
-        </span>
-        <span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-slate-400">
-          {opportunity.status}
-        </span>
-        {opportunity.creator.verified && (
-          <span className="inline-flex items-center gap-1 text-cyan-300">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Verified
-          </span>
-        )}
-        <span className="ml-auto text-slate-600">{relativeDate(opportunity.publishedAt)}</span>
-      </div>
-      <div className="mt-5 flex items-center gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-sm font-semibold text-white">
-          {opportunity.creator.type === "agent" ? (
-            <Bot className="h-5 w-5 text-violet-300" />
-          ) : (
-            opportunity.creator.name.slice(0, 1).toUpperCase()
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-200">{opportunity.creator.name}</p>
-          <p className="truncate text-xs text-slate-500">
-            {opportunity.community?.name ?? opportunity.creator.type}
-          </p>
-        </div>
-      </div>
-      <div className="mt-5">
-        <h2 className="text-lg font-semibold leading-6 text-white transition group-hover:text-violet-100">
-          <Link
-            href={`/opportunities/${opportunity.slug}`}
-            onClick={() => track("opportunity_viewed", { type: opportunity.type })}
-            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
-          >
-            {opportunity.title}
-          </Link>
-        </h2>
-        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">{opportunity.summary}</p>
-        {(opportunity.repository || opportunity.projectId) && (
-          <p className="mt-3 truncate font-mono text-[11px] text-slate-500">
-            {opportunity.repository ?? opportunity.projectId}
-          </p>
-        )}
-      </div>
-      <dl className="mt-5 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-4 text-xs">
-        {reward && (
-          <div>
-            <dt className="text-slate-600">Reward</dt>
-            <dd className="mt-1 font-semibold text-white">{reward}</dd>
-          </div>
-        )}
-        {funded && (
-          <div>
-            <dt className="text-slate-600">Funded</dt>
-            <dd className="mt-1 font-semibold text-emerald-300">{funded}</dd>
-          </div>
-        )}
-        {deadline && (
-          <div>
-            <dt className="text-slate-600">Deadline</dt>
-            <dd className="mt-1 inline-flex items-center gap-1 text-slate-300">
-              <CalendarClock className="h-3.5 w-3.5" /> {deadline}
-            </dd>
-          </div>
-        )}
-        {opportunity.applicationCount != null && (
-          <div>
-            <dt className="text-slate-600">Applications</dt>
-            <dd className="mt-1 text-slate-300">{opportunity.applicationCount}</dd>
-          </div>
-        )}
-      </dl>
-      {opportunity.skills.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {opportunity.skills.slice(0, 4).map((skill) => (
-            <span key={skill} className="rounded-lg bg-white/[0.045] px-2 py-1 text-[11px] text-slate-400">
-              {skill}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="mt-4">
-        <ProviderStatus opportunity={opportunity} />
-      </div>
-      <div className="mt-auto flex items-center gap-2 pt-5">
-        <Link
-          href={`/opportunities/${opportunity.slug}`}
-          className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-violet-500 px-3 text-sm font-semibold text-white transition hover:bg-violet-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
-        >
-          View details <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-        <button
-          type="button"
-          aria-pressed={saved}
-          onClick={() => onSave(opportunity)}
-          className="min-h-10 rounded-xl border border-white/10 px-3 text-sm text-slate-300 transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
-        >
-          {saved ? "Saved" : signedIn ? "Save" : "Save"}
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function EmptyState({
-  title,
-  body,
-  children,
-}: {
-  title: string;
-  body: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-6 py-14 text-center">
-      <h2 className="text-lg font-semibold text-white">{title}</h2>
-      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">{body}</p>
-      {children && <div className="mt-5 flex flex-wrap justify-center gap-2">{children}</div>}
-    </section>
-  );
-}
-
-function OpportunityGrid({
+function SourceFailure({
   data,
 }: {
   data: DiscoverPageData;
 }) {
-  const { openSignIn } = useSignInModal();
-  const [savedIds, setSavedIds] = useState(() => new Set(data.savedIds));
-  const [saving, setSaving] = useState<string | null>(null);
-  const params = useSearchParams();
-
-  const onSave = async (opportunity: MarketplaceOpportunity) => {
-    if (!data.signedIn) {
-      openSignIn();
-      return;
-    }
-    if (saving) return;
-    const alreadySaved = savedIds.has(opportunity.id);
-    setSaving(opportunity.id);
-    setSavedIds((current) => {
-      const next = new Set(current);
-      if (alreadySaved) next.delete(opportunity.id);
-      else next.add(opportunity.id);
-      return next;
-    });
-    try {
-      const response = await fetch("/api/discover/saved", {
-        method: alreadySaved ? "DELETE" : "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ targetType: "opportunity", targetId: opportunity.id }),
-      });
-      if (!response.ok) throw new Error("Save request failed");
-      if (!alreadySaved) track("opportunity_saved", { type: opportunity.type });
-    } catch {
-      setSavedIds((current) => {
-        const next = new Set(current);
-        if (alreadySaved) next.add(opportunity.id);
-        else next.delete(opportunity.id);
-        return next;
-      });
-      toast.error("Could not update saved items. Your current page state is unchanged.");
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  const visible =
-    data.view === "saved"
-      ? data.opportunities.items.filter((item) => savedIds.has(item.id))
-      : data.opportunities.items;
-
-  if (data.view === "saved" && !data.signedIn) {
-    return (
-      <EmptyState
-        title="Sign in to see saved items"
-        body="Public browsing remains open. Sign in only when you want to save something for later."
-      >
-        <button
-          type="button"
-          onClick={openSignIn}
-          className="min-h-10 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white"
-        >
-          Sign in
-        </button>
-        <Link href="/discover?view=opportunities" className="min-h-10 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-300">
-          Browse opportunities
-        </Link>
-      </EmptyState>
-    );
-  }
-
-  if (!visible.length) {
-    return (
-      <EmptyState
-        title={data.view === "saved" ? "No saved items yet" : "No opportunities match these filters"}
-        body={
-          data.view === "saved"
-            ? "Save opportunities, people, communities or pools to revisit them here."
-            : "Try a broader search or clear the active filters."
-        }
-      >
-        <Link
-          href="/discover?view=opportunities"
-          className="min-h-10 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          {data.view === "saved" ? "Browse opportunities" : "Clear filters"}
-        </Link>
-        <Link
-          href="/mission?intent=create-opportunity"
-          className="min-h-10 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-slate-300"
-        >
-          Create an opportunity
-        </Link>
-      </EmptyState>
-    );
-  }
-
-  const next = data.opportunities.nextCursor
-    ? new URLSearchParams(params.toString())
-    : null;
-  if (next && data.opportunities.nextCursor) next.set("cursor", data.opportunities.nextCursor);
-
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const failure = data.opportunities.failures[0];
+  if (!failure) return null;
   return (
-    <>
-      <div className="grid gap-4 lg:grid-cols-2">
-        {visible.map((opportunity) => (
-          <OpportunityCard
-            key={opportunity.id}
-            opportunity={opportunity}
-            saved={savedIds.has(opportunity.id)}
-            signedIn={data.signedIn}
-            onSave={onSave}
-          />
-        ))}
+    <aside
+      role="status"
+      className="flex flex-col gap-3 rounded-xl border border-amber-300/15 bg-amber-300/[0.04] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div>
+        <p className="text-sm text-amber-100">
+          {failure.source.replaceAll("_", " ")} could not refresh. Confirmed results from
+          other sources remain visible.
+        </p>
+        <p className="mt-1 text-xs text-amber-200/60">
+          {failure.message} Request {failure.requestId.slice(0, 8)}.
+        </p>
       </div>
-      {next && (
-        <div className="mt-6 flex justify-center">
-          <Link
-            href={`/discover?${next.toString()}`}
-            className="min-h-11 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-slate-200 hover:bg-white/[0.07]"
-          >
-            Load more
-          </Link>
-        </div>
-      )}
-    </>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startTransition(() => {
+            track("discover.retry-source", { source: failure.source });
+            router.refresh();
+          })
+        }
+        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-amber-200/20 px-3 text-xs font-medium text-amber-100 disabled:opacity-50"
+      >
+        {pending && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+        Retry {failure.source.replaceAll("_", " ")}
+      </button>
+    </aside>
   );
 }
 
-function PersonCard({ person }: { person: DiscoverPerson }) {
+function OpportunityCard({ item }: { item: MarketplaceOpportunity }) {
+  const isPool = Boolean(item.pool);
+  const isWork =
+    item.source.type === "repository_snapshot" ||
+    ["repository_fix", "project_contribution", "task", "bounty"].includes(item.type);
+  const amount = money(item.reward?.amountUsd, item.reward?.token);
+  const funded = money(item.funding?.fundedAmountUsd);
+  const detailPath = `/opportunities/${item.slug}`;
   return (
-    <article className="rounded-2xl border border-white/[0.08] bg-[#091321] p-5">
-      <div className="flex items-start gap-4">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-violet-400/10 text-violet-200">
-          {person.kind === "agent" ? <Bot className="h-6 w-6" /> : person.name.slice(0, 1)}
-        </div>
-        <div className="min-w-0">
-          <p className="font-semibold text-white">{person.name}</p>
-          <p className="mt-1 text-xs capitalize text-slate-500">{person.kind}</p>
-        </div>
-        {person.verifiedIdentities.length > 0 && <ShieldCheck className="ml-auto h-5 w-5 text-cyan-300" />}
+    <article className="flex h-full flex-col rounded-xl border border-white/[0.08] bg-[#091522] p-5">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="rounded-full bg-violet-400/10 px-2.5 py-1 text-violet-200">
+          {isPool ? "Community Pool" : isWork ? "Verified work" : item.type.replaceAll("_", " ")}
+        </span>
+        <span className="inline-flex items-center gap-1 text-cyan-300">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          {item.verificationStatus.replaceAll("_", " ")}
+        </span>
       </div>
-      {person.description && <p className="mt-4 text-sm leading-6 text-slate-400">{person.description}</p>}
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {person.verifiedIdentities.map((identity) => (
-          <span key={identity} className="rounded-lg bg-white/[0.05] px-2 py-1 text-[11px] text-slate-400">
-            {identity}
-          </span>
-        ))}
-      </div>
-      {person.amountEarnedUsd != null && (
-        <p className="mt-4 text-sm text-slate-400">
-          Public verified earnings <strong className="text-white">{money(person.amountEarnedUsd)}</strong>
-        </p>
-      )}
-      <div className="mt-5 flex gap-2">
-        <Link href={`/profile?identity=${encodeURIComponent(person.id)}`} onClick={() => track("provider_viewed", { kind: person.kind })} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-3 py-2.5 text-center text-sm font-semibold text-white">
-          View profile
+      <h3 className="mt-4 text-lg font-semibold leading-6 text-white">{item.title}</h3>
+      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">{item.summary}</p>
+      <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-4 text-xs">
+        <div>
+          <dt className="text-slate-500">Source</dt>
+          <dd className="mt-1 text-slate-200">{item.source.type.replaceAll("_", " ")}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Community</dt>
+          <dd className="mt-1 text-slate-200">{item.community?.name ?? "Independent"}</dd>
+        </div>
+        {amount && (
+          <div>
+            <dt className="text-slate-500">Target or reward</dt>
+            <dd className="mt-1 font-medium text-white">{amount}</dd>
+          </div>
+        )}
+        {funded && (
+          <div>
+            <dt className="text-slate-500">Confirmed funded</dt>
+            <dd className="mt-1 font-medium text-emerald-300">{funded}</dd>
+          </div>
+        )}
+      </dl>
+      <div className="mt-auto flex flex-wrap gap-2 pt-4">
+        <Link
+          href={detailPath}
+          onClick={() => track("discover.inspect-proof", { opportunity: item.id })}
+          className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-violet-500 px-3 text-sm font-semibold text-white hover:bg-violet-400"
+        >
+          {isWork ? "View proof" : "Inspect details"}
+          <ArrowRight className="h-4 w-4" />
         </Link>
-        {person.acceptsInvitations && (
-          <Link href={`/mission?invite=${encodeURIComponent(person.id)}`} className="min-h-10 rounded-xl border border-white/10 px-3 py-2.5 text-sm text-slate-300">
-            Invite
+        {isPool && (
+          <Link
+            href={`/capital?intent=back-pool&programId=${encodeURIComponent(item.source.id)}&returnTo=${encodeURIComponent(detailPath)}`}
+            onClick={() => track("discover.back-pool", { opportunity: item.id })}
+            className="inline-flex min-h-10 items-center rounded-lg border border-emerald-300/20 px-3 text-sm text-emerald-200 hover:bg-emerald-300/5"
+          >
+            Back Pool
           </Link>
         )}
       </div>
@@ -875,37 +458,77 @@ function PersonCard({ person }: { person: DiscoverPerson }) {
   );
 }
 
-function CommunityCard({ community }: { community: DiscoverCommunity }) {
+function OpportunityGrid({
+  items,
+  emptyTitle,
+  emptyBody,
+}: {
+  items: MarketplaceOpportunity[];
+  emptyTitle: string;
+  emptyBody: string;
+}) {
+  if (!items.length) return <EmptyState title={emptyTitle} body={emptyBody} />;
   return (
-    <article className="rounded-2xl border border-white/[0.08] bg-[#091321] p-5">
-      <div className="flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-xl bg-cyan-400/10 text-cyan-300">
-          <Building2 className="h-5 w-5" />
+    <div className="grid gap-4 lg:grid-cols-2">
+      {items.map((item) => (
+        <OpportunityCard key={item.id} item={item} />
+      ))}
+    </div>
+  );
+}
+
+function PersonCard({ person }: { person: DiscoverPerson }) {
+  const primaryPath = person.acceptsDirectFunding
+    ? `/capital?intent=direct-support&recipient=${encodeURIComponent(person.id)}&returnTo=${encodeURIComponent(person.profilePath ?? "/discover?view=people")}`
+    : `/mission?intent=invite-to-claim&recipient=${encodeURIComponent(person.id)}&returnTo=${encodeURIComponent("/discover?view=people")}`;
+  return (
+    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-400/10 text-violet-200">
+          <UserRound className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="font-semibold text-white">{person.name}</h3>
+          <p className="mt-1 text-xs capitalize text-slate-500">{person.kind}</p>
         </div>
-        <div>
-          <h2 className="font-semibold text-white">{community.name}</h2>
-          <p className="mt-0.5 text-xs capitalize text-slate-500">{community.type}</p>
-        </div>
-        {community.verified && <ShieldCheck className="ml-auto h-4 w-4 text-cyan-300" />}
+        <ShieldCheck className="ml-auto h-4 w-4 text-cyan-300" />
       </div>
-      <p className="mt-4 min-h-12 text-sm leading-6 text-slate-400">{community.purpose}</p>
-      <dl className="mt-4 flex flex-wrap gap-5 border-y border-white/[0.07] py-4 text-xs">
-        {community.activeOpportunities != null && (
-          <div><dt className="text-slate-600">Opportunities</dt><dd className="mt-1 text-white">{community.activeOpportunities}</dd></div>
-        )}
-        {community.activePools != null && (
-          <div><dt className="text-slate-600">Pools</dt><dd className="mt-1 text-white">{community.activePools}</dd></div>
-        )}
-        {community.publicFundingUsd != null && (
-          <div><dt className="text-slate-600">Public funding</dt><dd className="mt-1 text-emerald-300">{money(community.publicFundingUsd)}</dd></div>
-        )}
-      </dl>
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {person.verifiedIdentities.map((identity) => (
+          <span
+            key={identity}
+            className="rounded-full border border-white/[0.08] px-2.5 py-1 text-xs text-slate-300"
+          >
+            {identity}
+          </span>
+        ))}
+      </div>
+      <p className="mt-4 text-sm text-slate-400">
+        Direct support:{" "}
+        <span className={person.acceptsDirectFunding ? "text-emerald-300" : "text-amber-200"}>
+          {person.acceptsDirectFunding ? "Ready" : "Invite to claim"}
+        </span>
+      </p>
       <div className="mt-5 flex gap-2">
-        <Link href={`/communities/${community.slug}`} onClick={() => track("community_viewed")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-3 py-2.5 text-center text-sm font-semibold text-white">
-          View community
+        <Link
+          href={primaryPath}
+          onClick={() =>
+            track(
+              person.acceptsDirectFunding
+                ? "discover.support-person"
+                : "discover.invite-person",
+              { person: person.id },
+            )
+          }
+          className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg bg-violet-500 px-3 text-sm font-semibold text-white hover:bg-violet-400"
+        >
+          {person.acceptsDirectFunding ? "Support directly" : "Invite to claim"}
         </Link>
-        <Link href={`/discover?view=opportunities&community=${community.slug}`} className="min-h-10 rounded-xl border border-white/10 px-3 py-2.5 text-sm text-slate-300">
-          View work
+        <Link
+          href={person.profilePath ?? `/discover?view=people&person=${person.id}`}
+          className="inline-flex min-h-10 items-center rounded-lg border border-white/10 px-3 text-sm text-slate-300"
+        >
+          View profile
         </Link>
       </div>
     </article>
@@ -913,51 +536,190 @@ function CommunityCard({ community }: { community: DiscoverCommunity }) {
 }
 
 function PoolCard({ pool }: { pool: DiscoverPool }) {
+  const returnTo = `/discover?view=pools&pool=${encodeURIComponent(pool.id)}`;
   return (
-    <article className="rounded-2xl border border-white/[0.08] bg-[#091321] p-5">
+    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
       <div className="flex items-start gap-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-400/10 text-emerald-300">
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-400/10 text-emerald-300">
           <CircleDollarSign className="h-5 w-5" />
-        </div>
+        </span>
         <div>
-          <h2 className="font-semibold text-white">{pool.name}</h2>
+          <h3 className="font-semibold text-white">{pool.name}</h3>
           <p className="mt-1 text-xs text-slate-500">{pool.owner}</p>
         </div>
       </div>
-      {pool.purpose && <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-400">{pool.purpose}</p>}
+      {pool.purpose && (
+        <p className="mt-4 text-sm leading-6 text-slate-400">{pool.purpose}</p>
+      )}
       <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-4 text-xs">
-        {pool.balanceUsd != null && <div><dt className="text-slate-600">Current balance</dt><dd className="mt-1 font-semibold text-white">{money(pool.balanceUsd, pool.token)}</dd></div>}
-        {pool.committedUsd != null && <div><dt className="text-slate-600">Committed</dt><dd className="mt-1 font-semibold text-emerald-300">{money(pool.committedUsd, pool.token)}</dd></div>}
-        {pool.applicationModel && <div><dt className="text-slate-600">Applications</dt><dd className="mt-1 text-slate-300">{pool.applicationModel}</dd></div>}
-        {pool.verificationMechanism && <div><dt className="text-slate-600">Verification</dt><dd className="mt-1 line-clamp-2 text-slate-300">{pool.verificationMechanism}</dd></div>}
+        <div>
+          <dt className="text-slate-500">Confirmed balance</dt>
+          <dd className="mt-1 font-medium text-white">
+            {money(pool.balanceUsd, pool.token) ?? "No confirmed balance"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Distribution</dt>
+          <dd className="mt-1 text-slate-200">Program rule controlled</dd>
+        </div>
       </dl>
       <div className="mt-5 flex gap-2">
-        <Link href={`/capital?pool=${encodeURIComponent(pool.id)}`} onClick={() => track("pool_viewed")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-3 py-2.5 text-center text-sm font-semibold text-white">
-          View pool
+        <Link
+          href={`/capital?intent=back-pool&programId=${encodeURIComponent(pool.id)}&returnTo=${encodeURIComponent(returnTo)}`}
+          onClick={() => track("discover.back-pool", { pool: pool.id })}
+          className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg bg-violet-500 px-3 text-sm font-semibold text-white"
+        >
+          Back this Pool
         </Link>
-        <Link href={`/discover?view=opportunities&community=${encodeURIComponent(pool.communitySlug)}`} className="min-h-10 rounded-xl border border-white/10 px-3 py-2.5 text-sm text-slate-300">
-          Funded work
+        <Link
+          href={`/discover?view=programs&q=${encodeURIComponent(pool.name)}`}
+          className="inline-flex min-h-10 items-center rounded-lg border border-white/10 px-3 text-sm text-slate-300"
+        >
+          View rule
         </Link>
       </div>
     </article>
   );
 }
 
-function FailureNotice({ data }: { data: DiscoverPageData }) {
-  if (!data.opportunities.failures.length) return null;
-  const failure = data.opportunities.failures[0];
+function CommunityCard({ community }: { community: DiscoverCommunity }) {
   return (
-    <aside className="mb-5 flex flex-col gap-3 rounded-2xl border border-amber-300/15 bg-amber-300/[0.045] px-4 py-3 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p>One opportunity source could not refresh. Available sources are still shown.</p>
-        <p className="mt-1 font-mono text-[10px] text-amber-200/60">
-          {failure.source} · request {failure.requestId}
+    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-400/10 text-cyan-300">
+          <Building2 className="h-5 w-5" />
+        </span>
+        <div>
+          <h3 className="font-semibold text-white">{community.name}</h3>
+          <p className="mt-1 text-xs capitalize text-slate-500">{community.type}</p>
+        </div>
+      </div>
+      <p className="mt-4 text-sm leading-6 text-slate-400">{community.purpose}</p>
+      <Link
+        href={`/communities/${community.slug}`}
+        onClick={() => track("discover.open-community", { community: community.slug })}
+        className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200"
+      >
+        Open community <ArrowRight className="h-4 w-4" />
+      </Link>
+    </article>
+  );
+}
+
+function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-12 text-center">
+      <h2 className="text-lg font-semibold text-white">{title}</h2>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-400">{body}</p>
+    </section>
+  );
+}
+
+function ReadinessSummary({ data }: { data: DiscoverPageData }) {
+  if (!data.signedIn || !data.readiness) {
+    return (
+      <section className="flex flex-col gap-3 rounded-xl border border-white/[0.08] bg-[#091522] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-semibold text-white">Connect my community</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Public discovery stays open. Sign in only to manage repositories, programs, and Pools.
+          </p>
+        </div>
+        <Link
+          href="/communities"
+          className="inline-flex min-h-10 items-center justify-center rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white"
+        >
+          Open Communities
+        </Link>
+      </section>
+    );
+  }
+  const readiness = data.readiness;
+  const statuses = [
+    { label: "GitHub identity", value: readiness.githubState },
+    { label: "Repository access", value: readiness.repositoryState },
+    { label: "Capital wallet", value: readiness.walletState },
+  ];
+  return (
+    <section className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-semibold text-white">Your confirmed workspace state</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            The same state is used by Profile, Earn, Discover, and Capital.
+          </p>
+        </div>
+        <p className="text-xs text-slate-500">
+          {readiness.lastConfirmedAt
+            ? `Confirmed ${new Date(readiness.lastConfirmedAt).toLocaleString()}`
+            : "No confirmed snapshot"}
         </p>
       </div>
-      <button type="button" onClick={() => window.location.reload()} className="min-h-9 rounded-lg border border-amber-200/20 px-3 text-xs font-medium">
-        Retry source
-      </button>
-    </aside>
+      <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+        {statuses.map((status) => (
+          <div key={status.label} className="rounded-lg border border-white/[0.07] p-3">
+            <dt className="text-xs text-slate-500">{status.label}</dt>
+            <dd className="mt-1 text-sm capitalize text-slate-200">
+              {status.value.replaceAll("_", " ")}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-4 flex flex-wrap gap-3 text-sm">
+        {readiness.selectedWallet && (
+          <span className="text-slate-400">
+            Selected wallet <strong className="font-mono text-slate-200">{shortAddress(readiness.selectedWallet)}</strong>
+          </span>
+        )}
+        <Link href="/communities?view=integrations" className="text-violet-300">
+          Manage community integrations
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function ResultsHeader({
+  title,
+  count,
+  filters,
+}: {
+  title: string;
+  count: number;
+  filters: OpportunityFilters;
+}) {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  const updateSort = (sort: OpportunitySort) => {
+    const next = new URLSearchParams(params.toString());
+    next.set("sort", sort);
+    next.delete("cursor");
+    startTransition(() => router.replace(`/discover?${next.toString()}`, { scroll: false }));
+  };
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          {count} confirmed result{count === 1 ? "" : "s"}
+        </p>
+      </div>
+      <label className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-slate-400">
+        Sort
+        <select
+          value={filters.sort}
+          disabled={pending}
+          onChange={(event) => updateSort(event.target.value as OpportunitySort)}
+          className="bg-transparent text-sm text-slate-200 outline-none"
+        >
+          <option value="newest">Newest</option>
+          <option value="closing_soon">Closing soon</option>
+          <option value="most_funded">Most funded</option>
+          <option value="most_active">Most active</option>
+        </select>
+      </label>
+    </div>
   );
 }
 
@@ -969,49 +731,102 @@ export function DiscoverMarketplace({
   filters: OpportunityFilters;
 }) {
   useEffect(() => {
-    track("discover_viewed", { view: data.view });
+    track("discover.view", { view: data.view });
   }, [data.view]);
 
-  let content: React.ReactNode;
-  if (data.view === "people") {
-    content = data.people.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {data.people.map((person) => <PersonCard key={person.id} person={person} />)}
-        </div>
-      ) : (
-        <EmptyState title="No verified public profiles yet" body="People and agents appear here only after their identity is verified and public." />
+  const section = useMemo(() => {
+    if (data.view === "people") {
+      return (
+        <>
+          <ResultsHeader title="Verified people" count={data.people.length} filters={filters} />
+          {data.people.length ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {data.people.map((person) => (
+                <PersonCard key={person.id} person={person} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No matching verified person"
+              body="Only real public contributor records are shown. Broaden the search or invite a contributor to claim their verified work."
+            />
+          )}
+        </>
       );
-  } else if (data.view === "communities") {
-    content = data.communities.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {data.communities.map((community) => <CommunityCard key={community.id} community={community} />)}
-        </div>
-      ) : (
-        <EmptyState title="No communities are published" body="Communities will appear here once they are published." />
+    }
+    if (data.view === "pools") {
+      return (
+        <>
+          <ResultsHeader title="Published community Pools" count={data.pools.length} filters={filters} />
+          {data.pools.length ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {data.pools.map((pool) => (
+                <PoolCard key={pool.id} pool={pool} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No matching published Pool"
+              body="A Pool appears only when a real program and inspectable funding rule are available."
+            />
+          )}
+        </>
       );
-  } else if (data.view === "pools") {
-    content = data.pools.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {data.pools.map((pool) => <PoolCard key={pool.id} pool={pool} />)}
+    }
+    if (data.view === "my_communities") {
+      const installed = new Set(data.readiness?.installedCommunitySlugs ?? []);
+      const communities = data.signedIn
+        ? data.communities.filter((community) => installed.has(community.slug))
+        : [];
+      return (
+        <div className="space-y-4">
+          <ReadinessSummary data={data} />
+          {communities.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {communities.map((community) => (
+                <CommunityCard key={community.id} community={community} />
+              ))}
+            </div>
+          )}
         </div>
-      ) : (
-        <EmptyState title="No public funding pools yet" body="Funding pools appear here when their purpose and public balance can be verified." />
       );
-  } else {
-    content = <OpportunityGrid data={data} />;
-  }
+    }
+    const labels: Record<Exclude<DiscoverView, "people" | "pools" | "my_communities">, string> = {
+      for_you: "Top real opportunities",
+      work: "Verified work",
+      programs: "Published programs",
+      outcomes: "Confirmed outcome campaigns",
+    };
+    return (
+      <>
+        <ResultsHeader title={labels[data.view]} count={data.opportunities.total} filters={filters} />
+        <OpportunityGrid
+          items={data.opportunities.items}
+          emptyTitle="No matching public opportunity"
+          emptyBody="No fixture or unsupported integration is substituted. Broaden the search or connect a real community in Communities."
+        />
+      </>
+    );
+  }, [data, filters]);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <main className="mx-auto min-h-screen w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
       <Header data={data} />
-      <ViewTabs active={data.view} />
-      {(data.view === "opportunities" || data.view === "saved") && (
-        <SearchAndFilters filters={filters} total={data.opportunities.total} />
-      )}
-      <section className="mt-6" aria-live="polite">
-        <FailureNotice data={data} />
-        {content}
-      </section>
+      <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <SearchBox filters={filters} view={data.view} />
+        <ViewTabs active={data.view} query={filters.q} />
+      </div>
+      <div className="mt-5 space-y-5">
+        {data.view === "for_you" && (
+          <>
+            <FundingPaths />
+            <Recommendation data={data} />
+          </>
+        )}
+        <SourceFailure data={data} />
+        {data.view !== "for_you" && data.readiness?.stale && <ReadinessSummary data={data} />}
+        {section}
+      </div>
     </main>
   );
 }

@@ -50,9 +50,15 @@ function number(value: SearchValue) {
 
 export function parseDiscoverView(value: SearchValue): DiscoverView {
   const candidate = first(value);
+  const legacy: Record<string, DiscoverView> = {
+    opportunities: "for_you",
+    communities: "my_communities",
+    saved: "for_you",
+  };
+  if (candidate && legacy[candidate]) return legacy[candidate];
   return DISCOVER_VIEWS.includes(candidate as DiscoverView)
     ? (candidate as DiscoverView)
-    : "opportunities";
+    : "for_you";
 }
 
 export function parseOpportunityFilters(params: DiscoverSearchParams): OpportunityFilters {

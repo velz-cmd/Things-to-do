@@ -3,8 +3,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
+import { cacheGetOrSetResilient } from "@/lib/cache/kv";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { getSessionUser } from "@/lib/auth/session";
+import { loadWorkspaceReadiness } from "@/lib/workspace/readiness";
 import {
   normalizeCampaignOpportunity,
   normalizePersistedOpportunity,
@@ -19,10 +21,16 @@ import type {
   DiscoverPerson,
   DiscoverPool,
   DiscoverSourceFailure,
+  DiscoverView,
   MarketplaceOpportunity,
   MarketplacePage,
 } from "./contracts";
 import type { OpportunityFilters } from "./filters";
+import {
+  opportunityMatchesView,
+  programPublicationEligible,
+} from "./publication";
+import { selectDiscoverRecommendation } from "./recommendation";
 
 const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
@@ -47,7 +55,11 @@ function sourceFailure(source: string, requestId: string, error: unknown): Disco
   return {
     source,
     requestId,
-    message,
+    message: /timed out|timeout/i.test(message)
+      ? "The source refresh timed out. Last confirmed results remain available when present."
+      : /permission|forbidden/i.test(message)
+        ? "The source is connected, but required permission is missing."
+        : "The source could not refresh. Other confirmed sources remain available.",
     retryable: /timed out|timeout|connect|unavailable|relation .* does not exist/i.test(message),
   };
 }
@@ -113,9 +125,9 @@ async function loadProgramOpportunities() {
     orderBy: [{ lastDeployAt: "desc" }, { createdAt: "desc" }],
     take: SOURCE_LIMIT,
   });
-  return rows.map((row) =>
-    normalizeProgramOpportunity(row as ProgramOpportunityRow),
-  );
+  return rows
+    .filter((row) => programPublicationEligible(row as ProgramOpportunityRow))
+    .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow));
 }
 
 async function loadCampaignOpportunities() {
@@ -177,32 +189,32 @@ async function loadCampaignOpportunities() {
   });
 }
 
-const loadCachedPersistedOpportunities = unstable_cache(
-  loadPersistedOpportunities,
-  ["discover-marketplace-published-v1"],
-  {
-    revalidate: SOURCE_CACHE_SECONDS,
-    tags: [DISCOVER_MARKETPLACE_CACHE_TAG],
-  },
-);
+function loadCachedPersistedOpportunities() {
+  return cacheGetOrSetResilient(
+    "discover:marketplace:published:v2",
+    SOURCE_CACHE_SECONDS,
+    () => withTimeout(loadPersistedOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
 
-const loadCachedProgramOpportunities = unstable_cache(
-  loadProgramOpportunities,
-  ["discover-marketplace-programs-v1"],
-  {
-    revalidate: SOURCE_CACHE_SECONDS,
-    tags: [DISCOVER_MARKETPLACE_CACHE_TAG],
-  },
-);
+function loadCachedProgramOpportunities() {
+  return cacheGetOrSetResilient(
+    "discover:marketplace:programs:v2",
+    SOURCE_CACHE_SECONDS,
+    () => withTimeout(loadProgramOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
 
-const loadCachedCampaignOpportunities = unstable_cache(
-  loadCampaignOpportunities,
-  ["discover-marketplace-campaigns-v1"],
-  {
-    revalidate: SOURCE_CACHE_SECONDS,
-    tags: [DISCOVER_MARKETPLACE_CACHE_TAG],
-  },
-);
+function loadCachedCampaignOpportunities() {
+  return cacheGetOrSetResilient(
+    "discover:marketplace:campaigns:v2",
+    SOURCE_CACHE_SECONDS,
+    () => withTimeout(loadCampaignOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
 
 export function deduplicateMarketplaceOpportunities(items: MarketplaceOpportunity[]) {
   const seenSources = new Set<string>();
@@ -409,29 +421,21 @@ export function collectMarketplaceSourceResults(
 export async function listMarketplaceOpportunities(
   filters: OpportunityFilters,
   pageSize = PAGE_SIZE,
+  view: DiscoverView = "for_you",
 ): Promise<MarketplacePage<MarketplaceOpportunity>> {
   const requestId = randomUUID();
   const loaders = [
     {
       source: "published_opportunities",
-      promise: withTimeout(
-        loadCachedPersistedOpportunities(),
-        COLD_DATABASE_SOURCE_TIMEOUT_MS,
-      ),
+      promise: loadCachedPersistedOpportunities(),
     },
     {
       source: "community_programs",
-      promise: withTimeout(
-        loadCachedProgramOpportunities(),
-        COLD_DATABASE_SOURCE_TIMEOUT_MS,
-      ),
+      promise: loadCachedProgramOpportunities(),
     },
     {
       source: "outcome_campaigns",
-      promise: withTimeout(
-        loadCachedCampaignOpportunities(),
-        COLD_DATABASE_SOURCE_TIMEOUT_MS,
-      ),
+      promise: loadCachedCampaignOpportunities(),
     },
   ];
   const settled = await Promise.allSettled(loaders.map((loader) => loader.promise));
@@ -452,7 +456,11 @@ export async function listMarketplaceOpportunities(
   }
 
   const filtered = sortMarketplaceOpportunities(
-    unique.filter((item) => marketplaceOpportunityMatches(item, filters)),
+    unique.filter(
+      (item) =>
+        marketplaceOpportunityMatches(item, filters) &&
+        opportunityMatchesView(item, view),
+    ),
     filters,
   );
   const page = paginateMarketplaceOpportunities(filtered, filters.cursor, pageSize);
@@ -467,12 +475,12 @@ export async function listMarketplaceOpportunities(
 }
 
 export async function getMarketplaceOpportunityById(id: string) {
-  const page = await listMarketplaceOpportunities({ sort: "newest" }, 300);
+  const page = await listMarketplaceOpportunities({ sort: "newest" }, 300, "for_you");
   return page.items.find((item) => item.id === id) ?? null;
 }
 
 export async function getMarketplaceOpportunityBySlug(slug: string) {
-  const page = await listMarketplaceOpportunities({ sort: "newest" }, 300);
+  const page = await listMarketplaceOpportunities({ sort: "newest" }, 300, "for_you");
   return {
     opportunity: page.items.find((item) => item.slug === slug) ?? null,
     failures: page.failures,
@@ -481,8 +489,7 @@ export async function getMarketplaceOpportunityBySlug(slug: string) {
 }
 
 export async function listDiscoverPeople(): Promise<DiscoverPerson[]> {
-  const [contributors, agents] = await Promise.all([
-    prisma.contributorRegistry.findMany({
+  const contributors = await prisma.contributorRegistry.findMany({
       where: { verified: true },
       orderBy: [{ totalEarnedUsd: "desc" }, { updatedAt: "desc" }],
       take: 40,
@@ -495,20 +502,9 @@ export async function listDiscoverPeople(): Promise<DiscoverPerson[]> {
         totalEarnedUsd: true,
         platform: true,
       },
-    }),
-    prisma.resolveAgent.findMany({
-      where: { agentTokenId: { not: null } },
-      take: 20,
-      select: {
-        id: true,
-        agentTokenId: true,
-        reputationCount: true,
-      },
-    }),
-  ]);
+    });
 
-  return [
-    ...contributors.map((person) => ({
+  return contributors.map((person) => ({
       id: person.id,
       name: person.creatorName ?? person.githubUsername ?? "Verified contributor",
       kind: (person.musicbrainzId ? "creator" : "human") as "creator" | "human",
@@ -522,33 +518,23 @@ export async function listDiscoverPeople(): Promise<DiscoverPerson[]> {
       amountEarnedUsd: person.totalEarnedUsd > 0 ? person.totalEarnedUsd : undefined,
       acceptsDirectFunding: false,
       acceptsInvitations: true,
-    })),
-    ...agents.map((agent) => ({
-      id: agent.id,
-      name: agent.id === "resolve" ? "RESOLVE Agent" : agent.id,
-      kind: "agent" as const,
-      description: `Verified onchain agent ${agent.agentTokenId}.`,
-      verifiedIdentities: ["ERC-8004"],
-      skills: [],
-      communities: [],
-      verifiedOutcomes: agent.reputationCount || undefined,
-      acceptsDirectFunding: false,
-      acceptsInvitations: true,
-    })),
-  ];
+      payoutReadiness: "invite_to_claim" as const,
+      profilePath: `/discover?view=people&person=${encodeURIComponent(person.id)}`,
+    }));
 }
 
 function listCommunities(opportunities: MarketplaceOpportunity[]): DiscoverCommunity[] {
-  return COMMUNITY_CATALOG.map((community) => {
+  return COMMUNITY_CATALOG.flatMap((community) => {
     const matching = opportunities.filter(
       (item) => item.community?.id === community.slug,
     );
+    if (!matching.length) return [];
     const pools = new Set(matching.map((item) => item.pool?.id).filter(Boolean));
     const publicFunding = matching.reduce(
       (total, item) => total + (item.funding?.fundedAmountUsd ?? 0),
       0,
     );
-    return {
+    return [{
       id: community.slug,
       slug: community.slug,
       name: community.name,
@@ -558,7 +544,7 @@ function listCommunities(opportunities: MarketplaceOpportunity[]): DiscoverCommu
       activePools: pools.size || undefined,
       publicFundingUsd: publicFunding > 0 ? publicFunding : undefined,
       verified: true,
-    };
+    }];
   });
 }
 
@@ -591,38 +577,25 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
   });
 }
 
-async function loadSavedIds(userId: string | null) {
-  if (!userId) return [];
-  try {
-    const saved = await withTimeout(
-      prisma.discoverSavedItem.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        select: { targetId: true },
-      }),
-      1_500,
-    );
-    return saved.map((item) => item.targetId);
-  } catch {
-    return [];
-  }
-}
-
 export async function loadDiscoverPageData(
   filters: OpportunityFilters,
   view: DiscoverPageData["view"],
 ): Promise<DiscoverPageData> {
-  const opportunitiesPromise = listMarketplaceOpportunities(filters);
+  const opportunitiesPromise = listMarketplaceOpportunities(filters, PAGE_SIZE, view);
   const userPromise = withTimeout(getSessionUser().catch(() => null), 1_000).catch(() => null);
   const peoplePromise =
-    view === "people" ? withTimeout(listDiscoverPeople()).catch(() => []) : Promise.resolve([]);
+    view === "people" || view === "for_you"
+      ? withTimeout(listDiscoverPeople()).catch(() => [])
+      : Promise.resolve([]);
   const [opportunities, user, people] = await Promise.all([
     opportunitiesPromise,
     userPromise,
     peoplePromise,
   ]);
+  const readiness = user
+    ? await withTimeout(loadWorkspaceReadiness(user.id), 1_500).catch(() => null)
+    : null;
   const allVisible = opportunities.items;
-  const savedIds = await loadSavedIds(user?.id ?? null);
   const communities = listCommunities(allVisible);
   const pools = listPools(allVisible);
   const activeFundingUsd = allVisible.reduce(
@@ -633,10 +606,22 @@ export async function loadDiscoverPageData(
   return {
     view,
     opportunities,
-    people,
+    people: filters.q
+      ? people.filter((person) =>
+          [
+            person.name,
+            ...person.verifiedIdentities,
+            ...person.skills,
+            ...person.communities,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(filters.q!.toLowerCase()),
+        )
+      : people,
     communities,
     pools,
-    savedIds,
+    savedIds: [],
     signedIn: Boolean(user),
     stats: {
       openOpportunities: opportunities.total || undefined,
@@ -644,5 +629,17 @@ export async function loadDiscoverPageData(
       activeCommunities: communities.length || undefined,
       verifiedContributors: people.length || undefined,
     },
+    readiness: readiness
+      ? {
+          githubState: readiness.github.personal.state,
+          repositoryState: readiness.github.repositoryAccess.state,
+          walletState: readiness.capital.state,
+          selectedWallet: readiness.wallets.selectedAddress,
+          installedCommunitySlugs: readiness.communities.map((item) => item.slug),
+          stale: readiness.stale,
+          lastConfirmedAt: readiness.lastSuccessfulAt,
+        }
+      : null,
+    recommendation: selectDiscoverRecommendation(readiness, allVisible),
   };
 }

@@ -166,8 +166,10 @@ describe("Discover marketplace normalisation", () => {
 
 describe("Discover marketplace URL state and pagination", () => {
   it("parses only supported views and filters", () => {
-    expect(parseDiscoverView("communities")).toBe("communities");
-    expect(parseDiscoverView("unknown")).toBe("opportunities");
+    expect(parseDiscoverView("communities")).toBe("my_communities");
+    expect(parseDiscoverView("opportunities")).toBe("for_you");
+    expect(parseDiscoverView("saved")).toBe("for_you");
+    expect(parseDiscoverView("unknown")).toBe("for_you");
     expect(
       parseOpportunityFilters({
         q: "typescript",

@@ -7,6 +7,7 @@ import { formatUsdcTokenUnits } from "@/lib/money/usdc";
 import { OutcomeCreatorConsole, type CreatorAssetView, type CreatorCampaignView } from "@/components/resolve/outcomes/outcome-creator-console";
 import { OutcomeContributorConsole, type ContributorIdentityView, type ContributorPayoutView, type ContributorWorkView } from "@/components/resolve/outcomes/outcome-contributor-console";
 import { PrimaryRouteLoading } from "@/components/resolve/layout/primary-route-loading";
+import { loadWorkspaceReadiness } from "@/lib/workspace/readiness";
 
 export const metadata: Metadata = { title: "Earn — RESOLVE", description: "Verified work, recognized earnings, settlement state, and receipts." };
 const states = ["recognized", "awaiting_authorization", "awaiting_settlement", "claimable", "settled"] as const;
@@ -18,6 +19,7 @@ async function EarnContent({ searchParams }: { searchParams: Promise<{ mode?: st
   const user = await getSessionUser();
   const summary = Object.fromEntries(states.map((state) => [state, BigInt(0)])) as Record<(typeof states)[number], bigint>;
   let work: ContributorWorkView[] = []; let assets: CreatorAssetView[] = []; let campaigns: CreatorCampaignView[] = []; let identities: ContributorIdentityView[] = []; let payouts: ContributorPayoutView[] = []; let dataUnavailable = false;
+  const readinessPromise = user ? loadWorkspaceReadiness(user.id).catch(() => null) : Promise.resolve(null);
   if (user) try {
     const [ledger, submissions, ownedAssets, ownedCampaigns, verifiedIdentities] = await Promise.all([
       prisma.earningsLedgerEntry.groupBy({ by: ["state"], where: { userId: user.id }, _sum: { amountMicroUsdc: true } }),
@@ -35,10 +37,14 @@ async function EarnContent({ searchParams }: { searchParams: Promise<{ mode?: st
     payouts = identities.length ? await prisma.payoutDestination.findMany({ where: { identityId: { in: identities.map((identity) => identity.id) }, status: "verified" }, select: { id: true, identityId: true, network: true, address: true } }) : [];
   } catch { dataUnavailable = true; }
 
+  const readiness = await readinessPromise;
+  const githubReadiness = readiness
+    ? { state: readiness.github.personal.state, account: readiness.github.personal.account }
+    : null;
   return <main className="mx-auto w-full max-w-[1440px] px-4 py-7 sm:px-6 lg:px-8"><header className="rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(83,75,201,.2),transparent_40%),#07101f] p-6 sm:p-8"><div className="flex flex-wrap items-start justify-between gap-5"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-violet-300">{mode === "creator" ? "Creator operations" : "Earn"}</p><h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">{mode === "creator" ? "Turn content and projects into verified growth campaigns." : "Work on real outcomes. Get paid when the proof is real."}</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{mode === "creator" ? "Define the outcome, prove ownership, cap the policy, authorize funding, and settle only verified obligations." : "Join funded work, bind your real provider identity, synchronize proof, and follow every earning into its Arc receipt."}</p></div><nav className="flex rounded-xl border border-white/10 bg-black/20 p-1" aria-label="Earn mode"><Link className={`rounded-lg px-4 py-2 text-sm ${mode === "contributor" ? "bg-white/10 text-white" : "text-slate-400"}`} href="/earn?mode=contributor">Contributor</Link><Link className={`rounded-lg px-4 py-2 text-sm ${mode === "creator" ? "bg-white/10 text-white" : "text-slate-400"}`} href="/earn?mode=creator">Creator</Link></nav></div></header>
     {!user && <section className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/5 p-5"><h2 className="font-medium text-white">Sign in to open your economic workspace</h2><p className="mt-1 text-sm text-slate-400">Public Outcome Campaigns remain available in Discover.</p></section>}
     {dataUnavailable && <section role="alert" className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100">Outcome records are not available in this environment yet. No balances or campaign results have been invented.</section>}
-    {mode === "contributor" && <><section className="mt-5 grid overflow-hidden rounded-xl border border-white/10 bg-slate-950/60 sm:grid-cols-5">{states.map((state) => <div key={state} className="border-b border-white/10 p-4 last:border-0 sm:border-b-0 sm:border-r"><p className="text-xs text-slate-500">{labels[state]}</p><strong className="mt-1 block font-mono text-lg text-white">{usdc(summary[state])}</strong></div>)}</section>{user ? <OutcomeContributorConsole identities={identities} payouts={payouts} work={work}/> : <section className="mt-5 rounded-xl border border-dashed border-white/10 p-5 text-sm text-slate-400">Sign in before joining or submitting to a funded campaign.</section>}</>}
+    {mode === "contributor" && <><section className="mt-5 grid overflow-hidden rounded-xl border border-white/10 bg-slate-950/60 sm:grid-cols-5">{states.map((state) => <div key={state} className="border-b border-white/10 p-4 last:border-0 sm:border-b-0 sm:border-r"><p className="text-xs text-slate-500">{labels[state]}</p><strong className="mt-1 block font-mono text-lg text-white">{usdc(summary[state])}</strong></div>)}</section>{user ? <OutcomeContributorConsole identities={identities} payouts={payouts} work={work} githubReadiness={githubReadiness}/> : <section className="mt-5 rounded-xl border border-dashed border-white/10 p-5 text-sm text-slate-400">Sign in before joining or submitting to a funded campaign.</section>}</>}
     {mode === "creator" && (user ? <OutcomeCreatorConsole assets={assets} campaigns={campaigns}/> : <section className="mt-5 rounded-xl border border-dashed border-white/10 p-5 text-sm text-slate-400">Sign in before registering an asset or creating a campaign.</section>)}
   </main>;
 }

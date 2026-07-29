@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { requireSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import {
+  DISCOVER_MARKETPLACE_ACTIVITY_CACHE_TAG,
   getMarketplaceOpportunityById,
   listDiscoverPeople,
 } from "@/lib/discover/marketplace/query";
@@ -81,6 +83,7 @@ export async function POST(request: Request) {
           : `${provider.name} was marked as the preferred provider.`,
     },
   });
+  revalidateTag(DISCOVER_MARKETPLACE_ACTIVITY_CACHE_TAG);
   return NextResponse.json({
     selectionId: selection.id,
     status: selection.status,

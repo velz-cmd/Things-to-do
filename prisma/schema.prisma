@@ -90,15 +90,15 @@ model Stats {
 }
 
 model User {
-  id                       String                    @id
+  id                       String                      @id
   email                    String?
   displayName              String?
-  authProvider             String                    @default("wallet")
+  authProvider             String                      @default("wallet")
   walletAddress            String?
   scanWalletAddress        String?
   githubUsername           String?
   githubId                 String?
-  gmailConnected           Boolean                   @default(false)
+  gmailConnected           Boolean                     @default(false)
   gmailRefreshToken        String?
   listenbrainzUsername     String?
   listenbrainzToken        String?
@@ -110,11 +110,11 @@ model User {
   jellyfinPassword         String?
   jellyfinAccessToken      String?
   taskMemoryJson           String?
-  embeddedWallet           Boolean                   @default(false)
-  selectedCapitalWallet    String                    @default("app")
-  availableUsd             Float                     @default(0)
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
+  embeddedWallet           Boolean                     @default(false)
+  selectedCapitalWallet    String                      @default("app")
+  availableUsd             Float                       @default(0)
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
   tasks                    Task[]
   transactions             WalletTransaction[]
   resolveMissions          ResolveMission[]

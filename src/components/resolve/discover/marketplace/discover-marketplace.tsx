@@ -213,6 +213,7 @@ function SearchAndFilters({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [pending, startTransition] = useTransition();
+  const filterButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -246,12 +247,21 @@ function SearchAndFilters({
 
   useEffect(() => {
     if (!drawerOpen) return;
+    closeButton.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDrawerOpen(false);
+      if (event.key === "Escape") {
+        setDrawerOpen(false);
+        window.setTimeout(() => filterButton.current?.focus(), 0);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [drawerOpen]);
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    window.setTimeout(() => filterButton.current?.focus(), 0);
+  };
 
   const filterCount = [
     filters.type,
@@ -424,6 +434,7 @@ function SearchAndFilters({
         </form>
         <div className="flex items-center gap-2">
           <button
+            ref={filterButton}
             type="button"
             disabled={!hydrated}
             aria-busy={!hydrated}
@@ -497,7 +508,7 @@ function SearchAndFilters({
                 ref={closeButton}
                 type="button"
                 aria-label="Close filters"
-                onClick={() => setDrawerOpen(false)}
+                onClick={closeDrawer}
                 className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 text-slate-300"
               >
                 <X className="h-4 w-4" />
@@ -506,7 +517,7 @@ function SearchAndFilters({
             <div className="mt-5 grid gap-4">{controls}</div>
             <button
               type="submit"
-              onClick={() => setDrawerOpen(false)}
+              onClick={closeDrawer}
               className="mt-6 min-h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold text-white"
             >
               Show {total} results

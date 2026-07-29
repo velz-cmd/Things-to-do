@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     .reduce((s, t) => s + t.recoveredUsd, 0);
 
   const recentActivity = await prisma.walletTransaction.findMany({
-    where: { userId },
+    where: { userId, status: { not: "quarantined_legacy_unit_error" } },
     orderBy: { createdAt: "desc" },
     take: 8,
   });

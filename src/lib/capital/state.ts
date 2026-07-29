@@ -217,6 +217,7 @@ async function getActivity(userId: string): Promise<CapitalStateResponse["activi
     where: {
       userId,
       type: { in: ["fund_program", "deposit", "withdraw", "send", "claim", "adjustment"] },
+      status: { not: "quarantined_legacy_unit_error" },
     },
     orderBy: { createdAt: "desc" },
     take: 24,

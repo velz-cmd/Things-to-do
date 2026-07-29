@@ -106,7 +106,17 @@ export async function POST(req: Request) {
   }
 
   try {
-    await assertTreasuryCanFund(plan.treasuryAmount);
+    const treasury = await assertTreasuryCanFund(plan.treasuryAmount);
+    if (!treasury.ok) {
+      return NextResponse.json(
+        {
+          error:
+            "Live Arc settlement is unavailable. The allocation remains a preview and no transaction was created.",
+          code: "LIVE_SETTLEMENT_UNAVAILABLE",
+        },
+        { status: 503 },
+      );
+    }
   } catch (e) {
     if (e instanceof TreasuryUnderfundedError) {
       return NextResponse.json(

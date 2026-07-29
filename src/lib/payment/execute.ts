@@ -47,10 +47,9 @@ export async function executeContributorBatch(input: {
     if (!isLiveArcEnabled()) {
       updated.push({
         ...next,
-        status: "settled",
-        txHash: `offchain-${intent.wallet.slice(0, 10)}`,
-        memoId: createHash("sha256").update(memoText).digest("hex").slice(0, 18),
+        status: "failed",
       });
+      failedWallets.push(intent.wallet);
       continue;
     }
 

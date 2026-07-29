@@ -87,8 +87,7 @@ export async function executeAgentNanoPayments(input: {
         record.status = "failed";
       }
     } else {
-      record.status = "settled";
-      record.txHash = `offchain-nano-${role}`;
+      record.status = "failed";
     }
 
     records.push(record);

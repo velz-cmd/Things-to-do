@@ -62,7 +62,7 @@ export async function getWalletBalance(userId: string) {
   }
 
   const tasks = await prisma.task.findMany({
-    where: { userId },
+    where: { userId, status: { not: "quarantined_legacy_unit_error" } },
   });
 
   const lockedUsd = tasks

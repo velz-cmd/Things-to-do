@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
-import { createSettlementDraft } from "@/lib/payment/orchestrator";
-import {
-  createSettlementRecord,
-  emitPaymentEvent,
-  updateSettlementStatus,
-} from "@/lib/payment/store";
-import { settlementAuditHash } from "@/lib/payment/validate";
-import { buildSettlementPlan } from "@/lib/payment/planner";
-import { poolHeadline } from "@/lib/payment/pools";
 
 const contributorSchema = z.object({
   wallet: z.string(),
@@ -29,7 +20,13 @@ const bodySchema = z.object({
   contributors: z.array(contributorSchema).min(1),
 });
 
-/** Validate package, lock escrow, return READY settlement (no contributor payouts yet) */
+/**
+ * Legacy compatibility endpoint.
+ *
+ * Escrow can be recorded only after the real on-chain flow has produced a
+ * confirmed Arc transaction. This endpoint intentionally creates no database
+ * record, event, or synthetic transaction reference.
+ */
 export async function POST(req: Request) {
   const ready = await requireReadyUser();
   if ("error" in ready) {
@@ -41,42 +38,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid MissionSettlement package" }, { status: 400 });
   }
 
-  const draft = await createSettlementDraft(parsed.data);
-  if ("error" in draft) {
-    return NextResponse.json({ error: draft.error, code: draft.code }, { status: 400 });
-  }
-
-  const auditHash = settlementAuditHash(parsed.data);
-  const plan = buildSettlementPlan({
-    settlementId: `lock-${parsed.data.missionId}`,
-    package: parsed.data,
-  });
-
-  const settlement = await createSettlementRecord({
-    package: parsed.data,
-    status: "ESCROW_LOCKED",
-    poolsJson: JSON.stringify(plan.pools),
-    auditHash,
-  });
-
-  await updateSettlementStatus(settlement.id, "ESCROW_LOCKED", {
-    escrowTxHash: `escrow:${parsed.data.missionId}:${auditHash.slice(0, 16)}`,
-    complianceJson: JSON.stringify({ pools: plan.pools, headline: poolHeadline(plan.pools) }),
-  });
-
-  await emitPaymentEvent(settlement.id, "EscrowLocked", {
-    missionId: parsed.data.missionId,
-    pools: plan.pools,
-    status: "READY",
-  });
-
-  return NextResponse.json({
-    settlementId: settlement.id,
-    status: "READY",
-    missionId: parsed.data.missionId,
-    auditHash,
-    pools: draft.pools,
-    intents: draft.intents,
-    proofHash: parsed.data.proofHash,
-  });
+  return NextResponse.json(
+    {
+      error:
+        "A confirmed Arc transaction is required to lock escrow. Complete the on-chain escrow flow first.",
+      code: "CONFIRMED_ARC_TRANSACTION_REQUIRED",
+    },
+    { status: 409 },
+  );
 }

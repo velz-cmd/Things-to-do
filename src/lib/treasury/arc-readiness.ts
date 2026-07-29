@@ -46,9 +46,9 @@ export async function getArcReadiness(requiredUsd = 0): Promise<ArcReadiness> {
 
   let message = "On-chain Arc memo payouts ready";
   if (!hasCircleCredentials()) {
-    message = "Circle credentials missing — distributions settle off-chain in DB";
+    message = "Circle credentials missing. Distribution execution is unavailable.";
   } else if (!clientWallet) {
-    message = "ARC_CLIENT_WALLET_ADDRESS not set — distributions settle off-chain";
+    message = "ARC_CLIENT_WALLET_ADDRESS not set. Distribution execution is unavailable.";
   } else if (balanceUsd !== null && balanceUsd < Math.max(requiredUsd, 0.01)) {
     message = `Treasury has ${balanceUsd.toFixed(2)} USDC — fund wallet for live memo payouts`;
   } else if (blockers.length > 0) {

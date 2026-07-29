@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     },
     {
       scope: "discover/search",
-      fallback: EMPTY,
+      fallback: { ...EMPTY, query: q },
       cacheControl: API_CACHE.privateShort,
       rateLimit: { keyPrefix: "discover:search", limit: 25, windowSeconds: 60 },
       rateLimitStrict: true,

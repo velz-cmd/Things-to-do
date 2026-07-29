@@ -32,6 +32,13 @@ test.describe("Streamly demo portal", () => {
 });
 
 test.describe("RESOLVE backend APIs", () => {
+  test("payment blueprint does not advertise synthetic escrow locking", async ({ request }) => {
+    const response = await request.get("/api/payment/blueprint");
+    expect(response.ok()).toBeTruthy();
+    const blueprint = await response.json();
+    expect(blueprint.apis).not.toHaveProperty("lockEscrow");
+  });
+
   test("settlement config is reachable", async ({ request }) => {
     const response = await request.get("/api/settlement/config");
     expect(response.ok()).toBeTruthy();

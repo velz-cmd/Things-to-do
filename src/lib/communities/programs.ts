@@ -303,6 +303,28 @@ export async function updateProgram(
   });
   if (!existing) return { ok: false as const, error: "Program not found" };
 
+  if (input.status && ["active", "deployed"].includes(input.status)) {
+    const conflicting = await prisma.resolveProgram.findFirst({
+      where: {
+        id: { not: programId },
+        installId: existing.installId,
+        templateId: existing.templateId,
+        name: {
+          equals: input.name?.trim() || existing.name,
+          mode: "insensitive",
+        },
+        status: { in: ["active", "deployed"] },
+      },
+      select: { id: true },
+    });
+    if (conflicting) {
+      return {
+        ok: false as const,
+        error: "An active program with this template and name already exists",
+      };
+    }
+  }
+
   const rules = parseJson(existing.rulesJson, {} as ProgramRules);
   const nextRules = { ...rules, ...input.rules };
   const row = await prisma.$transaction(async (tx) => {

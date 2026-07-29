@@ -11,6 +11,7 @@ import {
 } from "../../src/lib/discover/marketplace/filters";
 import {
   collectMarketplaceSourceResults,
+  confirmedFundingUsd,
   deduplicateMarketplaceOpportunities,
   marketplaceOpportunityMatches,
   paginateMarketplaceOpportunities,
@@ -166,7 +167,9 @@ describe("Discover marketplace normalisation", () => {
 
 describe("Discover marketplace URL state and pagination", () => {
   it("parses only supported views and filters", () => {
-    expect(parseDiscoverView("communities")).toBe("my_communities");
+    expect(parseDiscoverView("communities")).toBe("for_you");
+    expect(parseDiscoverView("my_communities")).toBe("for_you");
+    expect(parseDiscoverView("programs")).toBe("pools");
     expect(parseDiscoverView("opportunities")).toBe("for_you");
     expect(parseDiscoverView("saved")).toBe("for_you");
     expect(parseDiscoverView("unknown")).toBe("for_you");
@@ -189,6 +192,12 @@ describe("Discover marketplace URL state and pagination", () => {
       minReward: 100,
       sort: "closing_soon",
     });
+  });
+
+  it("reports confirmed funding only from authoritative micro-USDC totals", () => {
+    expect(confirmedFundingUsd(null)).toBeUndefined();
+    expect(confirmedFundingUsd(0n)).toBeUndefined();
+    expect(confirmedFundingUsd(12_500_000n)).toBe(12.5);
   });
 
   it("filters by public facts and uses a stable cursor without duplicates", () => {

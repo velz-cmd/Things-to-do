@@ -273,6 +273,11 @@ export function normalizePersistedOpportunity(
             source: row.poolName ?? undefined,
             paymentMode: row.paymentMode ?? undefined,
             distributionMethod: row.distributionMethod ?? undefined,
+            amountState:
+              row.fundingStatus === "funded" &&
+              row.verificationStatus === "settlement_confirmed"
+                ? "confirmed"
+                : "provenance_unavailable",
           }
         : undefined,
     provider: {
@@ -375,6 +380,7 @@ export function normalizeProgramOpportunity(
             source: row.name,
             paymentMode: optionalString(metadata.paymentMode),
             distributionMethod: optionalString(metadata.distributionMethod),
+            amountState: "provenance_unavailable",
           }
         : undefined,
     provider: {
@@ -447,6 +453,7 @@ export function normalizeCampaignOpportunity(
       status: fundingStatus(committedUsd, budgetUsd),
       source: "Outcome campaign budget",
       distributionMethod: "Verified outcome",
+      amountState: "funding_reserved",
     },
     provider: { preference: "open" },
     deadline: row.endsAt?.toISOString(),

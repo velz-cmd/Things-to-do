@@ -30,6 +30,7 @@ import type {
   OpportunityFilters,
   OpportunitySort,
 } from "@/lib/discover/marketplace/filters";
+import { poolFundingHandoff } from "@/lib/discover/marketplace/handoffs";
 
 const views: Array<{
   id: DiscoverView;
@@ -446,7 +447,7 @@ function OpportunityCard({ item }: { item: MarketplaceOpportunity }) {
         </Link>
         {isPool && (
           <Link
-            href={`/capital?intent=back-pool&programId=${encodeURIComponent(item.source.id)}&returnTo=${encodeURIComponent(detailPath)}`}
+            href={poolFundingHandoff(item.pool?.id ?? item.source.id, detailPath)}
             onClick={() => track("discover.back-pool", { opportunity: item.id })}
             className="inline-flex min-h-10 items-center rounded-lg border border-emerald-300/20 px-3 text-sm text-emerald-200 hover:bg-emerald-300/5"
           >
@@ -565,7 +566,7 @@ function PoolCard({ pool }: { pool: DiscoverPool }) {
       </dl>
       <div className="mt-5 flex gap-2">
         <Link
-          href={`/capital?intent=back-pool&programId=${encodeURIComponent(pool.id)}&returnTo=${encodeURIComponent(returnTo)}`}
+          href={poolFundingHandoff(pool.id, returnTo)}
           onClick={() => track("discover.back-pool", { pool: pool.id })}
           className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg bg-violet-500 px-3 text-sm font-semibold text-white"
         >

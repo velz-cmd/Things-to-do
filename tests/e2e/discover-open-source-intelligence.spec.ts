@@ -65,6 +65,31 @@ test.describe("Discover verified funding network", () => {
     await expect(page.getByRole("heading", { name: "People" })).toBeVisible();
   });
 
+  test("hands a published Pool to Capital without losing Discover context", async ({ page }) => {
+    await page.goto("/discover?view=pools", {
+      waitUntil: "domcontentloaded",
+      timeout: 120_000,
+    });
+    const backPool = page.getByRole("link", { name: "Back this Pool" }).first();
+    const hasPublishedPool = await backPool
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+    test.skip(!hasPublishedPool, "No published Pool exists in this isolated database.");
+
+    const href = await backPool.getAttribute("href");
+    expect(href).toBeTruthy();
+    const target = new URL(href!, "http://localhost");
+    expect(target.pathname).toBe("/capital");
+    expect(target.searchParams.get("intent")).toBe("back-pool");
+    expect(target.searchParams.get("programId")).toBeTruthy();
+    expect(target.searchParams.get("returnTo")).toContain("/discover?view=pools");
+
+    await backPool.click();
+    await expect(page).toHaveURL(/\/capital\?intent=back-pool/);
+    await expect(page.getByRole("heading", { name: "Sign in to open Capital" })).toBeVisible();
+  });
+
   test("keeps repository publication and Mission creation protected", async ({ request }) => {
     const snapshot = await request.post("/api/discover/oss-snapshots", {
       data: { repository: "navidrome/navidrome" },

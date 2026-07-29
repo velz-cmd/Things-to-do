@@ -8,6 +8,7 @@ import {
   directSupportPreflight,
   poolFundingPreflight,
 } from "../../src/lib/discover/marketplace/funding-preflight";
+import { poolFundingHandoff } from "../../src/lib/discover/marketplace/handoffs";
 import { selectDiscoverRecommendation } from "../../src/lib/discover/marketplace/recommendation";
 import type { MarketplaceOpportunity } from "../../src/lib/discover/marketplace/contracts";
 import {
@@ -218,6 +219,20 @@ describe("Workspace readiness consistency", () => {
 });
 
 describe("Funding preflight", () => {
+  it("preserves the exact Pool and Discover return path in the Capital handoff", () => {
+    expect(
+      poolFundingHandoff(
+        "program-1",
+        "/discover?view=pools&pool=program%3A1",
+      ),
+    ).toBe(
+      "/capital?intent=back-pool&programId=program-1&returnTo=%2Fdiscover%3Fview%3Dpools%26pool%3Dprogram%253A1",
+    );
+    expect(poolFundingHandoff("program-1", "https://example.com")).toBe(
+      "/capital?intent=back-pool&programId=program-1",
+    );
+  });
+
   it("blocks direct support until payout and explicit authorization are ready", () => {
     const base = {
       recipientVerified: true,

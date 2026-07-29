@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowRight, CircleDollarSign, Copy, ExternalLink, RefreshCw, Search, Send, WalletCards } from "lucide-react";
@@ -35,6 +36,20 @@ const VIEWS: Array<{ id: CapitalView; label: string }> = [
   { id: "claims", label: "Claims" },
   { id: "history", label: "History" },
 ];
+
+const FunderDiscoveryPanel = dynamic(
+  () =>
+    import("@/components/resolve/capital/funder-discovery-panel").then(
+      (module) => module.FunderDiscoveryPanel,
+    ),
+  {
+    loading: () => (
+      <div className="flex min-h-24 items-center justify-center text-xs text-slate-400">
+        Loading Pool funding…
+      </div>
+    ),
+  },
+);
 
 const VIEW_ALIASES: Record<string, CapitalView> = {
   overview: "treasury",
@@ -84,6 +99,8 @@ function Empty({ title, body, children, heading = "h3" }: { title: string; body:
 
 function ContextHandoff({ params }: { params: URLSearchParams }) {
   const entries = [
+    ["Funding mode", params.get("intent")],
+    ["Pool", params.get("programId")],
     ["Mission report", params.get("missionReport")],
     ["Program", params.get("program")],
     ["Community", params.get("community")],
@@ -226,6 +243,9 @@ export function CapitalOperations({ initialData = null }: { initialData?: Capita
           ? { label: "Add funds", action: () => openAddFunds() }
           : { label: "View treasury", action: () => selectView("treasury") };
   const statusOptions = [...new Set(pendingRows.map((row) => row.status))];
+  const poolFundingProgramId =
+    params.get("intent") === "back-pool" ? params.get("programId") : null;
+  const fundingReturnTo = safeReturnTo(params.get("returnTo"));
 
   return (
     <main className="min-h-screen bg-[#030711] text-[#f5f8fc] [background-image:linear-gradient(rgba(72,115,169,.04)_1px,transparent_1px),linear-gradient(90deg,rgba(72,115,169,.04)_1px,transparent_1px)] [background-size:40px_40px]">
@@ -238,6 +258,16 @@ export function CapitalOperations({ initialData = null }: { initialData?: Capita
         {(degraded || query.isError) && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100"><span>{query.isError ? "Refresh failed. Showing the last known Capital snapshot." : data.dataQuality?.message}</span><button type="button" onClick={() => void query.refetch()} className={secondaryButton}>Retry</button></div>}
 
         <ContextHandoff params={new URLSearchParams(params.toString())} />
+
+        {poolFundingProgramId && (
+          <section className={`${panel} p-5`} aria-label="Selected Pool funding">
+            <FunderDiscoveryPanel
+              signedIn={Boolean(user || initialData)}
+              selectedProgramId={poolFundingProgramId}
+              returnTo={fundingReturnTo}
+            />
+          </section>
+        )}
 
         <section aria-label="Treasury command band" className="grid overflow-hidden rounded-3xl border border-white/[0.09] bg-[#07111e]/95 shadow-[0_24px_80px_rgba(0,0,0,.22)] lg:grid-cols-[.9fr_1.1fr]">
           <div className="border-b border-white/[0.08] p-5 lg:border-b-0 lg:border-r lg:p-6"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-400/20 bg-cyan-400/10"><WalletCards className="h-5 w-5 text-cyan-300" /></div><div><p className="text-sm font-semibold text-white">Application spendable</p><p className="font-mono text-[11px] text-[#8192aa]">From selected {selected?.walletType ?? "wallet"}</p></div></div><p className="mt-6 text-4xl font-semibold tracking-[-.04em] tabular-nums text-white">{presentMoney(data.moneyState.availableMicroUsdc)}</p><p className="mt-1 text-xs text-[#8fa0b6]">On-chain selected balance: {presentMoney(selected?.amountMicroUsdc)}</p>{!degraded && <div className="mt-5"><WalletViewSelector appAddress={data.wallets.appWallet?.address} externalAddress={data.wallets.connectedWallet?.address} appUsd={Number(BigInt(data.balances.app?.amountMicroUsdc ?? "0")) / 1_000_000} externalUsd={Number(BigInt(data.balances.connected?.amountMicroUsdc ?? "0")) / 1_000_000} selectedView={data.wallets.selectedCapitalWallet === "connected" ? "external" : "app"} compact /></div>}</div>

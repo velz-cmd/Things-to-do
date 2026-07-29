@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireReadyUser } from "@/lib/auth/session";
+import { requireSessionUser } from "@/lib/auth/session";
 import { missionManifestSchema } from "@/lib/mission/structured-contract";
 import {
   createStructuredMission,
@@ -7,7 +7,7 @@ import {
 } from "@/lib/mission/server/structured-engine";
 
 export async function GET() {
-  const ready = await requireReadyUser();
+  const ready = await requireSessionUser();
   if ("error" in ready) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
   }
@@ -16,7 +16,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const ready = await requireReadyUser();
+  const ready = await requireSessionUser();
   if ("error" in ready) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
   }

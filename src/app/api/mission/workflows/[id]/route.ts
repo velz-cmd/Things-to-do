@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireReadyUser } from "@/lib/auth/session";
+import { requireSessionUser } from "@/lib/auth/session";
 import { getStructuredMission } from "@/lib/mission/server/structured-engine";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
-  const ready = await requireReadyUser();
+  const ready = await requireSessionUser();
   if ("error" in ready) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
   }

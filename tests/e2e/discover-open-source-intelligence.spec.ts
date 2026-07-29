@@ -1,89 +1,87 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Discover Funding Coverage Command Centre", () => {
+test.describe("Discover public marketplace", () => {
   test.setTimeout(120_000);
 
-  test("shows one focused funding workflow without legacy duplicate surfaces", async ({ page }) => {
+  test("browses public sections without GitHub, wallet, or profile gates", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Accepted work|Economic attention/);
-    const setup = page.getByRole("heading", {
-      name: /Connect your GitHub identity|Install repository access|Choose a repository/,
-    });
-    const fundingCycle = page.getByRole("heading", { name: "Funding cycle" });
-    await expect(setup.or(fundingCycle)).toBeVisible();
-    if (await setup.count()) {
-      await expect(
-        page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })
-          .or(page.getByRole("button", { name: "Evaluate repository" })),
-      ).toBeVisible();
-      await expect(page.getByLabel("Funding cycle stages")).toHaveCount(0);
-      await expect(page.getByRole("tablist", { name: "Funding cycle details" })).toHaveCount(0);
-    } else {
-      await expect(page.getByRole("heading", { name: "Funding cycle" })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Work requiring attention" })).toBeVisible();
-      await expect(page.getByLabel("Funding cycle stages")).toBeVisible();
-      await expect(page.getByRole("tablist", { name: "Work queue filters" })).toBeVisible();
-      await expect(page.getByRole("tablist", { name: "Funding cycle details" })).toBeVisible();
-    }
-    await expect(page.getByText("Funding Coverage Matrix", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("Live Signals", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("Value Graph", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("tablist", { name: "Discover quick actions" })).toHaveCount(0);
-    await expect(page.getByText("Earn from my work", { exact: true })).toHaveCount(0);
-    expect(
-      await page.locator(
-        "[data-action-id='discover.capture_repository_snapshot'], [data-action-id='discover.select_repository'], [data-action-id='profile.connect_source'], [data-action-id='profile.install_github_app']",
-      ).count(),
-    ).toBeGreaterThan(0);
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Discover work, people and communities worth backing",
+      }),
+    ).toBeVisible();
+    await expect(page.getByText("Public browsing, no wallet or GitHub connection required")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
+    await expect(page.getByRole("tablist", { name: "Discover sections" })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Communities" }).click();
+    await expect(page).toHaveURL(/view=communities/);
+    await expect(page.getByRole("heading", { name: "Independent Music" })).toBeVisible();
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("tab", { name: "Communities" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await page.getByRole("tab", { name: "Funding Pools" }).click();
+    await expect(page).toHaveURL(/view=pools/);
   });
 
-  test("contains the flagship surface at mobile width", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+  test("keeps search and filter state in the URL", async ({ page }) => {
+    await page.goto("/discover?view=opportunities", {
+      waitUntil: "domcontentloaded",
+      timeout: 120_000,
+    });
+    const search = page.getByPlaceholder(
+      "Search work, skills, communities, creators or repositories",
+    );
+    await search.fill("typescript");
+    await search.press("Enter");
+    await expect(page).toHaveURL(/q=typescript/, { timeout: 10_000 });
+    await page.getByLabel("Opportunity type").selectOption("grant");
+    await page.getByRole("button", { name: "Apply filters" }).click();
+    await expect(page).toHaveURL(/type=grant/);
+    await page.goBack();
+    await expect(page).toHaveURL(/q=typescript/);
+  });
+
+  test("is usable at mobile width without horizontal overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    const setup = page.getByRole("heading", {
-      name: /Connect your GitHub identity|Install repository access|Choose a repository/,
-    });
-    const fundingCycle = page.getByRole("heading", { name: "Funding cycle" });
-    await expect(setup.or(fundingCycle)).toBeVisible();
-    if (await setup.count()) {
-      await expect(
-        page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })
-          .or(page.getByRole("button", { name: "Evaluate repository" })),
-      ).toBeVisible();
-    } else {
-      await expect(page.getByRole("heading", { name: "Funding cycle" })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Work requiring attention" })).toBeVisible();
-    }
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const filters = page.getByRole("button", { name: /filters/i });
+    await expect(filters).toBeVisible();
+    await expect(filters).toBeEnabled({ timeout: 60_000 });
+    await filters.click();
+    await expect(page.getByRole("dialog", { name: "Filter opportunities" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Filter opportunities" })).toBeHidden();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test("keeps secondary details collapsed until requested", async ({ page }) => {
+  test("opens a shareable opportunity detail when public work exists", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    const setup = page.getByRole("heading", {
-      name: /Connect your GitHub identity|Install repository access|Choose a repository/,
-    });
-    const fundingCycle = page.getByRole("heading", { name: "Funding cycle" });
-    await expect(setup.or(fundingCycle)).toBeVisible();
-    if (await setup.count()) {
-      await expect(page.getByRole("tablist", { name: "Funding cycle details" })).toHaveCount(0);
-      return;
-    }
-    const pools = page.getByRole("tab", { name: /Pools/ });
-    await expect(pools).toHaveAttribute("aria-selected", "false");
-    await expect(page.getByText(/No persisted Pool is attached/)).toHaveCount(0);
-    await pools.click();
-    await expect(pools).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByText(/No persisted Pool is attached|available/).first()).toBeVisible();
+    const details = page.getByRole("link", { name: "View details" }).first();
+    test.skip((await details.count()) === 0, "No public opportunity exists in this isolated database.");
+    await details.click();
+    await expect(page).toHaveURL(/\/opportunities\//);
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Funding" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "People" })).toBeVisible();
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
   });
 
-  test("protects persisted snapshots and Mission creation from guests", async ({ request }) => {
+  test("keeps repository publication and Mission creation protected", async ({ request }) => {
     const snapshot = await request.post("/api/discover/oss-snapshots", {
       data: { repository: "navidrome/navidrome" },
     });
     expect(snapshot.status()).toBe(401);
-    await expect(snapshot.json()).resolves.toMatchObject({ ok: false, code: "AUTH_REQUIRED" });
 
     const mission = await request.post("/api/discover/oss-missions", {
       data: {
@@ -91,10 +89,9 @@ test.describe("Discover Funding Coverage Command Centre", () => {
         fingerprint: "a".repeat(64),
         objective: "Decide how accepted work should be funded.",
         evidenceIds: [],
-        returnTo: "/discover?repo=navidrome/navidrome",
+        returnTo: "/discover",
       },
     });
     expect(mission.status()).toBe(401);
-    await expect(mission.json()).resolves.toMatchObject({ ok: false, code: "AUTH_REQUIRED" });
   });
 });

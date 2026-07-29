@@ -126,6 +126,7 @@ model User {
   communityFundStakes      CommunityFundStake[]
   automationRules          ResolveAutomationRule[]
   earningsSnapshot         UserEarningsSnapshot?
+  workspaceReadiness       WorkspaceReadinessSnapshot?
   missionBlueprintReceipts MissionBlueprintReceipt[]
 }
 
@@ -773,6 +774,23 @@ model CommunityVitalsSnapshot {
   computedAt  DateTime @default(now())
 
   @@index([computedAt])
+}
+
+/// Fast, server-owned account readiness read model shared by every product tab.
+/// Failed refreshes update failure metadata without replacing the last confirmed payload.
+model WorkspaceReadinessSnapshot {
+  userId           String    @id
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schemaVersion    Int       @default(1)
+  payload          Json
+  computedAt       DateTime  @default(now())
+  lastSuccessfulAt DateTime  @default(now())
+  lastFailureCode  String?
+  lastFailureAt    DateTime?
+  updatedAt        DateTime  @updatedAt
+
+  @@index([computedAt])
+  @@index([lastFailureAt])
 }
 
 /// Canonical wallet inventory for human, treasury, and agent-controlled wallets.

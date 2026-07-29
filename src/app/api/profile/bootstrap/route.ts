@@ -7,6 +7,7 @@ import { cacheGetOrSet } from "@/lib/cache/kv";
 import { loadProfileControlPlaneBootstrap } from "@/lib/profile/control-plane-bootstrap";
 import { offlineProfileBootstrap } from "@/lib/profile/bootstrap-fallback";
 import { withTimeout } from "@/lib/discover/fetch-timeout";
+import { loadWorkspaceReadiness } from "@/lib/workspace/readiness";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
@@ -19,16 +20,21 @@ export async function GET(req: Request) {
   const rate = await rateLimitRequest(`profile:bootstrap:${getRequestClientId(req, authUser.id)}`, 30, 60);
   if (!rate.success) return NextResponse.json({ ok: false, error: "RATE_LIMITED" }, { status: 429, headers: { "Cache-Control": API_CACHE.noStore } });
 
+  const readiness = await withTimeout(
+    loadWorkspaceReadiness(authUser.id).catch(() => null),
+    1_500,
+    null,
+  );
   try {
     const payload = await withTimeout(
       cacheGetOrSet(`profile:control-plane:${authUser.id}`, 15, () => loadProfileControlPlaneBootstrap(authUser)),
       7_000,
-      offlineProfileBootstrap(authUser, ["profile_database_timeout"]),
+      offlineProfileBootstrap(authUser, ["profile_database_timeout"], readiness),
     );
     return NextResponse.json(payload, { headers: { "Cache-Control": API_CACHE.privateShort } });
   } catch (error) {
     reportApiError("profile/bootstrap", error, { userId: authUser.id });
-    return NextResponse.json(offlineProfileBootstrap(authUser), {
+    return NextResponse.json(offlineProfileBootstrap(authUser, ["profile_database"], readiness), {
       headers: { "Cache-Control": API_CACHE.noStore },
     });
   }

@@ -10,9 +10,8 @@ import {
 import { loadDiscoverPageData } from "@/lib/discover/marketplace/query";
 
 export const metadata: Metadata = {
-  title: "Discover work, people and communities — RESOLVE",
-  description:
-    "Find funded opportunities, verified contributors, active communities and transparent funding pools.",
+  title: "Discover verified value - RESOLVE",
+  description: "Support a person directly, back a community Pool, or fund work with proof.",
 };
 
 type DiscoverPageProps = {

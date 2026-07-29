@@ -1,9 +1,11 @@
 export const DISCOVER_VIEWS = [
-  "opportunities",
+  "for_you",
   "people",
-  "communities",
+  "work",
   "pools",
-  "saved",
+  "programs",
+  "outcomes",
+  "my_communities",
 ] as const;
 
 export type DiscoverView = (typeof DISCOVER_VIEWS)[number];
@@ -137,6 +139,9 @@ export type DiscoverPerson = {
   amountEarnedUsd?: number;
   acceptsDirectFunding: boolean;
   acceptsInvitations: boolean;
+  payoutReadiness: "ready" | "invite_to_claim";
+  profilePath?: string;
+  latestReceiptPath?: string;
 };
 
 export type DiscoverCommunity = {
@@ -192,4 +197,21 @@ export type DiscoverPageData = {
   savedIds: string[];
   signedIn: boolean;
   stats: DiscoverNetworkStats;
+  readiness: {
+    githubState: string;
+    repositoryState: string;
+    walletState: string;
+    selectedWallet: string | null;
+    installedCommunitySlugs: string[];
+    stale: boolean;
+    lastConfirmedAt: string | null;
+  } | null;
+  recommendation: {
+    id: string;
+    title: string;
+    reason: string;
+    state: string;
+    primaryAction: { label: string; href: string };
+    secondaryActions: Array<{ label: string; href: string }>;
+  };
 };

@@ -8,7 +8,10 @@ export async function GET(request: NextRequest) {
   const result = await listMarketplaceOpportunities(parseOpportunityFilters(params));
   const status = result.items.length === 0 && result.failures.length >= 3 ? 503 : 200;
   const response = NextResponse.json(result, { status });
-  response.headers.set("Cache-Control", API_CACHE.publicShort);
+  response.headers.set(
+    "Cache-Control",
+    result.failures.length > 0 ? API_CACHE.noStore : API_CACHE.publicShort,
+  );
   response.headers.set("Vary", "Accept-Encoding");
   return response;
 }

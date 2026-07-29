@@ -1436,3 +1436,161 @@ model ActionRun {
   @@index([aggregateType, aggregateId, startedAt])
   @@index([actionId, state])
 }
+
+/// Canonical public marketplace record. Source-specific payloads are normalised
+/// before publication so Discover never depends on a provider-specific card.
+model DiscoverOpportunity {
+  id                    String    @id @default(cuid())
+  slug                  String    @unique
+  title                 String
+  summary               String    @db.Text
+  description           String    @db.Text
+  type                  String
+  status                String    @default("draft")
+  visibility            String    @default("private")
+  creatorType           String
+  creatorId             String?
+  creatorName           String
+  creatorAvatar         String?
+  communityId           String?
+  communityName         String?
+  poolId                String?
+  poolName              String?
+  projectId             String?
+  repository            String?
+  category              String?
+  skills                Json      @default("[]")
+  deliverables          Json      @default("[]")
+  evidenceRequirements  Json      @default("[]")
+  eligibility           Json      @default("[]")
+  rewardAmountUsd       Float?
+  rewardToken           String?
+  rewardNetwork         String?
+  fundedAmountUsd       Float?
+  fundingGoalUsd        Float?
+  fundingStatus         String?
+  paymentMode           String?
+  distributionMethod    String?
+  preferredProviderId   String?
+  preferredProviderName String?
+  selectedProviderId    String?
+  selectedProviderName  String?
+  applicationCount      Int       @default(0)
+  capacity              Int?
+  deadline              DateTime?
+  location              String?
+  remote                Boolean?
+  estimatedDelivery     String?
+  sourceType            String
+  sourceId              String
+  sourceVersion         Int       @default(1)
+  verificationStatus    String    @default("unverified")
+  riskFlags             Json      @default("[]")
+  publishedAt           DateTime?
+  expiresAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([sourceType, sourceId])
+  @@index([visibility, status, publishedAt])
+  @@index([type, status, publishedAt])
+  @@index([communityId, status, publishedAt])
+  @@index([poolId, status, publishedAt])
+  @@index([creatorId, status, publishedAt])
+  @@index([fundingStatus, status, publishedAt])
+  @@index([deadline])
+  @@index([rewardAmountUsd])
+}
+
+/// One auditable execution of the controlled admin/file import pipeline.
+model DiscoverImportRun {
+  id              String    @id @default(cuid())
+  source          String
+  status          String    @default("running")
+  importedCount   Int       @default(0)
+  rejectedCount   Int       @default(0)
+  duplicateCount  Int       @default(0)
+  requestId       String
+  startedByUserId String?
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([source, startedAt])
+  @@index([status, startedAt])
+}
+
+/// Record-level validation result. Invalid imports stay visible to operators
+/// instead of being silently discarded.
+model DiscoverImportRecord {
+  id                      String   @id @default(cuid())
+  runId                   String
+  source                  String
+  sourceRecordId          String
+  validationResult        String
+  rejectionReason         String?
+  duplicateOpportunityId  String?
+  normalizedOpportunityId String?
+  publishedStatus         String?
+  inputPayload            Json
+  payloadHash             String
+  importedAt              DateTime @default(now())
+
+  @@unique([runId, sourceRecordId])
+  @@index([runId, validationResult])
+  @@index([source, sourceRecordId])
+}
+
+model DiscoverSavedItem {
+  id         String   @id @default(cuid())
+  userId     String
+  targetType String
+  targetId   String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId, createdAt])
+}
+
+model DiscoverApplication {
+  id            String   @id @default(cuid())
+  opportunityId String
+  userId        String
+  status        String   @default("submitted")
+  proposal      String   @db.Text
+  evidenceLinks Json     @default("[]")
+  submittedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([opportunityId, userId])
+  @@index([opportunityId, status, submittedAt])
+  @@index([userId, status, submittedAt])
+}
+
+model DiscoverProviderSelection {
+  id            String   @id @default(cuid())
+  opportunityId String
+  providerId    String
+  providerName  String
+  selectedBy    String
+  mode          String
+  status        String   @default("preferred")
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([opportunityId, status, createdAt])
+  @@index([providerId, status])
+}
+
+model DiscoverOpportunityActivity {
+  id            String   @id @default(cuid())
+  opportunityId String
+  eventType     String
+  actorId       String?
+  summary       String
+  metadata      Json?
+  occurredAt    DateTime @default(now())
+
+  @@index([opportunityId, occurredAt])
+}

@@ -1,0 +1,275 @@
+import { describe, expect, it } from "vitest";
+import {
+  normalizePersistedOpportunity,
+  normalizeProgramOpportunity,
+  type PersistedOpportunityRow,
+  type ProgramOpportunityRow,
+} from "../../src/lib/discover/marketplace/normalize";
+import {
+  parseDiscoverView,
+  parseOpportunityFilters,
+} from "../../src/lib/discover/marketplace/filters";
+import {
+  collectMarketplaceSourceResults,
+  deduplicateMarketplaceOpportunities,
+  marketplaceOpportunityMatches,
+  paginateMarketplaceOpportunities,
+  sortMarketplaceOpportunities,
+} from "../../src/lib/discover/marketplace/query";
+import { importedOpportunitySchema } from "../../src/lib/discover/marketplace/import";
+import type { MarketplaceOpportunity } from "../../src/lib/discover/marketplace/contracts";
+
+function program(overrides: Partial<ProgramOpportunityRow> = {}): ProgramOpportunityRow {
+  return {
+    id: "program-1",
+    name: "Documentation grant",
+    templateId: "docs-grant",
+    status: "active",
+    budgetUsd: 500,
+    rulesJson: JSON.stringify({
+      evidenceRequirements: ["Merged documentation pull request"],
+    }),
+    metadataJson: JSON.stringify({
+      summary: "Fund verified documentation improvements.",
+      category: "Documentation",
+      skills: ["technical writing", "TypeScript"],
+      remote: true,
+      providerPreference: "open",
+    }),
+    missionId: "mission-1",
+    lastDeployAt: new Date("2026-07-20T00:00:00.000Z"),
+    createdAt: new Date("2026-07-19T00:00:00.000Z"),
+    updatedAt: new Date("2026-07-21T00:00:00.000Z"),
+    user: {
+      id: "user-1",
+      displayName: "Ada",
+      githubUsername: "ada",
+    },
+    install: { communitySlug: "open-writers" },
+    fundStakes: [{ principalUsd: 200, releasedUsd: 0, status: "active" }],
+    ...overrides,
+  };
+}
+
+function opportunity(overrides: Partial<MarketplaceOpportunity> = {}): MarketplaceOpportunity {
+  return {
+    id: "opp-1",
+    slug: "docs-grant-a1",
+    title: "Documentation grant",
+    summary: "Fund verified documentation improvements.",
+    description: "Ship a complete guide with evidence.",
+    type: "grant",
+    status: "open",
+    creator: {
+      type: "community",
+      id: "user-1",
+      name: "Ada",
+      verified: true,
+    },
+    community: { id: "open-writers", name: "Open Writers" },
+    skills: ["technical writing", "TypeScript"],
+    deliverables: ["Guide"],
+    evidenceRequirements: ["Merged pull request"],
+    eligibility: [],
+    reward: { amountUsd: 500, token: "USDC", network: "Arc" },
+    funding: {
+      fundedAmountUsd: 200,
+      goalAmountUsd: 500,
+      status: "partially_funded",
+    },
+    provider: { preference: "open" },
+    remote: true,
+    publishedAt: "2026-07-20T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+    verificationStatus: "configured",
+    riskFlags: [],
+    source: { type: "community_program", id: "program-1" },
+    ...overrides,
+  };
+}
+
+describe("Discover marketplace normalisation", () => {
+  it("maps a community program into the canonical opportunity contract", () => {
+    const result = normalizeProgramOpportunity(program());
+    expect(result).toMatchObject({
+      type: "grant",
+      creator: { id: "user-1", name: "Ada", verified: true },
+      community: { id: "open-writers", name: "Open Writers" },
+      reward: { amountUsd: 500, token: "USDC" },
+      funding: {
+        fundedAmountUsd: 200,
+        goalAmountUsd: 500,
+        status: "partially_funded",
+      },
+      remote: true,
+      skills: ["technical writing", "TypeScript"],
+      evidenceRequirements: ["Merged documentation pull request"],
+    });
+    expect(result.slug).toMatch(/^documentation-grant-[a-f0-9]{10}$/);
+  });
+
+  it("keeps selected provider state distinct from open applications", () => {
+    const row: PersistedOpportunityRow = {
+      id: "canonical-1",
+      slug: "selected-task",
+      title: "Selected task",
+      summary: "A selected provider task.",
+      description: "The complete task description.",
+      type: "task",
+      status: "open",
+      creatorType: "founder",
+      creatorId: "owner-1",
+      creatorName: "Founder",
+      creatorAvatar: null,
+      communityId: null,
+      communityName: null,
+      poolId: null,
+      poolName: null,
+      projectId: null,
+      repository: null,
+      category: null,
+      skills: [],
+      deliverables: [],
+      evidenceRequirements: [],
+      eligibility: [],
+      rewardAmountUsd: 100,
+      rewardToken: "USDC",
+      rewardNetwork: "Arc",
+      fundedAmountUsd: 100,
+      fundingGoalUsd: 100,
+      fundingStatus: "funded",
+      paymentMode: "milestone",
+      distributionMethod: null,
+      preferredProviderId: null,
+      preferredProviderName: null,
+      selectedProviderId: "provider-1",
+      selectedProviderName: "RepoDiet Agent",
+      applicationCount: 2,
+      capacity: 1,
+      deadline: null,
+      location: null,
+      remote: true,
+      estimatedDelivery: null,
+      sourceType: "admin",
+      sourceId: "admin-1",
+      verificationStatus: "verified",
+      riskFlags: [],
+      publishedAt: new Date("2026-07-20T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-21T00:00:00.000Z"),
+    };
+    expect(normalizePersistedOpportunity(row).provider).toEqual({
+      preference: "selected",
+      selected: { id: "provider-1", name: "RepoDiet Agent" },
+    });
+  });
+});
+
+describe("Discover marketplace URL state and pagination", () => {
+  it("parses only supported views and filters", () => {
+    expect(parseDiscoverView("communities")).toBe("communities");
+    expect(parseDiscoverView("unknown")).toBe("opportunities");
+    expect(
+      parseOpportunityFilters({
+        q: "typescript",
+        type: "bounty",
+        funding: "funded",
+        provider: "preferred",
+        remote: "true",
+        minReward: "100",
+        sort: "closing_soon",
+      }),
+    ).toMatchObject({
+      q: "typescript",
+      type: "bounty",
+      fundingStatus: "funded",
+      provider: "preferred",
+      remote: true,
+      minReward: 100,
+      sort: "closing_soon",
+    });
+  });
+
+  it("filters by public facts and uses a stable cursor without duplicates", () => {
+    const items = [
+      opportunity({ id: "1", slug: "one" }),
+      opportunity({ id: "2", slug: "two", type: "bounty" }),
+      opportunity({ id: "3", slug: "three", reward: { amountUsd: 50 } }),
+    ];
+    expect(marketplaceOpportunityMatches(items[0], { q: "typescript", sort: "newest" })).toBe(true);
+    expect(marketplaceOpportunityMatches(items[0], { type: "bounty", sort: "newest" })).toBe(false);
+    const first = paginateMarketplaceOpportunities(items, undefined, 2);
+    const second = paginateMarketplaceOpportunities(items, first.nextCursor ?? undefined, 2);
+    expect(first.items.map((item) => item.id)).toEqual(["1", "2"]);
+    expect(second.items.map((item) => item.id)).toEqual(["3"]);
+    expect(new Set([...first.items, ...second.items].map((item) => item.id)).size).toBe(3);
+  });
+
+  it("deduplicates source records and sorts closing deadlines deterministically", () => {
+    const duplicate = opportunity({ id: "copy", slug: "copy" });
+    const unique = deduplicateMarketplaceOpportunities([
+      opportunity(),
+      duplicate,
+      opportunity({
+        id: "other",
+        slug: "other",
+        source: { type: "admin", id: "other" },
+        deadline: "2026-08-01T00:00:00.000Z",
+      }),
+    ]);
+    expect(unique).toHaveLength(2);
+    expect(sortMarketplaceOpportunities(unique, { sort: "closing_soon" })[0].id).toBe("other");
+  });
+});
+
+describe("Discover source isolation and import validation", () => {
+  it("keeps successful source results when another source fails", () => {
+    const result = collectMarketplaceSourceResults(
+      ["admin", "community"],
+      [
+        { status: "fulfilled", value: [opportunity()] },
+        { status: "rejected", reason: new Error("Source timed out after 4000ms") },
+      ],
+      "request-1",
+    );
+    expect(result.items).toHaveLength(1);
+    expect(result.failures).toEqual([
+      expect.objectContaining({
+        source: "community",
+        requestId: "request-1",
+        retryable: true,
+      }),
+    ]);
+  });
+
+  it("rejects public records without publication dates and contradictory funding", () => {
+    const base = {
+      sourceRecordId: "admin-1",
+      title: "Verified documentation bounty",
+      summary: "Publish a complete guide for the community.",
+      description: "Deliver and verify a complete technical guide for the public community.",
+      type: "bounty" as const,
+      status: "published" as const,
+      visibility: "public" as const,
+      creatorType: "community" as const,
+      creatorName: "Open Writers",
+      fundedAmountUsd: 10,
+      fundingGoalUsd: 100,
+      fundingStatus: "funded" as const,
+    };
+    const invalid = importedOpportunitySchema.safeParse(base);
+    expect(invalid.success).toBe(false);
+    if (!invalid.success) {
+      expect(invalid.error.issues.map((issue) => issue.path.join("."))).toEqual(
+        expect.arrayContaining(["publishedAt", "fundingStatus"]),
+      );
+    }
+    expect(
+      importedOpportunitySchema.safeParse({
+        ...base,
+        fundingStatus: "partially_funded",
+        publishedAt: "2026-07-20T00:00:00.000Z",
+        expiresAt: "2026-07-19T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+  });
+});

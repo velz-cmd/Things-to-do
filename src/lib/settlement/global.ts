@@ -23,7 +23,7 @@ export type GlobalSettlementInput = {
 };
 
 export type GlobalSettlementResult = {
-  mode: "onchain" | "offchain";
+  mode: "onchain" | "blocked";
   txHashes: string[];
   payoutCount: number;
   totalUsd: number;
@@ -38,9 +38,17 @@ export async function executeGlobalBatchSettlement(
 ): Promise<GlobalSettlementResult> {
   const totalUsd = input.payouts.reduce((s, p) => s + p.amountUsd, 0);
   const funding = await assertTreasuryCanFund(totalUsd);
+  if (!funding.ok || !isLiveArcEnabled()) {
+    return {
+      mode: "blocked",
+      txHashes: [],
+      payoutCount: 0,
+      totalUsd: 0,
+    };
+  }
 
   let txHashes: string[] = [];
-  let mode: GlobalSettlementResult["mode"] = "offchain";
+  const mode: GlobalSettlementResult["mode"] = "onchain";
 
   if (
     funding.mode === "onchain" &&
@@ -56,7 +64,6 @@ export async function executeGlobalBatchSettlement(
       })),
     });
     txHashes = memoResults.map((r) => r.txHash);
-    mode = "onchain";
   }
 
   await fulfillMissionAuthorizations({

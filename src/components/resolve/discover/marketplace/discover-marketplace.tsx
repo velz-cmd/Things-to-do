@@ -19,7 +19,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type {
-  DiscoverCommunity,
   DiscoverPageData,
   DiscoverPerson,
   DiscoverPool,
@@ -41,9 +40,7 @@ const views: Array<{
   { id: "people", label: "People", icon: Users },
   { id: "work", label: "Verified Work", icon: FileCheck2 },
   { id: "pools", label: "Pools", icon: CircleDollarSign },
-  { id: "programs", label: "Programs", icon: BriefcaseBusiness },
   { id: "outcomes", label: "Outcomes", icon: History },
-  { id: "my_communities", label: "My Communities", icon: Building2 },
 ];
 
 const pathActions = [
@@ -53,6 +50,7 @@ const pathActions = [
     copy: "Support a verified creator or contributor directly.",
     href: "/discover?view=people",
     icon: UserRound,
+    capability: "directSupport",
   },
   {
     id: "discover.open_funding_pools",
@@ -60,6 +58,7 @@ const pathActions = [
     copy: "Add capital to a community program whose rules determine distribution.",
     href: "/discover?view=pools",
     icon: CircleDollarSign,
+    capability: "poolFunding",
   },
   {
     id: "discover.open_verified_work",
@@ -67,6 +66,7 @@ const pathActions = [
     copy: "Support completed or proposed work with inspectable evidence.",
     href: "/discover?view=work",
     icon: FileCheck2,
+    capability: "verifiedWorkFunding",
   },
 ] as const;
 
@@ -111,7 +111,7 @@ function Header({ data }: { data: DiscoverPageData }) {
       ? `${data.stats.openOpportunities} public opportunities`
       : null,
     data.stats.activeFundingUsd
-      ? `${money(data.stats.activeFundingUsd)} confirmed funding`
+      ? `${money(data.stats.activeFundingUsd)} confirmed settlement volume`
       : null,
     data.stats.activeCommunities
       ? `${data.stats.activeCommunities} active communities`
@@ -203,7 +203,7 @@ function SearchBox({
         name="q"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search a creator, contributor, community, Pool, program, or verified work"
+        placeholder="Search a creator, contributor, community, Pool, or verified work"
         aria-label="Search Discover"
         className="min-h-12 w-full rounded-xl border border-white/10 bg-[#07111f] pl-11 pr-12 text-[15px] text-white outline-none placeholder:text-slate-600 focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/10"
       />
@@ -273,7 +273,9 @@ function ViewTabs({ active, query }: { active: DiscoverView; query?: string }) {
   );
 }
 
-function FundingPaths() {
+function FundingPaths({ data }: { data: DiscoverPageData }) {
+  const enabledPaths = pathActions.filter((action) => data.actions[action.capability]);
+  if (enabledPaths.length === 0) return null;
   return (
     <section aria-labelledby="funding-paths-title">
       <div className="mb-3 flex items-end justify-between gap-4">
@@ -285,7 +287,7 @@ function FundingPaths() {
         </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-3">
-        {pathActions.map((action) => {
+        {enabledPaths.map((action) => {
           const Icon = action.icon;
           return (
             <Link
@@ -393,13 +395,27 @@ function SourceFailure({
   );
 }
 
-function OpportunityCard({ item }: { item: MarketplaceOpportunity }) {
+function OpportunityCard({
+  item,
+  poolFundingEnabled,
+}: {
+  item: MarketplaceOpportunity;
+  poolFundingEnabled: boolean;
+}) {
   const isPool = Boolean(item.pool);
   const isWork =
     item.source.type === "repository_snapshot" ||
     ["repository_fix", "project_contribution", "task", "bounty"].includes(item.type);
   const amount = money(item.reward?.amountUsd, item.reward?.token);
   const funded = money(item.funding?.fundedAmountUsd);
+  const fundingLabel =
+    item.funding?.amountState === "confirmed"
+      ? "Confirmed funding"
+      : item.funding?.amountState === "funding_reserved"
+        ? "Funding reserved"
+        : item.funding?.amountState === "submitted"
+          ? "Submitted funding"
+          : "Funding provenance unavailable";
   const detailPath = `/opportunities/${item.slug}`;
   return (
     <article className="flex h-full flex-col rounded-xl border border-white/[0.08] bg-[#091522] p-5">
@@ -431,8 +447,16 @@ function OpportunityCard({ item }: { item: MarketplaceOpportunity }) {
         )}
         {funded && (
           <div>
-            <dt className="text-slate-500">Confirmed funded</dt>
-            <dd className="mt-1 font-medium text-emerald-300">{funded}</dd>
+            <dt className="text-slate-500">{fundingLabel}</dt>
+            <dd
+              className={
+                item.funding?.amountState === "confirmed"
+                  ? "mt-1 font-medium text-emerald-300"
+                  : "mt-1 font-medium text-amber-200"
+              }
+            >
+              {funded}
+            </dd>
           </div>
         )}
       </dl>
@@ -445,7 +469,7 @@ function OpportunityCard({ item }: { item: MarketplaceOpportunity }) {
           {isWork ? "View proof" : "Inspect details"}
           <ArrowRight className="h-4 w-4" />
         </Link>
-        {isPool && (
+        {isPool && poolFundingEnabled && (
           <Link
             href={poolFundingHandoff(item.pool?.id ?? item.source.id, detailPath)}
             onClick={() => track("discover.back-pool", { opportunity: item.id })}
@@ -463,16 +487,22 @@ function OpportunityGrid({
   items,
   emptyTitle,
   emptyBody,
+  poolFundingEnabled,
 }: {
   items: MarketplaceOpportunity[];
   emptyTitle: string;
   emptyBody: string;
+  poolFundingEnabled: boolean;
 }) {
   if (!items.length) return <EmptyState title={emptyTitle} body={emptyBody} />;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {items.map((item) => (
-        <OpportunityCard key={item.id} item={item} />
+        <OpportunityCard
+          key={item.id}
+          item={item}
+          poolFundingEnabled={poolFundingEnabled}
+        />
       ))}
     </div>
   );
@@ -536,8 +566,20 @@ function PersonCard({ person }: { person: DiscoverPerson }) {
   );
 }
 
-function PoolCard({ pool }: { pool: DiscoverPool }) {
+function PoolCard({
+  pool,
+  fundingEnabled,
+}: {
+  pool: DiscoverPool;
+  fundingEnabled: boolean;
+}) {
   const returnTo = `/discover?view=pools&pool=${encodeURIComponent(pool.id)}`;
+  const balanceLabel =
+    pool.balanceState === "confirmed"
+      ? "Confirmed balance"
+      : pool.balanceState === "funding_reserved"
+        ? "Funding reserved"
+        : "Funding provenance unavailable";
   return (
     <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
       <div className="flex items-start gap-3">
@@ -554,9 +596,9 @@ function PoolCard({ pool }: { pool: DiscoverPool }) {
       )}
       <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-4 text-xs">
         <div>
-          <dt className="text-slate-500">Confirmed balance</dt>
+          <dt className="text-slate-500">{balanceLabel}</dt>
           <dd className="mt-1 font-medium text-white">
-            {money(pool.balanceUsd, pool.token) ?? "No confirmed balance"}
+            {money(pool.balanceUsd, pool.token) ?? "No authoritative balance"}
           </dd>
         </div>
         <div>
@@ -565,44 +607,24 @@ function PoolCard({ pool }: { pool: DiscoverPool }) {
         </div>
       </dl>
       <div className="mt-5 flex gap-2">
+        {fundingEnabled && (
+          <Link
+            href={poolFundingHandoff(pool.id, returnTo)}
+            data-action-id="capital.open_funding"
+            onClick={() => track("discover.back-pool", { pool: pool.id })}
+            className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg bg-violet-500 px-3 text-sm font-semibold text-white"
+          >
+            Add USDC to Pool
+          </Link>
+        )}
         <Link
-          href={poolFundingHandoff(pool.id, returnTo)}
-          onClick={() => track("discover.back-pool", { pool: pool.id })}
-          className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg bg-violet-500 px-3 text-sm font-semibold text-white"
-        >
-          Back this Pool
-        </Link>
-        <Link
-          href={`/discover?view=programs&q=${encodeURIComponent(pool.name)}`}
+          href={`/communities/${encodeURIComponent(pool.communitySlug)}`}
+          data-action-id="community.open"
           className="inline-flex min-h-10 items-center rounded-lg border border-white/10 px-3 text-sm text-slate-300"
         >
           View rule
         </Link>
       </div>
-    </article>
-  );
-}
-
-function CommunityCard({ community }: { community: DiscoverCommunity }) {
-  return (
-    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
-      <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-400/10 text-cyan-300">
-          <Building2 className="h-5 w-5" />
-        </span>
-        <div>
-          <h3 className="font-semibold text-white">{community.name}</h3>
-          <p className="mt-1 text-xs capitalize text-slate-500">{community.type}</p>
-        </div>
-      </div>
-      <p className="mt-4 text-sm leading-6 text-slate-400">{community.purpose}</p>
-      <Link
-        href={`/communities/${community.slug}`}
-        onClick={() => track("discover.open-community", { community: community.slug })}
-        className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-200"
-      >
-        Open community <ArrowRight className="h-4 w-4" />
-      </Link>
     </article>
   );
 }
@@ -628,6 +650,7 @@ function ReadinessSummary({ data }: { data: DiscoverPageData }) {
         </div>
         <Link
           href="/communities"
+          data-action-id="discover.open_communities"
           className="inline-flex min-h-10 items-center justify-center rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white"
         >
           Open Communities
@@ -762,7 +785,11 @@ export function DiscoverMarketplace({
           {data.pools.length ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {data.pools.map((pool) => (
-                <PoolCard key={pool.id} pool={pool} />
+                <PoolCard
+                  key={pool.id}
+                  pool={pool}
+                  fundingEnabled={data.actions.poolFunding}
+                />
               ))}
             </div>
           ) : (
@@ -774,28 +801,9 @@ export function DiscoverMarketplace({
         </>
       );
     }
-    if (data.view === "my_communities") {
-      const installed = new Set(data.readiness?.installedCommunitySlugs ?? []);
-      const communities = data.signedIn
-        ? data.communities.filter((community) => installed.has(community.slug))
-        : [];
-      return (
-        <div className="space-y-4">
-          <ReadinessSummary data={data} />
-          {communities.length > 0 && (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {communities.map((community) => (
-                <CommunityCard key={community.id} community={community} />
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
-    const labels: Record<Exclude<DiscoverView, "people" | "pools" | "my_communities">, string> = {
+    const labels: Record<Exclude<DiscoverView, "people" | "pools">, string> = {
       for_you: "Top real opportunities",
       work: "Verified work",
-      programs: "Published programs",
       outcomes: "Confirmed outcome campaigns",
     };
     return (
@@ -805,6 +813,7 @@ export function DiscoverMarketplace({
           items={data.opportunities.items}
           emptyTitle="No matching public opportunity"
           emptyBody="No fixture or unsupported integration is substituted. Broaden the search or connect a real community in Communities."
+          poolFundingEnabled={data.actions.poolFunding}
         />
       </>
     );
@@ -815,12 +824,22 @@ export function DiscoverMarketplace({
       <Header data={data} />
       <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
         <SearchBox filters={filters} view={data.view} />
-        <ViewTabs active={data.view} query={filters.q} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewTabs active={data.view} query={filters.q} />
+          <Link
+            href="/communities"
+            data-action-id="discover.open_communities"
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm text-slate-300 hover:bg-white/[0.05]"
+          >
+            <Building2 className="h-4 w-4" />
+            My Communities
+          </Link>
+        </div>
       </div>
       <div className="mt-5 space-y-5">
         {data.view === "for_you" && (
           <>
-            <FundingPaths />
+            <FundingPaths data={data} />
             <Recommendation data={data} />
           </>
         )}

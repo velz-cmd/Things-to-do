@@ -22,7 +22,7 @@
     "test:capital-profile": "tsx --test scripts/tests/capital-wallet-correctness.test.ts",
     "deploy:escrow": "tsx scripts/deploy-escrow.ts",
     "test:integrations": "tsx scripts/test-integrations.ts",
-    "test:github-integrations": "tsx scripts/test-github-integrations.ts",
+    "test:github-integrations": "node --conditions=react-server --import tsx scripts/test-github-integrations.ts",
     "circle:register-entity-secret": "tsx scripts/register-circle-entity-secret.ts"
   },
   "dependencies": {

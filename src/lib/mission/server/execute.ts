@@ -60,7 +60,13 @@ export async function executeMissionAllocation(input: {
   }
 
   try {
-    await assertTreasuryCanFund(plan.treasuryAmount);
+    const treasury = await assertTreasuryCanFund(plan.treasuryAmount);
+    if (!treasury.ok) {
+      const msg =
+        "Live Arc settlement is unavailable. The mission remains ready for later authorization.";
+      await updateMissionStatus(input.userId, input.missionId, "awaiting_user", msg);
+      return { ok: false as const, error: msg, plan };
+    }
   } catch (e) {
     const msg = e instanceof TreasuryUnderfundedError ? e.message : "Treasury underfunded";
     await updateMissionStatus(input.userId, input.missionId, "failed", msg);

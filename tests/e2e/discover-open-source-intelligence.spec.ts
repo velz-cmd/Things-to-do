@@ -8,16 +8,13 @@ test.describe("Discover verified funding network", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Discover verified value" }),
     ).toBeVisible();
-    await expect(page.getByText("What do you want to support?")).toBeVisible();
     await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
 
     const views = [
       ["People", "people"],
       ["Verified Work", "work"],
       ["Pools", "pools"],
-      ["Programs", "programs"],
       ["Outcomes", "outcomes"],
-      ["My Communities", "my_communities"],
       ["For You", "for_you"],
     ] as const;
     for (const [label, value] of views) {
@@ -25,6 +22,8 @@ test.describe("Discover verified funding network", () => {
       await expect(page).toHaveURL(new RegExp(`view=${value}`));
       await expect(page.getByRole("heading", { level: 1, name: "Discover verified value" })).toBeVisible();
     }
+    const communities = page.getByRole("link", { name: "My Communities", exact: true });
+    await expect(communities).toHaveAttribute("href", "/communities");
   });
 
   test("keeps search and view state in the URL", async ({ page }) => {
@@ -33,7 +32,7 @@ test.describe("Discover verified funding network", () => {
       timeout: 120_000,
     });
     const search = page.getByPlaceholder(
-      "Search a creator, contributor, community, Pool, program, or verified work",
+      "Search a creator, contributor, community, Pool, or verified work",
     );
     await search.fill("typescript");
     await search.press("Enter");
@@ -45,9 +44,7 @@ test.describe("Discover verified funding network", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByText("Fund a person")).toBeVisible();
-    await expect(page.getByText("Back a Pool")).toBeVisible();
-    await expect(page.getByText("Fund verified work")).toBeVisible();
+    await expect(page.getByRole("link", { name: "My Communities", exact: true })).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
@@ -70,7 +67,7 @@ test.describe("Discover verified funding network", () => {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
-    const backPool = page.getByRole("link", { name: "Back this Pool" }).first();
+    const backPool = page.getByRole("link", { name: "Add USDC to Pool" }).first();
     const hasPublishedPool = await backPool
       .waitFor({ state: "visible", timeout: 10_000 })
       .then(() => true)

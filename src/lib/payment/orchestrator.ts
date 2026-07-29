@@ -42,13 +42,21 @@ export async function runPaymentSettlement(
 
   const fundingTotal =
     pkg.contributors.reduce((s, c) => s + Number(c.amount), 0) + (pkg.pendingClaimUsd ?? 0);
+  let treasuryGate: Awaited<ReturnType<typeof assertTreasuryCanFund>>;
   try {
-    await assertTreasuryCanFund(fundingTotal);
+    treasuryGate = await assertTreasuryCanFund(fundingTotal);
   } catch (e) {
     if (e instanceof TreasuryUnderfundedError) {
       return { error: e.message, code: e.code };
     }
     throw e;
+  }
+  if (!treasuryGate.ok) {
+    return {
+      error:
+        "Live Arc settlement is unavailable. The authorization remains pending and no transaction was created.",
+      code: "LIVE_SETTLEMENT_UNAVAILABLE",
+    };
   }
 
   const auditHash = settlementAuditHash(pkg);
@@ -67,28 +75,24 @@ export async function runPaymentSettlement(
     proofHash: pkg.proofHash,
   });
 
-  const treasurySnap = await assertTreasuryCanFund(fundingTotal).catch(() => null);
-  if (treasurySnap) {
-    await emitPaymentEvent(settlement.id, "TreasuryChecked", {
-      missionId: pkg.missionId,
-      requiredUsd: fundingTotal,
-      mode: treasurySnap.mode,
-      balanceUsd: treasurySnap.snapshot.balanceUsd,
-      availableUsd: treasurySnap.snapshot.availableUsd,
-      fundingWallet: treasurySnap.snapshot.fundingWallet,
-    });
-  }
+  await emitPaymentEvent(settlement.id, "TreasuryChecked", {
+    missionId: pkg.missionId,
+    requiredUsd: fundingTotal,
+    mode: treasuryGate.mode,
+    balanceUsd: treasuryGate.snapshot.balanceUsd,
+    availableUsd: treasuryGate.snapshot.availableUsd,
+    fundingWallet: treasuryGate.snapshot.fundingWallet,
+  });
 
   const plan = buildSettlementPlan({ settlementId: settlement.id, package: pkg });
   const poolsJson = JSON.stringify(plan.pools);
 
-  settlement = await updateSettlementStatus(settlement.id, "ESCROW_LOCKED", {
-    escrowTxHash: `escrow:${pkg.missionId}:${auditHash.slice(0, 16)}`,
+  settlement = await updateSettlementStatus(settlement.id, "READY", {
     batchNumber,
     complianceJson: JSON.stringify({ pools: plan.pools, headline: poolHeadline(plan.pools) }),
   });
 
-  await emitPaymentEvent(settlement.id, "EscrowLocked", {
+  await emitPaymentEvent(settlement.id, "SettlementAuthorized", {
     missionId: pkg.missionId,
     pools: plan.pools,
     batchNumber,
@@ -242,27 +246,20 @@ export async function runPendingOnlyMission(input: {
   const batchNumber = await getNextBatchNumber();
   const pools = reserveCapitalPools(input.treasuryAmount);
 
-  let settlement = await createSettlementRecord({
+  const settlement = await createSettlementRecord({
     package: { ...pkg, treasuryAmount: input.treasuryAmount },
-    status: "ESCROW_LOCKED",
+    status: "READY",
     poolsJson: JSON.stringify(pools),
     auditHash,
   });
 
-  await updateSettlementStatus(settlement.id, "ESCROW_LOCKED", {
-    escrowTxHash: `escrow:${input.missionId}:${auditHash.slice(0, 16)}`,
+  await updateSettlementStatus(settlement.id, "READY", {
     batchNumber,
     complianceJson: JSON.stringify({
       pools,
       pendingOnly: true,
       pendingClaimUsd: input.pendingClaimUsd,
     }),
-  });
-
-  await emitPaymentEvent(settlement.id, "EscrowLocked", {
-    missionId: input.missionId,
-    pendingOnly: true,
-    pendingClaimUsd: input.pendingClaimUsd,
   });
 
   const rewards = await createPendingRewardsFromAllocation({

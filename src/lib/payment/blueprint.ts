@@ -33,7 +33,6 @@ export const PAYMENT_LAYER_BLUEPRINT = {
   ],
     apis: {
     createSettlement: "POST /api/payment/create-settlement",
-    lockEscrow: "POST /api/payment/lock-escrow",
     executeBatch: "POST /api/payment/execute-batch",
     fromAllocation: "POST /api/payment/from-allocation",
     fromGithub: "POST /api/payment/from-github",

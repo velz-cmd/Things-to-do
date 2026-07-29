@@ -95,6 +95,7 @@ export const RESOLVE_ACTION_IDS = [
   "discover.open_people",
   "discover.open_funding_pools",
   "discover.open_verified_work",
+  "discover.open_communities",
   "asset.register",
   "asset.verify_ownership",
   "campaign.create_draft",

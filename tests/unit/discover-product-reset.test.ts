@@ -108,13 +108,20 @@ function readiness(
 }
 
 describe("Discover publication policy", () => {
-  it("publishes supported real programs and rejects fixtures or unsupported programs", () => {
+  it("publishes only approved programs with provenance, policy, treasury, and version", () => {
     const base = {
       templateId: "docs-grant",
       status: "active",
       missionId: "mission-1",
       budgetUsd: 100,
-      metadataJson: JSON.stringify({ visibility: "public" }),
+      metadataJson: JSON.stringify({
+        visibility: "public",
+        publicationStatus: "approved",
+        publicationVersion: "1",
+        provenance: "operator_created",
+        policyStatus: "active",
+        treasuryAddress: "0x1111111111111111111111111111111111111111",
+      }),
     };
     expect(programPublicationEligible(base)).toBe(true);
     expect(
@@ -126,19 +133,45 @@ describe("Discover publication policy", () => {
     expect(
       programPublicationEligible({
         ...base,
-        metadataJson: JSON.stringify({ isDemo: true }),
+        metadataJson: JSON.stringify({
+          visibility: "public",
+          publicationStatus: "approved",
+          publicationVersion: "1",
+          provenance: "operator_created",
+          policyStatus: "active",
+          treasuryAddress: "0x1111111111111111111111111111111111111111",
+          isDemo: true,
+        }),
       }),
     ).toBe(false);
     expect(
       programPublicationEligible({
         ...base,
         templateId: "custom",
-        metadataJson: JSON.stringify({ repository: "owner/repository" }),
+        metadataJson: JSON.stringify({
+          visibility: "public",
+          publicationStatus: "approved",
+          publicationVersion: "1",
+          provenance: "external_integration",
+          policyStatus: "active",
+          treasuryAddress: "0x1111111111111111111111111111111111111111",
+          repository: "owner/repository",
+        }),
       }),
     ).toBe(true);
+    expect(
+      programPublicationEligible({
+        ...base,
+        metadataJson: JSON.stringify({
+          visibility: "public",
+          publicationStatus: "approved",
+          provenance: "unknown_provenance",
+        }),
+      }),
+    ).toBe(false);
   });
 
-  it("separates verified work, Pools, Programs, and Outcomes", () => {
+  it("separates verified work, Pools, and Outcomes", () => {
     const work = opportunity();
     expect(opportunityMatchesView(work, "work")).toBe(true);
     expect(opportunityMatchesView(work, "pools")).toBe(false);
@@ -146,12 +179,6 @@ describe("Discover publication policy", () => {
       opportunityMatchesView(
         opportunity({ pool: { id: "pool-1", name: "Docs Pool" } }),
         "pools",
-      ),
-    ).toBe(true);
-    expect(
-      opportunityMatchesView(
-        opportunity({ source: { type: "community_program", id: "program-1" } }),
-        "programs",
       ),
     ).toBe(true);
     expect(

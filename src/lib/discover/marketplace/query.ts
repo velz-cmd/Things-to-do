@@ -7,6 +7,7 @@ import { cacheGetOrSetResilient } from "@/lib/cache/kv";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { getSessionUser } from "@/lib/auth/session";
 import { loadWorkspaceReadiness } from "@/lib/workspace/readiness";
+import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
 import {
   normalizeCampaignOpportunity,
   normalizePersistedOpportunity,
@@ -43,11 +44,34 @@ const SOURCE_LIMIT = 100;
 const SOURCE_CACHE_SECONDS = 60;
 const ACTIVITY_CACHE_SECONDS = 30;
 
+type ConfirmedFundingRow = { total_micro_usdc: bigint | null };
+
 function withTimeout<T>(promise: Promise<T>, ms = SOURCE_TIMEOUT_MS): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`Source timed out after ${ms}ms`)), ms);
     promise.then(resolve, reject).finally(() => clearTimeout(timer));
   });
+}
+
+export function confirmedFundingUsd(totalMicroUsdc: bigint | null | undefined) {
+  if (totalMicroUsdc == null || totalMicroUsdc <= 0n) return undefined;
+  return Number(totalMicroUsdc) / 1_000_000;
+}
+
+async function loadConfirmedFundingUsd() {
+  const rows = await prisma.$queryRaw<ConfirmedFundingRow[]>`
+    SELECT COALESCE(SUM(r."totalUsdcMicro"), 0)::bigint AS total_micro_usdc
+    FROM "Receipt" r
+    INNER JOIN "ChainTransaction" t
+      ON t.id = r."chainTransactionId"
+    WHERE t.status = 'confirmed'
+      AND t."txHash" IS NOT NULL
+      AND t."confirmedAt" IS NOT NULL
+      AND t."fromAddress" IS NOT NULL
+      AND t."toAddress" IS NOT NULL
+      AND t."amountUsdcMicro" IS NOT NULL
+  `;
+  return confirmedFundingUsd(rows[0]?.total_micro_usdc);
 }
 
 function sourceFailure(source: string, requestId: string, error: unknown): DiscoverSourceFailure {
@@ -572,6 +596,7 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
           item.provider.preference === "invite_only" ? "Invite only" : "Open applications",
         verificationMechanism:
           item.evidenceRequirements.length > 0 ? item.evidenceRequirements[0] : undefined,
+        balanceState: item.funding?.amountState,
       },
     ];
   });
@@ -595,13 +620,13 @@ export async function loadDiscoverPageData(
   const readiness = user
     ? await withTimeout(loadWorkspaceReadiness(user.id), 1_500).catch(() => null)
     : null;
+  const activeFundingUsd = await withTimeout(loadConfirmedFundingUsd(), 1_500).catch(
+    () => undefined,
+  );
   const allVisible = opportunities.items;
   const communities = listCommunities(allVisible);
   const pools = listPools(allVisible);
-  const activeFundingUsd = allVisible.reduce(
-    (total, item) => total + (item.funding?.fundedAmountUsd ?? 0),
-    0,
-  );
+  const liveSettlementEnabled = isLiveArcEnabled();
 
   return {
     view,
@@ -625,7 +650,7 @@ export async function loadDiscoverPageData(
     signedIn: Boolean(user),
     stats: {
       openOpportunities: opportunities.total || undefined,
-      activeFundingUsd: activeFundingUsd > 0 ? activeFundingUsd : undefined,
+      activeFundingUsd,
       activeCommunities: communities.length || undefined,
       verifiedContributors: people.length || undefined,
     },
@@ -641,5 +666,21 @@ export async function loadDiscoverPageData(
         }
       : null,
     recommendation: selectDiscoverRecommendation(readiness, allVisible),
+    actions: {
+      directSupport:
+        liveSettlementEnabled &&
+        people.some(
+          (person) => person.acceptsDirectFunding && person.payoutReadiness === "ready",
+        ),
+      poolFunding: liveSettlementEnabled && pools.length > 0,
+      verifiedWorkFunding:
+        liveSettlementEnabled &&
+        allVisible.some(
+          (item) =>
+            item.verificationStatus === "verified" &&
+            (item.source.type === "repository_snapshot" ||
+              ["project_contribution", "repository_fix"].includes(item.type)),
+        ),
+    },
   };
 }

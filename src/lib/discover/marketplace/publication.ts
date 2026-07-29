@@ -11,6 +11,16 @@ const SUPPORTED_PROGRAM_TEMPLATES = new Set([
   "quadratic-funding",
 ]);
 
+const PUBLIC_PROVENANCE = new Set([
+  "external_user",
+  "external_integration",
+  "operator_created",
+]);
+
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export function programPublicationEligible(
   row: Pick<
     ProgramOpportunityRow,
@@ -25,9 +35,19 @@ export function programPublicationEligible(
   } catch {
     return false;
   }
-  if (metadata.isDemo === true || metadata.fixture === true || metadata.visibility === "private") {
+  if (
+    metadata.isDemo === true ||
+    metadata.fixture === true ||
+    metadata.visibility === "private"
+  ) {
     return false;
   }
+  if (metadata.publicationStatus !== "approved") return false;
+  if (!PUBLIC_PROVENANCE.has(String(metadata.provenance ?? ""))) return false;
+  if (metadata.policyStatus !== "active") return false;
+  if (!nonEmptyString(metadata.treasuryAddress)) return false;
+  if (!/^0x[a-fA-F0-9]{40}$/.test(metadata.treasuryAddress)) return false;
+  if (!nonEmptyString(metadata.publicationVersion)) return false;
   if (SUPPORTED_PROGRAM_TEMPLATES.has(row.templateId)) return true;
   const repository = typeof metadata.repository === "string" ? metadata.repository.trim() : "";
   return /^[\w.-]+\/[\w.-]+$/.test(repository);
@@ -46,7 +66,6 @@ export function opportunityMatchesView(
     );
   }
   if (view === "pools") return Boolean(opportunity.pool);
-  if (view === "programs") return opportunity.source.type === "community_program";
   if (view === "outcomes") return opportunity.source.type === "outcome_campaign";
   return true;
 }

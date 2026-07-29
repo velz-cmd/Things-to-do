@@ -61,8 +61,14 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
         )}
       >
         <Activity className="h-3.5 w-3.5 shrink-0 text-amber-300/80" />
-        <span>Ledger waiting for its first pool fulfillment.</span>
-        <Link href="#opportunities" className="ml-auto shrink-0 text-[10px] font-medium text-blue-300 hover:text-white">Review programs →</Link>
+        <span>No confirmed Arc settlement receipt yet.</span>
+        <Link
+          href="/communities"
+          data-action-id="discover.open_communities"
+          className="ml-auto shrink-0 text-[10px] font-medium text-blue-300 hover:text-white"
+        >
+          Open Communities
+        </Link>
       </div>
     );
   }
@@ -77,9 +83,9 @@ export function DiscoverLiveArcStrip({ className }: { className?: string }) {
       <div className="discover-live-rail__header flex items-center gap-2 px-3">
         <Activity className="h-3.5 w-3.5 text-cyan-300" />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-200/90">
-          Live pools
+          Confirmed settlements
         </span>
-        <span className="text-[10px] text-resolve-muted-dim">· real USD + contributor counts</span>
+        <span className="text-[10px] text-resolve-muted-dim">Receipt and Arc transaction required</span>
       </div>
       <div className="discover-live-rail__rows">
         {data.rows.slice(0, 3).map((row) => (

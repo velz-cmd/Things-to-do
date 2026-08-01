@@ -61,6 +61,8 @@ const SOURCE_CACHE_SECONDS = 60;
 const ACTIVITY_CACHE_SECONDS = 30;
 const PERSONAL_SOURCE_TIMEOUT_MS = 12_000;
 const PERSONAL_SOURCE_TIMEOUT_LABEL = `${PERSONAL_SOURCE_TIMEOUT_MS / 1_000}-second personal-source timeout`;
+const PERSONAL_ENRICHMENT_TIMEOUT_MS = 4_000;
+const PERSONAL_ENRICHMENT_TIMEOUT_LABEL = `${PERSONAL_ENRICHMENT_TIMEOUT_MS / 1_000}-second personal-enrichment timeout`;
 
 type ConfirmedFundingRow = { total_micro_usdc: bigint | null };
 
@@ -175,8 +177,17 @@ async function loadProgramOpportunities() {
 }
 
 async function loadVerifiedGithubWork() {
-  const stored = await loadStoredOssOpportunities();
+  const stored = await loadCachedStoredOssOpportunities();
   return normalizeGithubAcceptedWork(stored.opportunities);
+}
+
+function loadCachedStoredOssOpportunities() {
+  return cacheGetOrSetResilient(
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.githubStore,
+    SOURCE_CACHE_SECONDS,
+    loadStoredOssOpportunities,
+    { staleSeconds: 86_400 },
+  );
 }
 
 async function loadConfirmedOutcomes() {
@@ -703,7 +714,7 @@ function loadCachedDiscoverPeople(viewerUserId?: string) {
   return cacheGetOrSetResilient(
     `discover:people:v2:${viewerUserId ?? "public"}`,
     60,
-    () => withTimeout(listDiscoverPeople(viewerUserId), PERSONAL_SOURCE_TIMEOUT_MS),
+    () => withTimeout(listDiscoverPeople(viewerUserId), PERSONAL_ENRICHMENT_TIMEOUT_MS),
     { staleSeconds: 86_400 },
   );
 }
@@ -1030,7 +1041,7 @@ function loadCachedMyDiscoverCommunities(userId: string) {
   return cacheGetOrSetResilient(
     `discover:my-communities:v2:${userId}`,
     30,
-    () => withTimeout(listMyDiscoverCommunities(userId), PERSONAL_SOURCE_TIMEOUT_MS),
+    () => withTimeout(listMyDiscoverCommunities(userId), PERSONAL_ENRICHMENT_TIMEOUT_MS),
     { staleSeconds: 86_400 },
   );
 }
@@ -1332,7 +1343,7 @@ async function loadDiscoverSourceDiagnostics(
   readiness: Awaited<ReturnType<typeof loadWorkspaceReadiness>> | null,
   repositories: string[],
 ): Promise<DiscoverSourceDiagnostic[]> {
-  const stored = await loadStoredOssOpportunities().catch(() => ({
+  const stored = await loadCachedStoredOssOpportunities().catch(() => ({
     opportunities: [],
     meta: { scannedAt: new Date(0).toISOString(), source: "unavailable", stale: true },
   }));
@@ -1420,7 +1431,7 @@ export async function loadDiscoverPageData(
     } catch {
       return {
         items: [] as DiscoverPerson[],
-        error: `Claimed contributor profiles did not refresh before the ${PERSONAL_SOURCE_TIMEOUT_LABEL}. Persisted accepted-work attribution remains available.`,
+        error: `Claimed contributor profiles did not refresh before the ${PERSONAL_ENRICHMENT_TIMEOUT_LABEL}. Persisted accepted-work attribution remains available.`,
       };
     }
   });
@@ -1448,7 +1459,7 @@ export async function loadDiscoverPageData(
     } catch {
       return {
         items: [] as DiscoverMyCommunity[],
-        error: `Community installations, repositories, programs, and Pools did not refresh before the ${PERSONAL_SOURCE_TIMEOUT_LABEL}.`,
+        error: `Community installations, repositories, programs, and Pools did not refresh before the ${PERSONAL_ENRICHMENT_TIMEOUT_LABEL}.`,
       };
     }
   });

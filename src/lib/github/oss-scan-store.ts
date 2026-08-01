@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
 import { scanAllOpportunities, scanFundingOpportunity } from "@/lib/github/opportunities";
 import type { FundingOpportunity } from "@/lib/github/types";
+import { invalidateDiscoverGithubCache } from "@/lib/discover/marketplace/cache";
 
 const STALE_MS = 6 * 60 * 60_000;
 
@@ -105,6 +106,8 @@ export async function persistOssOpportunitySnapshot(
   } catch (error) {
     if (!isMissingTableError(error) && !isPrismaUnavailableError(error)) throw error;
   }
+
+  await invalidateDiscoverGithubCache();
 
   return { fingerprint, observedAt: observedAt.toISOString() };
 }

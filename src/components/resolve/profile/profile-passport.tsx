@@ -26,6 +26,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { dispatchProfileRefresh } from "@/lib/profile/refresh-events";
 import { useUserConnections } from "@/components/resolve/profile/user-connections-provider";
 import type { UserConnectionState } from "@/lib/profile/connection-state-types";
+import { PayoutDestinationDrawer, type PayoutWalletType } from "@/components/resolve/profile/payout-destination-drawer";
 
 type VisibleTab = Exclude<ProfileTab, "security" | "activity">;
 
@@ -194,6 +195,7 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
     : "overview";
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [payoutWallet, setPayoutWallet] = useState<PayoutWalletType | null>(null);
 
   const select = (tab: ProfileTab) => {
     const visible = tab === "security" || tab === "activity" ? "account" : tab;
@@ -246,28 +248,6 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
       setNotice(`${provider} disconnected.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Source disconnection failed");
-    } finally {
-      setBusy(null);
-    }
-  };
-  const setPayout = async (walletType: "app" | "external") => {
-    const label = walletType === "app" ? "RESOLVE wallet" : "connected wallet";
-    if (!window.confirm(`Use the ${label} as your payout destination?`)) return;
-    setBusy(`payout:${walletType}`);
-    setNotice(null);
-    try {
-      const response = await fetch("/api/profile/payout-destination", {
-        method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ walletType, confirm: true, idempotencyKey: crypto.randomUUID() }),
-      });
-      const payload = await response.json().catch(() => ({})) as { error?: string; status?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Payout destination was not updated");
-      await reload();
-      setNotice(payload.status === "verified" ? `${label} is now the verified payout destination.` : `${label} is pending ownership proof.`);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Payout destination update failed");
     } finally {
       setBusy(null);
     }
@@ -372,12 +352,20 @@ export function ProfilePassport({ initialData }: { initialData: ProfileBootstrap
           {active === "identities" && <><IdentityNetwork identities={data.identities} payout={data.wallets.payoutDestination} /><IdentityList rows={data.identities} /></>}
           {active === "sources" && <Sources rows={data.connections} busy={busy} onRefresh={refresh} onDisconnect={disconnect} />}
           {active === "work" && <WorkAndClaims data={data} />}
-          {active === "wallets" && <Wallets data={data} busy={busy} onSetPayout={setPayout} />}
+          {active === "wallets" && <Wallets data={data} onChoosePayout={setPayoutWallet} />}
           {active === "relationships" && <Relationships data={data} />}
           {active === "account" && <AccountView data={data} signOut={signOut} />}
         </div>
         <footer className="mt-4 flex flex-wrap items-center justify-between gap-3 px-1 text-[10px] uppercase tracking-[0.16em] text-slate-600"><span>Persisted connection state · {data.freshness.connectionState}</span><span>Generated {relativeTime(data.freshness.generatedAt)}</span></footer>
       </div>
+      <PayoutDestinationDrawer
+        open={payoutWallet !== null}
+        initialData={data}
+        initialWalletType={payoutWallet}
+        origin="profile"
+        onChanged={setNotice}
+        onClose={() => setPayoutWallet(null)}
+      />
     </main>
   );
 }

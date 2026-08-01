@@ -4,6 +4,7 @@ import { ensureProfileForUser } from "@/lib/auth/session";
 import { appWalletProvider } from "@/lib/wallet/app-wallet-service";
 import { resolveUserWallet } from "@/lib/wallet/resolve-user-wallet";
 import type { ResolveWallet } from "@/lib/auth/types";
+import { prisma } from "@/lib/db";
 
 export async function GET() {
   const supabase = await createClient();
@@ -28,6 +29,11 @@ export async function GET() {
   }
 
   const resolved = resolveUserWallet(profile.id, profile);
+  const payout = await prisma.payoutDestination.findFirst({
+    where: { userId: profile.id, status: { in: ["verified", "pending"] } },
+    orderBy: [{ verifiedAt: "desc" }, { updatedAt: "desc" }],
+    select: { address: true, status: true },
+  }).catch(() => null);
   const provider = appWalletProvider(profile);
   const wallets: ResolveWallet[] = [
     {
@@ -55,6 +61,12 @@ export async function GET() {
 
   return NextResponse.json({
     wallets,
+    payoutDestination: payout
+      ? {
+          address: payout.address.toLowerCase(),
+          status: payout.status === "verified" ? "verified" : payout.status === "pending" ? "pending" : "unverified",
+        }
+      : undefined,
     appWalletPending: false,
     notificationEmail: profile.email ?? undefined,
     notificationEmailVerified: Boolean(profile.email),

@@ -34,7 +34,7 @@ async function EarnContent({ searchParams }: { searchParams: Promise<{ mode?: st
     const submissionCampaigns = submissions.length ? await prisma.outcomeCampaign.findMany({ where: { id: { in: [...new Set(submissions.map((item) => item.campaignId))] } }, select: { id: true, verificationAdapterId: true } }) : [];
     work = submissions.map((item) => { const entry = workLedger.find((row) => row.submissionId === item.id); return { ...item, provider: submissionCampaigns.find((campaign) => campaign.id === item.campaignId)?.verificationAdapterId ?? "unknown", updatedAt: item.updatedAt.toISOString(), receiptPublicReference: receipts.find((receipt) => receipt.id === entry?.receiptId)?.publicReference ?? null }; });
     assets = ownedAssets; campaigns = ownedCampaigns.map((item) => ({ ...item, totalBudgetMicroUsdc: item.totalBudgetMicroUsdc.toString(), recognizedMicroUsdc: item.recognizedMicroUsdc.toString(), settledMicroUsdc: item.settledMicroUsdc.toString() })); identities = verifiedIdentities;
-    payouts = identities.length ? await prisma.payoutDestination.findMany({ where: { identityId: { in: identities.map((identity) => identity.id) }, status: "verified" }, select: { id: true, identityId: true, network: true, address: true } }) : [];
+    payouts = await prisma.payoutDestination.findMany({ where: { status: "verified", OR: [{ userId: user.id, identityId: null }, ...(identities.length ? [{ identityId: { in: identities.map((identity) => identity.id) } }] : [])] }, orderBy: { verifiedAt: "desc" }, select: { id: true, identityId: true, network: true, address: true } });
   } catch { dataUnavailable = true; }
 
   const readiness = await readinessPromise;

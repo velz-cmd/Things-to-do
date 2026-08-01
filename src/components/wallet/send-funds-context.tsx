@@ -9,8 +9,14 @@ import {
 } from "react";
 import { SendFundsModal } from "@/components/wallet/send-funds-modal";
 
+export type SendFundsRequest = {
+  suggestedUsd?: number;
+  recipientUserId?: string;
+  recipientLabel?: string;
+};
+
 interface SendFundsContextValue {
-  openSendFunds: (suggestedUsd?: number) => void;
+  openSendFunds: (request?: number | SendFundsRequest) => void;
   closeSendFunds: () => void;
 }
 
@@ -18,16 +24,16 @@ const SendFundsContext = createContext<SendFundsContextValue | null>(null);
 
 export function SendFundsProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const [suggestedUsd, setSuggestedUsd] = useState<number | undefined>();
+  const [request, setRequest] = useState<SendFundsRequest>({});
 
-  const openSendFunds = useCallback((amount?: number) => {
-    setSuggestedUsd(amount);
+  const openSendFunds = useCallback((next?: number | SendFundsRequest) => {
+    setRequest(typeof next === "number" ? { suggestedUsd: next } : (next ?? {}));
     setOpen(true);
   }, []);
 
   const closeSendFunds = useCallback(() => {
     setOpen(false);
-    setSuggestedUsd(undefined);
+    setRequest({});
   }, []);
 
   const value = useMemo(
@@ -40,7 +46,9 @@ export function SendFundsProvider({ children }: { children: React.ReactNode }) {
       {children}
       <SendFundsModal
         open={open}
-        suggestedUsd={suggestedUsd}
+        suggestedUsd={request.suggestedUsd}
+        recipientUserId={request.recipientUserId}
+        recipientLabel={request.recipientLabel}
         onClose={closeSendFunds}
       />
     </SendFundsContext.Provider>

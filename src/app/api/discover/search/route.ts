@@ -29,7 +29,7 @@ export async function GET(req: Request) {
       const payload = await cacheGetOrSet(searchCacheKey(q), SEARCH_CACHE_TTL, () =>
         searchDiscover(q),
       );
-      return payload;
+      return { ...payload, query: q };
     },
     {
       scope: "discover/search",

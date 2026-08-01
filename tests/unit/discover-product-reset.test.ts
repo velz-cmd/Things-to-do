@@ -11,6 +11,10 @@ import {
 } from "../../src/lib/discover/marketplace/funding-preflight";
 import { poolFundingHandoff } from "../../src/lib/discover/marketplace/handoffs";
 import { selectDiscoverRecommendation } from "../../src/lib/discover/marketplace/recommendation";
+import {
+  actionMatchesExploreKind,
+  buildEconomicActions,
+} from "../../src/lib/discover/marketplace/economic-actions";
 import type { MarketplaceOpportunity } from "../../src/lib/discover/marketplace/contracts";
 import {
   mapPersistedReadinessState,
@@ -202,22 +206,94 @@ describe("Discover publication policy", () => {
     ).toBe(false);
   });
 
-  it("separates verified work, Pools, and Outcomes", () => {
+  it("keeps source records available to the projection and limits Outcomes to receipts", () => {
     const work = opportunity();
-    expect(opportunityMatchesView(work, "work")).toBe(true);
-    expect(opportunityMatchesView(work, "pools")).toBe(false);
-    expect(
-      opportunityMatchesView(
-        opportunity({ pool: { id: "pool-1", name: "Docs Pool" } }),
-        "pools",
-      ),
-    ).toBe(true);
+    expect(opportunityMatchesView(work, "explore")).toBe(true);
+    expect(opportunityMatchesView(work, "activity")).toBe(true);
+    expect(opportunityMatchesView(work, "outcomes")).toBe(false);
     expect(
       opportunityMatchesView(
         opportunity({ source: { type: "confirmed_receipt", id: "receipt-1" } }),
         "outcomes",
       ),
     ).toBe(true);
+  });
+
+  it("derives one canonical action with an exact policy setup handoff", () => {
+    const actions = buildEconomicActions({
+      opportunities: [opportunity({
+        source: { type: "community_program", id: "program-1" },
+        pool: { id: "program-1", name: "Docs Pool" },
+        creator: { type: "community", id: "user-1", name: "Ada", verified: true },
+        entityState: {
+          provenance: "operator_created",
+          lifecycle: "published",
+          financialReadiness: "setup_required",
+          blocker: "No active operating policy exists for this program.",
+        },
+      })],
+      people: [],
+      communities: [],
+      pools: [],
+      myCommunities: [],
+      viewerUserId: "user-1",
+    });
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      subjectType: "policy_blocker",
+      lifecycle: "policy_required",
+      primaryAction: { label: "Design policy" },
+    });
+    expect(actions[0]?.primaryAction.href).toContain("step=policy");
+    expect(actionMatchesExploreKind(actions[0]!, "programs")).toBe(true);
+    expect(actionMatchesExploreKind(actions[0]!, "pools")).toBe(false);
+  });
+
+  it("deduplicates repeated legacy program projections and hides unavailable payment actions", () => {
+    const repeated = opportunity({
+      source: { type: "community_program", id: "program-2" },
+      id: "opportunity-2",
+      creator: { type: "community", id: "user-2", name: "Second operator", verified: true },
+      entityState: {
+        provenance: "legacy_operator_record",
+        lifecycle: "configured",
+        financialReadiness: "setup_required",
+        blocker: "No active operating policy exists for this program.",
+      },
+    });
+    const actions = buildEconomicActions({
+      opportunities: [
+        repeated,
+        { ...repeated, id: "opportunity-3", source: { type: "community_program", id: "program-3" } },
+      ],
+      people: [{
+        id: "person-1",
+        name: "Contributor",
+        kind: "human",
+        verifiedIdentities: ["GitHub identity verified"],
+        skills: ["GitHub"],
+        communities: [],
+        acceptsDirectFunding: false,
+        acceptsInvitations: true,
+        identityState: "profile_claimed",
+        payoutReadiness: "setup_required",
+        blocker: "No verified payout destination is recorded.",
+        primaryAction: {
+          id: "discover.open_repository",
+          label: "View GitHub profile",
+          href: "https://github.com/contributor",
+          enabled: true,
+        },
+        secondaryActions: [],
+      }],
+      communities: [],
+      pools: [],
+      myCommunities: [],
+    });
+    expect(actions.filter((item) => item.subjectType === "policy_blocker")).toHaveLength(1);
+    const contributor = actions.find((item) => item.subjectId === "person-1");
+    expect(contributor?.primaryAction.label).toBe("View GitHub profile");
+    expect(contributor?.fundingReadiness).toBe("blocked");
   });
 
   it("uses explicit amount-state labels", () => {
@@ -281,10 +357,10 @@ describe("Funding preflight", () => {
     expect(
       poolFundingHandoff(
         "program-1",
-        "/discover?view=pools&pool=program%3A1",
+        "/discover?view=explore&kind=pools&pool=program%3A1",
       ),
     ).toBe(
-      "/capital?intent=back-pool&programId=program-1&returnTo=%2Fdiscover%3Fview%3Dpools%26pool%3Dprogram%253A1",
+      "/capital?intent=back-pool&programId=program-1&returnTo=%2Fdiscover%3Fview%3Dexplore%26kind%3Dpools%26pool%3Dprogram%253A1",
     );
     expect(poolFundingHandoff("program-1", "https://example.com")).toBe(
       "/capital?intent=back-pool&programId=program-1",

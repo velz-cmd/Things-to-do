@@ -89,6 +89,8 @@ type Props = {
   onRequestCreateProgram: () => void;
   onRefresh: () => void;
   initialTab?: ConsoleTab;
+  focusedProgramId?: string | null;
+  focusedStep?: string | null;
 };
 
 type RecommendedActionView = {
@@ -113,6 +115,8 @@ export function CommunityConsole({
   onRequestCreateProgram,
   onRefresh,
   initialTab = "overview",
+  focusedProgramId,
+  focusedStep,
 }: Props) {
   const [tab, setTab] = useState<ConsoleTab>(initialTab);
   const sourcesConnected = connections.hasAnyConnector || communityLinkedViaProfile(slug, connections);
@@ -131,6 +135,16 @@ export function CommunityConsole({
     if (hash === "#obligations") setTab("obligations");
     if (hash === "#programs") setTab("programs");
   }, [initialTab]);
+
+  useEffect(() => {
+    if (tab !== "programs" || !focusedProgramId) return;
+    window.requestAnimationFrame(() => {
+      document.getElementById(`program-${focusedProgramId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+  }, [focusedProgramId, programs.length, tab]);
 
   const nextAction = useMemo(
     () =>
@@ -270,7 +284,7 @@ export function CommunityConsole({
         </div>
       )}
 
-      {tab === "programs" && <ProgramsTab slug={slug} programs={programs} busy={busy} onCreate={onRequestCreateProgram} onSaved={onRefresh} />}
+      {tab === "programs" && <ProgramsTab slug={slug} programs={programs} busy={busy} onCreate={onRequestCreateProgram} onSaved={onRefresh} focusedProgramId={focusedProgramId} focusedStep={focusedStep} />}
       {tab === "obligations" && <CommunityObligationsDesk slug={slug} filter={obligationsFilter} onFilter={onObligationsFilterChange} onOpenIdentityDesk={() => openTab("identities")} />}
       {tab === "identities" && <CommunityIdentityDesk slug={slug} />}
       {tab === "sources" && <SourcesTab slug={slug} surface={surface} connected={sourcesConnected} onRefresh={onRefresh} />}
@@ -453,13 +467,36 @@ function SettlementReadiness({ slug, surface, unresolved, onTab }: { slug: strin
   );
 }
 
-function ProgramsTab({ slug, programs, busy, onCreate, onSaved }: { slug: string; programs: ProgramRecord[]; busy: boolean; onCreate: () => void; onSaved: () => void }) {
+function ProgramsTab({ slug, programs, busy, onCreate, onSaved, focusedProgramId, focusedStep }: { slug: string; programs: ProgramRecord[]; busy: boolean; onCreate: () => void; onSaved: () => void; focusedProgramId?: string | null; focusedStep?: string | null }) {
+  const focusedProgram = focusedProgramId
+    ? programs.find((program) => program.id === focusedProgramId)
+    : null;
+  const stepLabel = focusedStep === "publication"
+    ? "Review publication"
+    : focusedStep === "policy"
+      ? "Design and approve policy"
+      : focusedStep === "treasury"
+        ? "Add treasury destination"
+        : focusedStep === "source"
+          ? "Configure evidence source"
+          : "Review operating program";
   return (
     <section className={styles.tabPanel}>
       <div className={styles.tabIntro}><div><p className={styles.sectionKicker}>Policy operations</p><h2>Programs</h2><p>Programs convert verified evidence into recognized obligations. Capital requirements are handed to Capital.</p></div><button data-action-id="program.create_draft" type="button" className={styles.primaryButton} onClick={onCreate} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <GitMerge />} Create program</button></div>
+      {focusedProgramId && (
+        <div role="status" className="mb-4 rounded-xl border border-violet-300/25 bg-violet-300/[0.06] px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-200">Opened from Discover</p>
+          <p className="mt-1 text-sm font-semibold text-white">{stepLabel}</p>
+          <p className="mt-1 text-sm text-slate-400">
+            {focusedProgram
+              ? `${focusedProgram.name} is selected. Complete this requirement, then return to the preserved Discover context.`
+              : "The selected public program is not owned by this signed-in workspace. Inspect its public state or switch to the owning account before changing policy."}
+          </p>
+        </div>
+      )}
       {programs.length ? <div className={styles.programList}>{programs.map((program) => {
         const readiness = program.deployReadiness;
-        return <article key={program.id} className={styles.programRecord}>
+        return <article id={`program-${program.id}`} key={program.id} className={clsx(styles.programRecord, program.id === focusedProgramId && "ring-2 ring-violet-400/50")}>
           <div className={styles.programTitle}><span><ShieldCheck /></span><div><h3>{program.name}</h3><p>{humanize(program.templateId)}</p></div><strong data-state={program.status}>{humanize(program.status)}</strong></div>
           <dl>
             <div><dt>Evidence source</dt><dd>{program.rules.connectorId ? humanize(program.rules.connectorId) : "Not configured"}</dd></div>

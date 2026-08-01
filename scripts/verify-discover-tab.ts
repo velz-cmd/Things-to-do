@@ -19,22 +19,27 @@ async function publicSurface() {
   const html = await response.text();
   assert(response.ok, `Discover page returns ${response.status}`);
   assert(
-    html.includes("Discover verified value"),
-    "Discover has the verified funding network heading",
+    html.includes("Discover economic activity"),
+    "Discover has the Economic Action Network heading",
   );
   assert(html.includes("For You"), "Discover exposes For You");
-  assert(html.includes("People"), "Discover exposes People");
-  assert(html.includes("Verified Work"), "Discover exposes Verified Work");
-  assert(html.includes("Pools"), "Discover exposes Pools");
-  assert(html.includes("Programs"), "Discover exposes Programs");
+  assert(html.includes("Explore"), "Discover exposes Explore");
+  assert(html.includes("My Activity"), "Discover exposes My Activity");
   assert(html.includes("Outcomes"), "Discover exposes Outcomes");
-  assert(html.includes("My Communities"), "Discover exposes My Communities");
-  assert(html.includes("Fund a person"), "Discover exposes direct support");
-  assert(html.includes("Back a Pool"), "Discover exposes Pool funding");
-  assert(html.includes("Fund verified work"), "Discover exposes evidence-backed funding");
+  const explore = await fetch(`${BASE}/discover?view=explore`);
+  const exploreHtml = await explore.text();
+  assert(explore.ok, `Explore returns ${explore.status}`);
+  assert(exploreHtml.includes("People"), "Explore exposes People");
+  assert(exploreHtml.includes("Verified work"), "Explore exposes Verified work");
+  assert(exploreHtml.includes("Communities"), "Explore exposes Communities");
+  assert(exploreHtml.includes("Pools"), "Explore exposes Pools as a secondary filter");
+  assert(exploreHtml.includes("Programs"), "Explore exposes Programs");
+  assert(exploreHtml.includes("Funding gaps"), "Explore exposes Funding gaps");
+  assert(exploreHtml.includes("Analyze an open-source project"), "Explore exposes public repository analysis");
   assert(!html.includes("Install GitHub App"), "Discover does not require a GitHub installation");
   assert(!html.includes("Connect GitHub"), "Discover does not require GitHub sign-in");
   assert(!html.includes("Accepted work that needs economic attention"), "Legacy repository-only heading is removed");
+  assert(!html.includes("Complete Pool setup"), "Generic Pool setup actions are removed");
 }
 
 async function publicApi() {

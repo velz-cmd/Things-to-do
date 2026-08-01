@@ -1,13 +1,23 @@
 export const DISCOVER_VIEWS = [
   "for_you",
-  "people",
-  "work",
-  "pools",
+  "explore",
+  "activity",
   "outcomes",
-  "my_communities",
 ] as const;
 
 export type DiscoverView = (typeof DISCOVER_VIEWS)[number];
+
+export const DISCOVER_EXPLORE_KINDS = [
+  "all",
+  "people",
+  "work",
+  "communities",
+  "pools",
+  "programs",
+  "funding_gaps",
+] as const;
+
+export type DiscoverExploreKind = (typeof DISCOVER_EXPLORE_KINDS)[number];
 
 export const OPPORTUNITY_TYPES = [
   "task",
@@ -283,6 +293,95 @@ export type DiscoverInboxItem = {
   secondaryActions: DiscoverAction[];
 };
 
+export type EconomicActionSubjectType =
+  | "accepted_work"
+  | "contributor"
+  | "creator"
+  | "community"
+  | "funding_gap"
+  | "community_pool"
+  | "active_program"
+  | "claim"
+  | "authorization"
+  | "settlement"
+  | "receipt"
+  | "source_failure"
+  | "identity_blocker"
+  | "payout_blocker"
+  | "policy_blocker"
+  | "reconciliation_issue";
+
+export type EconomicLifecycle =
+  | "observed"
+  | "evidence_verified"
+  | "attribution_required"
+  | "identity_required"
+  | "policy_required"
+  | "treasury_required"
+  | "ready_for_funding"
+  | "authorization_required"
+  | "submitted"
+  | "confirmed"
+  | "stale"
+  | "blocked";
+
+export type EconomicActionItem = {
+  id: string;
+  subjectType: EconomicActionSubjectType;
+  subjectId: string;
+  headline: string;
+  happened: string;
+  whyItMatters: string;
+  lifecycle: EconomicLifecycle;
+  blocker?: string;
+  audience: "public" | "contributor" | "funder" | "operator";
+  community?: { id?: string; name: string };
+  repository?: string;
+  person?: { id?: string; name: string };
+  source: {
+    provider: string;
+    label: string;
+    href?: string;
+    lastObservedAt?: string;
+    stale: boolean;
+  };
+  evidenceIds: string[];
+  attributionState: "verified" | "claimed" | "observed" | "unresolved" | "not_applicable";
+  programId?: string;
+  policyState?: "active" | "approval_required" | "missing" | "not_applicable";
+  poolId?: string;
+  obligationId?: string;
+  settlementId?: string;
+  receiptId?: string;
+  amount?: {
+    valueUsd?: number;
+    token?: string;
+    state: FundingAmountState;
+  };
+  fundingReadiness: "ready" | "blocked" | "not_applicable";
+  recipientReadiness: "ready" | "setup_required" | "not_applicable";
+  primaryAction: DiscoverAction;
+  secondaryActions: DiscoverAction[];
+  visibility: "public" | "private" | "community";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DiscoverSourceDiagnostic = {
+  id: string;
+  provider: string;
+  repository?: string;
+  state: string;
+  evaluationPeriod: string;
+  eventsInspected: number | null;
+  acceptedEvents: number;
+  lastSuccessfulAt: string | null;
+  reason: string;
+  stale: boolean;
+  primaryAction: DiscoverAction;
+  secondaryActions: DiscoverAction[];
+};
+
 export type DiscoverNetworkStats = {
   openOpportunities?: number;
   activeFundingUsd?: number;
@@ -298,6 +397,8 @@ export type DiscoverPageData = {
   myCommunities: DiscoverMyCommunity[];
   pools: DiscoverPool[];
   inbox: DiscoverInboxItem[];
+  economicActions: EconomicActionItem[];
+  sourceDiagnostics: DiscoverSourceDiagnostic[];
   savedIds: string[];
   signedIn: boolean;
   stats: DiscoverNetworkStats;

@@ -14,6 +14,7 @@ import {
   confirmedFundingUsd,
   deduplicateMarketplaceOpportunities,
   marketplaceOpportunityMatches,
+  mergeAttributedDiscoverPeople,
   paginateMarketplaceOpportunities,
   sortMarketplaceOpportunities,
 } from "../../src/lib/discover/marketplace/query";
@@ -174,9 +175,12 @@ describe("Discover marketplace normalisation", () => {
 
 describe("Discover marketplace URL state and pagination", () => {
   it("parses only supported views and filters", () => {
-    expect(parseDiscoverView("communities")).toBe("my_communities");
-    expect(parseDiscoverView("my_communities")).toBe("my_communities");
-    expect(parseDiscoverView("programs")).toBe("pools");
+    expect(parseDiscoverView("communities")).toBe("activity");
+    expect(parseDiscoverView("my_communities")).toBe("activity");
+    expect(parseDiscoverView("programs")).toBe("explore");
+    expect(parseDiscoverView("people")).toBe("explore");
+    expect(parseDiscoverView("work")).toBe("explore");
+    expect(parseDiscoverView("pools")).toBe("explore");
     expect(parseDiscoverView("opportunities")).toBe("for_you");
     expect(parseDiscoverView("saved")).toBe("for_you");
     expect(parseDiscoverView("unknown")).toBe("for_you");
@@ -189,6 +193,8 @@ describe("Discover marketplace URL state and pagination", () => {
         remote: "true",
         minReward: "100",
         sort: "closing_soon",
+        view: "work",
+        repository: "owner/project",
       }),
     ).toMatchObject({
       q: "typescript",
@@ -198,6 +204,8 @@ describe("Discover marketplace URL state and pagination", () => {
       remote: true,
       minReward: 100,
       sort: "closing_soon",
+      kind: "work",
+      repository: "owner/project",
     });
   });
 
@@ -352,6 +360,17 @@ describe("Discover canonical projections", () => {
       primaryAction: { label: "View GitHub evidence" },
     });
     expect(result[0]?.reward).toBeUndefined();
+    expect(mergeAttributedDiscoverPeople([], result)).toEqual([
+      expect.objectContaining({
+        id: "github-actor:ada",
+        name: "ada",
+        completedWork: 1,
+        identityState: "unclaimed_contributor",
+        payoutReadiness: "invite_to_claim",
+        acceptsDirectFunding: false,
+        primaryAction: { label: "View GitHub profile", href: "https://github.com/ada", enabled: true, id: "discover.open_repository" },
+      }),
+    ]);
   });
 
   it("rejects an outcome without both a receipt and Arc explorer reference", () => {

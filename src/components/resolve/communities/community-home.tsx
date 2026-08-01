@@ -62,7 +62,8 @@ export function CommunityHome({ slug }: { slug: string }) {
   const catalog = getCommunityBySlug(slug);
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const pageIntent = searchParams.get("intent");
+  const pageIntent = searchParams.get("step") ?? searchParams.get("intent");
+  const focusedProgramId = searchParams.get("program");
   const tab = searchParams.get("tab") === "advanced" ? "advanced" : "console";
 
   const consoleSurfaceQuery = useCommunitySurfaceQuery(slug, {
@@ -421,12 +422,16 @@ export function CommunityHome({ slug }: { slug: string }) {
             onRequestCreateProgram={openCreateConfirm}
             onRefresh={() => void refresh()}
             initialTab={
-              pageIntent === "create_program" || pageIntent === "fund"
+              ["create_program", "fund", "publication", "policy", "treasury", "review"].includes(pageIntent ?? "")
                 ? "programs"
+                : pageIntent === "source"
+                  ? "sources"
                 : pageIntent === "review_obligations" || pageIntent === "approve_payouts"
                   ? "obligations"
                   : "overview"
             }
+            focusedProgramId={focusedProgramId}
+            focusedStep={pageIntent}
           />
         </div>
       )}

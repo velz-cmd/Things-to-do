@@ -4,6 +4,7 @@ export const DISCOVER_VIEWS = [
   "work",
   "pools",
   "outcomes",
+  "my_communities",
 ] as const;
 
 export type DiscoverView = (typeof DISCOVER_VIEWS)[number];
@@ -51,6 +52,37 @@ export type FundingAmountState =
   | "confirmed"
   | "provenance_unavailable";
 
+export type DiscoverAction = {
+  id: string;
+  label: string;
+  href: string;
+  description?: string;
+  enabled: boolean;
+  disabledReason?: string;
+};
+
+export type DiscoverEntityState = {
+  provenance:
+    | "external_integration"
+    | "operator_created"
+    | "canonical_record"
+    | "legacy_operator_record";
+  lifecycle:
+    | "observed"
+    | "configured"
+    | "published"
+    | "active"
+    | "submitted"
+    | "confirmed";
+  financialReadiness:
+    | "not_applicable"
+    | "setup_required"
+    | "ready"
+    | "submitted"
+    | "confirmed";
+  blocker?: string;
+};
+
 export type ProviderPreference =
   | "open"
   | "preferred"
@@ -88,6 +120,7 @@ export type MarketplaceOpportunity = {
   };
   funding?: {
     fundedAmountUsd?: number;
+    pendingAmountUsd?: number;
     goalAmountUsd?: number;
     status?: FundingStatus;
     source?: string;
@@ -114,6 +147,10 @@ export type MarketplaceOpportunity = {
     type: string;
     id: string;
   };
+  sourceUrl?: string;
+  entityState?: DiscoverEntityState;
+  primaryAction?: DiscoverAction;
+  secondaryActions?: DiscoverAction[];
 };
 
 export type DiscoverSourceFailure = {
@@ -147,7 +184,15 @@ export type DiscoverPerson = {
   amountEarnedUsd?: number;
   acceptsDirectFunding: boolean;
   acceptsInvitations: boolean;
-  payoutReadiness: "ready" | "invite_to_claim";
+  identityState:
+    | "identity_verified"
+    | "work_attribution_verified"
+    | "profile_claimed"
+    | "unclaimed_contributor";
+  payoutReadiness: "ready" | "setup_required" | "invite_to_claim";
+  blocker?: string;
+  primaryAction: DiscoverAction;
+  secondaryActions: DiscoverAction[];
   profilePath?: string;
   latestReceiptPath?: string;
 };
@@ -188,6 +233,54 @@ export type DiscoverPool = {
   funderCount?: number;
   verificationMechanism?: string;
   balanceState?: FundingAmountState;
+  targetUsd?: number;
+  pendingDepositsUsd?: number;
+  lifecycleState:
+    | "setup_incomplete"
+    | "configured"
+    | "published"
+    | "accepting_funding"
+    | "funding_pending"
+    | "funded"
+    | "checkpoint_pending"
+    | "ready_for_distribution"
+    | "distribution_submitted"
+    | "completed"
+    | "paused";
+  publicationState: "legacy_active" | "approved" | "operator_review_required";
+  policyState: "active" | "legacy_configured" | "setup_required";
+  treasuryReadiness: "ready" | "setup_required";
+  blocker?: string;
+  primaryAction: DiscoverAction;
+  secondaryActions: DiscoverAction[];
+};
+
+export type DiscoverMyCommunity = {
+  id: string;
+  slug: string;
+  name: string;
+  role: "owner" | "operator" | "member";
+  status: string;
+  sourceState: string;
+  repositories: string[];
+  programCount: number;
+  activeProgramCount: number;
+  poolCount: number;
+  blocker?: string;
+  primaryAction: DiscoverAction;
+  secondaryActions: DiscoverAction[];
+};
+
+export type DiscoverInboxItem = {
+  id: string;
+  audience: "contributor" | "funder" | "operator";
+  title: string;
+  why: string;
+  state: string;
+  blocker?: string;
+  occurredAt?: string;
+  primaryAction: DiscoverAction;
+  secondaryActions: DiscoverAction[];
 };
 
 export type DiscoverNetworkStats = {
@@ -202,7 +295,9 @@ export type DiscoverPageData = {
   opportunities: MarketplacePage<MarketplaceOpportunity>;
   people: DiscoverPerson[];
   communities: DiscoverCommunity[];
+  myCommunities: DiscoverMyCommunity[];
   pools: DiscoverPool[];
+  inbox: DiscoverInboxItem[];
   savedIds: string[];
   signedIn: boolean;
   stats: DiscoverNetworkStats;
@@ -214,14 +309,15 @@ export type DiscoverPageData = {
     installedCommunitySlugs: string[];
     stale: boolean;
     lastConfirmedAt: string | null;
+    repositories: string[];
   } | null;
   recommendation: {
     id: string;
     title: string;
     reason: string;
     state: string;
-    primaryAction: { label: string; href: string };
-    secondaryActions: Array<{ label: string; href: string }>;
+    primaryAction: { id: string; label: string; href: string };
+    secondaryActions: Array<{ id: string; label: string; href: string }>;
   };
   actions: {
     directSupport: boolean;

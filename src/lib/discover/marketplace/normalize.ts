@@ -74,9 +74,11 @@ export type ProgramOpportunityRow = {
     id: string;
     displayName: string | null;
     githubUsername: string | null;
+    githubId: string | null;
   };
   install: {
     communitySlug: string;
+    status: string;
   };
   fundStakes: Array<{
     principalUsd: number;
@@ -332,6 +334,18 @@ export function normalizeProgramOpportunity(
   const selectedProviderName = optionalString(metadata.selectedProviderName);
   const creatorName =
     row.user.displayName ?? row.user.githubUsername ?? "RESOLVE community operator";
+  const publicationApproved = metadata.publicationStatus === "approved";
+  const policyActive = metadata.policyStatus === "active";
+  const treasuryAddress = optionalString(metadata.treasuryAddress);
+  const treasuryReady = Boolean(treasuryAddress?.match(/^0x[a-fA-F0-9]{40}$/));
+  const financialReady = publicationApproved && policyActive && treasuryReady;
+  const setupBlocker = !publicationApproved
+    ? "Review and publish this legacy operator program."
+    : !policyActive
+      ? "Activate a versioned funding policy."
+      : !treasuryReady
+        ? "Add a valid Arc treasury destination."
+        : undefined;
 
   return {
     id: `program:${row.id}`,
@@ -374,13 +388,14 @@ export function normalizeProgramOpportunity(
     funding:
       row.budgetUsd > 0 || fundedAmountUsd > 0
         ? {
-            fundedAmountUsd,
+            fundedAmountUsd: undefined,
+            pendingAmountUsd: fundedAmountUsd > 0 ? fundedAmountUsd : undefined,
             goalAmountUsd: row.budgetUsd > 0 ? row.budgetUsd : undefined,
-            status: fundingStatus(fundedAmountUsd, row.budgetUsd),
+            status: fundedAmountUsd > 0 ? "partially_funded" : "unfunded",
             source: row.name,
             paymentMode: optionalString(metadata.paymentMode),
             distributionMethod: optionalString(metadata.distributionMethod),
-            amountState: "provenance_unavailable",
+            amountState: fundedAmountUsd > 0 ? "provenance_unavailable" : "configured_target",
           }
         : undefined,
     provider: {
@@ -408,6 +423,37 @@ export function normalizeProgramOpportunity(
     verificationStatus: optionalString(metadata.verificationStatus) ?? "configured",
     riskFlags: stringArray(metadata.riskFlags),
     source: { type: "community_program", id: row.id },
+    entityState: {
+      provenance:
+        metadata.provenance === "operator_created"
+          ? "operator_created"
+          : "legacy_operator_record",
+      lifecycle: publicationApproved ? "published" : "active",
+      financialReadiness: financialReady ? "ready" : "setup_required",
+      blocker: setupBlocker,
+    },
+    primaryAction: financialReady
+      ? {
+          id: "capital.open_funding",
+          label: "Review funding package",
+          href: `/capital?intent=back-pool&programId=${encodeURIComponent(row.id)}&returnTo=${encodeURIComponent("/discover?view=pools")}`,
+          enabled: true,
+        }
+      : {
+          id: "community.open",
+          label: "Complete Pool setup",
+          href: `/communities/${encodeURIComponent(row.install.communitySlug)}?program=${encodeURIComponent(row.id)}&returnTo=${encodeURIComponent(`/discover?view=pools&pool=${row.id}`)}#programs`,
+          enabled: true,
+          description: setupBlocker,
+        },
+    secondaryActions: [
+      {
+        id: "community.open",
+        label: "Open community",
+        href: `/communities/${encodeURIComponent(row.install.communitySlug)}?returnTo=${encodeURIComponent(`/discover?view=pools&pool=${row.id}`)}`,
+        enabled: true,
+      },
+    ],
   };
 }
 

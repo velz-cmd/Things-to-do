@@ -8,6 +8,8 @@ import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { getSessionUser } from "@/lib/auth/session";
 import { loadWorkspaceReadiness } from "@/lib/workspace/readiness";
 import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { buildLiveSettlements } from "@/lib/discover/live-settlements";
+import { loadStoredOssOpportunities } from "@/lib/github/oss-scan-store";
 import {
   normalizeCampaignOpportunity,
   normalizePersistedOpportunity,
@@ -18,6 +20,8 @@ import {
 } from "./normalize";
 import type {
   DiscoverCommunity,
+  DiscoverInboxItem,
+  DiscoverMyCommunity,
   DiscoverPageData,
   DiscoverPerson,
   DiscoverPool,
@@ -29,9 +33,13 @@ import type {
 import type { OpportunityFilters } from "./filters";
 import {
   opportunityMatchesView,
-  programPublicationEligible,
+  programEntityVisible,
 } from "./publication";
 import { selectDiscoverRecommendation } from "./recommendation";
+import {
+  normalizeConfirmedOutcomes,
+  normalizeGithubAcceptedWork,
+} from "./read-model";
 
 const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
@@ -130,11 +138,13 @@ async function loadProgramOpportunities() {
           id: true,
           displayName: true,
           githubUsername: true,
+          githubId: true,
         },
       },
       install: {
         select: {
           communitySlug: true,
+          status: true,
         },
       },
       fundStakes: {
@@ -150,8 +160,18 @@ async function loadProgramOpportunities() {
     take: SOURCE_LIMIT,
   });
   return rows
-    .filter((row) => programPublicationEligible(row as ProgramOpportunityRow))
+    .filter((row) => programEntityVisible(row as ProgramOpportunityRow))
     .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow));
+}
+
+async function loadVerifiedGithubWork() {
+  const stored = await loadStoredOssOpportunities();
+  return normalizeGithubAcceptedWork(stored.opportunities);
+}
+
+async function loadConfirmedOutcomes() {
+  const settlements = await buildLiveSettlements(24);
+  return normalizeConfirmedOutcomes(settlements.rows);
 }
 
 async function loadCampaignOpportunities() {
@@ -215,7 +235,7 @@ async function loadCampaignOpportunities() {
 
 function loadCachedPersistedOpportunities() {
   return cacheGetOrSetResilient(
-    "discover:marketplace:published:v2",
+    "discover:marketplace:published:v3",
     SOURCE_CACHE_SECONDS,
     () => withTimeout(loadPersistedOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },
@@ -224,7 +244,7 @@ function loadCachedPersistedOpportunities() {
 
 function loadCachedProgramOpportunities() {
   return cacheGetOrSetResilient(
-    "discover:marketplace:programs:v2",
+    "discover:marketplace:programs:v3",
     SOURCE_CACHE_SECONDS,
     () => withTimeout(loadProgramOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },
@@ -233,9 +253,27 @@ function loadCachedProgramOpportunities() {
 
 function loadCachedCampaignOpportunities() {
   return cacheGetOrSetResilient(
-    "discover:marketplace:campaigns:v2",
+    "discover:marketplace:campaigns:v3",
     SOURCE_CACHE_SECONDS,
     () => withTimeout(loadCampaignOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
+
+function loadCachedVerifiedGithubWork() {
+  return cacheGetOrSetResilient(
+    "discover:marketplace:github-work:v1",
+    SOURCE_CACHE_SECONDS,
+    () => withTimeout(loadVerifiedGithubWork(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
+
+function loadCachedConfirmedOutcomes() {
+  return cacheGetOrSetResilient(
+    "discover:marketplace:confirmed-outcomes:v1",
+    SOURCE_CACHE_SECONDS,
+    () => withTimeout(loadConfirmedOutcomes(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },
   );
 }
@@ -448,20 +486,37 @@ export async function listMarketplaceOpportunities(
   view: DiscoverView = "for_you",
 ): Promise<MarketplacePage<MarketplaceOpportunity>> {
   const requestId = randomUUID();
-  const loaders = [
-    {
+  const loaders: Array<{ source: string; promise: Promise<MarketplaceOpportunity[]> }> = [];
+  if (view !== "people" && view !== "my_communities") {
+    loaders.push({
       source: "published_opportunities",
       promise: loadCachedPersistedOpportunities(),
-    },
-    {
+    });
+  }
+  if (view === "for_you" || view === "pools") {
+    loaders.push({
       source: "community_programs",
       promise: loadCachedProgramOpportunities(),
-    },
-    {
+    });
+  }
+  if (view === "for_you") {
+    loaders.push({
       source: "outcome_campaigns",
       promise: loadCachedCampaignOpportunities(),
-    },
-  ];
+    });
+  }
+  if (view === "for_you" || view === "work") {
+    loaders.push({
+      source: "verified_github_work",
+      promise: loadCachedVerifiedGithubWork(),
+    });
+  }
+  if (view === "for_you" || view === "outcomes") {
+    loaders.push({
+      source: "confirmed_outcomes",
+      promise: loadCachedConfirmedOutcomes(),
+    });
+  }
   const settled = await Promise.allSettled(loaders.map((loader) => loader.promise));
   const { items: loaded, failures } = collectMarketplaceSourceResults(
     loaders.map((loader) => loader.source),
@@ -512,39 +567,252 @@ export async function getMarketplaceOpportunityBySlug(slug: string) {
   };
 }
 
-export async function listDiscoverPeople(): Promise<DiscoverPerson[]> {
-  const contributors = await prisma.contributorRegistry.findMany({
-      where: { verified: true },
-      orderBy: [{ totalEarnedUsd: "desc" }, { updatedAt: "desc" }],
-      take: 40,
+export async function listDiscoverPeople(viewerUserId?: string): Promise<DiscoverPerson[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      githubUsername: { not: null },
+      githubId: { not: null },
+      OR: [
+        { communityInstalls: { some: { status: "active" } } },
+        { resolvePrograms: { some: { status: { in: ["active", "deployed"] } } } },
+      ],
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 40,
+    select: {
+      id: true,
+      displayName: true,
+      githubUsername: true,
+      communityInstalls: {
+        where: { status: "active" },
+        select: { communitySlug: true },
+      },
+      resolvePrograms: {
+        where: { status: { in: ["active", "deployed"] } },
+        select: { id: true },
+      },
+    },
+  });
+  const userIds = users.map((user) => user.id);
+  const payouts = userIds.length
+    ? await prisma.payoutDestination.findMany({
+        where: {
+          userId: { in: userIds },
+          status: "verified",
+          verifiedAt: { not: null },
+        },
+        orderBy: { verifiedAt: "desc" },
+        select: { userId: true },
+      })
+    : [];
+  const payoutReady = new Set(
+    payouts.map((payout) => payout.userId).filter((id): id is string => Boolean(id)),
+  );
+
+  return users.map((person) => {
+    const payoutIsReady = payoutReady.has(person.id);
+    const directSupportReady = payoutIsReady && isLiveArcEnabled();
+    const isSelf = viewerUserId === person.id;
+    const github = person.githubUsername!;
+    const profilePath = `https://github.com/${encodeURIComponent(github)}`;
+    const returnTo = `/discover?view=people&person=${encodeURIComponent(person.id)}`;
+    return {
+      id: person.id,
+      name: person.displayName ?? github,
+      kind: person.resolvePrograms.length ? "maintainer" : "human",
+      description: `GitHub-linked ${person.resolvePrograms.length ? "community operator" : "contributor"} @${github}`,
+      verifiedIdentities: ["GitHub"],
+      skills: ["GitHub"],
+      communities: [...new Set(person.communityInstalls.map((item) => item.communitySlug))],
+      completedWork: undefined,
+      acceptsDirectFunding: directSupportReady,
+      acceptsInvitations: !payoutIsReady,
+      identityState: "profile_claimed",
+      payoutReadiness: payoutIsReady ? "ready" : "setup_required",
+      blocker: !payoutIsReady
+        ? "No verified payout destination is recorded."
+        : directSupportReady
+          ? undefined
+          : "Direct support is blocked until the live Arc settlement gate is enabled.",
+      primaryAction: directSupportReady
+        ? {
+            id: "capital.open_funding",
+            label: "Support with USDC",
+            href: `/capital?intent=direct-support&recipient=${encodeURIComponent(person.id)}&returnTo=${encodeURIComponent(returnTo)}`,
+            enabled: true,
+          }
+        : isSelf && !payoutIsReady
+          ? {
+              id: "discover.resolve_identity",
+              label: "Complete payout setup",
+              href: `/profile?view=wallets&returnTo=${encodeURIComponent(returnTo)}`,
+              enabled: true,
+            }
+          : {
+              id: "discover.open_repository",
+              label: "View GitHub profile",
+              href: profilePath,
+              enabled: true,
+            },
+      secondaryActions: directSupportReady
+        ? [
+            {
+              id: "discover.open_repository",
+              label: "View GitHub profile",
+              href: profilePath,
+              enabled: true,
+            },
+          ]
+        : [],
+      profilePath,
+    } satisfies DiscoverPerson;
+  });
+}
+
+function repositoryNames(value: unknown): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const object = value as Record<string, unknown>;
+  const candidates = [
+    object.repositories,
+    object.selectedRepositories,
+    object.repositoryNames,
+  ];
+  return candidates.flatMap((candidate) =>
+    Array.isArray(candidate)
+      ? candidate
+          .map((item) => {
+            if (typeof item === "string") return item;
+            if (item && typeof item === "object" && !Array.isArray(item)) {
+              const row = item as Record<string, unknown>;
+              return typeof row.fullName === "string"
+                ? row.fullName
+                : typeof row.name === "string"
+                  ? row.name
+                  : null;
+            }
+            return null;
+          })
+          .filter((item): item is string => Boolean(item))
+      : [],
+  );
+}
+
+export async function listMyDiscoverCommunities(
+  userId: string,
+): Promise<DiscoverMyCommunity[]> {
+  const [installs, sources, repositorySnapshots] = await Promise.all([
+    prisma.resolveCommunityInstall.findMany({
+      where: { userId, status: "active" },
+      orderBy: { updatedAt: "desc" },
       select: {
         id: true,
-        creatorName: true,
-        githubUsername: true,
-        musicbrainzId: true,
-        activitypubActor: true,
-        totalEarnedUsd: true,
-        platform: true,
+        communitySlug: true,
+        status: true,
+        programs: {
+          orderBy: { updatedAt: "desc" },
+          select: {
+            id: true,
+            status: true,
+            templateId: true,
+            rulesJson: true,
+            metadataJson: true,
+          },
+        },
       },
-    });
+    }),
+    prisma.sourceConnection.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        provider: true,
+        status: true,
+        communitySlug: true,
+        displayLabel: true,
+        externalAccountId: true,
+        capabilitiesJson: true,
+        lastSyncedAt: true,
+      },
+    }),
+    prisma.discoverRepositorySnapshot.findMany({
+      orderBy: { observedAt: "desc" },
+      distinct: ["fullName"],
+      take: 50,
+      select: { fullName: true },
+    }),
+  ]);
 
-  return contributors.map((person) => ({
-      id: person.id,
-      name: person.creatorName ?? person.githubUsername ?? "Verified contributor",
-      kind: (person.musicbrainzId ? "creator" : "human") as "creator" | "human",
-      verifiedIdentities: [
-        person.githubUsername ? "GitHub" : null,
-        person.musicbrainzId ? "MusicBrainz" : null,
-        person.activitypubActor ? "ActivityPub" : null,
-      ].filter((value): value is string => Boolean(value)),
-      skills: person.platform ? [person.platform] : [],
-      communities: [],
-      amountEarnedUsd: person.totalEarnedUsd > 0 ? person.totalEarnedUsd : undefined,
-      acceptsDirectFunding: false,
-      acceptsInvitations: true,
-      payoutReadiness: "invite_to_claim" as const,
-      profilePath: `/discover?view=people&person=${encodeURIComponent(person.id)}`,
-    }));
+  return installs.map((install) => {
+    const catalog = COMMUNITY_CATALOG.find((item) => item.slug === install.communitySlug);
+    const relevantSources = sources.filter(
+      (source) =>
+        !source.communitySlug || source.communitySlug === install.communitySlug,
+    );
+    const githubSource = relevantSources.find((source) => source.provider === "github_app") ??
+      relevantSources.find((source) => source.provider === "github");
+    const repositories = [
+      ...new Set([
+        ...relevantSources.flatMap((source) => repositoryNames(source.capabilitiesJson)),
+        ...(catalog?.connectors.includes("github") && githubSource
+          ? repositorySnapshots.map((snapshot) => snapshot.fullName)
+          : []),
+        ...(githubSource?.externalAccountId?.includes("/")
+          ? [githubSource.externalAccountId]
+          : []),
+      ]),
+    ];
+    const activePrograms = install.programs.filter((program) =>
+      ["active", "deployed"].includes(program.status),
+    );
+    const githubPrograms = activePrograms.filter((program) => {
+      try {
+        const rules = JSON.parse(program.rulesJson) as Record<string, unknown>;
+        return rules.connectorId === "github";
+      } catch {
+        return false;
+      }
+    });
+    const sourceConnected = githubSource &&
+      ["connected", "healthy", "syncing", "stale"].includes(githubSource.status);
+    const sourceState = githubSource?.status ?? "not_configured";
+    const blocker = !sourceConnected
+      ? "Connect or repair GitHub repository access."
+      : activePrograms.length === 0
+        ? "Create a program for accepted activity."
+        : githubPrograms.length === 0
+          ? "No active program uses the supported GitHub adapter."
+          : "Review legacy policy publication and treasury setup.";
+    return {
+      id: install.id,
+      slug: install.communitySlug,
+      name: catalog?.name ?? install.communitySlug,
+      role: "operator",
+      status: install.status,
+      sourceState,
+      repositories,
+      programCount: install.programs.length,
+      activeProgramCount: activePrograms.length,
+      poolCount: githubPrograms.length,
+      blocker,
+      primaryAction: {
+        id: sourceConnected ? "community.open" : "profile.manage_connections",
+        label: sourceConnected ? "Review programs and Pools" : "Manage GitHub access",
+        href: sourceConnected
+          ? `/communities/${encodeURIComponent(install.communitySlug)}?returnTo=${encodeURIComponent("/discover?view=my_communities")}#programs`
+          : `/profile?section=connections&returnTo=${encodeURIComponent(`/discover?view=my_communities`)}`,
+        enabled: true,
+      },
+      secondaryActions: sourceConnected
+        ? []
+        : [
+            {
+              id: "community.open",
+              label: "Open operator console",
+              href: `/communities/${encodeURIComponent(install.communitySlug)}?returnTo=${encodeURIComponent("/discover?view=my_communities")}`,
+              enabled: true,
+            },
+          ],
+    } satisfies DiscoverMyCommunity;
+  });
 }
 
 function listCommunities(opportunities: MarketplaceOpportunity[]): DiscoverCommunity[] {
@@ -575,8 +843,14 @@ function listCommunities(opportunities: MarketplaceOpportunity[]): DiscoverCommu
 function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
   return opportunities.flatMap((item) => {
     if (!item.pool || !item.community) return [];
-    const balance = item.funding?.fundedAmountUsd;
-    const goal = item.funding?.goalAmountUsd;
+    const confirmed = item.funding?.amountState === "confirmed";
+    const balance = confirmed ? item.funding?.fundedAmountUsd ?? 0 : 0;
+    const target = item.funding?.goalAmountUsd;
+    const pendingDeposits = item.funding?.pendingAmountUsd;
+    const financiallyReady = item.entityState?.financialReadiness === "ready";
+    const executionReady = financiallyReady && isLiveArcEnabled();
+    const publicationState =
+      item.entityState?.lifecycle === "published" ? "approved" : "legacy_active";
     return [
       {
         id: item.pool.id ?? item.source.id,
@@ -586,9 +860,8 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
         purpose: item.summary,
         type: "community_pool",
         balanceUsd: balance,
-        committedUsd: balance,
-        availableUsd:
-          balance != null && goal != null ? Math.max(0, balance - goal) : undefined,
+        committedUsd: confirmed ? balance : undefined,
+        availableUsd: confirmed ? balance : 0,
         token: item.reward?.token,
         network: item.reward?.network,
         eligibleOpportunityTypes: [item.type],
@@ -597,9 +870,187 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
         verificationMechanism:
           item.evidenceRequirements.length > 0 ? item.evidenceRequirements[0] : undefined,
         balanceState: item.funding?.amountState,
+        targetUsd: target,
+        pendingDepositsUsd: pendingDeposits,
+        lifecycleState: executionReady
+          ? "accepting_funding"
+          : financiallyReady
+            ? "published"
+            : "setup_incomplete",
+        publicationState,
+        policyState: financiallyReady ? "active" : "legacy_configured",
+        treasuryReadiness: financiallyReady ? "ready" : "setup_required",
+        blocker:
+          financiallyReady && !executionReady
+            ? "Live Arc settlement is not enabled for this Pool."
+            : item.entityState?.blocker,
+        primaryAction:
+          executionReady
+            ? item.primaryAction ?? {
+                id: "capital.open_funding",
+                label: "Review funding package",
+                href: `/capital?intent=back-pool&programId=${encodeURIComponent(item.pool.id ?? item.source.id)}&returnTo=${encodeURIComponent("/discover?view=pools")}`,
+                enabled: true,
+              }
+            : {
+            id: "community.open",
+            label: financiallyReady ? "Review settlement readiness" : "Complete Pool setup",
+            href: `/communities/${encodeURIComponent(item.community.id ?? item.community.name)}?program=${encodeURIComponent(item.pool.id ?? item.source.id)}&returnTo=${encodeURIComponent(`/discover?view=pools&pool=${item.pool.id ?? item.source.id}`)}#programs`,
+            enabled: true,
+          },
+        secondaryActions: item.secondaryActions ?? [],
       },
     ];
   });
+}
+
+export function buildDiscoverInbox(input: {
+  readiness: Awaited<ReturnType<typeof loadWorkspaceReadiness>> | null;
+  opportunities: MarketplaceOpportunity[];
+  people: DiscoverPerson[];
+  pools: DiscoverPool[];
+  myCommunities: DiscoverMyCommunity[];
+}): DiscoverInboxItem[] {
+  const items: DiscoverInboxItem[] = [];
+  const { readiness, opportunities, people, pools, myCommunities } = input;
+
+  if (
+    readiness &&
+    ["sync_failed", "permission_missing", "revoked"].includes(
+      readiness.github.repositorySync.state,
+    )
+  ) {
+    items.push({
+      id: "operator:repair-github-sync",
+      audience: "operator",
+      title: "Repository access needs repair",
+      why: "Accepted activity cannot be refreshed until GitHub repository access recovers.",
+      state: readiness.github.repositorySync.state,
+      blocker: readiness.github.repositorySync.errorCode ?? "Repository synchronization failed.",
+      occurredAt: readiness.github.repositorySync.lastSuccessfulAt ?? undefined,
+      primaryAction: {
+        id: "profile.manage_connections",
+        label: "Repair GitHub access",
+        href: `/profile?section=connections&returnTo=${encodeURIComponent("/discover")}`,
+        enabled: true,
+      },
+      secondaryActions: [],
+    });
+  }
+
+  if (
+    readiness &&
+    ["connected", "syncing", "stale"].includes(readiness.github.repositoryAccess.state) &&
+    !opportunities.some((item) => item.source.type === "github_evidence")
+  ) {
+    items.push({
+      id: "operator:no-accepted-work",
+      audience: "operator",
+      title: "No accepted GitHub work is in the current snapshot",
+      why: "Repository access is connected, but the persisted snapshot contains no merged pull request, review, documentation change, or release record.",
+      state: readiness.github.repositorySync.state,
+      blocker: "Refresh or select a repository with accepted activity.",
+      occurredAt: readiness.github.repositorySync.lastSuccessfulAt ?? undefined,
+      primaryAction: {
+        id: "profile.open_source_details",
+        label: "Review repository sync",
+        href: `/profile?section=connections&returnTo=${encodeURIComponent("/discover?view=work")}`,
+        enabled: true,
+      },
+      secondaryActions: [
+        {
+          id: "discover.open_verified_work",
+          label: "Open Verified Work",
+          href: "/discover?view=work",
+          enabled: true,
+        },
+      ],
+    });
+  }
+
+  const self = readiness ? people.find((person) => person.id === readiness.userId) : undefined;
+  if (self && self.payoutReadiness !== "ready") {
+    items.push({
+      id: "contributor:complete-payout",
+      audience: "contributor",
+      title: "Complete payout readiness",
+      why: "Your GitHub identity is recognised, but RESOLVE has no verified payout destination.",
+      state: self.payoutReadiness,
+      blocker: self.blocker,
+      primaryAction: self.primaryAction,
+      secondaryActions: [
+        {
+          id: "discover.open_verified_work",
+          label: "View recognised work",
+          href: "/discover?view=work",
+          enabled: true,
+        },
+      ],
+    });
+  }
+
+  for (const community of myCommunities.slice(0, 3)) {
+    const hasPool = community.poolCount > 0;
+    items.push({
+      id: `operator:pool-setup:${community.id}`,
+      audience: "operator",
+      title: hasPool
+        ? `${community.name} has ${community.poolCount} Pool ${community.poolCount === 1 ? "setup" : "setups"} to review`
+        : `${community.name} needs its next supported program action`,
+      why: hasPool
+        ? "These are real operator-created GitHub programs. They remain visible while publication, policy, and treasury setup are completed."
+        : "The community is installed. Its existing source and program state determine the next operator action.",
+      state: "setup_required",
+      blocker: community.blocker,
+      primaryAction: community.primaryAction,
+      secondaryActions: community.secondaryActions.slice(0, 2),
+    });
+  }
+
+  if (readiness && readiness.capital.pendingAuthorizations > 0) {
+    items.push({
+      id: "funder:pending-authorizations",
+      audience: "funder",
+      title: `${readiness.capital.pendingAuthorizations} funding ${readiness.capital.pendingAuthorizations === 1 ? "package needs" : "packages need"} review`,
+      why: "Persisted authorizations are obligations, not payments. Capital must preflight and submit them before confirmation.",
+      state: "awaiting_authorization",
+      primaryAction: {
+        id: "capital.review_authorization",
+        label: "Review in Capital",
+        href: "/capital?view=authorizations&returnTo=/discover",
+        enabled: true,
+      },
+      secondaryActions: [],
+    });
+  }
+
+  const readyPool = pools.find((pool) => pool.lifecycleState === "accepting_funding");
+  if (readyPool) {
+    items.push({
+      id: `funder:pool:${readyPool.id}`,
+      audience: "funder",
+      title: `${readyPool.name} is ready for funding review`,
+      why: "The Pool has passed its publication, policy, and treasury prerequisites.",
+      state: readyPool.lifecycleState,
+      primaryAction: readyPool.primaryAction,
+      secondaryActions: readyPool.secondaryActions.slice(0, 2),
+    });
+  }
+
+  const readyPerson = people.find((person) => person.acceptsDirectFunding);
+  if (readyPerson) {
+    items.push({
+      id: `funder:person:${readyPerson.id}`,
+      audience: "funder",
+      title: `${readyPerson.name} can receive direct support`,
+      why: "Their identity and payout destination are verified.",
+      state: "payout_ready",
+      primaryAction: readyPerson.primaryAction,
+      secondaryActions: readyPerson.secondaryActions.slice(0, 2),
+    });
+  }
+
+  return items.slice(0, 8);
 }
 
 export async function loadDiscoverPageData(
@@ -608,25 +1059,44 @@ export async function loadDiscoverPageData(
 ): Promise<DiscoverPageData> {
   const opportunitiesPromise = listMarketplaceOpportunities(filters, PAGE_SIZE, view);
   const userPromise = withTimeout(getSessionUser().catch(() => null), 1_000).catch(() => null);
-  const peoplePromise =
-    view === "people" || view === "for_you"
-      ? withTimeout(listDiscoverPeople()).catch(() => [])
-      : Promise.resolve([]);
-  const [opportunities, user, people] = await Promise.all([
-    opportunitiesPromise,
-    userPromise,
-    peoplePromise,
-  ]);
-  const readiness = user
-    ? await withTimeout(loadWorkspaceReadiness(user.id), 1_500).catch(() => null)
-    : null;
-  const activeFundingUsd = await withTimeout(loadConfirmedFundingUsd(), 1_500).catch(
+  const activeFundingPromise = withTimeout(loadConfirmedFundingUsd(), 1_500).catch(
     () => undefined,
   );
+  const [opportunities, user, activeFundingUsd] = await Promise.all([
+    opportunitiesPromise,
+    userPromise,
+    activeFundingPromise,
+  ]);
+  const peoplePromise =
+    view === "people" || view === "for_you"
+      ? withTimeout(listDiscoverPeople(user?.id), COLD_DATABASE_SOURCE_TIMEOUT_MS).catch(() => [])
+      : Promise.resolve([]);
+  const readinessPromise = user
+    ? withTimeout(loadWorkspaceReadiness(user.id), 1_500).catch(() => null)
+    : Promise.resolve(null);
+  const myCommunitiesPromise = user
+    ? withTimeout(listMyDiscoverCommunities(user.id), COLD_DATABASE_SOURCE_TIMEOUT_MS).catch(
+        () => [],
+      )
+    : Promise.resolve([]);
+  const [people, readiness, myCommunities] = await Promise.all([
+    peoplePromise,
+    readinessPromise,
+    myCommunitiesPromise,
+  ]);
   const allVisible = opportunities.items;
   const communities = listCommunities(allVisible);
   const pools = listPools(allVisible);
   const liveSettlementEnabled = isLiveArcEnabled();
+  const inbox = buildDiscoverInbox({
+    readiness,
+    opportunities: allVisible,
+    people,
+    pools,
+    myCommunities,
+  });
+  const fallbackRecommendation = selectDiscoverRecommendation(readiness, allVisible);
+  const firstInbox = inbox[0];
 
   return {
     view,
@@ -645,13 +1115,15 @@ export async function loadDiscoverPageData(
         )
       : people,
     communities,
+    myCommunities,
     pools,
+    inbox,
     savedIds: [],
     signedIn: Boolean(user),
     stats: {
       openOpportunities: opportunities.total || undefined,
       activeFundingUsd,
-      activeCommunities: communities.length || undefined,
+      activeCommunities: communities.length || myCommunities.length || undefined,
       verifiedContributors: people.length || undefined,
     },
     readiness: readiness
@@ -663,16 +1135,38 @@ export async function loadDiscoverPageData(
           installedCommunitySlugs: readiness.communities.map((item) => item.slug),
           stale: readiness.stale,
           lastConfirmedAt: readiness.lastSuccessfulAt,
+          repositories: [
+            ...new Set(myCommunities.flatMap((community) => community.repositories)),
+          ],
         }
       : null,
-    recommendation: selectDiscoverRecommendation(readiness, allVisible),
+    recommendation: firstInbox
+      ? {
+          id: firstInbox.id,
+          title: firstInbox.title,
+          reason: firstInbox.why,
+          state: firstInbox.state,
+          primaryAction: {
+            id: firstInbox.primaryAction.id,
+            label: firstInbox.primaryAction.label,
+            href: firstInbox.primaryAction.href,
+          },
+          secondaryActions: firstInbox.secondaryActions.map((action) => ({
+            id: action.id,
+            label: action.label,
+            href: action.href,
+          })),
+        }
+      : fallbackRecommendation,
     actions: {
       directSupport:
         liveSettlementEnabled &&
         people.some(
           (person) => person.acceptsDirectFunding && person.payoutReadiness === "ready",
         ),
-      poolFunding: liveSettlementEnabled && pools.length > 0,
+      poolFunding:
+        liveSettlementEnabled &&
+        pools.some((pool) => pool.lifecycleState === "accepting_funding"),
       verifiedWorkFunding:
         liveSettlementEnabled &&
         allVisible.some(

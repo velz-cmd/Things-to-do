@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   amountStateLabel,
   opportunityMatchesView,
+  programEntityVisible,
   programPublicationEligible,
 } from "../../src/lib/discover/marketplace/publication";
 import {
@@ -114,6 +115,7 @@ describe("Discover publication policy", () => {
       status: "active",
       missionId: "mission-1",
       budgetUsd: 100,
+      rulesJson: JSON.stringify({ connectorId: "github" }),
       metadataJson: JSON.stringify({
         visibility: "public",
         publicationStatus: "approved",
@@ -171,6 +173,35 @@ describe("Discover publication policy", () => {
     ).toBe(false);
   });
 
+  it("keeps a real legacy GitHub program visible while financial setup remains incomplete", () => {
+    const base = {
+      templateId: "docs-bounty",
+      status: "active",
+      missionId: "mission-1",
+      budgetUsd: 2000,
+      rulesJson: JSON.stringify({ connectorId: "github", eventType: "docs.merged" }),
+      metadataJson: JSON.stringify({
+        provenance: "operator_created",
+        publicationStatus: "legacy_active",
+      }),
+      user: {
+        id: "user-1",
+        displayName: "Ada",
+        githubUsername: "ada",
+        githubId: "123",
+      },
+      install: { communitySlug: "open-writers", status: "active" },
+    };
+    expect(programEntityVisible(base)).toBe(true);
+    expect(programPublicationEligible(base)).toBe(false);
+    expect(
+      programEntityVisible({
+        ...base,
+        rulesJson: JSON.stringify({ connectorId: "navidrome" }),
+      }),
+    ).toBe(false);
+  });
+
   it("separates verified work, Pools, and Outcomes", () => {
     const work = opportunity();
     expect(opportunityMatchesView(work, "work")).toBe(true);
@@ -183,7 +214,7 @@ describe("Discover publication policy", () => {
     ).toBe(true);
     expect(
       opportunityMatchesView(
-        opportunity({ source: { type: "outcome_campaign", id: "campaign-1" } }),
+        opportunity({ source: { type: "confirmed_receipt", id: "receipt-1" } }),
         "outcomes",
       ),
     ).toBe(true);

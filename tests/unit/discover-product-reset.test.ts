@@ -15,6 +15,10 @@ import {
   actionMatchesExploreKind,
   buildEconomicActions,
 } from "../../src/lib/discover/marketplace/economic-actions";
+import {
+  discoverPersonFromReadiness,
+  myDiscoverCommunitiesFromReadiness,
+} from "../../src/lib/discover/marketplace/query";
 import type { MarketplaceOpportunity } from "../../src/lib/discover/marketplace/contracts";
 import {
   mapPersistedReadinessState,
@@ -349,6 +353,66 @@ describe("Workspace readiness consistency", () => {
     const result = selectDiscoverRecommendation(notReady, []);
     expect(result.id).toBe("complete-payout");
     expect(result.primaryAction.href).toContain("/profile");
+  });
+
+  it("restores the signed-in claimed profile from a successful workspace snapshot", () => {
+    const person = discoverPersonFromReadiness(readiness(), "user-1");
+    expect(person).toMatchObject({
+      id: "user-1",
+      name: "Ada",
+      identityState: "identity_verified",
+      profilePath: "https://github.com/ada",
+    });
+
+    const actions = buildEconomicActions({
+      opportunities: [],
+      people: person ? [person] : [],
+      communities: [],
+      pools: [],
+      myCommunities: [],
+      viewerUserId: "user-1",
+    });
+    expect(actions).toHaveLength(1);
+    expect(actionMatchesExploreKind(actions[0]!, "people")).toBe(true);
+  });
+
+  it("restores real community and program context from a successful workspace snapshot", () => {
+    const snapshot = readiness({
+      sources: [{
+        id: "source-1",
+        provider: "github_app",
+        state: "connected",
+        label: "Connected",
+        account: "velz-cmd/Things-to-do",
+        lastSuccessfulAt: "2026-07-21T00:00:00.000Z",
+        errorCode: null,
+      }],
+      communities: [{
+        id: "install-1",
+        slug: "react",
+        role: "operator",
+        status: "active",
+      }],
+      programs: [{
+        id: "program-1",
+        name: "Docs",
+        communitySlug: "react",
+        role: "operator",
+        status: "active",
+      }],
+    });
+
+    const communities = myDiscoverCommunitiesFromReadiness(snapshot);
+    expect(communities).toHaveLength(1);
+    expect(communities[0]).toMatchObject({
+      slug: "react",
+      programCount: 1,
+      activeProgramCount: 1,
+      repositories: ["velz-cmd/Things-to-do"],
+    });
+    expect(communities[0]?.primaryAction.href).toContain("/communities/react?step=review");
+    expect(communities[0]?.primaryAction.href).toContain("program=program-1");
+    expect(communities[0]?.primaryAction.href).toContain("#programs");
   });
 });
 

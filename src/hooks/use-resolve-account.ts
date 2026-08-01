@@ -16,6 +16,7 @@ import type {
   ResolveWallet,
 } from "@/lib/auth/types";
 import { WALLET_LINKED_EVENT } from "@/components/wallet/wallet-link-effect";
+import { PAYOUT_DESTINATION_CHANGED_EVENT } from "@/lib/profile/payout-events";
 
 export type { ResolveAccountState, ResolveWallet } from "@/lib/auth/types";
 
@@ -53,6 +54,7 @@ export function useResolveAccount(): ResolveAccountState {
   const [gmailInboxConnected, setGmailInboxConnected] = useState(false);
   const [arcConnected, setArcConnected] = useState(false);
   const [wallets, setWallets] = useState<ResolveWallet[]>([]);
+  const [payoutDestination, setPayoutDestination] = useState<ResolveAccountState["payoutDestination"]>();
   const [appWalletPending, setAppWalletPending] = useState(false);
   const [connectorsLoading, setConnectorsLoading] = useState(false);
   const [walletsLoading, setWalletsLoading] = useState(false);
@@ -89,6 +91,7 @@ export function useResolveAccount(): ResolveAccountState {
       setGmailInboxConnected(false);
       setArcConnected(false);
       setWallets([]);
+      setPayoutDestination(undefined);
       setAppWalletPending(false);
       return;
     }
@@ -123,6 +126,7 @@ export function useResolveAccount(): ResolveAccountState {
         .then((data) => {
           if (cancelled || !data) return;
           setWallets(data.wallets ?? []);
+          setPayoutDestination(data.payoutDestination);
           setAppWalletPending(Boolean(data.appWalletPending));
         })
         .catch(() => {
@@ -150,6 +154,7 @@ export function useResolveAccount(): ResolveAccountState {
         .then((data) => {
           if (!data) return;
           setWallets(data.wallets ?? []);
+          setPayoutDestination(data.payoutDestination);
           setAppWalletPending(Boolean(data.appWalletPending));
         })
         .catch(() => {
@@ -159,7 +164,11 @@ export function useResolveAccount(): ResolveAccountState {
     }
 
     window.addEventListener(WALLET_LINKED_EVENT, refreshWallets);
-    return () => window.removeEventListener(WALLET_LINKED_EVENT, refreshWallets);
+    window.addEventListener(PAYOUT_DESTINATION_CHANGED_EVENT, refreshWallets);
+    return () => {
+      window.removeEventListener(WALLET_LINKED_EVENT, refreshWallets);
+      window.removeEventListener(PAYOUT_DESTINATION_CHANGED_EVENT, refreshWallets);
+    };
   }, [userId]);
 
   return useMemo(() => {
@@ -205,6 +214,7 @@ export function useResolveAccount(): ResolveAccountState {
       externalWalletAddress,
       walletAddress,
       wallets,
+      payoutDestination,
       displayName,
       avatarUrl,
       accountVerified,
@@ -227,6 +237,7 @@ export function useResolveAccount(): ResolveAccountState {
     gmailInboxConnected,
     arcConnected,
     wallets,
+    payoutDestination,
     appWalletPending,
     authLoading,
     connectorsLoading,

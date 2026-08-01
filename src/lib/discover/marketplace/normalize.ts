@@ -451,7 +451,7 @@ export function normalizeProgramOpportunity(
     primaryAction: financialReady
       ? {
           id: "capital.open_funding",
-          label: "Review funding package",
+          label: "Fund Pool",
           href: `/capital?intent=back-pool&programId=${encodeURIComponent(row.id)}&returnTo=${encodeURIComponent("/discover?view=explore&kind=pools")}`,
           enabled: true,
         }

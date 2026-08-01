@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BadgeCheck, ExternalLink, RefreshCw, WalletCards } from "lucide-react";
 import type { WorkspaceReadinessState } from "@/lib/workspace/readiness-contract";
+import { PayoutDestinationDrawer } from "@/components/resolve/profile/payout-destination-drawer";
 
 export type ContributorIdentityView = {
   id: string;
@@ -62,6 +63,7 @@ export function OutcomeContributorConsole({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [payoutOpen, setPayoutOpen] = useState(false);
   const githubConnected = Boolean(
     githubReadiness &&
       ["connected", "syncing", "stale"].includes(githubReadiness.state),
@@ -70,6 +72,7 @@ export function OutcomeContributorConsole({
     identity.canonicalRef.startsWith("github:"),
   );
   const hasPeertubeWork = work.some((item) => item.provider === "peertube");
+  const canonicalPayout = payouts.find((item) => item.identityId === null);
 
   async function run(key: string, url: string, body?: Record<string, unknown>) {
     if (busy) return;
@@ -124,6 +127,9 @@ export function OutcomeContributorConsole({
             )}
           </div>
           <div className="flex gap-2">
+            {!canonicalPayout ? (
+              <button type="button" onClick={() => setPayoutOpen(true)} className="rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">Choose payout wallet</button>
+            ) : null}
             {!hasGithubIdentity && (
               <button
                 type="button"
@@ -166,7 +172,7 @@ export function OutcomeContributorConsole({
         )}
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {identities.map((identity) => {
-            const payout = payouts.find((item) => item.identityId === identity.id);
+            const payout = payouts.find((item) => item.identityId === identity.id) ?? canonicalPayout;
             return (
               <article key={identity.id} className="rounded-xl border border-white/10 p-4">
                 <div className="flex items-center gap-2">
@@ -185,19 +191,7 @@ export function OutcomeContributorConsole({
                     {payout.address.slice(-6)}
                   </p>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      run(`payout:${identity.id}`, "/api/outcomes/identity", {
-                        action: "bind_payout",
-                        identityId: identity.id,
-                      })
-                    }
-                    disabled={Boolean(busy)}
-                    className="mt-3 rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                  >
-                    Bind app wallet
-                  </button>
+                  <button type="button" onClick={() => setPayoutOpen(true)} className="mt-3 rounded-lg bg-violet-500 px-3 py-2 text-xs font-semibold text-white">Choose payout wallet</button>
                 )}
               </article>
             );
@@ -279,6 +273,7 @@ export function OutcomeContributorConsole({
           </p>
         )}
       </section>
+      <PayoutDestinationDrawer open={payoutOpen} origin="earn" onChanged={(value) => { setMessage(value); router.refresh(); }} onClose={() => setPayoutOpen(false)} />
     </>
   );
 }

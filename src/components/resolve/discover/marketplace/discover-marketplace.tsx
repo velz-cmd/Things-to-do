@@ -23,13 +23,18 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import type {
+  DiscoverAction,
   DiscoverExploreKind,
+  DiscoverIntent,
   DiscoverPageData,
   DiscoverSourceDiagnostic,
   DiscoverView,
   EconomicActionItem,
 } from "@/lib/discover/marketplace/contracts";
 import type { OpportunityFilters } from "@/lib/discover/marketplace/filters";
+import { DiscoverActionsProvider, useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
+import { PayoutDestinationDrawer } from "@/components/resolve/profile/payout-destination-drawer";
+import { useSendFunds } from "@/components/wallet/send-funds-context";
 
 const views: Array<{ id: DiscoverView; label: string; icon: typeof Activity }> = [
   { id: "for_you", label: "For You", icon: Sparkles },
@@ -46,6 +51,15 @@ const exploreKinds: Array<{ id: DiscoverExploreKind; label: string }> = [
   { id: "programs", label: "Programs" },
   { id: "pools", label: "Pools" },
   { id: "funding_gaps", label: "Funding gaps" },
+];
+
+const intents: Array<{ id: DiscoverIntent; label: string; available: boolean; reason?: string }> = [
+  { id: "earn", label: "Earn", available: true },
+  { id: "fund", label: "Fund", available: true },
+  { id: "operate", label: "Operate", available: true },
+  { id: "publish", label: "Publish", available: false, reason: "No real publishing usage adapter is active yet." },
+  { id: "build", label: "Build", available: false, reason: "No registered x402 service is active yet." },
+  { id: "explore", label: "Explore", available: true },
 ];
 
 const subjectIcons: Partial<Record<EconomicActionItem["subjectType"], typeof Activity>> = {
@@ -81,7 +95,21 @@ function discoverHref(
   if (filters.community) params.set("community", filters.community);
   if (filters.repository) params.set("repository", filters.repository);
   if (kind) params.set("kind", kind);
+  params.set("intent", filters.intent ?? "explore");
   return `/discover?${params.toString()}`;
+}
+
+function IntentSwitcher({ active, filters }: { active: DiscoverIntent; filters: OpportunityFilters }) {
+  return (
+    <section aria-label="Current intent" className="flex flex-wrap items-center gap-2">
+      <span className="mr-1 text-xs font-medium text-slate-500">I want to</span>
+      {intents.map((intent) => intent.available ? (
+        <Link key={intent.id} data-action-id="discover.filter_ledger" href={discoverHref("for_you", { ...filters, intent: intent.id })} aria-label={`${intent.label} intent`} aria-current={active === intent.id ? "page" : undefined} className={`rounded-full border px-3 py-1.5 text-xs ${active === intent.id ? "border-violet-300/40 bg-violet-400/15 font-semibold text-violet-100" : "border-white/10 text-slate-400 hover:text-white"}`}>{intent.label}</Link>
+      ) : (
+        <span key={intent.id} title={intent.reason} aria-disabled="true" className="cursor-not-allowed rounded-full border border-white/[0.06] px-3 py-1.5 text-xs text-slate-600">{intent.label}</span>
+      ))}
+    </section>
+  );
 }
 
 function track(actionId: string, properties?: Record<string, string | number | boolean>) {
@@ -263,6 +291,11 @@ function ContextControls({ data, filters }: { data: DiscoverPageData; filters: O
           {data.readiness.repositories.map((repository) => <option key={repository} value={repository}>{repository}</option>)}
         </select>
       ) : null}
+      {data.signedIn && data.capabilities.length ? (
+        <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.04] px-3 py-1.5 text-emerald-200">
+          {data.capabilities.length} verified capabilities available
+        </span>
+      ) : null}
     </section>
   );
 }
@@ -291,8 +324,58 @@ function SourceFailure({ data }: { data: DiscoverPageData }) {
   );
 }
 
-function Recommendation({ data }: { data: DiscoverPageData }) {
+function contextualKind(action: DiscoverAction) {
+  if (["discover.resolve_identity", "profile.verify_payout_destination", "profile.set_payout_destination"].includes(action.id)) return "payout" as const;
+  if (action.id === "capital.open_funding" && action.href.includes("back-pool")) return "pool_funding" as const;
+  if (action.id === "capital.open_funding" && action.href.includes("direct-support")) return "direct_support" as const;
+  return null;
+}
+
+function ContextualAction({
+  action,
+  item,
+  primary = false,
+  onPayout,
+}: {
+  action: DiscoverAction;
+  item?: EconomicActionItem;
+  primary?: boolean;
+  onPayout: () => void;
+}) {
+  const { openFundSheet } = useDiscoverActions();
+  const { openSendFunds } = useSendFunds();
+  const kind = contextualKind(action);
+  const className = primary
+    ? "inline-flex min-h-10 items-center gap-2 rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white hover:bg-violet-400"
+    : "inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-sm text-slate-300 hover:bg-white/[0.05]";
+  if (!action.enabled) return <button type="button" disabled title={action.disabledReason} className={`${className} cursor-not-allowed opacity-50`}>{action.label}</button>;
+  if (kind === "payout") {
+    return <button type="button" data-action-id={action.id} onClick={() => { track("discover_action_opened", { actionId: action.id }); onPayout(); }} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : null}</button>;
+  }
+  if (kind === "pool_funding") {
+    const parsed = new URL(action.href, "https://resolve.local");
+    const programId = item?.programId ?? item?.poolId ?? parsed.searchParams.get("programId") ?? undefined;
+    const communitySlug = item?.community?.id;
+    return <button type="button" data-action-id={action.id} onClick={() => {
+      track("discover_action_opened", { actionId: action.id, subject: item?.subjectId ?? "recommendation" });
+      openFundSheet({ programId, communitySlug, label: item ? `Fund ${item.headline}` : "Fund Pool", programName: item?.headline, whyFund: item?.whyItMatters, whoBenefits: item?.happened });
+    }} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : null}</button>;
+  }
+  if (kind === "direct_support") {
+    const parsed = new URL(action.href, "https://resolve.local");
+    const recipientUserId = parsed.searchParams.get("recipient");
+    return <button type="button" data-action-id={action.id} disabled={!recipientUserId} onClick={() => {
+      if (!recipientUserId) return;
+      track("discover_action_opened", { actionId: action.id, subject: item?.subjectId ?? recipientUserId });
+      openSendFunds({ recipientUserId, recipientLabel: item?.person?.name ?? item?.headline });
+    }} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : null}</button>;
+  }
+  return <Link href={action.href} data-action-id={action.id} onClick={() => track("discover_action_opened", { actionId: action.id, subject: item?.subjectId ?? "recommendation" })} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : action.href.startsWith("http") ? <ExternalLink className="h-3.5 w-3.5" /> : null}</Link>;
+}
+
+function Recommendation({ data, onPayout }: { data: DiscoverPageData; onPayout: () => void }) {
   const recommendation = data.recommendation;
+  const item = data.economicActions.find((candidate) => candidate.id === recommendation.id);
   return (
     <section className="rounded-xl border border-violet-300/15 bg-[linear-gradient(125deg,rgba(102,85,220,.13),rgba(7,17,31,.96)_48%)] p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -307,18 +390,16 @@ function Recommendation({ data }: { data: DiscoverPageData }) {
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {recommendation.secondaryActions.slice(0, 2).map((action) => (
-            <Link key={action.href} href={action.href} data-action-id={action.id} onClick={() => track("discover_action_opened", { actionId: action.id, recommendation: recommendation.id })} className="inline-flex min-h-10 items-center rounded-lg border border-white/10 px-3 text-sm text-slate-300 hover:bg-white/[0.05]">{action.label}</Link>
+            <ContextualAction key={action.href} action={{ ...action, enabled: true }} item={item} onPayout={onPayout} />
           ))}
-          <Link href={recommendation.primaryAction.href} data-action-id={recommendation.primaryAction.id} onClick={() => track("discover_action_opened", { actionId: recommendation.primaryAction.id, recommendation: recommendation.id })} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white hover:bg-violet-400">
-            {recommendation.primaryAction.label}<ArrowRight className="h-4 w-4" />
-          </Link>
+          <ContextualAction action={{ ...recommendation.primaryAction, enabled: true }} item={item} primary onPayout={onPayout} />
         </div>
       </div>
     </section>
   );
 }
 
-function ActionCard({ item }: { item: EconomicActionItem }) {
+function ActionCard({ item, onPayout }: { item: EconomicActionItem; onPayout: () => void }) {
   const Icon = subjectIcons[item.subjectType] ?? Activity;
   const amount = money(item.amount?.valueUsd, item.amount?.token);
   return (
@@ -341,31 +422,32 @@ function ActionCard({ item }: { item: EconomicActionItem }) {
         <div><dt className="text-slate-500">Created by</dt><dd className="mt-1 text-slate-200">{item.person?.name ?? item.community?.name ?? "Canonical system record"}</dd></div>
         <div><dt className="text-slate-500">Economic state</dt><dd className="mt-1 capitalize text-slate-200">{amount ? `${amount} - ${item.amount?.state.replaceAll("_", " ")}` : item.fundingReadiness.replaceAll("_", " ")}</dd></div>
       </dl>
+      {item.poolDetails ? <dl className="mt-3 grid gap-3 rounded-lg border border-white/[0.07] bg-black/15 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+        <div><dt className="text-slate-500">Pool type</dt><dd className="mt-1 text-slate-200">{item.poolDetails.type}</dd></div>
+        <div><dt className="text-slate-500">Verified operator</dt><dd className="mt-1 text-slate-200">{item.poolDetails.owner}</dd></div>
+        <div><dt className="text-slate-500">Confirmed balance</dt><dd className="mt-1 text-slate-200">{money(item.poolDetails.confirmedBalanceUsd) ?? "No confirmed deposit"}</dd></div>
+        <div><dt className="text-slate-500">Funding target</dt><dd className="mt-1 text-slate-200">{money(item.poolDetails.targetUsd) ?? "Open ended"}</dd></div>
+        <div><dt className="text-slate-500">Pending deposits</dt><dd className="mt-1 text-slate-200">{money(item.poolDetails.pendingDepositsUsd) ?? "None"}</dd></div>
+        <div><dt className="text-slate-500">Available balance</dt><dd className="mt-1 text-slate-200">{money(item.poolDetails.availableBalanceUsd) ?? "No confirmed balance"}</dd></div>
+        <div><dt className="text-slate-500">Rule state</dt><dd className="mt-1 capitalize text-slate-200">{item.poolDetails.policyState.replaceAll("_", " ")}</dd></div>
+        <div><dt className="text-slate-500">Network</dt><dd className="mt-1 text-slate-200">{item.poolDetails.network}</dd></div>
+      </dl> : null}
       {item.blocker ? <p className="mt-3 rounded-lg border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-xs leading-5 text-amber-100">Exact blocker: {item.blocker}</p> : null}
       <div className="mt-4 flex flex-wrap gap-2">
         {item.primaryAction.enabled ? (
-          <Link
-            href={item.primaryAction.href}
-            data-action-id={item.primaryAction.id}
-            onClick={() => track("discover_action_opened", { actionId: item.primaryAction.id, subject: item.subjectId })}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-violet-500 px-3 text-sm font-semibold text-white hover:bg-violet-400"
-          >
-            {item.primaryAction.label}<ArrowRight className="h-4 w-4" />
-          </Link>
+          <ContextualAction action={item.primaryAction} item={item} primary onPayout={onPayout} />
         ) : (
           <button type="button" disabled title={item.primaryAction.disabledReason} className="min-h-10 rounded-lg bg-slate-700 px-3 text-sm text-slate-300 opacity-60">{item.primaryAction.label}</button>
         )}
         {item.secondaryActions.slice(0, 2).map((action) => (
-          <Link key={`${item.id}:${action.id}:${action.href}`} href={action.href} data-action-id={action.id} onClick={() => track("discover_action_opened", { actionId: action.id, subject: item.subjectId })} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-sm text-slate-300 hover:bg-white/[0.05]">
-            {action.label}{action.href.startsWith("http") ? <ExternalLink className="h-3.5 w-3.5" /> : null}
-          </Link>
+          <ContextualAction key={`${item.id}:${action.id}:${action.href}`} action={action} item={item} onPayout={onPayout} />
         ))}
       </div>
     </article>
   );
 }
 
-function ActionFeed({ items, title }: { items: EconomicActionItem[]; title: string }) {
+function ActionFeed({ items, title, onPayout }: { items: EconomicActionItem[]; title: string; onPayout: () => void }) {
   if (!items.length) return null;
   return (
     <section aria-labelledby="economic-action-feed-title">
@@ -376,7 +458,7 @@ function ActionFeed({ items, title }: { items: EconomicActionItem[]; title: stri
         </div>
         <span className="text-xs text-slate-500">{items.length} real item{items.length === 1 ? "" : "s"}</span>
       </div>
-      <div className="grid gap-3 xl:grid-cols-2">{items.map((item) => <ActionCard key={item.id} item={item} />)}</div>
+      <div className="grid gap-3 xl:grid-cols-2">{items.map((item) => <ActionCard key={item.id} item={item} onPayout={onPayout} />)}</div>
     </section>
   );
 }
@@ -531,7 +613,8 @@ function EmptyState({ view, signedIn }: { view: DiscoverView; signedIn: boolean 
   return <section className="rounded-xl border border-white/[0.08] bg-[#091522] p-5"><h2 className="font-semibold text-white">No matching economic action</h2><p className="mt-2 text-sm leading-6 text-slate-400">The selected scope has no canonical item matching this search. Analyze a public repository, choose another context, or review the exact source diagnostics below.</p></section>;
 }
 
-export function DiscoverMarketplace({ data, filters }: { data: DiscoverPageData; filters: OpportunityFilters }) {
+function DiscoverMarketplaceContent({ data, filters }: { data: DiscoverPageData; filters: OpportunityFilters }) {
+  const [payoutOpen, setPayoutOpen] = useState(false);
   useEffect(() => track("discover_viewed", { view: data.view }), [data.view]);
   const feed = data.view === "for_you" && data.economicActions[0]?.id === data.recommendation.id
     ? data.economicActions.slice(1)
@@ -543,12 +626,13 @@ export function DiscoverMarketplace({ data, filters }: { data: DiscoverPageData;
         <SearchBox filters={filters} view={data.view} />
         <ViewTabs active={data.view} filters={filters} />
       </div>
+      <div className="mt-3"><IntentSwitcher active={filters.intent ?? "explore"} filters={filters} /></div>
       <div className="mt-3"><ContextControls data={data} filters={filters} /></div>
       <div className="mt-5 space-y-5">
         <SourceFailure data={data} />
-        {data.view === "for_you" ? <Recommendation data={data} /> : null}
+        {data.view === "for_you" ? <Recommendation data={data} onPayout={() => setPayoutOpen(true)} /> : null}
         {data.view === "explore" ? <ExploreFilters active={filters.kind ?? "all"} filters={filters} /> : null}
-        {feed.length ? <ActionFeed items={feed} title={data.view === "for_you" ? "What can happen next" : data.view === "activity" ? "Your work, setup, funding, and decisions" : data.view === "outcomes" ? "Confirmed settlements and receipts" : "Explore the value network"} /> : <EmptyState view={data.view} signedIn={data.signedIn} />}
+        {feed.length ? <ActionFeed items={feed} onPayout={() => setPayoutOpen(true)} title={data.view === "for_you" ? "What can happen next" : data.view === "activity" ? "Your work, setup, funding, and decisions" : data.view === "outcomes" ? "Confirmed settlements and receipts" : "Explore the value network"} /> : <EmptyState view={data.view} signedIn={data.signedIn} />}
         {data.view === "explore" ? <RepositoryAnalyzer signedIn={data.signedIn} /> : null}
         {(data.view === "explore" || data.view === "activity") && data.sourceDiagnostics.length ? (
           <section aria-labelledby="source-diagnostics-title">
@@ -557,6 +641,11 @@ export function DiscoverMarketplace({ data, filters }: { data: DiscoverPageData;
           </section>
         ) : null}
       </div>
+      <PayoutDestinationDrawer open={payoutOpen} origin="discover" onClose={() => setPayoutOpen(false)} />
     </main>
   );
+}
+
+export function DiscoverMarketplace(props: { data: DiscoverPageData; filters: OpportunityFilters }) {
+  return <DiscoverActionsProvider signedIn={props.data.signedIn}><DiscoverMarketplaceContent {...props} /></DiscoverActionsProvider>;
 }

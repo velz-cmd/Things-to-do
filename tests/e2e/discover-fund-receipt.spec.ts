@@ -106,10 +106,12 @@ test.describe("Discover handoff to Capital and proof", () => {
     expect((poolAfter.pool?.poolBalanceUsd ?? 0) >= poolBefore + 4.99).toBeTruthy();
   });
 
-  test("Discover has no settlement authority or direct funding control", async ({ page }) => {
+  test("Discover keeps funding confirmation in context without generic Capital redirects", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByRole("button", { name: /Fulfill pool/i })).toHaveCount(0);
     await expect(page.getByRole("main").locator('input[type="number"]')).toHaveCount(0);
+    await expect(page.locator('a[href^="/capital?intent=back-pool"]')).toHaveCount(0);
+    await expect(page.locator('a[href^="/capital?intent=direct-support"]')).toHaveCount(0);
   });
 });

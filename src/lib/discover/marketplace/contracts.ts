@@ -7,6 +7,9 @@ export const DISCOVER_VIEWS = [
 
 export type DiscoverView = (typeof DISCOVER_VIEWS)[number];
 
+export const DISCOVER_INTENTS = ["earn", "fund", "operate", "publish", "build", "explore"] as const;
+export type DiscoverIntent = (typeof DISCOVER_INTENTS)[number];
+
 export const DISCOVER_EXPLORE_KINDS = [
   "all",
   "people",
@@ -358,6 +361,19 @@ export type EconomicActionItem = {
     token?: string;
     state: FundingAmountState;
   };
+  poolDetails?: {
+    type: string;
+    owner: string;
+    purpose?: string;
+    confirmedBalanceUsd?: number;
+    pendingDepositsUsd?: number;
+    availableBalanceUsd?: number;
+    targetUsd?: number;
+    policyState: DiscoverPool["policyState"];
+    treasuryReadiness: DiscoverPool["treasuryReadiness"];
+    distributionMethod?: string;
+    network?: string;
+  };
   fundingReadiness: "ready" | "blocked" | "not_applicable";
   recipientReadiness: "ready" | "setup_required" | "not_applicable";
   primaryAction: DiscoverAction;
@@ -401,6 +417,7 @@ export type DiscoverPageData = {
   sourceDiagnostics: DiscoverSourceDiagnostic[];
   savedIds: string[];
   signedIn: boolean;
+  capabilities: string[];
   stats: DiscoverNetworkStats;
   readiness: {
     githubState: string;

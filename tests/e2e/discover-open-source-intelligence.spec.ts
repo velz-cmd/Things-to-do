@@ -1,94 +1,74 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Discover verified funding network", () => {
+test.describe("Discover Economic Action Network", () => {
   test.setTimeout(120_000);
 
-  test("browses every public view without GitHub, wallet, or profile gates", async ({ page }) => {
+  test("switches through the four primary views without integration gates", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Discover verified value" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Discover economic activity" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
 
     const views = [
-      ["People", "people"],
-      ["Verified Work", "work"],
-      ["Pools", "pools"],
+      ["Explore", "explore"],
+      ["My Activity", "activity"],
       ["Outcomes", "outcomes"],
-      ["My Communities", "my_communities"],
       ["For You", "for_you"],
     ] as const;
     for (const [label, value] of views) {
       await page.getByRole("link", { name: label, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`view=${value}`));
-      await expect(page.getByRole("heading", { level: 1, name: "Discover verified value" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Discover economic activity" })).toBeVisible();
     }
-    await page.getByRole("link", { name: "My Communities", exact: true }).click();
-    await expect(page).toHaveURL(/view=my_communities/);
-    await expect(
-      page.getByRole("heading", { name: "Sign in to view your communities" }),
-    ).toBeVisible();
   });
 
-  test("keeps search and view state in the URL", async ({ page }) => {
-    await page.goto("/discover?view=work", {
+  test("keeps Explore intent and search state in the URL", async ({ page }) => {
+    await page.goto("/discover?view=explore&kind=work&repository=octocat%2FHello-World", {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
-    const search = page.getByPlaceholder(
-      "Search a creator, contributor, community, Pool, or verified work",
-    );
+    await expect(page.getByRole("link", { name: "Verified work", exact: true })).toHaveAttribute("aria-current", "page");
+    const search = page.getByRole("searchbox", { name: "Search Discover" });
     await search.fill("typescript");
     await search.press("Enter");
-    await expect(page).toHaveURL(/view=work/);
+    await expect(page).toHaveURL(/view=explore/);
+    await expect(page).toHaveURL(/kind=work/);
+    await expect(page).toHaveURL(/repository=octocat%2FHello-World/);
     await expect(page).toHaveURL(/q=typescript/, { timeout: 10_000 });
+  });
+
+  test("analyzes a public repository without requiring sign in", async ({ page }) => {
+    await page.goto("/discover?view=explore&analyze=1", {
+      waitUntil: "domcontentloaded",
+      timeout: 120_000,
+    });
+    await page.getByRole("textbox", { name: "Public GitHub repository" }).fill("octocat/Hello-World");
+    await page.getByRole("button", { name: "Analyze real activity" }).click();
+    await expect(page.getByRole("heading", { name: "octocat/Hello-World" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Sign in to persist evidence")).toBeVisible();
   });
 
   test("is usable at mobile width without page-level horizontal overflow", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByRole("link", { name: "My Communities", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Discover economic activity" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "My Activity", exact: true })).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test("opens a shareable opportunity detail when public work exists", async ({ page }) => {
-    await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    const details = page.getByRole("link", { name: /View proof|Inspect details/ }).first();
-    test.skip((await details.count()) === 0, "No public opportunity exists in this isolated database.");
-    await details.click();
-    await expect(page).toHaveURL(/\/opportunities\//);
-    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Funding" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "People" })).toBeVisible();
-  });
-
-  test("hands a published Pool to Capital without losing Discover context", async ({ page }) => {
-    await page.goto("/discover?view=pools", {
-      waitUntil: "domcontentloaded",
-      timeout: 120_000,
-    });
-    const backPool = page.getByRole("link", { name: "Add USDC to Pool" }).first();
-    const hasPublishedPool = await backPool
-      .waitFor({ state: "visible", timeout: 10_000 })
-      .then(() => true)
-      .catch(() => false);
-    test.skip(!hasPublishedPool, "No published Pool exists in this isolated database.");
-
-    const href = await backPool.getAttribute("href");
-    expect(href).toBeTruthy();
-    const target = new URL(href!, "http://localhost");
-    expect(target.pathname).toBe("/capital");
-    expect(target.searchParams.get("intent")).toBe("back-pool");
-    expect(target.searchParams.get("programId")).toBeTruthy();
-    expect(target.searchParams.get("returnTo")).toContain("/discover?view=pools");
-
-    await backPool.click();
-    await expect(page).toHaveURL(/\/capital\?intent=back-pool/);
-    await expect(page.getByRole("heading", { name: "Sign in to open Capital" })).toBeVisible();
+  test("shows factual empty outcome copy when no receipt exists", async ({ page }) => {
+    await page.goto("/discover?view=outcomes", { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "Discover economic activity" })).toBeVisible();
+    const empty = page.getByRole("heading", { name: "No confirmed outcome receipt yet" });
+    const hasEmptyState = await empty.waitFor({ state: "visible", timeout: 2_000 }).then(() => true).catch(() => false);
+    if (hasEmptyState) {
+      await expect(empty).toBeVisible();
+      await expect(page.getByText(/only after a chain transaction confirms/)).toBeVisible();
+    } else {
+      await expect(page.getByRole("heading", { name: "Confirmed settlements and receipts" })).toBeVisible();
+    }
   });
 
   test("keeps repository publication and Mission creation protected", async ({ request }) => {

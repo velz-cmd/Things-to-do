@@ -109,7 +109,7 @@ export async function ensureCommunityPrograms(userId: string, communitySlug: str
         },
       });
     }
-    await invalidateDiscoverProgramCache();
+    await invalidateDiscoverProgramCache(userId);
   }
 
   return { created };
@@ -201,7 +201,7 @@ export async function installCommunity(userId: string, communitySlug: string) {
     skipDuplicates: true,
   });
 
-  await invalidateDiscoverProgramCache();
+  await invalidateDiscoverProgramCache(userId);
 
   const programs = await prisma.resolveProgram.findMany({
     where: { installId: install.id },

@@ -218,7 +218,7 @@ export function OutcomeContributorConsole({
             <p className="text-xs uppercase tracking-wider text-violet-300">My work</p>
             <h2 className="mt-1 text-xl font-semibold text-white">Verification queue</h2>
           </div>
-          <Link href="/discover?view=programs" className="text-sm text-violet-300">
+          <Link href="/discover?view=explore&kind=programs" className="text-sm text-violet-300">
             Browse programs
           </Link>
         </div>

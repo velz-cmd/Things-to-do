@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { requireReadyUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { getOutcomeAdapter } from "@/lib/outcomes/adapters/registry";
+import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
 
 const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("connect_identity"), provider: z.enum(["github", "peertube"]), submissionId: z.string().min(1).optional() }),
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
       await tx.actionRun.upsert({ where: { idempotencyKey: `identity.claim:${ready.user.id}:${canonicalRef}` }, create: { userId: ready.user.id, actionId: "identity.claim", aggregateType: "Identity", aggregateId: row.id, idempotencyKey: `identity.claim:${ready.user.id}:${canonicalRef}`, state: "completed", recommendationReason: "The identity is backed by an authenticated profile field or connected source account.", input: { provider }, output: { identityId: row.id, status: "verified" }, completedAt: now }, update: {} });
       return row;
     });
+    await invalidateConnectorCaches(ready.user.id);
     return NextResponse.json({ ok: true, identityId: identity.id, status: identity.status, nextAction: "identity.set_payout_destination" });
   }
 
@@ -76,5 +78,6 @@ export async function POST(request: Request) {
     await tx.actionRun.upsert({ where: { idempotencyKey: `identity.set_payout_destination:${identity.id}:${wallet.id}` }, create: { userId: ready.user.id, actionId: "identity.set_payout_destination", aggregateType: "PayoutDestination", aggregateId: row.id, idempotencyKey: `identity.set_payout_destination:${identity.id}:${wallet.id}`, state: "completed", recommendationReason: "The destination is an active app-owned wallet and is bound to a verified contributor identity.", input: { identityId: identity.id, walletId: wallet.id }, output: { payoutDestinationId: row.id, status: "verified", unblockedObligations: blocked.length }, completedAt: now }, update: {} });
     return row;
   });
+  await invalidateConnectorCaches(ready.user.id);
   return NextResponse.json({ ok: true, payoutDestinationId: payout.id, status: payout.status });
 }

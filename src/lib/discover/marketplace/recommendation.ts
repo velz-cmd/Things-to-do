@@ -42,7 +42,7 @@ export function selectDiscoverRecommendation(
         label: "Add payout destination",
         href: "/profile?view=wallets&returnTo=/discover",
       },
-      secondaryActions: [{ id: "discover.open_verified_work", label: "View recognised work", href: "/discover?view=work" }],
+      secondaryActions: [{ id: "discover.open_verified_work", label: "View recognised work", href: "/discover?view=explore&kind=work" }],
     };
   }
   if (readiness && readiness.capital.pendingAuthorizations > 0) {
@@ -70,7 +70,7 @@ export function selectDiscoverRecommendation(
       primaryAction: {
         id: shortfall.primaryAction?.id ?? "discover.open_pools",
         label: shortfall.primaryAction?.label ?? "Inspect Pool",
-        href: shortfall.primaryAction?.href ?? `/discover?view=pools&pool=${encodeURIComponent(shortfall.id)}`,
+        href: shortfall.primaryAction?.href ?? `/discover?view=explore&kind=pools&pool=${encodeURIComponent(shortfall.id)}`,
       },
       secondaryActions: [
         { id: "discover.open_record", label: "View details", href: `/opportunities/${shortfall.slug}` },
@@ -94,10 +94,10 @@ export function selectDiscoverRecommendation(
   }
   return {
     id: "no-immediate-action",
-    title: "No immediate funding action",
-    reason: "No eligible public opportunity is available from the confirmed sources.",
+    title: "Analyze public repository activity",
+    reason: "No persisted action is ready, but any public GitHub repository can be inspected without connecting an account.",
     state: "current",
-    primaryAction: { id: "discover.open_communities", label: "Open Communities", href: "/communities" },
+    primaryAction: { id: "discover.open_public_repository_analysis", label: "Analyze a repository", href: "/discover?view=explore#public-repository-analysis" },
     secondaryActions: [],
   };
 }

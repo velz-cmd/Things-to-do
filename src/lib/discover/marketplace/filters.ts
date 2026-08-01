@@ -1,5 +1,7 @@
 import {
   DISCOVER_VIEWS,
+  DISCOVER_EXPLORE_KINDS,
+  type DiscoverExploreKind,
   OPPORTUNITY_TYPES,
   type DiscoverView,
   type FundingStatus,
@@ -25,6 +27,7 @@ export type OpportunityFilters = {
   network?: string;
   fundingStatus?: FundingStatus;
   community?: string;
+  repository?: string;
   creatorType?: OpportunityCreatorType;
   provider?: ProviderPreference;
   remote?: boolean;
@@ -32,6 +35,7 @@ export type OpportunityFilters = {
   verification?: string;
   sort: OpportunitySort;
   cursor?: string;
+  kind?: DiscoverExploreKind;
 };
 
 function first(value: SearchValue) {
@@ -52,8 +56,12 @@ export function parseDiscoverView(value: SearchValue): DiscoverView {
   const candidate = first(value);
   const legacy: Record<string, DiscoverView> = {
     opportunities: "for_you",
-    communities: "my_communities",
-    programs: "pools",
+    people: "explore",
+    work: "explore",
+    pools: "explore",
+    communities: "activity",
+    my_communities: "activity",
+    programs: "explore",
     saved: "for_you",
   };
   if (candidate && legacy[candidate]) return legacy[candidate];
@@ -69,6 +77,11 @@ export function parseOpportunityFilters(params: DiscoverSearchParams): Opportuni
   const provider = clean(params.provider, 40);
   const deadline = clean(params.deadline, 20);
   const sort = clean(params.sort, 30);
+  const requestedView = clean(params.view, 40);
+  const requestedKind = clean(params.kind, 40) ??
+    ({ people: "people", work: "work", pools: "pools", programs: "programs" } as const)[
+      requestedView as "people" | "work" | "pools" | "programs"
+    ];
 
   return {
     q: clean(params.q),
@@ -91,6 +104,7 @@ export function parseOpportunityFilters(params: DiscoverSearchParams): Opportuni
       ? (fundingStatus as FundingStatus)
       : undefined,
     community: clean(params.community, 80),
+    repository: clean(params.repository, 160),
     creatorType: [
       "founder",
       "funder",
@@ -114,6 +128,9 @@ export function parseOpportunityFilters(params: DiscoverSearchParams): Opportuni
       ? (sort as OpportunitySort)
       : "newest",
     cursor: clean(params.cursor, 240),
+    kind: DISCOVER_EXPLORE_KINDS.includes(requestedKind as DiscoverExploreKind)
+      ? (requestedKind as DiscoverExploreKind)
+      : "all",
   };
 }
 
@@ -122,6 +139,7 @@ export function hasActiveOpportunityFilters(filters: OpportunityFilters) {
     ([key, value]) =>
       key !== "sort" &&
       key !== "cursor" &&
+      key !== "kind" &&
       value !== undefined &&
       value !== "",
   );

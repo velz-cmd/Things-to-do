@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
 import { cacheDelete } from "@/lib/cache/kv";
 import { prisma } from "@/lib/db";
+import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
 import { appWalletProvider, circleWalletIdForUser } from "@/lib/wallet/app-wallet-service";
 
 const requestSchema = z.object({
@@ -188,8 +189,7 @@ export async function POST(request: Request) {
   });
 
   await Promise.all([
-    cacheDelete(`profile:control-plane:${ready.user.id}`),
-    cacheDelete(`profile:state:${ready.user.id}`),
+    invalidateConnectorCaches(ready.user.id),
     cacheDelete(`capital:bootstrap:${ready.user.id}`),
   ]);
 

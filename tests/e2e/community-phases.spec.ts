@@ -385,7 +385,7 @@ test.describe("Community phases — surfaces", () => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(page.getByRole("heading", {
       level: 1,
-      name: "Discover verified value",
+      name: "Discover economic activity",
     })).toBeVisible();
     await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Unpaid Value" })).toHaveCount(0);

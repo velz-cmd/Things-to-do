@@ -220,6 +220,10 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
   }
 
   const selected = data.balances.selected;
+  const selectedWalletAddress =
+    data.wallets.selectedCapitalWallet === "connected"
+      ? data.wallets.connectedWallet?.address ?? null
+      : data.wallets.appWallet?.address ?? null;
   const claimable = BigInt(data.moneyState.claimableMicroUsdc);
   const syncing = ["validating", "pending_external"].includes(refreshState ?? "");
   const networkCopy =
@@ -267,7 +271,7 @@ export function CapitalCommandCenter({ initialData = null }: { initialData?: Cap
         <section aria-labelledby="capital-pulse-title" className="grid overflow-hidden rounded-3xl border border-white/[0.09] bg-[#07111e]/95 shadow-[0_24px_80px_rgba(0,0,0,.25)] lg:grid-cols-[.86fr_1.14fr]">
           <div className="border-b border-white/[0.08] p-5 lg:border-b-0 lg:border-r lg:p-6">
             <p id="capital-pulse-title" className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Selected wallet</p>
-            <div className="mt-3 flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-400/20 bg-cyan-400/10"><WalletCards className="h-5 w-5 text-cyan-300" /></div><div><p className="text-sm font-semibold text-white">{data.wallets.selectedCapitalWallet === "connected" ? "Connected wallet" : "RESOLVE wallet"}</p><p className="font-mono text-[11px] text-[#8192aa]">{short(selected?.address)}</p></div></div>
+            <div className="mt-3 flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-400/20 bg-cyan-400/10"><WalletCards className="h-5 w-5 text-cyan-300" /></div><div><p className="text-sm font-semibold text-white">{data.wallets.selectedCapitalWallet === "connected" ? "Connected wallet" : "RESOLVE wallet"}</p><p className="font-mono text-[11px] text-[#8192aa]">{short(selectedWalletAddress)}</p></div></div>
             <div aria-live="polite" className="mt-6"><p className="text-4xl font-semibold tracking-[-.04em] text-white">{degraded ? "Unavailable" : micro(data.moneyState.availableMicroUsdc)}</p><p className="mt-1 text-xs text-[#8fa0b6]">{degraded ? "Waiting for persisted treasury state" : "Available from this wallet"}</p></div>
             <dl className="mt-5 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
               <div><dt className="text-[#71839b]">Reserved</dt><dd className="mt-1 font-medium text-white">{micro(data.moneyState.reservedMicroUsdc)}</dd></div>

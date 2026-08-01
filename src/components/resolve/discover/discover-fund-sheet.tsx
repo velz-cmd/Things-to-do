@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
@@ -20,6 +19,7 @@ import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel
 import { WalletSourcePicker } from "@/components/resolve/fund/wallet-source-picker";
 import { DiscoverActionOutcomePanel } from "@/components/resolve/discover/discover-action-outcome-panel";
 import type { FundProgressState } from "@/lib/capital/fund-progress";
+import { useAddFunds } from "@/components/wallet/add-funds-context";
 
 type FundOutcomeProps = {
   title: string;
@@ -57,6 +57,7 @@ export function DiscoverFundSheet({
   onConfirm,
 }: DiscoverFundSheetProps) {
   const { state: connections } = useUserConnections();
+  const { openAddFunds } = useAddFunds();
   const spendable = useSpendableUsd();
   const { externalWalletReady, openConnectWallet } = useResolveAccess();
 
@@ -247,12 +248,14 @@ export function DiscoverFundSheet({
               <div className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-xs text-amber-100">
                 Not enough USDC on either wallet for this amount.
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Link
-                    href="/capital?returnUrl=/discover"
+                  <button
+                    type="button"
+                    data-action-id="capital.add_usdc"
+                    onClick={() => openAddFunds(Math.max(5, amountUsd - wallet.spendableUsd))}
                     className="font-medium text-resolve-accent hover:underline"
                   >
-                    Add funds in Capital
-                  </Link>
+                    Add USDC here
+                  </button>
                   {!externalWalletReady && (
                     <button
                       type="button"

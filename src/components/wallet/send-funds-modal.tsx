@@ -11,16 +11,22 @@ const AMOUNTS = [5, 10, 20];
 export function SendFundsModal({
   open,
   suggestedUsd,
+  recipientUserId,
+  recipientLabel,
   onClose,
 }: {
   open: boolean;
   suggestedUsd?: number;
+  recipientUserId?: string;
+  recipientLabel?: string;
   onClose: () => void;
 }) {
   const { refreshBalance, user } = useAuth();
   const [amount, setAmount] = useState(10);
   const [destination, setDestination] = useState("");
   const [loading, setLoading] = useState(false);
+  const [recipientLoading, setRecipientLoading] = useState(false);
+  const [recipientError, setRecipientError] = useState<string | null>(null);
   const [availableUsd, setAvailableUsd] = useState(0);
 
   useEffect(() => {
@@ -40,6 +46,37 @@ export function SendFundsModal({
   useEffect(() => {
     if (suggestedUsd) setAmount(suggestedUsd);
   }, [suggestedUsd, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setDestination("");
+    setRecipientError(null);
+    if (!recipientUserId) {
+      setRecipientLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    let active = true;
+    setRecipientLoading(true);
+    void fetch(`/api/wallet/send?recipientUserId=${encodeURIComponent(recipientUserId)}`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error ?? "Recipient payout could not be loaded");
+        if (active) setDestination(data.destinationAddress);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (active) setRecipientError(error instanceof Error ? error.message : "Recipient payout could not be loaded");
+      })
+      .finally(() => { if (active) setRecipientLoading(false); });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [open, recipientUserId]);
 
   if (!open) return null;
 
@@ -63,7 +100,11 @@ export function SendFundsModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ destinationAddress: destination, amountUsd: amount }),
+        body: JSON.stringify(
+          recipientUserId
+            ? { recipientUserId, amountUsd: amount }
+            : { destinationAddress: destination, amountUsd: amount },
+        ),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Send failed");
@@ -80,9 +121,11 @@ export function SendFundsModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-md rounded-2xl border border-deputy-border bg-deputy-panel p-6">
-        <h2 className="text-lg font-semibold">Send USDC</h2>
+        <h2 className="text-lg font-semibold">{recipientUserId ? "Support with USDC" : "Send USDC"}</h2>
         <p className="mt-1 text-sm text-deputy-muted">
-          Send real USDC from your RESOLVE wallet on Arc testnet.
+          {recipientUserId
+            ? `Send real USDC to ${recipientLabel ?? "this verified recipient"} on Arc testnet.`
+            : "Send real USDC from your RESOLVE wallet on Arc testnet."}
         </p>
 
         <p className="mt-4 text-xs text-deputy-muted">
@@ -123,13 +166,17 @@ export function SendFundsModal({
           type="text"
           value={destination}
           onChange={(e) => setDestination(e.target.value.trim())}
+          readOnly={Boolean(recipientUserId)}
           placeholder="0x…"
           className="mt-2 w-full rounded-lg border border-deputy-border bg-black/30 px-3 py-2 font-mono text-sm text-white"
         />
+        {recipientLoading ? <p className="mt-2 text-xs text-deputy-muted">Checking verified payout destination...</p> : null}
+        {recipientError ? <p role="alert" className="mt-2 text-xs text-red-300">{recipientError}</p> : null}
 
         <button
           type="button"
-          disabled={loading || !user || availableUsd <= 0}
+          data-action-id="capital.send_usdc"
+          disabled={loading || recipientLoading || Boolean(recipientError) || !user || availableUsd <= 0 || !isAddress(destination)}
           onClick={() => void handleSend()}
           className="mt-5 w-full rounded-xl bg-deputy-accent py-3 font-semibold text-deputy-bg disabled:opacity-50"
         >

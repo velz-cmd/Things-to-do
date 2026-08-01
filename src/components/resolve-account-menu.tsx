@@ -71,6 +71,11 @@ export function ResolveAccountMenu({ compact }: { compact?: boolean }) {
           Signed in · wallet locked to account
         </p>
       )}
+      {account.payoutDestination ? (
+        <p className="mt-1 font-mono text-[10px] text-emerald-300/80">
+          Payout {account.payoutDestination.status} · {account.payoutDestination.address.slice(0, 6)}…{account.payoutDestination.address.slice(-4)}
+        </p>
+      ) : null}
     </div>
   );
 }

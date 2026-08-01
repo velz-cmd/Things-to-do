@@ -38,6 +38,10 @@ export type ResolveAccountState = {
   externalWalletAddress?: string;
   walletAddress?: string;
   wallets: ResolveWallet[];
+  payoutDestination?: {
+    address: string;
+    status: "unverified" | "pending" | "verified";
+  };
   displayName?: string;
   avatarUrl?: string;
   /** Signed in with Google/email (identity) */

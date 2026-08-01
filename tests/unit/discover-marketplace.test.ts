@@ -195,6 +195,7 @@ describe("Discover marketplace URL state and pagination", () => {
         sort: "closing_soon",
         view: "work",
         repository: "owner/project",
+        intent: "fund",
       }),
     ).toMatchObject({
       q: "typescript",
@@ -206,6 +207,7 @@ describe("Discover marketplace URL state and pagination", () => {
       sort: "closing_soon",
       kind: "work",
       repository: "owner/project",
+      intent: "fund",
     });
   });
 

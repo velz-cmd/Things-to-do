@@ -19,6 +19,11 @@ import {
 } from "../../src/lib/discover/marketplace/query";
 import { importedOpportunitySchema } from "../../src/lib/discover/marketplace/import";
 import type { MarketplaceOpportunity } from "../../src/lib/discover/marketplace/contracts";
+import {
+  normalizeConfirmedOutcomes,
+  normalizeGithubAcceptedWork,
+} from "../../src/lib/discover/marketplace/read-model";
+import type { FundingOpportunity } from "../../src/lib/github/types";
 
 function program(overrides: Partial<ProgramOpportunityRow> = {}): ProgramOpportunityRow {
   return {
@@ -45,8 +50,9 @@ function program(overrides: Partial<ProgramOpportunityRow> = {}): ProgramOpportu
       id: "user-1",
       displayName: "Ada",
       githubUsername: "ada",
+      githubId: "123",
     },
-    install: { communitySlug: "open-writers" },
+    install: { communitySlug: "open-writers", status: "active" },
     fundStakes: [{ principalUsd: 200, releasedUsd: 0, status: "active" }],
     ...overrides,
   };
@@ -98,7 +104,8 @@ describe("Discover marketplace normalisation", () => {
       community: { id: "open-writers", name: "Open Writers" },
       reward: { amountUsd: 500, token: "USDC" },
       funding: {
-        fundedAmountUsd: 200,
+        fundedAmountUsd: undefined,
+        pendingAmountUsd: 200,
         goalAmountUsd: 500,
         status: "partially_funded",
       },
@@ -167,8 +174,8 @@ describe("Discover marketplace normalisation", () => {
 
 describe("Discover marketplace URL state and pagination", () => {
   it("parses only supported views and filters", () => {
-    expect(parseDiscoverView("communities")).toBe("for_you");
-    expect(parseDiscoverView("my_communities")).toBe("for_you");
+    expect(parseDiscoverView("communities")).toBe("my_communities");
+    expect(parseDiscoverView("my_communities")).toBe("my_communities");
     expect(parseDiscoverView("programs")).toBe("pools");
     expect(parseDiscoverView("opportunities")).toBe("for_you");
     expect(parseDiscoverView("saved")).toBe("for_you");
@@ -282,5 +289,84 @@ describe("Discover source isolation and import validation", () => {
         expiresAt: "2026-07-19T00:00:00.000Z",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("Discover canonical projections", () => {
+  it("publishes accepted GitHub work without inventing an amount", () => {
+    const repository: FundingOpportunity = {
+      id: "repo-1",
+      owner: "owner",
+      repo: "project",
+      fullName: "owner/project",
+      stars: 10,
+      forks: 2,
+      health: {
+        score: 80,
+        grade: "B",
+        signals: [],
+        maintainerCount: 1,
+        fundingGapUsd: 0,
+        headline: "Healthy",
+      },
+      unfundedMaintainers: 0,
+      highImpactPrs: 1,
+      headline: "One accepted contribution",
+      priority: "medium",
+      live: true,
+      activity: {
+        observedAt: "2026-07-21T00:00:00.000Z",
+        rangeStart: null,
+        rangeEnd: "2026-07-21T00:00:00.000Z",
+        counts: {
+          code: 1,
+          review: 0,
+          documentation: 0,
+          issue_resolution: 0,
+          release_work: 0,
+          support: 0,
+          security: 0,
+        },
+        contributors: [],
+        records: [
+          {
+            id: "42",
+            category: "code",
+            title: "Merge pull request #42",
+            actor: "ada",
+            occurredAt: "2026-07-20T00:00:00.000Z",
+            sourceUrl: "https://github.com/owner/project/pull/42",
+            sourceKind: "pull_request",
+          },
+        ],
+      },
+    };
+    const result = normalizeGithubAcceptedWork([repository]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      repository: "owner/project",
+      verificationStatus: "verified_evidence_no_funding_rule",
+      entityState: {
+        financialReadiness: "setup_required",
+      },
+      primaryAction: { label: "View GitHub evidence" },
+    });
+    expect(result[0]?.reward).toBeUndefined();
+  });
+
+  it("rejects an outcome without both a receipt and Arc explorer reference", () => {
+    expect(
+      normalizeConfirmedOutcomes([
+        {
+          id: "receipt-1",
+          kind: "settlement",
+          title: "$1.00 USDC confirmed on Arc",
+          amountUsd: 1,
+          status: "confirmed",
+          receiptHref: "/receipt/receipt-1",
+          at: "2026-07-21T00:00:00.000Z",
+        },
+      ]),
+    ).toEqual([]);
   });
 });

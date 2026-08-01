@@ -15,6 +15,7 @@ test.describe("Discover verified funding network", () => {
       ["Verified Work", "work"],
       ["Pools", "pools"],
       ["Outcomes", "outcomes"],
+      ["My Communities", "my_communities"],
       ["For You", "for_you"],
     ] as const;
     for (const [label, value] of views) {
@@ -22,8 +23,11 @@ test.describe("Discover verified funding network", () => {
       await expect(page).toHaveURL(new RegExp(`view=${value}`));
       await expect(page.getByRole("heading", { level: 1, name: "Discover verified value" })).toBeVisible();
     }
-    const communities = page.getByRole("link", { name: "My Communities", exact: true });
-    await expect(communities).toHaveAttribute("href", "/communities");
+    await page.getByRole("link", { name: "My Communities", exact: true }).click();
+    await expect(page).toHaveURL(/view=my_communities/);
+    await expect(
+      page.getByRole("heading", { name: "Sign in to view your communities" }),
+    ).toBeVisible();
   });
 
   test("keeps search and view state in the URL", async ({ page }) => {

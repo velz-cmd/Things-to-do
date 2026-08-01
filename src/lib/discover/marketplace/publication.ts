@@ -8,8 +8,9 @@ const SUPPORTED_PROGRAM_TEMPLATES = new Set([
   "docs-bounty",
   "docs-grant",
   "security-fund",
-  "quadratic-funding",
 ]);
+
+const SUPPORTED_PUBLIC_CONNECTORS = new Set(["github"]);
 
 const PUBLIC_PROVENANCE = new Set([
   "external_user",
@@ -21,10 +22,66 @@ function nonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function parseJsonObject(value: string | null | undefined): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function programConnector(row: Pick<ProgramOpportunityRow, "rulesJson" | "metadataJson">) {
+  const metadata = parseJsonObject(row.metadataJson);
+  const rules = parseJsonObject(row.rulesJson);
+  return String(metadata.sourceConnector ?? rules.connectorId ?? "").toLowerCase();
+}
+
+export function programEntityVisible(
+  row: Pick<
+    ProgramOpportunityRow,
+    | "templateId"
+    | "status"
+    | "missionId"
+    | "budgetUsd"
+    | "metadataJson"
+    | "rulesJson"
+    | "user"
+    | "install"
+  >,
+): boolean {
+  if (!["active", "deployed"].includes(row.status)) return false;
+  if (!row.missionId || row.budgetUsd < 0 || row.install.status !== "active") return false;
+  if (!row.user.githubId && !row.user.githubUsername) return false;
+
+  const metadata = parseJsonObject(row.metadataJson);
+  if (
+    metadata.isDemo === true ||
+    metadata.fixture === true ||
+    metadata.visibility === "private" ||
+    String(metadata.provenance ?? "") === "synthetic_demo"
+  ) {
+    return false;
+  }
+
+  const repository = typeof metadata.repository === "string" ? metadata.repository.trim() : "";
+  const supportedTemplate = SUPPORTED_PROGRAM_TEMPLATES.has(row.templateId);
+  const supportedConnector = SUPPORTED_PUBLIC_CONNECTORS.has(programConnector(row));
+  return supportedConnector && (supportedTemplate || /^[\w.-]+\/[\w.-]+$/.test(repository));
+}
+
 export function programPublicationEligible(
   row: Pick<
     ProgramOpportunityRow,
-    "templateId" | "status" | "missionId" | "budgetUsd" | "metadataJson"
+    | "templateId"
+    | "status"
+    | "missionId"
+    | "budgetUsd"
+    | "metadataJson"
+    | "rulesJson"
   >,
 ): boolean {
   if (!["active", "deployed"].includes(row.status)) return false;
@@ -48,6 +105,9 @@ export function programPublicationEligible(
   if (!nonEmptyString(metadata.treasuryAddress)) return false;
   if (!/^0x[a-fA-F0-9]{40}$/.test(metadata.treasuryAddress)) return false;
   if (!nonEmptyString(metadata.publicationVersion)) return false;
+  if (!SUPPORTED_PUBLIC_CONNECTORS.has(programConnector(row))) {
+    return false;
+  }
   if (SUPPORTED_PROGRAM_TEMPLATES.has(row.templateId)) return true;
   const repository = typeof metadata.repository === "string" ? metadata.repository.trim() : "";
   return /^[\w.-]+\/[\w.-]+$/.test(repository);
@@ -59,14 +119,17 @@ export function opportunityMatchesView(
 ): boolean {
   if (view === "work") {
     return (
+      opportunity.source.type === "github_evidence" ||
       opportunity.source.type === "repository_snapshot" ||
-      ["project_contribution", "repository_fix", "task", "bounty"].includes(
-        opportunity.type,
-      )
+      (opportunity.source.type === "canonical_opportunity" &&
+        ["project_contribution", "repository_fix", "task", "bounty"].includes(
+          opportunity.type,
+        ))
     );
   }
   if (view === "pools") return Boolean(opportunity.pool);
-  if (view === "outcomes") return opportunity.source.type === "outcome_campaign";
+  if (view === "outcomes") return opportunity.source.type === "confirmed_receipt";
+  if (view === "people" || view === "my_communities") return false;
   return true;
 }
 

@@ -68,7 +68,7 @@ export default async function OpportunityPage({ params }: PageProps) {
   return (
     <main className="mx-auto min-h-screen w-full max-w-[1320px] px-4 py-6 pb-28 sm:px-6 sm:py-8 lg:px-8 lg:pb-12">
       <Link
-        href="/discover?view=opportunities"
+        href="/discover?view=explore"
         className="inline-flex min-h-10 items-center gap-2 rounded-xl text-sm text-slate-400 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Discover

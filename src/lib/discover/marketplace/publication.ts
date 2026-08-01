@@ -117,19 +117,7 @@ export function opportunityMatchesView(
   opportunity: MarketplaceOpportunity,
   view: DiscoverView,
 ): boolean {
-  if (view === "work") {
-    return (
-      opportunity.source.type === "github_evidence" ||
-      opportunity.source.type === "repository_snapshot" ||
-      (opportunity.source.type === "canonical_opportunity" &&
-        ["project_contribution", "repository_fix", "task", "bounty"].includes(
-          opportunity.type,
-        ))
-    );
-  }
-  if (view === "pools") return Boolean(opportunity.pool);
   if (view === "outcomes") return opportunity.source.type === "confirmed_receipt";
-  if (view === "people" || view === "my_communities") return false;
   return true;
 }
 

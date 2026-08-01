@@ -51,7 +51,7 @@ export function normalizeGithubAcceptedWork(
       const identity = `${repository.fullName.toLowerCase()}:${record.sourceKind}:${record.id}`;
       if (seen.has(identity)) return [];
       seen.add(identity);
-      const detailPath = `/discover?view=work&work=${encodeURIComponent(identity)}`;
+      const detailPath = `/discover?view=explore&kind=work&work=${encodeURIComponent(identity)}`;
       return [
         {
           id: `github-work:${identity}`,

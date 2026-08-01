@@ -290,7 +290,7 @@ export async function createProgram(
     return created;
   });
 
-  await invalidateDiscoverProgramCache();
+  await invalidateDiscoverProgramCache(userId);
 
   return { ok: true as const, program: toProgramRecord(row, communitySlug) };
 }
@@ -359,7 +359,7 @@ export async function updateProgram(
     return updated;
   });
 
-  await invalidateDiscoverProgramCache();
+  await invalidateDiscoverProgramCache(userId);
 
   return {
     ok: true as const,

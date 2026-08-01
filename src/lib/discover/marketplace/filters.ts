@@ -52,8 +52,7 @@ export function parseDiscoverView(value: SearchValue): DiscoverView {
   const candidate = first(value);
   const legacy: Record<string, DiscoverView> = {
     opportunities: "for_you",
-    communities: "for_you",
-    my_communities: "for_you",
+    communities: "my_communities",
     programs: "pools",
     saved: "for_you",
   };

@@ -10,6 +10,7 @@ import {
   stakeIdFromActivityLabel,
 } from "@/lib/capital/fund-pending-label";
 import { syncSupporterBenefitsForStake } from "@/lib/capital/supporter-benefits";
+import { invalidateDiscoverProgramCache } from "@/lib/discover/marketplace/cache";
 
 export type FinalizeFundResult =
   | { ok: true; status: "completed"; activityId: string; txHash?: string }
@@ -44,6 +45,7 @@ async function reverseFundStake(input: {
       },
     });
   });
+  await invalidateDiscoverProgramCache();
 }
 
 /** Complete or reverse a single pending Arc fund using Circle transfer state. */
@@ -119,6 +121,7 @@ export async function finalizePendingFundActivity(input: {
         },
       });
     });
+    await invalidateDiscoverProgramCache();
     await syncSupporterBenefitsForStake(stakeRow.id).catch((error) => {
       console.error("[fund-finalize] supporter benefit ledger sync failed", error);
     });
@@ -204,4 +207,5 @@ export async function markFundPendingArc(input: {
       data: { status: "pending", label },
     }),
   ]);
+  await invalidateDiscoverProgramCache();
 }

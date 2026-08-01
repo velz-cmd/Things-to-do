@@ -22,6 +22,7 @@ import { circleUserMessage } from "@/lib/wallet/circle-errors";
 import type { ProgramRules } from "@/lib/communities/types";
 import { isDeputyDemoMode, isProductionDeploy } from "@/lib/config/demo-mode";
 import { syncSupporterBenefitsForStake } from "@/lib/capital/supporter-benefits";
+import { invalidateDiscoverProgramCache } from "@/lib/discover/marketplace/cache";
 
 const MIN_FUND_USD = 5;
 /** Keep HTTP response under Vercel maxDuration — finalize pending transfers async. */
@@ -69,6 +70,7 @@ export async function fundCommunityProgram(input: {
       where: { id: program.id },
       data: { missionId: `program-${crypto.randomUUID().slice(0, 12)}` },
     });
+    await invalidateDiscoverProgramCache();
   }
 
   let programStatus = program.status;
@@ -77,6 +79,7 @@ export async function fundCommunityProgram(input: {
       where: { id: program.id },
       data: { status: "active" },
     });
+    await invalidateDiscoverProgramCache();
     programStatus = "active";
   }
 
@@ -187,6 +190,8 @@ export async function fundCommunityProgram(input: {
     };
   }
 
+  await invalidateDiscoverProgramCache();
+
   let arcTxHash: string | undefined = input.txHash;
   let fundStatus: "completed" | "pending_arc" = "completed";
 
@@ -219,6 +224,7 @@ export async function fundCommunityProgram(input: {
           data: { status: "failed", label: `Circle wallet required — ${program.name}` },
         });
       });
+      await invalidateDiscoverProgramCache();
       return {
         ok: false,
         error:
@@ -289,6 +295,7 @@ export async function fundCommunityProgram(input: {
           },
         });
       });
+      await invalidateDiscoverProgramCache();
       return {
         ok: false,
         error:

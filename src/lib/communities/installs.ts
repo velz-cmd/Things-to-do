@@ -6,6 +6,7 @@ import {
 import { programTemplatesForCommunity } from "@/lib/connectors/phase3-tracks";
 import { ensureSeedEcosystems } from "@/lib/mission/server/ecosystems";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
+import { invalidateDiscoverProgramCache } from "@/lib/discover/marketplace/cache";
 import type { CommunityInstallRecord } from "./types";
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
@@ -108,6 +109,7 @@ export async function ensureCommunityPrograms(userId: string, communitySlug: str
         },
       });
     }
+    await invalidateDiscoverProgramCache();
   }
 
   return { created };
@@ -198,6 +200,8 @@ export async function installCommunity(userId: string, communitySlug: string) {
     }),
     skipDuplicates: true,
   });
+
+  await invalidateDiscoverProgramCache();
 
   const programs = await prisma.resolveProgram.findMany({
     where: { installId: install.id },

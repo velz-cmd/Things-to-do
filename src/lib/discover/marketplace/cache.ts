@@ -1,0 +1,15 @@
+import "server-only";
+
+import { cacheDelete } from "@/lib/cache/kv";
+
+export const DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS = {
+  published: "discover:marketplace:published:v3",
+  programs: "discover:marketplace:programs:v3",
+  campaigns: "discover:marketplace:campaigns:v3",
+  githubWork: "discover:marketplace:github-work:v1",
+  outcomes: "discover:marketplace:confirmed-outcomes:v1",
+} as const;
+
+export async function invalidateDiscoverProgramCache(): Promise<void> {
+  await cacheDelete(DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.programs);
+}

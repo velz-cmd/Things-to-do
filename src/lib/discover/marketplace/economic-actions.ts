@@ -207,7 +207,7 @@ function actionFromPerson(person: DiscoverPerson, viewerUserId?: string): Econom
     recipientReadiness: person.payoutReadiness === "ready" ? "ready" : "setup_required",
     primaryAction: person.primaryAction,
     secondaryActions: person.secondaryActions.slice(0, 2),
-    visibility: isSelf ? "private" : "public",
+    visibility: "public",
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
   };

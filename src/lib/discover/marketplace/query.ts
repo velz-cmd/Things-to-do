@@ -708,6 +708,65 @@ function loadCachedDiscoverPeople(viewerUserId?: string) {
   );
 }
 
+export function discoverPersonFromReadiness(
+  readiness: WorkspaceReadiness,
+  viewerUserId: string,
+): DiscoverPerson | null {
+  const githubAccount = readiness.github.personal.account?.trim().replace(/^@/, "");
+  if (!githubAccount) return null;
+  const payoutReady = readiness.wallets.payout.state === "connected";
+  const directSupportReady = payoutReady && isLiveArcEnabled();
+  const returnTo = `/discover?view=explore&kind=people&person=${encodeURIComponent(viewerUserId)}`;
+  const profilePath = `https://github.com/${encodeURIComponent(githubAccount)}`;
+  return {
+    id: viewerUserId,
+    name: readiness.user.displayName ?? githubAccount,
+    kind: readiness.programs.length ? "maintainer" : "human",
+    description: `GitHub-linked ${readiness.programs.length ? "community operator" : "contributor"} @${githubAccount}`,
+    verifiedIdentities: [
+      "GitHub identity connected",
+      ...(readiness.identities.verifiedCount > 0 ? ["RESOLVE identity verified"] : []),
+      "Public profile claimed",
+    ],
+    skills: ["GitHub"],
+    communities: [...new Set(readiness.communities.map((item) => item.slug))],
+    completedWork: 0,
+    acceptsDirectFunding: directSupportReady,
+    acceptsInvitations: !payoutReady,
+    identityState: readiness.identities.verifiedCount > 0 ? "identity_verified" : "profile_claimed",
+    payoutReadiness: payoutReady ? "ready" : "setup_required",
+    blocker: !payoutReady
+      ? "No verified payout destination is recorded in the latest workspace snapshot."
+      : directSupportReady
+        ? undefined
+        : "Direct support is blocked until the live Arc settlement gate is enabled.",
+    primaryAction: directSupportReady
+      ? {
+          id: "capital.open_funding",
+          label: "Support with USDC",
+          href: `/capital?intent=direct-support&recipient=${encodeURIComponent(viewerUserId)}&returnTo=${encodeURIComponent(returnTo)}`,
+          enabled: true,
+        }
+      : !payoutReady
+        ? {
+            id: "discover.resolve_identity",
+            label: "Complete payout setup",
+            href: `/profile?view=wallets&returnTo=${encodeURIComponent(returnTo)}`,
+            enabled: true,
+          }
+        : {
+            id: "discover.open_repository",
+            label: "View GitHub profile",
+            href: profilePath,
+            enabled: true,
+          },
+    secondaryActions: directSupportReady
+      ? [{ id: "discover.open_repository", label: "View GitHub profile", href: profilePath, enabled: true }]
+      : [],
+    profilePath,
+  };
+}
+
 export function mergeAttributedDiscoverPeople(
   claimedPeople: DiscoverPerson[],
   opportunities: MarketplaceOpportunity[],
@@ -974,6 +1033,61 @@ function loadCachedMyDiscoverCommunities(userId: string) {
     () => withTimeout(listMyDiscoverCommunities(userId), PERSONAL_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },
   );
+}
+
+export function myDiscoverCommunitiesFromReadiness(
+  readiness: WorkspaceReadiness,
+): DiscoverMyCommunity[] {
+  const repositoryAccounts = readiness.sources
+    .filter((source) => source.provider === "github" || source.provider === "github_app")
+    .flatMap((source) => source.account && source.account.includes("/") ? [source.account.replace(/^@/, "")] : []);
+  const repositoryAccessReady = ["connected", "stale", "syncing"].includes(
+    readiness.github.repositoryAccess.state,
+  );
+  return readiness.communities.map((community) => {
+    const catalog = COMMUNITY_CATALOG.find((item) => item.slug === community.slug);
+    const programs = readiness.programs.filter((program) => program.communitySlug === community.slug);
+    const activePrograms = programs.filter((program) => ["active", "deployed"].includes(program.status));
+    const step = !repositoryAccessReady ? "source" : programs.length ? "review" : "create_program";
+    const blocker = !repositoryAccessReady
+      ? "Connect or repair GitHub repository access."
+      : programs.length === 0
+        ? "Create a program for accepted activity."
+        : "Review publication, policy, and treasury readiness in the operator console.";
+    const returnTo = "/discover?view=activity";
+    const programContext = programs[0] ? `&program=${encodeURIComponent(programs[0].id)}` : "";
+    return {
+      id: community.id,
+      slug: community.slug,
+      name: catalog?.name ?? community.slug,
+      role: community.role === "owner" || community.role === "operator"
+        ? community.role
+        : "member",
+      status: community.status,
+      sourceState: readiness.github.repositoryAccess.state,
+      repositories: [...new Set(repositoryAccounts)],
+      programCount: programs.length,
+      activeProgramCount: activePrograms.length,
+      poolCount: 0,
+      blocker,
+      primaryAction: {
+        id: repositoryAccessReady ? "community.open" : "profile.manage_connections",
+        label: !repositoryAccessReady ? "Manage GitHub access" : programs.length ? "Review operating program" : "Create program",
+        href: repositoryAccessReady
+          ? `/communities/${encodeURIComponent(community.slug)}?step=${step}${programContext}&returnTo=${encodeURIComponent(returnTo)}#programs`
+          : `/profile?section=connections&returnTo=${encodeURIComponent(returnTo)}`,
+        enabled: true,
+      },
+      secondaryActions: repositoryAccessReady
+        ? []
+        : [{
+            id: "community.open",
+            label: "Open operator console",
+            href: `/communities/${encodeURIComponent(community.slug)}?returnTo=${encodeURIComponent(returnTo)}`,
+            enabled: true,
+          }],
+    };
+  });
 }
 
 function listCommunities(opportunities: MarketplaceOpportunity[]): DiscoverCommunity[] {
@@ -1346,9 +1460,15 @@ export async function loadDiscoverPageData(
     readinessPromise,
     myCommunitiesPromise,
   ]);
-  const claimedPeople = peopleResult.items;
+  const claimedPeople = [...peopleResult.items];
   const readiness = readinessResult.value;
-  const myCommunities = communitiesResult.items;
+  if (peopleResult.error && readiness && user && !claimedPeople.some((person) => person.id === user.id)) {
+    const fallbackPerson = discoverPersonFromReadiness(readiness, user.id);
+    if (fallbackPerson) claimedPeople.push(fallbackPerson);
+  }
+  const myCommunities = communitiesResult.error && readiness
+    ? myDiscoverCommunitiesFromReadiness(readiness)
+    : communitiesResult.items;
   const allVisible = opportunities.items;
   const people = mergeAttributedDiscoverPeople(claimedPeople, allVisible);
   const communities = listCommunities(allVisible);
@@ -1375,7 +1495,11 @@ export async function loadDiscoverPageData(
   const economicActions = allEconomicActions.filter((item) => {
     if (view === "outcomes" && item.subjectType !== "receipt") return false;
     if (view === "activity" && item.audience === "public" && item.visibility === "public") return false;
-    if (view === "for_you" && ["identity_blocker", "payout_blocker"].includes(item.subjectType) && item.visibility === "public") return false;
+    if (
+      view === "for_you" &&
+      ["identity_blocker", "payout_blocker"].includes(item.subjectType) &&
+      item.audience !== "contributor"
+    ) return false;
     if (view === "explore" && !actionMatchesExploreKind(item, filters.kind ?? "all")) return false;
     if (
       filters.community &&

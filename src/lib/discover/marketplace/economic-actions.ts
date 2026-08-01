@@ -2,6 +2,7 @@ import type {
   DiscoverAction,
   DiscoverCommunity,
   DiscoverExploreKind,
+  DiscoverIntent,
   DiscoverMyCommunity,
   DiscoverPerson,
   DiscoverPool,
@@ -243,11 +244,59 @@ function actionFromCommunity(community: DiscoverCommunity): EconomicActionItem {
   };
 }
 
+function actionFromPool(pool: DiscoverPool): EconomicActionItem {
+  const fundingReady = pool.lifecycleState === "accepting_funding";
+  const submitted = pool.lifecycleState === "funding_pending";
+  const confirmed = ["funded", "checkpoint_pending", "ready_for_distribution", "distribution_submitted", "completed"].includes(pool.lifecycleState);
+  return {
+    id: `economic:pool:${pool.id}`,
+    subjectType: "community_pool",
+    subjectId: pool.id,
+    headline: fundingReady ? `${pool.name} can accept Arc USDC` : `${pool.name} has a specific funding requirement`,
+    happened: pool.purpose ?? `${pool.owner} published a ${pool.type.toLowerCase()} for ${pool.communitySlug}.`,
+    whyItMatters: pool.blocker
+      ? `The Pool remains publicly inspectable, but money cannot move until this requirement is resolved: ${pool.blocker}`
+      : "Funding follows the published Pool rule. Funders provide capital and the policy controls eligible distributions.",
+    lifecycle: submitted ? "submitted" : confirmed ? "confirmed" : fundingReady ? "ready_for_funding" : pool.treasuryReadiness === "setup_required" ? "treasury_required" : pool.policyState === "setup_required" ? "policy_required" : "blocked",
+    blocker: pool.blocker,
+    audience: "funder",
+    community: { id: pool.communitySlug, name: pool.communitySlug },
+    source: { provider: "resolve_pool", label: `${pool.communitySlug} / ${pool.type}`, stale: false },
+    evidenceIds: [],
+    attributionState: "not_applicable",
+    policyState: pool.policyState === "active" ? "active" : pool.policyState === "setup_required" ? "missing" : "approval_required",
+    poolId: pool.id,
+    amount: pool.targetUsd != null ? { valueUsd: pool.targetUsd, token: pool.token ?? "USDC", state: pool.balanceState ?? "configured_target" } : undefined,
+    poolDetails: {
+      type: pool.type,
+      owner: pool.owner,
+      purpose: pool.purpose,
+      confirmedBalanceUsd: pool.balanceUsd,
+      pendingDepositsUsd: pool.pendingDepositsUsd,
+      availableBalanceUsd: pool.availableUsd,
+      targetUsd: pool.targetUsd,
+      policyState: pool.policyState,
+      treasuryReadiness: pool.treasuryReadiness,
+      distributionMethod: pool.governanceModel ?? pool.applicationModel,
+      network: pool.network ?? "Arc Testnet",
+    },
+    fundingReadiness: fundingReady ? "ready" : "blocked",
+    recipientReadiness: "not_applicable",
+    primaryAction: pool.primaryAction,
+    secondaryActions: pool.secondaryActions.slice(0, 2),
+    visibility: "public",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
 function dedupe(items: EconomicActionItem[]) {
   const seen = new Set<string>();
   return items.filter((item) => {
     const normalizedHeadline = item.headline.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    const key = ["active_program", "community_pool", "policy_blocker"].includes(item.subjectType)
+    const key = item.subjectType === "community_pool"
+      ? `community_pool:${item.subjectId}`
+      : ["active_program", "policy_blocker"].includes(item.subjectType)
       ? `${item.subjectType}:${item.community?.id ?? ""}:${item.repository ?? ""}:${normalizedHeadline}`
       : `${item.subjectType}:${item.subjectId}`;
     if (seen.has(key)) return false;
@@ -258,6 +307,7 @@ function dedupe(items: EconomicActionItem[]) {
 
 export function buildEconomicActions(input: BuildEconomicActionsInput): EconomicActionItem[] {
   const opportunityActions = input.opportunities.map((item) => actionFromOpportunity(item, input.viewerUserId));
+  const poolActions = input.pools.map(actionFromPool);
   const peopleActions = input.people.map((person) => actionFromPerson(person, input.viewerUserId));
   const communityActions = input.communities.map(actionFromCommunity);
   const communitiesWithExactProgramActions = new Set(
@@ -292,7 +342,16 @@ export function buildEconomicActions(input: BuildEconomicActionsInput): Economic
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
     }));
-  return dedupe([...ownerCommunityActions, ...peopleActions, ...opportunityActions, ...communityActions]);
+  return dedupe([...ownerCommunityActions, ...peopleActions, ...poolActions, ...opportunityActions, ...communityActions]);
+}
+
+export function actionMatchesIntent(item: EconomicActionItem, intent: DiscoverIntent) {
+  if (intent === "explore") return true;
+  if (intent === "earn") return item.audience === "contributor" || ["accepted_work", "claim", "payout_blocker", "receipt"].includes(item.subjectType);
+  if (intent === "fund") return item.audience === "funder" || ["contributor", "creator", "community_pool", "funding_gap", "receipt"].includes(item.subjectType);
+  if (intent === "operate") return item.audience === "operator" || ["policy_blocker", "authorization", "reconciliation_issue", "active_program"].includes(item.subjectType);
+  if (intent === "publish") return item.subjectType === "creator" && item.source.provider !== "github";
+  return item.subjectType === "settlement" && item.source.provider === "x402";
 }
 
 export function actionMatchesExploreKind(item: EconomicActionItem, kind: DiscoverExploreKind) {

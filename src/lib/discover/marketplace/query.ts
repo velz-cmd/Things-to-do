@@ -45,9 +45,11 @@ import {
 } from "./read-model";
 import {
   actionMatchesExploreKind,
+  actionMatchesIntent,
   buildEconomicActions,
   rankEconomicActions,
 } from "./economic-actions";
+import { deriveUserCapabilities } from "@/lib/capabilities/user-capabilities";
 
 const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
@@ -686,8 +688,8 @@ export async function listDiscoverPeople(viewerUserId?: string): Promise<Discove
           }
         : isSelf && !payoutIsReady
           ? {
-              id: "discover.resolve_identity",
-              label: "Complete payout setup",
+              id: "profile.set_payout_destination",
+              label: "Choose payout wallet",
               href: `/profile?view=wallets&returnTo=${encodeURIComponent(returnTo)}`,
               enabled: true,
             }
@@ -762,8 +764,8 @@ export function discoverPersonFromReadiness(
         }
       : !payoutReady
         ? {
-            id: "discover.resolve_identity",
-            label: "Complete payout setup",
+            id: "profile.set_payout_destination",
+            label: "Choose payout wallet",
             href: `/profile?view=wallets&returnTo=${encodeURIComponent(returnTo)}`,
             enabled: true,
           }
@@ -1128,6 +1130,20 @@ function listCommunities(opportunities: MarketplaceOpportunity[]): DiscoverCommu
   });
 }
 
+function poolType(item: MarketplaceOpportunity) {
+  const text = `${item.title} ${item.summary} ${item.category ?? ""}`.toLowerCase();
+  if (text.includes("quadratic")) return "Quadratic Funding Pool";
+  if (text.includes("security") || text.includes("emergency")) return "Emergency or Security Response Pool";
+  if (text.includes("matching")) return "Matching Pool";
+  if (text.includes("grant")) return "Community Grants Pool";
+  if (text.includes("creator")) return "Creator Support Pool";
+  if (text.includes("retroactive") || text.includes("public good")) return "Retroactive Funding Pool";
+  if (text.includes("recurring")) return "Recurring Program Pool";
+  if (text.includes("ecosystem") || text.includes("incentive")) return "Ecosystem Incentive Pool";
+  if (text.includes("contributor") || text.includes("open source")) return "Contributor Rewards Pool";
+  return "General Community Pool";
+}
+
 function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
   return opportunities.flatMap((item) => {
     if (!item.pool || !item.community) return [];
@@ -1146,7 +1162,7 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
         owner: item.creator.name,
         communitySlug: item.community.id ?? item.community.name,
         purpose: item.summary,
-        type: "community_pool",
+        type: poolType(item),
         balanceUsd: balance,
         committedUsd: confirmed ? balance : undefined,
         availableUsd: confirmed ? balance : 0,
@@ -1176,16 +1192,24 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
           executionReady
             ? item.primaryAction ?? {
                 id: "capital.open_funding",
-                label: "Review funding package",
+                label: "Fund Pool",
                 href: `/capital?intent=back-pool&programId=${encodeURIComponent(item.pool.id ?? item.source.id)}&returnTo=${encodeURIComponent("/discover?view=explore&kind=pools")}`,
                 enabled: true,
               }
-            : {
-            id: "community.open",
-            label: financiallyReady ? "Review settlement readiness" : item.entityState?.blocker?.toLowerCase().includes("publish") ? "Review publication" : item.entityState?.blocker?.toLowerCase().includes("policy") ? "Design policy" : item.entityState?.blocker?.toLowerCase().includes("treasury") ? "Add treasury destination" : "Review program",
-            href: `/communities/${encodeURIComponent(item.community.id ?? item.community.name)}?program=${encodeURIComponent(item.pool.id ?? item.source.id)}&step=${item.entityState?.blocker?.toLowerCase().includes("publish") ? "publication" : item.entityState?.blocker?.toLowerCase().includes("policy") ? "policy" : item.entityState?.blocker?.toLowerCase().includes("treasury") ? "treasury" : "review"}&returnTo=${encodeURIComponent(`/discover?view=explore&kind=pools&pool=${item.pool.id ?? item.source.id}`)}#programs`,
-            enabled: true,
-          },
+            : financiallyReady
+              ? {
+                  id: "capital.open_funding",
+                  label: "Fund Pool unavailable",
+                  href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                  enabled: false,
+                  disabledReason: "Live Arc settlement is not enabled for this Pool.",
+                }
+              : {
+                  id: "community.open",
+                  label: item.entityState?.blocker?.toLowerCase().includes("publish") ? "Review publication" : item.entityState?.blocker?.toLowerCase().includes("policy") ? "Design policy" : item.entityState?.blocker?.toLowerCase().includes("treasury") ? "Add treasury destination" : "Review program",
+                  href: `/communities/${encodeURIComponent(item.community.id ?? item.community.name)}?program=${encodeURIComponent(item.pool.id ?? item.source.id)}&step=${item.entityState?.blocker?.toLowerCase().includes("publish") ? "publication" : item.entityState?.blocker?.toLowerCase().includes("policy") ? "policy" : item.entityState?.blocker?.toLowerCase().includes("treasury") ? "treasury" : "review"}&returnTo=${encodeURIComponent(`/discover?view=explore&kind=pools&pool=${item.pool.id ?? item.source.id}`)}#programs`,
+                  enabled: true,
+                },
         secondaryActions: item.secondaryActions ?? [],
       },
     ];
@@ -1487,6 +1511,16 @@ export async function loadDiscoverPageData(
   const communities = listCommunities(allVisible);
   const pools = listPools(allVisible);
   const liveSettlementEnabled = isLiveArcEnabled();
+  const capabilities = deriveUserCapabilities({
+    signedIn: Boolean(user),
+    payoutReady: people.some((person) => person.id === user?.id && person.payoutReadiness === "ready"),
+    identityReady: Boolean(readiness && readiness.identities.verifiedCount > 0),
+    sourceConnected: Boolean(readiness && readiness.github.personal.state === "connected"),
+    repositoryAccess: Boolean(readiness && readiness.github.repositoryAccess.state === "connected"),
+    operatesCommunity: myCommunities.some((community) => community.role === "owner" || community.role === "operator"),
+    hasPublishedProgram: allVisible.some((item) => item.source.type === "community_program" && item.entityState?.lifecycle === "published"),
+    liveSettlementEnabled,
+  });
   const inbox = buildDiscoverInbox({
     readiness,
     opportunities: allVisible,
@@ -1506,6 +1540,7 @@ export async function loadDiscoverPageData(
   }), Boolean(user));
   const q = filters.q?.trim().toLowerCase();
   const economicActions = allEconomicActions.filter((item) => {
+    if (view !== "outcomes" && !actionMatchesIntent(item, filters.intent ?? "explore")) return false;
     if (view === "outcomes" && item.subjectType !== "receipt") return false;
     if (view === "activity" && item.audience === "public" && item.visibility === "public") return false;
     if (
@@ -1612,6 +1647,7 @@ export async function loadDiscoverPageData(
     sourceDiagnostics,
     savedIds: [],
     signedIn: Boolean(user),
+    capabilities,
     stats: {
       openOpportunities: opportunities.total || undefined,
       activeFundingUsd,

@@ -1,18 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { isAddress } from "viem";
+import { isAddress, verifyMessage } from "viem";
 import { z } from "zod";
 import { requireReadyUser } from "@/lib/auth/session";
 import { cacheDelete } from "@/lib/cache/kv";
 import { prisma } from "@/lib/db";
 import { invalidateConnectorCaches } from "@/lib/profile/invalidate-connector-cache";
+import { buildPayoutOwnershipMessage } from "@/lib/profile/payout-ownership-proof";
 import { appWalletProvider, circleWalletIdForUser } from "@/lib/wallet/app-wallet-service";
 
 const requestSchema = z.object({
   walletType: z.enum(["app", "external"]),
   confirm: z.literal(true),
   idempotencyKey: z.string().min(8).max(160),
+  ownershipProof: z.object({
+    message: z.string().min(20).max(500),
+    signature: z.string().regex(/^0x[0-9a-fA-F]+$/),
+  }).optional(),
 });
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -53,7 +58,21 @@ export async function POST(request: Request) {
     parsed.data.walletType === "app" ? appWalletProvider(ready.profile) : "reown";
   const custodyType =
     parsed.data.walletType === "app" ? "developer_controlled" : "external";
-  const payoutStatus = parsed.data.walletType === "app" ? "verified" : "pending";
+  if (parsed.data.walletType === "external") {
+    const expectedMessage = buildPayoutOwnershipMessage(address, parsed.data.idempotencyKey);
+    if (parsed.data.ownershipProof?.message !== expectedMessage) {
+      return NextResponse.json({ error: "Sign the current RESOLVE payout request with the connected wallet." }, { status: 409 });
+    }
+    const verified = await verifyMessage({
+      address: address as `0x${string}`,
+      message: expectedMessage,
+      signature: parsed.data.ownershipProof.signature as `0x${string}`,
+    }).catch(() => false);
+    if (!verified) {
+      return NextResponse.json({ error: "The wallet signature did not match the selected payout address." }, { status: 409 });
+    }
+  }
+  const payoutStatus = "verified";
   const now = new Date();
   const actionKey = `profile.set_payout_destination:${ready.user.id}:${parsed.data.idempotencyKey}`;
 
@@ -104,25 +123,56 @@ export async function POST(request: Request) {
           walletId: wallet.id,
           custodyType,
           selectedBy: ready.user.id,
-          verification:
-            payoutStatus === "verified"
-              ? "app_wallet_inventory"
-              : "external_wallet_proof_required",
+          verification: parsed.data.walletType === "app" ? "app_wallet_inventory" : "signed_wallet_ownership",
+          signature: parsed.data.ownershipProof?.signature,
         }),
       },
     });
 
+    let identityDestinationCount = 0;
     let unblockedObligations = 0;
     if (payoutStatus === "verified") {
       const identities = await tx.identity.findMany({
         where: { userId: ready.user.id, status: "verified" },
         select: { id: true },
       });
-      const identityIds = identities.map((identity) => identity.id);
-      if (identityIds.length) {
+
+      for (const identity of identities) {
+        await tx.payoutDestination.updateMany({
+          where: {
+            userId: ready.user.id,
+            identityId: identity.id,
+            status: { in: ["pending", "verified"] },
+          },
+          data: { status: "superseded" },
+        });
+
+        const identityPayout = await tx.payoutDestination.create({
+          data: {
+            userId: ready.user.id,
+            identityId: identity.id,
+            walletId: wallet.id,
+            network: wallet.network,
+            address: wallet.address,
+            asset: "USDC",
+            status: "verified",
+            verifiedAt: now,
+            proofJson: json({
+              inheritedFromPayoutDestinationId: payout.id,
+              walletId: wallet.id,
+              custodyType,
+              selectedBy: ready.user.id,
+              verification: parsed.data.walletType === "app"
+                ? "app_wallet_inventory"
+                : "signed_wallet_ownership",
+            }),
+          },
+        });
+        identityDestinationCount += 1;
+
         const blocked = await tx.obligation.findMany({
           where: {
-            identityId: { in: identityIds },
+            identityId: identity.id,
             payoutDestinationId: null,
             blockerCode: "payout_destination_required",
           },
@@ -133,7 +183,7 @@ export async function POST(request: Request) {
           await tx.obligation.updateMany({
             where: { id: { in: obligationIds } },
             data: {
-              payoutDestinationId: payout.id,
+              payoutDestinationId: identityPayout.id,
               status: "recognized",
               blockerCode: null,
             },
@@ -145,7 +195,7 @@ export async function POST(request: Request) {
             },
             data: { state: "recognized" },
           });
-          unblockedObligations = obligationIds.length;
+          unblockedObligations += obligationIds.length;
         }
       }
     }
@@ -154,6 +204,7 @@ export async function POST(request: Request) {
       payoutDestinationId: payout.id,
       status: payout.status,
       walletId: wallet.id,
+      identityDestinationCount,
       unblockedObligations,
     };
     await tx.actionRun.create({
@@ -164,10 +215,9 @@ export async function POST(request: Request) {
         aggregateId: payout.id,
         idempotencyKey: actionKey,
         state: "completed",
-        recommendationReason:
-          payoutStatus === "verified"
-            ? "The selected destination is an application-managed Arc wallet."
-            : "The external destination is recorded but remains pending ownership proof.",
+        recommendationReason: parsed.data.walletType === "app"
+          ? "The selected destination is an application-managed Arc wallet."
+          : "The selected destination was verified by a user-signed ownership proof.",
         input: json({ walletType: parsed.data.walletType, address }),
         output: json(output),
         completedAt: now,

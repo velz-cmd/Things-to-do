@@ -10,6 +10,14 @@ export const DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS = {
   outcomes: "discover:marketplace:confirmed-outcomes:v1",
 } as const;
 
-export async function invalidateDiscoverProgramCache(): Promise<void> {
-  await cacheDelete(DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.programs);
+export async function invalidateDiscoverProgramCache(userId?: string): Promise<void> {
+  await Promise.all([
+    cacheDelete(DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.programs),
+    ...(userId
+      ? [
+          cacheDelete(`discover:my-communities:v2:${userId}`),
+          cacheDelete(`discover:people:v2:${userId}`),
+        ]
+      : []),
+  ]);
 }

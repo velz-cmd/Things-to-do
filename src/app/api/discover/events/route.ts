@@ -5,6 +5,7 @@ const allowedEvents = [
   "discover_viewed",
   "discover_search_used",
   "discover_filter_applied",
+  "discover_action_opened",
   "opportunity_viewed",
   "opportunity_saved",
   "application_started",

@@ -346,6 +346,20 @@ export function normalizeProgramOpportunity(
       : !treasuryReady
         ? "Add a valid Arc treasury destination."
         : undefined;
+  const setupStep = !publicationApproved
+    ? "publication"
+    : !policyActive
+      ? "policy"
+      : !treasuryReady
+        ? "treasury"
+        : "review";
+  const setupLabel = setupStep === "publication"
+    ? "Review publication"
+    : setupStep === "policy"
+      ? "Design policy"
+      : setupStep === "treasury"
+        ? "Add treasury destination"
+        : "Review program";
 
   return {
     id: `program:${row.id}`,
@@ -420,7 +434,9 @@ export function normalizeProgramOpportunity(
     estimatedDelivery: optionalString(metadata.estimatedDelivery),
     publishedAt: (row.lastDeployAt ?? row.createdAt).toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    verificationStatus: optionalString(metadata.verificationStatus) ?? "configured",
+    verificationStatus:
+      optionalString(metadata.verificationStatus) ??
+      (financialReady ? "funding_ready" : `${setupStep}_required`),
     riskFlags: stringArray(metadata.riskFlags),
     source: { type: "community_program", id: row.id },
     entityState: {
@@ -436,13 +452,13 @@ export function normalizeProgramOpportunity(
       ? {
           id: "capital.open_funding",
           label: "Review funding package",
-          href: `/capital?intent=back-pool&programId=${encodeURIComponent(row.id)}&returnTo=${encodeURIComponent("/discover?view=pools")}`,
+          href: `/capital?intent=back-pool&programId=${encodeURIComponent(row.id)}&returnTo=${encodeURIComponent("/discover?view=explore&kind=pools")}`,
           enabled: true,
         }
       : {
-          id: "community.open",
-          label: "Complete Pool setup",
-          href: `/communities/${encodeURIComponent(row.install.communitySlug)}?program=${encodeURIComponent(row.id)}&returnTo=${encodeURIComponent(`/discover?view=pools&pool=${row.id}`)}#programs`,
+          id: setupStep === "policy" ? "program.update_policy" : "community.open",
+          label: setupLabel,
+          href: `/communities/${encodeURIComponent(row.install.communitySlug)}?program=${encodeURIComponent(row.id)}&step=${setupStep}&returnTo=${encodeURIComponent(`/discover?view=explore&kind=programs&item=${row.id}`)}#programs`,
           enabled: true,
           description: setupBlocker,
         },
@@ -450,7 +466,7 @@ export function normalizeProgramOpportunity(
       {
         id: "community.open",
         label: "Open community",
-        href: `/communities/${encodeURIComponent(row.install.communitySlug)}?returnTo=${encodeURIComponent(`/discover?view=pools&pool=${row.id}`)}`,
+        href: `/communities/${encodeURIComponent(row.install.communitySlug)}?program=${encodeURIComponent(row.id)}&step=review&returnTo=${encodeURIComponent(`/discover?view=explore&kind=programs&item=${row.id}`)}#programs`,
         enabled: true,
       },
     ],

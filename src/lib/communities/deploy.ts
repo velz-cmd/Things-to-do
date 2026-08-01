@@ -201,7 +201,7 @@ export async function deployProgramOnArc(
       },
     });
 
-    await invalidateDiscoverProgramCache();
+    await invalidateDiscoverProgramCache(userId);
 
     await recordTimelineEvent({
       userId,
@@ -245,7 +245,7 @@ export async function deployProgramOnArc(
     data: { status: "active", lastDeployAt: new Date() },
   });
 
-  await invalidateDiscoverProgramCache();
+  await invalidateDiscoverProgramCache(userId);
 
   return {
     ok: true,

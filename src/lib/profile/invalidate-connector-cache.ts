@@ -7,5 +7,8 @@ export async function invalidateConnectorCaches(userId: string) {
     cacheDelete(`profile:state:fast:${userId}`),
     cacheDelete(`profile:control-plane:${userId}`),
     cacheDelete(`communities:list:${userId}`),
+    cacheDelete(`discover:my-communities:v2:${userId}`),
+    cacheDelete(`discover:people:v2:${userId}`),
+    cacheDelete("discover:people:v2:public"),
   ]);
 }

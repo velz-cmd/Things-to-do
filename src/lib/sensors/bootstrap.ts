@@ -11,6 +11,7 @@ import {
 import { syncUserListenBrainz } from "@/lib/connectors/user-music-sync";
 import { seedProductionArtistRegistry } from "@/lib/registry/production-artists";
 import { pingNavidrome, isNavidromeConfigured } from "@/lib/integrations/navidrome";
+import { invalidateDiscoverProgramCache } from "@/lib/discover/marketplace/cache";
 
 const OSS_SLUGS = ["react", "linux"] as const;
 const RESEARCH_SLUG = "open-research";
@@ -65,6 +66,7 @@ async function ensureActiveProgram(
     where: { id: created.program.id },
     data: { status: "active" },
   });
+  await invalidateDiscoverProgramCache();
 
   return {
     communitySlug,

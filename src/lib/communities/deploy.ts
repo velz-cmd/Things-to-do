@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { prisma } from "@/lib/db";
+import { invalidateDiscoverProgramCache } from "@/lib/discover/marketplace/cache";
 import { getAuthorizationSummary, fulfillMissionAuthorizations } from "@/lib/authorization/ledger";
 import { getProgram } from "@/lib/communities/programs";
 import { getCommunityBySlug } from "@/lib/communities/catalog";
@@ -200,6 +201,8 @@ export async function deployProgramOnArc(
       },
     });
 
+    await invalidateDiscoverProgramCache();
+
     await recordTimelineEvent({
       userId,
       ecosystemId: install?.ecosystemId ?? undefined,
@@ -241,6 +244,8 @@ export async function deployProgramOnArc(
     where: { id: programId },
     data: { status: "active", lastDeployAt: new Date() },
   });
+
+  await invalidateDiscoverProgramCache();
 
   return {
     ok: true,

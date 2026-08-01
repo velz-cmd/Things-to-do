@@ -59,7 +59,8 @@ const PAGE_SIZE = 18;
 const SOURCE_LIMIT = 100;
 const SOURCE_CACHE_SECONDS = 60;
 const ACTIVITY_CACHE_SECONDS = 30;
-const PERSONAL_SOURCE_TIMEOUT_MS = 3_500;
+const PERSONAL_SOURCE_TIMEOUT_MS = 12_000;
+const PERSONAL_SOURCE_TIMEOUT_LABEL = `${PERSONAL_SOURCE_TIMEOUT_MS / 1_000}-second personal-source timeout`;
 
 type ConfirmedFundingRow = { total_micro_usdc: bigint | null };
 
@@ -1305,7 +1306,7 @@ export async function loadDiscoverPageData(
     } catch {
       return {
         items: [] as DiscoverPerson[],
-        error: "Claimed contributor profiles did not refresh before the personal-source timeout. Persisted accepted-work attribution remains available.",
+        error: `Claimed contributor profiles did not refresh before the ${PERSONAL_SOURCE_TIMEOUT_LABEL}. Persisted accepted-work attribution remains available.`,
       };
     }
   });
@@ -1322,7 +1323,7 @@ export async function loadDiscoverPageData(
     } catch {
       return {
         value: null,
-        error: "Workspace readiness did not refresh before the personal-source timeout.",
+        error: `Workspace readiness did not refresh before the ${PERSONAL_SOURCE_TIMEOUT_LABEL}.`,
       };
     }
   });
@@ -1333,7 +1334,7 @@ export async function loadDiscoverPageData(
     } catch {
       return {
         items: [] as DiscoverMyCommunity[],
-        error: "Community installations, repositories, programs, and Pools did not refresh before the personal-source timeout.",
+        error: `Community installations, repositories, programs, and Pools did not refresh before the ${PERSONAL_SOURCE_TIMEOUT_LABEL}.`,
       };
     }
   });

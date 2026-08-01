@@ -20,10 +20,11 @@ export function selectDiscoverRecommendation(
       reason: "An installed GitHub source is blocking current community operations.",
       state: readiness.github.repositorySync.state,
       primaryAction: {
+        id: "profile.manage_connections",
         label: "Open integration settings",
-        href: "/communities?view=integrations&source=github",
+        href: "/profile?section=connections&source=github&returnTo=/discover",
       },
-      secondaryActions: [{ label: "View Profile", href: "/profile?view=sources" }],
+      secondaryActions: [{ id: "profile.open_source_details", label: "View Profile", href: "/profile?view=sources" }],
     };
   }
   if (
@@ -37,10 +38,11 @@ export function selectDiscoverRecommendation(
       reason: "Your GitHub identity is connected, but verified work cannot settle to you yet.",
       state: readiness.wallets.payout.state,
       primaryAction: {
+        id: "discover.resolve_identity",
         label: "Add payout destination",
         href: "/profile?view=wallets&returnTo=/discover",
       },
-      secondaryActions: [{ label: "View recognised work", href: "/earn" }],
+      secondaryActions: [{ id: "discover.open_verified_work", label: "View recognised work", href: "/discover?view=work" }],
     };
   }
   if (readiness && readiness.capital.pendingAuthorizations > 0) {
@@ -49,7 +51,7 @@ export function selectDiscoverRecommendation(
       title: "Review funding awaiting authorization",
       reason: `${readiness.capital.pendingAuthorizations} persisted funding package${readiness.capital.pendingAuthorizations === 1 ? " is" : "s are"} ready for financial review.`,
       state: "awaiting_authorization",
-      primaryAction: { label: "Open Capital", href: "/capital?view=authorizations" },
+      primaryAction: { id: "capital.review_authorization", label: "Open Capital", href: "/capital?view=authorizations" },
       secondaryActions: [],
     };
   }
@@ -66,11 +68,12 @@ export function selectDiscoverRecommendation(
       reason: "This published Pool has a real funding target and a confirmed shortfall.",
       state: shortfall.funding?.status ?? "unfunded",
       primaryAction: {
-        label: "Inspect Pool",
-        href: `/opportunities/${shortfall.slug}?intent=back-pool`,
+        id: shortfall.primaryAction?.id ?? "discover.open_pools",
+        label: shortfall.primaryAction?.label ?? "Inspect Pool",
+        href: shortfall.primaryAction?.href ?? `/discover?view=pools&pool=${encodeURIComponent(shortfall.id)}`,
       },
       secondaryActions: [
-        { label: "View rule", href: `/opportunities/${shortfall.slug}#distribution-rule` },
+        { id: "discover.open_record", label: "View details", href: `/opportunities/${shortfall.slug}` },
       ],
     };
   }
@@ -82,8 +85,9 @@ export function selectDiscoverRecommendation(
       reason: "This is the newest published opportunity with an inspectable source.",
       state: publicOpportunity.verificationStatus,
       primaryAction: {
-        label: "Inspect opportunity",
-        href: `/opportunities/${publicOpportunity.slug}`,
+        id: publicOpportunity.primaryAction?.id ?? "discover.open_record",
+        label: publicOpportunity.primaryAction?.label ?? "Inspect opportunity",
+        href: publicOpportunity.primaryAction?.href ?? `/opportunities/${publicOpportunity.slug}`,
       },
       secondaryActions: [],
     };
@@ -93,7 +97,7 @@ export function selectDiscoverRecommendation(
     title: "No immediate funding action",
     reason: "No eligible public opportunity is available from the confirmed sources.",
     state: "current",
-    primaryAction: { label: "Connect my community", href: "/communities" },
+    primaryAction: { id: "discover.open_communities", label: "Open Communities", href: "/communities" },
     secondaryActions: [],
   };
 }

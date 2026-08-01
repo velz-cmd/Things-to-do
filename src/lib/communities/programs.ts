@@ -10,6 +10,7 @@ import {
 import { DEFAULT_POOL_CHECKPOINT_THRESHOLDS_USD } from "@/lib/capital/pool-checkpoint-defaults";
 import type { ProgramRecord, ProgramRules } from "./types";
 import { appendOperationalEventInTransaction } from "@/lib/events/operational-event";
+import { invalidateDiscoverProgramCache } from "@/lib/discover/marketplace/cache";
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -289,6 +290,8 @@ export async function createProgram(
     return created;
   });
 
+  await invalidateDiscoverProgramCache();
+
   return { ok: true as const, program: toProgramRecord(row, communitySlug) };
 }
 
@@ -355,6 +358,8 @@ export async function updateProgram(
     });
     return updated;
   });
+
+  await invalidateDiscoverProgramCache();
 
   return {
     ok: true as const,

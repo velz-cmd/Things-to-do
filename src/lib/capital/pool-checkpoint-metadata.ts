@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { invalidateDiscoverProgramCache } from "@/lib/discover/marketplace/cache";
 import type {
   ProgramPoolMetadata,
   StoredCheckpointRecord,
@@ -36,4 +37,5 @@ export async function recordPoolCheckpoint(
     where: { id: programId },
     data: { metadataJson: JSON.stringify(meta) },
   });
+  await invalidateDiscoverProgramCache();
 }

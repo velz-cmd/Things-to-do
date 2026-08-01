@@ -36,6 +36,7 @@ import {
   programEntityVisible,
 } from "./publication";
 import { selectDiscoverRecommendation } from "./recommendation";
+import { DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS } from "./cache";
 import {
   normalizeConfirmedOutcomes,
   normalizeGithubAcceptedWork,
@@ -235,34 +236,34 @@ async function loadCampaignOpportunities() {
 
 function loadCachedPersistedOpportunities() {
   return cacheGetOrSetResilient(
-    "discover:marketplace:published:v3",
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.published,
     SOURCE_CACHE_SECONDS,
-    () => withTimeout(loadPersistedOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    loadPersistedOpportunities,
     { staleSeconds: 86_400 },
   );
 }
 
 function loadCachedProgramOpportunities() {
   return cacheGetOrSetResilient(
-    "discover:marketplace:programs:v3",
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.programs,
     SOURCE_CACHE_SECONDS,
-    () => withTimeout(loadProgramOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    loadProgramOpportunities,
     { staleSeconds: 86_400 },
   );
 }
 
 function loadCachedCampaignOpportunities() {
   return cacheGetOrSetResilient(
-    "discover:marketplace:campaigns:v3",
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.campaigns,
     SOURCE_CACHE_SECONDS,
-    () => withTimeout(loadCampaignOpportunities(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    loadCampaignOpportunities,
     { staleSeconds: 86_400 },
   );
 }
 
 function loadCachedVerifiedGithubWork() {
   return cacheGetOrSetResilient(
-    "discover:marketplace:github-work:v1",
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.githubWork,
     SOURCE_CACHE_SECONDS,
     () => withTimeout(loadVerifiedGithubWork(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },
@@ -271,7 +272,7 @@ function loadCachedVerifiedGithubWork() {
 
 function loadCachedConfirmedOutcomes() {
   return cacheGetOrSetResilient(
-    "discover:marketplace:confirmed-outcomes:v1",
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.outcomes,
     SOURCE_CACHE_SECONDS,
     () => withTimeout(loadConfirmedOutcomes(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },

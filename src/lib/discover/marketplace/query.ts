@@ -15,11 +15,13 @@ import {
   normalizeCampaignOpportunity,
   normalizePersistedOpportunity,
   normalizeProgramOpportunity,
+  programMarketplaceKind,
   type CampaignOpportunityRow,
   type PersistedOpportunityRow,
   type ProgramOpportunityRow,
 } from "./normalize";
 import type {
+  DiscoverActivityItem,
   DiscoverCommunity,
   DiscoverInboxItem,
   DiscoverMyCommunity,
@@ -49,7 +51,14 @@ import {
   buildEconomicActions,
   rankEconomicActions,
 } from "./economic-actions";
+import {
+  buildDiscoverProjection,
+  isConfirmedOutcome,
+  isProgram,
+  isVerifiedWork,
+} from "./projections";
 import { deriveUserCapabilities } from "@/lib/capabilities/user-capabilities";
+import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
 import {
   discoverNavigationAction,
   workbenchAction,
@@ -544,7 +553,7 @@ export async function listMarketplaceOpportunities(
       promise: loadCachedVerifiedGithubWork(),
     });
   }
-  if (view === "for_you" || view === "explore" || view === "outcomes") {
+  if (["for_you", "explore", "activity", "outcomes"].includes(view)) {
     loaders.push({
       source: "confirmed_outcomes",
       promise: loadCachedConfirmedOutcomes(),
@@ -967,6 +976,17 @@ export async function listMyDiscoverCommunities(
         return false;
       }
     });
+    const poolPrograms = activePrograms.filter((program) => {
+      let metadata: Record<string, unknown> = {};
+      try {
+        metadata = program.metadataJson
+          ? JSON.parse(program.metadataJson) as Record<string, unknown>
+          : {};
+      } catch {
+        metadata = {};
+      }
+      return programMarketplaceKind(program.templateId, metadata) === "pool";
+    });
     const sourceConnected = githubSource &&
       ["connected", "healthy", "syncing", "stale"].includes(githubSource.status);
     const sourceState = githubSource?.status ?? "not_configured";
@@ -992,7 +1012,7 @@ export async function listMyDiscoverCommunities(
         : githubPrograms.length === 0
           ? "No active program uses the supported GitHub adapter."
           : !publicationApproved
-            ? "Review and publish this legacy operator program."
+            ? "Approve this Program for public discovery."
             : !policyActive
               ? "Activate a versioned funding policy."
               : !treasuryReady
@@ -1021,7 +1041,6 @@ export async function listMyDiscoverCommunities(
               ? "Add treasury destination"
               : "Review operating program";
     const returnTo = "/discover?view=activity";
-    const programContext = targetProgram ? `&program=${encodeURIComponent(targetProgram.id)}` : "";
     return {
       id: install.id,
       slug: install.communitySlug,
@@ -1032,7 +1051,7 @@ export async function listMyDiscoverCommunities(
       repositories,
       programCount: install.programs.length,
       activeProgramCount: activePrograms.length,
-      poolCount: githubPrograms.length,
+      poolCount: poolPrograms.length,
       programId: targetProgram?.id,
       blocker,
       primaryAction: sourceConnected
@@ -1056,11 +1075,7 @@ export async function listMyDiscoverCommunities(
             subjectId: install.id,
             provider: "github",
           }),
-      secondaryActions: [discoverNavigationAction({
-        id: "community.open",
-        label: "Open full operator workspace",
-        href: `/communities/${encodeURIComponent(install.communitySlug)}?step=${step}${programContext}&returnTo=${encodeURIComponent(returnTo)}#programs`,
-      }, { target: "workspace", secondary: true })],
+      secondaryActions: [],
     } satisfies DiscoverMyCommunity;
   });
 }
@@ -1094,7 +1109,6 @@ export function myDiscoverCommunitiesFromReadiness(
         ? "Create a program for accepted activity."
         : "Review publication, policy, and treasury readiness in the operator console.";
     const returnTo = "/discover?view=activity";
-    const programContext = programs[0] ? `&program=${encodeURIComponent(programs[0].id)}` : "";
     return {
       id: community.id,
       slug: community.slug,
@@ -1131,11 +1145,7 @@ export function myDiscoverCommunitiesFromReadiness(
             subjectId: community.id,
             provider: "github",
           }),
-      secondaryActions: [discoverNavigationAction({
-        id: "community.open",
-        label: "Open full operator workspace",
-        href: `/communities/${encodeURIComponent(community.slug)}?step=${step}${programContext}&returnTo=${encodeURIComponent(returnTo)}#programs`,
-      }, { target: "workspace", secondary: true })],
+      secondaryActions: [],
     };
   });
 }
@@ -1181,7 +1191,7 @@ function poolType(item: MarketplaceOpportunity) {
 
 function listPools(opportunities: MarketplaceOpportunity[], viewerUserId?: string): DiscoverPool[] {
   return opportunities.flatMap((item) => {
-    if (!item.pool || !item.community) return [];
+    if (item.marketplaceKind !== "pool" || !item.pool || !item.community) return [];
     const confirmed = item.funding?.amountState === "confirmed";
     const balance = confirmed ? item.funding?.fundedAmountUsd ?? 0 : 0;
     const target = item.funding?.goalAmountUsd;
@@ -1261,12 +1271,18 @@ function listPools(opportunities: MarketplaceOpportunity[], viewerUserId?: strin
                   programId: item.pool.id ?? item.source.id,
                   communitySlug: item.community.id ?? item.community.name,
                   step: item.entityState?.blocker?.toLowerCase().includes("publish") ? "publication" : item.entityState?.blocker?.toLowerCase().includes("policy") ? "policy" : item.entityState?.blocker?.toLowerCase().includes("treasury") ? "treasury" : "review",
-                }) : discoverNavigationAction({
+                }) : workbenchAction({
                   id: "discover.open_pools",
-                  label: "Inspect Pool",
+                  label: "View Pool",
                   href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                }, {
+                  panel: "entity_details",
+                  subjectId: item.pool.id ?? item.source.id,
+                  entityType: "pool",
                 }),
-        secondaryActions: item.secondaryActions ?? [],
+        secondaryActions: (item.secondaryActions ?? []).filter(
+          (action) => action.presentation.kind !== "navigation" || action.presentation.target !== "workspace",
+        ),
       },
     ];
   });
@@ -1343,11 +1359,15 @@ export function buildDiscoverInbox(input: {
 
   const self = readiness ? people.find((person) => person.id === readiness.userId) : undefined;
   if (self && self.payoutReadiness !== "ready") {
+    const eligibleWallets = [readiness?.wallets.app.address, readiness?.wallets.connected.address]
+      .filter((address): address is string => Boolean(address));
     items.push({
       id: "contributor:complete-payout",
       audience: "contributor",
-      title: "Complete payout readiness",
-      why: "Your GitHub identity is recognised, but RESOLVE has no verified payout destination.",
+      title: "Choose your payout destination",
+      why: eligibleWallets.length > 1
+        ? "Two eligible wallets are available. Select where future RESOLVE earnings should settle."
+        : "Select an eligible wallet for future RESOLVE earnings.",
       state: self.payoutReadiness,
       blocker: self.blocker,
       primaryAction: self.primaryAction,
@@ -1424,7 +1444,215 @@ export function buildDiscoverInbox(input: {
     });
   }
 
-  return items.slice(0, 8);
+  const priority = (item: DiscoverInboxItem) => {
+    if (item.id === "contributor:complete-payout") return 0;
+    if (item.id === "funder:pending-authorizations") return 1;
+    if (item.id.startsWith("funder:pool:") || item.id.startsWith("funder:person:")) return 2;
+    if (item.id === "operator:repair-github-sync") return 3;
+    if (item.id.startsWith("operator:pool-setup:")) return 4;
+    return 5;
+  };
+  return items.sort((a, b) => priority(a) - priority(b)).slice(0, 8);
+}
+
+function friendlyActivityLabel(eventType: string) {
+  const labels: Record<string, string> = {
+    "capital.wallet_selected": "Payout wallet selected",
+    "profile.payout_destination_selected": "Payout destination updated",
+    "discover.repository_snapshot_captured": "Repository evidence refreshed",
+    "discover.mission_started": "Analysis started",
+    "discover.direct_support_confirmed": "Direct support confirmed",
+    "program.draft_created": "Program draft created",
+    "program.policy_updated": "Program policy updated",
+    "source.sync_completed": "Source refresh completed",
+  };
+  return labels[eventType] ?? eventType.replaceAll(".", " ").replaceAll("_", " ");
+}
+
+function activityKindForEvent(eventType: string): DiscoverActivityItem["kind"] {
+  if (eventType.includes("receipt") || eventType.includes("confirmed")) return "receipt";
+  if (eventType.includes("fund") || eventType.includes("settlement")) return "funding";
+  if (eventType.includes("claim")) return "claim";
+  if (eventType.includes("program")) return "program";
+  if (eventType.includes("pool")) return "pool";
+  if (eventType.includes("evidence") || eventType.includes("repository")) return "work";
+  return "account";
+}
+
+function eventDescription(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return fallback;
+  const record = payload as Record<string, unknown>;
+  for (const key of ["title", "label", "repository", "provider", "communitySlug"]) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim().slice(0, 180);
+  }
+  return fallback;
+}
+
+async function loadPersonalDiscoverActivity(
+  userId: string,
+  opportunities: MarketplaceOpportunity[],
+  people: DiscoverPerson[],
+): Promise<DiscoverActivityItem[]> {
+  const [intents, events] = await Promise.all([
+    prisma.fundingIntent.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      take: 30,
+      select: {
+        id: true,
+        communitySlug: true,
+        programId: true,
+        amountUsdcMicro: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.operationalEvent.findMany({
+      where: {
+        userId,
+        OR: [
+          { eventType: { startsWith: "discover." } },
+          { eventType: { startsWith: "capital." } },
+          { eventType: { startsWith: "settlement." } },
+          { eventType: { startsWith: "program." } },
+          { eventType: { startsWith: "profile.payout" } },
+          { eventType: { startsWith: "source.sync" } },
+          { eventType: "pool_funding_pending" },
+          { eventType: "application_submitted" },
+        ],
+      },
+      orderBy: { occurredAt: "desc" },
+      take: 40,
+      select: {
+        id: true,
+        eventType: true,
+        aggregateId: true,
+        communitySlug: true,
+        payload: true,
+        occurredAt: true,
+      },
+    }),
+  ]);
+  const intentIds = intents.map((intent) => intent.id);
+  const transactions = intentIds.length
+    ? await prisma.chainTransaction.findMany({
+        where: { fundingIntentId: { in: intentIds } },
+        orderBy: { submittedAt: "desc" },
+        select: {
+          id: true,
+          fundingIntentId: true,
+          txHash: true,
+          status: true,
+          chainId: true,
+          submittedAt: true,
+          confirmedAt: true,
+        },
+      })
+    : [];
+  const transactionIds = transactions.map((transaction) => transaction.id);
+  const receipts = transactionIds.length
+    ? await prisma.receipt.findMany({
+        where: { chainTransactionId: { in: transactionIds } },
+        select: {
+          id: true,
+          chainTransactionId: true,
+          publicReference: true,
+          totalUsdcMicro: true,
+          issuedAt: true,
+        },
+      })
+    : [];
+  const transactionByIntent = new Map<string, typeof transactions[number]>();
+  for (const transaction of transactions) {
+    if (transaction.fundingIntentId && !transactionByIntent.has(transaction.fundingIntentId)) {
+      transactionByIntent.set(transaction.fundingIntentId, transaction);
+    }
+  }
+  const receiptByTransaction = new Map(receipts.map((receipt) => [receipt.chainTransactionId, receipt]));
+
+  const fundingRows: DiscoverActivityItem[] = intents.map((intent) => {
+    const transaction = transactionByIntent.get(intent.id);
+    const receipt = transaction ? receiptByTransaction.get(transaction.id) : undefined;
+    const state = receipt ? "confirmed" : transaction?.status ?? intent.status;
+    const amountUsd = Number(intent.amountUsdcMicro) / 1_000_000;
+    const primaryAction = receipt
+      ? workbenchAction({
+          id: "receipt.open",
+          label: "View receipt",
+          href: canonicalOutcomeHref(receipt.publicReference),
+        }, {
+          panel: "receipt",
+          subjectId: receipt.id,
+          receiptUrl: canonicalOutcomeHref(receipt.publicReference),
+        })
+      : workbenchAction({
+          id: "capital.open_transaction",
+          label: "Track transaction",
+          href: `/discover?view=activity&action=capital.open_transaction&subject=${encodeURIComponent(intent.id)}`,
+        }, {
+          panel: "transaction",
+          subjectId: intent.id,
+          fundingIntentId: intent.id,
+        });
+    return {
+      id: `funding:${intent.id}`,
+      kind: receipt ? "receipt" : "transaction",
+      title: receipt ? "Funding confirmed" : "Funding activity",
+      description: intent.communitySlug
+        ? `${intent.communitySlug}${intent.programId ? ` / ${intent.programId}` : ""}`
+        : "Direct support or funding authorization",
+      state,
+      occurredAt: receipt?.issuedAt.toISOString() ?? transaction?.confirmedAt?.toISOString() ?? transaction?.submittedAt.toISOString() ?? intent.updatedAt.toISOString(),
+      amountUsd,
+      token: "USDC",
+      community: intent.communitySlug ?? undefined,
+      primaryAction,
+    };
+  });
+
+  const self = people.find((person) => person.id === userId);
+  const githubHandle = self?.profilePath?.match(/^https:\/\/github\.com\/([^/?#]+)/i)?.[1]?.toLowerCase();
+  const ownedMarketplace = opportunities.filter((item) =>
+    item.creator.id === userId ||
+    (githubHandle && item.creator.name.toLowerCase() === githubHandle),
+  );
+  const marketplaceRows: DiscoverActivityItem[] = ownedMarketplace.map((item) => ({
+    id: `owned:${item.id}`,
+    kind: isConfirmedOutcome(item) ? "receipt" : isVerifiedWork(item) ? "work" : isProgram(item) ? "program" : item.marketplaceKind === "pool" ? "pool" : "work",
+    title: item.title,
+    description: isVerifiedWork(item)
+      ? `${item.repository ?? "Verified source"} · ${item.creator.name}`
+      : item.summary,
+    state: isConfirmedOutcome(item) ? "confirmed" : item.status,
+    occurredAt: item.updatedAt,
+    amountUsd: isConfirmedOutcome(item) ? item.funding?.fundedAmountUsd : undefined,
+    token: item.reward?.token,
+    community: item.community?.name,
+    repository: item.repository,
+    primaryAction: item.primaryAction,
+  }));
+  const eventRows: DiscoverActivityItem[] = events.map((event) => ({
+    id: `event:${event.id}`,
+    kind: activityKindForEvent(event.eventType),
+    title: friendlyActivityLabel(event.eventType),
+    description: eventDescription(event.payload, event.communitySlug ?? event.aggregateId),
+    state: event.eventType.split(".").at(-1) ?? "recorded",
+    occurredAt: event.occurredAt.toISOString(),
+    community: event.communitySlug ?? undefined,
+  }));
+
+  const seen = new Set<string>();
+  return [...fundingRows, ...marketplaceRows, ...eventRows]
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+    .filter((item) => {
+      const key = `${item.kind}:${item.title.toLowerCase()}:${item.occurredAt.slice(0, 16)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 50);
 }
 
 async function loadDiscoverSourceDiagnostics(
@@ -1453,11 +1681,7 @@ async function loadDiscoverSourceDiagnostics(
         label: "Analyze a public repository",
         href: "/discover?view=explore&analyze=1#repository-analysis",
       }),
-      secondaryActions: [discoverNavigationAction({
-        id: "profile.open_source_details",
-        label: "Review GitHub access",
-        href: `/profile?section=connections&returnTo=${encodeURIComponent("/discover?view=activity")}`,
-      }, { target: "workspace", secondary: true })],
+      secondaryActions: [],
     }];
   }
   return names.slice(0, 12).map((name) => {
@@ -1503,7 +1727,11 @@ export async function loadDiscoverPageData(
   filters: OpportunityFilters,
   view: DiscoverPageData["view"],
 ): Promise<DiscoverPageData> {
-  const opportunitiesPromise = listMarketplaceOpportunities(filters, PAGE_SIZE, view);
+  const opportunitiesPromise = listMarketplaceOpportunities(
+    filters,
+    view === "explore" ? 80 : view === "outcomes" ? 24 : PAGE_SIZE,
+    view,
+  );
   const userPromise = getSessionUser().catch(() => null);
   const activeFundingPromise = withTimeout(loadConfirmedFundingUsd(), 1_500).catch(
     () => undefined,
@@ -1564,7 +1792,22 @@ export async function loadDiscoverPageData(
   const myCommunities = communitiesResult.error && readiness
     ? myDiscoverCommunitiesFromReadiness(readiness)
     : communitiesResult.items;
-  const allVisible = opportunities.items;
+  const allVisible = opportunities.items.map((item) => {
+    if (item.marketplaceKind !== "program" || item.creator.id === user?.id) return item;
+    return {
+      ...item,
+      primaryAction: workbenchAction({
+        id: "discover.open_program",
+        label: "View Program",
+        href: `/discover?view=explore&kind=programs&program=${encodeURIComponent(item.source.id)}`,
+      }, {
+        panel: "entity_details",
+        subjectId: item.source.id,
+        entityType: "program",
+      }),
+      secondaryActions: [],
+    };
+  });
   const people = mergeAttributedDiscoverPeople(claimedPeople, allVisible);
   const communities = listCommunities(allVisible);
   const pools = listPools(allVisible, user?.id);
@@ -1587,6 +1830,17 @@ export async function loadDiscoverPageData(
     pools,
     myCommunities,
   });
+  const activityResult = user && (view === "activity" || view === "for_you")
+    ? await withTimeout(
+        loadPersonalDiscoverActivity(user.id, allVisible, people),
+        PERSONAL_ENRICHMENT_TIMEOUT_MS,
+      ).then((items) => ({ items, error: null as string | null }))
+        .catch(() => ({
+          items: [] as DiscoverActivityItem[],
+          error: `Personal activity did not refresh before the ${PERSONAL_ENRICHMENT_TIMEOUT_LABEL}.`,
+        }))
+    : { items: [] as DiscoverActivityItem[], error: null as string | null };
+  const activity = activityResult.items;
   const fallbackRecommendation = selectDiscoverRecommendation(readiness, allVisible);
   const firstInbox = inbox[0];
   const allEconomicActions = rankEconomicActions(buildEconomicActions({
@@ -1690,24 +1944,55 @@ export async function loadDiscoverPageData(
       secondaryActions: [],
     });
   }
+  if (activityResult.error) {
+    sourceDiagnostics.push({
+      id: "resolve:personal-activity",
+      provider: "resolve",
+      state: "refresh_failed",
+      evaluationPeriod: "Current signed-in activity",
+      eventsInspected: null,
+      acceptedEvents: 0,
+      lastSuccessfulAt: null,
+      reason: activityResult.error,
+      stale: true,
+      primaryAction: discoverNavigationAction({
+        id: "discover.open_activity",
+        label: "Retry personal activity",
+        href: "/discover?view=activity",
+      }),
+      secondaryActions: [],
+    });
+  }
   const recommendedEconomicAction = economicActions[0];
+  const filteredPeople = filters.q
+    ? people.filter((person) =>
+        [
+          person.name,
+          ...person.verifiedIdentities,
+          ...person.skills,
+          ...person.communities,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(filters.q!.toLowerCase()),
+      )
+    : people;
+  const projection = buildDiscoverProjection({
+    view,
+    category: filters.kind ?? "all",
+    inbox,
+    people: filteredPeople,
+    pools,
+    communities,
+    opportunities: allVisible,
+    activity,
+  });
 
   return {
     view,
-    opportunities,
-    people: filters.q
-      ? people.filter((person) =>
-          [
-            person.name,
-            ...person.verifiedIdentities,
-            ...person.skills,
-            ...person.communities,
-          ]
-            .join(" ")
-            .toLowerCase()
-            .includes(filters.q!.toLowerCase()),
-        )
-      : people,
+    projection,
+    opportunities: { ...opportunities, items: allVisible },
+    people: filteredPeople,
     communities,
     myCommunities,
     pools,

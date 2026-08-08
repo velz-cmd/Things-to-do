@@ -54,6 +54,8 @@ function titleFor(action: DiscoverAction) {
     case "authorization_review": return "Review funding authorization";
     case "receipt": return "Confirmed receipt";
     case "evidence": return "Inspect evidence";
+    case "transaction": return "Track transaction";
+    case "entity_details": return `View ${action.presentation.target.entityType}`;
   }
 }
 
@@ -358,6 +360,91 @@ function AuthorizationReviewPanel({ action }: { action: DiscoverAction }) {
   return <div className="mt-5 space-y-3">{loading ? <p className="flex items-center gap-2 text-sm text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" />Loading persisted authorization packages</p> : null}{packages?.map((row) => { const amountUsd = Number(BigInt(row.totalMicroUsdc)) / 1_000_000; const ready = row.readyPayeeCount === row.obligationCount && row.evidenceCount >= row.obligationCount; return <article key={row.id} className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-white">{row.label}</p><p className="mt-1 font-mono text-[10px] text-slate-500">Mission {row.missionId}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] ${ready ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-100"}`}>{ready ? "Preflight ready" : "Prerequisites missing"}</span></div><dl className="mt-4 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-slate-500">Requested</dt><dd className="mt-1 text-white">${amountUsd.toFixed(2)} USDC</dd></div><div><dt className="text-slate-500">Obligations</dt><dd className="mt-1 text-white">{row.obligationCount}</dd></div><div><dt className="text-slate-500">Payout ready</dt><dd className="mt-1 text-white">{row.readyPayeeCount}/{row.obligationCount}</dd></div><div><dt className="text-slate-500">Evidence</dt><dd className="mt-1 text-white">{row.evidenceCount} records</dd></div></dl><p className="mt-3 text-xs leading-5 text-slate-400">Review is complete when every obligation has evidence and a payout-ready recipient. Opening this package does not submit a settlement.</p></article>; })}{packages && !packages.length ? <p className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-400">No persisted authorization package currently needs review.</p> : null}{error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}</div>;
 }
 
+type FundingIntentStatus = {
+  intent: {
+    id: string;
+    amountUsd: number;
+    status: string;
+    communitySlug: string | null;
+    programId: string | null;
+    updatedAt: string;
+    transaction: {
+      txHash: string | null;
+      status: string;
+      providerTransactionId: string | null;
+    } | null;
+  };
+};
+
+function TransactionPanel({ action }: { action: DiscoverAction }) {
+  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "transaction"
+    ? action.presentation.target
+    : null;
+  const [status, setStatus] = useState<FundingIntentStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  async function refresh(signal?: AbortSignal) {
+    if (!target) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/capital/funding-intents/${encodeURIComponent(target.fundingIntentId)}`, {
+        credentials: "include",
+        cache: "no-store",
+        signal,
+      });
+      const body = await response.json().catch(() => ({})) as FundingIntentStatus & { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Transaction status could not be loaded");
+      setStatus(body);
+    } catch (reason) {
+      if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+        setError(reason instanceof Error ? reason.message : "Transaction status could not be loaded");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    if (!target) return;
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  // refresh reads only the stable funding-intent id from target.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target?.fundingIntentId]);
+  if (!target) return null;
+  const current = status?.intent.transaction?.status ?? status?.intent.status ?? "prepared";
+  const stages = ["Prepared", "Authorised", "Submitted", "Confirmed", "Receipt"];
+  const reached = current === "confirmed" ? 3 : current === "submitted" ? 2 : ["authorized", "approved"].includes(current) ? 1 : 0;
+  return <div className="mt-5 space-y-4">{loading ? <p className="flex items-center gap-2 text-sm text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" />Loading transaction status</p> : null}{status ? <><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-sm font-semibold text-white">{status.intent.amountUsd.toFixed(2)} USDC</p><p className="mt-1 text-xs text-slate-500">{status.intent.communitySlug ?? "Direct support"}</p><div className="mt-5 space-y-3">{stages.map((stage, index) => <div key={stage} className="flex items-center gap-3 text-sm"><span className={`grid h-6 w-6 place-items-center rounded-full border text-xs ${index <= reached ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-200" : "border-white/10 text-slate-600"}`}>{index < reached ? "✓" : index + 1}</span><span className={index <= reached ? "text-slate-200" : "text-slate-600"}>{stage}</span></div>)}</div>{status.intent.transaction?.txHash ? <p className="mt-4 break-all font-mono text-xs text-slate-400">{status.intent.transaction.txHash}</p> : null}</div><button type="button" onClick={() => void refresh()} disabled={loading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"><RefreshCw className="h-4 w-4" />Refresh status</button></> : null}{error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}</div>;
+}
+
+function EntityDetailsPanel({ action, data }: { action: DiscoverAction; data: DiscoverPageData }) {
+  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "entity_details"
+    ? action.presentation.target
+    : null;
+  if (!target) return null;
+  if (target.entityType === "person") {
+    const person = data.people.find((item) => item.id === target.subjectId);
+    if (!person) return <p className="mt-5 text-sm text-slate-400">This person is no longer available in the current persisted result.</p>;
+    return <div className="mt-5 space-y-4"><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-full bg-violet-400/10 font-semibold text-violet-100">{person.name.slice(0, 2).toUpperCase()}</span><div><h3 className="font-semibold text-white">{person.name}</h3><p className="mt-1 text-xs capitalize text-slate-500">{person.identityState.replaceAll("_", " ")}</p></div></div><dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2"><div><dt className="text-slate-500">Accepted work</dt><dd className="mt-1 text-white">{person.completedWork ?? 0}</dd></div><div><dt className="text-slate-500">Payout readiness</dt><dd className="mt-1 capitalize text-white">{person.payoutReadiness.replaceAll("_", " ")}</dd></div><div><dt className="text-slate-500">Identities</dt><dd className="mt-1 text-white">{person.verifiedIdentities.join(", ")}</dd></div><div><dt className="text-slate-500">Communities</dt><dd className="mt-1 text-white">{person.communities.join(", ") || "No public community role"}</dd></div></dl></div>{person.profilePath ? <a href={person.profilePath} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200">Open source identity<ExternalLink className="h-3.5 w-3.5" /></a> : null}</div>;
+  }
+  if (target.entityType === "pool") {
+    const pool = data.pools.find((item) => item.id === target.subjectId);
+    if (!pool) return <p className="mt-5 text-sm text-slate-400">This Pool is no longer available in the current persisted result.</p>;
+    const progress = pool.targetUsd && pool.targetUsd > 0 && pool.balanceUsd != null ? Math.min(100, (pool.balanceUsd / pool.targetUsd) * 100) : null;
+    return <div className="mt-5 space-y-4"><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-xs text-emerald-300">{pool.communitySlug}</p><h3 className="mt-1 text-lg font-semibold text-white">{pool.name}</h3><p className="mt-2 text-sm leading-6 text-slate-300">{pool.purpose ?? pool.type}</p><dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2"><div><dt className="text-slate-500">Confirmed funding</dt><dd className="mt-1 text-white">{pool.balanceUsd != null ? `$${pool.balanceUsd.toFixed(2)} USDC` : "Not confirmed"}</dd></div><div><dt className="text-slate-500">Pending</dt><dd className="mt-1 text-white">{pool.pendingDepositsUsd != null ? `$${pool.pendingDepositsUsd.toFixed(2)} USDC` : "None recorded"}</dd></div><div><dt className="text-slate-500">Target</dt><dd className="mt-1 text-white">{pool.targetUsd != null ? `$${pool.targetUsd.toFixed(2)} USDC` : "Open ended"}</dd></div><div><dt className="text-slate-500">Funding rule</dt><dd className="mt-1 capitalize text-white">{pool.policyState.replaceAll("_", " ")}</dd></div><div><dt className="text-slate-500">Treasury</dt><dd className="mt-1 capitalize text-white">{pool.treasuryReadiness.replaceAll("_", " ")}</dd></div></dl>{progress != null ? <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${progress}%` }} /></div> : null}</div><div className="rounded-xl border border-white/[0.08] p-4 text-xs text-slate-400"><div className="flex flex-wrap items-center gap-2"><span>Funder</span><span>-&gt;</span><span>Pool treasury</span><span>-&gt;</span><span>Funding rule</span><span>-&gt;</span><span>Eligible work</span><span>-&gt;</span><span>Recipients</span><span>-&gt;</span><span>Receipts</span></div></div></div>;
+  }
+  if (target.entityType === "program") {
+    const program = data.opportunities.items.find((item) => item.source.id === target.subjectId && item.marketplaceKind === "program");
+    if (!program) return <p className="mt-5 text-sm text-slate-400">This Program is no longer available in the current persisted result.</p>;
+    return <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-xs text-cyan-300">{program.community?.name}</p><h3 className="mt-1 text-lg font-semibold text-white">{program.title}</h3><p className="mt-3 text-sm leading-6 text-slate-300">{program.summary}</p><dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2"><div><dt className="text-slate-500">Recognised activity</dt><dd className="mt-1 text-white">{program.deliverables.join(", ") || program.category || "Configured source activity"}</dd></div><div><dt className="text-slate-500">Current policy</dt><dd className="mt-1 capitalize text-white">{program.entityState?.financialReadiness === "ready" ? "Active" : "Review required"}</dd></div><div><dt className="text-slate-500">Source</dt><dd className="mt-1 text-white">{program.repository ?? program.source.type.replaceAll("_", " ")}</dd></div><div><dt className="text-slate-500">Template</dt><dd className="mt-1 text-white">{program.program?.templateId.replaceAll("-", " ")}</dd></div></dl></div>;
+  }
+  const community = data.communities.find((item) => item.id === target.subjectId || item.slug === target.subjectId);
+  if (!community) return <p className="mt-5 text-sm text-slate-400">This Community is no longer available in the current persisted result.</p>;
+  return <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4"><h3 className="text-lg font-semibold text-white">{community.name}</h3><p className="mt-2 text-sm leading-6 text-slate-300">{community.purpose}</p><dl className="mt-5 grid grid-cols-3 gap-3 text-xs"><div><dt className="text-slate-500">Activity</dt><dd className="mt-1 text-white">{community.activeOpportunities ?? 0}</dd></div><div><dt className="text-slate-500">Pools</dt><dd className="mt-1 text-white">{community.activePools ?? 0}</dd></div><div><dt className="text-slate-500">Type</dt><dd className="mt-1 text-white">{community.type}</dd></div></dl></div>;
+}
+
 function InformationalPanel({ action, item }: { action: DiscoverAction; item?: EconomicActionItem }) {
   const target = action.presentation.kind === "workbench" ? action.presentation.target : null;
   if (!target) return null;
@@ -373,5 +460,5 @@ export function DiscoverActionWorkbench({ action, item, data, onClose }: Props) 
   const financial = target?.panel === "direct_support" || target?.panel === "pool_funding";
   const title = useMemo(() => action ? titleFor(action) : "Discover action", [action]);
   if (!action || !target) return null;
-  return <><div className="fixed inset-0 z-[65] bg-black/65" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="discover-workbench-title" className={`ml-auto h-full w-full overflow-y-auto border-l border-white/10 bg-[#060d17] p-5 shadow-2xl sm:p-6 ${financial ? "max-w-[620px]" : "max-w-[560px]"}`}><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-violet-300">Discover action workbench</p><h2 id="discover-workbench-title" className="mt-1 text-xl font-semibold text-white">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-400">Review the real prerequisites and complete this action without losing Discover context.</p></div><button type="button" aria-label="Close Discover action" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button></div>{target.panel === "direct_support" ? <DirectSupportPanel action={action} onClose={onClose} signedIn={data.signedIn} /> : null}{target.panel === "pool_funding" ? <PoolFundingPanel action={action} signedIn={data.signedIn} /> : null}{target.panel === "source_sync" ? <SourceSyncPanel action={action} /> : null}{target.panel === "program_setup" ? <ProgramSetupPanel action={action} item={item} /> : null}{target.panel === "authorization_review" ? <AuthorizationReviewPanel action={action} /> : null}{!["direct_support", "pool_funding", "source_sync", "program_setup", "authorization_review", "payout_destination"].includes(target.panel) ? <InformationalPanel action={action} item={item} /> : null}{target.panel === "payout_destination" ? <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-300"><WalletCards className="mb-3 h-5 w-5 text-violet-300" />Choose between the RESOLVE-managed wallet and connected wallet. These remain separate destinations and no wallet is selected automatically.</div> : null}{!data.signedIn && action.id !== "discover.open_evidence" ? <p className="mt-4 text-sm text-amber-100">Sign in is required for this personal action.</p> : null}</section></div><PayoutDestinationDrawer open={payoutOpen} origin="discover" onChanged={() => { setPayoutOpen(false); onClose(); }} onClose={() => { setPayoutOpen(false); onClose(); }} /></>;
+  return <><div className="fixed inset-0 z-[65] bg-black/65" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="discover-workbench-title" className={`ml-auto h-full w-full overflow-y-auto border-l border-white/10 bg-[#060d17] p-5 shadow-2xl sm:p-6 ${financial ? "max-w-[620px]" : "max-w-[560px]"}`}><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-violet-300">Discover</p><h2 id="discover-workbench-title" className="mt-1 text-xl font-semibold text-white">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-400">Review and complete this action without losing your marketplace context.</p></div><button type="button" aria-label="Close Discover action" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button></div>{target.panel === "direct_support" ? <DirectSupportPanel action={action} onClose={onClose} signedIn={data.signedIn} /> : null}{target.panel === "pool_funding" ? <PoolFundingPanel action={action} signedIn={data.signedIn} /> : null}{target.panel === "source_sync" ? <SourceSyncPanel action={action} /> : null}{target.panel === "program_setup" ? <ProgramSetupPanel action={action} item={item} /> : null}{target.panel === "authorization_review" ? <AuthorizationReviewPanel action={action} /> : null}{target.panel === "transaction" ? <TransactionPanel action={action} /> : null}{target.panel === "entity_details" ? <EntityDetailsPanel action={action} data={data} /> : null}{!["direct_support", "pool_funding", "source_sync", "program_setup", "authorization_review", "payout_destination", "transaction", "entity_details"].includes(target.panel) ? <InformationalPanel action={action} item={item} /> : null}{target.panel === "payout_destination" ? <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-300"><WalletCards className="mb-3 h-5 w-5 text-violet-300" />Review the available wallet destinations and select where future RESOLVE earnings should settle. No destination is selected automatically.</div> : null}{!data.signedIn && !["discover.open_evidence", "discover.open_people", "discover.open_pools", "discover.open_program", "community.open"].includes(action.id) ? <p className="mt-4 text-sm text-amber-100">Sign in is required for this personal action.</p> : null}</section></div><PayoutDestinationDrawer open={payoutOpen} origin="discover" onChanged={() => { setPayoutOpen(false); onClose(); }} onClose={() => { setPayoutOpen(false); onClose(); }} /></>;
 }

@@ -100,6 +100,7 @@ describe("Discover marketplace normalisation", () => {
   it("maps a community program into the canonical opportunity contract", () => {
     const result = normalizeProgramOpportunity(program());
     expect(result).toMatchObject({
+      marketplaceKind: "program",
       type: "grant",
       creator: { id: "user-1", name: "Ada", verified: true },
       community: { id: "open-writers", name: "Open Writers" },
@@ -115,6 +116,47 @@ describe("Discover marketplace normalisation", () => {
       evidenceRequirements: ["Merged documentation pull request"],
     });
     expect(result.slug).toMatch(/^documentation-grant-[a-f0-9]{10}$/);
+  });
+
+  it("opens a ready Program in Discover without presenting it as a Pool", () => {
+    const result = normalizeProgramOpportunity(program({
+      metadataJson: JSON.stringify({
+        publicationStatus: "approved",
+        policyStatus: "active",
+        treasuryAddress: "0x0000000000000000000000000000000000000001",
+      }),
+    }));
+
+    expect(result.marketplaceKind).toBe("program");
+    expect(result.pool).toBeUndefined();
+    expect(result.primaryAction).toMatchObject({
+      label: "View Program",
+      presentation: {
+        kind: "workbench",
+        target: { panel: "entity_details", entityType: "program" },
+      },
+    });
+  });
+
+  it("keeps Pool templates fundable while preserving their canonical type", () => {
+    const result = normalizeProgramOpportunity(program({
+      templateId: "security-fund",
+      metadataJson: JSON.stringify({
+        publicationStatus: "approved",
+        policyStatus: "active",
+        treasuryAddress: "0x0000000000000000000000000000000000000001",
+      }),
+    }));
+
+    expect(result.marketplaceKind).toBe("pool");
+    expect(result.pool?.id).toBe("program-1");
+    expect(result.primaryAction).toMatchObject({
+      label: "Fund Pool",
+      presentation: {
+        kind: "workbench",
+        target: { panel: "pool_funding" },
+      },
+    });
   });
 
   it("keeps selected provider state distinct from open applications", () => {

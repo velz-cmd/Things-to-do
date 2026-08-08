@@ -79,6 +79,7 @@ function actionFromOpportunity(
   const confirmed = item.source.type === "confirmed_receipt";
   const acceptedWork = isWork(item) && !item.pool;
   const program = item.source.type === "community_program";
+  const pool = item.marketplaceKind === "pool";
   const blocker = item.entityState?.blocker;
   const setupAction = program && owner ? programSetupAction(item, returnTo) : null;
   const detailAction: DiscoverAction = workbenchAction({
@@ -98,6 +99,8 @@ function actionFromOpportunity(
     ? "receipt"
     : acceptedWork
       ? "accepted_work"
+      : pool
+        ? "community_pool"
       : program && blocker
         ? "policy_blocker"
         : item.pool
@@ -128,8 +131,8 @@ function actionFromOpportunity(
     : acceptedWork
       ? "This accepted activity can become an obligation only when identity and an approved policy cover it."
       : blocker
-        ? `Economic execution is blocked until this exact requirement is resolved: ${blocker}`
-        : "The economic object has an inspectable source and a valid next step.";
+        ? `This item needs one setup step before its public action is available: ${blocker}`
+        : "This item has an inspectable source and a valid next step.";
 
   return {
     id: `economic:${item.source.type}:${item.source.id}`,
@@ -140,13 +143,13 @@ function actionFromOpportunity(
       : acceptedWork
         ? `${item.creator.name} completed accepted work in ${item.repository ?? item.community?.name ?? "a verified source"}`
         : blocker
-          ? `${item.title} cannot operate yet`
+          ? `${item.title} needs setup`
           : `${item.title} is ready for review`,
     happened,
     whyItMatters,
     lifecycle,
     blocker,
-    audience: program && owner ? "operator" : acceptedWork ? "public" : "funder",
+    audience: program && owner && !pool ? "operator" : acceptedWork ? "public" : "funder",
     community: item.community,
     repository: item.repository,
     person: item.creator.id ? { id: item.creator.id, name: item.creator.name } : { name: item.creator.name },
@@ -329,7 +332,7 @@ export function buildEconomicActions(input: BuildEconomicActionsInput): Economic
     id: `economic:operator:${community.id}`,
     subjectType: "policy_blocker" as const,
     subjectId: community.id,
-    headline: `${community.name} needs an operator decision`,
+    headline: `${community.name} needs setup`,
     happened: `${community.activeProgramCount} active program${community.activeProgramCount === 1 ? "" : "s"} and ${community.repositories.length} connected repositor${community.repositories.length === 1 ? "y" : "ies"} were found.`,
     whyItMatters: "The next requirement must be resolved before accepted activity can become a funded obligation.",
     lifecycle: "blocked" as const,

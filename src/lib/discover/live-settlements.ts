@@ -88,7 +88,7 @@ export async function buildLiveSettlements(limit = 12): Promise<LiveSettlementsP
       id: `receipt-${record.receipt_id}`,
       kind: "settlement",
       title: `$${amountUsd.toFixed(2)} USDC confirmed on Arc`,
-      subline: `${shortAddress(record.from_address)} to ${shortAddress(record.to_address)} · chain ${record.chain_id}`,
+      subline: `${shortAddress(record.from_address)} to ${shortAddress(record.to_address)} / chain ${record.chain_id}`,
       amountUsd,
       status: "confirmed",
       communitySlug: record.community_slug ?? undefined,

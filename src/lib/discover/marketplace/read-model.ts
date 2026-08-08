@@ -83,6 +83,7 @@ export function normalizeGithubAcceptedWork(
           verificationStatus: "verified_evidence_no_funding_rule",
           riskFlags: [],
           source: { type: "github_evidence", id: identity },
+          marketplaceKind: "verified_work",
           sourceUrl: record.sourceUrl,
           entityState: {
             provenance: "external_integration",
@@ -155,6 +156,7 @@ export function normalizeConfirmedOutcomes(
         verificationStatus: "settlement_confirmed",
         riskFlags: [],
         source: { type: "confirmed_receipt", id: row.id },
+        marketplaceKind: "outcome",
         sourceUrl: row.explorerUrl,
         entityState: {
           provenance: "canonical_record",

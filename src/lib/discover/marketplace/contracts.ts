@@ -14,9 +14,10 @@ export const DISCOVER_EXPLORE_KINDS = [
   "all",
   "people",
   "work",
-  "communities",
   "pools",
   "programs",
+  "communities",
+  "outcomes",
   "funding_gaps",
 ] as const;
 
@@ -113,6 +114,16 @@ export type DiscoverWorkbenchTarget =
       subjectId: string;
       receiptUrl: string;
       explorerUrl?: string;
+    }
+  | {
+      panel: "transaction";
+      subjectId: string;
+      fundingIntentId: string;
+    }
+  | {
+      panel: "entity_details";
+      subjectId: string;
+      entityType: "person" | "work" | "pool" | "program" | "community";
     };
 
 export type DiscoverActionPresentation =
@@ -219,6 +230,17 @@ export type MarketplaceOpportunity = {
   source: {
     type: string;
     id: string;
+  };
+  marketplaceKind?:
+    | "opportunity"
+    | "verified_work"
+    | "pool"
+    | "program"
+    | "outcome";
+  program?: {
+    id: string;
+    name: string;
+    templateId: string;
   };
   sourceUrl?: string;
   entityState?: DiscoverEntityState;
@@ -357,6 +379,68 @@ export type DiscoverInboxItem = {
   secondaryActions: DiscoverAction[];
 };
 
+export type DiscoverActivityKind =
+  | "work"
+  | "funding"
+  | "claim"
+  | "pool"
+  | "transaction"
+  | "receipt"
+  | "program"
+  | "account";
+
+export type DiscoverActivityItem = {
+  id: string;
+  kind: DiscoverActivityKind;
+  title: string;
+  description: string;
+  state: string;
+  occurredAt: string;
+  amountUsd?: number;
+  token?: string;
+  community?: string;
+  repository?: string;
+  primaryAction?: DiscoverAction;
+};
+
+export type DiscoverForYouProjection = {
+  kind: "for_you";
+  recommendation: DiscoverInboxItem | null;
+  attention: DiscoverInboxItem[];
+  pools: DiscoverPool[];
+  people: DiscoverPerson[];
+  inProgress: DiscoverActivityItem[];
+  recent: DiscoverActivityItem[];
+};
+
+export type DiscoverExploreProjection = {
+  kind: "explore";
+  category: DiscoverExploreKind;
+  people: DiscoverPerson[];
+  work: MarketplaceOpportunity[];
+  pools: DiscoverPool[];
+  programs: MarketplaceOpportunity[];
+  communities: DiscoverCommunity[];
+  outcomes: MarketplaceOpportunity[];
+};
+
+export type DiscoverMyActivityProjection = {
+  kind: "activity";
+  items: DiscoverActivityItem[];
+  summary: Partial<Record<DiscoverActivityKind | "in_progress", number>>;
+};
+
+export type DiscoverOutcomesProjection = {
+  kind: "outcomes";
+  items: MarketplaceOpportunity[];
+};
+
+export type DiscoverProjection =
+  | DiscoverForYouProjection
+  | DiscoverExploreProjection
+  | DiscoverMyActivityProjection
+  | DiscoverOutcomesProjection;
+
 export type EconomicActionSubjectType =
   | "accepted_work"
   | "contributor"
@@ -468,6 +552,7 @@ export type DiscoverNetworkStats = {
 
 export type DiscoverPageData = {
   view: DiscoverView;
+  projection: DiscoverProjection;
   opportunities: MarketplacePage<MarketplaceOpportunity>;
   people: DiscoverPerson[];
   communities: DiscoverCommunity[];

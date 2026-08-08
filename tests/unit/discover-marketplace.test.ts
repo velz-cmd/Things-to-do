@@ -11,6 +11,7 @@ import {
 } from "../../src/lib/discover/marketplace/filters";
 import {
   collectMarketplaceSourceResults,
+  attachVerifiedWorkActions,
   confirmedFundingUsd,
   deduplicateMarketplaceOpportunities,
   marketplaceOpportunityMatches,
@@ -421,6 +422,39 @@ describe("Discover canonical projections", () => {
         }),
       }),
     ]);
+
+    const claimedPerson = {
+      ...mergeAttributedDiscoverPeople([], result)[0]!,
+      id: "recipient-1",
+      name: "Ada Lovelace",
+      profilePath: "https://github.com/ada",
+      identityState: "work_attribution_verified" as const,
+      payoutReadiness: "ready" as const,
+      acceptsDirectFunding: true,
+    };
+    const payable = attachVerifiedWorkActions(result, [claimedPerson], "funder-1", true);
+    expect(payable[0]).toMatchObject({
+      creator: { id: "recipient-1" },
+      entityState: { financialReadiness: "ready", blocker: undefined },
+      primaryAction: {
+        id: "discover.fund_verified_work",
+        label: "Fund this work",
+        requiresConfirmation: true,
+        presentation: {
+          kind: "workbench",
+          target: {
+            panel: "work_funding",
+            recipientUserId: "recipient-1",
+            repository: "owner/project",
+          },
+        },
+      },
+    });
+    const blocked = attachVerifiedWorkActions(result, [claimedPerson], "recipient-1", true);
+    expect(blocked[0]).toMatchObject({
+      primaryAction: { id: "discover.open_evidence" },
+      entityState: { financialReadiness: "setup_required" },
+    });
   });
 
   it("rejects an outcome without both a receipt and Arc explorer reference", () => {

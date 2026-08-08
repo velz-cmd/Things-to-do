@@ -55,6 +55,35 @@ describe("Discover final action contracts", () => {
     }).success).toBe(false);
   });
 
+  it("requires a persisted work subject only for a verified-work reward", () => {
+    expect(directSupportRequestSchema.safeParse({
+      recipientUserId: "recipient-1",
+      amountUsd: 5,
+      idempotencyKey: operationId,
+      fundingSource: "app",
+      purpose: "work_reward",
+    }).success).toBe(false);
+    expect(directSupportRequestSchema.safeParse({
+      recipientUserId: "recipient-1",
+      amountUsd: 5,
+      idempotencyKey: operationId,
+      fundingSource: "app",
+      purpose: "work_reward",
+      workSubjectId: "owner/project:pull_request:42",
+    }).success).toBe(true);
+    expect(directSupportRequestSchema.safeParse({
+      recipientUserId: "recipient-1",
+      amountUsd: 5,
+      idempotencyKey: operationId,
+      fundingSource: "app",
+      purpose: "direct_support",
+      workSubjectId: "owner/project:pull_request:42",
+    }).success).toBe(false);
+    expect(directSupportActionKey("user-1", operationId, "work_reward")).toBe(
+      `work-reward:user-1:${operationId}`,
+    );
+  });
+
   it("keeps workbench and navigation actions as separate discriminated variants", () => {
     const workbench = workbenchAction({
       id: "capital.open_funding",

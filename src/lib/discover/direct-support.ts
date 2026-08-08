@@ -19,6 +19,8 @@ export type ConfirmedDirectSupport = {
   txHash: string;
   amountUsd: number;
   destinationAddress: string;
+  purpose: "direct_support" | "work_reward";
+  workSubjectId?: string;
 };
 
 export async function recordConfirmedDirectSupport(input: {
@@ -32,23 +34,36 @@ export async function recordConfirmedDirectSupport(input: {
   amountUsd: number;
   txHash: string;
   provider: "circle_arc_direct_support" | "connected_wallet_arc_direct_support";
+  purpose?: "direct_support" | "work_reward";
+  work?: {
+    subjectId: string;
+    title: string;
+    repository: string;
+    sourceUrl: string;
+    evidenceIds: string[];
+  };
 }): Promise<ConfirmedDirectSupport> {
+  const purpose = input.purpose ?? "direct_support";
+  if (purpose === "work_reward" && !input.work) {
+    throw new Error("Verified work evidence is required before recording a work reward.");
+  }
   const amountUsdcMicro = BigInt(Math.round(input.amountUsd * 1_000_000));
   const packageHash = createHash("sha256")
     .update(
       JSON.stringify({
-        kind: "direct_support",
+        kind: purpose,
         idempotencyKey: input.idempotencyKey,
         senderUserId: input.senderUserId,
         recipientUserId: input.recipientUserId,
         destinationAddress: input.destinationAddress.toLowerCase(),
         amountUsdcMicro: amountUsdcMicro.toString(),
         txHash: input.txHash.toLowerCase(),
+        workSubjectId: input.work?.subjectId,
       }),
     )
     .digest("hex");
-  const batchKey = `direct-support:${input.idempotencyKey}`;
-  const publicReference = `support_${createHash("sha256")
+  const batchKey = `${purpose === "work_reward" ? "work-reward" : "direct-support"}:${input.idempotencyKey}`;
+  const publicReference = `${purpose === "work_reward" ? "work" : "support"}_${createHash("sha256")
     .update(`${batchKey}:${packageHash}`)
     .digest("hex")
     .slice(0, 24)}`;
@@ -66,13 +81,14 @@ export async function recordConfirmedDirectSupport(input: {
         confirmedAt: new Date(),
         preparedPackage: json({
           version: 1,
-          kind: "direct_support",
+          kind: purpose,
           packageHash,
           senderUserId: input.senderUserId,
           recipientUserId: input.recipientUserId,
           recipientLabel: input.recipientLabel,
           destinationAddress: input.destinationAddress,
           amountUsdcMicro: amountUsdcMicro.toString(),
+          work: input.work,
         }),
       },
       update: {},
@@ -124,13 +140,14 @@ export async function recordConfirmedDirectSupport(input: {
         totalUsdcMicro: amountUsdcMicro,
         payeeCount: 1,
         payload: json({
-          type: "direct_support",
+          type: purpose,
           senderUserId: input.senderUserId,
           recipientUserId: input.recipientUserId,
           recipientLabel: input.recipientLabel,
           destinationAddress: input.destinationAddress,
           transactionHash: input.txHash,
           packageHash,
+          work: input.work,
         }),
       },
       update: {},
@@ -144,6 +161,8 @@ export async function recordConfirmedDirectSupport(input: {
       txHash: input.txHash,
       amountUsd: input.amountUsd,
       destinationAddress: input.destinationAddress,
+      purpose,
+      workSubjectId: input.work?.subjectId,
     };
     await tx.actionRun.update({
       where: { id: input.actionRunId },
@@ -158,7 +177,9 @@ export async function recordConfirmedDirectSupport(input: {
     await tx.operationalEvent.upsert({
       where: { idempotencyKey: `event:${batchKey}` },
       create: {
-        eventType: "discover.direct_support_confirmed",
+        eventType: purpose === "work_reward"
+          ? "discover.work_reward_confirmed"
+          : "discover.direct_support_confirmed",
         aggregateType: "Receipt",
         aggregateId: receipt.id,
         userId: input.senderUserId,
@@ -169,6 +190,36 @@ export async function recordConfirmedDirectSupport(input: {
           recipientUserId: input.recipientUserId,
           amountUsdcMicro: amountUsdcMicro.toString(),
           txHash: input.txHash,
+          purpose,
+          workSubjectId: input.work?.subjectId,
+          title: input.work?.title,
+          repository: input.work?.repository,
+          publicReference,
+        }),
+      },
+      update: {},
+    });
+    await tx.operationalEvent.upsert({
+      where: { idempotencyKey: `recipient-event:${batchKey}` },
+      create: {
+        eventType: purpose === "work_reward"
+          ? "discover.work_reward_received"
+          : "discover.direct_support_received",
+        aggregateType: "Receipt",
+        aggregateId: receipt.id,
+        userId: input.recipientUserId,
+        correlationId: randomUUID(),
+        idempotencyKey: `recipient-event:${batchKey}`,
+        payload: json({
+          receiptId: receipt.id,
+          senderUserId: input.senderUserId,
+          amountUsdcMicro: amountUsdcMicro.toString(),
+          txHash: input.txHash,
+          purpose,
+          workSubjectId: input.work?.subjectId,
+          title: input.work?.title,
+          repository: input.work?.repository,
+          publicReference,
         }),
       },
       update: {},

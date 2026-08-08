@@ -47,6 +47,7 @@ function titleFor(action: DiscoverAction) {
   if (action.presentation.kind !== "workbench") return action.label;
   switch (action.presentation.target.panel) {
     case "direct_support": return `Support ${action.presentation.target.recipientLabel}`;
+    case "work_funding": return `Fund ${action.presentation.target.workTitle}`;
     case "pool_funding": return `Fund ${action.presentation.target.poolName}`;
     case "payout_destination": return "Choose payout destination";
     case "program_setup": return "Complete program readiness";
@@ -76,13 +77,14 @@ function WalletSummary({ source }: { source: FundingSource | null }) {
   );
 }
 
-function DirectSupportPanel({ action, onClose, signedIn }: { action: DiscoverAction; onClose: () => void; signedIn: boolean }) {
+function RecipientPaymentPanel({ action, onClose, signedIn }: { action: DiscoverAction; onClose: () => void; signedIn: boolean }) {
   const router = useRouter();
   const spendable = useSpendableUsd();
   const { externalWalletReady, openConnectWallet, sendDirectSupportWithWallet } = useResolveAccess();
-  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "direct_support"
-    ? action.presentation.target
-    : null;
+  const target = action.presentation.kind === "workbench" && (
+    action.presentation.target.panel === "direct_support" ||
+    action.presentation.target.panel === "work_funding"
+  ) ? action.presentation.target : null;
   const [preflight, setPreflight] = useState<DirectSupportPreflight | null>(null);
   const [source, setSource] = useState<FundingSource | null>(null);
   const [amount, setAmount] = useState("5");
@@ -116,6 +118,7 @@ function DirectSupportPanel({ action, onClose, signedIn }: { action: DiscoverAct
   }, [target]);
 
   if (!target) return null;
+  const isWorkReward = target.panel === "work_funding";
   const amountUsd = Number(amount);
   const chosenBalance = source === "app" ? spendable.appSpendableUsd : source === "external" ? spendable.externalSpendableUsd : 0;
   const canConfirm = Boolean(signedIn && preflight && source && Number.isFinite(amountUsd) && amountUsd >= 0.01 && (submittedTxHash || chosenBalance >= amountUsd) && !pending);
@@ -168,6 +171,8 @@ function DirectSupportPanel({ action, onClose, signedIn }: { action: DiscoverAct
           idempotencyKey: operationKey,
           fundingSource: source,
           txHash,
+          purpose: isWorkReward ? "work_reward" : "direct_support",
+          workSubjectId: isWorkReward ? target.subjectId : undefined,
         }),
       });
       const body = await response.json().catch(() => ({})) as Partial<DirectSupportReceipt> & { error?: string; retryable?: boolean };
@@ -178,7 +183,7 @@ function DirectSupportPanel({ action, onClose, signedIn }: { action: DiscoverAct
         }
         throw new Error(body.error ?? "The transfer is awaiting safe receipt reconciliation.");
       }
-      if (!response.ok) throw new Error(body.error ?? "Direct support did not complete");
+      if (!response.ok) throw new Error(body.error ?? `${isWorkReward ? "Work funding" : "Direct support"} did not complete`);
       if (!body.receiptId || !body.receiptReference || !body.receiptUrl || !body.explorerUrl || !body.txHash || typeof body.amountUsd !== "number" || !body.destinationAddress) {
         throw new Error("The confirmed support response did not include a complete receipt.");
       }
@@ -187,7 +192,7 @@ function DirectSupportPanel({ action, onClose, signedIn }: { action: DiscoverAct
       await spendable.refresh().catch(() => null);
       router.refresh();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Direct support did not complete");
+      setError(reason instanceof Error ? reason.message : `${isWorkReward ? "Work funding" : "Direct support"} did not complete`);
       if (!operationTxHash) setIdempotencyKey(crypto.randomUUID());
     } finally {
       setPending(false);
@@ -197,7 +202,7 @@ function DirectSupportPanel({ action, onClose, signedIn }: { action: DiscoverAct
   if (receipt) {
     return (
       <div className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-4">
-        <div className="flex items-center gap-2 text-emerald-200"><CheckCircle2 className="h-5 w-5" /><strong>Support confirmed</strong></div>
+        <div className="flex items-center gap-2 text-emerald-200"><CheckCircle2 className="h-5 w-5" /><strong>{isWorkReward ? "Work funding confirmed" : "Support confirmed"}</strong></div>
         <dl className="mt-4 grid grid-cols-[120px_1fr] gap-y-2 text-xs">
           <dt className="text-slate-500">Amount</dt><dd className="text-white">${receipt.amountUsd.toFixed(2)} USDC</dd>
           <dt className="text-slate-500">Recipient</dt><dd className="text-white">{target.recipientLabel}</dd>
@@ -218,13 +223,14 @@ function DirectSupportPanel({ action, onClose, signedIn }: { action: DiscoverAct
         <div className="flex items-center gap-2 text-cyan-200"><ShieldCheck className="h-4 w-4" />Verified recipient preflight</div>
         {preflight ? <dl className="mt-3 grid grid-cols-[120px_1fr] gap-y-2"><dt className="text-slate-500">Recipient</dt><dd className="text-white">{preflight.recipientLabel}</dd><dt className="text-slate-500">Destination</dt><dd className="break-all font-mono text-white">{preflight.destinationAddress}</dd><dt className="text-slate-500">Network</dt><dd className="text-white">{preflight.network} {preflight.asset}</dd></dl> : <p className="mt-3 text-slate-400">{stage}</p>}
       </div>
+      {isWorkReward ? <div className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4 text-xs"><p className="font-medium text-cyan-100">Persisted work evidence</p><dl className="mt-3 grid grid-cols-[120px_1fr] gap-y-2"><dt className="text-slate-500">Work</dt><dd className="text-white">{target.workTitle}</dd><dt className="text-slate-500">Repository</dt><dd className="text-white">{target.repository}</dd><dt className="text-slate-500">Meaning</dt><dd className="text-slate-300">Voluntary reward. This does not create or settle a policy obligation.</dd></dl><a href={target.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-cyan-200">Open source proof<ExternalLink className="h-3.5 w-3.5" /></a></div> : null}
       <label className="block text-xs text-slate-400">Amount in USDC<input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={pending || Boolean(submittedTxHash)} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label>
       <WalletSummary source={source} />
       <WalletSourcePicker appUsd={spendable.appSpendableUsd} extUsd={spendable.externalSpendableUsd} amountUsd={amountUsd} externalReady={externalWalletReady} hasLinkedExternal={spendable.externalLinked} value={source} onChange={setSource} disabled={pending || Boolean(submittedTxHash)} onReconnectExternal={openConnectWallet} />
       {!spendable.externalLinked && !externalWalletReady ? <button type="button" onClick={() => setSource("app")} aria-pressed={source === "app"} className={`w-full rounded-lg border p-3 text-left text-xs ${source === "app" ? "border-violet-300/50 bg-violet-400/10 text-white" : "border-white/10 text-slate-300"}`}><strong>RESOLVE wallet</strong><span className="mt-1 block">${spendable.appSpendableUsd.toFixed(2)} USDC on Arc</span></button> : null}
       {error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}
       {pending ? <p aria-live="polite" className="flex items-center gap-2 text-sm text-violet-200"><LoaderCircle className="h-4 w-4 animate-spin" />{stage}</p> : null}
-      <button type="button" disabled={!canConfirm} onClick={() => void confirm()} className="w-full rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{submittedTxHash ? "Retry receipt recording" : `Confirm $${Number.isFinite(amountUsd) ? amountUsd.toFixed(2) : "0.00"} USDC support`}</button>
+      <button type="button" disabled={!canConfirm} onClick={() => void confirm()} className="w-full rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{submittedTxHash ? "Retry receipt recording" : `Confirm $${Number.isFinite(amountUsd) ? amountUsd.toFixed(2) : "0.00"} USDC ${isWorkReward ? "work reward" : "support"}`}</button>
     </div>
   );
 }
@@ -457,8 +463,8 @@ export function DiscoverActionWorkbench({ action, item, data, onClose }: Props) 
   const [payoutOpen, setPayoutOpen] = useState(false);
   const target = action?.presentation.kind === "workbench" ? action.presentation.target : null;
   useEffect(() => { if (target?.panel === "payout_destination") setPayoutOpen(true); }, [target]);
-  const financial = target?.panel === "direct_support" || target?.panel === "pool_funding";
+  const financial = target?.panel === "direct_support" || target?.panel === "work_funding" || target?.panel === "pool_funding";
   const title = useMemo(() => action ? titleFor(action) : "Discover action", [action]);
   if (!action || !target) return null;
-  return <><div className="fixed inset-0 z-[65] bg-black/65" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="discover-workbench-title" className={`ml-auto h-full w-full overflow-y-auto border-l border-white/10 bg-[#060d17] p-5 shadow-2xl sm:p-6 ${financial ? "max-w-[620px]" : "max-w-[560px]"}`}><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-violet-300">Discover</p><h2 id="discover-workbench-title" className="mt-1 text-xl font-semibold text-white">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-400">Review and complete this action without losing your marketplace context.</p></div><button type="button" aria-label="Close Discover action" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button></div>{target.panel === "direct_support" ? <DirectSupportPanel action={action} onClose={onClose} signedIn={data.signedIn} /> : null}{target.panel === "pool_funding" ? <PoolFundingPanel action={action} signedIn={data.signedIn} /> : null}{target.panel === "source_sync" ? <SourceSyncPanel action={action} /> : null}{target.panel === "program_setup" ? <ProgramSetupPanel action={action} item={item} /> : null}{target.panel === "authorization_review" ? <AuthorizationReviewPanel action={action} /> : null}{target.panel === "transaction" ? <TransactionPanel action={action} /> : null}{target.panel === "entity_details" ? <EntityDetailsPanel action={action} data={data} /> : null}{!["direct_support", "pool_funding", "source_sync", "program_setup", "authorization_review", "payout_destination", "transaction", "entity_details"].includes(target.panel) ? <InformationalPanel action={action} item={item} /> : null}{target.panel === "payout_destination" ? <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-300"><WalletCards className="mb-3 h-5 w-5 text-violet-300" />Review the available wallet destinations and select where future RESOLVE earnings should settle. No destination is selected automatically.</div> : null}{!data.signedIn && !["discover.open_evidence", "discover.open_people", "discover.open_pools", "discover.open_program", "community.open"].includes(action.id) ? <p className="mt-4 text-sm text-amber-100">Sign in is required for this personal action.</p> : null}</section></div><PayoutDestinationDrawer open={payoutOpen} origin="discover" onChanged={() => { setPayoutOpen(false); onClose(); }} onClose={() => { setPayoutOpen(false); onClose(); }} /></>;
+  return <><div className="fixed inset-0 z-[65] bg-black/65" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="discover-workbench-title" className={`ml-auto h-full w-full overflow-y-auto border-l border-white/10 bg-[#060d17] p-5 shadow-2xl sm:p-6 ${financial ? "max-w-[620px]" : "max-w-[560px]"}`}><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-violet-300">Discover</p><h2 id="discover-workbench-title" className="mt-1 text-xl font-semibold text-white">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-400">Review and complete this action without losing your marketplace context.</p></div><button type="button" aria-label="Close Discover action" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button></div>{target.panel === "direct_support" || target.panel === "work_funding" ? <RecipientPaymentPanel action={action} onClose={onClose} signedIn={data.signedIn} /> : null}{target.panel === "pool_funding" ? <PoolFundingPanel action={action} signedIn={data.signedIn} /> : null}{target.panel === "source_sync" ? <SourceSyncPanel action={action} /> : null}{target.panel === "program_setup" ? <ProgramSetupPanel action={action} item={item} /> : null}{target.panel === "authorization_review" ? <AuthorizationReviewPanel action={action} /> : null}{target.panel === "transaction" ? <TransactionPanel action={action} /> : null}{target.panel === "entity_details" ? <EntityDetailsPanel action={action} data={data} /> : null}{!["direct_support", "work_funding", "pool_funding", "source_sync", "program_setup", "authorization_review", "payout_destination", "transaction", "entity_details"].includes(target.panel) ? <InformationalPanel action={action} item={item} /> : null}{target.panel === "payout_destination" ? <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-300"><WalletCards className="mb-3 h-5 w-5 text-violet-300" />Review the available wallet destinations and select where future RESOLVE earnings should settle. No destination is selected automatically.</div> : null}{!data.signedIn && !["discover.open_evidence", "discover.open_people", "discover.open_pools", "discover.open_program", "community.open"].includes(action.id) ? <p className="mt-4 text-sm text-amber-100">Sign in is required for this personal action.</p> : null}</section></div><PayoutDestinationDrawer open={payoutOpen} origin="discover" onChanged={() => { setPayoutOpen(false); onClose(); }} onClose={() => { setPayoutOpen(false); onClose(); }} /></>;
 }

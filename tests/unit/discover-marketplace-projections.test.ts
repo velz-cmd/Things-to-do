@@ -13,6 +13,7 @@ import {
   buildDiscoverProjection,
   isConfirmedOutcome,
 } from "../../src/lib/discover/marketplace/projections";
+import { deduplicateMarketplaceOpportunities } from "../../src/lib/discover/marketplace/query";
 
 const detailsAction: DiscoverAction = {
   id: "discover.open_record",
@@ -269,5 +270,56 @@ describe("Discover Program and Pool classification", () => {
     expect(
       programMarketplaceKind("security-fund", { marketplaceKind: "program" }),
     ).toBe("program");
+  });
+
+  it("collapses repeated legacy Programs and Pools by visible canonical identity", () => {
+    const olderPool = opportunity({
+      id: "pool-old",
+      slug: "pool-old",
+      title: "Security response fund",
+      marketplaceKind: "pool",
+      pool: { id: "pool-old", name: "Security response fund" },
+      source: { type: "community_program", id: "pool-old" },
+      updatedAt: "2026-08-01T00:00:00.000Z",
+      entityState: {
+        provenance: "legacy_operator_record",
+        lifecycle: "active",
+        financialReadiness: "setup_required",
+      },
+    });
+    const canonicalPool = opportunity({
+      id: "pool-current",
+      slug: "pool-current",
+      title: "Security response fund",
+      marketplaceKind: "pool",
+      pool: { id: "pool-current", name: "Security response fund" },
+      source: { type: "community_program", id: "pool-current" },
+      updatedAt: "2026-08-03T00:00:00.000Z",
+      entityState: {
+        provenance: "operator_created",
+        lifecycle: "published",
+        financialReadiness: "ready",
+      },
+    });
+    const otherCommunity = opportunity({
+      id: "pool-other-community",
+      slug: "pool-other-community",
+      title: "Security response fund",
+      marketplaceKind: "pool",
+      community: { id: "kernel", name: "Kernel" },
+      pool: { id: "pool-other-community", name: "Security response fund" },
+      source: { type: "community_program", id: "pool-other-community" },
+    });
+
+    const result = deduplicateMarketplaceOpportunities([
+      olderPool,
+      canonicalPool,
+      otherCommunity,
+    ]);
+
+    expect(result.map((item) => item.id)).toEqual([
+      "pool-current",
+      "pool-other-community",
+    ]);
   });
 });

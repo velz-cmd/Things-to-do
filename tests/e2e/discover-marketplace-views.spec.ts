@@ -55,4 +55,24 @@ test.describe("Discover marketplace composition", () => {
     await expect(page.locator("[data-discover-marketplace]")).toBeVisible();
     await expect(page.getByRole("main")).toHaveCount(1);
   });
+
+  test("opens and closes a marketplace detail Workbench without losing URL context", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto("/discover?view=explore&kind=communities", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+
+    const detail = page.getByRole("button", { name: "Explore community" }).first();
+    test.skip((await detail.count()) === 0, "No public Community is available in this database.");
+    await detail.click();
+    await expect(page.getByRole("dialog", { name: "View community" })).toBeVisible();
+    await expect(page).toHaveURL(/view=explore/);
+    await expect(page).toHaveURL(/kind=communities/);
+    await expect(page).toHaveURL(/action=community\.open/);
+    await page.getByRole("button", { name: "Close Discover action" }).click();
+    await expect(page.getByRole("dialog", { name: "View community" })).toHaveCount(0);
+    await expect(page).not.toHaveURL(/action=/);
+    await expect(page).not.toHaveURL(/subject=/);
+  });
 });

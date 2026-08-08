@@ -59,6 +59,7 @@ import {
 } from "./projections";
 import { deriveUserCapabilities } from "@/lib/capabilities/user-capabilities";
 import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
+import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import {
   discoverNavigationAction,
   workbenchAction,
@@ -936,6 +937,83 @@ export function mergeAttributedDiscoverPeople(
   return [...claimedPeople, ...attributedPeople];
 }
 
+export function attachVerifiedWorkActions(
+  opportunities: MarketplaceOpportunity[],
+  people: DiscoverPerson[],
+  viewerUserId?: string,
+  liveSettlementEnabled = isLiveArcEnabled(),
+): MarketplaceOpportunity[] {
+  const personByGithub = new Map(
+    people.flatMap((person) => {
+      const match = person.profilePath?.match(/^https:\/\/github\.com\/([^/?#]+)/i);
+      return match?.[1]
+        ? [[decodeURIComponent(match[1]).replace(/^@/, "").toLowerCase(), person] as const]
+        : [];
+    }),
+  );
+  const live = liveSettlementEnabled;
+
+  return opportunities.map((item) => {
+    if (!isVerifiedWork(item) || item.source.type !== "github_evidence" || !item.sourceUrl || !item.repository) {
+      return item;
+    }
+    const person = personByGithub.get(item.creator.name.trim().replace(/^@/, "").toLowerCase());
+    const isSelf = Boolean(person && person.id === viewerUserId);
+    const canFund = Boolean(
+      viewerUserId &&
+      person &&
+      !isSelf &&
+      person.payoutReadiness === "ready" &&
+      live,
+    );
+    const detailPath = `/discover?view=explore&kind=work&work=${encodeURIComponent(item.source.id)}`;
+    const evidenceAction = workbenchAction({
+      id: "discover.open_evidence",
+      label: "Inspect evidence",
+      href: detailPath,
+    }, {
+      panel: "evidence",
+      subjectId: item.source.id,
+      sourceUrl: item.sourceUrl,
+      repository: item.repository,
+      evidenceIds: [item.source.id],
+    });
+    let blocker: string | undefined;
+    if (!person) blocker = "The GitHub attribution is preserved, but this contributor has not claimed a RESOLVE profile.";
+    else if (isSelf) blocker = "You cannot fund work attributed to your own payout destination.";
+    else if (person.payoutReadiness !== "ready") blocker = "This contributor has not verified where work rewards should settle.";
+    else if (!live) blocker = "Arc settlement is currently unavailable, so RESOLVE is keeping this evidence inspectable without offering a payment.";
+
+    return {
+      ...item,
+      creator: { ...item.creator, id: person?.id },
+      description: "Accepted GitHub activity with a persisted source record. A voluntary reward can be sent only after attribution and payout checks pass.",
+      entityState: {
+        ...item.entityState!,
+        financialReadiness: canFund ? "ready" : "setup_required",
+        blocker,
+      },
+      primaryAction: canFund && person
+        ? workbenchAction({
+            id: "discover.fund_verified_work",
+            label: "Fund this work",
+            href: detailPath,
+          }, {
+            panel: "work_funding",
+            subjectId: item.source.id,
+            recipientUserId: person.id,
+            recipientLabel: person.name,
+            workTitle: item.title,
+            repository: item.repository,
+            sourceUrl: item.sourceUrl,
+            evidenceIds: [item.source.id],
+          }, { requiresConfirmation: true })
+        : evidenceAction,
+      secondaryActions: canFund ? [evidenceAction] : [],
+    } satisfies MarketplaceOpportunity;
+  });
+}
+
 function repositoryNames(value: unknown): string[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const object = value as Record<string, unknown>;
@@ -1524,6 +1602,9 @@ function friendlyActivityLabel(eventType: string) {
     "discover.repository_snapshot_captured": "Repository evidence refreshed",
     "discover.mission_started": "Analysis started",
     "discover.direct_support_confirmed": "Direct support confirmed",
+    "discover.direct_support_received": "Direct support received",
+    "discover.work_reward_confirmed": "Verified work funded",
+    "discover.work_reward_received": "Verified work reward received",
     "program.draft_created": "Program draft created",
     "program.policy_updated": "Program policy updated",
     "source.sync_completed": "Source refresh completed",
@@ -1532,7 +1613,7 @@ function friendlyActivityLabel(eventType: string) {
 }
 
 function activityKindForEvent(eventType: string): DiscoverActivityItem["kind"] {
-  if (eventType.includes("receipt") || eventType.includes("confirmed")) return "receipt";
+  if (eventType.includes("receipt") || eventType.includes("confirmed") || eventType.includes("received")) return "receipt";
   if (eventType.includes("fund") || eventType.includes("settlement")) return "funding";
   if (eventType.includes("claim")) return "claim";
   if (eventType.includes("program")) return "program";
@@ -1551,12 +1632,27 @@ function eventDescription(payload: unknown, fallback: string) {
   return fallback;
 }
 
+function discoverPaymentPackage(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (row.kind !== "direct_support" && row.kind !== "work_reward") return null;
+  const work = row.work && typeof row.work === "object" && !Array.isArray(row.work)
+    ? row.work as Record<string, unknown>
+    : null;
+  return {
+    kind: row.kind,
+    recipientLabel: typeof row.recipientLabel === "string" ? row.recipientLabel : "Verified recipient",
+    workTitle: typeof work?.title === "string" ? work.title : undefined,
+    repository: typeof work?.repository === "string" ? work.repository : undefined,
+  };
+}
+
 async function loadPersonalDiscoverActivity(
   userId: string,
   opportunities: MarketplaceOpportunity[],
   people: DiscoverPerson[],
 ): Promise<DiscoverActivityItem[]> {
-  const [intents, events] = await Promise.all([
+  const [intents, events, recipientPayments] = await Promise.all([
     prisma.fundingIntent.findMany({
       where: { userId },
       orderBy: { updatedAt: "desc" },
@@ -1596,6 +1692,24 @@ async function loadPersonalDiscoverActivity(
         occurredAt: true,
       },
     }),
+    prisma.settlementBatch.findMany({
+      where: {
+        userId,
+        fundingIntentId: null,
+        status: { in: ["submitted", "confirmed"] },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 30,
+      select: {
+        id: true,
+        status: true,
+        totalUsdcMicro: true,
+        preparedPackage: true,
+        submittedAt: true,
+        confirmedAt: true,
+        updatedAt: true,
+      },
+    }),
   ]);
   const intentIds = intents.map((intent) => intent.id);
   const transactions = intentIds.length
@@ -1633,6 +1747,41 @@ async function loadPersonalDiscoverActivity(
     }
   }
   const receiptByTransaction = new Map(receipts.map((receipt) => [receipt.chainTransactionId, receipt]));
+
+  const recipientPaymentIds = recipientPayments.map((batch) => batch.id);
+  const recipientTransactions = recipientPaymentIds.length
+    ? await prisma.chainTransaction.findMany({
+        where: { settlementBatchId: { in: recipientPaymentIds } },
+        orderBy: { submittedAt: "desc" },
+        select: {
+          id: true,
+          settlementBatchId: true,
+          txHash: true,
+          status: true,
+          submittedAt: true,
+          confirmedAt: true,
+        },
+      })
+    : [];
+  const recipientReceipts = recipientPaymentIds.length
+    ? await prisma.receipt.findMany({
+        where: { settlementBatchId: { in: recipientPaymentIds } },
+        select: {
+          id: true,
+          settlementBatchId: true,
+          publicReference: true,
+          issuedAt: true,
+        },
+      })
+    : [];
+  const recipientTransactionByBatch = new Map(
+    recipientTransactions.flatMap((transaction) =>
+      transaction.settlementBatchId ? [[transaction.settlementBatchId, transaction] as const] : [],
+    ),
+  );
+  const recipientReceiptByBatch = new Map(
+    recipientReceipts.map((receipt) => [receipt.settlementBatchId, receipt]),
+  );
 
   const fundingRows: DiscoverActivityItem[] = intents.map((intent) => {
     const transaction = transactionByIntent.get(intent.id);
@@ -1674,6 +1823,44 @@ async function loadPersonalDiscoverActivity(
     };
   });
 
+  const recipientPaymentRows: DiscoverActivityItem[] = recipientPayments.flatMap((batch) => {
+    const payment = discoverPaymentPackage(batch.preparedPackage);
+    if (!payment) return [];
+    const transaction = recipientTransactionByBatch.get(batch.id);
+    const receipt = recipientReceiptByBatch.get(batch.id);
+    const amountUsd = Number(batch.totalUsdcMicro) / 1_000_000;
+    const title = payment.kind === "work_reward"
+      ? `Funded ${payment.workTitle ?? "verified work"}`
+      : `Supported ${payment.recipientLabel}`;
+    const description = payment.kind === "work_reward"
+      ? `${payment.repository ?? "Persisted GitHub evidence"} · ${payment.recipientLabel}`
+      : `Direct support to ${payment.recipientLabel}`;
+    const primaryAction = receipt
+      ? workbenchAction({
+          id: "receipt.open",
+          label: "View receipt",
+          href: canonicalOutcomeHref(receipt.publicReference),
+        }, {
+          panel: "receipt",
+          subjectId: receipt.id,
+          receiptUrl: canonicalOutcomeHref(receipt.publicReference),
+          explorerUrl: transaction?.txHash ? explorerTxUrl(transaction.txHash) : undefined,
+        })
+      : undefined;
+    return [{
+      id: `recipient-payment:${batch.id}`,
+      kind: receipt ? "receipt" : "transaction",
+      title,
+      description,
+      state: receipt ? "confirmed" : transaction?.status ?? batch.status,
+      occurredAt: receipt?.issuedAt.toISOString() ?? transaction?.confirmedAt?.toISOString() ?? transaction?.submittedAt.toISOString() ?? batch.confirmedAt?.toISOString() ?? batch.submittedAt?.toISOString() ?? batch.updatedAt.toISOString(),
+      amountUsd,
+      token: "USDC",
+      repository: payment.repository,
+      primaryAction,
+    } satisfies DiscoverActivityItem];
+  });
+
   const self = people.find((person) => person.id === userId);
   const githubHandle = self?.profilePath?.match(/^https:\/\/github\.com\/([^/?#]+)/i)?.[1]?.toLowerCase();
   const ownedMarketplace = opportunities.filter((item) =>
@@ -1695,18 +1882,49 @@ async function loadPersonalDiscoverActivity(
     repository: item.repository,
     primaryAction: item.primaryAction,
   }));
-  const eventRows: DiscoverActivityItem[] = events.map((event) => ({
-    id: `event:${event.id}`,
-    kind: activityKindForEvent(event.eventType),
-    title: friendlyActivityLabel(event.eventType),
-    description: eventDescription(event.payload, event.communitySlug ?? event.aggregateId),
-    state: event.eventType.split(".").at(-1) ?? "recorded",
-    occurredAt: event.occurredAt.toISOString(),
-    community: event.communitySlug ?? undefined,
-  }));
+  const eventRows: DiscoverActivityItem[] = events
+    .filter((event) => ![
+      "discover.direct_support_confirmed",
+      "discover.work_reward_confirmed",
+    ].includes(event.eventType))
+    .map((event) => {
+    const payload = event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+      ? event.payload as Record<string, unknown>
+      : {};
+    const publicReference = typeof payload.publicReference === "string" ? payload.publicReference : undefined;
+    const amountMicro = typeof payload.amountUsdcMicro === "string"
+      ? Number(payload.amountUsdcMicro)
+      : typeof payload.amountUsdcMicro === "number"
+        ? payload.amountUsdcMicro
+        : undefined;
+    return {
+      id: `event:${event.id}`,
+      kind: activityKindForEvent(event.eventType),
+      title: friendlyActivityLabel(event.eventType),
+      description: eventDescription(event.payload, event.communitySlug ?? event.aggregateId),
+      state: event.eventType.split(".").at(-1) ?? "recorded",
+      occurredAt: event.occurredAt.toISOString(),
+      amountUsd: amountMicro === undefined || !Number.isFinite(amountMicro) ? undefined : amountMicro / 1_000_000,
+      token: amountMicro === undefined ? undefined : "USDC",
+      community: event.communitySlug ?? undefined,
+      repository: typeof payload.repository === "string" ? payload.repository : undefined,
+      primaryAction: publicReference
+        ? workbenchAction({
+            id: "receipt.open",
+            label: "View receipt",
+            href: canonicalOutcomeHref(publicReference),
+          }, {
+            panel: "receipt",
+            subjectId: event.aggregateId,
+            receiptUrl: canonicalOutcomeHref(publicReference),
+            explorerUrl: typeof payload.txHash === "string" ? explorerTxUrl(payload.txHash) : undefined,
+          })
+        : undefined,
+    };
+    });
 
   const seen = new Set<string>();
-  return [...fundingRows, ...marketplaceRows, ...eventRows]
+  return [...fundingRows, ...recipientPaymentRows, ...marketplaceRows, ...eventRows]
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
     .filter((item) => {
       const key = `${item.kind}:${item.title.toLowerCase()}:${item.occurredAt.slice(0, 16)}`;
@@ -1854,7 +2072,7 @@ export async function loadDiscoverPageData(
   const myCommunities = communitiesResult.error && readiness
     ? myDiscoverCommunitiesFromReadiness(readiness)
     : communitiesResult.items;
-  const allVisible = opportunities.items.map((item) => {
+  const visibleBeforeWorkActions = opportunities.items.map((item) => {
     if (item.marketplaceKind !== "program" || item.creator.id === user?.id) return item;
     return {
       ...item,
@@ -1870,7 +2088,8 @@ export async function loadDiscoverPageData(
       secondaryActions: [],
     };
   });
-  const people = mergeAttributedDiscoverPeople(claimedPeople, allVisible);
+  const people = mergeAttributedDiscoverPeople(claimedPeople, visibleBeforeWorkActions);
+  const allVisible = attachVerifiedWorkActions(visibleBeforeWorkActions, people, user?.id);
   const communities = listCommunities(allVisible);
   const pools = listPools(allVisible, user?.id);
   const liveSettlementEnabled = isLiveArcEnabled();

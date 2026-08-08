@@ -129,7 +129,9 @@ function actionFromOpportunity(
   const whyItMatters = confirmed
     ? "The transaction, authorization, and public proof can be inspected together."
     : acceptedWork
-      ? "This accepted activity can become an obligation only when identity and an approved policy cover it."
+      ? item.primaryAction?.id === "discover.fund_verified_work"
+        ? "Attribution, source evidence, and payout readiness passed. A voluntary reward can now be reviewed without creating a policy obligation."
+        : blocker ?? "The source proof remains inspectable while recipient readiness is incomplete."
       : blocker
         ? `This item needs one setup step before its public action is available: ${blocker}`
         : "This item has an inspectable source and a valid next step.";
@@ -174,8 +176,14 @@ function actionFromOpportunity(
           state: amountState,
         }
       : undefined,
-    fundingReadiness: item.entityState?.financialReadiness === "ready" ? "ready" : item.pool || program ? "blocked" : "not_applicable",
-    recipientReadiness: "not_applicable",
+    fundingReadiness: item.entityState?.financialReadiness === "ready"
+      ? "ready"
+      : acceptedWork || item.pool || program
+        ? "blocked"
+        : "not_applicable",
+    recipientReadiness: acceptedWork
+      ? item.creator.id && !blocker ? "ready" : "setup_required"
+      : "not_applicable",
     primaryAction,
     secondaryActions: [
       ...(item.sourceUrl && primaryAction.href !== item.sourceUrl

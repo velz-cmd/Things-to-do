@@ -39,6 +39,7 @@ type ConfirmedSettlementRecord = {
   chain_id: number;
   from_address: string;
   to_address: string;
+  payload: unknown;
 };
 
 function shortAddress(value: string) {
@@ -68,7 +69,8 @@ export async function buildLiveSettlements(limit = 12): Promise<LiveSettlementsP
       t."txHash" AS tx_hash,
       t."chainId" AS chain_id,
       t."fromAddress" AS from_address,
-      t."toAddress" AS to_address
+      t."toAddress" AS to_address,
+      r.payload AS payload
     FROM "Receipt" r
     INNER JOIN "ChainTransaction" t
       ON t.id = r."chainTransactionId"
@@ -84,10 +86,27 @@ export async function buildLiveSettlements(limit = 12): Promise<LiveSettlementsP
 
   const rows = records.map<LiveSettlementRow>((record) => {
     const amountUsd = Number(record.total_micro_usdc) / 1_000_000;
+    const payload = record.payload && typeof record.payload === "object" && !Array.isArray(record.payload)
+      ? record.payload as Record<string, unknown>
+      : {};
+    const paymentType = payload.type === "work_reward"
+      ? "work_reward"
+      : payload.type === "direct_support"
+        ? "direct_support"
+        : "settlement";
+    const work = payload.work && typeof payload.work === "object" && !Array.isArray(payload.work)
+      ? payload.work as Record<string, unknown>
+      : null;
+    const recipientLabel = typeof payload.recipientLabel === "string" ? payload.recipientLabel : undefined;
+    const title = paymentType === "work_reward"
+      ? `$${amountUsd.toFixed(2)} USDC funded ${typeof work?.title === "string" ? work.title : "verified work"}`
+      : paymentType === "direct_support" && recipientLabel
+        ? `$${amountUsd.toFixed(2)} USDC supported ${recipientLabel}`
+        : `$${amountUsd.toFixed(2)} USDC confirmed on Arc`;
     return {
       id: `receipt-${record.receipt_id}`,
       kind: "settlement",
-      title: `$${amountUsd.toFixed(2)} USDC confirmed on Arc`,
+      title,
       subline: `${shortAddress(record.from_address)} to ${shortAddress(record.to_address)} / chain ${record.chain_id}`,
       amountUsd,
       status: "confirmed",

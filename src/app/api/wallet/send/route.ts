@@ -13,6 +13,7 @@ import {
   directSupportActionKey,
   directSupportRequestSchema,
 } from "@/lib/discover/direct-support-contract";
+import { resolvePayableVerifiedWork } from "@/lib/discover/verified-work-payment";
 
 export const maxDuration = 120;
 
@@ -51,7 +52,10 @@ function replayOutput(value: Prisma.JsonValue | null): ConfirmedDirectSupport | 
     typeof row.amountUsd !== "number" ||
     typeof row.destinationAddress !== "string"
   ) return null;
-  return row as ConfirmedDirectSupport;
+  return {
+    ...(row as unknown as ConfirmedDirectSupport),
+    purpose: row.purpose === "work_reward" ? "work_reward" : "direct_support",
+  };
 }
 
 type PendingDirectSupport = {
@@ -61,6 +65,8 @@ type PendingDirectSupport = {
   destinationAddress: string;
   txHash?: string;
   senderAddress?: string;
+  purpose: "direct_support" | "work_reward";
+  workSubjectId?: string;
 };
 
 function pendingInput(value: Prisma.JsonValue | null): PendingDirectSupport | null {
@@ -79,6 +85,8 @@ function pendingInput(value: Prisma.JsonValue | null): PendingDirectSupport | nu
     destinationAddress: row.destinationAddress,
     txHash: typeof row.txHash === "string" ? row.txHash : undefined,
     senderAddress: typeof row.senderAddress === "string" ? row.senderAddress : undefined,
+    purpose: row.purpose === "work_reward" ? "work_reward" : "direct_support",
+    workSubjectId: typeof row.workSubjectId === "string" ? row.workSubjectId : undefined,
   };
 }
 
@@ -118,7 +126,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Choose another verified recipient." }, { status: 400 });
   }
 
-  const actionKey = directSupportActionKey(ready.user.id, parsed.data.idempotencyKey);
+  const work = parsed.data.purpose === "work_reward" && parsed.data.recipientUserId
+    ? await resolvePayableVerifiedWork(parsed.data.workSubjectId!, parsed.data.recipientUserId)
+    : null;
+  if (parsed.data.purpose === "work_reward" && !work) {
+    return NextResponse.json({
+      error: "This work reward is not backed by a current persisted GitHub record attributed to the selected recipient.",
+      code: "verified_work_required",
+    }, { status: 409 });
+  }
+
+  const actionKey = directSupportActionKey(
+    ready.user.id,
+    parsed.data.idempotencyKey,
+    parsed.data.purpose,
+  );
   const existing = await prisma.actionRun.findUnique({ where: { idempotencyKey: actionKey } });
   let resumable: PendingDirectSupport | null = null;
   if (existing) {
@@ -134,7 +156,9 @@ export async function POST(req: Request) {
       stored &&
       stored.recipientUserId === parsed.data.recipientUserId &&
       stored.amountUsd === parsed.data.amountUsd &&
-      stored.fundingSource === parsed.data.fundingSource,
+      stored.fundingSource === parsed.data.fundingSource &&
+      stored.purpose === parsed.data.purpose &&
+      stored.workSubjectId === parsed.data.workSubjectId,
     );
     const resumableSender = stored?.senderAddress ?? (
       stored?.fundingSource === "external"
@@ -195,18 +219,24 @@ export async function POST(req: Request) {
     actionRun = await prisma.actionRun.create({
       data: {
         userId: ready.user.id,
-        actionId: "capital.send_usdc",
-        aggregateType: "DirectSupport",
-        aggregateId: parsed.data.recipientUserId,
+        actionId: parsed.data.purpose === "work_reward" ? "discover.fund_verified_work" : "capital.send_usdc",
+        aggregateType: parsed.data.purpose === "work_reward" ? "VerifiedWork" : "DirectSupport",
+        aggregateId: work?.subjectId ?? parsed.data.recipientUserId,
         idempotencyKey: actionKey,
         state: "submitting",
-        recommendationReason: "The user explicitly confirmed direct support for a recipient with a verified Arc payout destination.",
+        recommendationReason: parsed.data.purpose === "work_reward"
+          ? "The user explicitly confirmed a voluntary reward for persisted GitHub work attributed to a recipient with a verified Arc payout destination."
+          : "The user explicitly confirmed direct support for a recipient with a verified Arc payout destination.",
         input: {
           recipientUserId: parsed.data.recipientUserId,
           amountUsd: parsed.data.amountUsd,
           fundingSource: parsed.data.fundingSource,
           destinationAddress,
           txHash: parsed.data.txHash,
+          purpose: parsed.data.purpose,
+          workSubjectId: work?.subjectId,
+          repository: work?.repository,
+          sourceUrl: work?.sourceUrl,
         },
       },
     });
@@ -285,6 +315,10 @@ export async function POST(req: Request) {
           destinationAddress,
           txHash,
           senderAddress,
+          purpose: parsed.data.purpose,
+          workSubjectId: work?.subjectId,
+          repository: work?.repository,
+          sourceUrl: work?.sourceUrl,
         },
         errorCode: null,
         errorMessage: null,
@@ -304,6 +338,16 @@ export async function POST(req: Request) {
       provider: parsed.data.fundingSource === "external"
         ? "connected_wallet_arc_direct_support"
         : "circle_arc_direct_support",
+      purpose: parsed.data.purpose,
+      work: work
+        ? {
+            subjectId: work.subjectId,
+            title: work.title,
+            repository: work.repository,
+            sourceUrl: work.sourceUrl,
+            evidenceIds: work.evidenceIds,
+          }
+        : undefined,
     });
     return NextResponse.json({ ok: true, status: "confirmed", replayed: false, ...result });
   } catch (error) {
@@ -313,7 +357,9 @@ export async function POST(req: Request) {
       where: { id: actionRun.id },
       data: {
         state: transferWasSubmitted ? "pending_external" : "rejected",
-        errorCode: transferWasSubmitted ? "direct_support_receipt_pending" : "direct_support_failed",
+        errorCode: transferWasSubmitted
+          ? `${parsed.data.purpose}_receipt_pending`
+          : `${parsed.data.purpose}_failed`,
         errorMessage: message.slice(0, 500),
         completedAt: transferWasSubmitted ? null : new Date(),
         ...(transferWasSubmitted
@@ -325,6 +371,10 @@ export async function POST(req: Request) {
                 destinationAddress,
                 txHash: submittedTxHash,
                 senderAddress: submittedSenderAddress,
+                purpose: parsed.data.purpose,
+                workSubjectId: work?.subjectId,
+                repository: work?.repository,
+                sourceUrl: work?.sourceUrl,
               },
             }
           : {}),

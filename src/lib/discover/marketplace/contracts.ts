@@ -85,6 +85,16 @@ export type DiscoverWorkbenchTarget =
       recipientLabel: string;
     }
   | {
+      panel: "work_funding";
+      subjectId: string;
+      recipientUserId: string;
+      recipientLabel: string;
+      workTitle: string;
+      repository: string;
+      sourceUrl: string;
+      evidenceIds: string[];
+    }
+  | {
       panel: "pool_funding";
       subjectId: string;
       programId: string;

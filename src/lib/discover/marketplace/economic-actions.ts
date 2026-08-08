@@ -9,6 +9,10 @@ import type {
   EconomicActionItem,
   MarketplaceOpportunity,
 } from "@/lib/discover/marketplace/contracts";
+import {
+  discoverNavigationAction,
+  workbenchAction,
+} from "@/lib/discover/marketplace/action-contract";
 
 type BuildEconomicActionsInput = {
   opportunities: MarketplaceOpportunity[];
@@ -20,10 +24,6 @@ type BuildEconomicActionsInput = {
 };
 
 const workTypes = new Set(["project_contribution", "repository_fix", "task", "bounty"]);
-
-function safeReturnTo(value: string) {
-  return encodeURIComponent(value.startsWith("/") && !value.startsWith("//") ? value : "/discover");
-}
 
 function programSetupAction(
   item: MarketplaceOpportunity,
@@ -46,13 +46,18 @@ function programSetupAction(
         : "Review program";
   const slug = item.community?.id ?? item.community?.name ?? "";
   const programId = item.pool?.id ?? item.source.id;
-  return {
+  return workbenchAction({
     id: step === "policy" ? "program.update_policy" : "community.open",
     label,
-    href: `/communities/${encodeURIComponent(slug)}?program=${encodeURIComponent(programId)}&step=${step}&returnTo=${safeReturnTo(returnTo)}#programs`,
+    href: `${returnTo}&action=${step === "policy" ? "program.update_policy" : "community.open"}&subject=${encodeURIComponent(programId)}`,
     description: item.entityState?.blocker,
-    enabled: true,
-  };
+  }, {
+    panel: "program_setup",
+    subjectId: programId,
+    programId,
+    communitySlug: slug,
+    step,
+  });
 }
 
 function isWork(item: MarketplaceOpportunity) {
@@ -76,14 +81,17 @@ function actionFromOpportunity(
   const program = item.source.type === "community_program";
   const blocker = item.entityState?.blocker;
   const setupAction = program && owner ? programSetupAction(item, returnTo) : null;
-  const detailAction: DiscoverAction = {
-    id: "discover.open_record",
-    label: confirmed ? "View receipt" : acceptedWork ? "Inspect evidence" : "Inspect economic state",
-    href: confirmed && item.primaryAction?.href
-      ? item.primaryAction.href
-      : `/opportunities/${item.slug}?returnTo=${safeReturnTo(returnTo)}`,
-    enabled: true,
-  };
+  const detailAction: DiscoverAction = workbenchAction({
+        id: "discover.open_evidence",
+        label: acceptedWork ? "Inspect evidence" : "Inspect economic state",
+        href: `${returnTo}&action=discover.open_evidence&subject=${encodeURIComponent(item.source.id)}`,
+      }, {
+        panel: "evidence",
+        subjectId: item.source.id,
+        sourceUrl: item.sourceUrl,
+        repository: item.repository,
+        evidenceIds: [item.source.id],
+      });
   const primaryAction = setupAction ?? (acceptedWork || confirmed ? item.primaryAction ?? detailAction : detailAction);
   const amountState = item.funding?.amountState ?? (confirmed ? "confirmed" : "provenance_unavailable");
   const subjectType = confirmed
@@ -168,7 +176,7 @@ function actionFromOpportunity(
     primaryAction,
     secondaryActions: [
       ...(item.sourceUrl && primaryAction.href !== item.sourceUrl
-        ? [{ id: "discover.open_repository", label: "Open source", href: item.sourceUrl, enabled: true }]
+        ? [discoverNavigationAction({ id: "discover.open_repository", label: "Open source", href: item.sourceUrl }, { target: "external", secondary: true })]
         : []),
       ...((item.secondaryActions ?? []).filter((action) => action.href !== primaryAction.href)),
     ].slice(0, 2),
@@ -231,12 +239,11 @@ function actionFromCommunity(community: DiscoverCommunity): EconomicActionItem {
     policyState: "not_applicable",
     fundingReadiness: "not_applicable",
     recipientReadiness: "not_applicable",
-    primaryAction: {
+    primaryAction: discoverNavigationAction({
       id: "community.open",
       label: "Open community activity",
-      href: `/communities/${encodeURIComponent(community.slug)}?returnTo=${safeReturnTo(`/discover?view=explore&kind=communities`)}`,
-      enabled: true,
-    },
+      href: `/discover?view=explore&kind=communities&community=${encodeURIComponent(community.slug)}`,
+    }),
     secondaryActions: [],
     visibility: "public",
     createdAt: new Date(0).toISOString(),

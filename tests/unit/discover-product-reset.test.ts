@@ -248,7 +248,10 @@ describe("Discover publication policy", () => {
       lifecycle: "policy_required",
       primaryAction: { label: "Design policy" },
     });
-    expect(actions[0]?.primaryAction.href).toContain("step=policy");
+    expect(actions[0]?.primaryAction.presentation).toMatchObject({
+      kind: "workbench",
+      target: { panel: "program_setup", step: "policy", programId: "program-1" },
+    });
     expect(actionMatchesExploreKind(actions[0]!, "programs")).toBe(true);
     expect(actionMatchesExploreKind(actions[0]!, "pools")).toBe(false);
   });
@@ -352,7 +355,10 @@ describe("Workspace readiness consistency", () => {
     });
     const result = selectDiscoverRecommendation(notReady, []);
     expect(result.id).toBe("complete-payout");
-    expect(result.primaryAction.href).toContain("/profile");
+    expect(result.primaryAction.presentation).toMatchObject({
+      kind: "workbench",
+      target: { panel: "payout_destination", subjectId: "user-1" },
+    });
   });
 
   it("restores the signed-in claimed profile from a successful workspace snapshot", () => {
@@ -362,6 +368,12 @@ describe("Workspace readiness consistency", () => {
       name: "Ada",
       identityState: "identity_verified",
       profilePath: "https://github.com/ada",
+      acceptsDirectFunding: false,
+      blocker: "Direct support to your own payout destination is unavailable.",
+      primaryAction: {
+        id: "discover.open_repository",
+        label: "View GitHub profile",
+      },
     });
 
     const actions = buildEconomicActions({
@@ -410,9 +422,15 @@ describe("Workspace readiness consistency", () => {
       activeProgramCount: 1,
       repositories: ["velz-cmd/Things-to-do"],
     });
-    expect(communities[0]?.primaryAction.href).toContain("/communities/react?step=review");
-    expect(communities[0]?.primaryAction.href).toContain("program=program-1");
-    expect(communities[0]?.primaryAction.href).toContain("#programs");
+    expect(communities[0]?.primaryAction.presentation).toMatchObject({
+      kind: "workbench",
+      target: {
+        panel: "program_setup",
+        communitySlug: "react",
+        programId: "program-1",
+        step: "review",
+      },
+    });
   });
 });
 

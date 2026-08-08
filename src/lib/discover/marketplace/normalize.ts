@@ -6,6 +6,10 @@ import type {
   OpportunityType,
   ProviderPreference,
 } from "./contracts";
+import {
+  discoverNavigationAction,
+  workbenchAction,
+} from "./action-contract";
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -449,26 +453,35 @@ export function normalizeProgramOpportunity(
       blocker: setupBlocker,
     },
     primaryAction: financialReady
-      ? {
+      ? workbenchAction({
           id: "capital.open_funding",
           label: "Fund Pool",
-          href: `/capital?intent=back-pool&programId=${encodeURIComponent(row.id)}&returnTo=${encodeURIComponent("/discover?view=explore&kind=pools")}`,
-          enabled: true,
-        }
-      : {
+          href: `/discover?view=explore&kind=pools&action=capital.open_funding&subject=${encodeURIComponent(row.id)}`,
+        }, {
+          panel: "pool_funding",
+          subjectId: row.id,
+          programId: row.id,
+          communitySlug: row.install.communitySlug,
+          poolName: row.name,
+        }, { requiresConfirmation: true })
+      : workbenchAction({
           id: setupStep === "policy" ? "program.update_policy" : "community.open",
           label: setupLabel,
-          href: `/communities/${encodeURIComponent(row.install.communitySlug)}?program=${encodeURIComponent(row.id)}&step=${setupStep}&returnTo=${encodeURIComponent(`/discover?view=explore&kind=programs&item=${row.id}`)}#programs`,
-          enabled: true,
+          href: `/discover?view=explore&kind=programs&action=${setupStep === "policy" ? "program.update_policy" : "community.open"}&subject=${encodeURIComponent(row.id)}`,
           description: setupBlocker,
-        },
+        }, {
+          panel: "program_setup",
+          subjectId: row.id,
+          programId: row.id,
+          communitySlug: row.install.communitySlug,
+          step: setupStep,
+        }),
     secondaryActions: [
-      {
+      discoverNavigationAction({
         id: "community.open",
-        label: "Open community",
+        label: "Open full community workspace",
         href: `/communities/${encodeURIComponent(row.install.communitySlug)}?program=${encodeURIComponent(row.id)}&step=review&returnTo=${encodeURIComponent(`/discover?view=explore&kind=programs&item=${row.id}`)}#programs`,
-        enabled: true,
-      },
+      }, { target: "workspace", secondary: true }),
     ],
   };
 }

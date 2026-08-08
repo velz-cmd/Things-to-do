@@ -65,7 +65,7 @@ test.describe("Discover Economic Action Network", () => {
     const hasEmptyState = await empty.waitFor({ state: "visible", timeout: 2_000 }).then(() => true).catch(() => false);
     if (hasEmptyState) {
       await expect(empty).toBeVisible();
-      await expect(page.getByText(/only after a chain transaction confirms/)).toBeVisible();
+      await expect(empty.locator("..").getByText(/only after a chain transaction confirms/)).toBeVisible();
     } else {
       await expect(page.getByRole("heading", { name: "Confirmed settlements and receipts" })).toBeVisible();
     }

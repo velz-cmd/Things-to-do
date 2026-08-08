@@ -11,6 +11,7 @@ import {
 } from "../../src/lib/discover/marketplace/filters";
 import {
   collectMarketplaceSourceResults,
+  attachVerifiedWorkActions,
   confirmedFundingUsd,
   deduplicateMarketplaceOpportunities,
   marketplaceOpportunityMatches,
@@ -100,6 +101,7 @@ describe("Discover marketplace normalisation", () => {
   it("maps a community program into the canonical opportunity contract", () => {
     const result = normalizeProgramOpportunity(program());
     expect(result).toMatchObject({
+      marketplaceKind: "program",
       type: "grant",
       creator: { id: "user-1", name: "Ada", verified: true },
       community: { id: "open-writers", name: "Open Writers" },
@@ -115,6 +117,47 @@ describe("Discover marketplace normalisation", () => {
       evidenceRequirements: ["Merged documentation pull request"],
     });
     expect(result.slug).toMatch(/^documentation-grant-[a-f0-9]{10}$/);
+  });
+
+  it("opens a ready Program in Discover without presenting it as a Pool", () => {
+    const result = normalizeProgramOpportunity(program({
+      metadataJson: JSON.stringify({
+        publicationStatus: "approved",
+        policyStatus: "active",
+        treasuryAddress: "0x0000000000000000000000000000000000000001",
+      }),
+    }));
+
+    expect(result.marketplaceKind).toBe("program");
+    expect(result.pool).toBeUndefined();
+    expect(result.primaryAction).toMatchObject({
+      label: "View Program",
+      presentation: {
+        kind: "workbench",
+        target: { panel: "entity_details", entityType: "program" },
+      },
+    });
+  });
+
+  it("keeps Pool templates fundable while preserving their canonical type", () => {
+    const result = normalizeProgramOpportunity(program({
+      templateId: "security-fund",
+      metadataJson: JSON.stringify({
+        publicationStatus: "approved",
+        policyStatus: "active",
+        treasuryAddress: "0x0000000000000000000000000000000000000001",
+      }),
+    }));
+
+    expect(result.marketplaceKind).toBe("pool");
+    expect(result.pool?.id).toBe("program-1");
+    expect(result.primaryAction).toMatchObject({
+      label: "Fund Pool",
+      presentation: {
+        kind: "workbench",
+        target: { panel: "pool_funding" },
+      },
+    });
   });
 
   it("keeps selected provider state distinct from open applications", () => {
@@ -370,9 +413,48 @@ describe("Discover canonical projections", () => {
         identityState: "unclaimed_contributor",
         payoutReadiness: "invite_to_claim",
         acceptsDirectFunding: false,
-        primaryAction: { label: "View GitHub profile", href: "https://github.com/ada", enabled: true, id: "discover.open_repository" },
+        primaryAction: expect.objectContaining({
+          label: "View GitHub profile",
+          href: "https://github.com/ada",
+          enabled: true,
+          id: "discover.open_repository",
+          presentation: expect.objectContaining({ kind: "navigation", target: "external" }),
+        }),
       }),
     ]);
+
+    const claimedPerson = {
+      ...mergeAttributedDiscoverPeople([], result)[0]!,
+      id: "recipient-1",
+      name: "Ada Lovelace",
+      profilePath: "https://github.com/ada",
+      identityState: "work_attribution_verified" as const,
+      payoutReadiness: "ready" as const,
+      acceptsDirectFunding: true,
+    };
+    const payable = attachVerifiedWorkActions(result, [claimedPerson], "funder-1", true);
+    expect(payable[0]).toMatchObject({
+      creator: { id: "recipient-1" },
+      entityState: { financialReadiness: "ready", blocker: undefined },
+      primaryAction: {
+        id: "discover.fund_verified_work",
+        label: "Fund this work",
+        requiresConfirmation: true,
+        presentation: {
+          kind: "workbench",
+          target: {
+            panel: "work_funding",
+            recipientUserId: "recipient-1",
+            repository: "owner/project",
+          },
+        },
+      },
+    });
+    const blocked = attachVerifiedWorkActions(result, [claimedPerson], "recipient-1", true);
+    expect(blocked[0]).toMatchObject({
+      primaryAction: { id: "discover.open_evidence" },
+      entityState: { financialReadiness: "setup_required" },
+    });
   });
 
   it("rejects an outcome without both a receipt and Arc explorer reference", () => {
@@ -384,7 +466,7 @@ describe("Discover canonical projections", () => {
           title: "$1.00 USDC confirmed on Arc",
           amountUsd: 1,
           status: "confirmed",
-          receiptHref: "/receipt/receipt-1",
+          receiptHref: "/outcomes/out_receipt-1",
           at: "2026-07-21T00:00:00.000Z",
         },
       ]),

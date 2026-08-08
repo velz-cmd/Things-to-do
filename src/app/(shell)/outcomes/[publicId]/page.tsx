@@ -14,8 +14,32 @@ export default async function PublicOutcomeReceiptPage({ params }: { params: Pro
   if (!receipt) notFound();
   const transaction = await prisma.chainTransaction.findUnique({ where: { id: receipt.chainTransactionId } });
   const payload = receipt.payload && typeof receipt.payload === "object" && !Array.isArray(receipt.payload) ? receipt.payload as Record<string, unknown> : {};
+  const directSupport = payload.type === "direct_support";
   const explorer = transaction?.txHash ? `https://testnet.arcscan.app/tx/${transaction.txHash}` : null;
-  return <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6"><header className="rounded-2xl border border-emerald-300/20 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,.16),transparent_42%),#07101b] p-7"><div className="flex items-center gap-2 text-emerald-300"><BadgeCheck className="h-5 w-5"/><span className="text-xs font-semibold uppercase tracking-[.2em]">Verified outcome receipt</span></div><h1 className="mt-4 text-3xl font-semibold tracking-tight text-white">This outcome happened, its policy recognized it, and Capital recorded its settlement.</h1><p className="mt-3 font-mono text-sm text-slate-400">{receipt.publicReference}</p></header><section className="mt-5 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2">{[
-    ["Campaign", text(payload.campaignName ?? payload.campaignId)], ["Creator / project", text(payload.creatorLabel ?? payload.communitySlug ?? receipt.communitySlug)], ["Contributor", text(payload.contributorLabel)], ["Work reference", text(payload.workReference)], ["Verified outcome", text(payload.verifiedOutcome)], ["Evidence source", text(payload.evidenceSource)], ["Policy version", text(payload.policyVersionId)], ["Amount", formatMicro(receipt.totalUsdcMicro)], ["Settlement state", transaction?.status ?? "recorded"], ["Timestamp", receipt.issuedAt.toISOString()], ["Content hash", text(payload.contentHash)],
-  ].map(([label, value]) => <div key={label} className="bg-slate-950 p-5"><dt className="text-xs uppercase tracking-wider text-slate-500">{label}</dt><dd className="mt-2 break-words text-sm text-white">{value}</dd></div>)}</section>{transaction?.txHash && <section className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-950/60 p-5"><div><p className="flex items-center gap-2 text-sm font-medium text-white"><FileKey2 className="h-4 w-4 text-violet-300"/>Arc transaction</p><code className="mt-2 block break-all text-xs text-slate-400">{transaction.txHash}</code></div>{explorer && <a href={explorer} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-violet-300">Open explorer <ExternalLink className="h-3.5 w-3.5"/></a>}</section>}</main>;
+  const rows = directSupport
+    ? [
+        ["Mechanism", "Direct support"],
+        ["Recipient", text(payload.recipientLabel)],
+        ["Sender", text(transaction?.fromAddress)],
+        ["Payout destination", text(transaction?.toAddress)],
+        ["Amount", formatMicro(receipt.totalUsdcMicro)],
+        ["Network", transaction ? `Arc Testnet, chain ${transaction.chainId}` : "Arc Testnet"],
+        ["Settlement state", transaction?.status ?? "recorded"],
+        ["Timestamp", receipt.issuedAt.toISOString()],
+        ["Package hash", text(payload.packageHash)],
+      ]
+    : [
+        ["Campaign", text(payload.campaignName ?? payload.campaignId)],
+        ["Creator / project", text(payload.creatorLabel ?? payload.communitySlug ?? receipt.communitySlug)],
+        ["Contributor", text(payload.contributorLabel)],
+        ["Work reference", text(payload.workReference)],
+        ["Verified outcome", text(payload.verifiedOutcome)],
+        ["Evidence source", text(payload.evidenceSource)],
+        ["Policy version", text(payload.policyVersionId)],
+        ["Amount", formatMicro(receipt.totalUsdcMicro)],
+        ["Settlement state", transaction?.status ?? "recorded"],
+        ["Timestamp", receipt.issuedAt.toISOString()],
+        ["Content hash", text(payload.contentHash)],
+      ];
+  return <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6"><header className="rounded-2xl border border-emerald-300/20 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,.16),transparent_42%),#07101b] p-7"><div className="flex items-center gap-2 text-emerald-300"><BadgeCheck className="h-5 w-5"/><span className="text-xs font-semibold uppercase tracking-[.2em]">Verified outcome receipt</span></div><h1 className="mt-4 text-3xl font-semibold tracking-tight text-white">{directSupport ? "Direct support was confirmed on Arc and recorded by RESOLVE." : "This outcome happened, its policy recognized it, and Capital recorded its settlement."}</h1><p className="mt-3 font-mono text-sm text-slate-400">{receipt.publicReference}</p></header><dl className="mt-5 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2">{rows.map(([label, value]) => <div key={label} className="bg-slate-950 p-5"><dt className="text-xs uppercase tracking-wider text-slate-500">{label}</dt><dd className="mt-2 break-words text-sm text-white">{value}</dd></div>)}</dl>{transaction?.txHash && <section className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-950/60 p-5"><div><p className="flex items-center gap-2 text-sm font-medium text-white"><FileKey2 className="h-4 w-4 text-violet-300"/>Arc transaction</p><code className="mt-2 block break-all text-xs text-slate-400">{transaction.txHash}</code></div>{explorer && <a href={explorer} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-violet-300">Open explorer <ExternalLink className="h-3.5 w-3.5"/></a>}</section>}</main>;
 }

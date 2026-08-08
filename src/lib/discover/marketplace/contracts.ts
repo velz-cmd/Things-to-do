@@ -14,9 +14,10 @@ export const DISCOVER_EXPLORE_KINDS = [
   "all",
   "people",
   "work",
-  "communities",
   "pools",
   "programs",
+  "communities",
+  "outcomes",
   "funding_gaps",
 ] as const;
 
@@ -65,13 +66,93 @@ export type FundingAmountState =
   | "confirmed"
   | "provenance_unavailable";
 
+export type DiscoverWorkbenchTarget =
+  | {
+      panel: "evidence";
+      subjectId: string;
+      sourceUrl?: string;
+      repository?: string;
+      evidenceIds: string[];
+    }
+  | {
+      panel: "payout_destination";
+      subjectId: string;
+    }
+  | {
+      panel: "direct_support";
+      subjectId: string;
+      recipientUserId: string;
+      recipientLabel: string;
+    }
+  | {
+      panel: "work_funding";
+      subjectId: string;
+      recipientUserId: string;
+      recipientLabel: string;
+      workTitle: string;
+      repository: string;
+      sourceUrl: string;
+      evidenceIds: string[];
+    }
+  | {
+      panel: "pool_funding";
+      subjectId: string;
+      programId: string;
+      communitySlug: string;
+      poolName: string;
+    }
+  | {
+      panel: "program_setup";
+      subjectId: string;
+      programId?: string;
+      communitySlug: string;
+      step: "create" | "source" | "publication" | "policy" | "treasury" | "review";
+    }
+  | {
+      panel: "source_sync";
+      subjectId: string;
+      provider: "github";
+      repository?: string;
+    }
+  | {
+      panel: "authorization_review";
+      subjectId: string;
+      authorizationId?: string;
+    }
+  | {
+      panel: "receipt";
+      subjectId: string;
+      receiptUrl: string;
+      explorerUrl?: string;
+    }
+  | {
+      panel: "transaction";
+      subjectId: string;
+      fundingIntentId: string;
+    }
+  | {
+      panel: "entity_details";
+      subjectId: string;
+      entityType: "person" | "work" | "pool" | "program" | "community";
+    };
+
+export type DiscoverActionPresentation =
+  | { kind: "workbench"; target: DiscoverWorkbenchTarget }
+  | {
+      kind: "navigation";
+      target: "discover" | "external" | "workspace";
+      secondary: boolean;
+    };
+
 export type DiscoverAction = {
-  id: string;
+  id: ResolveActionId;
   label: string;
   href: string;
   description?: string;
   enabled: boolean;
   disabledReason?: string;
+  requiresConfirmation?: boolean;
+  presentation: DiscoverActionPresentation;
 };
 
 export type DiscoverEntityState = {
@@ -159,6 +240,17 @@ export type MarketplaceOpportunity = {
   source: {
     type: string;
     id: string;
+  };
+  marketplaceKind?:
+    | "opportunity"
+    | "verified_work"
+    | "pool"
+    | "program"
+    | "outcome";
+  program?: {
+    id: string;
+    name: string;
+    templateId: string;
   };
   sourceUrl?: string;
   entityState?: DiscoverEntityState;
@@ -279,6 +371,7 @@ export type DiscoverMyCommunity = {
   programCount: number;
   activeProgramCount: number;
   poolCount: number;
+  programId?: string;
   blocker?: string;
   primaryAction: DiscoverAction;
   secondaryActions: DiscoverAction[];
@@ -295,6 +388,68 @@ export type DiscoverInboxItem = {
   primaryAction: DiscoverAction;
   secondaryActions: DiscoverAction[];
 };
+
+export type DiscoverActivityKind =
+  | "work"
+  | "funding"
+  | "claim"
+  | "pool"
+  | "transaction"
+  | "receipt"
+  | "program"
+  | "account";
+
+export type DiscoverActivityItem = {
+  id: string;
+  kind: DiscoverActivityKind;
+  title: string;
+  description: string;
+  state: string;
+  occurredAt: string;
+  amountUsd?: number;
+  token?: string;
+  community?: string;
+  repository?: string;
+  primaryAction?: DiscoverAction;
+};
+
+export type DiscoverForYouProjection = {
+  kind: "for_you";
+  recommendation: DiscoverInboxItem | null;
+  attention: DiscoverInboxItem[];
+  pools: DiscoverPool[];
+  people: DiscoverPerson[];
+  inProgress: DiscoverActivityItem[];
+  recent: DiscoverActivityItem[];
+};
+
+export type DiscoverExploreProjection = {
+  kind: "explore";
+  category: DiscoverExploreKind;
+  people: DiscoverPerson[];
+  work: MarketplaceOpportunity[];
+  pools: DiscoverPool[];
+  programs: MarketplaceOpportunity[];
+  communities: DiscoverCommunity[];
+  outcomes: MarketplaceOpportunity[];
+};
+
+export type DiscoverMyActivityProjection = {
+  kind: "activity";
+  items: DiscoverActivityItem[];
+  summary: Partial<Record<DiscoverActivityKind | "in_progress", number>>;
+};
+
+export type DiscoverOutcomesProjection = {
+  kind: "outcomes";
+  items: MarketplaceOpportunity[];
+};
+
+export type DiscoverProjection =
+  | DiscoverForYouProjection
+  | DiscoverExploreProjection
+  | DiscoverMyActivityProjection
+  | DiscoverOutcomesProjection;
 
 export type EconomicActionSubjectType =
   | "accepted_work"
@@ -407,6 +562,7 @@ export type DiscoverNetworkStats = {
 
 export type DiscoverPageData = {
   view: DiscoverView;
+  projection: DiscoverProjection;
   opportunities: MarketplacePage<MarketplaceOpportunity>;
   people: DiscoverPerson[];
   communities: DiscoverCommunity[];
@@ -434,8 +590,8 @@ export type DiscoverPageData = {
     title: string;
     reason: string;
     state: string;
-    primaryAction: { id: string; label: string; href: string };
-    secondaryActions: Array<{ id: string; label: string; href: string }>;
+    primaryAction: DiscoverAction;
+    secondaryActions: DiscoverAction[];
   };
   actions: {
     directSupport: boolean;
@@ -443,3 +599,4 @@ export type DiscoverPageData = {
     verifiedWorkFunding: boolean;
   };
 };
+import type { ResolveActionId } from "@/lib/actions/types";

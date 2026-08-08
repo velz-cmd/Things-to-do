@@ -21,7 +21,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketplace/discover-action-workbench";
 import type {
@@ -309,7 +309,53 @@ function ForYouView({ data, filters, onOpen }: { data: DiscoverPageData; filters
 }
 
 function ExploreNav({ active, filters }: { active: DiscoverExploreKind; filters: OpportunityFilters }) {
-  return <nav aria-label="Marketplace categories" className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#07111f] p-1">{exploreKinds.map((kind) => <Link key={kind.id} href={discoverHref("explore", filters, kind.id)} aria-current={active === kind.id ? "page" : undefined} className={`min-h-9 shrink-0 rounded-lg px-3 py-2 text-xs ${active === kind.id ? "bg-[#1a2940] font-semibold text-white" : "text-slate-400 hover:text-white"}`}>{kind.label}</Link>)}</nav>;
+  const router = useRouter();
+  const params = useSearchParams();
+  const current = params.toString();
+  const [selected, setSelected] = useState(active);
+
+  useEffect(() => setSelected(active), [active]);
+  useEffect(() => {
+    if (selected === active) return;
+    const recovery = window.setTimeout(() => setSelected(active), 10_000);
+    return () => window.clearTimeout(recovery);
+  }, [active, selected]);
+
+  function navigate(kind: DiscoverExploreKind) {
+    if (kind === selected) return;
+    const next = new URLSearchParams(current);
+    next.set("view", "explore");
+    next.set("kind", kind);
+    next.delete("cursor");
+    next.delete("action");
+    next.delete("subject");
+    setSelected(kind);
+    router.push(`/discover?${next.toString()}`, { scroll: false });
+  }
+
+  return (
+    <nav aria-label="Marketplace categories" className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#07111f] p-1">
+      {exploreKinds.map((kind) => {
+        const loading = selected === kind.id && selected !== active;
+        return (
+          <Link
+            key={kind.id}
+            href={discoverHref("explore", filters, kind.id)}
+            prefetch
+            aria-current={selected === kind.id ? "page" : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              navigate(kind.id);
+            }}
+            className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs ${selected === kind.id ? "bg-[#1a2940] font-semibold text-white" : "text-slate-400 hover:text-white"}`}
+          >
+            {kind.label}
+            {loading ? <LoaderCircle aria-label={`Loading ${kind.label}`} className="h-3 w-3 animate-spin text-violet-300" /> : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
 }
 
 function ExploreControls({ filters }: { filters: OpportunityFilters }) {
@@ -317,7 +363,9 @@ function ExploreControls({ filters }: { filters: OpportunityFilters }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+  const current = params.toString();
+  useEffect(() => setPending(false), [current]);
   const activeCount = [filters.fundingStatus, filters.remote, filters.community, filters.repository, filters.type]
     .filter(Boolean).length;
 
@@ -327,7 +375,8 @@ function ExploreControls({ filters }: { filters: OpportunityFilters }) {
     if (value) next.set(key, value);
     else next.delete(key);
     setFiltersOpen(false);
-    startTransition(() => router.replace(`${pathname}?${next.toString()}`, { scroll: false }));
+    setPending(true);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
   return (
@@ -446,9 +495,25 @@ function DiscoverMarketplaceContent({ data, filters }: { data: DiscoverPageData;
   const router = useRouter();
   const params = useSearchParams();
   const [active, setActive] = useState<{ action: DiscoverAction; item?: EconomicActionItem } | null>(null);
+  const pendingWorkbenchKey = useRef<string | null>(null);
   useEffect(() => track("discover_viewed", { view: data.view }), [data.view]);
-  const openWorkbench: OpenAction = (action, item) => { setActive({ action, item }); if (action.presentation.kind === "workbench") { const next = new URLSearchParams(params.toString()); next.set("action", action.id); next.set("subject", action.presentation.target.subjectId); router.replace(`/discover?${next.toString()}`, { scroll: false }); } };
-  const closeWorkbench = () => { setActive(null); const next = new URLSearchParams(params.toString()); next.delete("action"); next.delete("subject"); router.replace(`/discover?${next.toString()}`, { scroll: false }); };
+  const openWorkbench: OpenAction = (action, item) => {
+    if (action.presentation.kind !== "workbench") return;
+    pendingWorkbenchKey.current = `${action.id}:${action.presentation.target.subjectId}`;
+    setActive({ action, item });
+    const next = new URLSearchParams(params.toString());
+    next.set("action", action.id);
+    next.set("subject", action.presentation.target.subjectId);
+    router.replace(`/discover?${next.toString()}`, { scroll: false });
+  };
+  const closeWorkbench = () => {
+    pendingWorkbenchKey.current = null;
+    setActive(null);
+    const next = new URLSearchParams(params.toString());
+    next.delete("action");
+    next.delete("subject");
+    router.replace(`/discover?${next.toString()}`, { scroll: false });
+  };
   const generatedDetails = useMemo(() => [
     ...data.people.map((person) => detailAction("person", person.id, "View profile")),
     ...data.pools.map((pool) => detailAction("pool", pool.id, "View Pool")),
@@ -462,10 +527,13 @@ function DiscoverMarketplaceContent({ data, filters }: { data: DiscoverPageData;
     const actionId = params.get("action");
     const subjectId = params.get("subject");
     if (!actionId || !subjectId) {
+      if (activeKey && pendingWorkbenchKey.current === activeKey) return;
       if (activeKey) setActive(null);
       return;
     }
-    if (activeKey === `${actionId}:${subjectId}`) return;
+    const urlKey = `${actionId}:${subjectId}`;
+    if (pendingWorkbenchKey.current === urlKey) pendingWorkbenchKey.current = null;
+    if (activeKey === urlKey) return;
     const candidates = [
       ...data.economicActions.flatMap((item) => [
         { action: item.primaryAction, item },

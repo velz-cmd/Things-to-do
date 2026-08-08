@@ -319,13 +319,75 @@ function loadCachedConfirmedOutcomes() {
 export function deduplicateMarketplaceOpportunities(items: MarketplaceOpportunity[]) {
   const seenSources = new Set<string>();
   const seenSlugs = new Set<string>();
-  return items.filter((item) => {
+  const semanticIndexes = new Map<string, number>();
+  const unique: MarketplaceOpportunity[] = [];
+
+  const semanticKey = (item: MarketplaceOpportunity) => {
+    if (item.marketplaceKind !== "pool" && item.marketplaceKind !== "program") {
+      return null;
+    }
+    const community = (item.community?.id ?? item.community?.name ?? "")
+      .trim()
+      .toLocaleLowerCase();
+    const title = item.title
+      .normalize("NFKC")
+      .trim()
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+    return community && title ? `${item.marketplaceKind}:${community}:${title}` : null;
+  };
+
+  const canonicalScore = (item: MarketplaceOpportunity) => {
+    const provenance = {
+      canonical_record: 40,
+      operator_created: 35,
+      external_integration: 30,
+      legacy_operator_record: 20,
+    }[item.entityState?.provenance ?? "legacy_operator_record"];
+    const lifecycle = {
+      confirmed: 30,
+      published: 25,
+      active: 20,
+      submitted: 15,
+      configured: 10,
+      observed: 5,
+    }[item.entityState?.lifecycle ?? "observed"];
+    const financialReadiness = {
+      confirmed: 20,
+      ready: 15,
+      submitted: 10,
+      setup_required: 5,
+      not_applicable: 0,
+    }[item.entityState?.financialReadiness ?? "not_applicable"];
+    const authoritativeFunding = item.funding?.amountState === "confirmed" ? 10 : 0;
+    return provenance + lifecycle + financialReadiness + authoritativeFunding;
+  };
+
+  for (const item of items) {
     const source = `${item.source.type}:${item.source.id}`;
-    if (seenSources.has(source) || seenSlugs.has(item.slug)) return false;
+    if (seenSources.has(source) || seenSlugs.has(item.slug)) continue;
     seenSources.add(source);
     seenSlugs.add(item.slug);
-    return true;
-  });
+    const key = semanticKey(item);
+    const existingIndex = key ? semanticIndexes.get(key) : undefined;
+    if (existingIndex == null) {
+      if (key) semanticIndexes.set(key, unique.length);
+      unique.push(item);
+      continue;
+    }
+    const existing = unique[existingIndex];
+    if (
+      existing &&
+      (canonicalScore(item) > canonicalScore(existing) ||
+        (canonicalScore(item) === canonicalScore(existing) &&
+          item.updatedAt.localeCompare(existing.updatedAt) > 0))
+    ) {
+      unique[existingIndex] = item;
+    }
+  }
+
+  return unique;
 }
 
 async function addMarketplaceActivity(items: MarketplaceOpportunity[]) {

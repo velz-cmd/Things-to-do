@@ -370,7 +370,13 @@ describe("Discover canonical projections", () => {
         identityState: "unclaimed_contributor",
         payoutReadiness: "invite_to_claim",
         acceptsDirectFunding: false,
-        primaryAction: { label: "View GitHub profile", href: "https://github.com/ada", enabled: true, id: "discover.open_repository" },
+        primaryAction: expect.objectContaining({
+          label: "View GitHub profile",
+          href: "https://github.com/ada",
+          enabled: true,
+          id: "discover.open_repository",
+          presentation: expect.objectContaining({ kind: "navigation", target: "external" }),
+        }),
       }),
     ]);
   });
@@ -384,7 +390,7 @@ describe("Discover canonical projections", () => {
           title: "$1.00 USDC confirmed on Arc",
           amountUsd: 1,
           status: "confirmed",
-          receiptHref: "/receipt/receipt-1",
+          receiptHref: "/outcomes/out_receipt-1",
           at: "2026-07-21T00:00:00.000Z",
         },
       ]),

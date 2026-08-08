@@ -2,6 +2,10 @@ import type {
   DiscoverPageData,
   MarketplaceOpportunity,
 } from "@/lib/discover/marketplace/contracts";
+import {
+  discoverNavigationAction,
+  workbenchAction,
+} from "@/lib/discover/marketplace/action-contract";
 import type { WorkspaceReadiness } from "@/lib/workspace/readiness-contract";
 
 export function selectDiscoverRecommendation(
@@ -19,12 +23,11 @@ export function selectDiscoverRecommendation(
       title: "Repair repository access",
       reason: "An installed GitHub source is blocking current community operations.",
       state: readiness.github.repositorySync.state,
-      primaryAction: {
-        id: "profile.manage_connections",
-        label: "Open integration settings",
-        href: "/profile?section=connections&source=github&returnTo=/discover",
-      },
-      secondaryActions: [{ id: "profile.open_source_details", label: "View Profile", href: "/profile?view=sources" }],
+      primaryAction: workbenchAction(
+        { id: "source.reconnect", label: "Repair GitHub access", href: "/discover?view=for_you" },
+        { panel: "source_sync", subjectId: "github", provider: "github" },
+      ),
+      secondaryActions: [],
     };
   }
   if (
@@ -32,17 +35,23 @@ export function selectDiscoverRecommendation(
     ["connected", "syncing", "stale"].includes(readiness.github.personal.state) &&
     readiness.wallets.payout.state !== "connected"
   ) {
+    const eligibleWallets = [readiness.wallets.app, readiness.wallets.connected]
+      .filter((wallet) => Boolean(wallet.address) && ["connected", "stale"].includes(wallet.state));
     return {
       id: "complete-payout",
       title: "Complete payout readiness",
-      reason: "Your GitHub identity is connected, but verified work cannot settle to you yet.",
+      reason: eligibleWallets.length >= 2
+        ? "Two eligible wallets are available. Choose one payout destination."
+        : "Your GitHub identity is connected, but verified work cannot settle to you until one eligible wallet is chosen.",
       state: readiness.wallets.payout.state,
-      primaryAction: {
-        id: "discover.resolve_identity",
-        label: "Add payout destination",
-        href: "/profile?view=wallets&returnTo=/discover",
-      },
-      secondaryActions: [{ id: "discover.open_verified_work", label: "View recognised work", href: "/discover?view=explore&kind=work" }],
+      primaryAction: workbenchAction(
+        { id: "profile.set_payout_destination", label: "Choose payout wallet", href: "/discover?view=for_you" },
+        { panel: "payout_destination", subjectId: readiness.userId },
+      ),
+      secondaryActions: [discoverNavigationAction(
+        { id: "discover.open_verified_work", label: "View recognised work", href: "/discover?view=explore&kind=work" },
+        { secondary: true },
+      )],
     };
   }
   if (readiness && readiness.capital.pendingAuthorizations > 0) {
@@ -51,7 +60,11 @@ export function selectDiscoverRecommendation(
       title: "Review funding awaiting authorization",
       reason: `${readiness.capital.pendingAuthorizations} persisted funding package${readiness.capital.pendingAuthorizations === 1 ? " is" : "s are"} ready for financial review.`,
       state: "awaiting_authorization",
-      primaryAction: { id: "capital.review_authorization", label: "Open Capital", href: "/capital?view=authorizations" },
+      primaryAction: workbenchAction(
+        { id: "capital.review_authorization", label: "Review authorization", href: "/discover?view=for_you" },
+        { panel: "authorization_review", subjectId: "pending-authorizations" },
+        { requiresConfirmation: true },
+      ),
       secondaryActions: [],
     };
   }
@@ -67,14 +80,15 @@ export function selectDiscoverRecommendation(
       title: `Back ${shortfall.pool?.name ?? shortfall.title}`,
       reason: "This published Pool has a real funding target and a confirmed shortfall.",
       state: shortfall.funding?.status ?? "unfunded",
-      primaryAction: {
-        id: shortfall.primaryAction?.id ?? "discover.open_pools",
-        label: shortfall.primaryAction?.label ?? "Inspect Pool",
-        href: shortfall.primaryAction?.href ?? `/discover?view=explore&kind=pools&pool=${encodeURIComponent(shortfall.id)}`,
-      },
-      secondaryActions: [
+      primaryAction: shortfall.primaryAction ?? discoverNavigationAction({
+        id: "discover.open_pools",
+        label: "Inspect Pool",
+        href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(shortfall.id)}`,
+      }),
+      secondaryActions: [discoverNavigationAction(
         { id: "discover.open_record", label: "View details", href: `/opportunities/${shortfall.slug}` },
-      ],
+        { target: "workspace", secondary: true },
+      )],
     };
   }
   const publicOpportunity = opportunities[0];
@@ -84,11 +98,17 @@ export function selectDiscoverRecommendation(
       title: publicOpportunity.title,
       reason: "This is the newest published opportunity with an inspectable source.",
       state: publicOpportunity.verificationStatus,
-      primaryAction: {
-        id: publicOpportunity.primaryAction?.id ?? "discover.open_record",
-        label: publicOpportunity.primaryAction?.label ?? "Inspect opportunity",
-        href: publicOpportunity.primaryAction?.href ?? `/opportunities/${publicOpportunity.slug}`,
-      },
+      primaryAction: publicOpportunity.primaryAction ?? workbenchAction({
+        id: "discover.open_evidence",
+        label: "Inspect opportunity",
+        href: `/discover?view=for_you&action=discover.open_evidence&subject=${encodeURIComponent(publicOpportunity.source.id)}`,
+      }, {
+        panel: "evidence",
+        subjectId: publicOpportunity.source.id,
+        sourceUrl: publicOpportunity.sourceUrl,
+        repository: publicOpportunity.repository,
+        evidenceIds: [publicOpportunity.source.id],
+      }),
       secondaryActions: [],
     };
   }
@@ -97,7 +117,11 @@ export function selectDiscoverRecommendation(
     title: "Analyze public repository activity",
     reason: "No persisted action is ready, but any public GitHub repository can be inspected without connecting an account.",
     state: "current",
-    primaryAction: { id: "discover.open_public_repository_analysis", label: "Analyze a repository", href: "/discover?view=explore#public-repository-analysis" },
+    primaryAction: discoverNavigationAction({
+      id: "discover.open_public_repository_analysis",
+      label: "Analyze a repository",
+      href: "/discover?view=explore#public-repository-analysis",
+    }),
     secondaryActions: [],
   };
 }

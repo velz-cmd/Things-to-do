@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 
 export type LiveSettlementRow = {
@@ -91,7 +92,7 @@ export async function buildLiveSettlements(limit = 12): Promise<LiveSettlementsP
       amountUsd,
       status: "confirmed",
       communitySlug: record.community_slug ?? undefined,
-      receiptHref: `/receipt/${encodeURIComponent(record.receipt_id)}`,
+      receiptHref: canonicalOutcomeHref(record.public_reference),
       explorerUrl: explorerTxUrl(record.tx_hash),
       at: record.issued_at.toISOString(),
     };

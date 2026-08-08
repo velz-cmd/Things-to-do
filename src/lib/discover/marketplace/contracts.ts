@@ -65,13 +65,73 @@ export type FundingAmountState =
   | "confirmed"
   | "provenance_unavailable";
 
+export type DiscoverWorkbenchTarget =
+  | {
+      panel: "evidence";
+      subjectId: string;
+      sourceUrl?: string;
+      repository?: string;
+      evidenceIds: string[];
+    }
+  | {
+      panel: "payout_destination";
+      subjectId: string;
+    }
+  | {
+      panel: "direct_support";
+      subjectId: string;
+      recipientUserId: string;
+      recipientLabel: string;
+    }
+  | {
+      panel: "pool_funding";
+      subjectId: string;
+      programId: string;
+      communitySlug: string;
+      poolName: string;
+    }
+  | {
+      panel: "program_setup";
+      subjectId: string;
+      programId?: string;
+      communitySlug: string;
+      step: "create" | "source" | "publication" | "policy" | "treasury" | "review";
+    }
+  | {
+      panel: "source_sync";
+      subjectId: string;
+      provider: "github";
+      repository?: string;
+    }
+  | {
+      panel: "authorization_review";
+      subjectId: string;
+      authorizationId?: string;
+    }
+  | {
+      panel: "receipt";
+      subjectId: string;
+      receiptUrl: string;
+      explorerUrl?: string;
+    };
+
+export type DiscoverActionPresentation =
+  | { kind: "workbench"; target: DiscoverWorkbenchTarget }
+  | {
+      kind: "navigation";
+      target: "discover" | "external" | "workspace";
+      secondary: boolean;
+    };
+
 export type DiscoverAction = {
-  id: string;
+  id: ResolveActionId;
   label: string;
   href: string;
   description?: string;
   enabled: boolean;
   disabledReason?: string;
+  requiresConfirmation?: boolean;
+  presentation: DiscoverActionPresentation;
 };
 
 export type DiscoverEntityState = {
@@ -279,6 +339,7 @@ export type DiscoverMyCommunity = {
   programCount: number;
   activeProgramCount: number;
   poolCount: number;
+  programId?: string;
   blocker?: string;
   primaryAction: DiscoverAction;
   secondaryActions: DiscoverAction[];
@@ -434,8 +495,8 @@ export type DiscoverPageData = {
     title: string;
     reason: string;
     state: string;
-    primaryAction: { id: string; label: string; href: string };
-    secondaryActions: Array<{ id: string; label: string; href: string }>;
+    primaryAction: DiscoverAction;
+    secondaryActions: DiscoverAction[];
   };
   actions: {
     directSupport: boolean;
@@ -443,3 +504,4 @@ export type DiscoverPageData = {
     verifiedWorkFunding: boolean;
   };
 };
+import type { ResolveActionId } from "@/lib/actions/types";

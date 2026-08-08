@@ -50,6 +50,10 @@ import {
   rankEconomicActions,
 } from "./economic-actions";
 import { deriveUserCapabilities } from "@/lib/capabilities/user-capabilities";
+import {
+  discoverNavigationAction,
+  workbenchAction,
+} from "./action-contract";
 
 const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
@@ -650,8 +654,8 @@ export async function listDiscoverPeople(viewerUserId?: string): Promise<Discove
 
   return users.map((person) => {
     const payoutIsReady = payoutReady.has(person.id);
-    const directSupportReady = payoutIsReady && isLiveArcEnabled();
     const isSelf = viewerUserId === person.id;
+    const directSupportReady = !isSelf && payoutIsReady && isLiveArcEnabled();
     const github = person.githubUsername!;
     const completedWork = evidenceByActor.get(`github:${github.toLowerCase()}`) ?? 0;
     const profilePath = `https://github.com/${encodeURIComponent(github)}`;
@@ -676,37 +680,40 @@ export async function listDiscoverPeople(viewerUserId?: string): Promise<Discove
       payoutReadiness: payoutIsReady ? "ready" : "setup_required",
       blocker: !payoutIsReady
         ? "No verified payout destination is recorded."
+        : isSelf
+          ? "Direct support to your own payout destination is unavailable."
         : directSupportReady
           ? undefined
           : "Direct support is blocked until the live Arc settlement gate is enabled.",
       primaryAction: directSupportReady
-        ? {
+        ? workbenchAction({
             id: "capital.open_funding",
             label: "Support with USDC",
-            href: `/capital?intent=direct-support&recipient=${encodeURIComponent(person.id)}&returnTo=${encodeURIComponent(returnTo)}`,
-            enabled: true,
-          }
+            href: returnTo,
+          }, {
+            panel: "direct_support",
+            subjectId: person.id,
+            recipientUserId: person.id,
+            recipientLabel: person.displayName ?? github,
+          }, { requiresConfirmation: true })
         : isSelf && !payoutIsReady
-          ? {
+          ? workbenchAction({
               id: "profile.set_payout_destination",
               label: "Choose payout wallet",
-              href: `/profile?view=wallets&returnTo=${encodeURIComponent(returnTo)}`,
-              enabled: true,
-            }
-          : {
+              href: returnTo,
+            }, { panel: "payout_destination", subjectId: person.id })
+          : discoverNavigationAction({
               id: "discover.open_repository",
               label: "View GitHub profile",
               href: profilePath,
-              enabled: true,
-            },
+            }, { target: "external" }),
       secondaryActions: directSupportReady
         ? [
-            {
+            discoverNavigationAction({
               id: "discover.open_repository",
               label: "View GitHub profile",
               href: profilePath,
-              enabled: true,
-            },
+            }, { target: "external", secondary: true }),
           ]
         : [],
       profilePath,
@@ -730,7 +737,9 @@ export function discoverPersonFromReadiness(
   const githubAccount = readiness.github.personal.account?.trim().replace(/^@/, "");
   if (!githubAccount) return null;
   const payoutReady = readiness.wallets.payout.state === "connected";
-  const directSupportReady = payoutReady && isLiveArcEnabled();
+  // This fallback always represents the current viewer. Direct support to the
+  // sender's own payout destination is never a valid Discover action.
+  const directSupportReady = false;
   const returnTo = `/discover?view=explore&kind=people&person=${encodeURIComponent(viewerUserId)}`;
   const profilePath = `https://github.com/${encodeURIComponent(githubAccount)}`;
   return {
@@ -752,31 +761,34 @@ export function discoverPersonFromReadiness(
     payoutReadiness: payoutReady ? "ready" : "setup_required",
     blocker: !payoutReady
       ? "No verified payout destination is recorded in the latest workspace snapshot."
-      : directSupportReady
-        ? undefined
-        : "Direct support is blocked until the live Arc settlement gate is enabled.",
+      : "Direct support to your own payout destination is unavailable.",
     primaryAction: directSupportReady
-      ? {
+      ? workbenchAction({
           id: "capital.open_funding",
           label: "Support with USDC",
-          href: `/capital?intent=direct-support&recipient=${encodeURIComponent(viewerUserId)}&returnTo=${encodeURIComponent(returnTo)}`,
-          enabled: true,
-        }
+          href: returnTo,
+        }, {
+          panel: "direct_support",
+          subjectId: viewerUserId,
+          recipientUserId: viewerUserId,
+          recipientLabel: readiness.user.displayName ?? githubAccount,
+        }, { requiresConfirmation: true })
       : !payoutReady
-        ? {
+        ? workbenchAction({
             id: "profile.set_payout_destination",
             label: "Choose payout wallet",
-            href: `/profile?view=wallets&returnTo=${encodeURIComponent(returnTo)}`,
-            enabled: true,
-          }
-        : {
+            href: returnTo,
+          }, { panel: "payout_destination", subjectId: viewerUserId })
+        : discoverNavigationAction({
             id: "discover.open_repository",
             label: "View GitHub profile",
             href: profilePath,
-            enabled: true,
-          },
+          }, { target: "external" }),
     secondaryActions: directSupportReady
-      ? [{ id: "discover.open_repository", label: "View GitHub profile", href: profilePath, enabled: true }]
+      ? [discoverNavigationAction(
+          { id: "discover.open_repository", label: "View GitHub profile", href: profilePath },
+          { target: "external", secondary: true },
+        )]
       : [],
     profilePath,
   };
@@ -831,19 +843,22 @@ export function mergeAttributedDiscoverPeople(
     identityState: "unclaimed_contributor" as const,
     payoutReadiness: "invite_to_claim" as const,
     blocker: `Accepted work is attributed to GitHub @${item.name}, but no claimed RESOLVE profile and verified payout destination are linked.`,
-    primaryAction: {
+    primaryAction: discoverNavigationAction({
       id: "discover.open_repository",
       label: "View GitHub profile",
       href: `https://github.com/${encodeURIComponent(item.name)}`,
-      enabled: true,
-    },
+    }, { target: "external" }),
     secondaryActions: item.evidenceHref
-      ? [{
+      ? [workbenchAction({
           id: "discover.open_evidence",
           label: "Inspect attributed evidence",
-          href: item.evidenceHref,
-          enabled: true,
-        }]
+          href: "/discover?view=explore&kind=work",
+        }, {
+          panel: "evidence",
+          subjectId: `github-actor:${handle}`,
+          sourceUrl: item.evidenceHref,
+          evidenceIds: [],
+        })]
       : [],
     profilePath: `https://github.com/${encodeURIComponent(item.name)}`,
   } satisfies DiscoverPerson));
@@ -1018,25 +1033,34 @@ export async function listMyDiscoverCommunities(
       programCount: install.programs.length,
       activeProgramCount: activePrograms.length,
       poolCount: githubPrograms.length,
+      programId: targetProgram?.id,
       blocker,
-      primaryAction: {
-        id: sourceConnected ? "community.open" : "profile.manage_connections",
-        label: sourceConnected ? actionLabel : "Manage GitHub access",
-        href: sourceConnected
-          ? `/communities/${encodeURIComponent(install.communitySlug)}?step=${step}${programContext}&returnTo=${encodeURIComponent(returnTo)}#programs`
-          : `/profile?section=connections&returnTo=${encodeURIComponent(returnTo)}`,
-        enabled: true,
-      },
-      secondaryActions: sourceConnected
-        ? []
-        : [
-            {
-              id: "community.open",
-              label: "Open operator console",
-              href: `/communities/${encodeURIComponent(install.communitySlug)}?returnTo=${encodeURIComponent(returnTo)}`,
-              enabled: true,
-            },
-          ],
+      primaryAction: sourceConnected
+        ? workbenchAction({
+            id: targetProgram ? "program.update_policy" : "program.create_draft",
+            label: actionLabel,
+            href: returnTo,
+          }, {
+            panel: "program_setup",
+            subjectId: install.id,
+            programId: targetProgram?.id,
+            communitySlug: install.communitySlug,
+            step: step === "create_program" ? "create" : step,
+          })
+        : workbenchAction({
+            id: "source.reconnect",
+            label: "Repair GitHub access",
+            href: returnTo,
+          }, {
+            panel: "source_sync",
+            subjectId: install.id,
+            provider: "github",
+          }),
+      secondaryActions: [discoverNavigationAction({
+        id: "community.open",
+        label: "Open full operator workspace",
+        href: `/communities/${encodeURIComponent(install.communitySlug)}?step=${step}${programContext}&returnTo=${encodeURIComponent(returnTo)}#programs`,
+      }, { target: "workspace", secondary: true })],
     } satisfies DiscoverMyCommunity;
   });
 }
@@ -1084,23 +1108,34 @@ export function myDiscoverCommunitiesFromReadiness(
       programCount: programs.length,
       activeProgramCount: activePrograms.length,
       poolCount: 0,
+      programId: programs[0]?.id,
       blocker,
-      primaryAction: {
-        id: repositoryAccessReady ? "community.open" : "profile.manage_connections",
-        label: !repositoryAccessReady ? "Manage GitHub access" : programs.length ? "Review operating program" : "Create program",
-        href: repositoryAccessReady
-          ? `/communities/${encodeURIComponent(community.slug)}?step=${step}${programContext}&returnTo=${encodeURIComponent(returnTo)}#programs`
-          : `/profile?section=connections&returnTo=${encodeURIComponent(returnTo)}`,
-        enabled: true,
-      },
-      secondaryActions: repositoryAccessReady
-        ? []
-        : [{
-            id: "community.open",
-            label: "Open operator console",
-            href: `/communities/${encodeURIComponent(community.slug)}?returnTo=${encodeURIComponent(returnTo)}`,
-            enabled: true,
-          }],
+      primaryAction: repositoryAccessReady
+        ? workbenchAction({
+            id: programs[0] ? "program.update_policy" : "program.create_draft",
+            label: programs.length ? "Review operating program" : "Create program",
+            href: returnTo,
+          }, {
+            panel: "program_setup",
+            subjectId: community.id,
+            programId: programs[0]?.id,
+            communitySlug: community.slug,
+            step: programs.length ? "review" : "create",
+          })
+        : workbenchAction({
+            id: "source.reconnect",
+            label: "Repair GitHub access",
+            href: returnTo,
+          }, {
+            panel: "source_sync",
+            subjectId: community.id,
+            provider: "github",
+          }),
+      secondaryActions: [discoverNavigationAction({
+        id: "community.open",
+        label: "Open full operator workspace",
+        href: `/communities/${encodeURIComponent(community.slug)}?step=${step}${programContext}&returnTo=${encodeURIComponent(returnTo)}#programs`,
+      }, { target: "workspace", secondary: true })],
     };
   });
 }
@@ -1144,7 +1179,7 @@ function poolType(item: MarketplaceOpportunity) {
   return "General Community Pool";
 }
 
-function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
+function listPools(opportunities: MarketplaceOpportunity[], viewerUserId?: string): DiscoverPool[] {
   return opportunities.flatMap((item) => {
     if (!item.pool || !item.community) return [];
     const confirmed = item.funding?.amountState === "confirmed";
@@ -1152,7 +1187,8 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
     const target = item.funding?.goalAmountUsd;
     const pendingDeposits = item.funding?.pendingAmountUsd;
     const financiallyReady = item.entityState?.financialReadiness === "ready";
-    const executionReady = financiallyReady && isLiveArcEnabled();
+      const executionReady = financiallyReady && isLiveArcEnabled();
+      const operatorOwnsPool = Boolean(viewerUserId && item.creator.id === viewerUserId);
     const publicationState =
       item.entityState?.lifecycle === "published" ? "approved" : "legacy_active";
     return [
@@ -1182,7 +1218,7 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
             ? "published"
             : "setup_incomplete",
         publicationState,
-        policyState: financiallyReady ? "active" : "legacy_configured",
+        policyState: financiallyReady ? "active" : "setup_required",
         treasuryReadiness: financiallyReady ? "ready" : "setup_required",
         blocker:
           financiallyReady && !executionReady
@@ -1190,26 +1226,46 @@ function listPools(opportunities: MarketplaceOpportunity[]): DiscoverPool[] {
             : item.entityState?.blocker,
         primaryAction:
           executionReady
-            ? item.primaryAction ?? {
+            ? workbenchAction({
                 id: "capital.open_funding",
                 label: "Fund Pool",
-                href: `/capital?intent=back-pool&programId=${encodeURIComponent(item.pool.id ?? item.source.id)}&returnTo=${encodeURIComponent("/discover?view=explore&kind=pools")}`,
-                enabled: true,
-              }
+                href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+              }, {
+                panel: "pool_funding",
+                subjectId: item.pool.id ?? item.source.id,
+                programId: item.pool.id ?? item.source.id,
+                communitySlug: item.community.id ?? item.community.name,
+                poolName: item.pool.name,
+              }, { requiresConfirmation: true })
             : financiallyReady
-              ? {
+              ? workbenchAction({
                   id: "capital.open_funding",
                   label: "Fund Pool unavailable",
                   href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
                   enabled: false,
                   disabledReason: "Live Arc settlement is not enabled for this Pool.",
-                }
-              : {
-                  id: "community.open",
+                }, {
+                  panel: "pool_funding",
+                  subjectId: item.pool.id ?? item.source.id,
+                  programId: item.pool.id ?? item.source.id,
+                  communitySlug: item.community.id ?? item.community.name,
+                  poolName: item.pool.name,
+                })
+              : operatorOwnsPool ? workbenchAction({
+                  id: "program.update_policy",
                   label: item.entityState?.blocker?.toLowerCase().includes("publish") ? "Review publication" : item.entityState?.blocker?.toLowerCase().includes("policy") ? "Design policy" : item.entityState?.blocker?.toLowerCase().includes("treasury") ? "Add treasury destination" : "Review program",
-                  href: `/communities/${encodeURIComponent(item.community.id ?? item.community.name)}?program=${encodeURIComponent(item.pool.id ?? item.source.id)}&step=${item.entityState?.blocker?.toLowerCase().includes("publish") ? "publication" : item.entityState?.blocker?.toLowerCase().includes("policy") ? "policy" : item.entityState?.blocker?.toLowerCase().includes("treasury") ? "treasury" : "review"}&returnTo=${encodeURIComponent(`/discover?view=explore&kind=pools&pool=${item.pool.id ?? item.source.id}`)}#programs`,
-                  enabled: true,
-                },
+                  href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                }, {
+                  panel: "program_setup",
+                  subjectId: item.pool.id ?? item.source.id,
+                  programId: item.pool.id ?? item.source.id,
+                  communitySlug: item.community.id ?? item.community.name,
+                  step: item.entityState?.blocker?.toLowerCase().includes("publish") ? "publication" : item.entityState?.blocker?.toLowerCase().includes("policy") ? "policy" : item.entityState?.blocker?.toLowerCase().includes("treasury") ? "treasury" : "review",
+                }) : discoverNavigationAction({
+                  id: "discover.open_pools",
+                  label: "Inspect Pool",
+                  href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                }),
         secondaryActions: item.secondaryActions ?? [],
       },
     ];
@@ -1240,12 +1296,15 @@ export function buildDiscoverInbox(input: {
       state: readiness.github.repositorySync.state,
       blocker: readiness.github.repositorySync.errorCode ?? "Repository synchronization failed.",
       occurredAt: readiness.github.repositorySync.lastSuccessfulAt ?? undefined,
-      primaryAction: {
-        id: "profile.manage_connections",
+      primaryAction: workbenchAction({
+        id: "source.reconnect",
         label: "Repair GitHub access",
-        href: `/profile?section=connections&returnTo=${encodeURIComponent("/discover")}`,
-        enabled: true,
-      },
+        href: "/discover?view=activity",
+      }, {
+        panel: "source_sync",
+        subjectId: "github",
+        provider: "github",
+      }),
       secondaryActions: [],
     });
   }
@@ -1263,19 +1322,21 @@ export function buildDiscoverInbox(input: {
       state: readiness.github.repositorySync.state,
       blocker: "Refresh or select a repository with accepted activity.",
       occurredAt: readiness.github.repositorySync.lastSuccessfulAt ?? undefined,
-      primaryAction: {
-        id: "profile.open_source_details",
+      primaryAction: workbenchAction({
+        id: "source.sync",
         label: "Review repository sync",
-        href: `/profile?section=connections&returnTo=${encodeURIComponent("/discover?view=explore&kind=work")}`,
-        enabled: true,
-      },
+        href: "/discover?view=explore&kind=work",
+      }, {
+        panel: "source_sync",
+        subjectId: "github-snapshot",
+        provider: "github",
+      }),
       secondaryActions: [
-        {
+        discoverNavigationAction({
           id: "discover.open_verified_work",
           label: "Open Verified Work",
           href: "/discover?view=explore&kind=work",
-          enabled: true,
-        },
+        }, { secondary: true }),
       ],
     });
   }
@@ -1291,12 +1352,11 @@ export function buildDiscoverInbox(input: {
       blocker: self.blocker,
       primaryAction: self.primaryAction,
       secondaryActions: [
-        {
+        discoverNavigationAction({
           id: "discover.open_verified_work",
           label: "View recognised work",
           href: "/discover?view=explore&kind=work",
-          enabled: true,
-        },
+        }, { secondary: true }),
       ],
     });
   }
@@ -1326,12 +1386,14 @@ export function buildDiscoverInbox(input: {
       title: `${readiness.capital.pendingAuthorizations} funding ${readiness.capital.pendingAuthorizations === 1 ? "package needs" : "packages need"} review`,
       why: "Persisted authorizations are obligations, not payments. Capital must preflight and submit them before confirmation.",
       state: "awaiting_authorization",
-      primaryAction: {
+      primaryAction: workbenchAction({
         id: "capital.review_authorization",
-        label: "Review in Capital",
-        href: "/capital?view=authorizations&returnTo=/discover",
-        enabled: true,
-      },
+        label: "Review authorization",
+        href: "/discover?view=for_you",
+      }, {
+        panel: "authorization_review",
+        subjectId: "pending-authorizations",
+      }, { requiresConfirmation: true }),
       secondaryActions: [],
     });
   }
@@ -1386,18 +1448,16 @@ async function loadDiscoverSourceDiagnostics(
       lastSuccessfulAt: readiness.github.repositorySync.lastSuccessfulAt,
       reason: "GitHub identity is connected, but no persisted repository snapshot is selected for accepted-work evaluation.",
       stale: readiness.stale,
-      primaryAction: {
+      primaryAction: discoverNavigationAction({
         id: "discover.open_public_repository_analysis",
         label: "Analyze a public repository",
         href: "/discover?view=explore&analyze=1#repository-analysis",
-        enabled: true,
-      },
-      secondaryActions: [{
+      }),
+      secondaryActions: [discoverNavigationAction({
         id: "profile.open_source_details",
         label: "Review GitHub access",
         href: `/profile?section=connections&returnTo=${encodeURIComponent("/discover?view=activity")}`,
-        enabled: true,
-      }],
+      }, { target: "workspace", secondary: true })],
     }];
   }
   return names.slice(0, 12).map((name) => {
@@ -1425,18 +1485,16 @@ async function loadDiscoverSourceDiagnostics(
           : "No merged pull request, submitted review, merged documentation change, or attributed release passed the supported evidence rules in this snapshot."
         : "Repository access is known, but no successful persisted evidence snapshot exists for this repository.",
       stale: !snapshot || stored.meta.stale,
-      primaryAction: {
+      primaryAction: discoverNavigationAction({
         id: "discover.open_public_repository_analysis",
         label: snapshot ? "Refresh repository analysis" : "Analyze repository",
         href: `/discover?view=explore&analyze=1&repository=${encodeURIComponent(name)}#repository-analysis`,
-        enabled: true,
-      },
-      secondaryActions: [{
+      }),
+      secondaryActions: [discoverNavigationAction({
         id: "discover.open_repository",
         label: "Open on GitHub",
         href: `https://github.com/${name}`,
-        enabled: true,
-      }],
+      }, { target: "external", secondary: true })],
     } satisfies DiscoverSourceDiagnostic;
   });
 }
@@ -1509,7 +1567,7 @@ export async function loadDiscoverPageData(
   const allVisible = opportunities.items;
   const people = mergeAttributedDiscoverPeople(claimedPeople, allVisible);
   const communities = listCommunities(allVisible);
-  const pools = listPools(allVisible);
+  const pools = listPools(allVisible, user?.id);
   const liveSettlementEnabled = isLiveArcEnabled();
   const capabilities = deriveUserCapabilities({
     signedIn: Boolean(user),
@@ -1520,6 +1578,7 @@ export async function loadDiscoverPageData(
     operatesCommunity: myCommunities.some((community) => community.role === "owner" || community.role === "operator"),
     hasPublishedProgram: allVisible.some((item) => item.source.type === "community_program" && item.entityState?.lifecycle === "published"),
     liveSettlementEnabled,
+    walletReady: Boolean(readiness && ["connected", "stale"].includes(readiness.capital.state) && readiness.wallets.selectedAddress),
   });
   const inbox = buildDiscoverInbox({
     readiness,
@@ -1587,7 +1646,10 @@ export async function loadDiscoverPageData(
       lastSuccessfulAt: null,
       reason: peopleResult.error,
       stale: true,
-      primaryAction: { id: "profile.manage_connections", label: "Review connections", href: "/profile?section=connections&returnTo=%2Fdiscover%3Fview%3Dactivity", enabled: true },
+      primaryAction: workbenchAction(
+        { id: "source.view_status", label: "Review source status", href: "/discover?view=activity" },
+        { panel: "source_sync", subjectId: "claimed-people", provider: "github" },
+      ),
       secondaryActions: [],
     });
   }
@@ -1602,7 +1664,10 @@ export async function loadDiscoverPageData(
       lastSuccessfulAt: null,
       reason: readinessResult.error,
       stale: true,
-      primaryAction: { id: "profile.manage_connections", label: "Review connections", href: "/profile?section=connections&returnTo=%2Fdiscover%3Fview%3Dactivity", enabled: true },
+      primaryAction: workbenchAction(
+        { id: "source.view_status", label: "Review source status", href: "/discover?view=activity" },
+        { panel: "source_sync", subjectId: "workspace-readiness", provider: "github" },
+      ),
       secondaryActions: [],
     });
   }
@@ -1617,7 +1682,11 @@ export async function loadDiscoverPageData(
       lastSuccessfulAt: null,
       reason: communitiesResult.error,
       stale: true,
-      primaryAction: { id: "community.open", label: "Open Communities", href: "/communities?returnTo=%2Fdiscover%3Fview%3Dactivity", enabled: true },
+      primaryAction: discoverNavigationAction({
+        id: "discover.open_communities",
+        label: "Review community activity",
+        href: "/discover?view=activity",
+      }),
       secondaryActions: [],
     });
   }
@@ -1674,16 +1743,8 @@ export async function loadDiscoverPageData(
           title: recommendedEconomicAction.headline,
           reason: recommendedEconomicAction.whyItMatters,
           state: recommendedEconomicAction.lifecycle,
-          primaryAction: {
-            id: recommendedEconomicAction.primaryAction.id,
-            label: recommendedEconomicAction.primaryAction.label,
-            href: recommendedEconomicAction.primaryAction.href,
-          },
-          secondaryActions: recommendedEconomicAction.secondaryActions.map((action) => ({
-            id: action.id,
-            label: action.label,
-            href: action.href,
-          })),
+          primaryAction: recommendedEconomicAction.primaryAction,
+          secondaryActions: recommendedEconomicAction.secondaryActions,
         }
       : firstInbox
       ? {
@@ -1691,26 +1752,20 @@ export async function loadDiscoverPageData(
           title: firstInbox.title,
           reason: firstInbox.why,
           state: firstInbox.state,
-          primaryAction: {
-            id: firstInbox.primaryAction.id,
-            label: firstInbox.primaryAction.label,
-            href: firstInbox.primaryAction.href,
-          },
-          secondaryActions: firstInbox.secondaryActions.map((action) => ({
-            id: action.id,
-            label: action.label,
-            href: action.href,
-          })),
+          primaryAction: firstInbox.primaryAction,
+          secondaryActions: firstInbox.secondaryActions,
         }
       : fallbackRecommendation,
     actions: {
       directSupport:
         liveSettlementEnabled &&
+        capabilities.includes("can_fund_person") &&
         people.some(
           (person) => person.acceptsDirectFunding && person.payoutReadiness === "ready",
         ),
       poolFunding:
         liveSettlementEnabled &&
+        capabilities.includes("can_fund_pool") &&
         pools.some((pool) => pool.lifecycleState === "accepting_funding"),
       verifiedWorkFunding:
         liveSettlementEnabled &&

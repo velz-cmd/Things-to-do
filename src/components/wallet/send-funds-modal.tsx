@@ -28,6 +28,7 @@ export function SendFundsModal({
   const [recipientLoading, setRecipientLoading] = useState(false);
   const [recipientError, setRecipientError] = useState<string | null>(null);
   const [availableUsd, setAvailableUsd] = useState(0);
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     if (!open || !user) return;
@@ -49,6 +50,7 @@ export function SendFundsModal({
 
   useEffect(() => {
     if (!open) return;
+    setIdempotencyKey(crypto.randomUUID());
     setDestination("");
     setRecipientError(null);
     if (!recipientUserId) {
@@ -102,8 +104,8 @@ export function SendFundsModal({
         credentials: "include",
         body: JSON.stringify(
           recipientUserId
-            ? { recipientUserId, amountUsd: amount }
-            : { destinationAddress: destination, amountUsd: amount },
+            ? { recipientUserId, amountUsd: amount, idempotencyKey, fundingSource: "app" }
+            : { destinationAddress: destination, amountUsd: amount, idempotencyKey, fundingSource: "app" },
         ),
       });
       const data = await res.json();

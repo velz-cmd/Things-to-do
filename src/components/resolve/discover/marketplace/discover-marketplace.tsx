@@ -14,13 +14,12 @@ import {
   LoaderCircle,
   RefreshCw,
   Search,
-  Sparkles,
   UserRound,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import type {
   DiscoverAction,
@@ -32,12 +31,10 @@ import type {
   EconomicActionItem,
 } from "@/lib/discover/marketplace/contracts";
 import type { OpportunityFilters } from "@/lib/discover/marketplace/filters";
-import { DiscoverActionsProvider, useDiscoverActions } from "@/components/resolve/discover/discover-actions-provider";
-import { PayoutDestinationDrawer } from "@/components/resolve/profile/payout-destination-drawer";
-import { useSendFunds } from "@/components/wallet/send-funds-context";
+import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketplace/discover-action-workbench";
 
 const views: Array<{ id: DiscoverView; label: string; icon: typeof Activity }> = [
-  { id: "for_you", label: "For You", icon: Sparkles },
+  { id: "for_you", label: "For You", icon: Activity },
   { id: "explore", label: "Explore", icon: Search },
   { id: "activity", label: "My Activity", icon: Activity },
   { id: "outcomes", label: "Outcomes", icon: History },
@@ -57,8 +54,6 @@ const intents: Array<{ id: DiscoverIntent; label: string; available: boolean; re
   { id: "earn", label: "Earn", available: true },
   { id: "fund", label: "Fund", available: true },
   { id: "operate", label: "Operate", available: true },
-  { id: "publish", label: "Publish", available: false, reason: "No real publishing usage adapter is active yet." },
-  { id: "build", label: "Build", available: false, reason: "No registered x402 service is active yet." },
   { id: "explore", label: "Explore", available: true },
 ];
 
@@ -137,7 +132,7 @@ function Header({ data }: { data: DiscoverPageData }) {
     { label: "Payout-ready", value: all.filter((item) => item.recipientReadiness === "ready").length },
     { label: "Funding-ready", value: all.filter((item) => item.fundingReadiness === "ready").length },
     { label: "Confirmed outcomes", value: all.filter((item) => item.subjectType === "receipt").length },
-  ].filter((item) => item.value > 0);
+  ].filter((item) => item.value > 0).slice(0, 4);
   return (
     <header className="rounded-2xl border border-white/[0.08] bg-[#081321] px-5 py-5 sm:px-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -147,7 +142,7 @@ function Header({ data }: { data: DiscoverPageData }) {
             Discover economic activity
           </h1>
           <p className="mt-3 max-w-2xl text-[15px] leading-6 text-slate-300">
-            See what happened, why it matters, and what can happen next.
+            Find verified work, people, Pools and confirmed outcomes you can act on.
           </p>
         </div>
         {facts.length > 0 ? (
@@ -206,7 +201,7 @@ function SearchBox({ filters, view }: { filters: OpportunityFilters; view: Disco
         name="q"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search people, providers, repositories, communities, work, receipts, or transactions"
+        placeholder="Search people, work, Pools, communities or receipts"
         aria-label="Search Discover"
         className="min-h-12 w-full rounded-xl border border-white/10 bg-[#07111f] pl-11 pr-12 text-[15px] text-white outline-none placeholder:text-slate-600 focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/10"
       />
@@ -324,56 +319,29 @@ function SourceFailure({ data }: { data: DiscoverPageData }) {
   );
 }
 
-function contextualKind(action: DiscoverAction) {
-  if (["discover.resolve_identity", "profile.verify_payout_destination", "profile.set_payout_destination"].includes(action.id)) return "payout" as const;
-  if (action.id === "capital.open_funding" && action.href.includes("back-pool")) return "pool_funding" as const;
-  if (action.id === "capital.open_funding" && action.href.includes("direct-support")) return "direct_support" as const;
-  return null;
-}
-
 function ContextualAction({
   action,
   item,
   primary = false,
-  onPayout,
+  onOpen,
 }: {
   action: DiscoverAction;
   item?: EconomicActionItem;
   primary?: boolean;
-  onPayout: () => void;
+  onOpen: (action: DiscoverAction, item?: EconomicActionItem) => void;
 }) {
-  const { openFundSheet } = useDiscoverActions();
-  const { openSendFunds } = useSendFunds();
-  const kind = contextualKind(action);
   const className = primary
     ? "inline-flex min-h-10 items-center gap-2 rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white hover:bg-violet-400"
     : "inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-sm text-slate-300 hover:bg-white/[0.05]";
   if (!action.enabled) return <button type="button" disabled title={action.disabledReason} className={`${className} cursor-not-allowed opacity-50`}>{action.label}</button>;
-  if (kind === "payout") {
-    return <button type="button" data-action-id={action.id} onClick={() => { track("discover_action_opened", { actionId: action.id }); onPayout(); }} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : null}</button>;
+  if (action.presentation.kind === "workbench") {
+    const subjectId = action.presentation.target.subjectId;
+    return <button type="button" data-action-id={action.id} onClick={() => { track("discover_action_opened", { actionId: action.id, subject: item?.subjectId ?? subjectId }); onOpen(action, item); }} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : null}</button>;
   }
-  if (kind === "pool_funding") {
-    const parsed = new URL(action.href, "https://resolve.local");
-    const programId = item?.programId ?? item?.poolId ?? parsed.searchParams.get("programId") ?? undefined;
-    const communitySlug = item?.community?.id;
-    return <button type="button" data-action-id={action.id} onClick={() => {
-      track("discover_action_opened", { actionId: action.id, subject: item?.subjectId ?? "recommendation" });
-      openFundSheet({ programId, communitySlug, label: item ? `Fund ${item.headline}` : "Fund Pool", programName: item?.headline, whyFund: item?.whyItMatters, whoBenefits: item?.happened });
-    }} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : null}</button>;
-  }
-  if (kind === "direct_support") {
-    const parsed = new URL(action.href, "https://resolve.local");
-    const recipientUserId = parsed.searchParams.get("recipient");
-    return <button type="button" data-action-id={action.id} disabled={!recipientUserId} onClick={() => {
-      if (!recipientUserId) return;
-      track("discover_action_opened", { actionId: action.id, subject: item?.subjectId ?? recipientUserId });
-      openSendFunds({ recipientUserId, recipientLabel: item?.person?.name ?? item?.headline });
-    }} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : null}</button>;
-  }
-  return <Link href={action.href} data-action-id={action.id} onClick={() => track("discover_action_opened", { actionId: action.id, subject: item?.subjectId ?? "recommendation" })} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : action.href.startsWith("http") ? <ExternalLink className="h-3.5 w-3.5" /> : null}</Link>;
+  return <Link href={action.href} target={action.presentation.target === "external" ? "_blank" : undefined} rel={action.presentation.target === "external" ? "noreferrer" : undefined} data-action-id={action.id} onClick={() => track("discover_action_opened", { actionId: action.id, subject: item?.subjectId ?? "recommendation" })} className={className}>{action.label}{primary ? <ArrowRight className="h-4 w-4" /> : action.presentation.target === "external" ? <ExternalLink className="h-3.5 w-3.5" /> : null}</Link>;
 }
 
-function Recommendation({ data, onPayout }: { data: DiscoverPageData; onPayout: () => void }) {
+function Recommendation({ data, onOpen }: { data: DiscoverPageData; onOpen: (action: DiscoverAction, item?: EconomicActionItem) => void }) {
   const recommendation = data.recommendation;
   const item = data.economicActions.find((candidate) => candidate.id === recommendation.id);
   return (
@@ -381,7 +349,7 @@ function Recommendation({ data, onPayout }: { data: DiscoverPageData; onPayout: 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="max-w-3xl">
           <div className="flex flex-wrap items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-300" />
+            <Activity className="h-4 w-4 text-violet-300" />
             <p className="text-xs font-semibold text-violet-200">Recommended next action</p>
             <span className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-slate-400">{recommendation.state.replaceAll("_", " ")}</span>
           </div>
@@ -390,64 +358,151 @@ function Recommendation({ data, onPayout }: { data: DiscoverPageData; onPayout: 
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {recommendation.secondaryActions.slice(0, 2).map((action) => (
-            <ContextualAction key={action.href} action={{ ...action, enabled: true }} item={item} onPayout={onPayout} />
+            <ContextualAction key={action.href} action={action} item={item} onOpen={onOpen} />
           ))}
-          <ContextualAction action={{ ...recommendation.primaryAction, enabled: true }} item={item} primary onPayout={onPayout} />
+          <ContextualAction action={recommendation.primaryAction} item={item} primary onOpen={onOpen} />
         </div>
       </div>
     </section>
   );
 }
 
-function ActionCard({ item, onPayout }: { item: EconomicActionItem; onPayout: () => void }) {
-  const Icon = subjectIcons[item.subjectType] ?? Activity;
-  const amount = money(item.amount?.valueUsd, item.amount?.token);
+type EntityCardProps = {
+  item: EconomicActionItem;
+  onOpen: (action: DiscoverAction, item?: EconomicActionItem) => void;
+};
+
+function EntityCardActions({ item, onOpen }: EntityCardProps) {
   return (
-    <article id={item.id} className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
+    <div className="mt-4 flex flex-wrap gap-2">
+      <ContextualAction action={item.primaryAction} item={item} primary onOpen={onOpen} />
+      {item.secondaryActions.slice(0, 2).map((action) => (
+        <ContextualAction key={`${item.id}:${action.id}:${action.href}`} action={action} item={item} onOpen={onOpen} />
+      ))}
+    </div>
+  );
+}
+
+function EntityCardFrame({ item, icon: Icon, label, children, onOpen }: EntityCardProps & { icon: typeof Activity; label: string; children: ReactNode }) {
+  return (
+    <article id={item.id} className="rounded-xl border border-white/[0.08] bg-[#091522] p-5 [content-visibility:auto]">
       <div className="flex items-start gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/10 text-violet-200"><Icon className="h-5 w-5" /></span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="rounded-full border border-violet-300/20 px-2 py-1 capitalize text-violet-200">{item.subjectType.replaceAll("_", " ")}</span>
+            <span className="rounded-full border border-violet-300/20 px-2 py-1 text-violet-200">{label}</span>
             <span className="capitalize text-slate-500">{item.lifecycle.replaceAll("_", " ")}</span>
-            {item.source.stale ? <span className="text-amber-200">Stale snapshot</span> : null}
+            {item.source.stale ? <span className="text-amber-200">Last-known snapshot</span> : null}
           </div>
           <h3 className="mt-3 text-base font-semibold leading-6 text-white">{item.headline}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">{item.happened}</p>
           <p className="mt-2 text-sm leading-6 text-slate-500">{item.whyItMatters}</p>
         </div>
       </div>
-      <dl className="mt-4 grid gap-3 border-y border-white/[0.07] py-3 text-xs sm:grid-cols-3">
-        <div><dt className="text-slate-500">Source</dt><dd className="mt-1 text-slate-200">{item.source.label}</dd></div>
-        <div><dt className="text-slate-500">Created by</dt><dd className="mt-1 text-slate-200">{item.person?.name ?? item.community?.name ?? "Canonical system record"}</dd></div>
-        <div><dt className="text-slate-500">Economic state</dt><dd className="mt-1 capitalize text-slate-200">{amount ? `${amount} - ${item.amount?.state.replaceAll("_", " ")}` : item.fundingReadiness.replaceAll("_", " ")}</dd></div>
-      </dl>
-      {item.poolDetails ? <dl className="mt-3 grid gap-3 rounded-lg border border-white/[0.07] bg-black/15 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
-        <div><dt className="text-slate-500">Pool type</dt><dd className="mt-1 text-slate-200">{item.poolDetails.type}</dd></div>
-        <div><dt className="text-slate-500">Verified operator</dt><dd className="mt-1 text-slate-200">{item.poolDetails.owner}</dd></div>
-        <div><dt className="text-slate-500">Confirmed balance</dt><dd className="mt-1 text-slate-200">{money(item.poolDetails.confirmedBalanceUsd) ?? "No confirmed deposit"}</dd></div>
-        <div><dt className="text-slate-500">Funding target</dt><dd className="mt-1 text-slate-200">{money(item.poolDetails.targetUsd) ?? "Open ended"}</dd></div>
-        <div><dt className="text-slate-500">Pending deposits</dt><dd className="mt-1 text-slate-200">{money(item.poolDetails.pendingDepositsUsd) ?? "None"}</dd></div>
-        <div><dt className="text-slate-500">Available balance</dt><dd className="mt-1 text-slate-200">{money(item.poolDetails.availableBalanceUsd) ?? "No confirmed balance"}</dd></div>
-        <div><dt className="text-slate-500">Rule state</dt><dd className="mt-1 capitalize text-slate-200">{item.poolDetails.policyState.replaceAll("_", " ")}</dd></div>
-        <div><dt className="text-slate-500">Network</dt><dd className="mt-1 text-slate-200">{item.poolDetails.network}</dd></div>
-      </dl> : null}
+      {children}
       {item.blocker ? <p className="mt-3 rounded-lg border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-xs leading-5 text-amber-100">Exact blocker: {item.blocker}</p> : null}
-      <div className="mt-4 flex flex-wrap gap-2">
-        {item.primaryAction.enabled ? (
-          <ContextualAction action={item.primaryAction} item={item} primary onPayout={onPayout} />
-        ) : (
-          <button type="button" disabled title={item.primaryAction.disabledReason} className="min-h-10 rounded-lg bg-slate-700 px-3 text-sm text-slate-300 opacity-60">{item.primaryAction.label}</button>
-        )}
-        {item.secondaryActions.slice(0, 2).map((action) => (
-          <ContextualAction key={`${item.id}:${action.id}:${action.href}`} action={action} item={item} onPayout={onPayout} />
-        ))}
-      </div>
+      <EntityCardActions item={item} onOpen={onOpen} />
     </article>
   );
 }
 
-function ActionFeed({ items, title, onPayout }: { items: EconomicActionItem[]; title: string; onPayout: () => void }) {
+function PersonCard({ item, onOpen }: EntityCardProps) {
+  return (
+    <EntityCardFrame item={item} onOpen={onOpen} icon={UserRound} label="Person">
+      <dl className="mt-4 grid gap-3 border-y border-white/[0.07] py-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+        <div><dt className="text-slate-500">Identity</dt><dd className="mt-1 capitalize text-slate-200">{item.attributionState.replaceAll("_", " ")}</dd></div>
+        <div><dt className="text-slate-500">Payout route</dt><dd className="mt-1 capitalize text-slate-200">{item.recipientReadiness.replaceAll("_", " ")}</dd></div>
+        <div><dt className="text-slate-500">Verified work proof</dt><dd className="mt-1 text-slate-200">{item.evidenceIds.length ? `${item.evidenceIds.length} records` : "No accepted-work record attached"}</dd></div>
+        <div><dt className="text-slate-500">Source identity</dt><dd className="mt-1 text-slate-200">{item.source.label}</dd></div>
+      </dl>
+    </EntityCardFrame>
+  );
+}
+
+function WorkCard({ item, onOpen }: EntityCardProps) {
+  return (
+    <EntityCardFrame item={item} onOpen={onOpen} icon={FileCheck2} label="Verified work">
+      <dl className="mt-4 grid gap-3 border-y border-white/[0.07] py-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+        <div><dt className="text-slate-500">Repository</dt><dd className="mt-1 text-slate-200">{item.repository ?? "Persisted source record"}</dd></div>
+        <div><dt className="text-slate-500">Contributor</dt><dd className="mt-1 text-slate-200">{item.person?.name ?? "Attribution unresolved"}</dd></div>
+        <div><dt className="text-slate-500">Evidence</dt><dd className="mt-1 text-slate-200">{item.evidenceIds.length ? `${item.evidenceIds.length} verified record${item.evidenceIds.length === 1 ? "" : "s"}` : "Source inspection required"}</dd></div>
+        <div><dt className="text-slate-500">Policy coverage</dt><dd className="mt-1 capitalize text-slate-200">{item.policyState?.replaceAll("_", " ") ?? "Not evaluated"}</dd></div>
+      </dl>
+    </EntityCardFrame>
+  );
+}
+
+function PoolCard({ item, onOpen }: EntityCardProps) {
+  const details = item.poolDetails;
+  return (
+    <EntityCardFrame item={item} onOpen={onOpen} icon={CircleDollarSign} label="Pool">
+      <dl className="mt-4 grid gap-3 rounded-lg border border-white/[0.07] bg-black/15 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+        <div><dt className="text-slate-500">Pool type</dt><dd className="mt-1 text-slate-200">{details?.type ?? "Funding mechanism"}</dd></div>
+        <div><dt className="text-slate-500">Verified operator</dt><dd className="mt-1 text-slate-200">{details?.owner ?? item.person?.name ?? "Operator record"}</dd></div>
+        <div><dt className="text-slate-500">Confirmed balance</dt><dd className="mt-1 text-slate-200">{money(details?.confirmedBalanceUsd) ?? "No confirmed deposit"}</dd></div>
+        <div><dt className="text-slate-500">Funding target</dt><dd className="mt-1 text-slate-200">{money(details?.targetUsd) ?? "Open ended"}</dd></div>
+        <div><dt className="text-slate-500">Pending deposits</dt><dd className="mt-1 text-slate-200">{money(details?.pendingDepositsUsd) ?? "None"}</dd></div>
+        <div><dt className="text-slate-500">Available balance</dt><dd className="mt-1 text-slate-200">{money(details?.availableBalanceUsd) ?? "No confirmed balance"}</dd></div>
+        <div><dt className="text-slate-500">Operating policy</dt><dd className="mt-1 capitalize text-slate-200">{details?.policyState.replaceAll("_", " ") ?? item.policyState?.replaceAll("_", " ") ?? "Missing"}</dd></div>
+        <div><dt className="text-slate-500">Treasury and network</dt><dd className="mt-1 capitalize text-slate-200">{details ? `${details.treasuryReadiness.replaceAll("_", " ")} on ${details.network ?? "Arc Testnet"}` : "Setup required"}</dd></div>
+      </dl>
+    </EntityCardFrame>
+  );
+}
+
+function ProgramCard({ item, onOpen }: EntityCardProps) {
+  return (
+    <EntityCardFrame item={item} onOpen={onOpen} icon={GitBranch} label="Program">
+      <dl className="mt-4 grid gap-3 border-y border-white/[0.07] py-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+        <div><dt className="text-slate-500">Community</dt><dd className="mt-1 text-slate-200">{item.community?.name ?? "Community record"}</dd></div>
+        <div><dt className="text-slate-500">Program record</dt><dd className="mt-1 break-all text-slate-200">{item.programId ?? item.subjectId}</dd></div>
+        <div><dt className="text-slate-500">Evidence rule</dt><dd className="mt-1 capitalize text-slate-200">{item.policyState?.replaceAll("_", " ") ?? "Not recorded"}</dd></div>
+        <div><dt className="text-slate-500">Funding mechanism</dt><dd className="mt-1 capitalize text-slate-200">{item.fundingReadiness.replaceAll("_", " ")}</dd></div>
+      </dl>
+    </EntityCardFrame>
+  );
+}
+
+function CommunityCard({ item, onOpen }: EntityCardProps) {
+  return (
+    <EntityCardFrame item={item} onOpen={onOpen} icon={Building2} label="Community">
+      <dl className="mt-4 grid gap-3 border-y border-white/[0.07] py-3 text-xs sm:grid-cols-3">
+        <div><dt className="text-slate-500">Community</dt><dd className="mt-1 text-slate-200">{item.community?.name ?? item.source.label}</dd></div>
+        <div><dt className="text-slate-500">Activity source</dt><dd className="mt-1 text-slate-200">{item.source.label}</dd></div>
+        <div><dt className="text-slate-500">Current economic state</dt><dd className="mt-1 capitalize text-slate-200">{item.lifecycle.replaceAll("_", " ")}</dd></div>
+      </dl>
+    </EntityCardFrame>
+  );
+}
+
+function OutcomeCard({ item, onOpen }: EntityCardProps) {
+  const amount = money(item.amount?.valueUsd, item.amount?.token);
+  const confirmedAt = item.updatedAt !== new Date(0).toISOString() ? new Date(item.updatedAt).toLocaleString() : "Persisted confirmation time unavailable";
+  return (
+    <EntityCardFrame item={item} onOpen={onOpen} icon={BadgeCheck} label="Confirmed outcome">
+      <dl className="mt-4 grid gap-3 rounded-lg border border-emerald-300/10 bg-emerald-300/[0.03] p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+        <div><dt className="text-slate-500">Confirmed amount</dt><dd className="mt-1 text-slate-100">{amount ?? "Recorded without an amount projection"}</dd></div>
+        <div><dt className="text-slate-500">Recipient</dt><dd className="mt-1 text-slate-100">{item.person?.name ?? "Receipt recipient"}</dd></div>
+        <div><dt className="text-slate-500">Receipt</dt><dd className="mt-1 break-all text-slate-100">{item.receiptId ?? "Canonical receipt record"}</dd></div>
+        <div><dt className="text-slate-500">Confirmed at</dt><dd className="mt-1 text-slate-100">{confirmedAt}</dd></div>
+      </dl>
+    </EntityCardFrame>
+  );
+}
+
+function EconomicActionCard(props: EntityCardProps) {
+  const { item } = props;
+  if (["contributor", "creator", "identity_blocker", "payout_blocker"].includes(item.subjectType)) return <PersonCard {...props} />;
+  if (item.subjectType === "accepted_work") return <WorkCard {...props} />;
+  if (["community_pool", "funding_gap"].includes(item.subjectType)) return <PoolCard {...props} />;
+  if (item.subjectType === "community") return <CommunityCard {...props} />;
+  if (["receipt", "settlement"].includes(item.subjectType)) return <OutcomeCard {...props} />;
+  if (["active_program", "policy_blocker", "authorization"].includes(item.subjectType)) return item.programId ? <ProgramCard {...props} /> : <CommunityCard {...props} />;
+  const Icon = subjectIcons[item.subjectType] ?? Activity;
+  return <EntityCardFrame {...props} icon={Icon} label={item.subjectType.replaceAll("_", " ")}><dl className="mt-4 border-y border-white/[0.07] py-3 text-xs"><dt className="text-slate-500">Canonical source</dt><dd className="mt-1 text-slate-200">{item.source.label}</dd></dl></EntityCardFrame>;
+}
+
+function ActionFeed({ items, title, onOpen }: { items: EconomicActionItem[]; title: string; onOpen: (action: DiscoverAction, item?: EconomicActionItem) => void }) {
   if (!items.length) return null;
   return (
     <section aria-labelledby="economic-action-feed-title">
@@ -458,7 +513,7 @@ function ActionFeed({ items, title, onPayout }: { items: EconomicActionItem[]; t
         </div>
         <span className="text-xs text-slate-500">{items.length} real item{items.length === 1 ? "" : "s"}</span>
       </div>
-      <div className="grid gap-3 xl:grid-cols-2">{items.map((item) => <ActionCard key={item.id} item={item} onPayout={onPayout} />)}</div>
+      <div className="grid gap-3 xl:grid-cols-2">{items.map((item) => <EconomicActionCard key={item.id} item={item} onOpen={onOpen} />)}</div>
     </section>
   );
 }
@@ -480,7 +535,7 @@ function ExploreFilters({ active, filters }: { active: DiscoverExploreKind; filt
   );
 }
 
-function SourceDiagnosticCard({ diagnostic }: { diagnostic: DiscoverSourceDiagnostic }) {
+function SourceDiagnosticCard({ diagnostic, onOpen }: { diagnostic: DiscoverSourceDiagnostic; onOpen: (action: DiscoverAction) => void }) {
   return (
     <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -495,8 +550,8 @@ function SourceDiagnosticCard({ diagnostic }: { diagnostic: DiscoverSourceDiagno
       </dl>
       <p className="mt-3 text-sm leading-6 text-slate-400">{diagnostic.reason}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Link href={diagnostic.primaryAction.href} data-action-id={diagnostic.primaryAction.id} onClick={() => track("discover_action_opened", { actionId: diagnostic.primaryAction.id, source: diagnostic.id })} className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-violet-500 px-3 text-xs font-semibold text-white">{diagnostic.primaryAction.label}<ArrowRight className="h-3.5 w-3.5" /></Link>
-        {diagnostic.secondaryActions.map((action) => <Link key={action.id} href={action.href} data-action-id={action.id} onClick={() => track("discover_action_opened", { actionId: action.id, source: diagnostic.id })} className="inline-flex min-h-9 items-center rounded-lg border border-white/10 px-3 text-xs text-slate-300">{action.label}</Link>)}
+        <ContextualAction action={diagnostic.primaryAction} primary onOpen={onOpen} />
+        {diagnostic.secondaryActions.map((action) => <ContextualAction key={action.id} action={action} onOpen={onOpen} />)}
       </div>
     </article>
   );
@@ -614,11 +669,48 @@ function EmptyState({ view, signedIn }: { view: DiscoverView; signedIn: boolean 
 }
 
 function DiscoverMarketplaceContent({ data, filters }: { data: DiscoverPageData; filters: OpportunityFilters }) {
-  const [payoutOpen, setPayoutOpen] = useState(false);
+  const router = useRouter();
+  const params = useSearchParams();
+  const [active, setActive] = useState<{ action: DiscoverAction; item?: EconomicActionItem } | null>(null);
   useEffect(() => track("discover_viewed", { view: data.view }), [data.view]);
   const feed = data.view === "for_you" && data.economicActions[0]?.id === data.recommendation.id
     ? data.economicActions.slice(1)
     : data.economicActions;
+  const needsAttention = data.view === "for_you" ? feed.filter((item) => Boolean(item.blocker)).slice(0, 4) : [];
+  const recent = data.view === "for_you" ? feed.filter((item) => !item.blocker) : feed;
+  const openWorkbench = (action: DiscoverAction, item?: EconomicActionItem) => {
+    setActive({ action, item });
+    if (action.presentation.kind === "workbench") {
+      const next = new URLSearchParams(params.toString());
+      next.set("action", action.id);
+      next.set("subject", action.presentation.target.subjectId);
+      router.replace(`/discover?${next.toString()}`, { scroll: false });
+    }
+  };
+  const closeWorkbench = () => {
+    setActive(null);
+    const next = new URLSearchParams(params.toString());
+    next.delete("action");
+    next.delete("subject");
+    router.replace(`/discover?${next.toString()}`, { scroll: false });
+  };
+  useEffect(() => {
+    if (active) return;
+    const actionId = params.get("action");
+    const subjectId = params.get("subject");
+    if (!actionId || !subjectId) return;
+    const candidates = [
+      ...data.economicActions.flatMap((item) => [
+        { action: item.primaryAction, item },
+        ...item.secondaryActions.map((action) => ({ action, item })),
+      ]),
+      { action: data.recommendation.primaryAction, item: data.economicActions.find((item) => item.id === data.recommendation.id) },
+      ...data.recommendation.secondaryActions.map((action) => ({ action, item: undefined })),
+      ...data.sourceDiagnostics.flatMap((diagnostic) => [diagnostic.primaryAction, ...diagnostic.secondaryActions].map((action) => ({ action, item: undefined }))),
+    ];
+    const match = candidates.find(({ action }) => action.id === actionId && action.presentation.kind === "workbench" && action.presentation.target.subjectId === subjectId);
+    if (match) setActive(match);
+  }, [active, data, params]);
   return (
     <main className="mx-auto min-h-screen w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
       <Header data={data} />
@@ -630,22 +722,44 @@ function DiscoverMarketplaceContent({ data, filters }: { data: DiscoverPageData;
       <div className="mt-3"><ContextControls data={data} filters={filters} /></div>
       <div className="mt-5 space-y-5">
         <SourceFailure data={data} />
-        {data.view === "for_you" ? <Recommendation data={data} onPayout={() => setPayoutOpen(true)} /> : null}
+        {data.view === "for_you" ? <Recommendation data={data} onOpen={openWorkbench} /> : null}
         {data.view === "explore" ? <ExploreFilters active={filters.kind ?? "all"} filters={filters} /> : null}
-        {feed.length ? <ActionFeed items={feed} onPayout={() => setPayoutOpen(true)} title={data.view === "for_you" ? "What can happen next" : data.view === "activity" ? "Your work, setup, funding, and decisions" : data.view === "outcomes" ? "Confirmed settlements and receipts" : "Explore the value network"} /> : <EmptyState view={data.view} signedIn={data.signedIn} />}
+        {data.view === "for_you" ? <NeedsAttention items={needsAttention} onOpen={openWorkbench} /> : null}
+        {data.view === "explore" && (filters.kind ?? "all") === "all" ? <GroupedExploreFeed items={feed} onOpen={openWorkbench} /> : null}
+        {recent.length && !(data.view === "explore" && (filters.kind ?? "all") === "all") ? <ActionFeed items={recent} onOpen={openWorkbench} title={data.view === "for_you" ? "Recently changed" : data.view === "activity" ? "Your work, setup, funding, and decisions" : data.view === "outcomes" ? "Confirmed settlements and receipts" : "Explore the value network"} /> : !feed.length ? <EmptyState view={data.view} signedIn={data.signedIn} /> : null}
         {data.view === "explore" ? <RepositoryAnalyzer signedIn={data.signedIn} /> : null}
         {(data.view === "explore" || data.view === "activity") && data.sourceDiagnostics.length ? (
           <section aria-labelledby="source-diagnostics-title">
             <div className="mb-3"><p className="text-xs font-semibold text-cyan-300">Evidence freshness</p><h2 id="source-diagnostics-title" className="mt-1 text-lg font-semibold text-white">Source evaluation details</h2></div>
-            <div className="grid gap-3 lg:grid-cols-2">{data.sourceDiagnostics.map((diagnostic) => <SourceDiagnosticCard key={diagnostic.id} diagnostic={diagnostic} />)}</div>
+            <div className="grid gap-3 lg:grid-cols-2">{data.sourceDiagnostics.map((diagnostic) => <SourceDiagnosticCard key={diagnostic.id} diagnostic={diagnostic} onOpen={(action) => setActive({ action })} />)}</div>
           </section>
         ) : null}
       </div>
-      <PayoutDestinationDrawer open={payoutOpen} origin="discover" onClose={() => setPayoutOpen(false)} />
+      <DiscoverActionWorkbench action={active?.action ?? null} item={active?.item} data={data} onClose={closeWorkbench} />
     </main>
   );
 }
 
 export function DiscoverMarketplace(props: { data: DiscoverPageData; filters: OpportunityFilters }) {
-  return <DiscoverActionsProvider signedIn={props.data.signedIn}><DiscoverMarketplaceContent {...props} /></DiscoverActionsProvider>;
+  return <DiscoverMarketplaceContent {...props} />;
+}
+
+function NeedsAttention({ items, onOpen }: { items: EconomicActionItem[]; onOpen: (action: DiscoverAction, item?: EconomicActionItem) => void }) {
+  if (!items.length) return null;
+  return <section aria-labelledby="discover-needs-attention"><div className="mb-3 flex items-center justify-between"><h2 id="discover-needs-attention" className="text-base font-semibold text-white">Needs attention</h2><span className="text-xs text-slate-500">{items.length} exact blocker{items.length === 1 ? "" : "s"}</span></div><div className="divide-y divide-white/[0.07] overflow-hidden rounded-xl border border-white/[0.08] bg-[#091522]">{items.map((item) => <article key={item.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-medium text-white">{item.headline}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-amber-100">{item.blocker}</p></div><ContextualAction action={item.primaryAction} item={item} onOpen={onOpen} /></article>)}</div></section>;
+}
+
+const exploreGroups: Array<{ title: string; types: EconomicActionItem["subjectType"][] }> = [
+  { title: "Verified work", types: ["accepted_work"] },
+  { title: "People", types: ["contributor", "creator", "identity_blocker", "payout_blocker"] },
+  { title: "Pools and funding gaps", types: ["community_pool", "funding_gap"] },
+  { title: "Programs", types: ["active_program", "policy_blocker"] },
+  { title: "Communities", types: ["community"] },
+  { title: "Confirmed outcomes", types: ["receipt"] },
+];
+
+function GroupedExploreFeed({ items, onOpen }: { items: EconomicActionItem[]; onOpen: (action: DiscoverAction, item?: EconomicActionItem) => void }) {
+  const groups = exploreGroups.map((group) => ({ ...group, items: items.filter((item) => group.types.includes(item.subjectType)).slice(0, 1) })).filter((group) => group.items.length);
+  if (!groups.length) return null;
+  return <section aria-labelledby="explore-network-title"><div className="mb-3"><p className="text-xs font-semibold text-cyan-300">Explore by entity</p><h2 id="explore-network-title" className="mt-1 text-lg font-semibold text-white">Highest-value current records</h2></div><div className="space-y-5">{groups.map((group) => <section key={group.title} aria-label={group.title}><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-semibold text-slate-200">{group.title}</h3><span className="text-xs text-slate-600">Showing the highest-ranked current record</span></div>{group.items.map((item) => <EconomicActionCard key={item.id} item={item} onOpen={onOpen} />)}</section>)}</div></section>;
 }

@@ -24,6 +24,7 @@ import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
 import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel";
 import { WalletSourcePicker } from "@/components/resolve/fund/wallet-source-picker";
 import { PayoutDestinationDrawer } from "@/components/resolve/profile/payout-destination-drawer";
+import { shouldOpenPayoutDestination } from "@/components/resolve/discover/marketplace/workbench-state";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import type {
   CapitalAuthorizationSummary,
@@ -2001,7 +2002,6 @@ export function DiscoverActionWorkbench({
   data,
   onClose,
 }: Props) {
-  const [payoutOpen, setPayoutOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const { openSignIn } = useSignInModal();
   const target =
@@ -2022,10 +2022,6 @@ export function DiscoverActionWorkbench({
       "transaction",
     ].includes(target.panel),
   );
-  useEffect(() => {
-    if (target?.panel === "payout_destination" && data.signedIn)
-      setPayoutOpen(true);
-  }, [data.signedIn, target]);
   useEffect(() => {
     if (!action || !target) return;
     const previous =
@@ -2160,16 +2156,9 @@ export function DiscoverActionWorkbench({
         </section>
       </div>
       <PayoutDestinationDrawer
-        open={payoutOpen && data.signedIn}
+        open={shouldOpenPayoutDestination(target.panel, data.signedIn)}
         origin="discover"
-        onChanged={() => {
-          setPayoutOpen(false);
-          onClose();
-        }}
-        onClose={() => {
-          setPayoutOpen(false);
-          onClose();
-        }}
+        onClose={onClose}
       />
     </>
   );

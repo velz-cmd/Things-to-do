@@ -255,41 +255,48 @@ export async function loadStoredOssOpportunities(): Promise<{
   let aggregateUnavailable = false;
   let snapshotUnavailable = false;
 
-  try {
-    rows.push(
-      ...(await prisma.githubOssScan.findMany({
-        orderBy: { scannedAt: "desc" },
-        take: 50,
-        select: {
-          payloadJson: true,
-          owner: true,
-          repo: true,
-          fullName: true,
-          scannedAt: true,
-        },
-      })),
-    );
-  } catch (e) {
-    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
+  const [aggregateResult, snapshotResult] = await Promise.allSettled([
+    prisma.githubOssScan.findMany({
+      orderBy: { scannedAt: "desc" },
+      take: 50,
+      select: {
+        payloadJson: true,
+        owner: true,
+        repo: true,
+        fullName: true,
+        scannedAt: true,
+      },
+    }),
+    prisma.discoverRepositorySnapshot.findMany({
+      orderBy: [{ observedAt: "desc" }, { createdAt: "desc" }],
+      take: 100,
+      select: {
+        payload: true,
+        owner: true,
+        repo: true,
+        fullName: true,
+        observedAt: true,
+      },
+    }),
+  ]);
+
+  if (aggregateResult.status === "fulfilled") {
+    rows.push(...aggregateResult.value);
+  } else {
+    const error = aggregateResult.reason;
+    if (!isMissingTableError(error) && !isPrismaUnavailableError(error)) {
+      throw error;
+    }
     aggregateUnavailable = true;
   }
 
-  try {
-    rows.push(
-      ...(await prisma.discoverRepositorySnapshot.findMany({
-        orderBy: [{ observedAt: "desc" }, { createdAt: "desc" }],
-        take: 100,
-        select: {
-          payload: true,
-          owner: true,
-          repo: true,
-          fullName: true,
-          observedAt: true,
-        },
-      })),
-    );
-  } catch (e) {
-    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
+  if (snapshotResult.status === "fulfilled") {
+    rows.push(...snapshotResult.value);
+  } else {
+    const error = snapshotResult.reason;
+    if (!isMissingTableError(error) && !isPrismaUnavailableError(error)) {
+      throw error;
+    }
     snapshotUnavailable = true;
   }
 

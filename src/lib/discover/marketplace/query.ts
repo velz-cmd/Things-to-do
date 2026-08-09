@@ -61,6 +61,7 @@ import { discoverNavigationAction, workbenchAction } from "./action-contract";
 
 const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
+const GITHUB_EVIDENCE_SOURCE_TIMEOUT_MS = 15_000;
 const MARKETPLACE_ACTIVITY_TIMEOUT_MS = 1_000;
 export const DISCOVER_MARKETPLACE_CACHE_TAG = "discover-marketplace-sources";
 export const DISCOVER_MARKETPLACE_ACTIVITY_CACHE_TAG =
@@ -353,7 +354,7 @@ function loadCachedVerifiedGithubWork() {
     DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.githubWork,
     SOURCE_CACHE_SECONDS,
     () =>
-      withTimeout(loadVerifiedGithubWork(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+      withTimeout(loadVerifiedGithubWork(), GITHUB_EVIDENCE_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },
   );
 }
@@ -1184,7 +1185,7 @@ export function attachVerifiedWorkActions(
       item.creator.name.trim().replace(/^@/, "").toLowerCase(),
     );
     const persistedEvidenceIds =
-      item.primaryAction?.presentation.kind === "workbench" &&
+      item.primaryAction?.presentation?.kind === "workbench" &&
       item.primaryAction.presentation.target.panel === "evidence"
         ? item.primaryAction.presentation.target.evidenceIds
         : [];
@@ -1787,7 +1788,7 @@ function listPools(
                 ),
         secondaryActions: (item.secondaryActions ?? []).filter(
           (action) =>
-            action.presentation.kind !== "navigation" ||
+            action.presentation?.kind !== "navigation" ||
             action.presentation.target !== "workspace",
         ),
       },

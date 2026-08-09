@@ -10,10 +10,15 @@ test.describe("Discover accepted GitHub evidence", () => {
       timeout: 120_000,
     });
 
-    await page
-      .getByLabel("Public GitHub repository")
-      .fill("velz-cmd/repodiet-e2e-test");
-    await page.getByRole("button", { name: "Analyse", exact: true }).click();
+    const repositoryInput = page.getByLabel("Public GitHub repository");
+    const analyzeButton = page.getByRole("button", {
+      name: "Analyse",
+      exact: true,
+    });
+    await expect(analyzeButton).toBeEnabled();
+    await repositoryInput.fill("velz-cmd/repodiet-e2e-test");
+    await expect(repositoryInput).toHaveValue("velz-cmd/repodiet-e2e-test");
+    await analyzeButton.click();
 
     await expect(
       page.getByText("Evidence saved to Discover", { exact: true }),
@@ -30,7 +35,10 @@ test.describe("Discover accepted GitHub evidence", () => {
       page.getByText("velz-cmd / documentation", { exact: true }),
     ).toBeVisible();
 
-    await page
+    const workRow = page
+      .getByRole("heading", { name: workTitle, exact: true })
+      .locator("xpath=ancestor::article");
+    await workRow
       .getByRole("button", { name: "Inspect evidence", exact: true })
       .click();
     const dialog = page.getByRole("dialog", { name: "Inspect evidence" });

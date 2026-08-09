@@ -30,7 +30,7 @@ export function isConfirmedOutcome(item: MarketplaceOpportunity) {
   return item.marketplaceKind === "outcome" &&
     item.source.type === "confirmed_receipt" &&
     item.entityState?.lifecycle === "confirmed" &&
-    item.primaryAction?.presentation.kind === "workbench" &&
+    item.primaryAction?.presentation?.kind === "workbench" &&
     item.primaryAction.presentation.target.panel === "receipt";
 }
 

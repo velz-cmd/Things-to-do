@@ -1183,12 +1183,14 @@ function RepositoryAnalyzer() {
   const [analysis, setAnalysis] = useState<RepositoryAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   useEffect(() => {
     const requested = params.get("repository");
     if (requested) setRepository(requested);
   }, [params]);
-  async function analyze() {
-    const match = repository.trim().match(/^([\w.-]+)\/([\w.-]+)$/);
+  async function analyze(repositoryValue = repository) {
+    const match = repositoryValue.trim().match(/^([\w.-]+)\/([\w.-]+)$/);
     if (!match) {
       setError("Enter a public repository as owner/repository.");
       return;
@@ -1237,11 +1239,16 @@ function RepositoryAnalyzer() {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            void analyze();
+            const value = new FormData(event.currentTarget).get("repository");
+            const submittedRepository =
+              typeof value === "string" ? value : repository;
+            setRepository(submittedRepository);
+            void analyze(submittedRepository);
           }}
           className="flex gap-2"
         >
           <input
+            name="repository"
             value={repository}
             onChange={(event) => setRepository(event.target.value)}
             placeholder="owner/repository"
@@ -1249,7 +1256,7 @@ function RepositoryAnalyzer() {
             className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#050d17] px-3 text-sm text-white outline-none"
           />
           <button
-            disabled={pending}
+            disabled={pending || !hydrated}
             className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-60"
           >
             {pending ? (

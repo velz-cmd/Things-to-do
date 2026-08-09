@@ -4,9 +4,9 @@ import {
   Activity,
   ArrowRight,
   BadgeCheck,
-  Building2,
   CheckCircle2,
   CircleDollarSign,
+  ClipboardList,
   ExternalLink,
   FileCheck2,
   GitBranch,
@@ -14,12 +14,10 @@ import {
   LoaderCircle,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   UserRound,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -35,11 +33,8 @@ import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketpla
 import type {
   DiscoverAction,
   DiscoverActivityItem,
-  DiscoverCommunity,
-  DiscoverExploreKind,
   DiscoverInboxItem,
   DiscoverPageData,
-  DiscoverPerson,
   DiscoverPool,
   DiscoverSourceDiagnostic,
   DiscoverView,
@@ -52,18 +47,18 @@ type OpenAction = (action: DiscoverAction, item?: EconomicActionItem) => void;
 
 const views: Array<{ id: DiscoverView; label: string; icon: typeof Activity }> =
   [
-    { id: "for_you", label: "For You", icon: Activity },
-    { id: "explore", label: "Explore", icon: Search },
-    { id: "activity", label: "My Activity", icon: Activity },
-    { id: "outcomes", label: "Outcomes", icon: History },
+    { id: "for_you", label: "Verified Work", icon: FileCheck2 },
+    { id: "explore", label: "Open Requests", icon: ClipboardList },
+    { id: "activity", label: "Pools", icon: CircleDollarSign },
+    { id: "outcomes", label: "Activity", icon: History },
   ];
 
-const exploreKinds: Array<{ id: DiscoverExploreKind; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "work", label: "Work" },
-  { id: "people", label: "People" },
-  { id: "pools", label: "Pools" },
-];
+const publicViewId: Record<DiscoverView, string> = {
+  for_you: "verified_work",
+  explore: "requests",
+  activity: "pools",
+  outcomes: "activity",
+};
 
 function money(value?: number, token = "USDC") {
   if (value == null) return null;
@@ -83,7 +78,7 @@ function discoverHref(
   filters: OpportunityFilters,
   kind = filters.kind,
 ) {
-  const params = new URLSearchParams({ view });
+  const params = new URLSearchParams({ view: publicViewId[view] });
   if (filters.q) params.set("q", filters.q);
   if (filters.type) params.set("type", filters.type);
   if (filters.category) params.set("category", filters.category);
@@ -94,7 +89,7 @@ function discoverHref(
   if (filters.provider) params.set("provider", filters.provider);
   if (filters.remote) params.set("remote", "true");
   if (filters.deadline) params.set("deadline", filters.deadline);
-  if (view === "explore" && kind) params.set("kind", kind);
+  if (view === "explore" && kind && kind !== "all") params.set("kind", kind);
   if (filters.sort !== "newest") params.set("sort", filters.sort);
   return `/discover?${params.toString()}`;
 }
@@ -135,10 +130,14 @@ function detailAction(
     program: "discover.open_program",
     community: "community.open",
   } as const;
+  const owningView =
+    entityType === "pool" || entityType === "program" || entityType === "community"
+      ? "pools"
+      : "verified_work";
   return {
     id: ids[entityType],
     label,
-    href: `/discover?view=explore&kind=${entityType === "person" ? "people" : entityType === "work" ? "work" : `${entityType}s`}&action=${ids[entityType]}&subject=${encodeURIComponent(subjectId)}`,
+    href: `/discover?view=${owningView}&action=${ids[entityType]}&subject=${encodeURIComponent(subjectId)}`,
     enabled: true,
     presentation: {
       kind: "workbench",
@@ -200,7 +199,7 @@ function SearchBox({
   const commitQuery = useCallback(
     (value: string) => {
       const next = new URLSearchParams(current);
-      next.set("view", view);
+      next.set("view", publicViewId[view]);
       next.delete("cursor");
       if (value.trim()) next.set("q", value.trim());
       else next.delete("q");
@@ -367,112 +366,20 @@ function ContextualAction({
   );
 }
 
-function PersonCard({
-  person,
-  data,
-  onOpen,
-}: {
-  person: DiscoverPerson;
-  data: DiscoverPageData;
-  onOpen: OpenAction;
-}) {
-  const context = findContext(data, person.id);
-  const details = detailAction("person", person.id, "View work");
-  const githubHandle = person.profilePath?.match(
-    /^https:\/\/github\.com\/([^/?#]+)/i,
-  )?.[1];
-  const primaryIsUseful =
-    person.primaryAction.presentation.kind === "workbench";
-  const isOwnPayoutSetup =
-    person.primaryAction.id === "profile.set_payout_destination";
-  const payoutLabel =
-    person.payoutReadiness === "ready"
-      ? "Payout ready"
-      : isOwnPayoutSetup
-        ? "Choose wallet"
-        : person.payoutReadiness === "invite_to_claim"
-          ? "Claim needed"
-          : "Payout unavailable";
-  return (
-    <article className="min-w-[240px] rounded-xl border border-white/[0.08] bg-[#091522] p-4">
-      <div className="flex items-center gap-3">
-        {person.avatar ? (
-          <Image
-            unoptimized
-            src={person.avatar}
-            alt=""
-            width={44}
-            height={44}
-            className="h-11 w-11 rounded-full border border-white/10 object-cover"
-          />
-        ) : (
-          <span className="grid h-11 w-11 place-items-center rounded-full bg-violet-400/12 text-sm font-semibold text-violet-100">
-            {person.name.slice(0, 2).toUpperCase()}
-          </span>
-        )}
-        <div className="min-w-0">
-          <h3 className="truncate font-semibold text-white">{person.name}</h3>
-          <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-xs text-slate-500">
-            {githubHandle ? (
-              <span className="text-slate-300">
-                @{decodeURIComponent(githubHandle).replace(/^@/, "")}
-              </span>
-            ) : null}
-            <span>
-              {person.verifiedIdentities[0] ?? "Attributed identity"}
-            </span>
-          </p>
-        </div>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {person.skills.slice(0, 3).map((skill) => (
-          <span
-            key={skill}
-            className="rounded-full bg-white/[0.05] px-2 py-1 text-[11px] text-slate-300"
-          >
-            {skill}
-          </span>
-        ))}
-      </div>
-      <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-white/[0.07] pt-3 text-xs">
-        <div>
-          <dt className="text-slate-500">Accepted work</dt>
-          <dd className="mt-1 font-medium text-white">
-            {person.completedWork ?? 0}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Payout</dt>
-          <dd
-            className={`mt-1 font-medium ${person.payoutReadiness === "ready" ? "text-emerald-300" : "text-amber-200"}`}
-          >
-            {payoutLabel}
-          </dd>
-        </div>
-      </dl>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <ContextualAction
-          action={primaryIsUseful ? person.primaryAction : details}
-          item={context}
-          primary
-          onOpen={onOpen}
-        />
-        {primaryIsUseful ? (
-          <ContextualAction action={details} item={context} onOpen={onOpen} />
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
 function WorkRow({
   work,
   data,
   onOpen,
+  selectable = false,
+  selected = false,
+  onSelect,
 }: {
   work: MarketplaceOpportunity;
   data: DiscoverPageData;
   onOpen: OpenAction;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (selected: boolean) => void;
 }) {
   const context = findContext(data, work.source.id);
   const inspectEvidence =
@@ -484,6 +391,17 @@ function WorkRow({
   return (
     <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
+        {selectable ? (
+          <label className="mb-3 inline-flex items-center gap-2 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={(event) => onSelect?.(event.target.checked)}
+              className="h-4 w-4 rounded border-white/20 bg-black/30 accent-violet-500"
+            />
+            Add to support bundle
+          </label>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 text-cyan-300">
             <GitBranch className="h-3.5 w-3.5" />
@@ -618,190 +536,6 @@ function PoolCard({
   );
 }
 
-function ProgramCard({
-  program,
-  data,
-  onOpen,
-}: {
-  program: MarketplaceOpportunity;
-  data: DiscoverPageData;
-  onOpen: OpenAction;
-}) {
-  const context = findContext(data, program.source.id);
-  const policyReady = program.entityState?.financialReadiness === "ready";
-  return (
-    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs text-cyan-300">
-            {program.community?.name ?? "Community Program"}
-          </p>
-          <h3 className="mt-2 text-lg font-semibold text-white">
-            {program.title}
-          </h3>
-        </div>
-        <span
-          className={`rounded-full border px-2 py-1 text-[11px] ${policyReady ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-100"}`}
-        >
-          {policyReady ? "Active policy" : "Review needed"}
-        </span>
-      </div>
-      <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-300">
-        {program.summary}
-      </p>
-      <dl className="mt-4 grid gap-3 border-y border-white/[0.07] py-3 text-xs sm:grid-cols-2">
-        <div>
-          <dt className="text-slate-500">Recognises</dt>
-          <dd className="mt-1 text-slate-200">
-            {program.deliverables.slice(0, 2).join(", ") ||
-              program.category?.replaceAll("_", " ") ||
-              "Configured activity"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Source</dt>
-          <dd className="mt-1 text-slate-200">
-            {program.repository ?? program.source.type.replaceAll("_", " ")}
-          </dd>
-        </div>
-      </dl>
-      <div className="mt-4">
-        <ContextualAction
-          action={
-            program.primaryAction ??
-            detailAction("program", program.source.id, "View Program")
-          }
-          item={context}
-          primary
-          onOpen={onOpen}
-        />
-      </div>
-    </article>
-  );
-}
-
-function CommunityCard({
-  community,
-  data,
-  onOpen,
-}: {
-  community: DiscoverCommunity;
-  data: DiscoverPageData;
-  onOpen: OpenAction;
-}) {
-  const context = findContext(data, community.id);
-  return (
-    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
-      <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 place-items-center rounded-xl bg-cyan-400/10 text-cyan-200">
-          <Building2 className="h-5 w-5" />
-        </span>
-        <div>
-          <h3 className="font-semibold text-white">{community.name}</h3>
-          <p className="mt-1 text-xs text-slate-500">{community.type}</p>
-        </div>
-      </div>
-      <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-300">
-        {community.purpose}
-      </p>
-      <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-white/[0.07] pt-3 text-xs">
-        <div>
-          <dt className="text-slate-500">Activity</dt>
-          <dd className="mt-1 text-white">
-            {community.activeOpportunities ?? 0}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Pools</dt>
-          <dd className="mt-1 text-white">{community.activePools ?? 0}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Source</dt>
-          <dd className="mt-1 text-white">Verified</dd>
-        </div>
-      </dl>
-      <div className="mt-4">
-        <ContextualAction
-          action={detailAction("community", community.id, "Explore community")}
-          item={context}
-          primary
-          onOpen={onOpen}
-        />
-      </div>
-    </article>
-  );
-}
-
-function OutcomeRow({
-  outcome,
-  data,
-  onOpen,
-}: {
-  outcome: MarketplaceOpportunity;
-  data: DiscoverPageData;
-  onOpen: OpenAction;
-}) {
-  const context = findContext(data, outcome.source.id);
-  return (
-    <article className="grid gap-4 rounded-xl border border-emerald-300/10 bg-emerald-300/[0.025] p-4 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
-      <span className="grid h-10 w-10 place-items-center rounded-full bg-emerald-400/10 text-emerald-300">
-        <CheckCircle2 className="h-5 w-5" />
-      </span>
-      <div>
-        <p className="text-xs font-medium text-emerald-300">
-          Confirmed outcome
-        </p>
-        <h3 className="mt-1 font-semibold text-white">{outcome.title}</h3>
-        <p className="mt-1 text-xs text-slate-500">
-          {outcome.community?.name ?? "RESOLVE"} /{" "}
-          {dateLabel(outcome.updatedAt)} / {outcome.reward?.network ?? "Arc"}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-semibold text-white">
-          {money(outcome.funding?.fundedAmountUsd, outcome.reward?.token)}
-        </span>
-        {outcome.primaryAction ? (
-          <ContextualAction
-            action={outcome.primaryAction}
-            item={context}
-            primary
-            onOpen={onOpen}
-          />
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
-function AttentionRow({
-  item,
-  data,
-  onOpen,
-}: {
-  item: DiscoverInboxItem;
-  data: DiscoverPageData;
-  onOpen: OpenAction;
-}) {
-  const context = findContext(data, item.id);
-  return (
-    <article className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h3 className="text-sm font-medium text-white">{item.title}</h3>
-        <p className="mt-1 text-xs leading-5 text-slate-400">{item.why}</p>
-        {item.blocker ? (
-          <p className="mt-1 text-xs text-amber-200">{item.blocker}</p>
-        ) : null}
-      </div>
-      <ContextualAction
-        action={item.primaryAction}
-        item={context}
-        onOpen={onOpen}
-      />
-    </article>
-  );
-}
-
 function ActivityRow({
   item,
   data,
@@ -920,278 +654,112 @@ function SourceFailure({ data }: { data: DiscoverPageData }) {
 
 function ForYouView({
   data,
-  filters,
   onOpen,
 }: {
   data: DiscoverPageData;
   filters: OpportunityFilters;
   onOpen: OpenAction;
 }) {
+  const [selectedWorkIds, setSelectedWorkIds] = useState<string[]>([]);
   if (data.projection.kind !== "for_you") return null;
-  const projection = data.projection;
-  const recommendation = projection.recommendation;
+  const work = data.opportunities.items
+    .filter(
+      (item) =>
+        item.marketplaceKind === "verified_work" ||
+        item.source.type === "github_evidence" ||
+        item.source.type === "repository_snapshot",
+    )
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const rewardReady = work.filter(
+    (item) => item.primaryAction?.id === "discover.fund_verified_work",
+  ).length;
+  const rewardTargets = work.flatMap((item) =>
+    item.primaryAction?.presentation.kind === "workbench" &&
+    item.primaryAction.presentation.target.panel === "work_funding"
+      ? [{ work: item, target: item.primaryAction.presentation.target }]
+      : [],
+  );
+  const selectedTargets = rewardTargets.filter(({ work: item }) =>
+    selectedWorkIds.includes(item.id),
+  );
+  const bundleAction: DiscoverAction = {
+    id: "discover.create_support_bundle",
+    label: `Support selected (${selectedTargets.length})`,
+    href: "/discover?view=verified_work",
+    enabled: selectedTargets.length > 0,
+    disabledReason: "Select at least one reward-ready work item.",
+    requiresConfirmation: true,
+    presentation: {
+      kind: "workbench",
+      target: {
+        panel: "support_bundle",
+        subjectId: `bundle:${selectedTargets.map(({ work: item }) => item.id).join(",")}`,
+        workItems: selectedTargets.map(({ target }) => target),
+      },
+    },
+  };
   return (
     <div className="space-y-7">
-      <section>
-        <p className="text-xs font-semibold text-violet-300">Personal</p>
-        <h2 className="mt-1 text-2xl font-semibold text-white">
-          Your next moves
-        </h2>
-        {recommendation ? (
-          <div className="mt-4 flex flex-col gap-4 rounded-xl border border-violet-300/15 bg-[linear-gradient(120deg,rgba(105,79,220,.14),rgba(7,17,31,.95)_55%)] p-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs text-violet-200">Recommended now</p>
-              <h3 className="mt-2 text-lg font-semibold text-white">
-                {recommendation.title}
-              </h3>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-                {recommendation.why}
-              </p>
-            </div>
-            <ContextualAction
-              action={recommendation.primaryAction}
-              primary
-              onOpen={onOpen}
-            />
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-slate-400">
-            No personal action needs attention right now. Explore current
-            people, work and Pools below.
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold text-violet-300">Accepted work</p>
+          <h2 className="mt-1 text-2xl font-semibold text-white">
+            Verify the work, then reward the person who did it
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+            Every row comes from a persisted accepted event and a current Evidence record. Inspecting proof is public. Rewards require a claimed contributor and a verified Arc payout destination.
           </p>
-        )}
-      </section>
-      {projection.attention.length ? (
-        <section>
-          <SectionTitle
-            title="Needs your attention"
-            count={projection.attention.length}
-          />
-          <div className="divide-y divide-white/[0.07] overflow-hidden rounded-xl border border-white/[0.08] bg-[#091522]">
-            {projection.attention.map((item) => (
-              <AttentionRow
-                key={item.id}
-                item={item}
-                data={data}
-                onOpen={onOpen}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {projection.pools.length ? (
-        <section>
-          <SectionTitle
-            title="Pools for you"
-            href={discoverHref(
-              "explore",
-              { ...filters, kind: "pools" },
-              "pools",
-            )}
-          />
-          <div className="grid gap-3 lg:grid-cols-2">
-            {projection.pools.map((pool) => (
-              <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {projection.people.length ? (
-        <section>
-          <SectionTitle
-            title="People you may want to support"
-            href={discoverHref(
-              "explore",
-              { ...filters, kind: "people" },
-              "people",
-            )}
-          />
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {projection.people.map((person) => (
-              <PersonCard
-                key={person.id}
-                person={person}
-                data={data}
-                onOpen={onOpen}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {projection.inProgress.length ? (
-        <section>
-          <SectionTitle title="In progress" />
-          <div className="rounded-xl border border-white/[0.08] bg-[#091522] px-4">
-            {projection.inProgress.map((item) => (
-              <ActivityRow
-                key={item.id}
-                item={item}
-                data={data}
-                onOpen={onOpen}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {projection.recent.length ? (
-        <section>
-          <SectionTitle title="Recently changed" />
-          <div className="rounded-xl border border-white/[0.08] bg-[#091522] px-4">
-            {projection.recent.map((item) => (
-              <ActivityRow
-                key={item.id}
-                item={item}
-                data={data}
-                onOpen={onOpen}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </div>
-  );
-}
-
-function ExploreNav({
-  active,
-  filters,
-  onSelect,
-}: {
-  active: DiscoverExploreKind;
-  filters: OpportunityFilters;
-  onSelect: (category: DiscoverExploreKind) => void;
-}) {
-  const [loading, setLoading] = useState<DiscoverExploreKind | null>(null);
-  const loadingTimer = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (loadingTimer.current != null)
-        window.clearTimeout(loadingTimer.current);
-    },
-    [],
-  );
-
-  return (
-    <nav
-      aria-label="Marketplace categories"
-      className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#07111f] p-1"
-    >
-      {exploreKinds.map((kind) => {
-        const isLoading = loading === kind.id;
-        const href = discoverHref("explore", filters, kind.id);
-        return (
-          <Link
-            key={kind.id}
-            href={href}
-            prefetch
-            aria-current={active === kind.id ? "page" : undefined}
-            onClick={(event) => {
-              event.preventDefault();
-              if (kind.id === active) return;
-              setLoading(kind.id);
-              onSelect(kind.id);
-              window.history.pushState(window.history.state, "", href);
-              if (loadingTimer.current != null)
-                window.clearTimeout(loadingTimer.current);
-              loadingTimer.current = window.setTimeout(
-                () => setLoading(null),
-                180,
-              );
-            }}
-            className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs ${active === kind.id ? "bg-[#1a2940] font-semibold text-white" : "text-slate-400 hover:text-white"}`}
-          >
-            {kind.label}
-            {isLoading ? (
-              <LoaderCircle
-                aria-label={`Loading ${kind.label}`}
-                className="h-3 w-3 animate-spin text-violet-300"
-              />
-            ) : null}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
-
-function ExploreControls({ filters }: { filters: OpportunityFilters }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
-  const current = params.toString();
-  useEffect(() => setHydrated(true), []);
-  useEffect(() => setPending(false), [current]);
-  const activeCount = [
-    filters.fundingStatus,
-    filters.remote,
-    filters.community,
-    filters.repository,
-    filters.type,
-  ].filter(Boolean).length;
-
-  function update(key: string, value?: string) {
-    const next = new URLSearchParams(params.toString());
-    next.delete("cursor");
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setFiltersOpen(false);
-    setPending(true);
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
-  }
-
-  return (
-    <div className="relative flex flex-wrap gap-2">
-      <button
-        type="button"
-        aria-expanded={filtersOpen}
-        disabled={pending || !hydrated}
-        onClick={() => setFiltersOpen((value) => !value)}
-        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-slate-300 hover:bg-white/[0.04] disabled:opacity-60"
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        Filters{activeCount ? ` (${activeCount})` : ""}
-      </button>
-      {pending ? (
-        <span className="inline-flex min-h-10 items-center gap-2 px-2 text-xs text-slate-500">
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin text-violet-300" />
-          Updating
-        </span>
-      ) : null}
-      {filtersOpen ? (
-        <div className="absolute right-0 top-12 z-20 w-[min(340px,calc(100vw-32px))] rounded-xl border border-white/10 bg-[#081321] p-4 shadow-2xl">
-          <p className="text-xs font-semibold text-white">Funding state</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {[
-              [undefined, "Any"],
-              ["unfunded", "Unfunded"],
-              ["partially_funded", "Partially funded"],
-              ["funded", "Funded"],
-            ].map(([value, label]) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => update("funding", value)}
-                className={`rounded-full border px-3 py-1.5 text-xs ${filters.fundingStatus === value || (!filters.fundingStatus && !value) ? "border-violet-300/30 bg-violet-400/10 text-white" : "border-white/10 text-slate-400"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              update("remote", filters.remote ? undefined : "true")
-            }
-            className={`mt-4 rounded-full border px-3 py-1.5 text-xs ${filters.remote ? "border-violet-300/30 bg-violet-400/10 text-white" : "border-white/10 text-slate-400"}`}
-          >
-            Remote only
-          </button>
         </div>
+        {work.length ? (
+          <div className="flex gap-2 text-xs">
+            <span className="rounded-lg border border-white/[0.08] bg-[#091522] px-3 py-2 text-slate-300">
+              {work.length} accepted event{work.length === 1 ? "" : "s"}
+            </span>
+            <span className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.04] px-3 py-2 text-emerald-200">
+              {rewardReady} reward ready
+            </span>
+          </div>
+        ) : null}
+      </section>
+      <RepositoryAnalyzer />
+      {rewardTargets.length ? (
+        <section className="flex flex-col gap-3 rounded-xl border border-violet-300/15 bg-violet-300/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-white">Support several contributors</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-400">Select reward-ready work below, review each recipient and amount, then authorise the real Arc transfers.</p>
+          </div>
+          <ContextualAction action={bundleAction} primary onOpen={onOpen} />
+        </section>
       ) : null}
+      {work.length ? (
+        <section>
+          <SectionTitle title="Verified work" count={work.length} />
+          <div className="space-y-3">
+            {work.map((item) => (
+              <WorkRow
+                key={item.id}
+                work={item}
+                data={data}
+                onOpen={onOpen}
+                selectable={rewardTargets.some(({ work: candidate }) => candidate.id === item.id)}
+                selected={selectedWorkIds.includes(item.id)}
+                onSelect={(checked) =>
+                  setSelectedWorkIds((current) =>
+                    checked
+                      ? [...new Set([...current, item.id])]
+                      : current.filter((id) => id !== item.id),
+                  )
+                }
+              />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <CompactEmpty
+          title="No accepted work matches the current source snapshot"
+          body="Analyse a public repository above. RESOLVE will persist only supported merged work. Provider failure keeps the last valid snapshot visible and reports the source reason instead of replacing it with fake or empty records."
+        />
+      )}
     </div>
   );
 }
@@ -1212,6 +780,8 @@ type RepositoryAnalysis = {
     mergedAt: string | null;
   }>;
 };
+
+
 
 function RepositoryAnalyzer() {
   const router = useRouter();
@@ -1346,175 +916,140 @@ function RepositoryAnalyzer() {
   );
 }
 
+function RequestCard({
+  request,
+  data,
+  onOpen,
+}: {
+  request: MarketplaceOpportunity;
+  data: DiscoverPageData;
+  onOpen: OpenAction;
+}) {
+  const context = findContext(data, request.source.id);
+  const statusLabel = request.status.replaceAll("_", " ");
+  return (
+    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-cyan-300">
+            {request.repository ?? "Independent request"}
+          </p>
+          <h3 className="mt-2 text-lg font-semibold text-white">
+            {request.title}
+          </h3>
+        </div>
+        <span className="rounded-full border border-white/10 px-2.5 py-1 text-[11px] capitalize text-slate-300">
+          {statusLabel}
+        </span>
+      </div>
+      <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-300">
+        {request.description}
+      </p>
+      <dl className="mt-4 grid gap-3 border-y border-white/[0.07] py-3 text-xs sm:grid-cols-2">
+        <div>
+          <dt className="text-slate-500">Requester</dt>
+          <dd className="mt-1 text-white">{request.creator.name}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Budget</dt>
+          <dd className="mt-1 text-white">
+            {money(request.reward?.amountUsd, request.reward?.token ?? "USDC") ??
+              "Not recorded"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Evidence required</dt>
+          <dd className="mt-1 line-clamp-2 text-white">
+            {request.evidenceRequirements[0] ?? "Persisted Evidence"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Payment protection</dt>
+          <dd className="mt-1 text-white">
+            {request.funding?.status === "escrowed"
+              ? "Arc escrow confirmed"
+              : "Funding required before publication"}
+          </dd>
+        </div>
+      </dl>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {request.primaryAction ? (
+          <ContextualAction
+            action={request.primaryAction}
+            item={context}
+            primary
+            onOpen={onOpen}
+          />
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function ExploreView({
   data,
-  filters,
   onOpen,
 }: {
   data: DiscoverPageData;
   filters: OpportunityFilters;
   onOpen: OpenAction;
 }) {
-  const params = useSearchParams();
-  const urlCategory = params.get("kind");
-  const fallbackCategory =
-    data.projection.kind === "explore" ? data.projection.category : "all";
-  const initialCategory = exploreKinds.some((kind) => kind.id === urlCategory)
-    ? (urlCategory as DiscoverExploreKind)
-    : fallbackCategory;
-  const [category, setCategory] = useState(initialCategory);
-
-  useEffect(() => setCategory(initialCategory), [initialCategory]);
-
   if (data.projection.kind !== "explore") return null;
-  const p = data.projection;
-  const showAll = category === "all";
-  const peopleWithWork = p.people.filter(
-    (person) => (person.completedWork ?? 0) > 0,
+  const requests = data.opportunities.items.filter(
+    (item) => item.source.type === "resolve_request",
   );
-  const fundablePools = p.pools.filter(
-    (pool) => pool.lifecycleState === "accepting_funding",
-  );
-  const visiblePeople = showAll ? peopleWithWork : p.people;
-  const visiblePools = showAll ? fundablePools : p.pools;
-  const allEmpty =
-    !p.work.length &&
-    !visiblePeople.length &&
-    !visiblePools.length &&
-    !p.outcomes.length;
+  const postAction: DiscoverAction = {
+    id: "discover.post_request",
+    label: "Post a request",
+    href: "/discover?view=requests",
+    enabled: true,
+    requiresConfirmation: false,
+    presentation: {
+      kind: "workbench",
+      target: { panel: "request", subjectId: "new", mode: "post" },
+    },
+  };
+  const openRequests = requests.filter((item) => item.status === "open");
+  const personalRequests = requests.filter((item) => item.status !== "open");
   return (
     <div className="space-y-7">
-      <section>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold text-cyan-300">Marketplace</p>
-            <h2 className="mt-1 text-2xl font-semibold text-white">
-              Explore verified value
-            </h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Inspect accepted work, support its contributors, or fund a Pool
-              that is ready to receive USDC.
-            </p>
-          </div>
-          <ExploreControls filters={filters} />
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold text-cyan-300">Funded requests</p>
+          <h2 className="mt-1 text-2xl font-semibold text-white">
+            Ask for useful work, with proof and payment terms
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+            A request becomes public only after its USDC budget is confirmed in Arc escrow. Contributors submit persisted Evidence before the requester can release payment.
+          </p>
         </div>
-        <div className="mt-4">
-          <ExploreNav
-            active={category}
-            filters={filters}
-            onSelect={setCategory}
-          />
-        </div>
+        <ContextualAction action={postAction} primary onOpen={onOpen} />
       </section>
-      {showAll || category === "work" ? <RepositoryAnalyzer /> : null}
-      {(showAll && p.work.length > 0) || category === "work" ? (
+      {openRequests.length ? (
         <section>
-          <SectionTitle
-            title={showAll ? "Accepted work" : "Work"}
-            count={p.work.length}
-            href={
-              showAll ? discoverHref("explore", filters, "work") : undefined
-            }
-          />
-          {p.work.length ? (
-            <div className="space-y-2">
-              {p.work.slice(0, showAll ? 4 : undefined).map((work) => (
-                <WorkRow
-                  key={work.id}
-                  work={work}
-                  data={data}
-                  onOpen={onOpen}
-                />
-              ))}
-            </div>
-          ) : (
-            <CompactEmpty
-              title="No accepted work matches this view"
-              body="Analyse a public repository above. Work appears only after a supported accepted event and its Evidence row are persisted."
-            />
-          )}
-        </section>
-      ) : null}
-      {(showAll && visiblePeople.length > 0) || category === "people" ? (
-        <section>
-          <SectionTitle
-            title={showAll ? "People with accepted work" : "People"}
-            count={visiblePeople.length}
-            href={
-              showAll ? discoverHref("explore", filters, "people") : undefined
-            }
-          />
-          {visiblePeople.length ? (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {visiblePeople.slice(0, showAll ? 4 : undefined).map((person) => (
-                <PersonCard
-                  key={person.id}
-                  person={person}
-                  data={data}
-                  onOpen={onOpen}
-                />
-              ))}
-            </div>
-          ) : (
-            <CompactEmpty
-              title="No people match this view"
-              body="People appear from claimed profiles or contributor attribution backed by accepted Evidence."
-            />
-          )}
-        </section>
-      ) : null}
-      {(showAll && visiblePools.length > 0) || category === "pools" ? (
-        <section>
-          <SectionTitle
-            title={showAll ? "Pools accepting funding" : "Pools"}
-            count={visiblePools.length}
-            href={
-              showAll ? discoverHref("explore", filters, "pools") : undefined
-            }
-          />
-          {visiblePools.length ? (
-            <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-              {visiblePools.slice(0, showAll ? 3 : undefined).map((pool) => (
-                <PoolCard
-                  key={pool.id}
-                  pool={pool}
-                  data={data}
-                  onOpen={onOpen}
-                />
-              ))}
-            </div>
-          ) : (
-            <CompactEmpty
-              title="No Pools match this view"
-              body="A Pool appears here when its stored publication and lifecycle state allow discovery. Funding is offered only after treasury and policy checks pass."
-            />
-          )}
-        </section>
-      ) : null}
-      {showAll && p.outcomes.length ? (
-        <section>
-          <SectionTitle
-            title="Recent confirmed results"
-            count={p.outcomes.length}
-            href={discoverHref("outcomes", filters)}
-          />
-          <div className="space-y-2">
-            {p.outcomes.slice(0, 2).map((outcome) => (
-              <OutcomeRow
-                key={outcome.id}
-                outcome={outcome}
-                data={data}
-                onOpen={onOpen}
-              />
+          <SectionTitle title="Open and funded" count={openRequests.length} />
+          <div className="grid gap-3 lg:grid-cols-2">
+            {openRequests.map((request) => (
+              <RequestCard key={request.id} request={request} data={data} onOpen={onOpen} />
             ))}
           </div>
         </section>
-      ) : null}
-      {showAll && allEmpty ? (
+      ) : (
         <CompactEmpty
-          title="No verified marketplace records yet"
-          body="Analyse a public repository to create a factual accepted-work snapshot. No fixture or synthetic opportunity is shown."
+          title="No funded request is open right now"
+          body="Post a real request above. Drafts stay private and no opportunity is shown as open until Arc escrow confirms its budget."
+          action={<ContextualAction action={postAction} primary onOpen={onOpen} />}
         />
+      )}
+      {personalRequests.length ? (
+        <section>
+          <SectionTitle title="Your request workspaces" count={personalRequests.length} />
+          <div className="grid gap-3 lg:grid-cols-2">
+            {personalRequests.map((request) => (
+              <RequestCard key={request.id} request={request} data={data} onOpen={onOpen} />
+            ))}
+          </div>
+        </section>
       ) : null}
     </div>
   );
@@ -1527,127 +1062,75 @@ function ActivityView({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
-  const { openSignIn } = useSignInModal();
-  const params = useSearchParams();
   if (data.projection.kind !== "activity") return null;
-  if (!data.signedIn)
-    return (
-      <CompactEmpty
-        title="Sign in to view your activity"
-        body="Your work, funding, claims, transactions and receipts require your account session."
-        action={
-          <button
-            type="button"
-            onClick={openSignIn}
-            className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-white"
-          >
-            Sign in
-          </button>
-        }
-      />
-    );
-  const activeFilter = params.get("activity") ?? "all";
-  const supported = [
-    "work",
-    "funding",
-    "claim",
-    "pool",
-    "transaction",
-    "receipt",
-    "program",
-  ].filter(
-    (kind) =>
-      data.projection.kind === "activity" &&
-      data.projection.items.some((item) => item.kind === kind),
+  const ready = data.pools.filter(
+    (pool) => pool.lifecycleState === "accepting_funding",
   );
-  const items =
-    activeFilter === "all"
-      ? data.projection.items
-      : data.projection.items.filter((item) => item.kind === activeFilter);
-  const grouped = items.reduce<Record<string, DiscoverActivityItem[]>>(
-    (groups, item) => {
-      const key = dateLabel(item.occurredAt);
-      (groups[key] ??= []).push(item);
-      return groups;
-    },
-    {},
+  const operator = data.pools.filter(
+    (pool) =>
+      pool.primaryAction.presentation.kind === "workbench" &&
+      pool.primaryAction.presentation.target.panel === "program_setup",
   );
-  const summary = Object.entries(data.projection.summary).filter(([, value]) =>
-    Boolean(value),
+  const unavailable = data.pools.filter(
+    (pool) => !ready.includes(pool) && !operator.includes(pool),
+  );
+  const distributions = data.opportunities.items.filter(
+    (item) =>
+      item.marketplaceKind === "outcome" &&
+      item.source.type === "confirmed_receipt" &&
+      Boolean(item.pool),
   );
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <section>
-        <p className="text-xs font-semibold text-violet-300">Personal ledger</p>
+        <p className="text-xs font-semibold text-emerald-300">Community funding</p>
         <h2 className="mt-1 text-2xl font-semibold text-white">
-          Your activity
+          Pools with visible rules, treasury state, and receipts
         </h2>
-        <p className="mt-1 text-sm text-slate-400">
-          What you completed, funded, received, claimed or started.
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+          Fund only Pools whose publication, policy, allocation, treasury, and Arc preflight pass. Operator-owned Pools stay visible here with the exact setup action that remains.
         </p>
-        {summary.length ? (
-          <dl className="mt-4 flex flex-wrap gap-2">
-            {summary.map(([kind, value]) => (
-              <div
-                key={kind}
-                className="rounded-lg border border-white/[0.08] bg-[#091522] px-3 py-2"
-              >
-                <dt className="text-[10px] capitalize text-slate-500">
-                  {kind.replaceAll("_", " ")}
-                </dt>
-                <dd className="mt-0.5 text-sm font-semibold text-white">
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-        <nav
-          aria-label="Activity filters"
-          className="mt-4 flex gap-1 overflow-x-auto"
-        >
-          <Link
-            href="/discover?view=activity"
-            className={`rounded-full border px-3 py-1.5 text-xs ${activeFilter === "all" ? "border-violet-300/30 bg-violet-400/10 text-white" : "border-white/10 text-slate-400"}`}
-          >
-            All
-          </Link>
-          {supported.map((kind) => (
-            <Link
-              key={kind}
-              href={`/discover?view=activity&activity=${kind}`}
-              className={`rounded-full border px-3 py-1.5 text-xs capitalize ${activeFilter === kind ? "border-violet-300/30 bg-violet-400/10 text-white" : "border-white/10 text-slate-400"}`}
-            >
-              {kind}
-            </Link>
-          ))}
-        </nav>
       </section>
-      {items.length ? (
-        <section className="space-y-5">
-          {Object.entries(grouped).map(([date, rows]) => (
-            <div key={date}>
-              <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                {date}
-              </h3>
-              <div className="rounded-xl border border-white/[0.08] bg-[#091522] px-4">
-                {rows.map((item) => (
-                  <ActivityRow
-                    key={item.id}
-                    item={item}
-                    data={data}
-                    onOpen={onOpen}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+      {ready.length ? (
+        <section>
+          <SectionTitle title="Ready to fund" count={ready.length} />
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {ready.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
+          </div>
         </section>
       ) : (
         <CompactEmpty
-          title="No personal activity in this view"
-          body="Only records connected to your identity, funding, Programs or receipts appear here."
+          title="No Pool has passed funding preflight"
+          body="The stored Pools remain visible below. Funding stays disabled until their real publication, policy, allocation, treasury and Arc checks pass."
         />
+      )}
+      {operator.length ? (
+        <section>
+          <SectionTitle title="Your Pools to finish" count={operator.length} />
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {operator.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
+          </div>
+        </section>
+      ) : null}
+      {unavailable.length ? (
+        <section>
+          <SectionTitle title="Published Pool records" count={unavailable.length} />
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {unavailable.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
+          </div>
+        </section>
+      ) : null}
+      {distributions.length ? (
+        <section>
+          <SectionTitle title="Confirmed distributions" count={distributions.length} />
+          <div className="space-y-2">
+            {distributions.map((outcome) => <OutcomeRow key={outcome.id} outcome={outcome} data={data} onOpen={onOpen} />)}
+          </div>
+        </section>
+      ) : (
+        <p className="text-xs text-slate-500">
+          No Pool distribution receipt is confirmed in the current database.
+        </p>
       )}
     </div>
   );
@@ -1660,45 +1143,132 @@ function OutcomesView({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
+  const { openSignIn } = useSignInModal();
+  const params = useSearchParams();
   if (data.projection.kind !== "outcomes") return null;
+  if (!data.signedIn) {
+    return (
+      <CompactEmpty
+        title="Sign in to view your economic activity"
+        body="Your requests, rewards, Pool funding, transaction states and receipts are private to your RESOLVE session."
+        action={<button type="button" onClick={openSignIn} className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-white">Sign in</button>}
+      />
+    );
+  }
+  const supportedKinds = new Set(["work", "funding", "pool", "transaction", "receipt"]);
+  const personal = (data.activity ?? []).filter((item) => supportedKinds.has(item.kind));
+  const confirmedReceipts = data.projection.items;
+  const activeFilter = params.get("state") ?? "all";
+  const filtered = personal.filter((item) => {
+    if (activeFilter === "receipts") return item.kind === "receipt";
+    if (activeFilter === "confirmed") return ["confirmed", "completed"].includes(item.state);
+    if (activeFilter === "in_progress") return ["prepared", "submitted", "pending", "awaiting_confirmation", "under_review", "approved"].includes(item.state);
+    return true;
+  });
+  const tabs = [
+    ["all", "All"],
+    ["in_progress", "In progress"],
+    ["confirmed", "Confirmed"],
+    ["receipts", "Receipts"],
+  ];
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <section>
-        <p className="text-xs font-semibold text-emerald-300">Proof archive</p>
-        <h2 className="mt-1 text-2xl font-semibold text-white">
-          Confirmed outcomes
-        </h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Settlements and receipts backed by confirmed execution.
+        <p className="text-xs font-semibold text-violet-300">Your ledger</p>
+        <h2 className="mt-1 text-2xl font-semibold text-white">Activity and receipts</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+          Follow each real action from preparation through submission, confirmation, and receipt. Submitted transactions never appear as confirmed before Arc and RESOLVE both record proof.
         </p>
+        <nav aria-label="Activity state" className="mt-4 flex gap-1 overflow-x-auto">
+          {tabs.map(([id, label]) => <Link key={id} href={`/discover?view=activity&state=${id}`} className={`rounded-full border px-3 py-1.5 text-xs ${activeFilter === id ? "border-violet-300/30 bg-violet-400/10 text-white" : "border-white/10 text-slate-400"}`}>{label}</Link>)}
+        </nav>
       </section>
-      {data.projection.items.length ? (
-        <section className="space-y-2">
-          {data.projection.items.map((outcome) => (
-            <OutcomeRow
-              key={outcome.id}
-              outcome={outcome}
-              data={data}
-              onOpen={onOpen}
-            />
-          ))}
+      {filtered.length ? (
+        <section className="rounded-xl border border-white/[0.08] bg-[#091522] px-4">
+          {filtered.map((item) => <ActivityRow key={item.id} item={item} data={data} onOpen={onOpen} />)}
         </section>
       ) : (
-        <CompactEmpty
-          title="No confirmed outcomes yet"
-          body="Confirmed payments and Pool distributions will appear here after settlement and receipt issuance."
-          action={
-            <Link
-              href="/discover?view=activity"
-              className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-white"
-            >
-              View in-progress activity
-            </Link>
-          }
-          lifecycle
-        />
+        <CompactEmpty title="No activity matches this state" body="Only canonical records tied to your account are shown. Start a request, reward verified work, or fund a ready Pool to create a real lifecycle record." />
+      )}
+      {confirmedReceipts.length ? (
+        <section>
+          <SectionTitle title="Receipt archive" count={confirmedReceipts.length} />
+          <div className="space-y-2">{confirmedReceipts.map((outcome) => <OutcomeRow key={outcome.id} outcome={outcome} data={data} onOpen={onOpen} />)}</div>
+        </section>
+      ) : (
+        <p className="text-xs text-slate-500">No receipt-backed outcome is confirmed for this account.</p>
       )}
     </div>
+  );
+}
+
+function OutcomeRow({
+  outcome,
+  data,
+  onOpen,
+}: {
+  outcome: MarketplaceOpportunity;
+  data: DiscoverPageData;
+  onOpen: OpenAction;
+}) {
+  const context = findContext(data, outcome.source.id);
+  return (
+    <article className="grid gap-4 rounded-xl border border-emerald-300/10 bg-emerald-300/[0.025] p-4 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
+      <span className="grid h-10 w-10 place-items-center rounded-full bg-emerald-400/10 text-emerald-300">
+        <CheckCircle2 className="h-5 w-5" />
+      </span>
+      <div>
+        <p className="text-xs font-medium text-emerald-300">
+          Confirmed outcome
+        </p>
+        <h3 className="mt-1 font-semibold text-white">{outcome.title}</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          {outcome.community?.name ?? "RESOLVE"} /{" "}
+          {dateLabel(outcome.updatedAt)} / {outcome.reward?.network ?? "Arc"}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm font-semibold text-white">
+          {money(outcome.funding?.fundedAmountUsd, outcome.reward?.token)}
+        </span>
+        {outcome.primaryAction ? (
+          <ContextualAction
+            action={outcome.primaryAction}
+            item={context}
+            primary
+            onOpen={onOpen}
+          />
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function AttentionRow({
+  item,
+  data,
+  onOpen,
+}: {
+  item: DiscoverInboxItem;
+  data: DiscoverPageData;
+  onOpen: OpenAction;
+}) {
+  const context = findContext(data, item.id);
+  return (
+    <article className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h3 className="text-sm font-medium text-white">{item.title}</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-400">{item.why}</p>
+        {item.blocker ? (
+          <p className="mt-1 text-xs text-amber-200">{item.blocker}</p>
+        ) : null}
+      </div>
+      <ContextualAction
+        action={item.primaryAction}
+        item={context}
+        onOpen={onOpen}
+      />
+    </article>
   );
 }
 
@@ -1742,7 +1312,7 @@ function SourceDiagnostics({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
-  if (!data.sourceDiagnostics.length || data.view !== "activity") return null;
+  if (!data.sourceDiagnostics.length || data.view !== "outcomes") return null;
   return (
     <section>
       <SectionTitle title="Source status" />
@@ -1791,6 +1361,45 @@ function SourceDiagnosticCard({
   );
 }
 
+function LandingView({
+  data,
+  onOpen,
+}: {
+  data: DiscoverPageData;
+  onOpen: OpenAction;
+}) {
+  const work = data.opportunities.items
+    .filter((item) => item.source.type === "github_evidence")
+    .slice(0, 3);
+  const requests = data.opportunities.items
+    .filter(
+      (item) => item.source.type === "resolve_request" && item.status === "open",
+    )
+    .slice(0, 2);
+  const pools = data.pools
+    .filter((pool) => pool.lifecycleState === "accepting_funding")
+    .slice(0, 2);
+  const inProgress = (data.activity ?? [])
+    .filter((item) => !["confirmed", "receipt_issued"].includes(item.state))
+    .slice(0, 3);
+  const noLiveSections =
+    work.length + requests.length + pools.length + inProgress.length === 0;
+  return (
+    <div className="space-y-8">
+      <section className="grid gap-3 sm:grid-cols-3">
+        <Link href="/discover?view=verified_work" className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.035] p-4 transition hover:border-cyan-300/30"><p className="text-sm font-semibold text-white">Fund proven work</p><p className="mt-1 text-xs leading-5 text-slate-400">Inspect persisted evidence and reward the attributed contributor.</p></Link>
+        <Link href="/discover?view=requests" className="rounded-xl border border-violet-300/15 bg-violet-300/[0.035] p-4 transition hover:border-violet-300/30"><p className="text-sm font-semibold text-white">Post or take a request</p><p className="mt-1 text-xs leading-5 text-slate-400">Use evidence requirements and Arc escrow for work that still needs doing.</p></Link>
+        <Link href="/discover?view=pools" className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.035] p-4 transition hover:border-emerald-300/30"><p className="text-sm font-semibold text-white">Back a shared Pool</p><p className="mt-1 text-xs leading-5 text-slate-400">Fund only published Pools with a valid rule and treasury.</p></Link>
+      </section>
+      {work.length ? <section><SectionTitle title="Verified work ready for action" count={work.length} href="/discover?view=verified_work" /><div className="space-y-3">{work.map((item) => <WorkRow key={item.id} work={item} data={data} onOpen={onOpen} />)}</div></section> : null}
+      {requests.length ? <section><SectionTitle title="Open and funded requests" count={requests.length} href="/discover?view=requests" /><div className="grid gap-3 lg:grid-cols-2">{requests.map((item) => <RequestCard key={item.id} request={item} data={data} onOpen={onOpen} />)}</div></section> : null}
+      {pools.length ? <section><SectionTitle title="Pools accepting USDC" count={pools.length} href="/discover?view=pools" /><div className="grid gap-3 lg:grid-cols-2">{pools.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}</div></section> : null}
+      {data.signedIn && inProgress.length ? <section><SectionTitle title="In progress" count={inProgress.length} href="/discover?view=activity" /><div className="space-y-2">{inProgress.map((item) => <ActivityRow key={item.id} item={item} data={data} onOpen={onOpen} />)}</div></section> : null}
+      {noLiveSections ? <p className="rounded-xl border border-white/[0.08] px-4 py-3 text-sm text-slate-400">No persisted marketplace record is ready yet. Analyse accepted GitHub work, post a funded request, or finish an operator-owned Pool. RESOLVE won&apos;t fill this page with demo records.</p> : null}
+    </div>
+  );
+}
+
 function DiscoverMarketplaceContent({
   data,
   filters,
@@ -1805,6 +1414,7 @@ function DiscoverMarketplaceContent({
     item?: EconomicActionItem;
   } | null>(null);
   const pendingWorkbenchKey = useRef<string | null>(null);
+  const landing = params.toString() === "";
   useEffect(() => track("discover_viewed", { view: data.view }), [data.view]);
   const openWorkbench: OpenAction = (action, item) => {
     if (action.presentation.kind !== "workbench") return;
@@ -1917,7 +1527,9 @@ function DiscoverMarketplaceContent({
       <div className="mt-4 space-y-4">
         <SourceFailure data={data} />
         <div className="pt-1">
-          {data.projection.kind === "for_you" ? (
+          {landing ? (
+            <LandingView data={data} onOpen={openWorkbench} />
+          ) : data.projection.kind === "for_you" ? (
             <ForYouView data={data} filters={filters} onOpen={openWorkbench} />
           ) : data.projection.kind === "explore" ? (
             <ExploreView data={data} filters={filters} onOpen={openWorkbench} />

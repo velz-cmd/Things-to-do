@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useReconnect, useSignMessage } from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
 import { Check, Copy, LoaderCircle, ShieldCheck, WalletCards, X } from "lucide-react";
 import type { ProfileBootstrap, ProfileWalletSummary } from "@/lib/profile/control-plane-bootstrap";
 import { useProfileBootstrapQuery } from "@/lib/query/hooks";
@@ -77,6 +78,8 @@ export function PayoutDestinationDrawer({
   const router = useRouter();
   const queryClient = useQueryClient();
   const account = useAccount();
+  const { reconnect } = useReconnect();
+  const { open: openWallet } = useAppKit();
   const { signMessageAsync } = useSignMessage();
   const query = useProfileBootstrapQuery(open, initialData);
   const data = query.data ?? initialData;
@@ -93,6 +96,11 @@ export function PayoutDestinationDrawer({
     }
   }, [initialWalletType, open]);
 
+  useEffect(() => {
+    if (!open || account.isConnected || !data?.wallets.connectedWallet) return;
+    reconnect();
+  }, [account.isConnected, data?.wallets.connectedWallet, open, reconnect]);
+
   const selectedWallet = useMemo(() => {
     if (selected === "app") return data?.wallets.appWallet ?? null;
     if (selected === "external") return data?.wallets.connectedWallet ?? null;
@@ -107,6 +115,15 @@ export function PayoutDestinationDrawer({
     : "No payout destination selected";
   const appCurrent = Boolean(data?.wallets.appWallet && data.wallets.appWallet.address.toLowerCase() === currentAddress);
   const externalCurrent = Boolean(data?.wallets.connectedWallet && data.wallets.connectedWallet.address.toLowerCase() === currentAddress);
+  const liveAddress = account.address?.toLowerCase() ?? null;
+  const selectedAddress = selectedWallet?.address.toLowerCase() ?? null;
+  const externalSessionState = selected !== "external"
+    ? "not_applicable"
+    : !account.isConnected || !liveAddress
+      ? "disconnected"
+      : liveAddress !== selectedAddress
+        ? "wrong_wallet"
+        : "ready_to_verify";
 
   async function confirmSelection() {
     if (!selected || !selectedWallet) return;
@@ -160,6 +177,25 @@ export function PayoutDestinationDrawer({
     }
   }
 
+  function handlePrimaryAction() {
+    if (selected === "external" && externalSessionState !== "ready_to_verify") {
+      setError(null);
+      openWallet({ view: "Connect" });
+      return;
+    }
+    void confirmSelection();
+  }
+
+  const primaryLabel = selected === "app"
+    ? "Use RESOLVE wallet for payouts"
+    : selected === "external"
+      ? externalSessionState === "disconnected"
+        ? "Connect wallet"
+        : externalSessionState === "wrong_wallet"
+          ? "Switch wallet"
+          : "Verify ownership and use for payouts"
+      : "Choose a wallet";
+
   return (
     <div className="fixed inset-0 z-[70] flex justify-end bg-black/65" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target && !busy) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="payout-drawer-title" className="h-full w-full max-w-lg overflow-y-auto border-l border-white/10 bg-[#060d17] p-5 shadow-2xl sm:p-6">
@@ -191,9 +227,9 @@ export function PayoutDestinationDrawer({
                 <dl className="grid grid-cols-[130px_1fr] gap-y-2">
                   <dt className="text-slate-500">Wallet type</dt><dd className="text-slate-200">{selected === "app" ? "Application managed" : "Connected external"}</dd>
                   <dt className="text-slate-500">Custody</dt><dd className="text-slate-200">{selected === "app" ? "RESOLVE managed" : "User signed"}</dd>
-                  <dt className="text-slate-500">Control state</dt><dd className="text-slate-200">{selected === "app" ? "Verified by wallet inventory" : "Connected, ownership proof required"}</dd>
+                  <dt className="text-slate-500">Control state</dt><dd className="text-slate-200">{selected === "app" ? "Verified by wallet inventory" : externalSessionState === "disconnected" ? "Stored, not connected in this browser" : externalSessionState === "wrong_wallet" ? `Different wallet active (${short(account.address!)})` : "Exact wallet connected, ownership proof required"}</dd>
                   <dt className="text-slate-500">New destination</dt><dd className="break-all font-mono text-slate-200">{selectedWallet.address}</dd>
-                  <dt className="text-slate-500">Signature required</dt><dd className="text-slate-200">{selected === "app" ? "No" : "Yes, this confirmation verifies ownership"}</dd>
+                  <dt className="text-slate-500">Signature required</dt><dd className="text-slate-200">{selected === "app" ? "No" : "Yes. The signature proves ownership and does not move USDC."}</dd>
                 </dl>
                 <button type="button" onClick={async () => { await navigator.clipboard.writeText(selectedWallet.address); setCopied(true); }} className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-slate-300"><Copy className="h-3.5 w-3.5" />{copied ? "Copied" : "Copy full address"}</button>
               </div>
@@ -203,9 +239,9 @@ export function PayoutDestinationDrawer({
         {error ? <p role="alert" className="mt-4 rounded-lg border border-rose-300/20 bg-rose-300/[0.06] px-3 py-2 text-sm text-rose-100">{error}</p> : null}
         <div className="mt-6 flex flex-wrap justify-end gap-2">
           <button type="button" disabled={busy} onClick={onClose} className="min-h-11 rounded-lg border border-white/10 px-4 text-sm text-slate-300">Cancel</button>
-          <button type="button" data-action-id="profile.set_payout_destination" disabled={!selectedWallet || busy || (selected === "app" ? appCurrent : externalCurrent)} onClick={() => void confirmSelection()} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" data-action-id="profile.set_payout_destination" disabled={!selectedWallet || busy || (selected === "app" ? appCurrent : externalCurrent && externalSessionState === "ready_to_verify")} onClick={handlePrimaryAction} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-violet-500 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <WalletCards className="h-4 w-4" />}
-            {selected === "app" ? "Use RESOLVE wallet for payouts" : selected === "external" ? "Use connected wallet for payouts" : "Choose a wallet"}
+            {primaryLabel}
           </button>
         </div>
         {selected === "app" && appCurrent || selected === "external" && externalCurrent ? <p className="mt-3 flex items-center justify-end gap-1 text-xs text-emerald-300"><Check className="h-3.5 w-3.5" />Already selected</p> : null}

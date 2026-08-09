@@ -87,7 +87,13 @@ test.describe("Discover accepted GitHub evidence", () => {
       "Pools",
     ]);
     await categories.getByRole("link", { name: "Work", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: /^Work/ }),
+    ).toBeVisible();
     await categories.getByRole("link", { name: "Pools", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: /^Pools/ }),
+    ).toBeVisible();
     await categories.getByRole("link", { name: "People", exact: true }).click();
     await expect(page).toHaveURL(/kind=people/);
     await expect(

@@ -98,6 +98,24 @@ export type DiscoverWorkbenchTarget =
       evidenceIds: string[];
     }
   | {
+      panel: "support_bundle";
+      subjectId: string;
+      workItems: Array<{
+        subjectId: string;
+        recipientUserId: string;
+        recipientLabel: string;
+        workTitle: string;
+        repository: string;
+        sourceUrl: string;
+        evidenceIds: string[];
+      }>;
+    }
+  | {
+      panel: "request";
+      subjectId: string;
+      mode: "post" | "view";
+    }
+  | {
       panel: "pool_funding";
       subjectId: string;
       programId: string;
@@ -568,6 +586,7 @@ export type DiscoverPageData = {
   myCommunities: DiscoverMyCommunity[];
   pools: DiscoverPool[];
   inbox: DiscoverInboxItem[];
+  activity?: DiscoverActivityItem[];
   economicActions: EconomicActionItem[];
   sourceDiagnostics: DiscoverSourceDiagnostic[];
   savedIds: string[];

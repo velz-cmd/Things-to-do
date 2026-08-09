@@ -22,6 +22,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -191,31 +192,55 @@ function SearchBox({
   const params = useSearchParams();
   const current = params.toString();
   const [query, setQuery] = useState(filters.q ?? "");
+  const [hydrated, setHydrated] = useState(false);
   const [pending, startTransition] = useTransition();
+  const timerRef = useRef<number | null>(null);
+  useEffect(() => setHydrated(true), []);
   useEffect(() => setQuery(filters.q ?? ""), [filters.q]);
-  useEffect(() => {
-    if (query === (filters.q ?? "")) return;
-    const timer = window.setTimeout(() => {
+  const commitQuery = useCallback(
+    (value: string) => {
       const next = new URLSearchParams(current);
       next.set("view", view);
       next.delete("cursor");
-      if (query.trim()) next.set("q", query.trim());
+      if (value.trim()) next.set("q", value.trim());
       else next.delete("q");
-      startTransition(() =>
-        router.replace(`${pathname}?${next.toString()}`, { scroll: false }),
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${pathname}?${next.toString()}`,
       );
+      startTransition(() => router.refresh());
+    },
+    [current, pathname, router, view],
+  );
+  useEffect(() => {
+    if (query === (filters.q ?? "")) return;
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      commitQuery(query);
     }, 250);
-    return () => window.clearTimeout(timer);
-  }, [current, filters.q, pathname, query, router, view]);
+    return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    };
+  }, [commitQuery, filters.q, query]);
   return (
     <form
       role="search"
       className="relative"
-      onSubmit={(event) => event.preventDefault()}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+        const submitted = new FormData(event.currentTarget).get("q");
+        commitQuery(typeof submitted === "string" ? submitted : query);
+      }}
     >
       <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
       <input
         value={query}
+        disabled={!hydrated}
+        name="q"
         onChange={(event) => setQuery(event.target.value)}
         type="search"
         aria-label="Search Discover"

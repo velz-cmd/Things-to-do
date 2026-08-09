@@ -430,7 +430,8 @@ function WorkRow({
         </p>
         <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
           <span className="text-emerald-300">
-            {work.verificationStatus === "verified"
+            {work.verificationStatus === "verified" ||
+            work.verificationStatus.startsWith("verified_")
               ? "Evidence verified"
               : `Evidence ${work.verificationStatus.replaceAll("_", " ")}`}
           </span>

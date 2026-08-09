@@ -1055,20 +1055,22 @@ function ForYouView({
 function ExploreNav({
   active,
   filters,
+  onSelect,
 }: {
   active: DiscoverExploreKind;
   filters: OpportunityFilters;
+  onSelect: (category: DiscoverExploreKind) => void;
 }) {
-  const router = useRouter();
-  const [selected, setSelected] = useState(active);
-  const [, startTransition] = useTransition();
+  const [loading, setLoading] = useState<DiscoverExploreKind | null>(null);
+  const loadingTimer = useRef<number | null>(null);
 
-  useEffect(() => setSelected(active), [active]);
-  useEffect(() => {
-    if (selected === active) return;
-    const recovery = window.setTimeout(() => setSelected(active), 10_000);
-    return () => window.clearTimeout(recovery);
-  }, [active, selected]);
+  useEffect(
+    () => () => {
+      if (loadingTimer.current != null)
+        window.clearTimeout(loadingTimer.current);
+    },
+    [],
+  );
 
   return (
     <nav
@@ -1076,26 +1078,31 @@ function ExploreNav({
       className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#07111f] p-1"
     >
       {exploreKinds.map((kind) => {
-        const loading = selected === kind.id && selected !== active;
+        const isLoading = loading === kind.id;
         const href = discoverHref("explore", filters, kind.id);
         return (
           <Link
             key={kind.id}
             href={href}
             prefetch
-            aria-current={selected === kind.id ? "page" : undefined}
+            aria-current={active === kind.id ? "page" : undefined}
             onClick={(event) => {
               event.preventDefault();
-              setSelected(kind.id);
-              startTransition(() =>
-                router.replace(href, { scroll: false }),
-              );
+              if (kind.id === active) return;
+              setLoading(kind.id);
+              onSelect(kind.id);
               window.history.pushState(window.history.state, "", href);
+              if (loadingTimer.current != null)
+                window.clearTimeout(loadingTimer.current);
+              loadingTimer.current = window.setTimeout(
+                () => setLoading(null),
+                180,
+              );
             }}
-            className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs ${selected === kind.id ? "bg-[#1a2940] font-semibold text-white" : "text-slate-400 hover:text-white"}`}
+            className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs ${active === kind.id ? "bg-[#1a2940] font-semibold text-white" : "text-slate-400 hover:text-white"}`}
           >
             {kind.label}
-            {loading ? (
+            {isLoading ? (
               <LoaderCircle
                 aria-label={`Loading ${kind.label}`}
                 className="h-3 w-3 animate-spin text-violet-300"
@@ -1348,9 +1355,19 @@ function ExploreView({
   filters: OpportunityFilters;
   onOpen: OpenAction;
 }) {
+  const params = useSearchParams();
+  const urlCategory = params.get("kind");
+  const fallbackCategory =
+    data.projection.kind === "explore" ? data.projection.category : "all";
+  const initialCategory = exploreKinds.some((kind) => kind.id === urlCategory)
+    ? (urlCategory as DiscoverExploreKind)
+    : fallbackCategory;
+  const [category, setCategory] = useState(initialCategory);
+
+  useEffect(() => setCategory(initialCategory), [initialCategory]);
+
   if (data.projection.kind !== "explore") return null;
   const p = data.projection;
-  const category = p.category;
   const showAll = category === "all";
   const peopleWithWork = p.people.filter(
     (person) => (person.completedWork ?? 0) > 0,
@@ -1382,7 +1399,11 @@ function ExploreView({
           <ExploreControls filters={filters} />
         </div>
         <div className="mt-4">
-          <ExploreNav active={category} filters={filters} />
+          <ExploreNav
+            active={category}
+            filters={filters}
+            onSelect={setCategory}
+          />
         </div>
       </section>
       {showAll || category === "work" ? <RepositoryAnalyzer /> : null}

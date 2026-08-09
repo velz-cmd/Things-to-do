@@ -226,6 +226,60 @@ export function useWalletActions() {
     ],
   );
 
+  const sendDirectSupportWithWallet = useCallback(
+    async (
+      destinationAddress: `0x${string}`,
+      amountUsd: number,
+      opts?: { onStage?: (stage: FundProgressStage, txHash?: string) => void },
+    ): Promise<WalletFundResult> => {
+      if (!externalConnected || !address) {
+        throw new Error("Connect the wallet linked to this account before sending support");
+      }
+      if (linkedExternal && connectedAddr && linkedExternal !== connectedAddr) {
+        throw new Error("The connected wallet does not match the wallet linked to this account");
+      }
+      if (connectedBalance.usdc < amountUsd) {
+        throw new Error(`Insufficient connected wallet balance. Need $${amountUsd.toFixed(2)} USDC on Arc.`);
+      }
+      if (signingRef.current) throw new Error("Wallet transaction already in progress");
+
+      signingRef.current = true;
+      try {
+        opts?.onStage?.("checking_wallet");
+        if (!(await ensureExternalLinked())) {
+          throw new Error("The connected wallet could not be linked to this account");
+        }
+        await ensureArc();
+        opts?.onStage?.("awaiting_signature");
+        const hash = await sendTransactionAsync({
+          chainId: arcTestnet.id,
+          to: destinationAddress,
+          value: usdcToWei(amountUsd),
+        });
+        opts?.onStage?.("arc_broadcast", hash);
+        opts?.onStage?.("arc_confirming", hash);
+        if (publicClient) await publicClient.waitForTransactionReceipt({ hash });
+        await refreshBalance().catch(() => null);
+        connectedBalance.refetch();
+        return { txHash: hash };
+      } finally {
+        signingRef.current = false;
+      }
+    },
+    [
+      address,
+      connectedAddr,
+      connectedBalance,
+      ensureArc,
+      ensureExternalLinked,
+      externalConnected,
+      linkedExternal,
+      publicClient,
+      refreshBalance,
+      sendTransactionAsync,
+    ],
+  );
+
   const payAgentSignalWithWallet = useCallback(
     async (amountUsd: number): Promise<WalletFundResult> => {
       if (!externalConnected || !address) {
@@ -316,6 +370,7 @@ export function useWalletActions() {
     walletSigning: isPending,
     spendableUsd: canPayWithConnectedWallet ? connectedBalance.usdc : undefined,
     fundProgramWithWallet,
+    sendDirectSupportWithWallet,
     payAgentSignalWithWallet,
     openConnectWallet,
     ensureArc,

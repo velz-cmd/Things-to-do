@@ -210,6 +210,49 @@ export async function getProgram(userId: string, programId: string) {
   return toProgramRecord(row, row.install.communitySlug);
 }
 
+export async function updateProgramSetup(
+  userId: string,
+  programId: string,
+  input: {
+    publicationStatus?: "approved" | "operator_review_required";
+    policyStatus?: "active" | "review_required";
+    treasuryAddress?: string;
+  },
+) {
+  const row = await prisma.resolveProgram.findFirst({
+    where: { id: programId, userId },
+    include: { install: true },
+  });
+  if (!row) return { ok: false as const, error: "Program not found" };
+  const metadata = parseJson<Record<string, unknown>>(row.metadataJson, {});
+  const nextMetadata = {
+    ...metadata,
+    ...(input.publicationStatus ? { publicationStatus: input.publicationStatus } : {}),
+    ...(input.policyStatus ? { policyStatus: input.policyStatus } : {}),
+    ...(input.treasuryAddress ? { treasuryAddress: input.treasuryAddress } : {}),
+  };
+  const setupHash = policyHash(nextMetadata);
+  const updated = await prisma.$transaction(async (tx) => {
+    const program = await tx.resolveProgram.update({
+      where: { id: row.id },
+      data: { metadataJson: JSON.stringify(nextMetadata) },
+    });
+    await appendOperationalEventInTransaction(tx, {
+      eventType: "program.setup_updated",
+      aggregateType: "program",
+      aggregateId: row.id,
+      userId,
+      communitySlug: row.install.communitySlug,
+      correlationId: `${row.id}:setup:${setupHash.slice(0, 12)}`,
+      idempotencyKey: `program.setup_updated:${row.id}:${setupHash}`,
+      payload: toJson({ programId: row.id, setupHash, changed: Object.keys(input) }),
+    });
+    return program;
+  });
+  await invalidateDiscoverProgramCache(userId);
+  return { ok: true as const, program: toProgramRecord(updated, row.install.communitySlug) };
+}
+
 export async function createProgram(
   userId: string,
   communitySlug: string,

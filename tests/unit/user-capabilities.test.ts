@@ -38,6 +38,7 @@ describe("user capabilities", () => {
       operatesCommunity: true,
       hasPublishedProgram: true,
       liveSettlementEnabled: true,
+      walletReady: true,
     });
     expect(capabilities).toEqual(expect.arrayContaining([
       "can_receive_direct_support",
@@ -60,6 +61,7 @@ describe("user capabilities", () => {
       operatesCommunity: false,
       hasPublishedProgram: false,
       liveSettlementEnabled: false,
+      walletReady: false,
     });
     expect(capabilities).not.toContain("can_sell_usage");
     expect(capabilities).not.toContain("can_purchase_service");

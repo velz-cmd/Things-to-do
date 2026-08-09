@@ -1,8 +1,15 @@
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { isMissingTableError, isPrismaUnavailableError } from "@/lib/db/prisma-errors";
-import { scanAllOpportunities, scanFundingOpportunity } from "@/lib/github/opportunities";
+import {
+  isMissingTableError,
+  isPrismaUnavailableError,
+} from "@/lib/db/prisma-errors";
+import {
+  scanAllOpportunities,
+  scanFundingOpportunity,
+} from "@/lib/github/opportunities";
 import type { FundingOpportunity } from "@/lib/github/types";
 import { invalidateDiscoverGithubCache } from "@/lib/discover/marketplace/cache";
 
@@ -12,7 +19,88 @@ export type OssScanMeta = {
   scannedAt: string;
   source: "database" | "live" | "empty";
   stale: boolean;
+  staleRepositories?: string[];
 };
+
+const fundingOpportunitySchema = z.object({
+  id: z.string().min(1),
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  fullName: z.string().regex(/^[^/]+\/[^/]+$/),
+  description: z
+    .string()
+    .nullish()
+    .transform((description) => description ?? undefined),
+  stars: z.number().nonnegative(),
+  forks: z.number().nonnegative(),
+  health: z.object({
+    score: z.number(),
+    grade: z.enum(["A", "B", "C", "D", "F"]),
+    signals: z.array(
+      z.object({
+        label: z.string(),
+        value: z.string(),
+        impact: z.enum(["positive", "negative", "neutral"]),
+      }),
+    ),
+    maintainerCount: z.number().nonnegative(),
+    mergedPrCount: z.number().optional(),
+    avgMergeDays: z.number().optional(),
+    fundingGapUsd: z.number(),
+    headline: z.string(),
+  }),
+  unfundedMaintainers: z.number().nonnegative(),
+  highImpactPrs: z.number().nonnegative(),
+  headline: z.string(),
+  priority: z.enum(["critical", "high", "medium"]),
+  live: z.boolean(),
+  activity: z
+    .object({
+      observedAt: z.string(),
+      rangeStart: z.string().nullable(),
+      rangeEnd: z.string(),
+      records: z.array(
+        z.object({
+          id: z.string(),
+          category: z.enum([
+            "code",
+            "review",
+            "documentation",
+            "issue_resolution",
+            "release_work",
+            "support",
+            "security",
+          ]),
+          title: z.string(),
+          actor: z.string(),
+          occurredAt: z.string(),
+          sourceUrl: z.string().url(),
+          sourceKind: z.enum(["pull_request", "review", "issue", "release"]),
+        }),
+      ),
+      counts: z.record(z.string(), z.number()),
+      contributors: z.array(
+        z.object({
+          login: z.string(),
+          avatarUrl: z.string().optional(),
+          acceptedActivityCount: z.number(),
+          categories: z.record(z.string(), z.number()),
+        }),
+      ),
+    })
+    .optional(),
+  dependencies: z
+    .array(
+      z.object({
+        name: z.string(),
+        requirement: z.string(),
+        kind: z.string(),
+        manifestPath: z.string(),
+        sourceUrl: z.string().url(),
+      }),
+    )
+    .optional(),
+});
 
 function rowToOpportunity(row: {
   payloadJson?: string;
@@ -21,17 +109,24 @@ function rowToOpportunity(row: {
   repo: string;
 }): FundingOpportunity | null {
   try {
-    return (row.payloadJson ? JSON.parse(row.payloadJson) : row.payload) as FundingOpportunity;
+    const parsed = fundingOpportunitySchema.safeParse(
+      row.payloadJson ? JSON.parse(row.payloadJson) : row.payload,
+    );
+    return parsed.success ? (parsed.data as FundingOpportunity) : null;
   } catch {
     return null;
   }
 }
 
-function serializableOpportunity(opportunity: FundingOpportunity): Prisma.InputJsonValue {
+function serializableOpportunity(
+  opportunity: FundingOpportunity,
+): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(opportunity)) as Prisma.InputJsonValue;
 }
 
-export function fingerprintFundingOpportunity(opportunity: FundingOpportunity): string {
+export function fingerprintFundingOpportunity(
+  opportunity: FundingOpportunity,
+): string {
   const activity = opportunity.activity;
   const stable = {
     fullName: opportunity.fullName.toLowerCase(),
@@ -42,9 +137,16 @@ export function fingerprintFundingOpportunity(opportunity: FundingOpportunity): 
     unfundedMaintainers: opportunity.unfundedMaintainers,
     records: (activity?.records ?? []).map((record) => ({
       id: record.id,
+      title: record.title,
       category: record.category,
       actor: record.actor,
       occurredAt: record.occurredAt,
+      sourceUrl: record.sourceUrl,
+    })),
+    contributors: (activity?.contributors ?? []).map((contributor) => ({
+      login: contributor.login,
+      avatarUrl: contributor.avatarUrl,
+      acceptedActivityCount: contributor.acceptedActivityCount,
     })),
     dependencies: (opportunity.dependencies ?? []).map((dependency) => ({
       name: dependency.name,
@@ -78,12 +180,14 @@ export async function persistOssOpportunitySnapshot(
       payload,
       observedAt,
     },
-    update: {},
+    update: { payload, observedAt },
   });
 
   try {
     await prisma.githubOssScan.upsert({
-      where: { owner_repo: { owner: opportunity.owner, repo: opportunity.repo } },
+      where: {
+        owner_repo: { owner: opportunity.owner, repo: opportunity.repo },
+      },
       create: {
         owner: opportunity.owner,
         repo: opportunity.repo,
@@ -104,7 +208,8 @@ export async function persistOssOpportunitySnapshot(
       },
     });
   } catch (error) {
-    if (!isMissingTableError(error) && !isPrismaUnavailableError(error)) throw error;
+    if (!isMissingTableError(error) && !isPrismaUnavailableError(error))
+      throw error;
   }
 
   await invalidateDiscoverGithubCache();
@@ -112,7 +217,10 @@ export async function persistOssOpportunitySnapshot(
   return { fingerprint, observedAt: observedAt.toISOString() };
 }
 
-export async function loadRepositorySnapshotHistory(fullName: string, take = 2) {
+export async function loadRepositorySnapshotHistory(
+  fullName: string,
+  take = 2,
+) {
   try {
     return await prisma.discoverRepositorySnapshot.findMany({
       where: { fullName },
@@ -120,7 +228,8 @@ export async function loadRepositorySnapshotHistory(fullName: string, take = 2) 
       take,
     });
   } catch (error) {
-    if (isMissingTableError(error) || isPrismaUnavailableError(error)) return [];
+    if (isMissingTableError(error) || isPrismaUnavailableError(error))
+      return [];
     throw error;
   }
 }
@@ -136,67 +245,115 @@ export async function loadStoredOssOpportunities(): Promise<{
   opportunities: FundingOpportunity[];
   meta: OssScanMeta;
 }> {
-  let rows: Array<{
+  type StoredRow = {
     payloadJson?: string;
     payload?: Prisma.JsonValue;
     owner: string;
     repo: string;
+    fullName?: string;
     scannedAt?: Date;
     observedAt?: Date;
-  }> = [];
+  };
+  const rows: StoredRow[] = [];
+  let aggregateUnavailable = false;
+  let snapshotUnavailable = false;
 
-  try {
-    rows = await prisma.githubOssScan.findMany({
+  const [aggregateResult, snapshotResult] = await Promise.allSettled([
+    prisma.githubOssScan.findMany({
       orderBy: { scannedAt: "desc" },
       take: 50,
       select: {
         payloadJson: true,
         owner: true,
         repo: true,
+        fullName: true,
         scannedAt: true,
       },
-    });
-  } catch (e) {
-    if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
-  }
+    }),
+    prisma.discoverRepositorySnapshot.findMany({
+      orderBy: [{ observedAt: "desc" }, { createdAt: "desc" }],
+      take: 100,
+      select: {
+        payload: true,
+        owner: true,
+        repo: true,
+        fullName: true,
+        observedAt: true,
+      },
+    }),
+  ]);
 
-  if (!rows.length) {
-    try {
-      rows = await prisma.discoverRepositorySnapshot.findMany({
-        orderBy: [{ observedAt: "desc" }, { createdAt: "desc" }],
-        distinct: ["fullName"],
-        take: 50,
-        select: {
-          payload: true,
-          owner: true,
-          repo: true,
-          observedAt: true,
-        },
-      });
-    } catch (e) {
-      if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
+  if (aggregateResult.status === "fulfilled") {
+    rows.push(...aggregateResult.value);
+  } else {
+    const error = aggregateResult.reason;
+    if (!isMissingTableError(error) && !isPrismaUnavailableError(error)) {
+      throw error;
     }
+    aggregateUnavailable = true;
+  }
+
+  if (snapshotResult.status === "fulfilled") {
+    rows.push(...snapshotResult.value);
+  } else {
+    const error = snapshotResult.reason;
+    if (!isMissingTableError(error) && !isPrismaUnavailableError(error)) {
+      throw error;
+    }
+    snapshotUnavailable = true;
   }
 
   if (!rows.length) {
+    if (aggregateUnavailable && snapshotUnavailable) {
+      throw new Error(
+        "GitHub evidence storage is unavailable or its required tables are missing.",
+      );
+    }
     return {
       opportunities: [],
-      meta: { scannedAt: new Date(0).toISOString(), source: "empty", stale: true },
+      meta: {
+        scannedAt: new Date(0).toISOString(),
+        source: "empty",
+        stale: true,
+      },
     };
   }
 
-  const newest = rows[0]!.scannedAt ?? rows[0]!.observedAt ?? new Date(0);
-  const stale = Date.now() - newest.getTime() > STALE_MS;
-  const opportunities = rows
-    .map(rowToOpportunity)
-    .filter((o): o is FundingOpportunity => o !== null);
+  const byRepository = new Map<
+    string,
+    { opportunity: FundingOpportunity; observedAt: Date }
+  >();
+  for (const row of rows) {
+    const opportunity = rowToOpportunity(row);
+    if (!opportunity) continue;
+    const observedAt = row.scannedAt ?? row.observedAt ?? new Date(0);
+    const key = opportunity.fullName.toLowerCase();
+    const current = byRepository.get(key);
+    if (!current || observedAt > current.observedAt) {
+      byRepository.set(key, { opportunity, observedAt });
+    }
+  }
+  const selected = [...byRepository.values()].sort(
+    (a, b) => b.observedAt.getTime() - a.observedAt.getTime(),
+  );
+  if (!selected.length) {
+    throw new Error(
+      "GitHub evidence storage returned records that failed runtime validation.",
+    );
+  }
+  const newest = selected[0]!.observedAt;
+  const staleRepositories = selected
+    .filter((row) => Date.now() - row.observedAt.getTime() > STALE_MS)
+    .map((row) => row.opportunity.fullName);
+  const opportunities = selected.map((row) => row.opportunity);
 
   return {
     opportunities,
     meta: {
       scannedAt: newest.toISOString(),
       source: "database",
-      stale,
+      stale: staleRepositories.length === opportunities.length,
+      staleRepositories,
     },
   };
 }
@@ -210,7 +367,11 @@ export async function refreshOssOpportunityStore(): Promise<{
   const scannedAt = new Date();
 
   try {
-    await Promise.all(opportunities.map((opportunity) => persistOssOpportunitySnapshot(opportunity, scannedAt)));
+    await Promise.all(
+      opportunities.map((opportunity) =>
+        persistOssOpportunitySnapshot(opportunity, scannedAt),
+      ),
+    );
   } catch (e) {
     if (!isMissingTableError(e) && !isPrismaUnavailableError(e)) throw e;
   }
@@ -226,7 +387,11 @@ export async function readOssOpportunitiesForDiscover(): Promise<{
   if (process.env.CI === "true") {
     return {
       opportunities: [],
-      meta: { scannedAt: new Date().toISOString(), source: "empty", stale: false },
+      meta: {
+        scannedAt: new Date().toISOString(),
+        source: "empty",
+        stale: false,
+      },
     };
   }
 

@@ -1,27 +1,28 @@
 #!/usr/bin/env bash
 # Vercel ignoreCommand — exit 0 = skip build, exit 1 = proceed.
-# Belt-and-suspenders with git.deploymentEnabled in vercel.json (main only).
+# Belt-and-suspenders with git.deploymentEnabled in vercel.json.
 set -euo pipefail
 
 REF="${VERCEL_GIT_COMMIT_REF:-unknown}"
 ENV="${VERCEL_ENV:-unknown}"
 PROJECT_ID="${VERCEL_PROJECT_ID:-unknown}"
 CANONICAL_PROJECT_ID="prj_0xIUtSzxZ2Cqeie8eHYB6iPAKIN0"
+DISCOVER_PREVIEW_REF="codex/discover-final-production"
 
 if [ "$PROJECT_ID" != "$CANONICAL_PROJECT_ID" ]; then
   echo "skip: project $PROJECT_ID is not the canonical RESOLVE project"
   exit 0
 fi
 
-if [ "$REF" != "main" ]; then
-  echo "skip: branch $REF is not main (preview/cursor deploys disabled)"
-  exit 0
+if [ "$REF" = "main" ] && [ "$ENV" = "production" ]; then
+  echo "build: production main ($REF)"
+  exit 1
 fi
 
-if [ "$ENV" != "production" ]; then
-  echo "skip: VERCEL_ENV=$ENV (only production main builds)"
-  exit 0
+if [ "$REF" = "$DISCOVER_PREVIEW_REF" ] && [ "$ENV" = "preview" ]; then
+  echo "build: verified Discover preview ($REF)"
+  exit 1
 fi
 
-echo "build: production main ($REF)"
-exit 1
+echo "skip: branch $REF is not an approved deployment target for VERCEL_ENV=$ENV"
+exit 0

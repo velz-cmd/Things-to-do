@@ -382,6 +382,20 @@ function WorkRow({
   onSelect?: (selected: boolean) => void;
 }) {
   const context = findContext(data, work.source.id);
+  const blocker = work.entityState?.blocker?.toLowerCase() ?? "";
+  const payoutState =
+    work.primaryAction?.id === "discover.fund_verified_work"
+      ? "Payout ready"
+      : work.primaryAction?.id === "profile.set_payout_destination"
+        ? "Payout setup required"
+        : blocker.includes("not claimed")
+          ? "Contributor unclaimed"
+          : blocker.includes("payout")
+            ? "Payout not ready"
+            : "Reward unavailable";
+  const coverageState = work.program?.name
+    ? `Covered by ${work.program.name}`
+    : "Not currently covered";
   const inspectEvidence =
     work.primaryAction?.id === "discover.open_evidence"
       ? work.primaryAction
@@ -415,15 +429,13 @@ function WorkRow({
           {work.category?.replaceAll("_", " ") ?? "accepted contribution"}
         </p>
         <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-          <span>
-            {work.evidenceRequirements.length || 1} evidence record
-            {work.evidenceRequirements.length === 1 ? "" : "s"}
+          <span className="text-emerald-300">
+            {work.verificationStatus === "verified"
+              ? "Evidence verified"
+              : `Evidence ${work.verificationStatus.replaceAll("_", " ")}`}
           </span>
-          <span>
-            {work.entityState?.financialReadiness === "ready"
-              ? "Funding available"
-              : "No active funding rule"}
-          </span>
+          <span>{coverageState}</span>
+          <span>{payoutState}</span>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">

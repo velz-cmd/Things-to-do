@@ -1034,9 +1034,6 @@ function ExploreNav({
   active: DiscoverExploreKind;
   filters: OpportunityFilters;
 }) {
-  const router = useRouter();
-  const params = useSearchParams();
-  const current = params.toString();
   const [selected, setSelected] = useState(active);
 
   useEffect(() => setSelected(active), [active]);
@@ -1045,18 +1042,6 @@ function ExploreNav({
     const recovery = window.setTimeout(() => setSelected(active), 10_000);
     return () => window.clearTimeout(recovery);
   }, [active, selected]);
-
-  function navigate(kind: DiscoverExploreKind) {
-    if (kind === selected) return;
-    const next = new URLSearchParams(current);
-    next.set("view", "explore");
-    next.set("kind", kind);
-    next.delete("cursor");
-    next.delete("action");
-    next.delete("subject");
-    setSelected(kind);
-    router.push(`/discover?${next.toString()}`, { scroll: false });
-  }
 
   return (
     <nav
@@ -1071,10 +1056,7 @@ function ExploreNav({
             href={discoverHref("explore", filters, kind.id)}
             prefetch
             aria-current={selected === kind.id ? "page" : undefined}
-            onClick={(event) => {
-              event.preventDefault();
-              navigate(kind.id);
-            }}
+            onClick={() => setSelected(kind.id)}
             className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs ${selected === kind.id ? "bg-[#1a2940] font-semibold text-white" : "text-slate-400 hover:text-white"}`}
           >
             {kind.label}
@@ -1097,7 +1079,9 @@ function ExploreControls({ filters }: { filters: OpportunityFilters }) {
   const params = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const current = params.toString();
+  useEffect(() => setHydrated(true), []);
   useEffect(() => setPending(false), [current]);
   const activeCount = [
     filters.fundingStatus,
@@ -1122,8 +1106,9 @@ function ExploreControls({ filters }: { filters: OpportunityFilters }) {
       <button
         type="button"
         aria-expanded={filtersOpen}
+        disabled={pending || !hydrated}
         onClick={() => setFiltersOpen((value) => !value)}
-        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-slate-300 hover:bg-white/[0.04]"
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-slate-300 hover:bg-white/[0.04] disabled:opacity-60"
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
         Filters{activeCount ? ` (${activeCount})` : ""}

@@ -57,11 +57,10 @@ test.describe("Discover accepted GitHub evidence", () => {
 
     await page.getByRole("link", { name: "People", exact: true }).click();
     await expect(page).toHaveURL(/kind=people/);
-    await expect(
-      page.getByRole("heading", { name: "velz-cmd", exact: true }),
-    ).toBeVisible();
+    const claimedHandle = page.getByText("@velz-cmd", { exact: true });
+    await expect(claimedHandle).toBeVisible();
     const personCard = page
-      .getByRole("heading", { name: "velz-cmd", exact: true })
+      .getByText("@velz-cmd", { exact: true })
       .locator("xpath=ancestor::article");
     await expect(
       personCard.getByText("Accepted work", { exact: true }),

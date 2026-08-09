@@ -353,6 +353,9 @@ function PersonCard({
 }) {
   const context = findContext(data, person.id);
   const details = detailAction("person", person.id, "View work");
+  const githubHandle = person.profilePath?.match(
+    /^https:\/\/github\.com\/([^/?#]+)/i,
+  )?.[1];
   const primaryIsUseful =
     person.primaryAction.presentation.kind === "workbench";
   const isOwnPayoutSetup =
@@ -384,8 +387,15 @@ function PersonCard({
         )}
         <div className="min-w-0">
           <h3 className="truncate font-semibold text-white">{person.name}</h3>
-          <p className="mt-0.5 truncate text-xs text-slate-500">
-            {person.verifiedIdentities[0] ?? "Attributed identity"}
+          <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-xs text-slate-500">
+            {githubHandle ? (
+              <span className="text-slate-300">
+                @{decodeURIComponent(githubHandle).replace(/^@/, "")}
+              </span>
+            ) : null}
+            <span>
+              {person.verifiedIdentities[0] ?? "Attributed identity"}
+            </span>
           </p>
         </div>
       </div>

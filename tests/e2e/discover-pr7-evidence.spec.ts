@@ -44,6 +44,11 @@ test.describe("Discover accepted GitHub evidence", () => {
     await expect(
       workRow.getByText("Not currently covered", { exact: true }),
     ).toBeVisible();
+    await expect(
+      workRow.getByText(
+        /Payout ready|Payout setup required|Contributor unclaimed|Payout not ready|Reward unavailable/,
+      ),
+    ).toBeVisible();
     await workRow
       .getByRole("button", { name: "Inspect evidence", exact: true })
       .click();

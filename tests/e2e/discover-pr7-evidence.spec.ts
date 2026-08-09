@@ -38,6 +38,12 @@ test.describe("Discover accepted GitHub evidence", () => {
     const workRow = page
       .getByRole("heading", { name: workTitle, exact: true })
       .locator("xpath=ancestor::article");
+    await expect(
+      workRow.getByText("Evidence verified", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      workRow.getByText("Not currently covered", { exact: true }),
+    ).toBeVisible();
     await workRow
       .getByRole("button", { name: "Inspect evidence", exact: true })
       .click();
@@ -55,7 +61,11 @@ test.describe("Discover accepted GitHub evidence", () => {
     );
     await dialog.getByRole("button", { name: "Close Discover action" }).click();
 
-    await expect(workRow.getByRole("button", { name: /Reward this work|Choose payout wallet|Inspect evidence/ })).toBeVisible();
+    await expect(
+      workRow.getByRole("button", {
+        name: /Reward this work|Choose payout wallet|Inspect evidence/,
+      }),
+    ).toBeVisible();
   });
 
   test("keeps the four Discover products usable at mobile width", async ({
@@ -76,7 +86,11 @@ test.describe("Discover accepted GitHub evidence", () => {
     ]);
     await categories.getByRole("link", { name: "Pools", exact: true }).click();
     await expect(page).toHaveURL(/view=pools/);
-    await expect(page.getByRole("heading", { name: "Pools with visible rules, treasury state, and receipts" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: "Pools with visible rules, treasury state, and receipts",
+      }),
+    ).toBeVisible();
     const overflow = await page.evaluate(
       () =>
         document.documentElement.scrollWidth >

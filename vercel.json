@@ -8,6 +8,7 @@
     "deploymentEnabled": {
       "main": true,
       "codex/discover-final-production": true,
+      "codex/discover-economic-actions": true,
       "release/**": false,
       "cursor/**": false,
       "codex/**": false,

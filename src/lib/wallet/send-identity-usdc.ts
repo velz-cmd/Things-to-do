@@ -51,6 +51,7 @@ export async function sendIdentityUsdc(input: {
   user: User;
   destinationAddress: string;
   amountUsd: number;
+  idempotencyKey?: string;
 }): Promise<{ txHash: string; amountUsd: number; availableUsd: number }> {
   if (!isAddress(input.destinationAddress)) {
     throw new Error("Invalid destination address");
@@ -91,10 +92,11 @@ export async function sendIdentityUsdc(input: {
     throw new Error("Circle is not configured for outbound transfers");
   }
 
-  const refLabel = `send:${randomUUID()}`;
+  const transferKey = input.idempotencyKey ?? randomUUID();
+  const refLabel = `send:${transferKey}`;
   // Circle SDK types lag Arc testnet; runtime supports ARC-TESTNET native USDC.
   const res = await circle.createTransaction({
-    idempotencyKey: randomUUID(),
+    idempotencyKey: transferKey,
     walletId: circleWalletId,
     tokenAddress: "",
     blockchain: "ARC-TESTNET",

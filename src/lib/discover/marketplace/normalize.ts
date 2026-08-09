@@ -6,6 +6,10 @@ import type {
   OpportunityType,
   ProviderPreference,
 } from "./contracts";
+import {
+  discoverNavigationAction,
+  workbenchAction,
+} from "./action-contract";
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -220,6 +224,22 @@ function fundingStatus(funded: number, goal: number): FundingStatus {
   return "partially_funded";
 }
 
+const POOL_PROGRAM_TEMPLATES = new Set([
+  "quadratic-funding",
+  "security-fund",
+  "user-centric-royalties",
+  "video-royalties",
+]);
+
+export function programMarketplaceKind(
+  templateId: string,
+  metadata: Record<string, unknown>,
+): "pool" | "program" {
+  const configuredKind = optionalString(metadata.marketplaceKind)?.toLowerCase();
+  if (configuredKind === "pool" || configuredKind === "program") return configuredKind;
+  return POOL_PROGRAM_TEMPLATES.has(templateId) ? "pool" : "program";
+}
+
 export function normalizePersistedOpportunity(
   row: PersistedOpportunityRow,
 ): MarketplaceOpportunity {
@@ -304,6 +324,7 @@ export function normalizePersistedOpportunity(
     verificationStatus: row.verificationStatus,
     riskFlags: stringArray(row.riskFlags),
     source: { type: row.sourceType, id: row.sourceId },
+    marketplaceKind: row.poolName ? "pool" : "opportunity",
   };
 }
 
@@ -339,8 +360,9 @@ export function normalizeProgramOpportunity(
   const treasuryAddress = optionalString(metadata.treasuryAddress);
   const treasuryReady = Boolean(treasuryAddress?.match(/^0x[a-fA-F0-9]{40}$/));
   const financialReady = publicationApproved && policyActive && treasuryReady;
+  const marketplaceKind = programMarketplaceKind(row.templateId, metadata);
   const setupBlocker = !publicationApproved
-    ? "Review and publish this legacy operator program."
+    ? "Approve this Program for public discovery."
     : !policyActive
       ? "Activate a versioned funding policy."
       : !treasuryReady
@@ -381,7 +403,9 @@ export function normalizeProgramOpportunity(
       verified: Boolean(row.user.githubUsername),
     },
     community: { id: row.install.communitySlug, name: communityName },
-    pool: { id: row.id, name: row.name },
+    pool: marketplaceKind === "pool" ? { id: row.id, name: row.name } : undefined,
+    program: { id: row.id, name: row.name, templateId: row.templateId },
+    marketplaceKind,
     repository: optionalString(metadata.repository),
     projectId: optionalString(metadata.projectId),
     category: optionalString(metadata.category),
@@ -448,28 +472,41 @@ export function normalizeProgramOpportunity(
       financialReadiness: financialReady ? "ready" : "setup_required",
       blocker: setupBlocker,
     },
-    primaryAction: financialReady
-      ? {
+    primaryAction: financialReady && marketplaceKind === "pool"
+      ? workbenchAction({
           id: "capital.open_funding",
           label: "Fund Pool",
-          href: `/capital?intent=back-pool&programId=${encodeURIComponent(row.id)}&returnTo=${encodeURIComponent("/discover?view=explore&kind=pools")}`,
-          enabled: true,
-        }
-      : {
+          href: `/discover?view=explore&kind=pools&action=capital.open_funding&subject=${encodeURIComponent(row.id)}`,
+        }, {
+          panel: "pool_funding",
+          subjectId: row.id,
+          programId: row.id,
+          communitySlug: row.install.communitySlug,
+          poolName: row.name,
+        }, { requiresConfirmation: true })
+      : financialReady
+        ? workbenchAction({
+            id: "discover.open_program",
+            label: "View Program",
+            href: `/discover?view=explore&kind=programs&action=discover.open_program&subject=${encodeURIComponent(row.id)}`,
+          }, {
+            panel: "entity_details",
+            subjectId: row.id,
+            entityType: "program",
+          })
+      : workbenchAction({
           id: setupStep === "policy" ? "program.update_policy" : "community.open",
           label: setupLabel,
-          href: `/communities/${encodeURIComponent(row.install.communitySlug)}?program=${encodeURIComponent(row.id)}&step=${setupStep}&returnTo=${encodeURIComponent(`/discover?view=explore&kind=programs&item=${row.id}`)}#programs`,
-          enabled: true,
+          href: `/discover?view=explore&kind=programs&action=${setupStep === "policy" ? "program.update_policy" : "community.open"}&subject=${encodeURIComponent(row.id)}`,
           description: setupBlocker,
-        },
-    secondaryActions: [
-      {
-        id: "community.open",
-        label: "Open community",
-        href: `/communities/${encodeURIComponent(row.install.communitySlug)}?program=${encodeURIComponent(row.id)}&step=review&returnTo=${encodeURIComponent(`/discover?view=explore&kind=programs&item=${row.id}`)}#programs`,
-        enabled: true,
-      },
-    ],
+        }, {
+          panel: "program_setup",
+          subjectId: row.id,
+          programId: row.id,
+          communitySlug: row.install.communitySlug,
+          step: setupStep,
+        }),
+    secondaryActions: [],
   };
 }
 
@@ -524,5 +561,6 @@ export function normalizeCampaignOpportunity(
     verificationStatus: "verified",
     riskFlags: [],
     source: { type: "outcome_campaign", id: row.id },
+    marketplaceKind: "opportunity",
   };
 }

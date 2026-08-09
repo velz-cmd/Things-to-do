@@ -9,6 +9,10 @@ import type {
   EconomicActionItem,
   MarketplaceOpportunity,
 } from "@/lib/discover/marketplace/contracts";
+import {
+  discoverNavigationAction,
+  workbenchAction,
+} from "@/lib/discover/marketplace/action-contract";
 
 type BuildEconomicActionsInput = {
   opportunities: MarketplaceOpportunity[];
@@ -20,10 +24,6 @@ type BuildEconomicActionsInput = {
 };
 
 const workTypes = new Set(["project_contribution", "repository_fix", "task", "bounty"]);
-
-function safeReturnTo(value: string) {
-  return encodeURIComponent(value.startsWith("/") && !value.startsWith("//") ? value : "/discover");
-}
 
 function programSetupAction(
   item: MarketplaceOpportunity,
@@ -46,13 +46,18 @@ function programSetupAction(
         : "Review program";
   const slug = item.community?.id ?? item.community?.name ?? "";
   const programId = item.pool?.id ?? item.source.id;
-  return {
+  return workbenchAction({
     id: step === "policy" ? "program.update_policy" : "community.open",
     label,
-    href: `/communities/${encodeURIComponent(slug)}?program=${encodeURIComponent(programId)}&step=${step}&returnTo=${safeReturnTo(returnTo)}#programs`,
+    href: `${returnTo}&action=${step === "policy" ? "program.update_policy" : "community.open"}&subject=${encodeURIComponent(programId)}`,
     description: item.entityState?.blocker,
-    enabled: true,
-  };
+  }, {
+    panel: "program_setup",
+    subjectId: programId,
+    programId,
+    communitySlug: slug,
+    step,
+  });
 }
 
 function isWork(item: MarketplaceOpportunity) {
@@ -74,22 +79,28 @@ function actionFromOpportunity(
   const confirmed = item.source.type === "confirmed_receipt";
   const acceptedWork = isWork(item) && !item.pool;
   const program = item.source.type === "community_program";
+  const pool = item.marketplaceKind === "pool";
   const blocker = item.entityState?.blocker;
   const setupAction = program && owner ? programSetupAction(item, returnTo) : null;
-  const detailAction: DiscoverAction = {
-    id: "discover.open_record",
-    label: confirmed ? "View receipt" : acceptedWork ? "Inspect evidence" : "Inspect economic state",
-    href: confirmed && item.primaryAction?.href
-      ? item.primaryAction.href
-      : `/opportunities/${item.slug}?returnTo=${safeReturnTo(returnTo)}`,
-    enabled: true,
-  };
+  const detailAction: DiscoverAction = workbenchAction({
+        id: "discover.open_evidence",
+        label: acceptedWork ? "Inspect evidence" : "Inspect economic state",
+        href: `${returnTo}&action=discover.open_evidence&subject=${encodeURIComponent(item.source.id)}`,
+      }, {
+        panel: "evidence",
+        subjectId: item.source.id,
+        sourceUrl: item.sourceUrl,
+        repository: item.repository,
+        evidenceIds: [item.source.id],
+      });
   const primaryAction = setupAction ?? (acceptedWork || confirmed ? item.primaryAction ?? detailAction : detailAction);
   const amountState = item.funding?.amountState ?? (confirmed ? "confirmed" : "provenance_unavailable");
   const subjectType = confirmed
     ? "receipt"
     : acceptedWork
       ? "accepted_work"
+      : pool
+        ? "community_pool"
       : program && blocker
         ? "policy_blocker"
         : item.pool
@@ -118,10 +129,12 @@ function actionFromOpportunity(
   const whyItMatters = confirmed
     ? "The transaction, authorization, and public proof can be inspected together."
     : acceptedWork
-      ? "This accepted activity can become an obligation only when identity and an approved policy cover it."
+      ? item.primaryAction?.id === "discover.fund_verified_work"
+        ? "Attribution, source evidence, and payout readiness passed. A voluntary reward can now be reviewed without creating a policy obligation."
+        : blocker ?? "The source proof remains inspectable while recipient readiness is incomplete."
       : blocker
-        ? `Economic execution is blocked until this exact requirement is resolved: ${blocker}`
-        : "The economic object has an inspectable source and a valid next step.";
+        ? `This item needs one setup step before its public action is available: ${blocker}`
+        : "This item has an inspectable source and a valid next step.";
 
   return {
     id: `economic:${item.source.type}:${item.source.id}`,
@@ -132,13 +145,13 @@ function actionFromOpportunity(
       : acceptedWork
         ? `${item.creator.name} completed accepted work in ${item.repository ?? item.community?.name ?? "a verified source"}`
         : blocker
-          ? `${item.title} cannot operate yet`
+          ? `${item.title} needs setup`
           : `${item.title} is ready for review`,
     happened,
     whyItMatters,
     lifecycle,
     blocker,
-    audience: program && owner ? "operator" : acceptedWork ? "public" : "funder",
+    audience: program && owner && !pool ? "operator" : acceptedWork ? "public" : "funder",
     community: item.community,
     repository: item.repository,
     person: item.creator.id ? { id: item.creator.id, name: item.creator.name } : { name: item.creator.name },
@@ -163,12 +176,18 @@ function actionFromOpportunity(
           state: amountState,
         }
       : undefined,
-    fundingReadiness: item.entityState?.financialReadiness === "ready" ? "ready" : item.pool || program ? "blocked" : "not_applicable",
-    recipientReadiness: "not_applicable",
+    fundingReadiness: item.entityState?.financialReadiness === "ready"
+      ? "ready"
+      : acceptedWork || item.pool || program
+        ? "blocked"
+        : "not_applicable",
+    recipientReadiness: acceptedWork
+      ? item.creator.id && !blocker ? "ready" : "setup_required"
+      : "not_applicable",
     primaryAction,
     secondaryActions: [
       ...(item.sourceUrl && primaryAction.href !== item.sourceUrl
-        ? [{ id: "discover.open_repository", label: "Open source", href: item.sourceUrl, enabled: true }]
+        ? [discoverNavigationAction({ id: "discover.open_repository", label: "Open source", href: item.sourceUrl }, { target: "external", secondary: true })]
         : []),
       ...((item.secondaryActions ?? []).filter((action) => action.href !== primaryAction.href)),
     ].slice(0, 2),
@@ -231,12 +250,11 @@ function actionFromCommunity(community: DiscoverCommunity): EconomicActionItem {
     policyState: "not_applicable",
     fundingReadiness: "not_applicable",
     recipientReadiness: "not_applicable",
-    primaryAction: {
+    primaryAction: discoverNavigationAction({
       id: "community.open",
       label: "Open community activity",
-      href: `/communities/${encodeURIComponent(community.slug)}?returnTo=${safeReturnTo(`/discover?view=explore&kind=communities`)}`,
-      enabled: true,
-    },
+      href: `/discover?view=explore&kind=communities&community=${encodeURIComponent(community.slug)}`,
+    }),
     secondaryActions: [],
     visibility: "public",
     createdAt: new Date(0).toISOString(),
@@ -322,7 +340,7 @@ export function buildEconomicActions(input: BuildEconomicActionsInput): Economic
     id: `economic:operator:${community.id}`,
     subjectType: "policy_blocker" as const,
     subjectId: community.id,
-    headline: `${community.name} needs an operator decision`,
+    headline: `${community.name} needs setup`,
     happened: `${community.activeProgramCount} active program${community.activeProgramCount === 1 ? "" : "s"} and ${community.repositories.length} connected repositor${community.repositories.length === 1 ? "y" : "ies"} were found.`,
     whyItMatters: "The next requirement must be resolved before accepted activity can become a funded obligation.",
     lifecycle: "blocked" as const,

@@ -1,7 +1,19 @@
 import { createHash } from "node:crypto";
 import type { FundingOpportunity, GitHubFundingActivityRecord } from "@/lib/github/types";
 import type { LiveSettlementRow } from "@/lib/discover/live-settlements";
+import {
+  discoverNavigationAction,
+  workbenchAction,
+} from "@/lib/discover/marketplace/action-contract";
 import type { MarketplaceOpportunity, OpportunityType } from "./contracts";
+
+export type GithubEvidenceReference = {
+  id: string;
+  externalId: string;
+  subjectRef: string;
+  kind: string;
+  sourceUrl: string | null;
+};
 
 const ACCEPTED_WORK_CATEGORIES = new Set([
   "code",
@@ -43,12 +55,24 @@ function acceptedRecord(record: GitHubFundingActivityRecord) {
 
 export function normalizeGithubAcceptedWork(
   repositories: FundingOpportunity[],
+  evidenceReferences?: GithubEvidenceReference[],
 ): MarketplaceOpportunity[] {
   const seen = new Set<string>();
+  const evidenceBySource = new Map(
+    (evidenceReferences ?? []).map((evidence) => [
+      `${evidence.subjectRef.toLowerCase()}:${evidence.externalId}`,
+      evidence,
+    ]),
+  );
+  const requireCanonicalEvidence = evidenceReferences !== undefined;
   return repositories.flatMap((repository) =>
     (repository.activity?.records ?? []).flatMap((record) => {
       if (!acceptedRecord(record)) return [];
       const identity = `${repository.fullName.toLowerCase()}:${record.sourceKind}:${record.id}`;
+      const evidence = evidenceBySource.get(
+        `github:${repository.fullName.toLowerCase()}:${record.id}`,
+      );
+      if (requireCanonicalEvidence && !evidence) return [];
       if (seen.has(identity)) return [];
       seen.add(identity);
       const detailPath = `/discover?view=explore&kind=work&work=${encodeURIComponent(identity)}`;
@@ -79,6 +103,7 @@ export function normalizeGithubAcceptedWork(
           verificationStatus: "verified_evidence_no_funding_rule",
           riskFlags: [],
           source: { type: "github_evidence", id: identity },
+          marketplaceKind: "verified_work",
           sourceUrl: record.sourceUrl,
           entityState: {
             provenance: "external_integration",
@@ -86,20 +111,18 @@ export function normalizeGithubAcceptedWork(
             financialReadiness: "setup_required",
             blocker: "No active funding policy covers this verified work.",
           },
-          primaryAction: {
+          primaryAction: workbenchAction({
             id: "discover.open_evidence",
-            label: "View GitHub evidence",
-            href: record.sourceUrl,
-            enabled: true,
-          },
-          secondaryActions: [
-            {
-              id: "discover.start_mission",
-              label: "Design funding rule",
-              href: `/mission?intent=design-funding-rule&repository=${encodeURIComponent(repository.fullName)}&work=${encodeURIComponent(identity)}&returnTo=${encodeURIComponent(detailPath)}`,
-              enabled: true,
-            },
-          ],
+            label: "Inspect evidence",
+            href: detailPath,
+          }, {
+            panel: "evidence",
+            subjectId: identity,
+            sourceUrl: record.sourceUrl,
+            repository: repository.fullName,
+            evidenceIds: [evidence?.id ?? identity],
+          }),
+          secondaryActions: [],
         } satisfies MarketplaceOpportunity,
       ];
     }),
@@ -147,25 +170,29 @@ export function normalizeConfirmedOutcomes(
         verificationStatus: "settlement_confirmed",
         riskFlags: [],
         source: { type: "confirmed_receipt", id: row.id },
+        marketplaceKind: "outcome",
         sourceUrl: row.explorerUrl,
         entityState: {
           provenance: "canonical_record",
           lifecycle: "confirmed",
           financialReadiness: "confirmed",
         },
-        primaryAction: {
+        primaryAction: workbenchAction({
           id: "receipt.open",
           label: "View receipt",
           href: row.receiptHref,
-          enabled: true,
-        },
+        }, {
+          panel: "receipt",
+          subjectId: row.id,
+          receiptUrl: row.receiptHref,
+          explorerUrl: row.explorerUrl ?? undefined,
+        }),
         secondaryActions: [
-          {
+          discoverNavigationAction({
             id: "receipt.open_arcscan",
             label: "View Arc transaction",
             href: row.explorerUrl,
-            enabled: true,
-          },
+          }, { target: "external", secondary: true }),
         ],
       } satisfies MarketplaceOpportunity,
     ];

@@ -10,7 +10,7 @@ import type {
 
 type GhRepo = {
   full_name: string;
-  description?: string;
+  description?: string | null;
   stargazers_count: number;
   forks_count: number;
   open_issues_count: number;
@@ -26,11 +26,11 @@ type GhPr = {
   user: { login: string; id: number };
   state: string;
   merged_at: string | null;
-  additions: number;
-  deletions: number;
-  changed_files: number;
-  review_comments: number;
-  commits: number;
+  additions?: number;
+  deletions?: number;
+  changed_files?: number;
+  review_comments?: number;
+  commits?: number;
   labels: { name: string }[];
   body?: string;
 };
@@ -197,6 +197,44 @@ async function fetchMergedPrsGraphQL(
   }
 }
 
+async function fetchMergedPrsRest(
+  owner: string,
+  repo: string,
+  limit: number,
+): Promise<GitHubPullRequest[]> {
+  const listed = await githubFetch<GhPr[]>(
+    `https://api.github.com/repos/${owner}/${repo}/pulls?state=closed&sort=updated&per_page=${limit}`,
+    { revalidate: 300 },
+  );
+  const merged = (listed ?? []).filter((pullRequest) => pullRequest.merged_at).slice(0, limit);
+  const detailed = await Promise.all(
+    merged.map(async (pullRequest) =>
+      await githubFetch<GhPr>(
+        `https://api.github.com/repos/${owner}/${repo}/pulls/${pullRequest.number}`,
+        { revalidate: 300 },
+      ) ?? pullRequest),
+  );
+
+  return detailed.map((pullRequest) => ({
+    number: pullRequest.number,
+    title: pullRequest.title,
+    author: pullRequest.user.login,
+    authorId: pullRequest.user.id,
+    state: pullRequest.state,
+    merged: Boolean(pullRequest.merged_at),
+    mergedAt: pullRequest.merged_at ?? undefined,
+    additions: pullRequest.additions ?? 0,
+    deletions: pullRequest.deletions ?? 0,
+    changedFiles: pullRequest.changed_files ?? 0,
+    reviewComments: pullRequest.review_comments ?? 0,
+    commits: pullRequest.commits ?? 0,
+    labels: pullRequest.labels.map((label) => label.name),
+    body: pullRequest.body,
+    sourceUrl: `https://github.com/${owner}/${repo}/pull/${pullRequest.number}`,
+    files: [],
+  }));
+}
+
 async function enrichPrFiles(
   owner: string,
   repo: string,
@@ -281,30 +319,7 @@ export async function ingestRepository(
 
   let pullRequests = graphqlPrs;
   if (!pullRequests.length) {
-    const restPrs = await githubFetch<GhPr[]>(
-      `https://api.github.com/repos/${owner}/${repo}/pulls?state=closed&sort=updated&per_page=${prLimit}`,
-      { revalidate: 1800 },
-    );
-    pullRequests = (restPrs ?? [])
-      .filter((p) => p.merged_at)
-      .map((p) => ({
-        number: p.number,
-        title: p.title,
-        author: p.user.login,
-        authorId: p.user.id,
-        state: p.state,
-        merged: true,
-        mergedAt: p.merged_at ?? undefined,
-        additions: p.additions,
-        deletions: p.deletions,
-        changedFiles: p.changed_files,
-        reviewComments: p.review_comments,
-        commits: p.commits,
-        labels: p.labels.map((l) => l.name),
-        body: p.body,
-        sourceUrl: `https://github.com/${owner}/${repo}/pull/${p.number}`,
-        files: [],
-      }));
+    pullRequests = await fetchMergedPrsRest(owner, repo, prLimit);
   }
 
   const [enrichedPullRequests, contributors, dependencies] = await Promise.all([

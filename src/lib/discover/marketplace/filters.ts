@@ -1,6 +1,5 @@
 import {
   DISCOVER_VIEWS,
-  DISCOVER_EXPLORE_KINDS,
   DISCOVER_INTENTS,
   type DiscoverIntent,
   type DiscoverExploreKind,
@@ -40,6 +39,13 @@ export type OpportunityFilters = {
   kind?: DiscoverExploreKind;
   intent?: DiscoverIntent;
 };
+
+const PRIMARY_EXPLORE_KINDS: readonly DiscoverExploreKind[] = [
+  "all",
+  "work",
+  "people",
+  "pools",
+];
 
 function first(value: SearchValue) {
   return Array.isArray(value) ? value[0] : value;
@@ -82,8 +88,8 @@ export function parseOpportunityFilters(params: DiscoverSearchParams): Opportuni
   const sort = clean(params.sort, 30);
   const requestedView = clean(params.view, 40);
   const requestedKind = clean(params.kind, 40) ??
-    ({ people: "people", work: "work", pools: "pools", programs: "programs" } as const)[
-      requestedView as "people" | "work" | "pools" | "programs"
+    ({ people: "people", work: "work", pools: "pools" } as const)[
+      requestedView as "people" | "work" | "pools"
     ];
   const requestedIntent = clean(params.intent, 20);
 
@@ -132,7 +138,7 @@ export function parseOpportunityFilters(params: DiscoverSearchParams): Opportuni
       ? (sort as OpportunitySort)
       : "newest",
     cursor: clean(params.cursor, 240),
-    kind: DISCOVER_EXPLORE_KINDS.includes(requestedKind as DiscoverExploreKind)
+    kind: PRIMARY_EXPLORE_KINDS.includes(requestedKind as DiscoverExploreKind)
       ? (requestedKind as DiscoverExploreKind)
       : "all",
     intent: DISCOVER_INTENTS.includes(requestedIntent as DiscoverIntent)

@@ -27,6 +27,7 @@ export function deriveUserCapabilities(input: {
   operatesCommunity: boolean;
   hasPublishedProgram: boolean;
   liveSettlementEnabled: boolean;
+  walletReady: boolean;
   hasPublishingAdapter?: boolean;
   hasRegisteredService?: boolean;
 }): UserCapability[] {
@@ -36,7 +37,7 @@ export function deriveUserCapabilities(input: {
   capabilities.add("can_create_community");
   if (input.sourceConnected) capabilities.add("can_claim_work");
   if (input.identityReady && input.payoutReady && input.liveSettlementEnabled) capabilities.add("can_receive_direct_support");
-  if (input.liveSettlementEnabled) {
+  if (input.liveSettlementEnabled && input.walletReady) {
     capabilities.add("can_fund_person");
     capabilities.add("can_fund_pool");
   }

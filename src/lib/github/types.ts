@@ -70,7 +70,7 @@ export interface RepoIngestResult {
   owner: string;
   repo: string;
   fullName: string;
-  description?: string;
+  description?: string | null;
   stars: number;
   forks: number;
   openIssues: number;

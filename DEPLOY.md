@@ -31,7 +31,7 @@ Free tier allows **100 deploys per 24 hours**. If you see:
 3. **Production stays live** on the last successful deploy ([resolve-self.vercel.app](https://resolve-self.vercel.app)).
 4. **Wait ~24 hours**, then merge to `main` — Vercel Git will deploy once automatically.
 5. **PR red X from Vercel** is expected while rate-limited; Playwright E2E can still pass. You can merge if branch protection allows (Vercel check is optional).
-6. Preview deploys on PRs are **skipped** (`vercel.json` `ignoreCommand`) so new PR pushes do not burn quota.
+6. Unapproved Preview branches are **skipped** (`vercel.json` and `ignoreCommand`) so routine PR pushes do not burn quota. Only the explicitly approved Discover verification branches can build a Preview.
 
 **One deploy per merge to `main` only.** No hooks, no CLI, no manual Redeploy unless quota has reset.
 

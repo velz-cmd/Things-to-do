@@ -1059,7 +1059,9 @@ function ExploreNav({
   active: DiscoverExploreKind;
   filters: OpportunityFilters;
 }) {
+  const router = useRouter();
   const [selected, setSelected] = useState(active);
+  const [, startTransition] = useTransition();
 
   useEffect(() => setSelected(active), [active]);
   useEffect(() => {
@@ -1075,13 +1077,21 @@ function ExploreNav({
     >
       {exploreKinds.map((kind) => {
         const loading = selected === kind.id && selected !== active;
+        const href = discoverHref("explore", filters, kind.id);
         return (
           <Link
             key={kind.id}
-            href={discoverHref("explore", filters, kind.id)}
+            href={href}
             prefetch
             aria-current={selected === kind.id ? "page" : undefined}
-            onClick={() => setSelected(kind.id)}
+            onClick={(event) => {
+              event.preventDefault();
+              setSelected(kind.id);
+              startTransition(() =>
+                router.replace(href, { scroll: false }),
+              );
+              window.history.pushState(window.history.state, "", href);
+            }}
             className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs ${selected === kind.id ? "bg-[#1a2940] font-semibold text-white" : "text-slate-400 hover:text-white"}`}
           >
             {kind.label}

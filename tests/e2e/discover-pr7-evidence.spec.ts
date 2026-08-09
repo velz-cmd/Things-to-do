@@ -90,6 +90,9 @@ test.describe("Discover accepted GitHub evidence", () => {
     await categories.getByRole("link", { name: "Pools", exact: true }).click();
     await categories.getByRole("link", { name: "People", exact: true }).click();
     await expect(page).toHaveURL(/kind=people/);
+    await expect(
+      page.getByRole("heading", { name: /^People/ }),
+    ).toBeVisible();
     const overflow = await page.evaluate(
       () =>
         document.documentElement.scrollWidth >

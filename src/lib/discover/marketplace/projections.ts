@@ -99,9 +99,14 @@ export function buildDiscoverProjection(input: ProjectionInput): DiscoverProject
     };
   }
 
-  const recommendation = input.inbox[0] ?? null;
+  const actionFirstInbox = input.inbox.filter(
+    (item) =>
+      item.id !== "operator:no-accepted-work" &&
+      !item.id.startsWith("operator:pool-setup:"),
+  );
+  const recommendation = actionFirstInbox[0] ?? null;
   const recommendationId = recommendation?.id;
-  const attention = input.inbox
+  const attention = actionFirstInbox
     .filter((item) => item.id !== recommendationId && Boolean(item.blocker))
     .slice(0, 4);
   const readyPools = input.pools

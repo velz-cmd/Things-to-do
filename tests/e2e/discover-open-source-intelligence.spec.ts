@@ -5,7 +5,7 @@ test.describe("Discover Economic Action Network", () => {
 
   test("switches through the four primary views without integration gates", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await expect(page.getByRole("heading", { level: 1, name: "Discover economic activity" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
 
     const views = [
@@ -17,7 +17,7 @@ test.describe("Discover Economic Action Network", () => {
     for (const [label, value] of views) {
       await page.getByRole("link", { name: label, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`view=${value}`));
-      await expect(page.getByRole("heading", { level: 1, name: "Discover economic activity" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
     }
   });
 
@@ -26,7 +26,7 @@ test.describe("Discover Economic Action Network", () => {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
-    await expect(page.getByRole("link", { name: "Verified work", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("link", { name: "Work", exact: true })).toHaveAttribute("aria-current", "page");
     const search = page.getByRole("searchbox", { name: "Search Discover" });
     await search.fill("typescript");
     await search.press("Enter");
@@ -41,16 +41,16 @@ test.describe("Discover Economic Action Network", () => {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
-    await page.getByRole("textbox", { name: "Public GitHub repository" }).fill("octocat/Hello-World");
-    await page.getByRole("button", { name: "Analyze real activity" }).click();
-    await expect(page.getByRole("heading", { name: "octocat/Hello-World" })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("Sign in to persist evidence")).toBeVisible();
+    await page.getByRole("textbox", { name: "Public GitHub repository" }).fill("velz-cmd/repodiet-e2e-test");
+    await page.getByRole("button", { name: "Analyse", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "velz-cmd/repodiet-e2e-test" })).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText("Evidence saved to Discover", { exact: true })).toBeVisible();
   });
 
   test("is usable at mobile width without page-level horizontal overflow", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await expect(page.getByRole("heading", { level: 1, name: "Discover economic activity" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
     await expect(page.getByRole("link", { name: "My Activity", exact: true })).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -60,14 +60,14 @@ test.describe("Discover Economic Action Network", () => {
 
   test("shows factual empty outcome copy when no receipt exists", async ({ page }) => {
     await page.goto("/discover?view=outcomes", { waitUntil: "domcontentloaded", timeout: 120_000 });
-    await expect(page.getByRole("heading", { level: 1, name: "Discover economic activity" })).toBeVisible();
-    const empty = page.getByRole("heading", { name: "No confirmed outcome receipt yet" });
+    await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
+    const empty = page.getByRole("heading", { name: "No confirmed outcomes yet" });
     const hasEmptyState = await empty.waitFor({ state: "visible", timeout: 2_000 }).then(() => true).catch(() => false);
     if (hasEmptyState) {
       await expect(empty).toBeVisible();
-      await expect(empty.locator("..").getByText(/only after a chain transaction confirms/)).toBeVisible();
+      await expect(empty.locator("..").getByText(/after settlement and receipt issuance/)).toBeVisible();
     } else {
-      await expect(page.getByRole("heading", { name: "Confirmed settlements and receipts" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Confirmed outcomes", exact: true })).toBeVisible();
     }
   });
 

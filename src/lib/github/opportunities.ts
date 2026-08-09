@@ -1,7 +1,7 @@
 import { ingestRepository } from "@/lib/github/adapter";
 import { computeRepoHealth } from "@/lib/github/repo-health";
 import { buildGitHubFundingActivity } from "@/lib/github/funding-activity";
-import type { FundingOpportunity } from "@/lib/github/types";
+import type { FundingOpportunity, RepoIngestResult } from "@/lib/github/types";
 
 /** High-value OSS repos — Phase 1 GitHub radar targets. */
 export const RADAR_TARGETS = [
@@ -15,28 +15,26 @@ export const RADAR_TARGETS = [
   { owner: "supabase", repo: "supabase" },
 ];
 
-export async function scanFundingOpportunity(
-  owner: string,
-  repo: string,
-): Promise<FundingOpportunity | null> {
-  const ingest = await ingestRepository(owner, repo, { prLimit: 8 });
-  if (!ingest) return null;
-
+/** Build the canonical persisted opportunity from one completed GitHub ingest. */
+export function buildFundingOpportunity(ingest: RepoIngestResult): FundingOpportunity {
   const health = computeRepoHealth(ingest);
   const highImpactPrs = ingest.pullRequests.filter(
-    (p) => p.additions + p.deletions >= 50 && p.reviewComments >= 1,
+    (pullRequest) =>
+      pullRequest.additions + pullRequest.deletions >= 50 &&
+      pullRequest.reviewComments >= 1,
   ).length;
 
-  const unfundedMaintainers = health.maintainerCount <= 2 ? health.maintainerCount : 0;
+  const unfundedMaintainers =
+    health.maintainerCount <= 2 ? health.maintainerCount : 0;
 
   let priority: FundingOpportunity["priority"] = "medium";
   if (health.maintainerCount <= 1 && ingest.stars > 3000) priority = "critical";
   else if (health.fundingGapUsd > 5000 || highImpactPrs >= 3) priority = "high";
 
   return {
-    id: `opp-${owner}-${repo}`,
-    owner,
-    repo,
+    id: `opp-${ingest.owner}-${ingest.repo}`,
+    owner: ingest.owner,
+    repo: ingest.repo,
     fullName: ingest.fullName,
     description: ingest.description,
     stars: ingest.stars,
@@ -50,6 +48,15 @@ export async function scanFundingOpportunity(
     activity: buildGitHubFundingActivity(ingest),
     dependencies: ingest.dependencies,
   };
+}
+
+export async function scanFundingOpportunity(
+  owner: string,
+  repo: string,
+): Promise<FundingOpportunity | null> {
+  const ingest = await ingestRepository(owner, repo, { prLimit: 8 });
+  if (!ingest) return null;
+  return buildFundingOpportunity(ingest);
 }
 
 export async function scanAllOpportunities(): Promise<FundingOpportunity[]> {

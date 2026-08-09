@@ -7,6 +7,14 @@ import {
 } from "@/lib/discover/marketplace/action-contract";
 import type { MarketplaceOpportunity, OpportunityType } from "./contracts";
 
+export type GithubEvidenceReference = {
+  id: string;
+  externalId: string;
+  subjectRef: string;
+  kind: string;
+  sourceUrl: string | null;
+};
+
 const ACCEPTED_WORK_CATEGORIES = new Set([
   "code",
   "review",
@@ -47,12 +55,24 @@ function acceptedRecord(record: GitHubFundingActivityRecord) {
 
 export function normalizeGithubAcceptedWork(
   repositories: FundingOpportunity[],
+  evidenceReferences?: GithubEvidenceReference[],
 ): MarketplaceOpportunity[] {
   const seen = new Set<string>();
+  const evidenceBySource = new Map(
+    (evidenceReferences ?? []).map((evidence) => [
+      `${evidence.subjectRef.toLowerCase()}:${evidence.externalId}`,
+      evidence,
+    ]),
+  );
+  const requireCanonicalEvidence = evidenceReferences !== undefined;
   return repositories.flatMap((repository) =>
     (repository.activity?.records ?? []).flatMap((record) => {
       if (!acceptedRecord(record)) return [];
       const identity = `${repository.fullName.toLowerCase()}:${record.sourceKind}:${record.id}`;
+      const evidence = evidenceBySource.get(
+        `github:${repository.fullName.toLowerCase()}:${record.id}`,
+      );
+      if (requireCanonicalEvidence && !evidence) return [];
       if (seen.has(identity)) return [];
       seen.add(identity);
       const detailPath = `/discover?view=explore&kind=work&work=${encodeURIComponent(identity)}`;
@@ -93,22 +113,16 @@ export function normalizeGithubAcceptedWork(
           },
           primaryAction: workbenchAction({
             id: "discover.open_evidence",
-            label: "View GitHub evidence",
-            href: record.sourceUrl,
+            label: "Inspect evidence",
+            href: detailPath,
           }, {
             panel: "evidence",
             subjectId: identity,
             sourceUrl: record.sourceUrl,
             repository: repository.fullName,
-            evidenceIds: [identity],
+            evidenceIds: [evidence?.id ?? identity],
           }),
-          secondaryActions: [
-            discoverNavigationAction({
-              id: "discover.start_mission",
-              label: "Open full policy workspace",
-              href: `/mission?intent=design-funding-rule&repository=${encodeURIComponent(repository.fullName)}&work=${encodeURIComponent(identity)}&returnTo=${encodeURIComponent(detailPath)}`,
-            }, { target: "workspace", secondary: true }),
-          ],
+          secondaryActions: [],
         } satisfies MarketplaceOpportunity,
       ];
     }),

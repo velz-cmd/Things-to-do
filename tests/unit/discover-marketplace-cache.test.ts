@@ -31,12 +31,15 @@ describe("Discover marketplace cache invalidation", () => {
 
     await invalidateDiscoverGithubCache();
 
-    expect(cacheDelete).toHaveBeenCalledTimes(2);
+    expect(cacheDelete).toHaveBeenCalledTimes(3);
     expect(cacheDelete).toHaveBeenCalledWith(
       DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.githubWork,
     );
     expect(cacheDelete).toHaveBeenCalledWith(
       DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.githubStore,
+    );
+    expect(cacheDelete).toHaveBeenCalledWith(
+      DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.publicPeople,
     );
   });
 });

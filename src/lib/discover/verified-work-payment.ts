@@ -33,7 +33,26 @@ export async function resolvePayableVerifiedWork(
       select: { id: true, githubUsername: true },
     }),
   ]);
-  const work = normalizeGithubAcceptedWork(stored.opportunities).find(
+  const evidence = stored.opportunities.length
+    ? await prisma.evidence.findMany({
+        where: {
+          subjectRef: {
+            in: stored.opportunities.map(
+              (opportunity) => `github:${opportunity.fullName.toLowerCase()}`,
+            ),
+          },
+          kind: { startsWith: "github." },
+        },
+        select: {
+          id: true,
+          externalId: true,
+          subjectRef: true,
+          kind: true,
+          sourceUrl: true,
+        },
+      })
+    : [];
+  const work = normalizeGithubAcceptedWork(stored.opportunities, evidence).find(
     (item) => item.source.type === "github_evidence" && item.source.id === normalizedSubject,
   );
   const githubUsername = recipient?.githubUsername?.trim().replace(/^@/, "");
@@ -45,6 +64,11 @@ export async function resolvePayableVerifiedWork(
     !work.repository ||
     !work.sourceUrl
   ) return null;
+  const evidenceIds = work.primaryAction?.presentation.kind === "workbench" &&
+    work.primaryAction.presentation.target.panel === "evidence"
+    ? work.primaryAction.presentation.target.evidenceIds
+    : [];
+  if (!evidenceIds.length) return null;
 
   return {
     subjectId: work.source.id,
@@ -53,6 +77,6 @@ export async function resolvePayableVerifiedWork(
     sourceUrl: work.sourceUrl,
     actor: work.creator.name,
     recipientUserId: recipient.id,
-    evidenceIds: [work.source.id],
+    evidenceIds,
   };
 }

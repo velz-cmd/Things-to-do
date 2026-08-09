@@ -16,7 +16,7 @@ test.describe("Discover marketplace composition", () => {
 
     const discoverTabs = page.getByRole("navigation", { name: "Discover sections" });
     await discoverTabs.getByRole("link", { name: "Explore" }).click();
-    await expect(page.getByRole("heading", { name: "Browse the network" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Explore verified value" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Marketplace categories" })).toBeVisible();
 
     await discoverTabs.getByRole("link", { name: "My Activity" }).click();
@@ -39,7 +39,7 @@ test.describe("Discover marketplace composition", () => {
       timeout: 60_000,
     });
 
-    await expect(page.getByRole("heading", { name: "Browse the network" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Explore verified value" })).toBeVisible();
     const categories = page.getByRole("navigation", { name: "Marketplace categories" });
     await expect(categories.getByRole("link", { name: "People", exact: true })).toBeVisible();
     await categories.getByRole("link", { name: "Pools", exact: true }).click();
@@ -56,23 +56,17 @@ test.describe("Discover marketplace composition", () => {
     await expect(page.getByRole("main")).toHaveCount(1);
   });
 
-  test("opens and closes a marketplace detail Workbench without losing URL context", async ({ page }) => {
+  test("shows only the final Explore categories without duplicating Outcomes", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/discover?view=explore&kind=communities", {
+    await page.goto("/discover?view=explore&kind=all", {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
 
-    const detail = page.getByRole("button", { name: "Explore community" }).first();
-    test.skip((await detail.count()) === 0, "No public Community is available in this database.");
-    await detail.click();
-    await expect(page.getByRole("dialog", { name: "View community" })).toBeVisible();
-    await expect(page).toHaveURL(/view=explore/);
-    await expect(page).toHaveURL(/kind=communities/);
-    await expect(page).toHaveURL(/action=community\.open/);
-    await page.getByRole("button", { name: "Close Discover action" }).click();
-    await expect(page.getByRole("dialog", { name: "View community" })).toHaveCount(0);
-    await expect(page).not.toHaveURL(/action=/);
-    await expect(page).not.toHaveURL(/subject=/);
+    const categories = page.getByRole("navigation", { name: "Marketplace categories" });
+    await expect(categories.getByRole("link")).toHaveText(["All", "Work", "People", "Pools"]);
+    await expect(categories.getByRole("link", { name: "Outcomes", exact: true })).toHaveCount(0);
+    await expect(categories.getByRole("link", { name: "Programs", exact: true })).toHaveCount(0);
+    await expect(categories.getByRole("link", { name: "Communities", exact: true })).toHaveCount(0);
   });
 });

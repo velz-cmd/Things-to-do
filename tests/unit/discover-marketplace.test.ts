@@ -394,7 +394,13 @@ describe("Discover canonical projections", () => {
         ],
       },
     };
-    const result = normalizeGithubAcceptedWork([repository]);
+    const result = normalizeGithubAcceptedWork([repository], [{
+      id: "evidence-42",
+      externalId: "42",
+      subjectRef: "github:owner/project",
+      kind: "github.pull_request.code",
+      sourceUrl: "https://github.com/owner/project/pull/42",
+    }]);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       repository: "owner/project",
@@ -402,9 +408,14 @@ describe("Discover canonical projections", () => {
       entityState: {
         financialReadiness: "setup_required",
       },
-      primaryAction: { label: "View GitHub evidence" },
+      primaryAction: { label: "Inspect evidence" },
     });
     expect(result[0]?.reward).toBeUndefined();
+    expect(result[0]?.primaryAction).toMatchObject({
+      presentation: {
+        target: { panel: "evidence", evidenceIds: ["evidence-42"] },
+      },
+    });
     expect(mergeAttributedDiscoverPeople([], result)).toEqual([
       expect.objectContaining({
         id: "github-actor:ada",

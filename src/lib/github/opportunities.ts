@@ -36,7 +36,7 @@ export function buildFundingOpportunity(ingest: RepoIngestResult): FundingOpport
     owner: ingest.owner,
     repo: ingest.repo,
     fullName: ingest.fullName,
-    description: ingest.description,
+    description: ingest.description ?? undefined,
     stars: ingest.stars,
     forks: ingest.forks,
     health,

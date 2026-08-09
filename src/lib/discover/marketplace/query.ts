@@ -119,6 +119,20 @@ function sourceFailure(
 ): DiscoverSourceFailure {
   const message =
     error instanceof Error ? error.message : "Source request failed";
+  const diagnosticMessage = message
+    .replace(/\b(?:postgres(?:ql)?|https?):\/\/\S+/gi, "[redacted-url]")
+    .replace(/\b(?:vcp|sb_secret|sk)_[A-Za-z0-9_-]+\b/g, "[redacted-secret]")
+    .slice(0, 500);
+  console.error("[discover] source refresh failed", {
+    source,
+    requestId,
+    errorName: error instanceof Error ? error.name : typeof error,
+    errorCode:
+      typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : null,
+    message: diagnosticMessage,
+  });
   return {
     source,
     requestId,

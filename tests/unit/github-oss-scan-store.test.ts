@@ -138,6 +138,31 @@ describe("GitHub OSS persisted store", () => {
     expect(result.opportunities[0]?.headline).toBe("newer immutable snapshot");
   });
 
+  it("keeps GitHub repositories whose optional description is null", async () => {
+    const stored = opportunity("owner/no-description", "valid evidence");
+    snapshotRows.mockResolvedValue([
+      {
+        owner: stored.owner,
+        repo: stored.repo,
+        fullName: stored.fullName,
+        payload: { ...stored, description: null },
+        observedAt: new Date(),
+      },
+    ]);
+
+    const { loadStoredOssOpportunities } = await import(
+      "@/lib/github/oss-scan-store"
+    );
+    const result = await loadStoredOssOpportunities();
+
+    expect(result.opportunities).toEqual([
+      expect.objectContaining({
+        fullName: stored.fullName,
+        description: undefined,
+      }),
+    ]);
+  });
+
   it("reports staleness per repository", async () => {
     const fresh = opportunity("owner/fresh", "fresh");
     const stale = opportunity("owner/stale", "stale");

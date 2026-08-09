@@ -10,7 +10,7 @@ import type {
 
 type GhRepo = {
   full_name: string;
-  description?: string;
+  description?: string | null;
   stargazers_count: number;
   forks_count: number;
   open_issues_count: number;

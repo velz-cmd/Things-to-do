@@ -64,10 +64,13 @@ function number(value: SearchValue) {
 export function parseDiscoverView(value: SearchValue): DiscoverView {
   const candidate = first(value);
   const legacy: Record<string, DiscoverView> = {
+    verified_work: "for_you",
+    requests: "explore",
+    activity: "outcomes",
     opportunities: "for_you",
     people: "explore",
     work: "explore",
-    pools: "explore",
+    pools: "activity",
     communities: "activity",
     my_communities: "activity",
     programs: "explore",

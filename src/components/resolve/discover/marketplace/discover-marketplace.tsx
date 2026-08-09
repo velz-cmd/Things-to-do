@@ -1261,9 +1261,10 @@ function RepositoryAnalyzer() {
             name="repository"
             value={repository}
             onChange={(event) => setRepository(event.target.value)}
+            disabled={pending || !hydrated}
             placeholder="owner/repository"
             aria-label="Public GitHub repository"
-            className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#050d17] px-3 text-sm text-white outline-none"
+            className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#050d17] px-3 text-sm text-white outline-none disabled:opacity-60"
           />
           <button
             disabled={pending || !hydrated}

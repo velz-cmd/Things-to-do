@@ -41,8 +41,11 @@ test.describe("Discover Economic Action Network", () => {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
-    await page.getByRole("textbox", { name: "Public GitHub repository" }).fill("velz-cmd/repodiet-e2e-test");
-    await page.getByRole("button", { name: "Analyse", exact: true }).click();
+    const repositoryInput = page.getByRole("textbox", { name: "Public GitHub repository" });
+    const analyzeButton = page.getByRole("button", { name: "Analyse", exact: true });
+    await expect(repositoryInput).toBeEnabled();
+    await repositoryInput.fill("velz-cmd/repodiet-e2e-test");
+    await analyzeButton.click();
     await expect(page.getByRole("heading", { name: "velz-cmd/repodiet-e2e-test" })).toBeVisible({ timeout: 120_000 });
     await expect(page.getByText("Evidence saved to Discover", { exact: true })).toBeVisible();
   });

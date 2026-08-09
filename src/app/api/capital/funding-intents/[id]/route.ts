@@ -16,7 +16,10 @@ const updateSchema = z.discriminatedUnion("status", [
   }),
   z.object({
     status: z.literal("confirmed"),
-    txHash: z.string().trim().regex(/^0x[a-fA-F0-9]{64}$/),
+    txHash: z
+      .string()
+      .trim()
+      .regex(/^0x[a-fA-F0-9]{64}$/),
     activityId: z.string().trim().min(1).optional(),
     programId: z.string().trim().min(1).optional(),
   }),
@@ -49,13 +52,32 @@ export async function GET(_req: Request, context: RouteContext) {
     prisma.chainTransaction.findFirst({
       where: { fundingIntentId: id },
       orderBy: { submittedAt: "desc" },
-      select: { txHash: true, status: true, providerTransactionId: true },
+      select: {
+        txHash: true,
+        status: true,
+        providerTransactionId: true,
+        settlementBatchId: true,
+      },
     }),
   ]);
-  if (!intent) return NextResponse.json({ error: "Funding intent not found" }, { status: 404 });
+  if (!intent)
+    return NextResponse.json(
+      { error: "Funding intent not found" },
+      { status: 404 },
+    );
   if (intent.userId !== ready.profile.id) {
-    return NextResponse.json({ error: "This authorization package belongs to another account" }, { status: 403 });
+    return NextResponse.json(
+      { error: "This authorization package belongs to another account" },
+      { status: 403 },
+    );
   }
+
+  const receipt = transaction?.settlementBatchId
+    ? await prisma.receipt.findUnique({
+        where: { settlementBatchId: transaction.settlementBatchId },
+        select: { id: true, publicReference: true },
+      })
+    : null;
 
   return NextResponse.json({
     intent: {
@@ -70,7 +92,20 @@ export async function GET(_req: Request, context: RouteContext) {
       expiresAt: intent.expiresAt?.toISOString() ?? null,
       createdAt: intent.createdAt.toISOString(),
       updatedAt: intent.updatedAt.toISOString(),
-      transaction,
+      transaction: transaction
+        ? {
+            txHash: transaction.txHash,
+            status: transaction.status,
+            providerTransactionId: transaction.providerTransactionId,
+          }
+        : null,
+      receipt: receipt
+        ? {
+            id: receipt.id,
+            txHash: transaction?.txHash ?? "",
+            publicReference: receipt.publicReference,
+          }
+        : null,
     },
   });
 }
@@ -84,19 +119,35 @@ export async function PATCH(req: Request, context: RouteContext) {
   const { id } = await context.params;
   const parsed = updateSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid funding-intent update" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid funding-intent update" },
+      { status: 400 },
+    );
   }
 
   const current = await prisma.fundingIntent.findUnique({ where: { id } });
-  if (!current) return NextResponse.json({ error: "Funding intent not found" }, { status: 404 });
+  if (!current)
+    return NextResponse.json(
+      { error: "Funding intent not found" },
+      { status: 404 },
+    );
   if (current.userId !== ready.profile.id) {
-    return NextResponse.json({ error: "This authorization package belongs to another account" }, { status: 403 });
+    return NextResponse.json(
+      { error: "This authorization package belongs to another account" },
+      { status: 403 },
+    );
   }
   if (current.status === "confirmed" && parsed.data.status !== "confirmed") {
-    return NextResponse.json({ error: "A confirmed funding intent cannot be reopened" }, { status: 409 });
+    return NextResponse.json(
+      { error: "A confirmed funding intent cannot be reopened" },
+      { status: 409 },
+    );
   }
 
-  const programId = "programId" in parsed.data ? parsed.data.programId ?? current.programId : current.programId;
+  const programId =
+    "programId" in parsed.data
+      ? (parsed.data.programId ?? current.programId)
+      : current.programId;
   const updated = await prisma.fundingIntent.update({
     where: { id },
     data: { status: parsed.data.status, programId },
@@ -132,11 +183,33 @@ export async function PATCH(req: Request, context: RouteContext) {
   }
 
   if (current.communitySlug === "outcome-campaign" && current.programId) {
-    const campaign = await prisma.outcomeCampaign.findFirst({ where: { id: current.programId, creatorUserId: ready.profile.id, fundingIntentId: current.id } });
+    const campaign = await prisma.outcomeCampaign.findFirst({
+      where: {
+        id: current.programId,
+        creatorUserId: ready.profile.id,
+        fundingIntentId: current.id,
+      },
+    });
     if (campaign) {
       await prisma.$transaction([
-        prisma.outcomeCampaign.update({ where: { id: campaign.id }, data: { status: parsed.data.status === "confirmed" ? "ready_to_publish" : "funding_required" } }),
-        prisma.campaignFundingRequirement.update({ where: { campaignId: campaign.id }, data: { status: parsed.data.status === "confirmed" ? "funded" : "authorization_required" } }),
+        prisma.outcomeCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status:
+              parsed.data.status === "confirmed"
+                ? "ready_to_publish"
+                : "funding_required",
+          },
+        }),
+        prisma.campaignFundingRequirement.update({
+          where: { campaignId: campaign.id },
+          data: {
+            status:
+              parsed.data.status === "confirmed"
+                ? "funded"
+                : "authorization_required",
+          },
+        }),
       ]);
     }
   }
@@ -154,8 +227,9 @@ export async function PATCH(req: Request, context: RouteContext) {
       blueprintId: current.blueprintId,
       programId,
       amountUsdcMicro: current.amountUsdcMicro.toString(),
-      activityId: "activityId" in parsed.data ? parsed.data.activityId ?? null : null,
-      txHash: "txHash" in parsed.data ? parsed.data.txHash ?? null : null,
+      activityId:
+        "activityId" in parsed.data ? (parsed.data.activityId ?? null) : null,
+      txHash: "txHash" in parsed.data ? (parsed.data.txHash ?? null) : null,
       reason: "reason" in parsed.data ? parsed.data.reason : null,
       transactionId,
     }),

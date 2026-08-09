@@ -7,7 +7,14 @@ export const DISCOVER_VIEWS = [
 
 export type DiscoverView = (typeof DISCOVER_VIEWS)[number];
 
-export const DISCOVER_INTENTS = ["earn", "fund", "operate", "publish", "build", "explore"] as const;
+export const DISCOVER_INTENTS = [
+  "earn",
+  "fund",
+  "operate",
+  "publish",
+  "build",
+  "explore",
+] as const;
 export type DiscoverIntent = (typeof DISCOVER_INTENTS)[number];
 
 export const DISCOVER_EXPLORE_KINDS = [
@@ -51,11 +58,7 @@ export type OpportunityCreatorType =
   | "organisation";
 
 export type FundingStatus =
-  | "unfunded"
-  | "partially_funded"
-  | "funded"
-  | "escrowed"
-  | "milestone_funded";
+  "unfunded" | "partially_funded" | "funded" | "escrowed" | "milestone_funded";
 
 export type FundingAmountState =
   | "configured_target"
@@ -100,13 +103,19 @@ export type DiscoverWorkbenchTarget =
       programId: string;
       communitySlug: string;
       poolName: string;
+      poolType?: string;
+      purpose?: string;
+      balanceUsd?: number;
+      targetUsd?: number;
+      activeRule?: string;
     }
   | {
       panel: "program_setup";
       subjectId: string;
       programId?: string;
       communitySlug: string;
-      step: "create" | "source" | "publication" | "policy" | "treasury" | "review";
+      step:
+        "create" | "source" | "publication" | "policy" | "treasury" | "review";
     }
   | {
       panel: "source_sync";
@@ -169,19 +178,12 @@ export type DiscoverEntityState = {
     | "submitted"
     | "confirmed";
   financialReadiness:
-    | "not_applicable"
-    | "setup_required"
-    | "ready"
-    | "submitted"
-    | "confirmed";
+    "not_applicable" | "setup_required" | "ready" | "submitted" | "confirmed";
   blocker?: string;
 };
 
 export type ProviderPreference =
-  | "open"
-  | "preferred"
-  | "selected"
-  | "invite_only";
+  "open" | "preferred" | "selected" | "invite_only";
 
 export type MarketplaceOpportunity = {
   id: string;
@@ -242,11 +244,7 @@ export type MarketplaceOpportunity = {
     id: string;
   };
   marketplaceKind?:
-    | "opportunity"
-    | "verified_work"
-    | "pool"
-    | "program"
-    | "outcome";
+    "opportunity" | "verified_work" | "pool" | "program" | "outcome";
   program?: {
     id: string;
     name: string;
@@ -504,7 +502,8 @@ export type EconomicActionItem = {
     stale: boolean;
   };
   evidenceIds: string[];
-  attributionState: "verified" | "claimed" | "observed" | "unresolved" | "not_applicable";
+  attributionState:
+    "verified" | "claimed" | "observed" | "unresolved" | "not_applicable";
   programId?: string;
   policyState?: "active" | "approval_required" | "missing" | "not_applicable";
   poolId?: string;

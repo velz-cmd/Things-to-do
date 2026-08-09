@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, ShieldCheck, WalletCards, X } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  LoaderCircle,
+  RefreshCw,
+  ShieldCheck,
+  WalletCards,
+  X,
+} from "lucide-react";
 import { isAddress } from "viem";
 import type {
   DiscoverAction,
@@ -16,7 +24,11 @@ import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
 import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel";
 import { WalletSourcePicker } from "@/components/resolve/fund/wallet-source-picker";
 import { PayoutDestinationDrawer } from "@/components/resolve/profile/payout-destination-drawer";
-import type { CapitalAuthorizationSummary, CapitalBootstrap } from "@/lib/capital/bootstrap";
+import { useSignInModal } from "@/components/auth/sign-in-context";
+import type {
+  CapitalAuthorizationSummary,
+  CapitalBootstrap,
+} from "@/lib/capital/bootstrap";
 
 type Props = {
   action: DiscoverAction | null;
@@ -46,17 +58,28 @@ type DirectSupportReceipt = {
 function titleFor(action: DiscoverAction) {
   if (action.presentation.kind !== "workbench") return action.label;
   switch (action.presentation.target.panel) {
-    case "direct_support": return `Support ${action.presentation.target.recipientLabel}`;
-    case "work_funding": return `Fund ${action.presentation.target.workTitle}`;
-    case "pool_funding": return `Fund ${action.presentation.target.poolName}`;
-    case "payout_destination": return "Choose payout destination";
-    case "program_setup": return "Complete program readiness";
-    case "source_sync": return "Refresh GitHub evidence";
-    case "authorization_review": return "Review funding authorization";
-    case "receipt": return "Confirmed receipt";
-    case "evidence": return "Inspect evidence";
-    case "transaction": return "Track transaction";
-    case "entity_details": return `View ${action.presentation.target.entityType}`;
+    case "direct_support":
+      return `Support ${action.presentation.target.recipientLabel}`;
+    case "work_funding":
+      return `Fund ${action.presentation.target.workTitle}`;
+    case "pool_funding":
+      return `Fund ${action.presentation.target.poolName}`;
+    case "payout_destination":
+      return "Choose payout destination";
+    case "program_setup":
+      return "Complete program readiness";
+    case "source_sync":
+      return "Refresh GitHub evidence";
+    case "authorization_review":
+      return "Review funding authorization";
+    case "receipt":
+      return "Confirmed receipt";
+    case "evidence":
+      return "Inspect evidence";
+    case "transaction":
+      return "Track transaction";
+    case "entity_details":
+      return `View ${action.presentation.target.entityType}`;
   }
 }
 
@@ -64,28 +87,54 @@ function WalletSummary({ source }: { source: FundingSource | null }) {
   const spendable = useSpendableUsd();
   return (
     <div className="rounded-xl border border-white/[0.08] bg-black/20 p-3 text-xs">
-      <p className="font-medium text-white">Funding wallet must be chosen explicitly</p>
+      <p className="font-medium text-white">
+        Funding wallet must be chosen explicitly
+      </p>
       <dl className="mt-2 grid grid-cols-[130px_1fr] gap-y-2">
         <dt className="text-slate-500">RESOLVE wallet</dt>
-        <dd className="text-slate-200">${spendable.appSpendableUsd.toFixed(2)} USDC</dd>
+        <dd className="text-slate-200">
+          ${spendable.appSpendableUsd.toFixed(2)} USDC
+        </dd>
         <dt className="text-slate-500">Connected wallet</dt>
-        <dd className="text-slate-200">{spendable.externalLinked || spendable.externalReady ? `$${spendable.externalSpendableUsd.toFixed(2)} USDC` : "Not linked"}</dd>
+        <dd className="text-slate-200">
+          {spendable.externalLinked || spendable.externalReady
+            ? `$${spendable.externalSpendableUsd.toFixed(2)} USDC`
+            : "Not linked"}
+        </dd>
         <dt className="text-slate-500">Current choice</dt>
-        <dd className="capitalize text-slate-200">{source ?? "No wallet selected"}</dd>
+        <dd className="capitalize text-slate-200">
+          {source ?? "No wallet selected"}
+        </dd>
       </dl>
     </div>
   );
 }
 
-function RecipientPaymentPanel({ action, onClose, signedIn }: { action: DiscoverAction; onClose: () => void; signedIn: boolean }) {
+function RecipientPaymentPanel({
+  action,
+  onClose,
+  signedIn,
+}: {
+  action: DiscoverAction;
+  onClose: () => void;
+  signedIn: boolean;
+}) {
   const router = useRouter();
   const spendable = useSpendableUsd();
-  const { externalWalletReady, openConnectWallet, sendDirectSupportWithWallet } = useResolveAccess();
-  const target = action.presentation.kind === "workbench" && (
-    action.presentation.target.panel === "direct_support" ||
-    action.presentation.target.panel === "work_funding"
-  ) ? action.presentation.target : null;
-  const [preflight, setPreflight] = useState<DirectSupportPreflight | null>(null);
+  const {
+    externalWalletReady,
+    openConnectWallet,
+    sendDirectSupportWithWallet,
+  } = useResolveAccess();
+  const target =
+    action.presentation.kind === "workbench" &&
+    (action.presentation.target.panel === "direct_support" ||
+      action.presentation.target.panel === "work_funding")
+      ? action.presentation.target
+      : null;
+  const [preflight, setPreflight] = useState<DirectSupportPreflight | null>(
+    null,
+  );
   const [source, setSource] = useState<FundingSource | null>(null);
   const [amount, setAmount] = useState("5");
   const [pending, setPending] = useState(false);
@@ -94,6 +143,7 @@ function RecipientPaymentPanel({ action, onClose, signedIn }: { action: Discover
   const [receipt, setReceipt] = useState<DirectSupportReceipt | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const [submittedTxHash, setSubmittedTxHash] = useState<string | null>(null);
+  const [reviewed, setReviewed] = useState(false);
 
   useEffect(() => {
     if (!target) return;
@@ -102,26 +152,54 @@ function RecipientPaymentPanel({ action, onClose, signedIn }: { action: Discover
     setError(null);
     setIdempotencyKey(crypto.randomUUID());
     setSubmittedTxHash(null);
-    void fetch(`/api/wallet/send?recipientUserId=${encodeURIComponent(target.recipientUserId)}`, {
-      credentials: "include",
-      signal: controller.signal,
-    }).then(async (response) => {
-      const body = await response.json().catch(() => ({})) as DirectSupportPreflight & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Recipient verification failed");
-      setPreflight(body);
-      setStage("Ready for wallet selection");
-    }).catch((reason) => {
-      if (reason instanceof DOMException && reason.name === "AbortError") return;
-      setError(reason instanceof Error ? reason.message : "Recipient verification failed");
-    });
+    setReviewed(false);
+    void fetch(
+      `/api/wallet/send?recipientUserId=${encodeURIComponent(target.recipientUserId)}`,
+      {
+        credentials: "include",
+        signal: controller.signal,
+      },
+    )
+      .then(async (response) => {
+        const body = (await response
+          .json()
+          .catch(() => ({}))) as DirectSupportPreflight & { error?: string };
+        if (!response.ok)
+          throw new Error(body.error ?? "Recipient verification failed");
+        setPreflight(body);
+        setStage("Ready for wallet selection");
+      })
+      .catch((reason) => {
+        if (reason instanceof DOMException && reason.name === "AbortError")
+          return;
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Recipient verification failed",
+        );
+      });
     return () => controller.abort();
   }, [target]);
 
   if (!target) return null;
   const isWorkReward = target.panel === "work_funding";
   const amountUsd = Number(amount);
-  const chosenBalance = source === "app" ? spendable.appSpendableUsd : source === "external" ? spendable.externalSpendableUsd : 0;
-  const canConfirm = Boolean(signedIn && preflight && source && Number.isFinite(amountUsd) && amountUsd >= 0.01 && (submittedTxHash || chosenBalance >= amountUsd) && !pending);
+  const chosenBalance =
+    source === "app"
+      ? spendable.appSpendableUsd
+      : source === "external"
+        ? spendable.externalSpendableUsd
+        : 0;
+  const canReview = Boolean(
+    signedIn &&
+    preflight &&
+    source &&
+    Number.isFinite(amountUsd) &&
+    amountUsd >= 0.01 &&
+    (submittedTxHash || chosenBalance >= amountUsd) &&
+    !pending,
+  );
+  const canConfirm = Boolean(canReview && reviewed);
 
   async function confirm() {
     if (!target || !preflight || !source || !canConfirm) return;
@@ -138,7 +216,8 @@ function RecipientPaymentPanel({ action, onClose, signedIn }: { action: Discover
           openConnectWallet();
           throw new Error("Reconnect the linked wallet, then confirm again.");
         }
-        if (!isAddress(preflight.destinationAddress)) throw new Error("The verified payout address is invalid.");
+        if (!isAddress(preflight.destinationAddress))
+          throw new Error("The verified payout address is invalid.");
         if (!txHash) {
           const result = await sendDirectSupportWithWallet(
             preflight.destinationAddress,
@@ -175,24 +254,49 @@ function RecipientPaymentPanel({ action, onClose, signedIn }: { action: Discover
           workSubjectId: isWorkReward ? target.subjectId : undefined,
         }),
       });
-      const body = await response.json().catch(() => ({})) as Partial<DirectSupportReceipt> & { error?: string; retryable?: boolean };
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as Partial<DirectSupportReceipt> & {
+        error?: string;
+        retryable?: boolean;
+      };
       if (response.status === 202 && !body.receiptId) {
         if (body.txHash) {
           operationTxHash = body.txHash;
           setSubmittedTxHash(body.txHash);
         }
-        throw new Error(body.error ?? "The transfer is awaiting safe receipt reconciliation.");
+        throw new Error(
+          body.error ?? "The transfer is awaiting safe receipt reconciliation.",
+        );
       }
-      if (!response.ok) throw new Error(body.error ?? `${isWorkReward ? "Work funding" : "Direct support"} did not complete`);
-      if (!body.receiptId || !body.receiptReference || !body.receiptUrl || !body.explorerUrl || !body.txHash || typeof body.amountUsd !== "number" || !body.destinationAddress) {
-        throw new Error("The confirmed support response did not include a complete receipt.");
+      if (!response.ok)
+        throw new Error(
+          body.error ??
+            `${isWorkReward ? "Work funding" : "Direct support"} did not complete`,
+        );
+      if (
+        !body.receiptId ||
+        !body.receiptReference ||
+        !body.receiptUrl ||
+        !body.explorerUrl ||
+        !body.txHash ||
+        typeof body.amountUsd !== "number" ||
+        !body.destinationAddress
+      ) {
+        throw new Error(
+          "The confirmed support response did not include a complete receipt.",
+        );
       }
       setReceipt(body as DirectSupportReceipt);
       setStage("Confirmed on Arc and recorded by RESOLVE");
       await spendable.refresh().catch(() => null);
       router.refresh();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : `${isWorkReward ? "Work funding" : "Direct support"} did not complete`);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : `${isWorkReward ? "Work funding" : "Direct support"} did not complete`,
+      );
       if (!operationTxHash) setIdempotencyKey(crypto.randomUUID());
     } finally {
       setPending(false);
@@ -202,16 +306,43 @@ function RecipientPaymentPanel({ action, onClose, signedIn }: { action: Discover
   if (receipt) {
     return (
       <div className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-4">
-        <div className="flex items-center gap-2 text-emerald-200"><CheckCircle2 className="h-5 w-5" /><strong>{isWorkReward ? "Work funding confirmed" : "Support confirmed"}</strong></div>
+        <div className="flex items-center gap-2 text-emerald-200">
+          <CheckCircle2 className="h-5 w-5" />
+          <strong>
+            {isWorkReward ? "Work funding confirmed" : "Support confirmed"}
+          </strong>
+        </div>
         <dl className="mt-4 grid grid-cols-[120px_1fr] gap-y-2 text-xs">
-          <dt className="text-slate-500">Amount</dt><dd className="text-white">${receipt.amountUsd.toFixed(2)} USDC</dd>
-          <dt className="text-slate-500">Recipient</dt><dd className="text-white">{target.recipientLabel}</dd>
-          <dt className="text-slate-500">Receipt</dt><dd className="break-all text-white">{receipt.receiptReference}</dd>
+          <dt className="text-slate-500">Amount</dt>
+          <dd className="text-white">${receipt.amountUsd.toFixed(2)} USDC</dd>
+          <dt className="text-slate-500">Recipient</dt>
+          <dd className="text-white">{target.recipientLabel}</dd>
+          <dt className="text-slate-500">Receipt</dt>
+          <dd className="break-all text-white">{receipt.receiptReference}</dd>
         </dl>
         <div className="mt-4 flex flex-wrap gap-2">
-          <a href={receipt.receiptUrl} className="rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-white">Open receipt</a>
-          <a href={receipt.explorerUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200">ArcScan<ExternalLink className="h-3.5 w-3.5" /></a>
-          <button type="button" onClick={onClose} className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300">Done</button>
+          <a
+            href={receipt.receiptUrl}
+            className="rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-white"
+          >
+            Open receipt
+          </a>
+          <a
+            href={receipt.explorerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200"
+          >
+            ArcScan
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300"
+          >
+            Done
+          </button>
         </div>
       </div>
     );
@@ -220,74 +351,633 @@ function RecipientPaymentPanel({ action, onClose, signedIn }: { action: Discover
   return (
     <div className="mt-5 space-y-4">
       <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-xs">
-        <div className="flex items-center gap-2 text-cyan-200"><ShieldCheck className="h-4 w-4" />Verified recipient preflight</div>
-        {preflight ? <dl className="mt-3 grid grid-cols-[120px_1fr] gap-y-2"><dt className="text-slate-500">Recipient</dt><dd className="text-white">{preflight.recipientLabel}</dd><dt className="text-slate-500">Destination</dt><dd className="break-all font-mono text-white">{preflight.destinationAddress}</dd><dt className="text-slate-500">Network</dt><dd className="text-white">{preflight.network} {preflight.asset}</dd></dl> : <p className="mt-3 text-slate-400">{stage}</p>}
+        <div className="flex items-center gap-2 text-cyan-200">
+          <ShieldCheck className="h-4 w-4" />
+          Verified recipient preflight
+        </div>
+        {preflight ? (
+          <dl className="mt-3 grid grid-cols-[120px_1fr] gap-y-2">
+            <dt className="text-slate-500">Recipient</dt>
+            <dd className="text-white">{preflight.recipientLabel}</dd>
+            <dt className="text-slate-500">Destination</dt>
+            <dd className="break-all font-mono text-white">
+              {preflight.destinationAddress}
+            </dd>
+            <dt className="text-slate-500">Network</dt>
+            <dd className="text-white">
+              {preflight.network} {preflight.asset}
+            </dd>
+          </dl>
+        ) : (
+          <p className="mt-3 text-slate-400">{stage}</p>
+        )}
       </div>
-      {isWorkReward ? <div className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4 text-xs"><p className="font-medium text-cyan-100">Persisted work evidence</p><dl className="mt-3 grid grid-cols-[120px_1fr] gap-y-2"><dt className="text-slate-500">Work</dt><dd className="text-white">{target.workTitle}</dd><dt className="text-slate-500">Repository</dt><dd className="text-white">{target.repository}</dd><dt className="text-slate-500">Meaning</dt><dd className="text-slate-300">Voluntary reward. This does not create or settle a policy obligation.</dd></dl><a href={target.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-cyan-200">Open source proof<ExternalLink className="h-3.5 w-3.5" /></a></div> : null}
-      <label className="block text-xs text-slate-400">Amount in USDC<input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={pending || Boolean(submittedTxHash)} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label>
+      {isWorkReward ? (
+        <div className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4 text-xs">
+          <p className="font-medium text-cyan-100">Persisted work evidence</p>
+          <dl className="mt-3 grid grid-cols-[120px_1fr] gap-y-2">
+            <dt className="text-slate-500">Work</dt>
+            <dd className="text-white">{target.workTitle}</dd>
+            <dt className="text-slate-500">Repository</dt>
+            <dd className="text-white">{target.repository}</dd>
+            <dt className="text-slate-500">Meaning</dt>
+            <dd className="text-slate-300">
+              Voluntary reward. This does not create or settle a policy
+              obligation.
+            </dd>
+          </dl>
+          <a
+            href={target.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-flex items-center gap-1 text-cyan-200"
+          >
+            Open source proof
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      ) : null}
+      <label className="block text-xs text-slate-400">
+        Amount in USDC
+        <input
+          type="number"
+          min="0.01"
+          step="0.01"
+          value={amount}
+          onChange={(event) => {
+            setAmount(event.target.value);
+            setReviewed(false);
+          }}
+          disabled={pending || Boolean(submittedTxHash) || reviewed}
+          className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white"
+        />
+      </label>
       <WalletSummary source={source} />
-      <WalletSourcePicker appUsd={spendable.appSpendableUsd} extUsd={spendable.externalSpendableUsd} amountUsd={amountUsd} externalReady={externalWalletReady} hasLinkedExternal={spendable.externalLinked} value={source} onChange={setSource} disabled={pending || Boolean(submittedTxHash)} onReconnectExternal={openConnectWallet} />
-      {!spendable.externalLinked && !externalWalletReady ? <button type="button" onClick={() => setSource("app")} aria-pressed={source === "app"} className={`w-full rounded-lg border p-3 text-left text-xs ${source === "app" ? "border-violet-300/50 bg-violet-400/10 text-white" : "border-white/10 text-slate-300"}`}><strong>RESOLVE wallet</strong><span className="mt-1 block">${spendable.appSpendableUsd.toFixed(2)} USDC on Arc</span></button> : null}
-      {error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}
-      {pending ? <p aria-live="polite" className="flex items-center gap-2 text-sm text-violet-200"><LoaderCircle className="h-4 w-4 animate-spin" />{stage}</p> : null}
-      <button type="button" disabled={!canConfirm} onClick={() => void confirm()} className="w-full rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{submittedTxHash ? "Retry receipt recording" : `Confirm $${Number.isFinite(amountUsd) ? amountUsd.toFixed(2) : "0.00"} USDC ${isWorkReward ? "work reward" : "support"}`}</button>
+      <WalletSourcePicker
+        appUsd={spendable.appSpendableUsd}
+        extUsd={spendable.externalSpendableUsd}
+        amountUsd={amountUsd}
+        externalReady={externalWalletReady}
+        hasLinkedExternal={spendable.externalLinked}
+        value={source}
+        onChange={(next) => {
+          setSource(next);
+          setReviewed(false);
+        }}
+        disabled={pending || Boolean(submittedTxHash) || reviewed}
+        onReconnectExternal={openConnectWallet}
+      />
+      {!spendable.externalLinked && !externalWalletReady ? (
+        <button
+          type="button"
+          onClick={() => {
+            setSource("app");
+            setReviewed(false);
+          }}
+          aria-pressed={source === "app"}
+          className={`w-full rounded-lg border p-3 text-left text-xs ${source === "app" ? "border-violet-300/50 bg-violet-400/10 text-white" : "border-white/10 text-slate-300"}`}
+        >
+          <strong>RESOLVE wallet</strong>
+          <span className="mt-1 block">
+            ${spendable.appSpendableUsd.toFixed(2)} USDC on Arc
+          </span>
+        </button>
+      ) : null}
+      {reviewed && preflight && source ? (
+        <div className="rounded-xl border border-violet-300/20 bg-violet-300/[0.04] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-white">Review transfer</p>
+            <button
+              type="button"
+              onClick={() => setReviewed(false)}
+              className="text-xs text-violet-200"
+            >
+              Modify
+            </button>
+          </div>
+          <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
+            <div>
+              <dt className="text-slate-500">From</dt>
+              <dd className="mt-1 capitalize text-white">
+                {source === "app" ? "RESOLVE wallet" : "Connected wallet"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">To</dt>
+              <dd className="mt-1 text-white">{preflight.recipientLabel}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Amount</dt>
+              <dd className="mt-1 text-white">${amountUsd.toFixed(2)} USDC</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Network</dt>
+              <dd className="mt-1 text-white">Arc Testnet</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Network fee</dt>
+              <dd className="mt-1 text-white">
+                Shown by the selected wallet before authorization
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Mechanism</dt>
+              <dd className="mt-1 text-white">
+                {isWorkReward
+                  ? "Voluntary accepted-work reward"
+                  : "Direct contributor support"}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-xs leading-5 text-amber-100">
+            Authorization is a separate step. A connected wallet will request a
+            human signature. RESOLVE issues a receipt only after Arc confirms
+            the transaction.
+          </p>
+        </div>
+      ) : null}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100"
+        >
+          {error}
+        </p>
+      ) : null}
+      {pending ? (
+        <p
+          aria-live="polite"
+          className="flex items-center gap-2 text-sm text-violet-200"
+        >
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          {stage}
+        </p>
+      ) : null}
+      <button
+        type="button"
+        disabled={
+          submittedTxHash ? !canConfirm : reviewed ? !canConfirm : !canReview
+        }
+        onClick={() => {
+          if (!reviewed && !submittedTxHash) setReviewed(true);
+          else void confirm();
+        }}
+        className="w-full rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {submittedTxHash
+          ? "Retry receipt recording"
+          : reviewed
+            ? `Authorise and submit $${Number.isFinite(amountUsd) ? amountUsd.toFixed(2) : "0.00"} USDC`
+            : "Review transfer"}
+      </button>
     </div>
   );
 }
 
-function PoolFundingPanel({ action, signedIn }: { action: DiscoverAction; signedIn: boolean }) {
-  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "pool_funding" ? action.presentation.target : null;
-  const { executeFund, fundProgress, resetFundProgress, externalWalletReady, spendable } = useFundProgramExecution(target?.communitySlug);
+function PoolFundingPanel({
+  action,
+  signedIn,
+}: {
+  action: DiscoverAction;
+  signedIn: boolean;
+}) {
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "pool_funding"
+      ? action.presentation.target
+      : null;
+  const {
+    executeFund,
+    fundProgress,
+    resetFundProgress,
+    externalWalletReady,
+    spendable,
+  } = useFundProgramExecution(target?.communitySlug);
   const { openConnectWallet } = useResolveAccess();
   const [source, setSource] = useState<FundingSource | null>(null);
   const [amount, setAmount] = useState("5");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { resetFundProgress(); setSource(null); setError(null); }, [resetFundProgress, target?.subjectId]);
+  const [reviewed, setReviewed] = useState(false);
+  const [preflight, setPreflight] = useState<{
+    ready: boolean;
+    blocker: string | null;
+    publicationState: string;
+    policyState: string;
+    allocationState: string;
+    treasuryState: string;
+    treasuryAddress: string | null;
+    network: string;
+    asset: string;
+  } | null>(null);
+  const [preflightLoading, setPreflightLoading] = useState(false);
+  const [preflightAttempt, setPreflightAttempt] = useState(0);
+  useEffect(() => {
+    resetFundProgress();
+    setSource(null);
+    setError(null);
+    setReviewed(false);
+  }, [resetFundProgress, target?.subjectId]);
+  useEffect(() => {
+    if (!target?.programId || !signedIn) return;
+    const controller = new AbortController();
+    setPreflightLoading(true);
+    setPreflight(null);
+    fetch(
+      `/api/capital/fund?programId=${encodeURIComponent(target.programId)}`,
+      {
+        credentials: "include",
+        cache: "no-store",
+        signal: controller.signal,
+      },
+    )
+      .then(async (response) => {
+        const body = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          preflight?: NonNullable<typeof preflight>;
+        };
+        if (!body.preflight) {
+          throw new Error(body.error ?? "Pool preflight could not be loaded");
+        }
+        setPreflight(body.preflight);
+      })
+      .catch((reason) => {
+        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Pool preflight could not be loaded",
+          );
+        }
+      })
+      .finally(() => setPreflightLoading(false));
+    return () => controller.abort();
+  }, [preflightAttempt, signedIn, target?.programId]);
   if (!target) return null;
   const currentTarget = target;
   const amountUsd = Number(amount);
-  const selectedBalance = source === "app" ? spendable.appSpendableUsd : source === "external" ? spendable.externalSpendableUsd : 0;
-  const canFund = Boolean(signedIn && source && amountUsd >= 5 && selectedBalance >= amountUsd && !pending && target.programId);
+  const selectedBalance =
+    source === "app"
+      ? spendable.appSpendableUsd
+      : source === "external"
+        ? spendable.externalSpendableUsd
+        : 0;
+  const canReview = Boolean(
+    signedIn &&
+    source &&
+    amountUsd >= 5 &&
+    selectedBalance >= amountUsd &&
+    !pending &&
+    target.programId &&
+    preflight?.ready &&
+    !preflightLoading,
+  );
+  const canFund = Boolean(canReview && reviewed);
   async function confirm() {
     if (!canFund || !source) return;
     setPending(true);
     setError(null);
     try {
-      await executeFund({ programId: currentTarget.programId, communitySlug: currentTarget.communitySlug, label: currentTarget.poolName, amountUsd }, source);
+      await executeFund(
+        {
+          programId: currentTarget.programId,
+          communitySlug: currentTarget.communitySlug,
+          label: currentTarget.poolName,
+          amountUsd,
+        },
+        source,
+      );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Pool funding did not complete");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Pool funding did not complete",
+      );
     } finally {
       setPending(false);
     }
   }
-  return <div className="mt-5 space-y-4"><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-xs"><dl className="grid grid-cols-[120px_1fr] gap-y-2"><dt className="text-slate-500">Pool</dt><dd className="text-white">{target.poolName}</dd><dt className="text-slate-500">Community</dt><dd className="text-white">{target.communitySlug}</dd><dt className="text-slate-500">Network</dt><dd className="text-white">Arc Testnet USDC</dd><dt className="text-slate-500">Program</dt><dd className="break-all text-white">{target.programId}</dd></dl></div><label className="block text-xs text-slate-400">Amount in USDC<input type="number" min="5" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={pending} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label><WalletSummary source={source} /><WalletSourcePicker appUsd={spendable.appSpendableUsd} extUsd={spendable.externalSpendableUsd} amountUsd={amountUsd} externalReady={externalWalletReady} hasLinkedExternal={spendable.externalLinked} value={source} onChange={setSource} disabled={pending} onReconnectExternal={openConnectWallet} />{!spendable.externalLinked && !externalWalletReady ? <button type="button" onClick={() => setSource("app")} aria-pressed={source === "app"} className={`w-full rounded-lg border p-3 text-left text-xs ${source === "app" ? "border-violet-300/50 bg-violet-400/10 text-white" : "border-white/10 text-slate-300"}`}><strong>RESOLVE wallet</strong><span className="mt-1 block">${spendable.appSpendableUsd.toFixed(2)} USDC on Arc</span></button> : null}<FundProgressPanel stage={fundProgress.stage} fundingSource={fundProgress.fundingSource ?? source ?? "app"} amountUsd={fundProgress.amountUsd ?? amountUsd} txHash={fundProgress.txHash} />{error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}<button type="button" disabled={!canFund || fundProgress.stage === "complete"} onClick={() => void confirm()} className="w-full rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{fundProgress.stage === "complete" ? "Funding confirmed" : `Review and fund $${Number.isFinite(amountUsd) ? amountUsd.toFixed(2) : "0.00"} USDC`}</button></div>;
+  return (
+    <div className="mt-5 space-y-4">
+      <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-xs">
+        <dl className="grid grid-cols-[120px_1fr] gap-y-2">
+          <dt className="text-slate-500">Pool</dt>
+          <dd className="text-white">{target.poolName}</dd>
+          <dt className="text-slate-500">Community</dt>
+          <dd className="text-white">{target.communitySlug}</dd>
+          <dt className="text-slate-500">Network</dt>
+          <dd className="text-white">Arc Testnet USDC</dd>
+          <dt className="text-slate-500">Program</dt>
+          <dd className="break-all text-white">{target.programId}</dd>
+        </dl>
+      </div>
+      {preflightLoading ? (
+        <p className="flex items-center gap-2 text-sm text-slate-400">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          Checking publication, policy, allocation and treasury
+        </p>
+      ) : preflight ? (
+        <div
+          className={`rounded-xl border p-4 text-xs ${preflight.ready ? "border-emerald-300/20 bg-emerald-300/[0.04]" : "border-amber-300/20 bg-amber-300/[0.04]"}`}
+        >
+          <p className="font-semibold text-white">
+            {preflight.ready
+              ? "Pool preflight passed"
+              : "Pool funding is blocked"}
+          </p>
+          {preflight.blocker ? (
+            <p className="mt-2 leading-5 text-amber-100">{preflight.blocker}</p>
+          ) : (
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-slate-300">
+              <div>
+                <dt className="text-slate-500">Publication</dt>
+                <dd className="mt-1">{preflight.publicationState}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Policy</dt>
+                <dd className="mt-1">{preflight.policyState}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Allocation</dt>
+                <dd className="mt-1">{preflight.allocationState}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Treasury</dt>
+                <dd className="mt-1">{preflight.treasuryState}</dd>
+              </div>
+            </dl>
+          )}
+          {!preflight.ready ? (
+            <button
+              type="button"
+              onClick={() => setPreflightAttempt((attempt) => attempt + 1)}
+              className="mt-3 text-sm font-medium text-violet-200"
+            >
+              Retry preflight
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <label className="block text-xs text-slate-400">
+        Amount in USDC
+        <input
+          type="number"
+          min="5"
+          step="0.01"
+          value={amount}
+          onChange={(event) => {
+            setAmount(event.target.value);
+            setReviewed(false);
+          }}
+          disabled={pending || reviewed}
+          className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white"
+        />
+      </label>
+      <WalletSummary source={source} />
+      <WalletSourcePicker
+        appUsd={spendable.appSpendableUsd}
+        extUsd={spendable.externalSpendableUsd}
+        amountUsd={amountUsd}
+        externalReady={externalWalletReady}
+        hasLinkedExternal={spendable.externalLinked}
+        value={source}
+        onChange={(next) => {
+          setSource(next);
+          setReviewed(false);
+        }}
+        disabled={pending || reviewed}
+        onReconnectExternal={openConnectWallet}
+      />
+      {!spendable.externalLinked && !externalWalletReady ? (
+        <button
+          type="button"
+          onClick={() => {
+            setSource("app");
+            setReviewed(false);
+          }}
+          aria-pressed={source === "app"}
+          className={`w-full rounded-lg border p-3 text-left text-xs ${source === "app" ? "border-violet-300/50 bg-violet-400/10 text-white" : "border-white/10 text-slate-300"}`}
+        >
+          <strong>RESOLVE wallet</strong>
+          <span className="mt-1 block">
+            ${spendable.appSpendableUsd.toFixed(2)} USDC on Arc
+          </span>
+        </button>
+      ) : null}
+      {reviewed && source ? (
+        <div className="rounded-xl border border-violet-300/20 bg-violet-300/[0.04] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-white">
+              Review Pool funding
+            </p>
+            <button
+              type="button"
+              onClick={() => setReviewed(false)}
+              className="text-xs text-violet-200"
+            >
+              Modify
+            </button>
+          </div>
+          <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
+            <div>
+              <dt className="text-slate-500">From</dt>
+              <dd className="mt-1 text-white">
+                {source === "app" ? "RESOLVE wallet" : "Connected wallet"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Pool</dt>
+              <dd className="mt-1 text-white">{target.poolName}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Pool type</dt>
+              <dd className="mt-1 text-white">
+                {target.poolType ?? "Community Pool"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Amount</dt>
+              <dd className="mt-1 text-white">${amountUsd.toFixed(2)} USDC</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Network</dt>
+              <dd className="mt-1 text-white">Arc Testnet</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Network fee</dt>
+              <dd className="mt-1 text-white">
+                Shown by the selected wallet before authorization
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Mechanism</dt>
+              <dd className="mt-1 text-white">Community Pool funding</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Active rule</dt>
+              <dd className="mt-1 text-white">
+                {target.activeRule ?? "Persisted Pool allocation policy"}
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-slate-500">Treasury</dt>
+              <dd className="mt-1 break-all font-mono text-white">
+                {preflight?.treasuryAddress ?? "Unavailable"}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-xs leading-5 text-amber-100">
+            Authorizing may request a human wallet signature. Submitted funding
+            remains pending until Arc confirmation and receipt issuance.
+          </p>
+        </div>
+      ) : null}
+      <FundProgressPanel
+        stage={fundProgress.stage}
+        fundingSource={fundProgress.fundingSource ?? source ?? "app"}
+        amountUsd={fundProgress.amountUsd ?? amountUsd}
+        txHash={fundProgress.txHash}
+      />
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100"
+        >
+          {error}
+        </p>
+      ) : null}
+      <button
+        type="button"
+        disabled={
+          reviewed ? !canFund || fundProgress.stage === "complete" : !canReview
+        }
+        onClick={() => {
+          if (!reviewed) setReviewed(true);
+          else void confirm();
+        }}
+        className="w-full rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {fundProgress.stage === "complete"
+          ? "Funding confirmed"
+          : reviewed
+            ? `Authorise and submit $${Number.isFinite(amountUsd) ? amountUsd.toFixed(2) : "0.00"} USDC`
+            : "Review Pool funding"}
+      </button>
+    </div>
+  );
 }
 
 function SourceSyncPanel({ action }: { action: DiscoverAction }) {
   const router = useRouter();
-  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "source_sync" ? action.presentation.target : null;
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "source_sync"
+      ? action.presentation.target
+      : null;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (!target) return null;
   async function sync() {
-    setBusy(true); setError(null); setMessage(null);
+    setBusy(true);
+    setError(null);
+    setMessage(null);
     try {
-      const response = await fetch("/api/profile/connections", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ provider: target!.provider }) });
-      const body = await response.json().catch(() => ({})) as { error?: string; ingested?: number };
-      if (!response.ok) throw new Error(body.error ?? "Source refresh was not accepted");
-      setMessage(`GitHub refresh completed${typeof body.ingested === "number" ? `, ${body.ingested} records ingested` : ""}.`);
+      const repositoryRefresh = Boolean(target!.repository);
+      const response = await fetch(
+        repositoryRefresh
+          ? "/api/discover/oss-snapshots"
+          : "/api/profile/connections",
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": crypto.randomUUID(),
+          },
+          body: JSON.stringify(
+            repositoryRefresh
+              ? { repository: target!.repository }
+              : { provider: target!.provider },
+          ),
+        },
+      );
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        ingested?: number;
+      };
+      if (!response.ok)
+        throw new Error(body.error ?? "Source refresh was not accepted");
+      setMessage(
+        repositoryRefresh
+          ? "Repository evidence was refreshed and persisted."
+          : `GitHub connection refresh completed${typeof body.ingested === "number" ? `, ${body.ingested} records ingested` : ""}.`,
+      );
       router.refresh();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Source refresh failed"); }
-    finally { setBusy(false); }
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Source refresh failed",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
-  return <div className="mt-5 space-y-4"><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-300"><p>Refresh the persisted GitHub connection and evidence state. Existing records remain visible if the provider fails.</p>{target.repository ? <p className="mt-2 font-mono text-xs text-white">{target.repository}</p> : null}</div>{message ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-2 text-sm text-emerald-100">{message}</p> : null}{error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}<button type="button" disabled={busy} onClick={() => void sync()} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Refresh GitHub state</button></div>;
+  return (
+    <div className="mt-5 space-y-4">
+      <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-300">
+        <p>
+          Refresh the persisted GitHub connection and evidence state. Existing
+          records remain visible if the provider fails.
+        </p>
+        {target.repository ? (
+          <p className="mt-2 font-mono text-xs text-white">
+            {target.repository}
+          </p>
+        ) : null}
+      </div>
+      {message ? (
+        <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-2 text-sm text-emerald-100">
+          {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100"
+        >
+          {error}
+        </p>
+      ) : null}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void sync()}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+      >
+        {busy ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+        Refresh GitHub state
+      </button>
+    </div>
+  );
 }
 
-function ProgramSetupPanel({ action, item }: { action: DiscoverAction; item?: EconomicActionItem }) {
+function ProgramSetupPanel({
+  action,
+  item,
+}: {
+  action: DiscoverAction;
+  item?: EconomicActionItem;
+}) {
   const router = useRouter();
-  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "program_setup" ? action.presentation.target : null;
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "program_setup"
+      ? action.presentation.target
+      : null;
   const [name, setName] = useState("");
   const [templateId, setTemplateId] = useState("docs-bounty");
   const [budgetUsd, setBudgetUsd] = useState("100");
@@ -300,70 +990,374 @@ function ProgramSetupPanel({ action, item }: { action: DiscoverAction; item?: Ec
   if (!target) return null;
 
   async function submit() {
-    setBusy(true); setError(null); setMessage(null);
+    setBusy(true);
+    setError(null);
+    setMessage(null);
     try {
       if (target!.step === "review") {
-        setMessage("The current persisted program state was reviewed. No lifecycle change was submitted.");
+        setMessage(
+          "The current persisted program state was reviewed. No lifecycle change was submitted.",
+        );
         router.refresh();
         return;
       }
       let response: Response;
       if (target!.step === "create") {
         const budget = Number(budgetUsd);
-        if (!name.trim() || !Number.isFinite(budget) || budget <= 0) throw new Error("Enter a program name and positive budget target.");
-        response = await fetch(`/api/communities/${encodeURIComponent(target!.communitySlug)}/programs`, {
-          method: "POST", credentials: "include", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
-          body: JSON.stringify({ name: name.trim(), templateId, budgetUsd: budget }),
-        });
+        if (!name.trim() || !Number.isFinite(budget) || budget <= 0)
+          throw new Error("Enter a program name and positive budget target.");
+        response = await fetch(
+          `/api/communities/${encodeURIComponent(target!.communitySlug)}/programs`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "content-type": "application/json",
+              "idempotency-key": crypto.randomUUID(),
+            },
+            body: JSON.stringify({
+              name: name.trim(),
+              templateId,
+              budgetUsd: budget,
+            }),
+          },
+        );
       } else if (target!.step === "source") {
-        response = await fetch("/api/profile/connections", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ provider: "github" }) });
-      } else {
-        if (!target!.programId) throw new Error("No persisted program is available for this setup step.");
-        const body = target!.step === "publication"
-          ? { setup: { publicationStatus: "approved" } }
-          : target!.step === "policy"
-            ? { rules: { allocationRule, eligibilityMode }, setup: { policyStatus: "active" } }
-            : target!.step === "treasury"
-              ? isAddress(treasuryAddress)
-                ? { setup: { treasuryAddress } }
-                : (() => { throw new Error("Enter a valid Arc treasury address."); })()
-              : {};
-        response = await fetch(`/api/communities/${encodeURIComponent(target!.communitySlug)}/programs/${encodeURIComponent(target!.programId)}`, {
-          method: "PATCH", credentials: "include", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify(body),
+        response = await fetch("/api/profile/connections", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": crypto.randomUUID(),
+          },
+          body: JSON.stringify({ provider: "github" }),
         });
+      } else {
+        if (!target!.programId)
+          throw new Error(
+            "No persisted program is available for this setup step.",
+          );
+        const body =
+          target!.step === "publication"
+            ? { setup: { publicationStatus: "approved" } }
+            : target!.step === "policy"
+              ? {
+                  rules: { allocationRule, eligibilityMode },
+                  setup: { policyStatus: "active" },
+                }
+              : target!.step === "treasury"
+                ? isAddress(treasuryAddress)
+                  ? { setup: { treasuryAddress } }
+                  : (() => {
+                      throw new Error("Enter a valid Arc treasury address.");
+                    })()
+                : {};
+        response = await fetch(
+          `/api/communities/${encodeURIComponent(target!.communitySlug)}/programs/${encodeURIComponent(target!.programId)}`,
+          {
+            method: "PATCH",
+            credentials: "include",
+            headers: {
+              "content-type": "application/json",
+              "idempotency-key": crypto.randomUUID(),
+            },
+            body: JSON.stringify(body),
+          },
+        );
       }
-      const payload = await response.json().catch(() => ({})) as { error?: string; program?: { id?: string } };
-      if (!response.ok) throw new Error(payload.error ?? "Program setup did not complete");
-      setMessage(target!.step === "create" ? "Program draft created. Its next persisted prerequisite will appear after refresh." : `${target!.step.replaceAll("_", " ")} completed.`);
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        program?: { id?: string };
+      };
+      if (!response.ok)
+        throw new Error(payload.error ?? "Program setup did not complete");
+      setMessage(
+        target!.step === "create"
+          ? "Program draft created. Its next persisted prerequisite will appear after refresh."
+          : `${target!.step.replaceAll("_", " ")} completed.`,
+      );
       router.refresh();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Program setup did not complete"); }
-    finally { setBusy(false); }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Program setup did not complete",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
-  return <div className="mt-5 space-y-4"><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><dl className="grid grid-cols-[120px_1fr] gap-y-2 text-xs"><dt className="text-slate-500">Community</dt><dd className="text-white">{target.communitySlug}</dd><dt className="text-slate-500">Program</dt><dd className="break-all text-white">{target.programId ?? "No program exists yet"}</dd><dt className="text-slate-500">Required step</dt><dd className="capitalize text-white">{target.step}</dd></dl>{item?.blocker ? <p className="mt-4 text-sm leading-6 text-amber-100">{item.blocker}</p> : null}</div>{target.step === "create" ? <div className="space-y-3"><label className="block text-xs text-slate-400">Program name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label><label className="block text-xs text-slate-400">Program mechanism<select value={templateId} onChange={(event) => setTemplateId(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-[#07111f] px-3 py-2.5 text-sm text-white"><option value="docs-bounty">Documentation bounty</option><option value="security-fund">Security response fund</option><option value="quadratic-funding">Quadratic funding</option><option value="citation-toll">Citation toll</option><option value="user-centric-royalties">User-centric royalties</option><option value="video-royalties">Video royalties</option></select></label><label className="block text-xs text-slate-400">Funding target, not confirmed funding<input type="number" min="1" step="1" value={budgetUsd} onChange={(event) => setBudgetUsd(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label></div> : null}{target.step === "policy" ? <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs text-slate-400">Allocation rule<select value={allocationRule} onChange={(event) => setAllocationRule(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-[#07111f] px-3 py-2.5 text-sm text-white"><option value="verified_activity">Verified activity</option><option value="equal_recipients">Equal recipients</option><option value="hybrid">Hybrid</option></select></label><label className="text-xs text-slate-400">Eligibility<select value={eligibilityMode} onChange={(event) => setEligibilityMode(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-[#07111f] px-3 py-2.5 text-sm text-white"><option value="resolved_only">Resolved identities only</option><option value="manual_review">Manual review</option></select></label></div> : null}{target.step === "treasury" ? <label className="block text-xs text-slate-400">Arc treasury address<input value={treasuryAddress} onChange={(event) => setTreasuryAddress(event.target.value.trim())} placeholder="0x..." className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 font-mono text-sm text-white" /></label> : null}{target.step === "publication" ? <p className="rounded-lg border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-sm leading-6 text-amber-100">Publishing makes this operator-created program eligible for public Discover projection after its policy and treasury are also ready. This does not fund it.</p> : null}{target.step === "review" ? <p className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2 text-sm leading-6 text-cyan-100">Review refreshes the persisted program state. It never activates a program or moves money.</p> : null}{message ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-2 text-sm text-emerald-100">{message}</p> : null}{error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}<button type="button" disabled={busy} onClick={() => void submit()} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{target.step === "create" ? "Create program draft" : target.step === "publication" ? "Approve publication" : target.step === "policy" ? "Save and activate policy" : target.step === "treasury" ? "Save treasury destination" : target.step === "source" ? "Refresh GitHub evidence" : "Refresh program state"}</button></div>;
+  return (
+    <div className="mt-5 space-y-4">
+      <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+        <dl className="grid grid-cols-[120px_1fr] gap-y-2 text-xs">
+          <dt className="text-slate-500">Community</dt>
+          <dd className="text-white">{target.communitySlug}</dd>
+          <dt className="text-slate-500">Program</dt>
+          <dd className="break-all text-white">
+            {target.programId ?? "No program exists yet"}
+          </dd>
+          <dt className="text-slate-500">Required step</dt>
+          <dd className="capitalize text-white">{target.step}</dd>
+        </dl>
+        {item?.blocker ? (
+          <p className="mt-4 text-sm leading-6 text-amber-100">
+            {item.blocker}
+          </p>
+        ) : null}
+      </div>
+      {target.step === "create" ? (
+        <div className="space-y-3">
+          <label className="block text-xs text-slate-400">
+            Program name
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white"
+            />
+          </label>
+          <label className="block text-xs text-slate-400">
+            Program mechanism
+            <select
+              value={templateId}
+              onChange={(event) => setTemplateId(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#07111f] px-3 py-2.5 text-sm text-white"
+            >
+              <option value="docs-bounty">Documentation bounty</option>
+              <option value="security-fund">Security response fund</option>
+              <option value="quadratic-funding">Quadratic funding</option>
+              <option value="citation-toll">Citation toll</option>
+              <option value="user-centric-royalties">
+                User-centric royalties
+              </option>
+              <option value="video-royalties">Video royalties</option>
+            </select>
+          </label>
+          <label className="block text-xs text-slate-400">
+            Funding target, not confirmed funding
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={budgetUsd}
+              onChange={(event) => setBudgetUsd(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white"
+            />
+          </label>
+        </div>
+      ) : null}
+      {target.step === "policy" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs text-slate-400">
+            Allocation rule
+            <select
+              value={allocationRule}
+              onChange={(event) => setAllocationRule(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#07111f] px-3 py-2.5 text-sm text-white"
+            >
+              <option value="verified_activity">Verified activity</option>
+              <option value="equal_recipients">Equal recipients</option>
+              <option value="hybrid">Hybrid</option>
+            </select>
+          </label>
+          <label className="text-xs text-slate-400">
+            Eligibility
+            <select
+              value={eligibilityMode}
+              onChange={(event) => setEligibilityMode(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#07111f] px-3 py-2.5 text-sm text-white"
+            >
+              <option value="resolved_only">Resolved identities only</option>
+              <option value="manual_review">Manual review</option>
+            </select>
+          </label>
+        </div>
+      ) : null}
+      {target.step === "treasury" ? (
+        <label className="block text-xs text-slate-400">
+          Arc treasury address
+          <input
+            value={treasuryAddress}
+            onChange={(event) => setTreasuryAddress(event.target.value.trim())}
+            placeholder="0x..."
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 font-mono text-sm text-white"
+          />
+        </label>
+      ) : null}
+      {target.step === "publication" ? (
+        <p className="rounded-lg border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-sm leading-6 text-amber-100">
+          Publishing makes this operator-created program eligible for public
+          Discover projection after its policy and treasury are also ready. This
+          does not fund it.
+        </p>
+      ) : null}
+      {target.step === "review" ? (
+        <p className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.04] px-3 py-2 text-sm leading-6 text-cyan-100">
+          Review refreshes the persisted program state. It never activates a
+          program or moves money.
+        </p>
+      ) : null}
+      {message ? (
+        <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-2 text-sm text-emerald-100">
+          {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100"
+        >
+          {error}
+        </p>
+      ) : null}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void submit()}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+      >
+        {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+        {target.step === "create"
+          ? "Create program draft"
+          : target.step === "publication"
+            ? "Approve publication"
+            : target.step === "policy"
+              ? "Save and activate policy"
+              : target.step === "treasury"
+                ? "Save treasury destination"
+                : target.step === "source"
+                  ? "Refresh GitHub evidence"
+                  : "Refresh program state"}
+      </button>
+    </div>
+  );
 }
 
 function AuthorizationReviewPanel({ action }: { action: DiscoverAction }) {
-  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "authorization_review" ? action.presentation.target : null;
-  const [packages, setPackages] = useState<CapitalAuthorizationSummary[] | null>(null);
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "authorization_review"
+      ? action.presentation.target
+      : null;
+  const [packages, setPackages] = useState<
+    CapitalAuthorizationSummary[] | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (!target) return;
     const controller = new AbortController();
-    setLoading(true); setError(null);
-    void fetch("/api/capital/bootstrap", { credentials: "include", cache: "no-store", signal: controller.signal })
+    setLoading(true);
+    setError(null);
+    void fetch("/api/capital/bootstrap", {
+      credentials: "include",
+      cache: "no-store",
+      signal: controller.signal,
+    })
       .then(async (response) => {
-        const body = await response.json().catch(() => ({})) as CapitalBootstrap & { error?: string };
-        if (!response.ok) throw new Error(body.error ?? "Authorization packages could not be loaded");
-        setPackages(body.authorizations.filter((row) => !target.authorizationId || row.id === target.authorizationId));
+        const body = (await response
+          .json()
+          .catch(() => ({}))) as CapitalBootstrap & { error?: string };
+        if (!response.ok)
+          throw new Error(
+            body.error ?? "Authorization packages could not be loaded",
+          );
+        setPackages(
+          body.authorizations.filter(
+            (row) =>
+              !target.authorizationId || row.id === target.authorizationId,
+          ),
+        );
       })
-      .catch((reason) => { if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : "Authorization packages could not be loaded"); })
+      .catch((reason) => {
+        if (!(reason instanceof DOMException && reason.name === "AbortError"))
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Authorization packages could not be loaded",
+          );
+      })
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [target]);
   if (!target) return null;
-  return <div className="mt-5 space-y-3">{loading ? <p className="flex items-center gap-2 text-sm text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" />Loading persisted authorization packages</p> : null}{packages?.map((row) => { const amountUsd = Number(BigInt(row.totalMicroUsdc)) / 1_000_000; const ready = row.readyPayeeCount === row.obligationCount && row.evidenceCount >= row.obligationCount; return <article key={row.id} className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-white">{row.label}</p><p className="mt-1 font-mono text-[10px] text-slate-500">Mission {row.missionId}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] ${ready ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-100"}`}>{ready ? "Preflight ready" : "Prerequisites missing"}</span></div><dl className="mt-4 grid grid-cols-2 gap-3 text-xs"><div><dt className="text-slate-500">Requested</dt><dd className="mt-1 text-white">${amountUsd.toFixed(2)} USDC</dd></div><div><dt className="text-slate-500">Obligations</dt><dd className="mt-1 text-white">{row.obligationCount}</dd></div><div><dt className="text-slate-500">Payout ready</dt><dd className="mt-1 text-white">{row.readyPayeeCount}/{row.obligationCount}</dd></div><div><dt className="text-slate-500">Evidence</dt><dd className="mt-1 text-white">{row.evidenceCount} records</dd></div></dl><p className="mt-3 text-xs leading-5 text-slate-400">Review is complete when every obligation has evidence and a payout-ready recipient. Opening this package does not submit a settlement.</p></article>; })}{packages && !packages.length ? <p className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-400">No persisted authorization package currently needs review.</p> : null}{error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}</div>;
+  return (
+    <div className="mt-5 space-y-3">
+      {loading ? (
+        <p className="flex items-center gap-2 text-sm text-slate-400">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          Loading persisted authorization packages
+        </p>
+      ) : null}
+      {packages?.map((row) => {
+        const amountUsd = Number(BigInt(row.totalMicroUsdc)) / 1_000_000;
+        const ready =
+          row.readyPayeeCount === row.obligationCount &&
+          row.evidenceCount >= row.obligationCount;
+        return (
+          <article
+            key={row.id}
+            className="rounded-xl border border-white/[0.08] bg-black/20 p-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{row.label}</p>
+                <p className="mt-1 font-mono text-[10px] text-slate-500">
+                  Mission {row.missionId}
+                </p>
+              </div>
+              <span
+                className={`rounded-full border px-2 py-1 text-[10px] ${ready ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-100"}`}
+              >
+                {ready ? "Preflight ready" : "Prerequisites missing"}
+              </span>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <dt className="text-slate-500">Requested</dt>
+                <dd className="mt-1 text-white">
+                  ${amountUsd.toFixed(2)} USDC
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Obligations</dt>
+                <dd className="mt-1 text-white">{row.obligationCount}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Payout ready</dt>
+                <dd className="mt-1 text-white">
+                  {row.readyPayeeCount}/{row.obligationCount}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Evidence</dt>
+                <dd className="mt-1 text-white">{row.evidenceCount} records</dd>
+              </div>
+            </dl>
+            <p className="mt-3 text-xs leading-5 text-slate-400">
+              Review is complete when every obligation has evidence and a
+              payout-ready recipient. Opening this package does not submit a
+              settlement.
+            </p>
+          </article>
+        );
+      })}
+      {packages && !packages.length ? (
+        <p className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-400">
+          No persisted authorization package currently needs review.
+        </p>
+      ) : null}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100"
+        >
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 type FundingIntentStatus = {
@@ -379,13 +1373,20 @@ type FundingIntentStatus = {
       status: string;
       providerTransactionId: string | null;
     } | null;
+    receipt?: {
+      id: string;
+      txHash: string;
+      publicReference: string;
+    } | null;
   };
 };
 
 function TransactionPanel({ action }: { action: DiscoverAction }) {
-  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "transaction"
-    ? action.presentation.target
-    : null;
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "transaction"
+      ? action.presentation.target
+      : null;
   const [status, setStatus] = useState<FundingIntentStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -394,17 +1395,27 @@ function TransactionPanel({ action }: { action: DiscoverAction }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/capital/funding-intents/${encodeURIComponent(target.fundingIntentId)}`, {
-        credentials: "include",
-        cache: "no-store",
-        signal,
-      });
-      const body = await response.json().catch(() => ({})) as FundingIntentStatus & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Transaction status could not be loaded");
+      const response = await fetch(
+        `/api/capital/funding-intents/${encodeURIComponent(target.fundingIntentId)}`,
+        {
+          credentials: "include",
+          cache: "no-store",
+          signal,
+        },
+      );
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as FundingIntentStatus & { error?: string };
+      if (!response.ok)
+        throw new Error(body.error ?? "Transaction status could not be loaded");
       setStatus(body);
     } catch (reason) {
       if (!(reason instanceof DOMException && reason.name === "AbortError")) {
-        setError(reason instanceof Error ? reason.message : "Transaction status could not be loaded");
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Transaction status could not be loaded",
+        );
       }
     } finally {
       setLoading(false);
@@ -415,56 +1426,751 @@ function TransactionPanel({ action }: { action: DiscoverAction }) {
     const controller = new AbortController();
     void refresh(controller.signal);
     return () => controller.abort();
-  // refresh reads only the stable funding-intent id from target.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // refresh reads only the stable funding-intent id from target.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target?.fundingIntentId]);
   if (!target) return null;
-  const current = status?.intent.transaction?.status ?? status?.intent.status ?? "prepared";
-  const stages = ["Prepared", "Authorised", "Submitted", "Confirmed", "Receipt"];
-  const reached = current === "confirmed" ? 3 : current === "submitted" ? 2 : ["authorized", "approved"].includes(current) ? 1 : 0;
-  return <div className="mt-5 space-y-4">{loading ? <p className="flex items-center gap-2 text-sm text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" />Loading transaction status</p> : null}{status ? <><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-sm font-semibold text-white">{status.intent.amountUsd.toFixed(2)} USDC</p><p className="mt-1 text-xs text-slate-500">{status.intent.communitySlug ?? "Direct support"}</p><div className="mt-5 space-y-3">{stages.map((stage, index) => <div key={stage} className="flex items-center gap-3 text-sm"><span className={`grid h-6 w-6 place-items-center rounded-full border text-xs ${index <= reached ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-200" : "border-white/10 text-slate-600"}`}>{index < reached ? "✓" : index + 1}</span><span className={index <= reached ? "text-slate-200" : "text-slate-600"}>{stage}</span></div>)}</div>{status.intent.transaction?.txHash ? <p className="mt-4 break-all font-mono text-xs text-slate-400">{status.intent.transaction.txHash}</p> : null}</div><button type="button" onClick={() => void refresh()} disabled={loading} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"><RefreshCw className="h-4 w-4" />Refresh status</button></> : null}{error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}</div>;
+  const current =
+    status?.intent.transaction?.status ?? status?.intent.status ?? "prepared";
+  const stages = [
+    "Prepared",
+    "Authorised",
+    "Submitted",
+    "Confirmed",
+    "Receipt",
+  ];
+  const reached = status?.intent.receipt
+    ? 4
+    : current === "confirmed"
+      ? 3
+      : current === "submitted"
+        ? 2
+        : ["authorized", "approved"].includes(current)
+          ? 1
+          : 0;
+  return (
+    <div className="mt-5 space-y-4">
+      {loading ? (
+        <p className="flex items-center gap-2 text-sm text-slate-400">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          Loading transaction status
+        </p>
+      ) : null}
+      {status ? (
+        <>
+          <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+            <p className="text-sm font-semibold text-white">
+              {status.intent.amountUsd.toFixed(2)} USDC
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {status.intent.communitySlug ?? "Direct support"}
+            </p>
+            <div className="mt-5 space-y-3">
+              {stages.map((stage, index) => (
+                <div key={stage} className="flex items-center gap-3 text-sm">
+                  <span
+                    className={`grid h-6 w-6 place-items-center rounded-full border text-xs ${index <= reached ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-200" : "border-white/10 text-slate-600"}`}
+                  >
+                    {index < reached ? "✓" : index + 1}
+                  </span>
+                  <span
+                    className={
+                      index <= reached ? "text-slate-200" : "text-slate-600"
+                    }
+                  >
+                    {stage}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {status.intent.transaction?.txHash ? (
+              <p className="mt-4 break-all font-mono text-xs text-slate-400">
+                {status.intent.transaction.txHash}
+              </p>
+            ) : null}
+            {status.intent.receipt ? (
+              <a
+                href={`/outcomes/${encodeURIComponent(status.intent.receipt.publicReference)}`}
+                className="mt-4 inline-flex text-sm font-medium text-violet-200 hover:text-white"
+              >
+                Open receipt
+              </a>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh status
+          </button>
+        </>
+      ) : null}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100"
+        >
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
-function EntityDetailsPanel({ action, data }: { action: DiscoverAction; data: DiscoverPageData }) {
-  const target = action.presentation.kind === "workbench" && action.presentation.target.panel === "entity_details"
-    ? action.presentation.target
-    : null;
+function EntityDetailsPanel({
+  action,
+  data,
+}: {
+  action: DiscoverAction;
+  data: DiscoverPageData;
+}) {
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "entity_details"
+      ? action.presentation.target
+      : null;
   if (!target) return null;
   if (target.entityType === "person") {
     const person = data.people.find((item) => item.id === target.subjectId);
-    if (!person) return <p className="mt-5 text-sm text-slate-400">This person is no longer available in the current persisted result.</p>;
-    return <div className="mt-5 space-y-4"><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-full bg-violet-400/10 font-semibold text-violet-100">{person.name.slice(0, 2).toUpperCase()}</span><div><h3 className="font-semibold text-white">{person.name}</h3><p className="mt-1 text-xs capitalize text-slate-500">{person.identityState.replaceAll("_", " ")}</p></div></div><dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2"><div><dt className="text-slate-500">Accepted work</dt><dd className="mt-1 text-white">{person.completedWork ?? 0}</dd></div><div><dt className="text-slate-500">Payout readiness</dt><dd className="mt-1 capitalize text-white">{person.payoutReadiness.replaceAll("_", " ")}</dd></div><div><dt className="text-slate-500">Identities</dt><dd className="mt-1 text-white">{person.verifiedIdentities.join(", ")}</dd></div><div><dt className="text-slate-500">Communities</dt><dd className="mt-1 text-white">{person.communities.join(", ") || "No public community role"}</dd></div></dl></div>{person.profilePath ? <a href={person.profilePath} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200">Open source identity<ExternalLink className="h-3.5 w-3.5" /></a> : null}</div>;
+    if (!person)
+      return (
+        <p className="mt-5 text-sm text-slate-400">
+          This person is no longer available in the current persisted result.
+        </p>
+      );
+    return (
+      <div className="mt-5 space-y-4">
+        <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-violet-400/10 font-semibold text-violet-100">
+              {person.name.slice(0, 2).toUpperCase()}
+            </span>
+            <div>
+              <h3 className="font-semibold text-white">{person.name}</h3>
+              <p className="mt-1 text-xs capitalize text-slate-500">
+                {person.identityState.replaceAll("_", " ")}
+              </p>
+            </div>
+          </div>
+          <dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2">
+            <div>
+              <dt className="text-slate-500">Accepted work</dt>
+              <dd className="mt-1 text-white">{person.completedWork ?? 0}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Payout readiness</dt>
+              <dd className="mt-1 capitalize text-white">
+                {person.payoutReadiness.replaceAll("_", " ")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Identities</dt>
+              <dd className="mt-1 text-white">
+                {person.verifiedIdentities.join(", ")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Communities</dt>
+              <dd className="mt-1 text-white">
+                {person.communities.join(", ") || "No public community role"}
+              </dd>
+            </div>
+          </dl>
+        </div>
+        {person.profilePath ? (
+          <a
+            href={person.profilePath}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200"
+          >
+            Open source identity
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        ) : null}
+      </div>
+    );
   }
   if (target.entityType === "pool") {
     const pool = data.pools.find((item) => item.id === target.subjectId);
-    if (!pool) return <p className="mt-5 text-sm text-slate-400">This Pool is no longer available in the current persisted result.</p>;
-    const progress = pool.targetUsd && pool.targetUsd > 0 && pool.balanceUsd != null ? Math.min(100, (pool.balanceUsd / pool.targetUsd) * 100) : null;
-    return <div className="mt-5 space-y-4"><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-xs text-emerald-300">{pool.communitySlug}</p><h3 className="mt-1 text-lg font-semibold text-white">{pool.name}</h3><p className="mt-2 text-sm leading-6 text-slate-300">{pool.purpose ?? pool.type}</p><dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2"><div><dt className="text-slate-500">Confirmed funding</dt><dd className="mt-1 text-white">{pool.balanceUsd != null ? `$${pool.balanceUsd.toFixed(2)} USDC` : "Not confirmed"}</dd></div><div><dt className="text-slate-500">Pending</dt><dd className="mt-1 text-white">{pool.pendingDepositsUsd != null ? `$${pool.pendingDepositsUsd.toFixed(2)} USDC` : "None recorded"}</dd></div><div><dt className="text-slate-500">Target</dt><dd className="mt-1 text-white">{pool.targetUsd != null ? `$${pool.targetUsd.toFixed(2)} USDC` : "Open ended"}</dd></div><div><dt className="text-slate-500">Funding rule</dt><dd className="mt-1 capitalize text-white">{pool.policyState.replaceAll("_", " ")}</dd></div><div><dt className="text-slate-500">Treasury</dt><dd className="mt-1 capitalize text-white">{pool.treasuryReadiness.replaceAll("_", " ")}</dd></div></dl>{progress != null ? <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${progress}%` }} /></div> : null}</div><div className="rounded-xl border border-white/[0.08] p-4 text-xs text-slate-400"><div className="flex flex-wrap items-center gap-2"><span>Funder</span><span>-&gt;</span><span>Pool treasury</span><span>-&gt;</span><span>Funding rule</span><span>-&gt;</span><span>Eligible work</span><span>-&gt;</span><span>Recipients</span><span>-&gt;</span><span>Receipts</span></div></div></div>;
+    if (!pool)
+      return (
+        <p className="mt-5 text-sm text-slate-400">
+          This Pool is no longer available in the current persisted result.
+        </p>
+      );
+    const progress =
+      pool.targetUsd && pool.targetUsd > 0 && pool.balanceUsd != null
+        ? Math.min(100, (pool.balanceUsd / pool.targetUsd) * 100)
+        : null;
+    return (
+      <div className="mt-5 space-y-4">
+        <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+          <p className="text-xs text-emerald-300">{pool.communitySlug}</p>
+          <h3 className="mt-1 text-lg font-semibold text-white">{pool.name}</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            {pool.purpose ?? pool.type}
+          </p>
+          <dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2">
+            <div>
+              <dt className="text-slate-500">Confirmed funding</dt>
+              <dd className="mt-1 text-white">
+                {pool.balanceUsd != null
+                  ? `$${pool.balanceUsd.toFixed(2)} USDC`
+                  : "Not confirmed"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Pending</dt>
+              <dd className="mt-1 text-white">
+                {pool.pendingDepositsUsd != null
+                  ? `$${pool.pendingDepositsUsd.toFixed(2)} USDC`
+                  : "None recorded"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Target</dt>
+              <dd className="mt-1 text-white">
+                {pool.targetUsd != null
+                  ? `$${pool.targetUsd.toFixed(2)} USDC`
+                  : "Open ended"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Funding rule</dt>
+              <dd className="mt-1 capitalize text-white">
+                {pool.policyState.replaceAll("_", " ")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Treasury</dt>
+              <dd className="mt-1 capitalize text-white">
+                {pool.treasuryReadiness.replaceAll("_", " ")}
+              </dd>
+            </div>
+          </dl>
+          {progress != null ? (
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+              <div
+                className="h-full rounded-full bg-emerald-400"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          ) : null}
+        </div>
+        <div className="rounded-xl border border-white/[0.08] p-4 text-xs text-slate-400">
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Funder</span>
+            <span>-&gt;</span>
+            <span>Pool treasury</span>
+            <span>-&gt;</span>
+            <span>Funding rule</span>
+            <span>-&gt;</span>
+            <span>Eligible work</span>
+            <span>-&gt;</span>
+            <span>Recipients</span>
+            <span>-&gt;</span>
+            <span>Receipts</span>
+          </div>
+        </div>
+      </div>
+    );
   }
   if (target.entityType === "program") {
-    const program = data.opportunities.items.find((item) => item.source.id === target.subjectId && item.marketplaceKind === "program");
-    if (!program) return <p className="mt-5 text-sm text-slate-400">This Program is no longer available in the current persisted result.</p>;
-    return <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-xs text-cyan-300">{program.community?.name}</p><h3 className="mt-1 text-lg font-semibold text-white">{program.title}</h3><p className="mt-3 text-sm leading-6 text-slate-300">{program.summary}</p><dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2"><div><dt className="text-slate-500">Recognised activity</dt><dd className="mt-1 text-white">{program.deliverables.join(", ") || program.category || "Configured source activity"}</dd></div><div><dt className="text-slate-500">Current policy</dt><dd className="mt-1 capitalize text-white">{program.entityState?.financialReadiness === "ready" ? "Active" : "Review required"}</dd></div><div><dt className="text-slate-500">Source</dt><dd className="mt-1 text-white">{program.repository ?? program.source.type.replaceAll("_", " ")}</dd></div><div><dt className="text-slate-500">Template</dt><dd className="mt-1 text-white">{program.program?.templateId.replaceAll("-", " ")}</dd></div></dl></div>;
+    const program = data.opportunities.items.find(
+      (item) =>
+        item.source.id === target.subjectId &&
+        item.marketplaceKind === "program",
+    );
+    if (!program)
+      return (
+        <p className="mt-5 text-sm text-slate-400">
+          This Program is no longer available in the current persisted result.
+        </p>
+      );
+    return (
+      <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4">
+        <p className="text-xs text-cyan-300">{program.community?.name}</p>
+        <h3 className="mt-1 text-lg font-semibold text-white">
+          {program.title}
+        </h3>
+        <p className="mt-3 text-sm leading-6 text-slate-300">
+          {program.summary}
+        </p>
+        <dl className="mt-5 grid gap-4 text-xs sm:grid-cols-2">
+          <div>
+            <dt className="text-slate-500">Recognised activity</dt>
+            <dd className="mt-1 text-white">
+              {program.deliverables.join(", ") ||
+                program.category ||
+                "Configured source activity"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Current policy</dt>
+            <dd className="mt-1 capitalize text-white">
+              {program.entityState?.financialReadiness === "ready"
+                ? "Active"
+                : "Review required"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Source</dt>
+            <dd className="mt-1 text-white">
+              {program.repository ?? program.source.type.replaceAll("_", " ")}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Template</dt>
+            <dd className="mt-1 text-white">
+              {program.program?.templateId.replaceAll("-", " ")}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    );
   }
-  const community = data.communities.find((item) => item.id === target.subjectId || item.slug === target.subjectId);
-  if (!community) return <p className="mt-5 text-sm text-slate-400">This Community is no longer available in the current persisted result.</p>;
-  return <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4"><h3 className="text-lg font-semibold text-white">{community.name}</h3><p className="mt-2 text-sm leading-6 text-slate-300">{community.purpose}</p><dl className="mt-5 grid grid-cols-3 gap-3 text-xs"><div><dt className="text-slate-500">Activity</dt><dd className="mt-1 text-white">{community.activeOpportunities ?? 0}</dd></div><div><dt className="text-slate-500">Pools</dt><dd className="mt-1 text-white">{community.activePools ?? 0}</dd></div><div><dt className="text-slate-500">Type</dt><dd className="mt-1 text-white">{community.type}</dd></div></dl></div>;
+  const community = data.communities.find(
+    (item) => item.id === target.subjectId || item.slug === target.subjectId,
+  );
+  if (!community)
+    return (
+      <p className="mt-5 text-sm text-slate-400">
+        This Community is no longer available in the current persisted result.
+      </p>
+    );
+  return (
+    <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4">
+      <h3 className="text-lg font-semibold text-white">{community.name}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-300">
+        {community.purpose}
+      </p>
+      <dl className="mt-5 grid grid-cols-3 gap-3 text-xs">
+        <div>
+          <dt className="text-slate-500">Activity</dt>
+          <dd className="mt-1 text-white">
+            {community.activeOpportunities ?? 0}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Pools</dt>
+          <dd className="mt-1 text-white">{community.activePools ?? 0}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Type</dt>
+          <dd className="mt-1 text-white">{community.type}</dd>
+        </div>
+      </dl>
+    </div>
+  );
 }
 
-function InformationalPanel({ action, item }: { action: DiscoverAction; item?: EconomicActionItem }) {
-  const target = action.presentation.kind === "workbench" ? action.presentation.target : null;
+type EvidenceDetail = {
+  evidenceId: string;
+  provider: string;
+  event: string;
+  kind: string;
+  actor: string | null;
+  acceptedAt: string;
+  recordedAt: string;
+  sourceUrl: string;
+  repository?: string;
+  workType?: string;
+  sourceKind?: string;
+  title?: string;
+  verificationState?: string;
+  freshness?: string;
+  attributionState?: string;
+};
+
+function EvidencePanel({
+  action,
+  item,
+}: {
+  action: DiscoverAction;
+  item?: EconomicActionItem;
+}) {
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "evidence"
+      ? action.presentation.target
+      : null;
+  const [evidence, setEvidence] = useState<EvidenceDetail[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    if (!target?.evidenceIds.length) return;
+    const controller = new AbortController();
+    setError(null);
+    void fetch(
+      `/api/discover/evidence?ids=${encodeURIComponent(target.evidenceIds.join(","))}`,
+      {
+        cache: "no-store",
+        signal: controller.signal,
+      },
+    )
+      .then(async (response) => {
+        const body = (await response.json().catch(() => ({}))) as {
+          evidence?: EvidenceDetail[];
+          error?: string;
+        };
+        if (!response.ok)
+          throw new Error(body.error ?? "Evidence could not be loaded");
+        setEvidence(body.evidence ?? []);
+      })
+      .catch((reason) => {
+        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Evidence could not be loaded",
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [reload, target]);
   if (!target) return null;
-  if (target.panel === "evidence") return <div className="mt-5 space-y-4"><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-sm leading-6 text-slate-300">{item?.happened ?? "Inspect the persisted evidence and its source before taking an economic action."}</p><dl className="mt-4 grid grid-cols-[120px_1fr] gap-y-2 text-xs"><dt className="text-slate-500">Evidence records</dt><dd className="text-white">{target.evidenceIds.length || "Source record only"}</dd><dt className="text-slate-500">Repository</dt><dd className="text-white">{target.repository ?? item?.repository ?? "Not attached"}</dd><dt className="text-slate-500">Freshness</dt><dd className="text-white">{item?.source.stale ? "Last-known snapshot" : "Current persisted snapshot"}</dd></dl></div>{target.sourceUrl ? <a href={target.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200">Open source evidence<ExternalLink className="h-3.5 w-3.5" /></a> : null}</div>;
-  if (target.panel === "receipt") return <div className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-4"><div className="flex items-center gap-2 text-emerald-200"><CheckCircle2 className="h-5 w-5" />Confirmed outcome</div><p className="mt-3 text-sm leading-6 text-slate-300">{item?.happened}</p><div className="mt-4 flex flex-wrap gap-2"><a href={target.receiptUrl} className="rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-white">Open receipt</a>{target.explorerUrl ? <a href={target.explorerUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200">Open ArcScan</a> : null}</div></div>;
+  if (error)
+    return (
+      <div className="mt-5 rounded-xl border border-rose-300/20 bg-rose-300/[0.05] p-4">
+        <p role="alert" className="text-sm text-rose-100">
+          {error}
+        </p>
+        <button
+          type="button"
+          onClick={() => setReload((value) => value + 1)}
+          className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-sm text-white"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  if (!evidence)
+    return (
+      <p className="mt-5 flex items-center gap-2 text-sm text-slate-400">
+        <LoaderCircle className="h-4 w-4 animate-spin" />
+        Loading persisted evidence
+      </p>
+    );
+  if (!evidence.length)
+    return (
+      <p className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-4 text-sm text-amber-100">
+        The source snapshot exists, but no eligible Evidence row was found.
+        Funding remains unavailable.
+      </p>
+    );
+  return (
+    <div className="mt-5 space-y-4">
+      {evidence.map((row) => (
+        <article
+          key={row.evidenceId}
+          className="rounded-xl border border-white/[0.08] bg-black/20 p-4"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-cyan-300">
+                {row.provider} accepted event
+              </p>
+              <h3 className="mt-1 font-semibold text-white">
+                {row.title ?? item?.happened ?? row.event}
+              </h3>
+            </div>
+            <span className="rounded-full border border-emerald-300/20 px-2 py-1 text-[10px] text-emerald-200">
+              {row.verificationState?.replaceAll("_", " ") ?? "Verified source"}
+            </span>
+          </div>
+          <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
+            <div>
+              <dt className="text-slate-500">Evidence ID</dt>
+              <dd className="mt-1 break-all font-mono text-white">
+                {row.evidenceId}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Event</dt>
+              <dd className="mt-1 text-white">{row.event}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Repository</dt>
+              <dd className="mt-1 text-white">
+                {row.repository ?? target.repository ?? "GitHub"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Contributor</dt>
+              <dd className="mt-1 text-white">
+                {row.actor ? `@${row.actor}` : "Unattributed"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Accepted</dt>
+              <dd className="mt-1 text-white">
+                {new Date(row.acceptedAt).toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Attribution</dt>
+              <dd className="mt-1 capitalize text-white">
+                {row.attributionState?.replaceAll("_", " ") ??
+                  "Observed from source"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Work type</dt>
+              <dd className="mt-1 capitalize text-white">
+                {row.workType?.replaceAll("_", " ") ??
+                  row.sourceKind?.replaceAll("_", " ") ??
+                  "Accepted activity"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Program coverage</dt>
+              <dd className="mt-1 text-white">
+                {item?.blocker ?? "No active funding policy is attached."}
+              </dd>
+            </div>
+          </dl>
+          <a
+            href={row.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200"
+          >
+            Open GitHub evidence
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function InformationalPanel({
+  action,
+  item,
+}: {
+  action: DiscoverAction;
+  item?: EconomicActionItem;
+}) {
+  const target =
+    action.presentation.kind === "workbench"
+      ? action.presentation.target
+      : null;
+  if (!target) return null;
+  if (target.panel === "evidence")
+    return <EvidencePanel action={action} item={item} />;
+  if (target.panel === "receipt")
+    return (
+      <div className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-4">
+        <div className="flex items-center gap-2 text-emerald-200">
+          <CheckCircle2 className="h-5 w-5" />
+          Confirmed outcome
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-300">
+          {item?.happened}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <a
+            href={target.receiptUrl}
+            className="rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-white"
+          >
+            Open receipt
+          </a>
+          {target.explorerUrl ? (
+            <a
+              href={target.explorerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200"
+            >
+              Open ArcScan
+            </a>
+          ) : null}
+        </div>
+      </div>
+    );
   return null;
 }
 
-export function DiscoverActionWorkbench({ action, item, data, onClose }: Props) {
+export function DiscoverActionWorkbench({
+  action,
+  item,
+  data,
+  onClose,
+}: Props) {
   const [payoutOpen, setPayoutOpen] = useState(false);
-  const target = action?.presentation.kind === "workbench" ? action.presentation.target : null;
-  useEffect(() => { if (target?.panel === "payout_destination") setPayoutOpen(true); }, [target]);
-  const financial = target?.panel === "direct_support" || target?.panel === "work_funding" || target?.panel === "pool_funding";
-  const title = useMemo(() => action ? titleFor(action) : "Discover action", [action]);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const { openSignIn } = useSignInModal();
+  const target =
+    action?.presentation.kind === "workbench"
+      ? action.presentation.target
+      : null;
+  const authenticationRequired = Boolean(
+    target &&
+    !data.signedIn &&
+    [
+      "payout_destination",
+      "direct_support",
+      "work_funding",
+      "pool_funding",
+      "program_setup",
+      "source_sync",
+      "authorization_review",
+      "transaction",
+    ].includes(target.panel),
+  );
+  useEffect(() => {
+    if (target?.panel === "payout_destination" && data.signedIn)
+      setPayoutOpen(true);
+  }, [data.signedIn, target]);
+  useEffect(() => {
+    if (!action || !target) return;
+    const previous =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previous?.focus();
+    };
+  }, [action, onClose, target]);
+  const financial =
+    target?.panel === "direct_support" ||
+    target?.panel === "work_funding" ||
+    target?.panel === "pool_funding";
+  const title = useMemo(
+    () => (action ? titleFor(action) : "Discover action"),
+    [action],
+  );
   if (!action || !target) return null;
-  return <><div className="fixed inset-0 z-[65] bg-black/65" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="discover-workbench-title" className={`ml-auto h-full w-full overflow-y-auto border-l border-white/10 bg-[#060d17] p-5 shadow-2xl sm:p-6 ${financial ? "max-w-[620px]" : "max-w-[560px]"}`}><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-violet-300">Discover</p><h2 id="discover-workbench-title" className="mt-1 text-xl font-semibold text-white">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-400">Review and complete this action without losing your marketplace context.</p></div><button type="button" aria-label="Close Discover action" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 hover:text-white"><X className="h-4 w-4" /></button></div>{target.panel === "direct_support" || target.panel === "work_funding" ? <RecipientPaymentPanel action={action} onClose={onClose} signedIn={data.signedIn} /> : null}{target.panel === "pool_funding" ? <PoolFundingPanel action={action} signedIn={data.signedIn} /> : null}{target.panel === "source_sync" ? <SourceSyncPanel action={action} /> : null}{target.panel === "program_setup" ? <ProgramSetupPanel action={action} item={item} /> : null}{target.panel === "authorization_review" ? <AuthorizationReviewPanel action={action} /> : null}{target.panel === "transaction" ? <TransactionPanel action={action} /> : null}{target.panel === "entity_details" ? <EntityDetailsPanel action={action} data={data} /> : null}{!["direct_support", "work_funding", "pool_funding", "source_sync", "program_setup", "authorization_review", "payout_destination", "transaction", "entity_details"].includes(target.panel) ? <InformationalPanel action={action} item={item} /> : null}{target.panel === "payout_destination" ? <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-300"><WalletCards className="mb-3 h-5 w-5 text-violet-300" />Review the available wallet destinations and select where future RESOLVE earnings should settle. No destination is selected automatically.</div> : null}{!data.signedIn && !["discover.open_evidence", "discover.open_people", "discover.open_pools", "discover.open_program", "community.open"].includes(action.id) ? <p className="mt-4 text-sm text-amber-100">Sign in is required for this personal action.</p> : null}</section></div><PayoutDestinationDrawer open={payoutOpen} origin="discover" onChanged={() => { setPayoutOpen(false); onClose(); }} onClose={() => { setPayoutOpen(false); onClose(); }} /></>;
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-[65] bg-black/65"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.currentTarget === event.target) onClose();
+        }}
+      >
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="discover-workbench-title"
+          className={`ml-auto h-full w-full overflow-y-auto border-l border-white/10 bg-[#060d17] p-5 shadow-2xl sm:p-6 ${financial ? "max-w-[620px]" : "max-w-[560px]"}`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold text-violet-300">Discover</p>
+              <h2
+                id="discover-workbench-title"
+                className="mt-1 text-xl font-semibold text-white"
+              >
+                {title}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Review and complete this action without losing your marketplace
+                context.
+              </p>
+            </div>
+            <button
+              ref={closeButtonRef}
+              type="button"
+              aria-label="Close Discover action"
+              onClick={onClose}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {authenticationRequired ? (
+            <div className="mt-5 rounded-xl border border-violet-300/20 bg-violet-300/[0.05] p-4">
+              <h3 className="font-semibold text-white">Sign in to continue</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                Connect your wallet and sign a message to authenticate your
+                RESOLVE session. This doesn&apos;t send USDC or create an
+                onchain transaction.
+              </p>
+              <button
+                type="button"
+                onClick={openSignIn}
+                className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white"
+              >
+                Connect wallet
+              </button>
+            </div>
+          ) : (
+            <>
+              {target.panel === "direct_support" ||
+              target.panel === "work_funding" ? (
+                <RecipientPaymentPanel
+                  action={action}
+                  onClose={onClose}
+                  signedIn={data.signedIn}
+                />
+              ) : null}
+              {target.panel === "pool_funding" ? (
+                <PoolFundingPanel action={action} signedIn={data.signedIn} />
+              ) : null}
+              {target.panel === "source_sync" ? (
+                <SourceSyncPanel action={action} />
+              ) : null}
+              {target.panel === "program_setup" ? (
+                <ProgramSetupPanel action={action} item={item} />
+              ) : null}
+              {target.panel === "authorization_review" ? (
+                <AuthorizationReviewPanel action={action} />
+              ) : null}
+              {target.panel === "transaction" ? (
+                <TransactionPanel action={action} />
+              ) : null}
+              {target.panel === "entity_details" ? (
+                <EntityDetailsPanel action={action} data={data} />
+              ) : null}
+              {![
+                "direct_support",
+                "work_funding",
+                "pool_funding",
+                "source_sync",
+                "program_setup",
+                "authorization_review",
+                "payout_destination",
+                "transaction",
+                "entity_details",
+              ].includes(target.panel) ? (
+                <InformationalPanel action={action} item={item} />
+              ) : null}
+              {target.panel === "payout_destination" ? (
+                <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm text-slate-300">
+                  <WalletCards className="mb-3 h-5 w-5 text-violet-300" />
+                  Review the available wallet destinations and select where
+                  future RESOLVE earnings should settle. No destination is
+                  selected automatically.
+                </div>
+              ) : null}
+            </>
+          )}
+        </section>
+      </div>
+      <PayoutDestinationDrawer
+        open={payoutOpen && data.signedIn}
+        origin="discover"
+        onChanged={() => {
+          setPayoutOpen(false);
+          onClose();
+        }}
+        onClose={() => {
+          setPayoutOpen(false);
+          onClose();
+        }}
+      />
+    </>
+  );
 }

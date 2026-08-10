@@ -3,12 +3,18 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
+import type { ResolveActionId } from "@/lib/actions/types";
 import { cacheGetOrSetResilient } from "@/lib/cache/kv";
 import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { getSessionUser } from "@/lib/auth/session";
 import { loadWorkspaceReadiness } from "@/lib/workspace/readiness";
 import type { WorkspaceReadiness } from "@/lib/workspace/readiness-contract";
-import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import {
+  getLiveBlockers,
+  isLiveArcEnabled,
+} from "@/lib/settlement/arc-config";
+import { discoverAgentServices } from "@/lib/agent/commerce";
+import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { buildLiveSettlements } from "@/lib/discover/live-settlements";
 import { loadStoredOssOpportunities } from "@/lib/github/oss-scan-store";
 import {
@@ -855,7 +861,7 @@ export async function listDiscoverPeople(
     const completedWork =
       evidenceIdsByActor.get(`github:${github.toLowerCase()}`)?.size ?? 0;
     const profilePath = `https://github.com/${encodeURIComponent(github)}`;
-    const returnTo = `/discover?view=explore&kind=people&person=${encodeURIComponent(person.id)}`;
+    const returnTo = `/discover?view=verified_work&person=${encodeURIComponent(person.id)}`;
     return {
       id: person.id,
       name: person.displayName ?? github,
@@ -960,7 +966,7 @@ export function discoverPersonFromReadiness(
   // This fallback always represents the current viewer. Direct support to the
   // sender's own payout destination is never a valid Discover action.
   const directSupportReady = false;
-  const returnTo = `/discover?view=explore&kind=people&person=${encodeURIComponent(viewerUserId)}`;
+  const returnTo = `/discover?view=verified_work&person=${encodeURIComponent(viewerUserId)}`;
   const profilePath = `https://github.com/${encodeURIComponent(githubAccount)}`;
   return {
     id: viewerUserId,
@@ -1132,7 +1138,7 @@ export function mergeAttributedDiscoverPeople(
                   {
                     id: "discover.open_evidence",
                     label: "Inspect attributed evidence",
-                    href: "/discover?view=explore&kind=work",
+                    href: "/discover?view=verified_work",
                   },
                   {
                     panel: "evidence",
@@ -1190,10 +1196,11 @@ export function attachVerifiedWorkActions(
         ? item.primaryAction.presentation.target.evidenceIds
         : [];
     const isSelf = Boolean(person && person.id === viewerUserId);
-    const canFund = Boolean(
-      person && !isSelf && person.payoutReadiness === "ready" && live,
+    const rewardRecipientReady = Boolean(
+      person && !isSelf && person.payoutReadiness === "ready",
     );
-    const detailPath = `/discover?view=explore&kind=work&work=${encodeURIComponent(item.source.id)}`;
+    const canFund = rewardRecipientReady && live;
+    const detailPath = `/discover?view=verified_work&work=${encodeURIComponent(item.source.id)}`;
     const evidenceAction = workbenchAction(
       {
         id: "discover.open_evidence",
@@ -1212,9 +1219,10 @@ export function attachVerifiedWorkActions(
     if (!person)
       blocker =
         "The GitHub attribution is preserved, but this contributor has not claimed a RESOLVE profile.";
+    else if (isSelf && person && person.payoutReadiness !== "ready")
+      blocker = "Choose a verified payout destination so future rewards can reach you.";
     else if (isSelf)
-      blocker =
-        "You cannot fund work attributed to your own payout destination.";
+      blocker = "You cannot reward work attributed to your own payout destination.";
     else if (person.payoutReadiness !== "ready")
       blocker =
         "This contributor has not verified where work rewards should settle.";
@@ -1233,12 +1241,23 @@ export function attachVerifiedWorkActions(
         blocker,
       },
       primaryAction:
-        canFund && person
+        isSelf && person && person.payoutReadiness !== "ready"
+          ? workbenchAction(
+              {
+                id: "profile.set_payout_destination",
+                label: "Choose payout wallet",
+                href: detailPath,
+              },
+              { panel: "payout_destination", subjectId: person.id },
+            )
+          : rewardRecipientReady && person
           ? workbenchAction(
               {
                 id: "discover.fund_verified_work",
-                label: "Fund this work",
+                label: "Reward this work",
                 href: detailPath,
+                enabled: canFund,
+                disabledReason: canFund ? undefined : blocker,
               },
               {
                 panel: "work_funding",
@@ -1253,8 +1272,52 @@ export function attachVerifiedWorkActions(
               { requiresConfirmation: true },
             )
           : evidenceAction,
-      secondaryActions: canFund ? [evidenceAction] : [],
+      secondaryActions: rewardRecipientReady ? [evidenceAction] : [],
     } satisfies MarketplaceOpportunity;
+  });
+}
+
+export function attachRequestActions(
+  opportunities: MarketplaceOpportunity[],
+  viewerUserId?: string,
+): MarketplaceOpportunity[] {
+  return opportunities.map((item) => {
+    if (item.source.type !== "resolve_request") return item;
+    const owner = Boolean(viewerUserId && item.creator.id === viewerUserId);
+    const selected = Boolean(
+      viewerUserId && item.provider.selected?.id === viewerUserId,
+    );
+    const href = `/discover?view=requests&request=${encodeURIComponent(item.id)}`;
+    let id: ResolveActionId = "discover.view_request";
+    let label = "View request";
+    if (owner && item.status === "ready_to_fund") {
+      id = "discover.post_request";
+      label = "Fund and publish";
+    } else if (owner && item.status === "under_review") {
+      id = "discover.review_request";
+      label = "Review submitted work";
+    } else if (owner && item.status === "approved") {
+      id = "discover.release_request";
+      label = "Release payment";
+    } else if (selected && item.status === "assigned") {
+      id = "discover.submit_request_work";
+      label = "Submit evidence";
+    } else if (item.status === "open" && !owner) {
+      id = "discover.take_request";
+      label = "Take request";
+    } else if (["assigned", "under_review", "approved", "payment_submitted"].includes(item.status)) {
+      id = "discover.track_request";
+      label = "Track request";
+    }
+    return {
+      ...item,
+      primaryAction: workbenchAction(
+        { id, label, href },
+        { panel: "request", subjectId: item.id, mode: "view" },
+        { requiresConfirmation: ["discover.post_request", "discover.release_request", "discover.take_request"].includes(id) },
+      ),
+      secondaryActions: [],
+    };
   });
 }
 
@@ -1696,7 +1759,7 @@ function listPools(
               {
                 id: "capital.open_funding",
                 label: "Fund Pool",
-                href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                href: `/discover?view=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
               },
               {
                 panel: "pool_funding",
@@ -1717,7 +1780,7 @@ function listPools(
                 {
                   id: "capital.open_funding",
                   label: "Fund Pool unavailable",
-                  href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                  href: `/discover?view=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
                   enabled: false,
                   disabledReason:
                     "Live Arc settlement is not enabled for this Pool.",
@@ -1752,7 +1815,7 @@ function listPools(
                               .includes("treasury")
                           ? "Add treasury destination"
                           : "Review program",
-                    href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                    href: `/discover?view=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
                   },
                   {
                     panel: "program_setup",
@@ -1778,7 +1841,7 @@ function listPools(
                   {
                     id: "discover.open_pools",
                     label: "View Pool",
-                    href: `/discover?view=explore&kind=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                    href: `/discover?view=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
                   },
                   {
                     panel: "entity_details",
@@ -1857,7 +1920,7 @@ export function buildDiscoverInbox(input: {
         {
           id: "source.sync",
           label: "Review repository sync",
-          href: "/discover?view=explore&kind=work",
+          href: "/discover?view=verified_work",
         },
         {
           panel: "source_sync",
@@ -1870,7 +1933,7 @@ export function buildDiscoverInbox(input: {
           {
             id: "discover.open_verified_work",
             label: "Open Verified Work",
-            href: "/discover?view=explore&kind=work",
+            href: "/discover?view=verified_work",
           },
           { secondary: true },
         ),
@@ -1902,7 +1965,7 @@ export function buildDiscoverInbox(input: {
           {
             id: "discover.open_verified_work",
             label: "View recognised work",
-            href: "/discover?view=explore&kind=work",
+            href: "/discover?view=verified_work",
           },
           { secondary: true },
         ),
@@ -1939,7 +2002,7 @@ export function buildDiscoverInbox(input: {
         {
           id: "capital.review_authorization",
           label: "Review authorization",
-          href: "/discover?view=for_you",
+          href: "/discover?view=verified_work",
         },
         {
           panel: "authorization_review",
@@ -2073,7 +2136,8 @@ async function loadPersonalDiscoverActivity(
   opportunities: MarketplaceOpportunity[],
   people: DiscoverPerson[],
 ): Promise<DiscoverActivityItem[]> {
-  const [intents, events, recipientPayments] = await Promise.all([
+  const [intents, events, recipientPayments, agentTransactions] =
+    await Promise.all([
     prisma.fundingIntent.findMany({
       where: { userId },
       orderBy: { updatedAt: "desc" },
@@ -2129,6 +2193,19 @@ async function loadPersonalDiscoverActivity(
         submittedAt: true,
         confirmedAt: true,
         updatedAt: true,
+      },
+    }),
+    prisma.walletTransaction.findMany({
+      where: { userId, type: "agent_signal" },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      select: {
+        id: true,
+        method: true,
+        amountUsd: true,
+        status: true,
+        label: true,
+        createdAt: true,
       },
     }),
   ]);
@@ -2278,7 +2355,7 @@ async function loadPersonalDiscoverActivity(
           : `Supported ${payment.recipientLabel}`;
       const description =
         payment.kind === "work_reward"
-          ? `${payment.repository ?? "Persisted GitHub evidence"} · ${payment.recipientLabel}`
+          ? `${payment.repository ?? "Persisted GitHub evidence"} / ${payment.recipientLabel}`
           : `Direct support to ${payment.recipientLabel}`;
       const primaryAction = receipt
         ? workbenchAction(
@@ -2342,7 +2419,7 @@ async function loadPersonalDiscoverActivity(
               : "work",
       title: item.title,
       description: isVerifiedWork(item)
-        ? `${item.repository ?? "Verified source"} · ${item.creator.name}`
+        ? `${item.repository ?? "Verified source"} / ${item.creator.name}`
         : item.summary,
       state: isConfirmedOutcome(item) ? "confirmed" : item.status,
       occurredAt: item.updatedAt,
@@ -2358,9 +2435,12 @@ async function loadPersonalDiscoverActivity(
   const eventRows: DiscoverActivityItem[] = events
     .filter(
       (event) =>
-        ![
-          "discover.direct_support_confirmed",
-          "discover.work_reward_confirmed",
+        event.eventType.startsWith("settlement.") ||
+        [
+          "discover.direct_support_received",
+          "discover.work_reward_received",
+          "pool_funding_pending",
+          "application_submitted",
         ].includes(event.eventType),
     )
     .map((event) => {
@@ -2421,10 +2501,56 @@ async function loadPersonalDiscoverActivity(
       };
     });
 
+  const agentRows: DiscoverActivityItem[] = agentTransactions.map(
+    (transaction) => {
+      const labelParts = transaction.label?.split(":") ?? [];
+      const hasKnownPrefix =
+        labelParts[0] === "agent" || labelParts[0] === "agent_tx";
+      const serviceId = hasKnownPrefix ? labelParts[1] : undefined;
+      const taskId = hasKnownPrefix ? labelParts[2] : undefined;
+      const txHash = hasKnownPrefix ? labelParts[3] : undefined;
+      const service = serviceId ? getAgentSignalService(serviceId) : undefined;
+      const primaryAction =
+        txHash && /^0x[0-9a-f]{64}$/i.test(txHash)
+          ? discoverNavigationAction(
+              {
+                id: "receipt.open_arcscan",
+                label: "Open Arc transaction",
+                href: explorerTxUrl(txHash),
+              },
+              { target: "external" },
+            )
+          : undefined;
+      return {
+        id: `agent-service:${transaction.id}`,
+        kind: "agent_service",
+        title: service?.name
+          ? `${service.name} service purchase`
+          : "Agent service purchase",
+        description: [
+          "RESOLVE registered service",
+          taskId ? `Task ${taskId}` : null,
+          transaction.method === "crypto"
+            ? "Connected wallet"
+            : "RESOLVE wallet",
+          "Arc Testnet",
+        ]
+          .filter(Boolean)
+          .join(" / "),
+        state: transaction.status,
+        occurredAt: transaction.createdAt.toISOString(),
+        amountUsd: Math.abs(transaction.amountUsd),
+        token: "USDC",
+        primaryAction,
+      } satisfies DiscoverActivityItem;
+    },
+  );
+
   const seen = new Set<string>();
   return [
     ...fundingRows,
     ...recipientPaymentRows,
+    ...agentRows,
     ...marketplaceRows,
     ...eventRows,
   ]
@@ -2476,7 +2602,7 @@ async function loadDiscoverSourceDiagnostics(
         primaryAction: discoverNavigationAction({
           id: "discover.open_public_repository_analysis",
           label: "Analyze a public repository",
-          href: "/discover?view=explore&analyze=1#repository-analysis",
+          href: "/discover?view=verified_work&analyze=1#repository-analysis",
         }),
         secondaryActions: [],
       },
@@ -2519,7 +2645,7 @@ async function loadDiscoverSourceDiagnostics(
       primaryAction: discoverNavigationAction({
         id: "discover.open_public_repository_analysis",
         label: snapshot ? "Refresh repository analysis" : "Analyze repository",
-        href: `/discover?view=explore&analyze=1&repository=${encodeURIComponent(name)}#repository-analysis`,
+        href: `/discover?view=verified_work&analyze=1&repository=${encodeURIComponent(name)}#repository-analysis`,
       }),
       secondaryActions: [
         discoverNavigationAction(
@@ -2550,8 +2676,6 @@ export async function loadDiscoverPageData(
     1_500,
   ).catch(() => undefined);
   const peoplePromise = userPromise.then(async (user) => {
-    if (view === "outcomes")
-      return { items: [] as DiscoverPerson[], error: null as string | null };
     try {
       return {
         items: await loadCachedDiscoverPeople(user?.id),
@@ -2636,7 +2760,29 @@ export async function loadDiscoverPageData(
     communitiesResult.error && readiness
       ? myDiscoverCommunitiesFromReadiness(readiness)
       : communitiesResult.items;
-  const visibleBeforeWorkActions = opportunities.items.map((item) => {
+  const viewerRequestRows = user
+    ? await prisma.discoverOpportunity
+        .findMany({
+          where: {
+            sourceType: "resolve_request",
+            OR: [
+              { creatorId: user.id },
+              { selectedProviderId: user.id },
+            ],
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 40,
+        })
+        .catch(() => [])
+    : [];
+  const viewerRequests = viewerRequestRows.map((row) =>
+    normalizePersistedOpportunity(row as PersistedOpportunityRow),
+  );
+  const mergedOpportunityMap = new Map<string, MarketplaceOpportunity>();
+  for (const item of [...viewerRequests, ...opportunities.items]) {
+    if (!mergedOpportunityMap.has(item.id)) mergedOpportunityMap.set(item.id, item);
+  }
+  const visibleBeforeWorkActions = [...mergedOpportunityMap.values()].map((item) => {
     if (item.marketplaceKind !== "program" || item.creator.id === user?.id)
       return item;
     return {
@@ -2645,7 +2791,7 @@ export async function loadDiscoverPageData(
         {
           id: "discover.open_program",
           label: "View Program",
-          href: `/discover?view=explore&kind=programs&program=${encodeURIComponent(item.source.id)}`,
+          href: `/discover?view=pools&program=${encodeURIComponent(item.source.id)}`,
         },
         {
           panel: "entity_details",
@@ -2656,18 +2802,38 @@ export async function loadDiscoverPageData(
       secondaryActions: [],
     };
   });
+  const requestAware = attachRequestActions(visibleBeforeWorkActions, user?.id);
   const people = mergeAttributedDiscoverPeople(
     claimedPeople,
-    visibleBeforeWorkActions,
+    requestAware,
   );
   const allVisible = attachVerifiedWorkActions(
-    visibleBeforeWorkActions,
+    requestAware,
     people,
     user?.id,
   );
   const communities = listCommunities(allVisible);
   const pools = listPools(allVisible, user?.id);
   const liveSettlementEnabled = isLiveArcEnabled();
+  const agentBlocker = liveSettlementEnabled
+    ? undefined
+    : getLiveBlockers()[0] ??
+      "Arc Testnet USDC service payments are not available on this deployment.";
+  const agentServices = discoverAgentServices().map((service) => ({
+    id: service.id,
+    name: service.name,
+    tagline: service.tagline,
+    description: service.description,
+    provider: "RESOLVE",
+    priceUsd: service.priceUsd,
+    billingUnit: service.billingUnit,
+    domain: service.domain,
+    deliverables: service.deliverables,
+    examplePrompt: service.examplePrompt,
+    paymentRail: "Arc Testnet USDC for x402-metered service" as const,
+    available: liveSettlementEnabled,
+    blocker: agentBlocker,
+  }));
   const capabilities = deriveUserCapabilities({
     signedIn: Boolean(user),
     payoutReady: people.some(
@@ -2704,7 +2870,7 @@ export async function loadDiscoverPageData(
     myCommunities,
   });
   const activityResult =
-    user && (view === "activity" || view === "for_you")
+    user && (view === "activity" || view === "for_you" || view === "outcomes")
       ? await withTimeout(
           loadPersonalDiscoverActivity(user.id, allVisible, people),
           PERSONAL_ENRICHMENT_TIMEOUT_MS,
@@ -2792,7 +2958,7 @@ export async function loadDiscoverPageData(
     ...new Set(myCommunities.flatMap((community) => community.repositories)),
   ];
   const sourceDiagnostics =
-    view === "activity" || view === "explore" || view === "for_you"
+    view === "activity" || view === "explore" || view === "for_you" || view === "outcomes"
       ? await loadDiscoverSourceDiagnostics(readiness, repositories)
       : [];
   if (peopleResult.error) {
@@ -2903,11 +3069,12 @@ export async function loadDiscoverPageData(
     view,
     category: filters.kind ?? "all",
     inbox,
+    activity,
     people: filteredPeople,
     pools,
     communities,
     opportunities: allVisible,
-    activity,
+    agentServices,
   });
 
   return {
@@ -2921,6 +3088,11 @@ export async function loadDiscoverPageData(
     inbox,
     economicActions,
     sourceDiagnostics,
+    agentMarketplace: {
+      services: agentServices,
+      livePaymentsEnabled: liveSettlementEnabled,
+      blocker: agentBlocker,
+    },
     savedIds: [],
     signedIn: Boolean(user),
     capabilities,

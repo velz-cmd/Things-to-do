@@ -219,6 +219,31 @@ describe("Discover marketplace projections", () => {
     expect(projection.summary).toMatchObject({ funding: 1, in_progress: 1 });
   });
 
+  it("keeps registered agent services in their own market", () => {
+    const service = {
+      id: "citation-verify",
+      name: "Citation verify",
+      tagline: "Verify a citation",
+      description: "Return a structured citation result.",
+      provider: "RESOLVE",
+      priceUsd: 0.003,
+      billingUnit: "signal",
+      domain: "research",
+      deliverables: ["citation status"],
+      examplePrompt: "Verify 10.1038/nature12373",
+      paymentRail: "Arc Testnet USDC via x402" as const,
+      available: false,
+      blocker: "ERC-8183 settlement is disabled until testnet checks pass",
+    };
+    const projection = buildDiscoverProjection({
+      ...baseInput(),
+      view: "agents",
+      agentServices: [service],
+    });
+
+    expect(projection).toEqual({ kind: "agents", items: [service] });
+  });
+
   it("shows Outcomes only when a confirmed receipt opens in the receipt Workbench", () => {
     const receipt = opportunity({
       id: "receipt-1",

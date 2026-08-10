@@ -8,6 +8,7 @@ ENV="${VERCEL_ENV:-unknown}"
 PROJECT_ID="${VERCEL_PROJECT_ID:-unknown}"
 CANONICAL_PROJECT_ID="prj_0xIUtSzxZ2Cqeie8eHYB6iPAKIN0"
 DISCOVER_PREVIEW_REF="codex/discover-final-production"
+DISCOVER_ACTIONS_PREVIEW_REF="codex/discover-economic-actions"
 
 if [ "$PROJECT_ID" != "$CANONICAL_PROJECT_ID" ]; then
   echo "skip: project $PROJECT_ID is not the canonical RESOLVE project"
@@ -19,7 +20,7 @@ if [ "$REF" = "main" ] && [ "$ENV" = "production" ]; then
   exit 1
 fi
 
-if [ "$REF" = "$DISCOVER_PREVIEW_REF" ] && [ "$ENV" = "preview" ]; then
+if [ "$ENV" = "preview" ] && { [ "$REF" = "$DISCOVER_PREVIEW_REF" ] || [ "$REF" = "$DISCOVER_ACTIONS_PREVIEW_REF" ]; }; then
   echo "build: verified Discover preview ($REF)"
   exit 1
 fi

@@ -18,6 +18,7 @@ type ProjectionInput = {
   communities: DiscoverCommunity[];
   opportunities: MarketplaceOpportunity[];
   activity: DiscoverActivityItem[];
+  agentServices?: import("./contracts").DiscoverAgentService[];
 };
 
 export function isVerifiedWork(item: MarketplaceOpportunity) {
@@ -84,6 +85,10 @@ export function buildDiscoverProjection(input: ProjectionInput): DiscoverProject
       items: input.activity,
       summary: activitySummary(input.activity),
     };
+  }
+
+  if (input.view === "agents") {
+    return { kind: "agents", items: input.agentServices ?? [] };
   }
 
   if (input.view === "explore") {

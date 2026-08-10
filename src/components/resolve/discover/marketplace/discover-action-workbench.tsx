@@ -23,6 +23,8 @@ import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
 import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel";
 import { WalletSourcePicker } from "@/components/resolve/fund/wallet-source-picker";
+import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
+import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
 import { PayoutDestinationDrawer } from "@/components/resolve/profile/payout-destination-drawer";
 import { shouldOpenPayoutDestination } from "@/components/resolve/discover/marketplace/workbench-state";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -63,6 +65,12 @@ function titleFor(action: DiscoverAction) {
       return `Support ${action.presentation.target.recipientLabel}`;
     case "work_funding":
       return `Fund ${action.presentation.target.workTitle}`;
+    case "support_bundle":
+      return "Support accepted work";
+    case "request":
+      return action.presentation.target.mode === "post"
+        ? "Post an evidence-backed request"
+        : "Request workspace";
     case "pool_funding":
       return `Fund ${action.presentation.target.poolName}`;
     case "payout_destination":
@@ -79,6 +87,8 @@ function titleFor(action: DiscoverAction) {
       return "Inspect evidence";
     case "transaction":
       return "Track transaction";
+    case "agent_service":
+      return "Agent service";
     case "entity_details":
       return `View ${action.presentation.target.entityType}`;
   }
@@ -535,6 +545,130 @@ function RecipientPaymentPanel({
   );
 }
 
+function SupportBundlePanel({ action }: { action: DiscoverAction }) {
+  const router = useRouter();
+  const spendable = useSpendableUsd();
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "support_bundle"
+      ? action.presentation.target
+      : null;
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [reviewed, setReviewed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<Array<{ subjectId: string; receiptUrl: string; txHash: string }>>([]);
+  const keys = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!target) return;
+    setAmounts(
+      Object.fromEntries(target.workItems.map((item) => [item.subjectId, "5"])),
+    );
+    keys.current = Object.fromEntries(
+      target.workItems.map((item) => [item.subjectId, crypto.randomUUID()]),
+    );
+    setReviewed(false);
+    setResults([]);
+    setError(null);
+  }, [target]);
+
+  if (!target) return null;
+  const currentTarget = target;
+  const total = target.workItems.reduce(
+    (sum, item) => sum + (Number(amounts[item.subjectId]) || 0),
+    0,
+  );
+  const valid =
+    target.workItems.length > 0 &&
+    target.workItems.every((item) => Number(amounts[item.subjectId]) >= 0.01) &&
+    total <= spendable.appSpendableUsd;
+
+  async function submit() {
+    if (!reviewed || !valid) return;
+    setBusy(true);
+    setError(null);
+    const completed = [...results];
+    try {
+      for (const item of currentTarget.workItems) {
+        if (completed.some((result) => result.subjectId === item.subjectId)) continue;
+        setStage(`Confirming ${item.workTitle}`);
+        const response = await fetch("/api/wallet/send", {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            recipientUserId: item.recipientUserId,
+            amountUsd: Number(amounts[item.subjectId]),
+            idempotencyKey: keys.current[item.subjectId],
+            fundingSource: "app",
+            purpose: "work_reward",
+            workSubjectId: item.subjectId,
+          }),
+        });
+        const body = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          receiptUrl?: string;
+          txHash?: string;
+        };
+        if (!response.ok || !body.receiptUrl || !body.txHash) {
+          throw new Error(
+            body.error ?? `The reward for ${item.workTitle} did not confirm`,
+          );
+        }
+        completed.push({
+          subjectId: item.subjectId,
+          receiptUrl: body.receiptUrl,
+          txHash: body.txHash,
+        });
+        setResults([...completed]);
+      }
+      setStage("Every reward is confirmed and receipt-backed");
+      await spendable.refresh().catch(() => null);
+      router.refresh();
+    } catch (reason) {
+      setError(
+        `${reason instanceof Error ? reason.message : "Support bundle stopped"} Completed rewards are preserved and will not be sent again when you retry.`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-5 space-y-4">
+      <p className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4 text-sm leading-6 text-cyan-100">
+        Each selected item is revalidated against current persisted Evidence, attribution, and payout state. Every recipient receives a separate Arc transfer and receipt. Completed transfers survive a partial retry.
+      </p>
+      <div className="space-y-3">
+        {target.workItems.map((item) => {
+          const complete = results.find((result) => result.subjectId === item.subjectId);
+          return (
+            <article key={item.subjectId} className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div><h3 className="text-sm font-semibold text-white">{item.workTitle}</h3><p className="mt-1 text-xs text-slate-400">{item.recipientLabel} / {item.repository}</p></div>
+                {complete ? <span className="text-xs text-emerald-200">Confirmed</span> : null}
+              </div>
+              <label className="mt-3 block text-xs text-slate-400">Reward, USDC<input type="number" min="0.01" step="0.01" value={amounts[item.subjectId] ?? "5"} disabled={reviewed || busy || Boolean(complete)} onChange={(event) => setAmounts((current) => ({ ...current, [item.subjectId]: event.target.value }))} className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white" /></label>
+              {complete ? <a href={complete.receiptUrl} className="mt-3 inline-flex text-xs font-medium text-emerald-200">Open receipt</a> : <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-cyan-200">Inspect source <ExternalLink className="h-3 w-3" /></a>}
+            </article>
+          );
+        })}
+      </div>
+      <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-xs">
+        <div className="flex justify-between gap-3"><span className="text-slate-400">Total</span><strong className="text-white">${total.toFixed(2)} USDC</strong></div>
+        <div className="mt-2 flex justify-between gap-3"><span className="text-slate-400">From</span><span className="text-white">RESOLVE Circle wallet on Arc Testnet</span></div>
+        <div className="mt-2 flex justify-between gap-3"><span className="text-slate-400">Available</span><span className="text-white">${spendable.appSpendableUsd.toFixed(2)} USDC</span></div>
+      </div>
+      {reviewed ? <p className="rounded-lg border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-xs leading-5 text-amber-100">Authorizing starts real transfers. A result appears only after each transaction is confirmed on Arc and its RESOLVE receipt is stored.</p> : null}
+      {stage ? <p aria-live="polite" className="text-sm text-violet-200">{stage}</p> : null}
+      {error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}
+      <button type="button" disabled={!valid || busy || results.length === target.workItems.length} onClick={() => reviewed ? void submit() : setReviewed(true)} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{results.length === target.workItems.length ? "All rewards confirmed" : reviewed ? `Authorise ${target.workItems.length - results.length} Arc transfer${target.workItems.length - results.length === 1 ? "" : "s"}` : "Review support bundle"}</button>
+    </div>
+  );
+}
+
 function PoolFundingPanel({
   action,
   signedIn,
@@ -864,6 +998,189 @@ function PoolFundingPanel({
             ? `Authorise and submit $${Number.isFinite(amountUsd) ? amountUsd.toFixed(2) : "0.00"} USDC`
             : "Review Pool funding"}
       </button>
+    </div>
+  );
+}
+
+type RequestDetail = {
+  opportunity: {
+    id: string;
+    title: string;
+    description: string;
+    status: string;
+    creatorName: string;
+    repository: string | null;
+    rewardAmountUsd: number | null;
+    rewardToken: string | null;
+    evidenceRequirements: unknown;
+    deliverables: unknown;
+    deadline: string | null;
+    fundingStatus: string | null;
+    selectedProviderName: string | null;
+  };
+  viewer: { owner: boolean; selected: boolean };
+  activity: Array<{
+    id: string;
+    eventType: string;
+    summary: string;
+    occurredAt: string;
+  }>;
+  settlement: { status: string; error: string | null } | null;
+};
+
+function RequestPanel({ action, onClose }: { action: DiscoverAction; onClose: () => void }) {
+  const router = useRouter();
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "request"
+      ? action.presentation.target
+      : null;
+  const [requestId, setRequestId] = useState(
+    target?.mode === "view" ? target.subjectId : null,
+  );
+  const [detail, setDetail] = useState<RequestDetail | null>(null);
+  const [loading, setLoading] = useState(Boolean(requestId));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [repository, setRepository] = useState("");
+  const [budget, setBudget] = useState("25");
+  const [evidenceRequirement, setEvidenceRequirement] = useState(
+    "A persisted Evidence record linked to the completed work",
+  );
+  const [acceptanceRequirement, setAcceptanceRequirement] = useState(
+    "The requested result is complete and the requester can inspect its evidence",
+  );
+  const [proposal, setProposal] = useState("");
+  const [evidenceIds, setEvidenceIds] = useState("");
+  const [note, setNote] = useState("");
+  const [showCancellation, setShowCancellation] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
+
+  useEffect(() => {
+    if (!requestId) return;
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    void fetch(
+      `/api/discover/requests?opportunityId=${encodeURIComponent(requestId)}`,
+      { credentials: "include", cache: "no-store", signal: controller.signal },
+    )
+      .then(async (response) => {
+        const body = (await response.json().catch(() => ({}))) as RequestDetail & {
+          error?: string;
+        };
+        if (!response.ok) throw new Error(body.error ?? "Request could not be loaded");
+        setDetail(body);
+      })
+      .catch((reason) => {
+        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+          setError(reason instanceof Error ? reason.message : "Request could not be loaded");
+        }
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [reload, requestId]);
+
+  if (!target) return null;
+
+  async function command(payload: Record<string, unknown>) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/discover/requests", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...payload, idempotencyKey: crypto.randomUUID() }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        blockers?: string[];
+        opportunityId?: string;
+        status?: string;
+        receiptUrl?: string;
+      };
+      if (!response.ok) {
+        const blockers = body.blockers?.length ? ` ${body.blockers.join(" ")}` : "";
+        throw new Error(`${body.error ?? "Request action failed"}${blockers}`);
+      }
+      if (body.opportunityId) setRequestId(body.opportunityId);
+      setMessage(
+        body.receiptUrl
+          ? `Payment confirmed. Receipt: ${body.receiptUrl}`
+          : `Request updated to ${body.status?.replaceAll("_", " ") ?? "the next state"}.`,
+      );
+      setReload((value) => value + 1);
+      router.refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Request action failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!requestId) {
+    const amount = Number(budget);
+    const valid =
+      title.trim().length >= 5 &&
+      description.trim().length >= 30 &&
+      evidenceRequirement.trim().length >= 8 &&
+      acceptanceRequirement.trim().length >= 8 &&
+      Number.isFinite(amount) &&
+      amount >= 0.01;
+    return (
+      <div className="mt-5 space-y-4">
+        <p className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-4 text-sm leading-6 text-cyan-100">
+          Define the result, its acceptance proof, and the budget. RESOLVE saves a private draft first. It becomes public only after Arc escrow confirms the budget.
+        </p>
+        <label className="block text-xs text-slate-400">Request title<input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label>
+        <label className="block text-xs text-slate-400">What must be completed<textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={5} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs text-slate-400">Repository, optional<input value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="owner/repository" className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label>
+          <label className="block text-xs text-slate-400">Budget, USDC<input type="number" min="0.01" step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label>
+        </div>
+        <label className="block text-xs text-slate-400">Required evidence<textarea value={evidenceRequirement} onChange={(event) => setEvidenceRequirement(event.target.value)} rows={2} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label>
+        <label className="block text-xs text-slate-400">Acceptance condition<textarea value={acceptanceRequirement} onChange={(event) => setAcceptanceRequirement(event.target.value)} rows={2} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label>
+        {error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}
+        <button type="button" disabled={!valid || busy} onClick={() => void command({ action: "create", title, description, repository: repository.trim() || undefined, requestType: "task", evidenceRequirement, acceptanceRequirement, budgetUsd: amount })} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}Create private request draft</button>
+      </div>
+    );
+  }
+
+  if (loading && !detail) return <p className="mt-5 flex items-center gap-2 text-sm text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" />Loading canonical request</p>;
+  if (!detail) return <div className="mt-5"><p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error ?? "Request is unavailable"}</p><button type="button" onClick={() => setReload((value) => value + 1)} className="mt-3 rounded-lg border border-white/10 px-3 py-2 text-sm text-white">Retry</button></div>;
+  const request = detail.opportunity;
+  const evidenceList = Array.isArray(request.evidenceRequirements) ? request.evidenceRequirements.join(", ") : "Persisted Evidence required";
+  const deliverables = Array.isArray(request.deliverables) ? request.deliverables.join(", ") : "Requester acceptance required";
+  return (
+    <div className="mt-5 space-y-4">
+      <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-cyan-300">{request.repository ?? "Independent request"}</p><h3 className="mt-1 font-semibold text-white">{request.title}</h3></div><span className="rounded-full border border-white/10 px-2 py-1 text-[10px] capitalize text-slate-300">{request.status.replaceAll("_", " ")}</span></div>
+        <p className="mt-3 text-sm leading-6 text-slate-300">{request.description}</p>
+        <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2"><div><dt className="text-slate-500">Requester</dt><dd className="mt-1 text-white">{request.creatorName}</dd></div><div><dt className="text-slate-500">Budget</dt><dd className="mt-1 text-white">${(request.rewardAmountUsd ?? 0).toFixed(2)} {request.rewardToken ?? "USDC"}</dd></div><div><dt className="text-slate-500">Evidence</dt><dd className="mt-1 text-white">{evidenceList}</dd></div><div><dt className="text-slate-500">Acceptance</dt><dd className="mt-1 text-white">{deliverables}</dd></div></dl>
+      </div>
+      {!detail.viewer.owner && !detail.viewer.selected && request.status === "open" ? <label className="block text-xs text-slate-400">How you will complete it<textarea value={proposal} onChange={(event) => setProposal(event.target.value)} rows={4} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label> : null}
+      {detail.viewer.selected && request.status === "assigned" ? <><label className="block text-xs text-slate-400">Persisted Evidence IDs<input value={evidenceIds} onChange={(event) => setEvidenceIds(event.target.value)} placeholder="evidence_id_1, evidence_id_2" className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label><label className="block text-xs text-slate-400">Submission note<textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label></> : null}
+      {detail.viewer.owner && request.status === "under_review" ? <label className="block text-xs text-slate-400">Approval note<textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label> : null}
+      {showCancellation ? <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-4"><p className="text-sm font-medium text-amber-100">{request.fundingStatus === "escrowed" ? "Review escrow refund" : "Review request cancellation"}</p><p className="mt-1 text-xs leading-5 text-slate-400">{request.fundingStatus === "escrowed" ? "RESOLVE will request the canonical escrow refund. The request closes only after the adapter confirms the refund." : "This private or unfunded request will close without moving funds."}</p><label className="mt-3 block text-xs text-slate-400">Reason<textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} rows={3} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white" /></label><div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={busy || cancellationReason.trim().length < 3} onClick={() => void command({ action: "refund", opportunityId: request.id, reason: cancellationReason })} className="rounded-lg bg-rose-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{request.fundingStatus === "escrowed" ? "Authorise refund" : "Confirm cancellation"}</button><button type="button" disabled={busy} onClick={() => { setShowCancellation(false); setCancellationReason(""); }} className="rounded-lg border border-white/10 px-4 py-3 text-sm text-slate-300 disabled:opacity-50">Keep request open</button></div></div> : null}
+      {message ? <p className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-2 text-sm text-emerald-100">{message}</p> : null}
+      {error ? <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm text-rose-100">{error}</p> : null}
+      <div className="flex flex-wrap gap-2">
+        {detail.viewer.owner && request.status === "ready_to_fund" ? <button type="button" disabled={busy} onClick={() => void command({ action: "fund_publish", opportunityId: request.id })} className="rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Fund escrow and publish</button> : null}
+        {!detail.viewer.owner && !detail.viewer.selected && request.status === "open" ? <button type="button" disabled={busy || proposal.trim().length < 20} onClick={() => void command({ action: "take", opportunityId: request.id, proposal })} className="rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Take request</button> : null}
+        {detail.viewer.selected && request.status === "assigned" ? <button type="button" disabled={busy || note.trim().length < 10 || !evidenceIds.trim()} onClick={() => void command({ action: "submit_work", opportunityId: request.id, evidenceIds: evidenceIds.split(",").map((id) => id.trim()).filter(Boolean), note })} className="rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Submit evidence</button> : null}
+        {detail.viewer.owner && request.status === "under_review" ? <button type="button" disabled={busy || note.trim().length < 3} onClick={() => void command({ action: "approve", opportunityId: request.id, note })} className="rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Approve submitted work</button> : null}
+        {detail.viewer.owner && request.status === "approved" ? <button type="button" disabled={busy} onClick={() => void command({ action: "release", opportunityId: request.id })} className="rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Release payment</button> : null}
+        {detail.viewer.owner && ["ready_to_fund", "open", "assigned"].includes(request.status) && !showCancellation ? <button type="button" disabled={busy} onClick={() => setShowCancellation(true)} className="rounded-lg border border-rose-300/20 px-4 py-3 text-sm text-rose-100 disabled:opacity-50">{request.fundingStatus === "escrowed" ? "Cancel and refund" : "Cancel request"}</button> : null}
+        <button type="button" onClick={() => setReload((value) => value + 1)} disabled={busy || loading} className="rounded-lg border border-white/10 px-4 py-3 text-sm text-slate-300 disabled:opacity-50">Refresh state</button>
+        <button type="button" onClick={onClose} className="rounded-lg border border-white/10 px-4 py-3 text-sm text-slate-300">Close</button>
+      </div>
+      {detail.activity.length ? <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-xs font-semibold text-slate-300">Lifecycle</p><ol className="mt-3 space-y-3">{detail.activity.slice(0, 8).map((row) => <li key={row.id} className="text-xs"><p className="font-medium capitalize text-white">{row.eventType.replaceAll("_", " ")}</p><p className="mt-1 text-slate-400">{row.summary}</p></li>)}</ol></div> : null}
     </div>
   );
 }
@@ -1949,6 +2266,473 @@ function EvidencePanel({
   );
 }
 
+type AgentInvokeResult = {
+  ok?: boolean;
+  error?: string;
+  serviceName?: string;
+  amountUsd?: number;
+  txRef?: string | null;
+  meteringMode?: string;
+  receiptHref?: string | null;
+  taskId?: string;
+  provider?: string;
+  completedAt?: string;
+  summary?: { headline?: string; detail?: string };
+  execution?: {
+    steps?: string[];
+    findings?: string[];
+    recommendations?: string[];
+    deliverables?: string[];
+  } | null;
+  payment?: {
+    txHash: string;
+    explorerUrl: string;
+    chargedUsd: number;
+    balanceUsd: number;
+  };
+};
+
+function AgentServicePanel({
+  action,
+  data,
+  signedIn,
+}: {
+  action: DiscoverAction;
+  data: DiscoverPageData;
+  signedIn: boolean;
+}) {
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "agent_service"
+      ? action.presentation.target
+      : null;
+  const service = target
+    ? data.agentMarketplace.services.find(
+        (candidate) => candidate.id === target.subjectId,
+      )
+    : undefined;
+  const priceUsd = service?.priceUsd ?? 0;
+  const [quotedPriceUsd, setQuotedPriceUsd] = useState<number | null>(null);
+  const [quotedAt, setQuotedAt] = useState<string | null>(null);
+  const [quotePending, setQuotePending] = useState(false);
+  const effectivePriceUsd = quotedPriceUsd ?? priceUsd;
+  const walletChoice = useFundingWalletChoice(effectivePriceUsd);
+  const { payAgentSignalWithWallet } = useResolveAccess();
+  const [prompt, setPrompt] = useState(service?.examplePrompt ?? "");
+  const [maxSpend, setMaxSpend] = useState(
+    String(Math.max(0.05, priceUsd * 2)),
+  );
+  const [reviewed, setReviewed] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [stage, setStage] = useState("Ready for review");
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AgentInvokeResult | null>(null);
+
+  useEffect(() => {
+    setPrompt(service?.examplePrompt ?? "");
+    setMaxSpend(String(Math.max(0.05, (service?.priceUsd ?? 0) * 2)));
+    setReviewed(false);
+    setError(null);
+    setResult(null);
+    setQuotedPriceUsd(null);
+    setQuotedAt(null);
+    setQuotePending(false);
+    setStage("Ready for review");
+  }, [service?.examplePrompt, service?.id, service?.priceUsd]);
+
+  if (!target || !service) {
+    return (
+      <p role="alert" className="mt-5 text-sm text-rose-200">
+        This service is no longer present in the registered provider catalog.
+      </p>
+    );
+  }
+  const selectedService = service;
+
+  const maxSpendUsd = Number(maxSpend);
+  const capValid =
+    Number.isFinite(maxSpendUsd) && maxSpendUsd >= effectivePriceUsd;
+  const canQuote = Boolean(
+    service.available && prompt.trim() && capValid && !pending && !quotePending,
+  );
+  const canReview = Boolean(
+    signedIn &&
+      service.available &&
+      quotedPriceUsd !== null &&
+      prompt.trim() &&
+      capValid &&
+      walletChoice.fundingSource &&
+      !pending,
+  );
+
+  async function getCurrentQuote() {
+    if (!canQuote) return;
+    setQuotePending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/agent/services", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const body = (await response.json().catch(() => null)) as {
+        services?: Array<{ id?: unknown; priceUsd?: unknown }>;
+        updatedAt?: unknown;
+      } | null;
+      const current = body?.services?.find(
+        (candidate) => candidate.id === selectedService.id,
+      );
+      if (
+        !response.ok ||
+        !current ||
+        typeof current.priceUsd !== "number" ||
+        !Number.isFinite(current.priceUsd) ||
+        current.priceUsd <= 0
+      ) {
+        throw new Error("The provider did not return a valid current quote.");
+      }
+      setQuotedPriceUsd(current.priceUsd);
+      setQuotedAt(
+        typeof body?.updatedAt === "string"
+          ? body.updatedAt
+          : new Date().toISOString(),
+      );
+      if (current.priceUsd > maxSpendUsd) {
+        throw new Error(
+          `Price changed to ${current.priceUsd.toFixed(3)} USDC. Your maximum is ${maxSpendUsd.toFixed(3)} USDC. Review the new price before continuing.`,
+        );
+      }
+      setReviewed(true);
+      setStage("Current quote ready for review");
+    } catch (reason) {
+      setReviewed(false);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The current quote could not be loaded.",
+      );
+    } finally {
+      setQuotePending(false);
+    }
+  }
+
+  async function runService() {
+    if (!canReview || !reviewed) return;
+    setPending(true);
+    setError(null);
+    setResult(null);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 90_000);
+    let paymentTxHash: string | undefined;
+    try {
+      const fundingSource = walletChoice.assertFundingSource();
+      if (fundingSource === "external") {
+        setStage("Waiting for the connected-wallet Arc signature");
+        const paid = await payAgentSignalWithWallet(effectivePriceUsd);
+        paymentTxHash = paid.txHash;
+      } else {
+        setStage("Submitting the Arc charge from the RESOLVE wallet");
+      }
+      setStage("Running the service with the authorised spend cap");
+      const response = await fetch("/api/agent/invoke", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          serviceId: selectedService.id,
+          prompt: prompt.trim(),
+          text: prompt.trim(),
+          maxSpendUsd,
+          paymentTxHash,
+        }),
+      });
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as AgentInvokeResult;
+      setResult(body);
+      if (!response.ok || !body.ok) {
+        throw new Error(body.error ?? `Service run failed (${response.status})`);
+      }
+      setStage("Result returned and execution recorded");
+      await walletChoice.spendable.refresh().catch(() => null);
+    } catch (reason) {
+      const message =
+        reason instanceof DOMException && reason.name === "AbortError"
+          ? "The service did not return before the 90-second timeout. Check the recorded Arc transaction before retrying."
+          : reason instanceof Error
+            ? reason.message
+            : "The service run failed.";
+      setError(message);
+      setStage(paymentTxHash ? "Payment submitted, result needs review" : "Run failed before payment confirmation");
+    } finally {
+      window.clearTimeout(timer);
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="mt-5 space-y-4">
+      <section className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-cyan-300">
+              {service.provider}
+            </p>
+            <h3 className="mt-1 font-semibold text-white">{service.name}</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              {service.description}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full border border-white/10 px-2.5 py-1 text-xs text-white">
+            {effectivePriceUsd.toFixed(3)} USDC
+          </span>
+        </div>
+        <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
+          <div>
+            <dt className="text-slate-500">Billing unit</dt>
+            <dd className="mt-1 text-white">Per {service.billingUnit}</dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Payment rail</dt>
+            <dd className="mt-1 text-white">{service.paymentRail}</dd>
+          </div>
+          <div className="sm:col-span-2">
+            <dt className="text-slate-500">Expected result</dt>
+            <dd className="mt-1 text-white">
+              {service.deliverables.join(" / ")}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      {!service.available ? (
+        <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-4">
+          <p className="font-semibold text-amber-100">
+            Paid execution is unavailable
+          </p>
+          <p className="mt-2 text-sm leading-6 text-amber-100/80">
+            {service.blocker}. RESOLVE will not request a wallet signature,
+            charge USDC, or claim a service result while this requirement is
+            unresolved.
+          </p>
+        </div>
+      ) : (
+        <>
+          <label className="block text-xs text-slate-400">
+            Service input
+            <textarea
+              value={prompt}
+              onChange={(event) => {
+                setPrompt(event.target.value);
+                setReviewed(false);
+              }}
+              disabled={pending || reviewed}
+              rows={5}
+              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm leading-6 text-white outline-none focus:border-violet-300/50"
+            />
+          </label>
+          <label className="block text-xs text-slate-400">
+            Maximum spend in USDC
+            <input
+              type="number"
+              min={effectivePriceUsd}
+              step="0.001"
+              value={maxSpend}
+              onChange={(event) => {
+                setMaxSpend(event.target.value);
+                setReviewed(false);
+              }}
+              disabled={pending || reviewed}
+              className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white"
+            />
+          </label>
+          <PayFromWalletSection
+            amountUsd={effectivePriceUsd}
+            disabled={pending || reviewed}
+            choice={walletChoice}
+          />
+          {reviewed ? (
+            <section className="rounded-xl border border-violet-300/20 bg-violet-300/[0.04] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-white">Review purchase</h3>
+                <button
+                  type="button"
+                  onClick={() => setReviewed(false)}
+                  className="text-xs text-violet-200"
+                >
+                  Modify
+                </button>
+              </div>
+              <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
+                <div>
+                  <dt className="text-slate-500">Service</dt>
+                  <dd className="mt-1 text-white">{service.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Provider</dt>
+                  <dd className="mt-1 text-white">{service.provider}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Price</dt>
+                  <dd className="mt-1 text-white">
+                    {effectivePriceUsd.toFixed(3)} USDC
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Maximum spend</dt>
+                  <dd className="mt-1 text-white">
+                    {maxSpendUsd.toFixed(3)} USDC
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Pay from</dt>
+                  <dd className="mt-1 capitalize text-white">
+                    {walletChoice.fundingSource === "app"
+                      ? "RESOLVE wallet"
+                      : "Connected wallet"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Network</dt>
+                  <dd className="mt-1 text-white">Arc Testnet</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Network fee</dt>
+                  <dd className="mt-1 text-white">
+                    Not separately quoted by the current payment provider
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">USDC service total</dt>
+                  <dd className="mt-1 text-white">
+                    {effectivePriceUsd.toFixed(3)} USDC
+                  </dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-slate-500">Quote checked</dt>
+                  <dd className="mt-1 text-white">
+                    {quotedAt ? new Date(quotedAt).toLocaleString() : "Not checked"}
+                  </dd>
+                </div>
+              </dl>
+              <p className="mt-3 text-xs leading-5 text-amber-100">
+                Authorising pays once for this run. A connected wallet asks for
+                a human signature. A RESOLVE wallet submits through the
+                canonical Circle-managed path.
+              </p>
+            </section>
+          ) : null}
+          <button
+            type="button"
+            data-action-id={
+              reviewed
+                ? "discover.run_agent_service"
+                : "discover.quote_agent_service"
+            }
+            disabled={reviewed ? !canReview || pending : !canQuote}
+            onClick={() => {
+              if (!reviewed) void getCurrentQuote();
+              else void runService();
+            }}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {pending || quotePending ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : null}
+            {quotePending
+              ? "Getting current quote"
+              : pending
+              ? stage
+              : reviewed
+                ? `Authorise and run for ${effectivePriceUsd.toFixed(3)} USDC`
+                : "Get current quote"}
+          </button>
+        </>
+      )}
+
+      {error ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm leading-6 text-rose-100"
+        >
+          <p>{error}</p>
+          {result?.payment?.explorerUrl ? (
+            <a
+              href={result.payment.explorerUrl}
+              data-action-id="receipt.open_arcscan"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-2 font-medium text-rose-50 underline underline-offset-4"
+            >
+              Check the submitted Arc transaction before retrying
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+      {result?.ok ? (
+        <section className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-4">
+          <div className="flex items-center gap-2 text-emerald-200">
+            <CheckCircle2 className="h-5 w-5" />
+            <strong>{result.summary?.headline ?? "Service completed"}</strong>
+          </div>
+          {result.summary?.detail ? (
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              {result.summary.detail}
+            </p>
+          ) : null}
+          {result.execution?.findings?.length ? (
+            <ul className="mt-3 space-y-1 text-xs text-slate-300">
+              {result.execution.findings.map((finding) => (
+                <li key={finding}>{finding}</li>
+              ))}
+            </ul>
+          ) : null}
+          <dl className="mt-4 grid grid-cols-[110px_1fr] gap-y-2 text-xs">
+            <dt className="text-slate-500">Charged</dt>
+            <dd className="text-white">
+              {(result.payment?.chargedUsd ?? result.amountUsd ?? effectivePriceUsd).toFixed(3)} USDC
+            </dd>
+            <dt className="text-slate-500">Task</dt>
+            <dd className="break-all text-white">{result.taskId ?? "Recorded"}</dd>
+            <dt className="text-slate-500">Provider</dt>
+            <dd className="text-white">{result.provider ?? service.provider}</dd>
+            <dt className="text-slate-500">Completed</dt>
+            <dd className="text-white">
+              {result.completedAt
+                ? new Date(result.completedAt).toLocaleString()
+                : "Recorded by provider"}
+            </dd>
+          </dl>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {result.receiptHref ? (
+              <a
+                href={result.receiptHref}
+                data-action-id="receipt.open"
+                className="rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-white"
+              >
+                View result record
+              </a>
+            ) : null}
+            {result.payment?.explorerUrl ? (
+              <a
+                href={result.payment.explorerUrl}
+                data-action-id="receipt.open_arcscan"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200"
+              >
+                Open ArcScan
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 function InformationalPanel({
   action,
   item,
@@ -2003,6 +2787,7 @@ export function DiscoverActionWorkbench({
   onClose,
 }: Props) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const { openSignIn } = useSignInModal();
   const target =
     action?.presentation.kind === "workbench"
@@ -2011,16 +2796,20 @@ export function DiscoverActionWorkbench({
   const authenticationRequired = Boolean(
     target &&
     !data.signedIn &&
-    [
+    ([
       "payout_destination",
       "direct_support",
       "work_funding",
       "pool_funding",
+      "support_bundle",
+      "request",
       "program_setup",
       "source_sync",
       "authorization_review",
       "transaction",
-    ].includes(target.panel),
+    ].includes(target.panel) ||
+      (target.panel === "agent_service" &&
+        action?.id === "discover.run_agent_service")),
   );
   useEffect(() => {
     if (!action || !target) return;
@@ -2031,6 +2820,23 @@ export function DiscoverActionWorkbench({
     closeButtonRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
+      if (event.key === "Tab" && dialogRef.current) {
+        const focusable = Array.from(
+          dialogRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((element) => !element.hasAttribute("hidden"));
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (!first || !last) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -2041,7 +2847,10 @@ export function DiscoverActionWorkbench({
   const financial =
     target?.panel === "direct_support" ||
     target?.panel === "work_funding" ||
-    target?.panel === "pool_funding";
+    target?.panel === "pool_funding" ||
+    target?.panel === "support_bundle" ||
+    target?.panel === "request" ||
+    target?.panel === "agent_service";
   const title = useMemo(
     () => (action ? titleFor(action) : "Discover action"),
     [action],
@@ -2057,6 +2866,7 @@ export function DiscoverActionWorkbench({
         }}
       >
         <section
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby="discover-workbench-title"
@@ -2115,6 +2925,19 @@ export function DiscoverActionWorkbench({
               {target.panel === "pool_funding" ? (
                 <PoolFundingPanel action={action} signedIn={data.signedIn} />
               ) : null}
+              {target.panel === "support_bundle" ? (
+                <SupportBundlePanel action={action} />
+              ) : null}
+              {target.panel === "request" ? (
+                <RequestPanel action={action} onClose={onClose} />
+              ) : null}
+              {target.panel === "agent_service" ? (
+                <AgentServicePanel
+                  action={action}
+                  data={data}
+                  signedIn={data.signedIn}
+                />
+              ) : null}
               {target.panel === "source_sync" ? (
                 <SourceSyncPanel action={action} />
               ) : null}
@@ -2134,12 +2957,15 @@ export function DiscoverActionWorkbench({
                 "direct_support",
                 "work_funding",
                 "pool_funding",
+                "support_bundle",
+                "request",
                 "source_sync",
                 "program_setup",
                 "authorization_review",
                 "payout_destination",
                 "transaction",
                 "entity_details",
+                "agent_service",
               ].includes(target.panel) ? (
                 <InformationalPanel action={action} item={item} />
               ) : null}

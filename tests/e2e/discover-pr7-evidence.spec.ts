@@ -5,7 +5,7 @@ test.describe("Discover accepted GitHub evidence", () => {
     page,
   }) => {
     test.setTimeout(180_000);
-    await page.goto("/discover?view=explore&kind=work", {
+    await page.goto("/discover?view=verified_work", {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
@@ -38,6 +38,17 @@ test.describe("Discover accepted GitHub evidence", () => {
     const workRow = page
       .getByRole("heading", { name: workTitle, exact: true })
       .locator("xpath=ancestor::article");
+    await expect(
+      workRow.getByText("Evidence verified", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      workRow.getByText("Not currently covered", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      workRow.getByText(
+        /Payout ready|Payout setup required|Contributor unclaimed|Payout not ready|Reward unavailable/,
+      ),
+    ).toBeVisible();
     await workRow
       .getByRole("button", { name: "Inspect evidence", exact: true })
       .click();
@@ -55,49 +66,47 @@ test.describe("Discover accepted GitHub evidence", () => {
     );
     await dialog.getByRole("button", { name: "Close Discover action" }).click();
 
-    await page.getByRole("link", { name: "People", exact: true }).click();
-    await expect(page).toHaveURL(/kind=people/);
-    const claimedHandle = page.getByText("@velz-cmd", { exact: true });
-    await expect(claimedHandle).toBeVisible();
-    const personCard = page
-      .getByText("@velz-cmd", { exact: true })
-      .locator("xpath=ancestor::article");
-    await expect(
-      personCard.getByText("Accepted work", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      personCard.locator("dd").filter({ hasText: /^1$/ }),
-    ).toBeVisible();
+    if (await workRow.getByText("Payout ready", { exact: true }).count()) {
+      await expect(
+        workRow.getByRole("button", {
+          name: "Reward this work",
+          exact: true,
+        }),
+      ).toBeVisible();
+    } else {
+      await expect(
+        workRow
+          .getByRole("button", {
+            name: /Choose payout wallet|Inspect evidence/,
+          })
+          .first(),
+      ).toBeVisible();
+    }
   });
 
-  test("keeps the four marketplace categories usable at mobile width", async ({
+  test("keeps the five Discover products usable at mobile width", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/discover?view=explore", {
+    await page.goto("/discover?view=verified_work", {
       waitUntil: "domcontentloaded",
     });
     const categories = page.getByRole("navigation", {
-      name: "Marketplace categories",
+      name: "Discover sections",
     });
     await expect(categories.getByRole("link")).toHaveText([
-      "All",
-      "Work",
-      "People",
+      "Verified Work",
+      "Open Requests",
       "Pools",
+      "Agent Marketplace",
+      "Activity",
     ]);
-    await categories.getByRole("link", { name: "Work", exact: true }).click();
-    await expect(
-      page.getByRole("heading", { name: /^Work/ }),
-    ).toBeVisible();
     await categories.getByRole("link", { name: "Pools", exact: true }).click();
+    await expect(page).toHaveURL(/view=pools/);
     await expect(
-      page.getByRole("heading", { name: /^Pools/ }),
-    ).toBeVisible();
-    await categories.getByRole("link", { name: "People", exact: true }).click();
-    await expect(page).toHaveURL(/kind=people/);
-    await expect(
-      page.getByRole("heading", { name: /^People/ }),
+      page.getByRole("heading", {
+        name: "Pools with visible rules, treasury state, and receipts",
+      }),
     ).toBeVisible();
     const overflow = await page.evaluate(
       () =>

@@ -72,7 +72,7 @@ export async function chargeAgentSignalOnArc(input: {
       ok: false,
       error:
         maxCharge <= 0
-          ? "Not enough USDC on Arc — deposit USDC to your RESOLVE wallet on Arc testnet"
+          ? "Not enough USDC on Arc. Deposit USDC to your RESOLVE wallet on Arc Testnet."
           : `Insufficient on-chain balance: $${spendable.availableUsd.toFixed(2)} available on Arc, need $${amount.toFixed(3)}`,
       balanceUsd: spendable.availableUsd,
       onChainUsd: spendable.onChainUsd,

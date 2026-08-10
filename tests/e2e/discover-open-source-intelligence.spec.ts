@@ -3,16 +3,17 @@ import { expect, test } from "@playwright/test";
 test.describe("Discover Economic Action Network", () => {
   test.setTimeout(120_000);
 
-  test("switches through the four primary views without integration gates", async ({ page }) => {
+  test("switches through the five primary views without integration gates", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
 
     const views = [
-      ["Explore", "explore"],
-      ["My Activity", "activity"],
-      ["Outcomes", "outcomes"],
-      ["For You", "for_you"],
+      ["Open Requests", "requests"],
+      ["Pools", "pools"],
+      ["Agent Marketplace", "agents"],
+      ["Activity", "activity"],
+      ["Verified Work", "verified_work"],
     ] as const;
     for (const [label, value] of views) {
       await page.getByRole("link", { name: label, exact: true }).click();
@@ -21,23 +22,22 @@ test.describe("Discover Economic Action Network", () => {
     }
   });
 
-  test("keeps Explore intent and search state in the URL", async ({ page }) => {
-    await page.goto("/discover?view=explore&kind=work&repository=octocat%2FHello-World", {
+  test("keeps Verified Work search and repository state in the URL", async ({ page }) => {
+    await page.goto("/discover?view=verified_work&repository=octocat%2FHello-World", {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
-    await expect(page.getByRole("link", { name: "Work", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("link", { name: "Verified Work", exact: true })).toHaveAttribute("aria-current", "page");
     const search = page.getByRole("searchbox", { name: "Search Discover" });
     await search.fill("typescript");
     await search.press("Enter");
-    await expect(page).toHaveURL(/view=explore/);
-    await expect(page).toHaveURL(/kind=work/);
+    await expect(page).toHaveURL(/view=verified_work/);
     await expect(page).toHaveURL(/repository=octocat%2FHello-World/);
     await expect(page).toHaveURL(/q=typescript/, { timeout: 10_000 });
   });
 
   test("analyzes a public repository without requiring sign in", async ({ page }) => {
-    await page.goto("/discover?view=explore&analyze=1", {
+    await page.goto("/discover?view=verified_work&analyze=1", {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
@@ -54,23 +54,23 @@ test.describe("Discover Economic Action Network", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "My Activity", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Activity", exact: true })).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
-  test("shows factual empty outcome copy when no receipt exists", async ({ page }) => {
-    await page.goto("/discover?view=outcomes", { waitUntil: "domcontentloaded", timeout: 120_000 });
+  test("keeps receipt claims behind the signed-in Activity ledger", async ({ page }) => {
+    await page.goto("/discover?view=activity", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
-    const empty = page.getByRole("heading", { name: "No confirmed outcomes yet" });
-    const hasEmptyState = await empty.waitFor({ state: "visible", timeout: 2_000 }).then(() => true).catch(() => false);
-    if (hasEmptyState) {
-      await expect(empty).toBeVisible();
-      await expect(empty.locator("..").getByText(/after settlement and receipt issuance/)).toBeVisible();
+    const signedOut = page.getByRole("heading", { name: "Sign in to view your economic activity" });
+    const isSignedOut = await signedOut.waitFor({ state: "visible", timeout: 2_000 }).then(() => true).catch(() => false);
+    if (isSignedOut) {
+      await expect(signedOut).toBeVisible();
     } else {
-      await expect(page.getByRole("heading", { name: "Confirmed outcomes", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Activity and receipts", exact: true })).toBeVisible();
+      await expect(page.getByText(/No receipt-backed outcome is confirmed|Receipt archive/)).toBeVisible();
     }
   });
 

@@ -11,6 +11,7 @@ import {
 } from "../../src/lib/discover/marketplace/filters";
 import {
   collectMarketplaceSourceResults,
+  attachRequestActions,
   attachVerifiedWorkActions,
   confirmedFundingUsd,
   deduplicateMarketplaceOpportunities,
@@ -26,6 +27,7 @@ import {
   normalizeGithubAcceptedWork,
 } from "../../src/lib/discover/marketplace/read-model";
 import type { FundingOpportunity } from "../../src/lib/github/types";
+import { discoverRequestCommandSchema } from "../../src/lib/discover/request-contract";
 
 function program(overrides: Partial<ProgramOpportunityRow> = {}): ProgramOpportunityRow {
   return {
@@ -223,7 +225,11 @@ describe("Discover marketplace URL state and pagination", () => {
     expect(parseDiscoverView("programs")).toBe("explore");
     expect(parseDiscoverView("people")).toBe("explore");
     expect(parseDiscoverView("work")).toBe("explore");
-    expect(parseDiscoverView("pools")).toBe("explore");
+    expect(parseDiscoverView("pools")).toBe("activity");
+    expect(parseDiscoverView("verified_work")).toBe("for_you");
+    expect(parseDiscoverView("requests")).toBe("explore");
+    expect(parseDiscoverView("agents")).toBe("agents");
+    expect(parseDiscoverView("agent_marketplace")).toBe("agents");
     expect(parseDiscoverView("opportunities")).toBe("for_you");
     expect(parseDiscoverView("saved")).toBe("for_you");
     expect(parseDiscoverView("unknown")).toBe("for_you");
@@ -449,7 +455,7 @@ describe("Discover canonical projections", () => {
       entityState: { financialReadiness: "ready", blocker: undefined },
       primaryAction: {
         id: "discover.fund_verified_work",
-        label: "Fund this work",
+        label: "Reward this work",
         requiresConfirmation: true,
         presentation: {
           kind: "workbench",
@@ -460,6 +466,24 @@ describe("Discover canonical projections", () => {
           },
         },
       },
+    });
+    const settlementPaused = attachVerifiedWorkActions(
+      result,
+      [claimedPerson],
+      "funder-1",
+      false,
+    );
+    expect(settlementPaused[0]).toMatchObject({
+      creator: { id: "recipient-1" },
+      primaryAction: {
+        id: "discover.fund_verified_work",
+        label: "Reward this work",
+        enabled: false,
+        disabledReason: expect.stringContaining("Arc settlement"),
+      },
+      secondaryActions: [
+        expect.objectContaining({ id: "discover.open_evidence" }),
+      ],
     });
     const blocked = attachVerifiedWorkActions(result, [claimedPerson], "recipient-1", true);
     expect(blocked[0]).toMatchObject({
@@ -482,5 +506,45 @@ describe("Discover canonical projections", () => {
         },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("Discover Open Request contract", () => {
+  const request = opportunity({
+    id: "request-1",
+    status: "open",
+    creator: { type: "founder", id: "owner-1", name: "Requester", verified: true },
+    provider: { preference: "open" },
+    source: { type: "resolve_request", id: "request-1" },
+  });
+
+  it("rejects an unfalsifiable or under-specified request", () => {
+    const result = discoverRequestCommandSchema.safeParse({
+      action: "create",
+      idempotencyKey: "6ebdb39c-912b-4aa9-8d3b-27a9a23c1d2f",
+      title: "Fix",
+      description: "Do something",
+      requestType: "task",
+      evidenceRequirement: "PR",
+      acceptanceRequirement: "Done",
+      budgetUsd: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("derives the next request action from ownership and lifecycle", () => {
+    expect(attachRequestActions([request], "worker-1")[0].primaryAction).toMatchObject({
+      id: "discover.take_request",
+      label: "Take request",
+      requiresConfirmation: true,
+    });
+    expect(
+      attachRequestActions([{ ...request, status: "under_review" }], "owner-1")[0]
+        .primaryAction,
+    ).toMatchObject({ id: "discover.review_request", label: "Review submitted work" });
+    expect(
+      attachRequestActions([{ ...request, status: "approved" }], "owner-1")[0]
+        .primaryAction,
+    ).toMatchObject({ id: "discover.release_request", label: "Release payment" });
   });
 });

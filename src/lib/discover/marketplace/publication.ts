@@ -118,6 +118,7 @@ export function opportunityMatchesView(
   view: DiscoverView,
 ): boolean {
   if (view === "outcomes") return opportunity.source.type === "confirmed_receipt";
+  if (view === "agents") return false;
   return true;
 }
 

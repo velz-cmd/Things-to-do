@@ -66,14 +66,25 @@ test.describe("Discover accepted GitHub evidence", () => {
     );
     await dialog.getByRole("button", { name: "Close Discover action" }).click();
 
-    await expect(
-      workRow.getByRole("button", {
-        name: /Reward this work|Choose payout wallet|Inspect evidence/,
-      }),
-    ).toBeVisible();
+    if (await workRow.getByText("Payout ready", { exact: true }).count()) {
+      await expect(
+        workRow.getByRole("button", {
+          name: "Reward this work",
+          exact: true,
+        }),
+      ).toBeVisible();
+    } else {
+      await expect(
+        workRow
+          .getByRole("button", {
+            name: /Choose payout wallet|Inspect evidence/,
+          })
+          .first(),
+      ).toBeVisible();
+    }
   });
 
-  test("keeps the four Discover products usable at mobile width", async ({
+  test("keeps the five Discover products usable at mobile width", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -87,6 +98,7 @@ test.describe("Discover accepted GitHub evidence", () => {
       "Verified Work",
       "Open Requests",
       "Pools",
+      "Agent Marketplace",
       "Activity",
     ]);
     await categories.getByRole("link", { name: "Pools", exact: true }).click();

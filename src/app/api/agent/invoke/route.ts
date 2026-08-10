@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { dbPoolErrorMessage, isDbPoolExhaustedError } from "@/lib/db/connection";
 import { requireReadyUser } from "@/lib/auth/session";
@@ -16,16 +17,19 @@ import type { X402MicroResult } from "@/lib/agent/x402-micro";
 
 export const maxDuration = 120;
 
-type InvokeBody = {
-  serviceId?: string;
-  taskId?: string;
-  prompt?: string;
-  text?: string;
-  missionId?: string;
-  maxSpendUsd?: number;
-  /** Verified when user paid with a connected wallet on Arc */
-  paymentTxHash?: string;
-};
+const invokeBodySchema = z
+  .object({
+    serviceId: z.string().trim().min(1).max(120).optional(),
+    taskId: z.string().trim().min(1).max(160).optional(),
+    prompt: z.string().trim().max(20_000).optional(),
+    text: z.string().trim().max(20_000).optional(),
+    missionId: z.string().trim().min(1).max(160).optional(),
+    maxSpendUsd: z.number().finite().positive().max(100).optional(),
+    paymentTxHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
+  })
+  .refine((value) => Boolean(value.serviceId || value.prompt || value.text), {
+    message: "serviceId or matching prompt required",
+  });
 
 function asMicroResult(data: unknown): X402MicroResult | null {
   if (!data || typeof data !== "object") return null;
@@ -90,7 +94,7 @@ function buildExecutionReport(data: unknown) {
   };
 }
 
-/** Invoke a pay-per-signal service — Arc USDC charge first, then intel. No off-chain-only charges in production. */
+/** Invoke a pay-per-signal service. Arc USDC is charged before execution in production. */
 export async function POST(req: Request) {
   try {
     return await handleAgentInvoke(req);
@@ -111,7 +115,20 @@ async function handleAgentInvoke(req: Request) {
     return NextResponse.json({ error: ready.error }, { status: ready.status });
   }
 
-  const body = (await req.json()) as InvokeBody;
+  const parsed = invokeBodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      {
+        error: parsed.error.issues[0]?.message ?? "Invalid service request",
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      },
+      { status: 400 },
+    );
+  }
+  const body = parsed.data;
   let serviceId = body.serviceId;
   const prompt = body.prompt ?? body.text ?? "";
   if (!serviceId && prompt) {
@@ -128,14 +145,26 @@ async function handleAgentInvoke(req: Request) {
 
   const budgetUsd = Math.max(body.maxSpendUsd ?? service.priceUsd ?? 0.05, 0.05);
   const priceUsd = service.priceUsd;
+  if (body.maxSpendUsd !== undefined && priceUsd > body.maxSpendUsd) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "PRICE_CHANGED",
+        error: `Current price is ${priceUsd.toFixed(3)} USDC. Your maximum spend is ${body.maxSpendUsd.toFixed(3)} USDC. Review the new price before continuing.`,
+        currentPriceUsd: priceUsd,
+        maximumSpendUsd: body.maxSpendUsd,
+      },
+      { status: 409 },
+    );
+  }
 
   let taskId = body.taskId;
   if (!taskId) {
     const task = await prisma.task.create({
       data: {
         title: prompt
-          ? `Agent intel · ${prompt.slice(0, 48)}`
-          : `Agent signal · ${serviceId}`,
+          ? `Agent intel / ${prompt.slice(0, 48)}`
+          : `Agent signal / ${serviceId}`,
         category: "agent_commerce",
         targetValueUsd: 1,
         budgetUsd,
@@ -246,6 +275,8 @@ async function handleAgentInvoke(req: Request) {
     continue: result.continue,
     serviceId: result.serviceId,
     serviceName: result.serviceName,
+    provider: "RESOLVE",
+    completedAt: new Date().toISOString(),
     amountUsd: result.amountUsd,
     txRef: payment?.txHash ?? result.txRef,
     meteringMode: result.meteringMode,

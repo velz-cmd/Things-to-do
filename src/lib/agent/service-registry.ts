@@ -1,5 +1,5 @@
 /**
- * Agent Signal Commerce — discoverable pay-per-request services.
+ * Agent Signal Commerce, discoverable pay-per-request services.
  * Maps Circle Agent Stack x402 flows to RESOLVE RFB pay-per-signal doctrine.
  */
 
@@ -18,7 +18,7 @@ export type AgentSignalService = {
   description: string;
   /** Per-unit price in USDC */
   priceUsd: number;
-  /** App-relative path — resolved to full URL at runtime */
+  /** App-relative path, resolved to full URL at runtime */
   urlPath: string;
   billingUnit: AgentBillingUnit;
   /** Ledger event type after successful pay */
@@ -34,7 +34,7 @@ export type AgentSignalService = {
   examplePrompt: string;
 };
 
-/** Phase 6 x402 micro-services — agents find → pay → move on Arc. */
+/** Phase 6 x402 micro-services, agents find, pay, and move on Arc. */
 const X402_MICRO_CATALOG: AgentSignalService[] = [
   {
     id: "sentiment-per-request",
@@ -58,7 +58,7 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
     name: "Citation verify",
     tagline: "Verify DOI / arXiv in citation text",
     description:
-      "Parse and verify citation identifiers in research snippets — $0.003 per signal.",
+      "Parse and verify citation identifiers in research snippets, $0.003 per signal.",
     priceUsd: 0.003,
     urlPath: "/api/x402/micro/citation-verify",
     billingUnit: "signal",
@@ -76,7 +76,7 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
     name: "Docs review",
     tagline: "Heuristic docs quality score",
     description:
-      "Score documentation PR snippets for structure and depth — $0.02 per review signal.",
+      "Score documentation PR snippets for structure and depth, $0.02 per review signal.",
     priceUsd: 0.02,
     urlPath: "/api/x402/micro/docs-review",
     billingUnit: "signal",
@@ -94,7 +94,7 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
     name: "Attribution",
     tagline: "Parse artist/track attribution",
     description:
-      "Extract MusicBrainz-style attribution from play activity text — $0.002 per signal.",
+      "Extract MusicBrainz-style attribution from play activity text, $0.002 per signal.",
     priceUsd: 0.002,
     urlPath: "/api/x402/micro/attribution",
     billingUnit: "signal",
@@ -105,14 +105,14 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
     method: "GET",
     discoverable: true,
     examplePrompt:
-      "Attribute play — artist: Radiohead, track: Everything In Its Right Place",
+      "Attribute play, artist: Radiohead, track: Everything In Its Right Place",
   },
   {
     id: "security-signal",
     name: "Security signal",
     tagline: "CVE extraction from advisory text",
     description:
-      "Extract CVE references and severity hints from security advisories — $0.10 per signal.",
+      "Extract CVE references and severity hints from security advisories, $0.10 per signal.",
     priceUsd: 0.1,
     urlPath: "/api/x402/micro/security-signal",
     billingUnit: "signal",
@@ -123,14 +123,14 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
     method: "GET",
     discoverable: true,
     examplePrompt:
-      "Scan advisory: CVE-2024-1234 critical RCE in react-server-dom-webpack — patch review needed.",
+      "Scan advisory: CVE-2024-1234 critical RCE in react-server-dom-webpack, patch review needed.",
   },
   {
     id: "premium-research",
     name: "Premium research unlock",
     tagline: "Paid evidence for mission reasoning",
     description:
-      "x402-gated research snippet — agents pay ~$0.007 USDC for policy-grade insight during missions.",
+      "x402-gated research snippet, agents pay about $0.007 USDC for policy-grade insight during missions.",
     priceUsd: 0.007,
     urlPath: "/api/x402/premium-research",
     billingUnit: "signal",
@@ -144,12 +144,12 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
   },
 ];
 
-/** Community sensor paths — authorize via programs, not x402 invoke. */
+/** Community sensor paths, authorize via programs rather than x402 invoke. */
 const SENSOR_INGEST_SERVICES: AgentSignalService[] = [
   {
     id: "play-attribution",
     name: "Play attribution (sensor)",
-    tagline: "Pay per verified listen — ListenBrainz",
+    tagline: "Pay per verified listen, ListenBrainz",
     description: "Sensor ingest path for user-centric royalties programs.",
     priceUsd: 0.0004,
     urlPath: "/api/authorization/ingest",

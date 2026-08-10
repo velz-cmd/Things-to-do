@@ -2,6 +2,7 @@ export const DISCOVER_VIEWS = [
   "for_you",
   "explore",
   "activity",
+  "agents",
   "outcomes",
 ] as const;
 
@@ -156,6 +157,10 @@ export type DiscoverWorkbenchTarget =
       panel: "transaction";
       subjectId: string;
       fundingIntentId: string;
+    }
+  | {
+      panel: "agent_service";
+      subjectId: string;
     }
   | {
       panel: "entity_details";
@@ -412,8 +417,25 @@ export type DiscoverActivityKind =
   | "pool"
   | "transaction"
   | "receipt"
+  | "agent_service"
   | "program"
   | "account";
+
+export type DiscoverAgentService = {
+  id: string;
+  name: string;
+  tagline: string;
+  description: string;
+  provider: string;
+  priceUsd: number;
+  billingUnit: string;
+  domain: string;
+  deliverables: string[];
+  examplePrompt: string;
+  paymentRail: "Arc Testnet USDC for x402-metered service";
+  available: boolean;
+  blocker?: string;
+};
 
 export type DiscoverActivityItem = {
   id: string;
@@ -461,10 +483,16 @@ export type DiscoverOutcomesProjection = {
   items: MarketplaceOpportunity[];
 };
 
+export type DiscoverAgentProjection = {
+  kind: "agents";
+  items: DiscoverAgentService[];
+};
+
 export type DiscoverProjection =
   | DiscoverForYouProjection
   | DiscoverExploreProjection
   | DiscoverMyActivityProjection
+  | DiscoverAgentProjection
   | DiscoverOutcomesProjection;
 
 export type EconomicActionSubjectType =
@@ -589,6 +617,11 @@ export type DiscoverPageData = {
   activity?: DiscoverActivityItem[];
   economicActions: EconomicActionItem[];
   sourceDiagnostics: DiscoverSourceDiagnostic[];
+  agentMarketplace: {
+    services: DiscoverAgentService[];
+    livePaymentsEnabled: boolean;
+    blocker?: string;
+  };
   savedIds: string[];
   signedIn: boolean;
   capabilities: string[];

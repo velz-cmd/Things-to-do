@@ -4,6 +4,7 @@ import {
   Activity,
   ArrowRight,
   BadgeCheck,
+  Bot,
   CheckCircle2,
   CircleDollarSign,
   ClipboardList,
@@ -33,6 +34,7 @@ import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketpla
 import type {
   DiscoverAction,
   DiscoverActivityItem,
+  DiscoverAgentService,
   DiscoverInboxItem,
   DiscoverPageData,
   DiscoverPool,
@@ -50,6 +52,7 @@ const views: Array<{ id: DiscoverView; label: string; icon: typeof Activity }> =
     { id: "for_you", label: "Verified Work", icon: FileCheck2 },
     { id: "explore", label: "Open Requests", icon: ClipboardList },
     { id: "activity", label: "Pools", icon: CircleDollarSign },
+    { id: "agents", label: "Agent Marketplace", icon: Bot },
     { id: "outcomes", label: "Activity", icon: History },
   ];
 
@@ -57,6 +60,7 @@ const publicViewId: Record<DiscoverView, string> = {
   for_you: "verified_work",
   explore: "requests",
   activity: "pools",
+  agents: "agents",
   outcomes: "activity",
 };
 
@@ -146,6 +150,23 @@ function detailAction(
   };
 }
 
+function agentServiceAction(service: DiscoverAgentService): DiscoverAction {
+  const run = service.available;
+  return {
+    id: run
+      ? "discover.run_agent_service"
+      : "discover.inspect_agent_service",
+    label: run ? "Run service" : "Inspect service",
+    href: `/discover?view=agents&action=${run ? "discover.run_agent_service" : "discover.inspect_agent_service"}&subject=${encodeURIComponent(service.id)}`,
+    enabled: true,
+    requiresConfirmation: run,
+    presentation: {
+      kind: "workbench",
+      target: { panel: "agent_service", subjectId: service.id },
+    },
+  };
+}
+
 function findContext(data: DiscoverPageData, subjectId: string) {
   return data.economicActions.find(
     (item) =>
@@ -170,8 +191,8 @@ function Header({
           Discover
         </h1>
         <p className="mt-1 text-sm text-slate-400">
-          Find accepted work, support contributors, and fund ready Pools with
-          USDC on Arc Testnet.
+          Fund proven work, earn from funded requests, back shared Pools, or
+          pay agents for useful services.
         </p>
       </div>
       <SearchBox filters={filters} view={view} />
@@ -243,7 +264,7 @@ function SearchBox({
         onChange={(event) => setQuery(event.target.value)}
         type="search"
         aria-label="Search Discover"
-        placeholder="Search accepted work, contributors, repositories or Pools"
+        placeholder="Search work, requests, Pools, contributors, repositories or services"
         className="min-h-11 w-full rounded-xl border border-white/10 bg-[#050e19] pl-11 pr-11 text-sm text-white outline-none placeholder:text-slate-600 focus:border-violet-400/60"
       />
       {pending ? (
@@ -438,6 +459,11 @@ function WorkRow({
           <span>{coverageState}</span>
           <span>{payoutState}</span>
         </div>
+        {work.entityState?.blocker ? (
+          <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
+            {work.entityState.blocker}
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
         {work.primaryAction &&
@@ -544,6 +570,66 @@ function PoolCard({
         {ready || operatorAction ? (
           <ContextualAction action={details} item={context} onOpen={onOpen} />
         ) : null}
+      </div>
+    </article>
+  );
+}
+
+function AgentServiceCard({
+  service,
+  onOpen,
+}: {
+  service: DiscoverAgentService;
+  onOpen: OpenAction;
+}) {
+  const action = agentServiceAction(service);
+  return (
+    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-xs font-medium text-cyan-300">
+            <Bot className="h-3.5 w-3.5" />
+            {service.provider}
+          </p>
+          <h3 className="mt-2 text-lg font-semibold text-white">
+            {service.name}
+          </h3>
+          <p className="mt-1 text-sm text-slate-400">{service.tagline}</p>
+        </div>
+        <span
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] ${service.available ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-100"}`}
+        >
+          {service.available ? "Available" : "Payment paused"}
+        </span>
+      </div>
+      <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-300">
+        {service.description}
+      </p>
+      <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-3 text-xs">
+        <div>
+          <dt className="text-slate-500">Current price</dt>
+          <dd className="mt-1 font-medium text-white">
+            {service.priceUsd.toFixed(3)} USDC / {service.billingUnit}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">Payment rail</dt>
+          <dd className="mt-1 text-white">{service.paymentRail}</dd>
+        </div>
+        <div className="col-span-2">
+          <dt className="text-slate-500">Returns</dt>
+          <dd className="mt-1 text-white">
+            {service.deliverables.slice(0, 3).join(" / ")}
+          </dd>
+        </div>
+      </dl>
+      {!service.available && service.blocker ? (
+        <p className="mt-3 rounded-lg bg-amber-300/[0.04] px-3 py-2 text-xs leading-5 text-amber-100">
+          {service.blocker}
+        </p>
+      ) : null}
+      <div className="mt-4">
+        <ContextualAction action={action} primary onOpen={onOpen} />
       </div>
     </article>
   );
@@ -1084,9 +1170,6 @@ function ActivityView({
       pool.primaryAction.presentation.kind === "workbench" &&
       pool.primaryAction.presentation.target.panel === "program_setup",
   );
-  const unavailable = data.pools.filter(
-    (pool) => !ready.includes(pool) && !operator.includes(pool),
-  );
   const distributions = data.opportunities.items.filter(
     (item) =>
       item.marketplaceKind === "outcome" &&
@@ -1114,7 +1197,7 @@ function ActivityView({
       ) : (
         <CompactEmpty
           title="No Pool has passed funding preflight"
-          body="The stored Pools remain visible below. Funding stays disabled until their real publication, policy, allocation, treasury and Arc checks pass."
+          body="Only operator-owned setup workspaces remain visible below. Public Pool cards appear after publication, policy, allocation, treasury and Arc preflight all pass."
         />
       )}
       {operator.length ? (
@@ -1122,14 +1205,6 @@ function ActivityView({
           <SectionTitle title="Your Pools to finish" count={operator.length} />
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {operator.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
-          </div>
-        </section>
-      ) : null}
-      {unavailable.length ? (
-        <section>
-          <SectionTitle title="Published Pool records" count={unavailable.length} />
-          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            {unavailable.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
           </div>
         </section>
       ) : null}
@@ -1144,6 +1219,82 @@ function ActivityView({
         <p className="text-xs text-slate-500">
           No Pool distribution receipt is confirmed in the current database.
         </p>
+      )}
+    </div>
+  );
+}
+
+function AgentMarketplaceView({
+  data,
+  filters,
+  onOpen,
+}: {
+  data: DiscoverPageData;
+  filters: OpportunityFilters;
+  onOpen: OpenAction;
+}) {
+  if (data.view !== "agents") return null;
+  const query = filters.q?.trim().toLowerCase();
+  const services = query
+    ? data.agentMarketplace.services.filter((service) =>
+        [
+          service.name,
+          service.tagline,
+          service.description,
+          service.provider,
+          service.domain,
+          ...service.deliverables,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
+      )
+    : data.agentMarketplace.services;
+  return (
+    <div className="space-y-7">
+      <section>
+        <p className="text-xs font-semibold text-cyan-300">
+          Pay per useful result
+        </p>
+        <h2 className="mt-1 text-2xl font-semibold text-white">
+          Agent Marketplace
+        </h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+          Inspect a registered service, set a maximum spend, choose a wallet,
+          and pay once for a structured result. A successful run records the
+          Arc transaction and RESOLVE execution reference.
+        </p>
+      </section>
+      {data.agentMarketplace.blocker ? (
+        <aside className="rounded-xl border border-amber-300/15 bg-amber-300/[0.04] px-4 py-3">
+          <p className="text-sm font-medium text-amber-100">
+            Paid service execution is paused
+          </p>
+          <p className="mt-1 text-xs leading-5 text-amber-200/70">
+            {data.agentMarketplace.blocker}. Service definitions and live
+            prices remain inspectable, and no payment or result will be
+            claimed while this gate is closed.
+          </p>
+        </aside>
+      ) : null}
+      {services.length ? (
+        <section>
+          <SectionTitle title="Registered services" count={services.length} />
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {services.map((service) => (
+              <AgentServiceCard
+                key={service.id}
+                service={service}
+                onOpen={onOpen}
+              />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <CompactEmpty
+          title="No registered service matches this search"
+          body="RESOLVE does not create placeholder providers or synthetic service cards. Clear the search to inspect the current provider registry."
+        />
       )}
     </div>
   );
@@ -1392,21 +1543,24 @@ function LandingView({
   const pools = data.pools
     .filter((pool) => pool.lifecycleState === "accepting_funding")
     .slice(0, 2);
+  const agentServices = data.agentMarketplace.services.slice(0, 3);
   const inProgress = (data.activity ?? [])
     .filter((item) => !["confirmed", "receipt_issued"].includes(item.state))
     .slice(0, 3);
   const noLiveSections =
-    work.length + requests.length + pools.length + inProgress.length === 0;
+    work.length + requests.length + pools.length + agentServices.length + inProgress.length === 0;
   return (
     <div className="space-y-8">
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Link href="/discover?view=verified_work" className="rounded-xl border border-cyan-300/15 bg-cyan-300/[0.035] p-4 transition hover:border-cyan-300/30"><p className="text-sm font-semibold text-white">Fund proven work</p><p className="mt-1 text-xs leading-5 text-slate-400">Inspect persisted evidence and reward the attributed contributor.</p></Link>
         <Link href="/discover?view=requests" className="rounded-xl border border-violet-300/15 bg-violet-300/[0.035] p-4 transition hover:border-violet-300/30"><p className="text-sm font-semibold text-white">Post or take a request</p><p className="mt-1 text-xs leading-5 text-slate-400">Use evidence requirements and Arc escrow for work that still needs doing.</p></Link>
         <Link href="/discover?view=pools" className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.035] p-4 transition hover:border-emerald-300/30"><p className="text-sm font-semibold text-white">Back a shared Pool</p><p className="mt-1 text-xs leading-5 text-slate-400">Fund only published Pools with a valid rule and treasury.</p></Link>
+        <Link href="/discover?view=agents" className="rounded-xl border border-amber-300/15 bg-amber-300/[0.035] p-4 transition hover:border-amber-300/30"><p className="text-sm font-semibold text-white">Buy an agent result</p><p className="mt-1 text-xs leading-5 text-slate-400">Review the price and output before authorising one Arc USDC service run.</p></Link>
       </section>
       {work.length ? <section><SectionTitle title="Verified work ready for action" count={work.length} href="/discover?view=verified_work" /><div className="space-y-3">{work.map((item) => <WorkRow key={item.id} work={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {requests.length ? <section><SectionTitle title="Open and funded requests" count={requests.length} href="/discover?view=requests" /><div className="grid gap-3 lg:grid-cols-2">{requests.map((item) => <RequestCard key={item.id} request={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {pools.length ? <section><SectionTitle title="Pools accepting USDC" count={pools.length} href="/discover?view=pools" /><div className="grid gap-3 lg:grid-cols-2">{pools.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}</div></section> : null}
+      {agentServices.length ? <section><SectionTitle title="Agent services with live pricing" count={data.agentMarketplace.services.length} href="/discover?view=agents" /><div className="grid gap-3 lg:grid-cols-3">{agentServices.map((service) => <AgentServiceCard key={service.id} service={service} onOpen={onOpen} />)}</div></section> : null}
       {data.signedIn && inProgress.length ? <section><SectionTitle title="In progress" count={inProgress.length} href="/discover?view=activity" /><div className="space-y-2">{inProgress.map((item) => <ActivityRow key={item.id} item={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {noLiveSections ? <p className="rounded-xl border border-white/[0.08] px-4 py-3 text-sm text-slate-400">No persisted marketplace record is ready yet. Analyse accepted GitHub work, post a funded request, or finish an operator-owned Pool. RESOLVE won&apos;t fill this page with demo records.</p> : null}
     </div>
@@ -1458,6 +1612,7 @@ function DiscoverMarketplaceContent({
       ...data.opportunities.items
         .filter((item) => item.marketplaceKind === "program")
         .map((item) => detailAction("program", item.source.id, "View Program")),
+      ...data.agentMarketplace.services.map(agentServiceAction),
     ],
     [data],
   );
@@ -1548,6 +1703,12 @@ function DiscoverMarketplaceContent({
             <ExploreView data={data} filters={filters} onOpen={openWorkbench} />
           ) : data.projection.kind === "activity" ? (
             <ActivityView data={data} onOpen={openWorkbench} />
+          ) : data.view === "agents" ? (
+            <AgentMarketplaceView
+              data={data}
+              filters={filters}
+              onOpen={openWorkbench}
+            />
           ) : (
             <OutcomesView data={data} onOpen={openWorkbench} />
           )}

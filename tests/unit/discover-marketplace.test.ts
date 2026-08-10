@@ -228,6 +228,8 @@ describe("Discover marketplace URL state and pagination", () => {
     expect(parseDiscoverView("pools")).toBe("activity");
     expect(parseDiscoverView("verified_work")).toBe("for_you");
     expect(parseDiscoverView("requests")).toBe("explore");
+    expect(parseDiscoverView("agents")).toBe("agents");
+    expect(parseDiscoverView("agent_marketplace")).toBe("agents");
     expect(parseDiscoverView("opportunities")).toBe("for_you");
     expect(parseDiscoverView("saved")).toBe("for_you");
     expect(parseDiscoverView("unknown")).toBe("for_you");
@@ -464,6 +466,24 @@ describe("Discover canonical projections", () => {
           },
         },
       },
+    });
+    const settlementPaused = attachVerifiedWorkActions(
+      result,
+      [claimedPerson],
+      "funder-1",
+      false,
+    );
+    expect(settlementPaused[0]).toMatchObject({
+      creator: { id: "recipient-1" },
+      primaryAction: {
+        id: "discover.fund_verified_work",
+        label: "Reward this work",
+        enabled: false,
+        disabledReason: expect.stringContaining("Arc settlement"),
+      },
+      secondaryActions: [
+        expect.objectContaining({ id: "discover.open_evidence" }),
+      ],
     });
     const blocked = attachVerifiedWorkActions(result, [claimedPerson], "recipient-1", true);
     expect(blocked[0]).toMatchObject({

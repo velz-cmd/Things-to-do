@@ -10,7 +10,7 @@ test.describe("Discover marketplace composition", () => {
     await expect(page.getByText(/^Work 0$|^Requests 0$|^Pools 0$|^Receipts 0$/)).toHaveCount(0);
   });
 
-  test("renders four distinct views and survives rapid tab switching", async ({ page }) => {
+  test("renders five distinct economic views and survives rapid tab switching", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto("/discover?view=verified_work", {
       waitUntil: "domcontentloaded",
@@ -30,6 +30,11 @@ test.describe("Discover marketplace composition", () => {
     await discoverTabs.getByRole("link", { name: "Pools" }).click();
     await expect(page.getByRole("heading", { name: "Pools with visible rules, treasury state, and receipts" })).toBeVisible();
 
+    await discoverTabs.getByRole("link", { name: "Agent Marketplace" }).click();
+    await expect(page.getByRole("heading", { name: "Agent Marketplace" })).toBeVisible();
+    await expect(page.getByText("Sentiment", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/USDC \/ request/).first()).toBeVisible();
+
     await discoverTabs.getByRole("link", { name: "Activity" }).click();
     await expect(page.getByText(/Sign in to view your economic activity|Activity and receipts/)).toBeVisible();
 
@@ -37,7 +42,7 @@ test.describe("Discover marketplace composition", () => {
     await expect(page.getByRole("heading", { name: "Verify the work, then reward the person who did it" })).toBeVisible();
   });
 
-  test("keeps all four products usable on mobile", async ({ page }) => {
+  test("keeps all five products usable on mobile", async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/discover?view=verified_work", {
@@ -46,11 +51,14 @@ test.describe("Discover marketplace composition", () => {
     });
 
     const tabs = page.getByRole("navigation", { name: "Discover sections" });
-    await expect(tabs.getByRole("link")).toHaveText(["Verified Work", "Open Requests", "Pools", "Activity"]);
+    await expect(tabs.getByRole("link")).toHaveText(["Verified Work", "Open Requests", "Pools", "Agent Marketplace", "Activity"]);
     await tabs.getByRole("link", { name: "Open Requests" }).click();
     await expect(page).toHaveURL(/view=requests/);
     await tabs.getByRole("link", { name: "Pools" }).click();
     await expect(page).toHaveURL(/view=pools/);
+    await tabs.getByRole("link", { name: "Agent Marketplace" }).click();
+    await expect(page).toHaveURL(/view=agents/);
+    await expect(page.getByRole("heading", { name: "Agent Marketplace" })).toBeVisible();
     await expect(page.locator("[data-discover-marketplace]")).toBeVisible();
     await expect(page.getByRole("main")).toHaveCount(1);
   });

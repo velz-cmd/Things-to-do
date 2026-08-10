@@ -9,7 +9,12 @@ import { COMMUNITY_CATALOG } from "@/lib/communities/catalog";
 import { getSessionUser } from "@/lib/auth/session";
 import { loadWorkspaceReadiness } from "@/lib/workspace/readiness";
 import type { WorkspaceReadiness } from "@/lib/workspace/readiness-contract";
-import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import {
+  getLiveBlockers,
+  isLiveArcEnabled,
+} from "@/lib/settlement/arc-config";
+import { discoverAgentServices } from "@/lib/agent/commerce";
+import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { buildLiveSettlements } from "@/lib/discover/live-settlements";
 import { loadStoredOssOpportunities } from "@/lib/github/oss-scan-store";
 import {
@@ -1191,9 +1196,10 @@ export function attachVerifiedWorkActions(
         ? item.primaryAction.presentation.target.evidenceIds
         : [];
     const isSelf = Boolean(person && person.id === viewerUserId);
-    const canFund = Boolean(
-      person && !isSelf && person.payoutReadiness === "ready" && live,
+    const rewardRecipientReady = Boolean(
+      person && !isSelf && person.payoutReadiness === "ready",
     );
+    const canFund = rewardRecipientReady && live;
     const detailPath = `/discover?view=verified_work&work=${encodeURIComponent(item.source.id)}`;
     const evidenceAction = workbenchAction(
       {
@@ -1244,12 +1250,14 @@ export function attachVerifiedWorkActions(
               },
               { panel: "payout_destination", subjectId: person.id },
             )
-          : canFund && person
+          : rewardRecipientReady && person
           ? workbenchAction(
               {
                 id: "discover.fund_verified_work",
                 label: "Reward this work",
                 href: detailPath,
+                enabled: canFund,
+                disabledReason: canFund ? undefined : blocker,
               },
               {
                 panel: "work_funding",
@@ -1264,7 +1272,7 @@ export function attachVerifiedWorkActions(
               { requiresConfirmation: true },
             )
           : evidenceAction,
-      secondaryActions: canFund ? [evidenceAction] : [],
+      secondaryActions: rewardRecipientReady ? [evidenceAction] : [],
     } satisfies MarketplaceOpportunity;
   });
 }
@@ -2128,7 +2136,8 @@ async function loadPersonalDiscoverActivity(
   opportunities: MarketplaceOpportunity[],
   people: DiscoverPerson[],
 ): Promise<DiscoverActivityItem[]> {
-  const [intents, events, recipientPayments] = await Promise.all([
+  const [intents, events, recipientPayments, agentTransactions] =
+    await Promise.all([
     prisma.fundingIntent.findMany({
       where: { userId },
       orderBy: { updatedAt: "desc" },
@@ -2184,6 +2193,19 @@ async function loadPersonalDiscoverActivity(
         submittedAt: true,
         confirmedAt: true,
         updatedAt: true,
+      },
+    }),
+    prisma.walletTransaction.findMany({
+      where: { userId, type: "agent_signal" },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      select: {
+        id: true,
+        method: true,
+        amountUsd: true,
+        status: true,
+        label: true,
+        createdAt: true,
       },
     }),
   ]);
@@ -2333,7 +2355,7 @@ async function loadPersonalDiscoverActivity(
           : `Supported ${payment.recipientLabel}`;
       const description =
         payment.kind === "work_reward"
-          ? `${payment.repository ?? "Persisted GitHub evidence"} · ${payment.recipientLabel}`
+          ? `${payment.repository ?? "Persisted GitHub evidence"} / ${payment.recipientLabel}`
           : `Direct support to ${payment.recipientLabel}`;
       const primaryAction = receipt
         ? workbenchAction(
@@ -2397,7 +2419,7 @@ async function loadPersonalDiscoverActivity(
               : "work",
       title: item.title,
       description: isVerifiedWork(item)
-        ? `${item.repository ?? "Verified source"} · ${item.creator.name}`
+        ? `${item.repository ?? "Verified source"} / ${item.creator.name}`
         : item.summary,
       state: isConfirmedOutcome(item) ? "confirmed" : item.status,
       occurredAt: item.updatedAt,
@@ -2413,9 +2435,12 @@ async function loadPersonalDiscoverActivity(
   const eventRows: DiscoverActivityItem[] = events
     .filter(
       (event) =>
-        ![
-          "discover.direct_support_confirmed",
-          "discover.work_reward_confirmed",
+        event.eventType.startsWith("settlement.") ||
+        [
+          "discover.direct_support_received",
+          "discover.work_reward_received",
+          "pool_funding_pending",
+          "application_submitted",
         ].includes(event.eventType),
     )
     .map((event) => {
@@ -2476,10 +2501,56 @@ async function loadPersonalDiscoverActivity(
       };
     });
 
+  const agentRows: DiscoverActivityItem[] = agentTransactions.map(
+    (transaction) => {
+      const labelParts = transaction.label?.split(":") ?? [];
+      const hasKnownPrefix =
+        labelParts[0] === "agent" || labelParts[0] === "agent_tx";
+      const serviceId = hasKnownPrefix ? labelParts[1] : undefined;
+      const taskId = hasKnownPrefix ? labelParts[2] : undefined;
+      const txHash = hasKnownPrefix ? labelParts[3] : undefined;
+      const service = serviceId ? getAgentSignalService(serviceId) : undefined;
+      const primaryAction =
+        txHash && /^0x[0-9a-f]{64}$/i.test(txHash)
+          ? discoverNavigationAction(
+              {
+                id: "receipt.open_arcscan",
+                label: "Open Arc transaction",
+                href: explorerTxUrl(txHash),
+              },
+              { target: "external" },
+            )
+          : undefined;
+      return {
+        id: `agent-service:${transaction.id}`,
+        kind: "agent_service",
+        title: service?.name
+          ? `${service.name} service purchase`
+          : "Agent service purchase",
+        description: [
+          "RESOLVE registered service",
+          taskId ? `Task ${taskId}` : null,
+          transaction.method === "crypto"
+            ? "Connected wallet"
+            : "RESOLVE wallet",
+          "Arc Testnet",
+        ]
+          .filter(Boolean)
+          .join(" / "),
+        state: transaction.status,
+        occurredAt: transaction.createdAt.toISOString(),
+        amountUsd: Math.abs(transaction.amountUsd),
+        token: "USDC",
+        primaryAction,
+      } satisfies DiscoverActivityItem;
+    },
+  );
+
   const seen = new Set<string>();
   return [
     ...fundingRows,
     ...recipientPaymentRows,
+    ...agentRows,
     ...marketplaceRows,
     ...eventRows,
   ]
@@ -2744,6 +2815,25 @@ export async function loadDiscoverPageData(
   const communities = listCommunities(allVisible);
   const pools = listPools(allVisible, user?.id);
   const liveSettlementEnabled = isLiveArcEnabled();
+  const agentBlocker = liveSettlementEnabled
+    ? undefined
+    : getLiveBlockers()[0] ??
+      "Arc Testnet USDC service payments are not available on this deployment.";
+  const agentServices = discoverAgentServices().map((service) => ({
+    id: service.id,
+    name: service.name,
+    tagline: service.tagline,
+    description: service.description,
+    provider: "RESOLVE",
+    priceUsd: service.priceUsd,
+    billingUnit: service.billingUnit,
+    domain: service.domain,
+    deliverables: service.deliverables,
+    examplePrompt: service.examplePrompt,
+    paymentRail: "Arc Testnet USDC for x402-metered service" as const,
+    available: liveSettlementEnabled,
+    blocker: agentBlocker,
+  }));
   const capabilities = deriveUserCapabilities({
     signedIn: Boolean(user),
     payoutReady: people.some(
@@ -2984,6 +3074,7 @@ export async function loadDiscoverPageData(
     pools,
     communities,
     opportunities: allVisible,
+    agentServices,
   });
 
   return {
@@ -2997,6 +3088,11 @@ export async function loadDiscoverPageData(
     inbox,
     economicActions,
     sourceDiagnostics,
+    agentMarketplace: {
+      services: agentServices,
+      livePaymentsEnabled: liveSettlementEnabled,
+      blocker: agentBlocker,
+    },
     savedIds: [],
     signedIn: Boolean(user),
     capabilities,

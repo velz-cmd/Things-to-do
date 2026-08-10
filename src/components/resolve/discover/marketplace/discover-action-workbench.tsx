@@ -23,6 +23,8 @@ import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
 import { FundProgressPanel } from "@/components/resolve/fund/fund-progress-panel";
 import { WalletSourcePicker } from "@/components/resolve/fund/wallet-source-picker";
+import { PayFromWalletSection } from "@/components/resolve/fund/pay-from-wallet-section";
+import { useFundingWalletChoice } from "@/hooks/use-funding-wallet-choice";
 import { PayoutDestinationDrawer } from "@/components/resolve/profile/payout-destination-drawer";
 import { shouldOpenPayoutDestination } from "@/components/resolve/discover/marketplace/workbench-state";
 import { useSignInModal } from "@/components/auth/sign-in-context";
@@ -85,6 +87,8 @@ function titleFor(action: DiscoverAction) {
       return "Inspect evidence";
     case "transaction":
       return "Track transaction";
+    case "agent_service":
+      return "Agent service";
     case "entity_details":
       return `View ${action.presentation.target.entityType}`;
   }
@@ -2262,6 +2266,473 @@ function EvidencePanel({
   );
 }
 
+type AgentInvokeResult = {
+  ok?: boolean;
+  error?: string;
+  serviceName?: string;
+  amountUsd?: number;
+  txRef?: string | null;
+  meteringMode?: string;
+  receiptHref?: string | null;
+  taskId?: string;
+  provider?: string;
+  completedAt?: string;
+  summary?: { headline?: string; detail?: string };
+  execution?: {
+    steps?: string[];
+    findings?: string[];
+    recommendations?: string[];
+    deliverables?: string[];
+  } | null;
+  payment?: {
+    txHash: string;
+    explorerUrl: string;
+    chargedUsd: number;
+    balanceUsd: number;
+  };
+};
+
+function AgentServicePanel({
+  action,
+  data,
+  signedIn,
+}: {
+  action: DiscoverAction;
+  data: DiscoverPageData;
+  signedIn: boolean;
+}) {
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "agent_service"
+      ? action.presentation.target
+      : null;
+  const service = target
+    ? data.agentMarketplace.services.find(
+        (candidate) => candidate.id === target.subjectId,
+      )
+    : undefined;
+  const priceUsd = service?.priceUsd ?? 0;
+  const [quotedPriceUsd, setQuotedPriceUsd] = useState<number | null>(null);
+  const [quotedAt, setQuotedAt] = useState<string | null>(null);
+  const [quotePending, setQuotePending] = useState(false);
+  const effectivePriceUsd = quotedPriceUsd ?? priceUsd;
+  const walletChoice = useFundingWalletChoice(effectivePriceUsd);
+  const { payAgentSignalWithWallet } = useResolveAccess();
+  const [prompt, setPrompt] = useState(service?.examplePrompt ?? "");
+  const [maxSpend, setMaxSpend] = useState(
+    String(Math.max(0.05, priceUsd * 2)),
+  );
+  const [reviewed, setReviewed] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [stage, setStage] = useState("Ready for review");
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AgentInvokeResult | null>(null);
+
+  useEffect(() => {
+    setPrompt(service?.examplePrompt ?? "");
+    setMaxSpend(String(Math.max(0.05, (service?.priceUsd ?? 0) * 2)));
+    setReviewed(false);
+    setError(null);
+    setResult(null);
+    setQuotedPriceUsd(null);
+    setQuotedAt(null);
+    setQuotePending(false);
+    setStage("Ready for review");
+  }, [service?.examplePrompt, service?.id, service?.priceUsd]);
+
+  if (!target || !service) {
+    return (
+      <p role="alert" className="mt-5 text-sm text-rose-200">
+        This service is no longer present in the registered provider catalog.
+      </p>
+    );
+  }
+  const selectedService = service;
+
+  const maxSpendUsd = Number(maxSpend);
+  const capValid =
+    Number.isFinite(maxSpendUsd) && maxSpendUsd >= effectivePriceUsd;
+  const canQuote = Boolean(
+    service.available && prompt.trim() && capValid && !pending && !quotePending,
+  );
+  const canReview = Boolean(
+    signedIn &&
+      service.available &&
+      quotedPriceUsd !== null &&
+      prompt.trim() &&
+      capValid &&
+      walletChoice.fundingSource &&
+      !pending,
+  );
+
+  async function getCurrentQuote() {
+    if (!canQuote) return;
+    setQuotePending(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/agent/services", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const body = (await response.json().catch(() => null)) as {
+        services?: Array<{ id?: unknown; priceUsd?: unknown }>;
+        updatedAt?: unknown;
+      } | null;
+      const current = body?.services?.find(
+        (candidate) => candidate.id === selectedService.id,
+      );
+      if (
+        !response.ok ||
+        !current ||
+        typeof current.priceUsd !== "number" ||
+        !Number.isFinite(current.priceUsd) ||
+        current.priceUsd <= 0
+      ) {
+        throw new Error("The provider did not return a valid current quote.");
+      }
+      setQuotedPriceUsd(current.priceUsd);
+      setQuotedAt(
+        typeof body?.updatedAt === "string"
+          ? body.updatedAt
+          : new Date().toISOString(),
+      );
+      if (current.priceUsd > maxSpendUsd) {
+        throw new Error(
+          `Price changed to ${current.priceUsd.toFixed(3)} USDC. Your maximum is ${maxSpendUsd.toFixed(3)} USDC. Review the new price before continuing.`,
+        );
+      }
+      setReviewed(true);
+      setStage("Current quote ready for review");
+    } catch (reason) {
+      setReviewed(false);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The current quote could not be loaded.",
+      );
+    } finally {
+      setQuotePending(false);
+    }
+  }
+
+  async function runService() {
+    if (!canReview || !reviewed) return;
+    setPending(true);
+    setError(null);
+    setResult(null);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 90_000);
+    let paymentTxHash: string | undefined;
+    try {
+      const fundingSource = walletChoice.assertFundingSource();
+      if (fundingSource === "external") {
+        setStage("Waiting for the connected-wallet Arc signature");
+        const paid = await payAgentSignalWithWallet(effectivePriceUsd);
+        paymentTxHash = paid.txHash;
+      } else {
+        setStage("Submitting the Arc charge from the RESOLVE wallet");
+      }
+      setStage("Running the service with the authorised spend cap");
+      const response = await fetch("/api/agent/invoke", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          serviceId: selectedService.id,
+          prompt: prompt.trim(),
+          text: prompt.trim(),
+          maxSpendUsd,
+          paymentTxHash,
+        }),
+      });
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as AgentInvokeResult;
+      setResult(body);
+      if (!response.ok || !body.ok) {
+        throw new Error(body.error ?? `Service run failed (${response.status})`);
+      }
+      setStage("Result returned and execution recorded");
+      await walletChoice.spendable.refresh().catch(() => null);
+    } catch (reason) {
+      const message =
+        reason instanceof DOMException && reason.name === "AbortError"
+          ? "The service did not return before the 90-second timeout. Check the recorded Arc transaction before retrying."
+          : reason instanceof Error
+            ? reason.message
+            : "The service run failed.";
+      setError(message);
+      setStage(paymentTxHash ? "Payment submitted, result needs review" : "Run failed before payment confirmation");
+    } finally {
+      window.clearTimeout(timer);
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="mt-5 space-y-4">
+      <section className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-cyan-300">
+              {service.provider}
+            </p>
+            <h3 className="mt-1 font-semibold text-white">{service.name}</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              {service.description}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full border border-white/10 px-2.5 py-1 text-xs text-white">
+            {effectivePriceUsd.toFixed(3)} USDC
+          </span>
+        </div>
+        <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
+          <div>
+            <dt className="text-slate-500">Billing unit</dt>
+            <dd className="mt-1 text-white">Per {service.billingUnit}</dd>
+          </div>
+          <div>
+            <dt className="text-slate-500">Payment rail</dt>
+            <dd className="mt-1 text-white">{service.paymentRail}</dd>
+          </div>
+          <div className="sm:col-span-2">
+            <dt className="text-slate-500">Expected result</dt>
+            <dd className="mt-1 text-white">
+              {service.deliverables.join(" / ")}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      {!service.available ? (
+        <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-4">
+          <p className="font-semibold text-amber-100">
+            Paid execution is unavailable
+          </p>
+          <p className="mt-2 text-sm leading-6 text-amber-100/80">
+            {service.blocker}. RESOLVE will not request a wallet signature,
+            charge USDC, or claim a service result while this requirement is
+            unresolved.
+          </p>
+        </div>
+      ) : (
+        <>
+          <label className="block text-xs text-slate-400">
+            Service input
+            <textarea
+              value={prompt}
+              onChange={(event) => {
+                setPrompt(event.target.value);
+                setReviewed(false);
+              }}
+              disabled={pending || reviewed}
+              rows={5}
+              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm leading-6 text-white outline-none focus:border-violet-300/50"
+            />
+          </label>
+          <label className="block text-xs text-slate-400">
+            Maximum spend in USDC
+            <input
+              type="number"
+              min={effectivePriceUsd}
+              step="0.001"
+              value={maxSpend}
+              onChange={(event) => {
+                setMaxSpend(event.target.value);
+                setReviewed(false);
+              }}
+              disabled={pending || reviewed}
+              className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white"
+            />
+          </label>
+          <PayFromWalletSection
+            amountUsd={effectivePriceUsd}
+            disabled={pending || reviewed}
+            choice={walletChoice}
+          />
+          {reviewed ? (
+            <section className="rounded-xl border border-violet-300/20 bg-violet-300/[0.04] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-white">Review purchase</h3>
+                <button
+                  type="button"
+                  onClick={() => setReviewed(false)}
+                  className="text-xs text-violet-200"
+                >
+                  Modify
+                </button>
+              </div>
+              <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
+                <div>
+                  <dt className="text-slate-500">Service</dt>
+                  <dd className="mt-1 text-white">{service.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Provider</dt>
+                  <dd className="mt-1 text-white">{service.provider}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Price</dt>
+                  <dd className="mt-1 text-white">
+                    {effectivePriceUsd.toFixed(3)} USDC
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Maximum spend</dt>
+                  <dd className="mt-1 text-white">
+                    {maxSpendUsd.toFixed(3)} USDC
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Pay from</dt>
+                  <dd className="mt-1 capitalize text-white">
+                    {walletChoice.fundingSource === "app"
+                      ? "RESOLVE wallet"
+                      : "Connected wallet"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Network</dt>
+                  <dd className="mt-1 text-white">Arc Testnet</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Network fee</dt>
+                  <dd className="mt-1 text-white">
+                    Not separately quoted by the current payment provider
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">USDC service total</dt>
+                  <dd className="mt-1 text-white">
+                    {effectivePriceUsd.toFixed(3)} USDC
+                  </dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-slate-500">Quote checked</dt>
+                  <dd className="mt-1 text-white">
+                    {quotedAt ? new Date(quotedAt).toLocaleString() : "Not checked"}
+                  </dd>
+                </div>
+              </dl>
+              <p className="mt-3 text-xs leading-5 text-amber-100">
+                Authorising pays once for this run. A connected wallet asks for
+                a human signature. A RESOLVE wallet submits through the
+                canonical Circle-managed path.
+              </p>
+            </section>
+          ) : null}
+          <button
+            type="button"
+            data-action-id={
+              reviewed
+                ? "discover.run_agent_service"
+                : "discover.quote_agent_service"
+            }
+            disabled={reviewed ? !canReview || pending : !canQuote}
+            onClick={() => {
+              if (!reviewed) void getCurrentQuote();
+              else void runService();
+            }}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {pending || quotePending ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : null}
+            {quotePending
+              ? "Getting current quote"
+              : pending
+              ? stage
+              : reviewed
+                ? `Authorise and run for ${effectivePriceUsd.toFixed(3)} USDC`
+                : "Get current quote"}
+          </button>
+        </>
+      )}
+
+      {error ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2 text-sm leading-6 text-rose-100"
+        >
+          <p>{error}</p>
+          {result?.payment?.explorerUrl ? (
+            <a
+              href={result.payment.explorerUrl}
+              data-action-id="receipt.open_arcscan"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-2 font-medium text-rose-50 underline underline-offset-4"
+            >
+              Check the submitted Arc transaction before retrying
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+      {result?.ok ? (
+        <section className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-4">
+          <div className="flex items-center gap-2 text-emerald-200">
+            <CheckCircle2 className="h-5 w-5" />
+            <strong>{result.summary?.headline ?? "Service completed"}</strong>
+          </div>
+          {result.summary?.detail ? (
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              {result.summary.detail}
+            </p>
+          ) : null}
+          {result.execution?.findings?.length ? (
+            <ul className="mt-3 space-y-1 text-xs text-slate-300">
+              {result.execution.findings.map((finding) => (
+                <li key={finding}>{finding}</li>
+              ))}
+            </ul>
+          ) : null}
+          <dl className="mt-4 grid grid-cols-[110px_1fr] gap-y-2 text-xs">
+            <dt className="text-slate-500">Charged</dt>
+            <dd className="text-white">
+              {(result.payment?.chargedUsd ?? result.amountUsd ?? effectivePriceUsd).toFixed(3)} USDC
+            </dd>
+            <dt className="text-slate-500">Task</dt>
+            <dd className="break-all text-white">{result.taskId ?? "Recorded"}</dd>
+            <dt className="text-slate-500">Provider</dt>
+            <dd className="text-white">{result.provider ?? service.provider}</dd>
+            <dt className="text-slate-500">Completed</dt>
+            <dd className="text-white">
+              {result.completedAt
+                ? new Date(result.completedAt).toLocaleString()
+                : "Recorded by provider"}
+            </dd>
+          </dl>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {result.receiptHref ? (
+              <a
+                href={result.receiptHref}
+                data-action-id="receipt.open"
+                className="rounded-lg bg-violet-500 px-3 py-2 text-sm font-semibold text-white"
+              >
+                View result record
+              </a>
+            ) : null}
+            {result.payment?.explorerUrl ? (
+              <a
+                href={result.payment.explorerUrl}
+                data-action-id="receipt.open_arcscan"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-200"
+              >
+                Open ArcScan
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 function InformationalPanel({
   action,
   item,
@@ -2325,7 +2796,7 @@ export function DiscoverActionWorkbench({
   const authenticationRequired = Boolean(
     target &&
     !data.signedIn &&
-    [
+    ([
       "payout_destination",
       "direct_support",
       "work_funding",
@@ -2336,7 +2807,9 @@ export function DiscoverActionWorkbench({
       "source_sync",
       "authorization_review",
       "transaction",
-    ].includes(target.panel),
+    ].includes(target.panel) ||
+      (target.panel === "agent_service" &&
+        action?.id === "discover.run_agent_service")),
   );
   useEffect(() => {
     if (!action || !target) return;
@@ -2376,7 +2849,8 @@ export function DiscoverActionWorkbench({
     target?.panel === "work_funding" ||
     target?.panel === "pool_funding" ||
     target?.panel === "support_bundle" ||
-    target?.panel === "request";
+    target?.panel === "request" ||
+    target?.panel === "agent_service";
   const title = useMemo(
     () => (action ? titleFor(action) : "Discover action"),
     [action],
@@ -2457,6 +2931,13 @@ export function DiscoverActionWorkbench({
               {target.panel === "request" ? (
                 <RequestPanel action={action} onClose={onClose} />
               ) : null}
+              {target.panel === "agent_service" ? (
+                <AgentServicePanel
+                  action={action}
+                  data={data}
+                  signedIn={data.signedIn}
+                />
+              ) : null}
               {target.panel === "source_sync" ? (
                 <SourceSyncPanel action={action} />
               ) : null}
@@ -2484,6 +2965,7 @@ export function DiscoverActionWorkbench({
                 "payout_destination",
                 "transaction",
                 "entity_details",
+                "agent_service",
               ].includes(target.panel) ? (
                 <InformationalPanel action={action} item={item} />
               ) : null}

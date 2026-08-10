@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test.describe("Discover Economic Action Network", () => {
   test.setTimeout(120_000);
 
-  test("switches through the four primary views without integration gates", async ({ page }) => {
+  test("switches through the five primary views without integration gates", async ({ page }) => {
     await page.goto("/discover", { waitUntil: "domcontentloaded", timeout: 120_000 });
     await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Connect GitHub|Install GitHub App/ })).toHaveCount(0);
@@ -11,6 +11,7 @@ test.describe("Discover Economic Action Network", () => {
     const views = [
       ["Open Requests", "requests"],
       ["Pools", "pools"],
+      ["Agent Marketplace", "agents"],
       ["Activity", "activity"],
       ["Verified Work", "verified_work"],
     ] as const;

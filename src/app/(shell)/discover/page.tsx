@@ -11,7 +11,8 @@ import { loadDiscoverPageData } from "@/lib/discover/marketplace/query";
 
 export const metadata: Metadata = {
   title: "Discover - RESOLVE",
-  description: "Find people, verified work, Pools, Programs, Communities and confirmed outcomes.",
+  description:
+    "Fund verified work, post evidence-backed requests, back shared Pools, and buy useful agent services with Arc Testnet USDC.",
 };
 
 type DiscoverPageProps = {

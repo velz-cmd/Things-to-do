@@ -284,13 +284,25 @@ function ViewTabs({
   active: DiscoverView;
   filters: OpportunityFilters;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const currentHref = `${pathname}${search ? `?${search}` : ""}`;
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [selected, setSelected] = useState(active);
   useEffect(() => setSelected(active), [active]);
   useEffect(() => {
-    if (selected === active) return;
-    const recovery = window.setTimeout(() => setSelected(active), 10_000);
+    if (pendingHref === currentHref) setPendingHref(null);
+  }, [currentHref, pendingHref]);
+  useEffect(() => {
+    if (!pendingHref) return;
+    const recovery = window.setTimeout(() => {
+      setPendingHref(null);
+      setSelected(active);
+    }, 10_000);
     return () => window.clearTimeout(recovery);
-  }, [active, selected]);
+  }, [active, pendingHref]);
   return (
     <nav
       aria-label="Discover sections"
@@ -298,16 +310,20 @@ function ViewTabs({
     >
       {views.map((view) => {
         const Icon = view.icon;
-        const loading = selected === view.id && selected !== active;
+        const href = discoverHref(view.id, filters);
+        const loading = pendingHref === href && currentHref !== href;
         return (
           <Link
             key={view.id}
-            href={discoverHref(view.id, filters)}
+            href={href}
             prefetch
             aria-current={selected === view.id ? "page" : undefined}
             onClick={(event) => {
-              if (selected === view.id) event.preventDefault();
-              else setSelected(view.id);
+              event.preventDefault();
+              if (currentHref === href || pendingHref === href) return;
+              setPendingHref(href);
+              setSelected(view.id);
+              router.push(href, { scroll: false });
             }}
             className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-4 text-sm transition ${selected === view.id ? "bg-[#1a2940] font-semibold text-white" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"}`}
           >

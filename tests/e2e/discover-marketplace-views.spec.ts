@@ -8,6 +8,17 @@ test.describe("Discover marketplace composition", () => {
     await expect(page.getByRole("link", { name: /Post or take a request/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /Back a shared Pool/ })).toBeVisible();
     await expect(page.getByText(/^Work 0$|^Requests 0$|^Pools 0$|^Receipts 0$/)).toHaveCount(0);
+
+    await page
+      .getByRole("navigation", { name: "Discover sections" })
+      .getByRole("link", { name: "Verified Work" })
+      .click();
+    await expect(page).toHaveURL(/view=verified_work/);
+    await expect(
+      page.getByRole("heading", {
+        name: "Verify the work, then reward the person who did it",
+      }),
+    ).toBeVisible();
   });
 
   test("renders five distinct economic views and survives rapid tab switching", async ({ page }) => {

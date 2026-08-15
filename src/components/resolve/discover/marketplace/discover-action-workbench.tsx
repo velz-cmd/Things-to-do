@@ -1610,9 +1610,11 @@ function AuthorizationReviewPanel({ action }: { action: DiscoverAction }) {
       ) : null}
       {packages?.map((row) => {
         const amountUsd = Number(BigInt(row.totalMicroUsdc)) / 1_000_000;
-        const ready =
-          row.readyPayeeCount === row.obligationCount &&
-          row.evidenceCount >= row.obligationCount;
+        const unresolvedRecipients = Math.max(
+          0,
+          row.obligationCount - row.readyPayeeCount,
+        );
+        const ready = unresolvedRecipients === 0 && row.evidenceCount >= row.obligationCount;
         return (
           <article
             key={row.id}
@@ -1653,11 +1655,38 @@ function AuthorizationReviewPanel({ action }: { action: DiscoverAction }) {
                 <dd className="mt-1 text-white">{row.evidenceCount} records</dd>
               </div>
             </dl>
-            <p className="mt-3 text-xs leading-5 text-slate-400">
-              Review is complete when every obligation has evidence and a
-              payout-ready recipient. Opening this package does not submit a
-              settlement.
-            </p>
+            {ready ? (
+              <p className="mt-3 text-xs leading-5 text-slate-400">
+                Every obligation in this package has evidence and a
+                payout-ready recipient. Submit settlement from the community
+                Obligations desk to preflight and authorize the real payout.
+              </p>
+            ) : (
+              <p className="mt-3 text-xs leading-5 text-amber-100/80">
+                Recipients needing a payout destination: {unresolvedRecipients}
+                {row.evidenceCount < row.obligationCount
+                  ? ` · ${row.obligationCount - row.evidenceCount} obligation${row.obligationCount - row.evidenceCount === 1 ? "" : "s"} missing evidence`
+                  : null}
+                . {unresolvedRecipients > 0
+                  ? "Only the recipient can add their own verified payout destination — RESOLVE cannot assign one on their behalf."
+                  : "Missing evidence must be resolved at the source before this package can settle."}
+              </p>
+            )}
+            {row.communitySlug ? (
+              <a
+                href={`/communities/${encodeURIComponent(row.communitySlug)}#obligations`}
+                className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-cyan-200 hover:text-cyan-100"
+              >
+                {ready ? "Open Obligations desk to submit settlement" : "Review recipients in the Obligations desk"}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : (
+              <p className="mt-3 text-xs text-slate-500">
+                This package is not linked to an installed community, so
+                RESOLVE cannot route you to a recipient-resolution desk for
+                it.
+              </p>
+            )}
           </article>
         );
       })}

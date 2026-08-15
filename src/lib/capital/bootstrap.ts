@@ -14,6 +14,10 @@ export type CapitalAuthorizationSummary = {
   evidenceCount: number;
   status: string;
   createdAt: string;
+  /** The community whose canonical Obligations desk can resolve unready
+   * recipients (missing payout destination) — null if no Program links
+   * this mission to an installed community. */
+  communitySlug: string | null;
 };
 
 export type CapitalBootstrap = {
@@ -118,6 +122,7 @@ function groupAuthorizations(
     status: string;
     createdAt: Date;
   }>,
+  communitySlugByMissionId: Map<string, string>,
 ): CapitalAuthorizationSummary[] {
   const grouped = new Map<string, CapitalAuthorizationSummary>();
   for (const row of rows) {
@@ -142,6 +147,7 @@ function groupAuthorizations(
         evidenceCount: row.proofHash ? 1 : 0,
         status: row.status,
         createdAt: row.createdAt.toISOString(),
+        communitySlug: communitySlugByMissionId.get(row.missionId) ?? null,
       });
     }
   }
@@ -280,7 +286,21 @@ export async function loadCapitalBootstrap(authUser: SupabaseUser): Promise<Capi
     networkHealth: state.networkHealth,
     selectedBalancePresent: Boolean(selected),
   });
-  const authorizations = groupAuthorizations(authorizationRows);
+  const authorizationMissionIds = [
+    ...new Set(authorizationRows.map((row) => row.missionId)),
+  ];
+  const authorizationPrograms = authorizationMissionIds.length
+    ? await prisma.resolveProgram.findMany({
+        where: { missionId: { in: authorizationMissionIds } },
+        select: { missionId: true, install: { select: { communitySlug: true } } },
+      }).catch(() => [])
+    : [];
+  const communitySlugByMissionId = new Map(
+    authorizationPrograms.flatMap((row) =>
+      row.missionId ? [[row.missionId, row.install.communitySlug] as const] : [],
+    ),
+  );
+  const authorizations = groupAuthorizations(authorizationRows, communitySlugByMissionId);
   const committed = authorizationRows.reduce((sum, row) => sum + usdToMicro(row.amountUsd), 0n);
   const pending = settlementRows
     .filter((row) => ["prepared", "approved", "submitting", "pending"].includes(row.status))

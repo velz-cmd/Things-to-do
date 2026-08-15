@@ -2977,6 +2977,7 @@ export async function loadDiscoverPageData(
     domain: service.domain,
     deliverables: service.deliverables,
     examplePrompt: service.examplePrompt,
+    decisionContext: service.decisionContext,
     paymentRail: "Arc Testnet USDC for x402-metered service" as const,
     available: liveSettlementEnabled,
     blocker: agentBlocker,

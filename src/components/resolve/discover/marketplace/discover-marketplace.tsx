@@ -43,6 +43,7 @@ import type {
   EconomicActionItem,
   MarketplaceOpportunity,
 } from "@/lib/discover/marketplace/contracts";
+import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
 import type { OpportunityFilters } from "@/lib/discover/marketplace/filters";
 
 type OpenAction = (action: DiscoverAction, item?: EconomicActionItem) => void;
@@ -403,6 +404,53 @@ function ContextualAction({
   );
 }
 
+/**
+ * Renders sourced adoption evidence, or states plainly that impact is not
+ * yet measurable. Deliberately never falls back to stars/forks/merge counts
+ * - see src/lib/discover/impact/impact-signals.ts. Each number shows its
+ * source so a reader can check it, and repository-scoped numbers keep their
+ * scope caveat rather than reading as per-change benefit.
+ */
+function ImpactSummary({ profile }: { profile?: ImpactProfile }) {
+  if (!profile) return null;
+  if (!profile.measurable) {
+    return (
+      <p className="mt-3 max-w-3xl text-xs leading-5 text-slate-500">
+        Impact not yet measurable. {profile.reason}
+      </p>
+    );
+  }
+  return (
+    <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+      {profile.signals.map((signal) => (
+        <div key={signal.id} className="min-w-0">
+          <dt className="text-[11px] text-slate-500">
+            {signal.label}
+            {signal.scope === "repository" ? " (repository)" : null}
+          </dt>
+          <dd className="mt-0.5 flex items-baseline gap-1.5 text-xs">
+            <span className="font-semibold tabular-nums text-white">
+              {signal.value}
+            </span>
+            {signal.sourceUrl ? (
+              <a
+                href={signal.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
+              >
+                {signal.source}
+              </a>
+            ) : (
+              <span className="text-slate-500">{signal.source}</span>
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function WorkRow({
   work,
   data,
@@ -475,6 +523,7 @@ function WorkRow({
           <span>{coverageState}</span>
           <span>{payoutState}</span>
         </div>
+        <ImpactSummary profile={work.impactProfile} />
         {work.entityState?.blocker ? (
           <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
             {work.entityState.blocker}

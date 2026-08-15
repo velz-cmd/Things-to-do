@@ -5,6 +5,7 @@ import {
   discoverNavigationAction,
   workbenchAction,
 } from "@/lib/discover/marketplace/action-contract";
+import { githubWorkImpactProfile } from "@/lib/discover/impact/impact-signals";
 import type { MarketplaceOpportunity, OpportunityType } from "./contracts";
 
 export type GithubEvidenceReference = {
@@ -105,6 +106,10 @@ export function normalizeGithubAcceptedWork(
           source: { type: "github_evidence", id: identity },
           marketplaceKind: "verified_work",
           sourceUrl: record.sourceUrl,
+          impactProfile: githubWorkImpactProfile({
+            repositoryFullName: repository.fullName,
+            adoption: repository.adoption,
+          }),
           entityState: {
             provenance: "external_integration",
             lifecycle: "observed",

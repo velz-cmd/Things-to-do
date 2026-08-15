@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { ensureFundStakeArcSchema } from "@/lib/db/ensure-fund-stake-arc-schema";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { refreshProgramYieldCache } from "@/lib/capital/yield-service";
 import { runQfMatchAllocation } from "@/lib/capital/qf-allocator";
@@ -40,6 +41,13 @@ export type FundProgramResult =
       activityId: string;
       /** On-chain Arc tx hash when USDC moved from the funder's wallet */
       txHash?: string;
+      /**
+       * Set when money moved but the ledger/provenance write did not. Returned
+       * rather than logged so a silent gap between a confirmed transfer and an
+       * empty Activity ledger can never happen unnoticed again.
+       */
+      ledgerEventError?: string | null;
+      stakeProvenanceError?: string | null;
       message: string;
     }
   | { ok: false; error: string };
@@ -312,10 +320,36 @@ export async function fundCommunityProgram(input: {
   // ledger structurally could not show Pool funding at all. Record the
   // canonical event too, carrying the Arc proof so Activity can show the
   // amount and link the transaction.
+  // Persist the on-chain proof on the stake itself. Until this existed the
+  // hash survived only inside a WalletTransaction label as free text, so the
+  // projection had no way to tell settled capital from a bare promise.
+  let stakeProvenanceError: string | null = null;
+  if (arcTxHash && fundStatus === "completed") {
+    try {
+      if (await ensureFundStakeArcSchema()) {
+        await prisma.communityFundStake.update({
+          where: { id: funded.stake.id },
+          data: { arcTxHash, confirmedAt: new Date() },
+        });
+      } else {
+        stakeProvenanceError = "fund stake arc columns unavailable";
+      }
+    } catch (error) {
+      stakeProvenanceError =
+        error instanceof Error ? error.message : "stake provenance write failed";
+      console.error("[fund-program] stake provenance write failed", error);
+    }
+  }
+
   // Awaited, not fire-and-forget: this is the ledger record of money that
   // actually moved. On a serverless runtime the response can return and the
   // instance freeze before a floating promise resolves, which silently drops
   // the write and leaves a confirmed on-chain transfer with no ledger entry.
+  //
+  // The outcome is returned to the caller rather than swallowed: a failure
+  // here means real money moved with no ledger entry, which must never be
+  // silent again.
+  let ledgerEventError: string | null = null;
   await prisma.operationalEvent
     .create({
       data: {
@@ -339,6 +373,8 @@ export async function fundCommunityProgram(input: {
       },
     })
     .catch((error) => {
+      ledgerEventError =
+        error instanceof Error ? error.message : "ledger event write failed";
       console.error("[fund-program] operational event write failed", error);
     });
 
@@ -413,6 +449,8 @@ export async function fundCommunityProgram(input: {
     status: fundStatus,
     activityId: funded.activity.id,
     txHash: arcTxHash,
+    ledgerEventError,
+    stakeProvenanceError,
     message:
       fundStatus === "pending_arc"
         ? `Arc is confirming your $${amount.toFixed(2)} — open Capital if this takes more than a minute.`

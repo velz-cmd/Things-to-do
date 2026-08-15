@@ -69,6 +69,7 @@ import { deriveUserCapabilities } from "@/lib/capabilities/user-capabilities";
 import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { discoverNavigationAction, workbenchAction } from "./action-contract";
+import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
 import { attachEconomicMatch } from "./attach-economic-match";
 import { rankOpportunitiesForViewer, viewerRole } from "./role-ranked";
 
@@ -219,6 +220,8 @@ async function loadProgramOpportunities() {
           principalUsd: true,
           releasedUsd: true,
           status: true,
+          arcTxHash: true,
+          confirmedAt: true,
         },
       },
     },
@@ -273,6 +276,8 @@ async function loadOperatorProgramOpportunities(viewerId: string) {
           principalUsd: true,
           releasedUsd: true,
           status: true,
+          arcTxHash: true,
+          confirmedAt: true,
         },
       },
     },
@@ -1832,6 +1837,17 @@ export function listPools(
         balanceState: item.funding?.amountState,
         targetUsd: target,
         pendingDepositsUsd: pendingDeposits,
+        // Progress is measured against the next checkpoint, computed from the
+        // capital RESOLVE can actually prove moved on chain.
+        ...(() => {
+          const segment = computePoolMilestoneSegment(balance);
+          return balance > 0 || segment.ceilingUsd > 0
+            ? {
+                nextCheckpointUsd: segment.ceilingUsd,
+                checkpointProgressPct: segment.progressPct,
+              }
+            : {};
+        })(),
         lifecycleState: executionReady
           ? "accepting_funding"
           : financiallyReady

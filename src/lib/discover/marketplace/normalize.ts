@@ -88,6 +88,9 @@ export type ProgramOpportunityRow = {
     principalUsd: number;
     releasedUsd: number;
     status: string;
+    /** Present only when the deposit actually settled on Arc. */
+    arcTxHash?: string | null;
+    confirmedAt?: Date | null;
   }>;
 };
 
@@ -339,9 +342,20 @@ export function normalizeProgramOpportunity(
       .split("-")
       .map((part) => part[0]?.toUpperCase() + part.slice(1))
       .join(" ");
-  const fundedAmountUsd = row.fundStakes
-    .filter((stake) => stake.status === "active" || stake.status === "target_met")
+  const liveStakes = row.fundStakes.filter(
+    (stake) => stake.status === "active" || stake.status === "target_met",
+  );
+  // Capital with an Arc transaction behind it is confirmed; capital without
+  // one is a recorded commitment RESOLVE cannot prove. Keeping these apart is
+  // what lets the Pool state a real balance instead of calling everything
+  // unverifiable.
+  const confirmedAmountUsd = liveStakes
+    .filter((stake) => Boolean(stake.arcTxHash))
     .reduce((total, stake) => total + stake.principalUsd, 0);
+  const unprovenAmountUsd = liveStakes
+    .filter((stake) => !stake.arcTxHash)
+    .reduce((total, stake) => total + stake.principalUsd, 0);
+  const fundedAmountUsd = confirmedAmountUsd + unprovenAmountUsd;
   const type =
     row.templateId.includes("repository") || optionalString(metadata.repository)
       ? "repository_fix"
@@ -433,14 +447,24 @@ export function normalizeProgramOpportunity(
     funding:
       row.budgetUsd > 0 || fundedAmountUsd > 0
         ? {
-            fundedAmountUsd: undefined,
-            pendingAmountUsd: fundedAmountUsd > 0 ? fundedAmountUsd : undefined,
+            // Only on-chain-proven capital counts as funded. Everything else
+            // stays separate rather than being folded into a balance.
+            fundedAmountUsd: confirmedAmountUsd > 0 ? confirmedAmountUsd : undefined,
+            pendingAmountUsd: unprovenAmountUsd > 0 ? unprovenAmountUsd : undefined,
             goalAmountUsd: row.budgetUsd > 0 ? row.budgetUsd : undefined,
+            // status describes the funding pipeline; amountState carries
+            // provenance. Keeping them separate means recorded commitments
+            // still register as activity without being claimed as settled.
             status: fundedAmountUsd > 0 ? "partially_funded" : "unfunded",
             source: row.name,
             paymentMode: optionalString(metadata.paymentMode),
             distributionMethod: optionalString(metadata.distributionMethod),
-            amountState: fundedAmountUsd > 0 ? "provenance_unavailable" : "configured_target",
+            amountState:
+              confirmedAmountUsd > 0
+                ? "confirmed"
+                : unprovenAmountUsd > 0
+                  ? "provenance_unavailable"
+                  : "configured_target",
           }
         : undefined,
     provider: {

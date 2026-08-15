@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   amountStateLabel,
+  operatorProgramVisible,
   opportunityMatchesView,
   programEntityVisible,
   programPublicationEligible,
@@ -206,6 +207,32 @@ describe("Discover publication policy", () => {
       programEntityVisible({
         ...base,
         rulesJson: JSON.stringify({ connectorId: "navidrome" }),
+      }),
+    ).toBe(false);
+  });
+
+  it("shows an operator their own draft Pool even before it is publicly fundable, but never their own fixtures", () => {
+    // Draft status, no missionId, install not active — none of the public
+    // gates are met, but the operator still needs to see and finish it.
+    expect(
+      operatorProgramVisible({
+        metadataJson: JSON.stringify({ provenance: "operator_created" }),
+      }),
+    ).toBe(true);
+    expect(operatorProgramVisible({ metadataJson: null })).toBe(true);
+    expect(
+      operatorProgramVisible({
+        metadataJson: JSON.stringify({ isDemo: true }),
+      }),
+    ).toBe(false);
+    expect(
+      operatorProgramVisible({
+        metadataJson: JSON.stringify({ fixture: true }),
+      }),
+    ).toBe(false);
+    expect(
+      operatorProgramVisible({
+        metadataJson: JSON.stringify({ provenance: "synthetic_demo" }),
       }),
     ).toBe(false);
   });

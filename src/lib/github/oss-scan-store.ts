@@ -54,6 +54,16 @@ const fundingOpportunitySchema = z.object({
   headline: z.string(),
   priority: z.enum(["critical", "high", "medium"]),
   live: z.boolean(),
+  // Optional so previously persisted scans (written before adoption was
+  // captured) still parse; a missing value means "not observed", which the
+  // impact layer reports as not yet measurable.
+  adoption: z
+    .object({
+      dependentRepoCount: z.number().nonnegative().optional(),
+      source: z.string().min(1),
+      observedAt: z.string().min(1),
+    })
+    .optional(),
   activity: z
     .object({
       observedAt: z.string(),
@@ -135,6 +145,15 @@ export function fingerprintFundingOpportunity(
     health: opportunity.health,
     highImpactPrs: opportunity.highImpactPrs,
     unfundedMaintainers: opportunity.unfundedMaintainers,
+    // Included so a change in observed downstream adoption produces a new
+    // snapshot - impact accrues over time rather than being frozen at the
+    // moment the work was first seen.
+    adoption: opportunity.adoption
+      ? {
+          dependentRepoCount: opportunity.adoption.dependentRepoCount,
+          source: opportunity.adoption.source,
+        }
+      : null,
     records: (activity?.records ?? []).map((record) => ({
       id: record.id,
       title: record.title,

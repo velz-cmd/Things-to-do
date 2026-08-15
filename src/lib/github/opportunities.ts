@@ -1,4 +1,5 @@
 import { ingestRepository } from "@/lib/github/adapter";
+import { fetchGithubProject } from "@/lib/integrations/libraries-io";
 import { computeRepoHealth } from "@/lib/github/repo-health";
 import { buildGitHubFundingActivity } from "@/lib/github/funding-activity";
 import type { FundingOpportunity, RepoIngestResult } from "@/lib/github/types";
@@ -16,7 +17,10 @@ export const RADAR_TARGETS = [
 ];
 
 /** Build the canonical persisted opportunity from one completed GitHub ingest. */
-export function buildFundingOpportunity(ingest: RepoIngestResult): FundingOpportunity {
+export function buildFundingOpportunity(
+  ingest: RepoIngestResult,
+  adoption?: FundingOpportunity["adoption"],
+): FundingOpportunity {
   const health = computeRepoHealth(ingest);
   const highImpactPrs = ingest.pullRequests.filter(
     (pullRequest) =>
@@ -47,6 +51,28 @@ export function buildFundingOpportunity(ingest: RepoIngestResult): FundingOpport
     live: true,
     activity: buildGitHubFundingActivity(ingest),
     dependencies: ingest.dependencies,
+    adoption,
+  };
+}
+
+/**
+ * Observes downstream adoption from Libraries.io. Returns undefined when the
+ * connector is unconfigured or has no count for this repository - callers
+ * must treat that as "not yet measurable", never as zero adoption and never
+ * as a reason to substitute stars or merge counts.
+ */
+export async function observeRepositoryAdoption(
+  owner: string,
+  repo: string,
+): Promise<FundingOpportunity["adoption"]> {
+  const project = await fetchGithubProject(owner, repo).catch(() => null);
+  const dependentRepoCount =
+    project?.dependent_repos_count ?? project?.dependents_count;
+  if (dependentRepoCount == null || dependentRepoCount <= 0) return undefined;
+  return {
+    dependentRepoCount,
+    source: "Libraries.io",
+    observedAt: new Date().toISOString(),
   };
 }
 
@@ -54,9 +80,12 @@ export async function scanFundingOpportunity(
   owner: string,
   repo: string,
 ): Promise<FundingOpportunity | null> {
-  const ingest = await ingestRepository(owner, repo, { prLimit: 8 });
+  const [ingest, adoption] = await Promise.all([
+    ingestRepository(owner, repo, { prLimit: 8 }),
+    observeRepositoryAdoption(owner, repo),
+  ]);
   if (!ingest) return null;
-  return buildFundingOpportunity(ingest);
+  return buildFundingOpportunity(ingest, adoption);
 }
 
 export async function scanAllOpportunities(): Promise<FundingOpportunity[]> {

@@ -5,9 +5,21 @@ import { resolvePaymentRoute } from "@/lib/wallet/payment-routes";
 import { verifyArcTransferFromWallet } from "@/lib/wallet/verify-crypto-deposit";
 import { syncIdentityBalance } from "@/lib/wallet/sync-identity-balance";
 import type { AgentArcPaymentResult } from "@/lib/agent/agent-signal-arc-payment";
+import { USDC_TOKEN_DECIMALS } from "@/lib/money/usdc";
 
+/** Balance display rounding. Never use this for a charge or expected amount. */
 function round(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Charge/verification amounts must round at USDC's real precision (6dp).
+ * Rounding at 2dp turned a 0.003 USDC price into 0, which was then passed to
+ * verifyArcTransferFromWallet as `expectedUsd: 0` - so the amount check
+ * became vacuous for every micro-priced service.
+ */
+function roundChargeUsdc(n: number) {
+  return Math.round(n * 10 ** USDC_TOKEN_DECIMALS) / 10 ** USDC_TOKEN_DECIMALS;
 }
 
 /**
@@ -69,7 +81,15 @@ export async function chargeAgentSignalWithExternalTx(input: {
     return { ok: false, error: route.error, balanceUsd: profile.availableUsd, onChainUsd: null };
   }
 
-  const amount = round(input.amountUsd);
+  const amount = roundChargeUsdc(input.amountUsd);
+  if (input.amountUsd > 0 && amount <= 0) {
+    return {
+      ok: false,
+      error: `Price ${input.amountUsd} USDC is below the smallest settleable USDC amount (1e-${USDC_TOKEN_DECIMALS}).`,
+      balanceUsd: profile.availableUsd,
+      onChainUsd: null,
+    };
+  }
   const verified = await verifyArcTransferFromWallet({
     txHash: input.txHash as `0x${string}`,
     expectedUsd: amount,

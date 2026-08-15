@@ -10,6 +10,7 @@ import {
   sendUsdcFromUserCircleWallet,
 } from "@/lib/wallet/circle-arc-transfer";
 import { isLiveArcEnabled } from "@/lib/settlement/arc-config";
+import { USDC_TOKEN_DECIMALS } from "@/lib/money/usdc";
 
 export type AgentArcPaymentResult =
   | {
@@ -23,8 +24,22 @@ export type AgentArcPaymentResult =
     }
   | { ok: false; error: string; balanceUsd: number; onChainUsd: number | null };
 
+/** Balance display rounding. Never use this for a charge amount. */
 function round(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Charge amounts must round at USDC's real precision (6 decimals), not at 2.
+ *
+ * This function previously did not exist and `round()` (2dp) was used for the
+ * charge itself, so a 0.003 USDC micro-service price became exactly 0: the
+ * transfer moved no money, `chargedUsd` came back 0, and the UI still
+ * reported "Agent payment sent on Arc" next to "Charged 0.000 USDC" while
+ * the service executed for free.
+ */
+function roundChargeUsdc(n: number) {
+  return Math.round(n * 10 ** USDC_TOKEN_DECIMALS) / 10 ** USDC_TOKEN_DECIMALS;
 }
 
 /**
@@ -46,7 +61,19 @@ export async function chargeAgentSignalOnArc(input: {
     };
   }
 
-  const amount = round(input.amountUsd);
+  const amount = roundChargeUsdc(input.amountUsd);
+
+  // A positive price that rounds away to nothing must fail loudly. Silently
+  // continuing would submit a zero-value transfer and then report success,
+  // which is a false financial claim.
+  if (input.amountUsd > 0 && amount <= 0) {
+    return {
+      ok: false,
+      error: `Price ${input.amountUsd} USDC is below the smallest settleable USDC amount (1e-${USDC_TOKEN_DECIMALS}).`,
+      balanceUsd: 0,
+      onChainUsd: null,
+    };
+  }
   if (amount <= 0) {
     return { ok: false, error: "Invalid signal price", balanceUsd: 0, onChainUsd: null };
   }

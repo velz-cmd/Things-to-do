@@ -279,6 +279,60 @@ describe("Discover publication policy", () => {
     ).toBe(true);
   });
 
+  it("names the publication step instead of a generic review button", () => {
+    // Regression: the blocker copy reads "public discovery", not "publish",
+    // so keyword sniffing sent every publication-blocked Program to a generic
+    // "Review program" dead end. The step must be named exactly.
+    const actions = buildEconomicActions({
+      opportunities: [opportunity({
+        source: { type: "community_program", id: "program-2" },
+        pool: { id: "program-2", name: "Security Pool" },
+        creator: { type: "community", id: "user-1", name: "Ada", verified: true },
+        entityState: {
+          provenance: "operator_created",
+          lifecycle: "active",
+          financialReadiness: "setup_required",
+          blocker: "Approve this Program for public discovery.",
+        },
+      })],
+      people: [],
+      communities: [],
+      pools: [],
+      myCommunities: [],
+      viewerUserId: "user-1",
+    });
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.primaryAction.label).toBe("Review publication");
+    expect(actions[0]?.primaryAction.label).not.toBe("Review program");
+    expect(actions[0]?.primaryAction.presentation).toMatchObject({
+      kind: "workbench",
+      target: { panel: "program_setup", step: "publication", programId: "program-2" },
+    });
+  });
+
+  it("prefers the structured setup step over the blocker prose", () => {
+    const actions = buildEconomicActions({
+      opportunities: [opportunity({
+        source: { type: "community_program", id: "program-3" },
+        pool: { id: "program-3", name: "Docs Pool" },
+        creator: { type: "community", id: "user-1", name: "Ada", verified: true },
+        entityState: {
+          provenance: "operator_created",
+          lifecycle: "published",
+          financialReadiness: "setup_required",
+          blocker: "Approve this Program for public discovery.",
+          setupStep: "treasury",
+        },
+      })],
+      people: [],
+      communities: [],
+      pools: [],
+      myCommunities: [],
+      viewerUserId: "user-1",
+    });
+    expect(actions[0]?.primaryAction.label).toBe("Add treasury destination");
+  });
+
   it("derives one canonical action with an exact policy setup handoff", () => {
     const actions = buildEconomicActions({
       opportunities: [opportunity({

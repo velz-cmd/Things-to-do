@@ -69,7 +69,7 @@ test.describe("Discover accepted GitHub evidence", () => {
     if (await workRow.getByText("Payout ready", { exact: true }).count()) {
       await expect(
         workRow.getByRole("button", {
-          name: "Reward this work",
+          name: "Support this work",
           exact: true,
         }),
       ).toBeVisible();

@@ -26,21 +26,23 @@ export function reasonOverEvidence(input: {
 
   const complexity = metaNum(bundle, "code", "complexity") || 50;
   const collaboration = metaNum(bundle, "collaboration", "collaboration") || 40;
-  const impact = metaNum(bundle, "impact", "impact") || 45;
   const identityConf = (identity?.metadata.identityConfidence as number) ?? 0.5;
   const whitespaceOnly = Boolean(bundle.find((e) => e.kind === "code")?.metadata.whitespaceOnly);
 
   const confidence = evaluateConfidence({
     complexity,
     collaboration,
-    impact,
     identityConfidence: identityConf,
     whitespaceOnly,
     merged: input.pr.merged,
   });
 
   const category = classifyPrCategory(input.pr);
-  const baseWeight = complexity * 0.45 + collaboration * 0.3 + impact * 0.25;
+  // A synthesized "impact" score (repository stars + keyword regex) used to
+  // supply 25% of this weight, which meant the popularity of the host
+  // repository changed how much a contributor was paid for identical work.
+  // Weighting now rests only on signals about the contribution itself.
+  const baseWeight = complexity * 0.6 + collaboration * 0.4;
   const intentAdjusted = applyIntentMultiplier(category, input.founderIntent, baseWeight);
   const identityMultiplier = 0.65 + identityConf * 0.35;
 
@@ -50,7 +52,7 @@ export function reasonOverEvidence(input: {
 
   const reasoning = [
     `PR #${input.pr.number} — ${input.pr.title}`,
-    `Code complexity ${complexity}/100 · Collaboration ${collaboration}/100 · Impact ${impact}/100`,
+    `Code complexity ${complexity}/100 · Collaboration ${collaboration}/100`,
     `Identity confidence ${Math.round(identityConf * 100)}%`,
     `Founder intent category: ${category} (${input.founderIntent[category]}%)`,
     `Trust tier: ${confidence.tier} · Settlement: ${confidence.status}`,

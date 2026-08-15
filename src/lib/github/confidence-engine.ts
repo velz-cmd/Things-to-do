@@ -10,7 +10,6 @@ const REVIEW_THRESHOLD = 0.55;
 export function evaluateConfidence(input: {
   complexity: number;
   collaboration: number;
-  impact: number;
   identityConfidence: number;
   whitespaceOnly: boolean;
   merged: boolean;
@@ -19,9 +18,6 @@ export function evaluateConfidence(input: {
 
   if (input.complexity >= 85 && input.collaboration <= 10) {
     coherenceFlags.push("High complexity without review discussion");
-  }
-  if (input.impact >= 80 && input.identityConfidence < 0.35) {
-    coherenceFlags.push("High impact claim with low identity confidence");
   }
   if (input.whitespaceOnly && input.complexity > 60) {
     coherenceFlags.push("Complexity score inconsistent with diff size");
@@ -35,17 +31,22 @@ export function evaluateConfidence(input: {
     0.98,
     (input.complexity / 100) * 0.5 + (input.collaboration / 100) * 0.5,
   );
-  const impact = Math.min(0.98, input.impact / 100);
   const evidenceQuality = Math.min(
     0.98,
     0.5 + (coherenceFlags.length === 0 ? 0.4 : coherenceFlags.length === 1 ? 0.2 : 0),
   );
 
+  // Popularity-derived "impact" used to carry 25% of this score. It was
+  // synthesized from repository stars plus regex keyword matching, which
+  // measures attention, not whether the contribution is used or whom it
+  // benefited - so it could not justify money. Its weight is redistributed
+  // across signals that are actually about this contribution. Sourced
+  // adoption evidence lives in src/lib/discover/impact/impact-signals.ts and
+  // is presented to funders as evidence, never folded into a hidden score.
   const settlement =
-    identity * 0.25 +
-    contribution * 0.3 +
-    impact * 0.25 +
-    evidenceQuality * 0.2 -
+    identity * 0.3 +
+    contribution * 0.42 +
+    evidenceQuality * 0.28 -
     coherenceFlags.length * 0.08;
 
   const settlementClamped = Math.max(0.1, Math.min(0.98, settlement));
@@ -56,7 +57,6 @@ export function evaluateConfidence(input: {
   return {
     identity,
     contribution,
-    impact,
     evidenceQuality,
     settlement: settlementClamped,
     tier,

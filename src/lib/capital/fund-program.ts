@@ -312,7 +312,11 @@ export async function fundCommunityProgram(input: {
   // ledger structurally could not show Pool funding at all. Record the
   // canonical event too, carrying the Arc proof so Activity can show the
   // amount and link the transaction.
-  void prisma.operationalEvent
+  // Awaited, not fire-and-forget: this is the ledger record of money that
+  // actually moved. On a serverless runtime the response can return and the
+  // instance freeze before a floating promise resolves, which silently drops
+  // the write and leaves a confirmed on-chain transfer with no ledger entry.
+  await prisma.operationalEvent
     .create({
       data: {
         eventType: "pool_funding_pending",

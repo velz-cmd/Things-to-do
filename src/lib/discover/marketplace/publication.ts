@@ -40,6 +40,26 @@ function programConnector(row: Pick<ProgramOpportunityRow, "rulesJson" | "metada
   return String(metadata.sourceConnector ?? rules.connectorId ?? "").toLowerCase();
 }
 
+/**
+ * Visible only to the operator who owns the Pool, in their own "Your Pools
+ * to finish" workspace — never merged into the shared public cache. Skips
+ * the active/deployed/missionId/install/github gates that guard PUBLIC
+ * visibility (an operator must be able to see and finish a Pool that has
+ * not reached those states yet), but still excludes demo/fixture/synthetic
+ * records so operators aren't shown their own throwaway test data as if it
+ * were a real, fundable Pool candidate.
+ */
+export function operatorProgramVisible(
+  row: Pick<ProgramOpportunityRow, "metadataJson">,
+): boolean {
+  const metadata = parseJsonObject(row.metadataJson);
+  return !(
+    metadata.isDemo === true ||
+    metadata.fixture === true ||
+    String(metadata.provenance ?? "") === "synthetic_demo"
+  );
+}
+
 export function programEntityVisible(
   row: Pick<
     ProgramOpportunityRow,

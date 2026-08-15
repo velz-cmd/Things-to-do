@@ -10,7 +10,7 @@
     "test": "vitest run",
     "db:push": "prisma db push",
     "sync:vercel-env": "./scripts/sync-vercel-env.sh",
-    "test:settlement": "tsx scripts/test-settlement.ts",
+    "test:settlement": "node --conditions=react-server --import tsx scripts/test-settlement.ts",
     "test:browser": "PLAYWRIGHT_ENABLED=true tsx scripts/test-browser-executor.ts",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",

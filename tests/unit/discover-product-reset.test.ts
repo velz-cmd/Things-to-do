@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   amountStateLabel,
+  operatorProgramVisible,
   opportunityMatchesView,
   programEntityVisible,
   programPublicationEligible,
@@ -16,6 +17,7 @@ import {
   buildEconomicActions,
 } from "../../src/lib/discover/marketplace/economic-actions";
 import {
+  activityKindForEvent,
   discoverPersonFromReadiness,
   myDiscoverCommunitiesFromReadiness,
 } from "../../src/lib/discover/marketplace/query";
@@ -208,6 +210,60 @@ describe("Discover publication policy", () => {
         rulesJson: JSON.stringify({ connectorId: "navidrome" }),
       }),
     ).toBe(false);
+  });
+
+  it("shows an operator their own draft Pool even before it is publicly fundable, but never their own fixtures", () => {
+    // Draft status, no missionId, install not active — none of the public
+    // gates are met, but the operator still needs to see and finish it.
+    expect(
+      operatorProgramVisible({
+        metadataJson: JSON.stringify({ provenance: "operator_created" }),
+      }),
+    ).toBe(true);
+    expect(operatorProgramVisible({ metadataJson: null })).toBe(true);
+    expect(
+      operatorProgramVisible({
+        metadataJson: JSON.stringify({ isDemo: true }),
+      }),
+    ).toBe(false);
+    expect(
+      operatorProgramVisible({
+        metadataJson: JSON.stringify({ fixture: true }),
+      }),
+    ).toBe(false);
+    expect(
+      operatorProgramVisible({
+        metadataJson: JSON.stringify({ provenance: "synthetic_demo" }),
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps internal source/config/system noise out of the primary Activity economic feed", () => {
+    const NOISE_KINDS = new Set(["account", "program"]);
+    // These are real, actively-written internal events (repository sync,
+    // mission/source lifecycle, wallet/payout bookkeeping) that must never
+    // be classified into a kind the Activity tab's economic filter shows.
+    for (const noisyEvent of [
+      "discover.repository_snapshot_captured",
+      "discover.mission_started",
+      "source.sync_started",
+      "source.sync_completed",
+      "source.sync_failed",
+      "capital.wallet_selected",
+      "profile.payout_destination_selected",
+      "profile.source_disconnected",
+      "program.draft_created",
+      "program.policy_updated",
+      "program.setup_updated",
+    ]) {
+      expect(NOISE_KINDS.has(activityKindForEvent(noisyEvent))).toBe(true);
+    }
+    // Real economic events must NOT be swallowed as noise.
+    expect(activityKindForEvent("discover.work_reward_confirmed")).toBe("receipt");
+    expect(activityKindForEvent("discover.direct_support_received")).toBe("receipt");
+    expect(activityKindForEvent("request_payment_confirmed")).toBe("receipt");
+    expect(activityKindForEvent("request_funded")).toBe("funding");
+    expect(activityKindForEvent("pool_funding_pending")).toBe("pool");
   });
 
   it("keeps source records available to the projection and limits Outcomes to receipts", () => {

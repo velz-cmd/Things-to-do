@@ -32,6 +32,7 @@ import type {
   CapitalAuthorizationSummary,
   CapitalBootstrap,
 } from "@/lib/capital/bootstrap";
+import { PoolCheckpointPanel } from "@/components/resolve/communities/pool-checkpoint-panel";
 
 type Props = {
   action: DiscoverAction | null;
@@ -91,6 +92,8 @@ function titleFor(action: DiscoverAction) {
       return "Agent service";
     case "entity_details":
       return `View ${action.presentation.target.entityType}`;
+    case "pool_distribution":
+      return `Review ${action.presentation.target.poolName} distribution`;
   }
 }
 
@@ -1707,6 +1710,46 @@ function AuthorizationReviewPanel({ action }: { action: DiscoverAction }) {
   );
 }
 
+/**
+ * Reuses the real, already-built checkpoint/settlement engine
+ * (PoolCheckpointPanel + useProgramPoolState) that community operators
+ * already use to review and pay Pool distributions. This is the same
+ * component, same data hook, same /api/communities/[slug]/programs/
+ * [programId]/checkpoint-settle mutation - not a rebuild, not a fake
+ * summary. It surfaces eligible recipients, per-recipient owed amounts,
+ * the batch total, checkpoint state, and settlement history, and the
+ * "Pay $X to Y at checkpoint" action only enables once a checkpoint is
+ * actually reached and the Pool balance covers what's owed.
+ */
+function PoolDistributionPanel({ action }: { action: DiscoverAction }) {
+  const target =
+    action.presentation.kind === "workbench" &&
+    action.presentation.target.panel === "pool_distribution"
+      ? action.presentation.target
+      : null;
+  if (!target) return null;
+  return (
+    <div className="mt-5 space-y-4">
+      <section className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
+        <p className="text-xs font-medium text-cyan-300">{target.poolName}</p>
+        <h3 className="mt-1 font-semibold text-white">Review distribution</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          Eligible recipients, owed amounts, and checkpoint state below come
+          from the same checkpoint engine the community operator console
+          uses. Distribution pays only when a checkpoint has been reached and
+          the confirmed Pool balance covers what is owed - blocked recipients
+          (no eligible checkpoint yet, or insufficient balance) are held back
+          automatically rather than partially paid.
+        </p>
+      </section>
+      <PoolCheckpointPanel
+        communitySlug={target.communitySlug}
+        programId={target.programId}
+      />
+    </div>
+  );
+}
+
 type FundingIntentStatus = {
   intent: {
     id: string;
@@ -2836,6 +2879,7 @@ export function DiscoverActionWorkbench({
       "source_sync",
       "authorization_review",
       "transaction",
+      "pool_distribution",
     ].includes(target.panel) ||
       (target.panel === "agent_service" &&
         action?.id === "discover.run_agent_service")),
@@ -2879,7 +2923,8 @@ export function DiscoverActionWorkbench({
     target?.panel === "pool_funding" ||
     target?.panel === "support_bundle" ||
     target?.panel === "request" ||
-    target?.panel === "agent_service";
+    target?.panel === "agent_service" ||
+    target?.panel === "pool_distribution";
   const title = useMemo(
     () => (action ? titleFor(action) : "Discover action"),
     [action],
@@ -2972,6 +3017,9 @@ export function DiscoverActionWorkbench({
               ) : null}
               {target.panel === "program_setup" ? (
                 <ProgramSetupPanel action={action} item={item} />
+              ) : null}
+              {target.panel === "pool_distribution" ? (
+                <PoolDistributionPanel action={action} />
               ) : null}
               {target.panel === "authorization_review" ? (
                 <AuthorizationReviewPanel action={action} />

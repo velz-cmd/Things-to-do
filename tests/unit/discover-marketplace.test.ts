@@ -15,6 +15,7 @@ import {
   attachVerifiedWorkActions,
   confirmedFundingUsd,
   deduplicateMarketplaceOpportunities,
+  listPools,
   marketplaceOpportunityMatches,
   mergeAttributedDiscoverPeople,
   paginateMarketplaceOpportunities,
@@ -160,6 +161,53 @@ describe("Discover marketplace normalisation", () => {
         target: { panel: "pool_funding" },
       },
     });
+  });
+
+  it("gives the Pool operator a Review distribution action once the Pool is financially ready, but not other viewers", () => {
+    const readyPool = normalizeProgramOpportunity(program({
+      templateId: "security-fund",
+      metadataJson: JSON.stringify({
+        publicationStatus: "approved",
+        policyStatus: "active",
+        treasuryAddress: "0x0000000000000000000000000000000000000001",
+      }),
+    }));
+
+    const asOperator = listPools([readyPool], "user-1");
+    expect(asOperator[0]?.secondaryActions).toContainEqual(
+      expect.objectContaining({
+        label: "Review distribution",
+        presentation: expect.objectContaining({
+          kind: "workbench",
+          target: expect.objectContaining({
+            panel: "pool_distribution",
+            communitySlug: "open-writers",
+            programId: "program-1",
+          }),
+        }),
+      }),
+    );
+
+    const asOtherViewer = listPools([readyPool], "someone-else");
+    expect(
+      asOtherViewer[0]?.secondaryActions.some(
+        (action) =>
+          action.presentation.kind === "workbench" &&
+          action.presentation.target.panel === "pool_distribution",
+      ),
+    ).toBe(false);
+
+    const setupIncompletePool = normalizeProgramOpportunity(program({
+      templateId: "security-fund",
+    }));
+    const operatorOfIncompletePool = listPools([setupIncompletePool], "user-1");
+    expect(
+      operatorOfIncompletePool[0]?.secondaryActions.some(
+        (action) =>
+          action.presentation.kind === "workbench" &&
+          action.presentation.target.panel === "pool_distribution",
+      ),
+    ).toBe(false);
   });
 
   it("keeps selected provider state distinct from open applications", () => {

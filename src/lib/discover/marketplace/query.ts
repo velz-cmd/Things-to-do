@@ -1367,6 +1367,9 @@ export function attachRequestActions(
     } else if (["assigned", "under_review", "approved", "payment_submitted"].includes(item.status)) {
       id = "discover.track_request";
       label = "Track request";
+    } else if (item.status === "confirmed" && (owner || selected)) {
+      id = "discover.view_request";
+      label = "View receipt";
     }
     return {
       ...item,
@@ -2135,20 +2138,41 @@ function friendlyActivityLabel(eventType: string) {
   );
 }
 
-function activityKindForEvent(eventType: string): DiscoverActivityItem["kind"] {
-  if (
-    eventType.includes("receipt") ||
-    eventType.includes("confirmed") ||
-    eventType.includes("received")
-  )
-    return "receipt";
-  if (eventType.includes("fund") || eventType.includes("settlement"))
-    return "funding";
-  if (eventType.includes("claim")) return "claim";
-  if (eventType.includes("program")) return "program";
-  if (eventType.includes("pool")) return "pool";
-  if (eventType.includes("evidence") || eventType.includes("repository"))
-    return "work";
+/**
+ * Explicit allowlist, not fuzzy substring matching. A loose
+ * `.includes("repository")` here previously classified
+ * "discover.repository_snapshot_captured" (a pure internal source-refresh
+ * event, not a customer economic action) as kind "work", which leaked it
+ * into the primary Activity economic feed alongside real work rewards.
+ * Anything not explicitly recognized here falls back to "account" and is
+ * excluded from the primary ledger — the safe default for an unrecognized
+ * event is "not economic content," not "guess and show it."
+ */
+const ACTIVITY_EVENT_KIND: Record<string, DiscoverActivityItem["kind"]> = {
+  "discover.direct_support_confirmed": "receipt",
+  "discover.direct_support_received": "receipt",
+  "discover.work_reward_confirmed": "receipt",
+  "discover.work_reward_received": "receipt",
+  "settlement.batch_reconciled": "receipt",
+  "settlement.package_prepared": "funding",
+  "request_payment_confirmed": "receipt",
+  "request_funded": "funding",
+  "request_created": "funding",
+  "request_assigned": "work",
+  "request_work_submitted": "work",
+  "request_work_approved": "work",
+  "pool_funding_pending": "pool",
+  "fund_program": "pool",
+  "program_rebalanced": "pool",
+  "qf.match": "pool",
+  "qf.contribution": "funding",
+  "application_submitted": "work",
+};
+
+export function activityKindForEvent(eventType: string): DiscoverActivityItem["kind"] {
+  const explicit = ACTIVITY_EVENT_KIND[eventType];
+  if (explicit) return explicit;
+  if (eventType.startsWith("program.")) return "program";
   return "account";
 }
 

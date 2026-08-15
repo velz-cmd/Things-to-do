@@ -1386,14 +1386,22 @@ function ActivityView({
           body="Only operator-owned setup workspaces remain visible below. Public Pool cards appear after publication, policy, allocation, treasury and Arc preflight all pass."
         />
       )}
-      {operator.length ? (
-        <section>
-          <SectionTitle title="Your Pools to finish" count={operator.length} />
-          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            {operator.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
-          </div>
-        </section>
-      ) : null}
+      {/* A flat list of every unfinished Pool is a backlog, not a queue. The
+          same records grouped by the one prerequisite that is actually
+          blocking them tell the operator what to do next, and in what order. */}
+      {operator.length
+        ? operatorPoolGroups(operator).map((group) => (
+            <section key={group.key}>
+              <SectionTitle title={group.title} count={group.pools.length} />
+              <p className="mb-3 text-xs text-slate-500">{group.explanation}</p>
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                {group.pools.map((pool) => (
+                  <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />
+                ))}
+              </div>
+            </section>
+          ))
+        : null}
       {distributions.length ? (
         <section>
           <SectionTitle title="Confirmed distributions" count={distributions.length} />
@@ -1408,6 +1416,73 @@ function ActivityView({
       )}
     </div>
   );
+}
+
+/**
+ * Buckets operator-owned Pools by the first unmet prerequisite - the same
+ * precedence the normalizer uses to choose each card's action, so the group
+ * heading and the button inside it always agree.
+ */
+function operatorPoolGroups(pools: DiscoverPool[]): Array<{
+  key: string;
+  title: string;
+  explanation: string;
+  pools: DiscoverPool[];
+}> {
+  const groups = [
+    {
+      key: "publication",
+      title: "Waiting on your publication review",
+      explanation:
+        "These are configured but not yet approved for public discovery. Nobody else can fund them until you approve.",
+      match: (pool: DiscoverPool) => pool.publicationState !== "approved",
+    },
+    {
+      key: "policy",
+      title: "Needs a funding rule",
+      explanation:
+        "A Pool cannot decide who qualifies for capital until a versioned funding policy is active.",
+      match: (pool: DiscoverPool) => pool.policyState === "setup_required",
+    },
+    {
+      key: "treasury",
+      title: "Needs a treasury destination",
+      explanation:
+        "Capital has nowhere to settle until a valid Arc address is attached.",
+      match: (pool: DiscoverPool) => pool.treasuryReadiness === "setup_required",
+    },
+  ];
+
+  const remaining = [...pools];
+  const result: Array<{
+    key: string;
+    title: string;
+    explanation: string;
+    pools: DiscoverPool[];
+  }> = [];
+
+  for (const group of groups) {
+    const matched = remaining.filter(group.match);
+    if (!matched.length) continue;
+    for (const pool of matched) remaining.splice(remaining.indexOf(pool), 1);
+    result.push({
+      key: group.key,
+      title: group.title,
+      explanation: group.explanation,
+      pools: matched,
+    });
+  }
+
+  if (remaining.length) {
+    result.push({
+      key: "other",
+      title: "Your other Pools",
+      explanation:
+        "Setup is complete for these. They are held here because Arc preflight has not passed yet.",
+      pools: remaining,
+    });
+  }
+  return result;
 }
 
 function AgentMarketplaceView({

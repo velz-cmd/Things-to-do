@@ -70,6 +70,7 @@ import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { discoverNavigationAction, workbenchAction } from "./action-contract";
 import { attachEconomicMatch } from "./attach-economic-match";
+import { rankOpportunitiesForViewer, viewerRole } from "./role-ranked";
 
 const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
@@ -2932,20 +2933,34 @@ export async function loadDiscoverPageData(
   // the marketplace can state why capital may or may not fund it rather than
   // showing a bare button. Pools are unchanged by the work-action pass, so
   // they are available to match against here.
-  const allVisible = attachEconomicMatch(workAware, {
+  const operatorPoolIds = new Set(
+    workAware
+      .filter(
+        (item) =>
+          item.marketplaceKind === "pool" &&
+          Boolean(user?.id) &&
+          item.creator.id === user?.id,
+      )
+      .map((item) => item.pool?.id ?? item.source.id),
+  );
+  const matched = attachEconomicMatch(workAware, {
     pools,
     viewerUserId: user?.id,
-    operatorOfPoolIds: new Set(
-      workAware
-        .filter(
-          (item) =>
-            item.marketplaceKind === "pool" &&
-            Boolean(user?.id) &&
-            item.creator.id === user?.id,
-        )
-        .map((item) => item.pool?.id ?? item.source.id),
-    ),
+    operatorOfPoolIds: operatorPoolIds,
   });
+  // Same canonical marketplace, ordered for who is looking at it. Ordering
+  // only: nothing is dropped, so a wrong role guess can never hide a record.
+  const allVisible = rankOpportunitiesForViewer(
+    matched,
+    viewerRole({
+      operatesPools: operatorPoolIds.size > 0,
+      hasSpendableCapital: false,
+      hasPayoutDestination: people.some(
+        (person) => person.id === user?.id && person.payoutReadiness === "ready",
+      ),
+    }),
+    user?.id,
+  );
   const liveSettlementEnabled = isLiveArcEnabled();
   const agentBlocker = liveSettlementEnabled
     ? undefined

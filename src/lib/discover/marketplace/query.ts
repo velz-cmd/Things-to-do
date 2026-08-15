@@ -41,7 +41,11 @@ import type {
   MarketplacePage,
 } from "./contracts";
 import type { OpportunityFilters } from "./filters";
-import { opportunityMatchesView, programEntityVisible } from "./publication";
+import {
+  opportunityMatchesView,
+  operatorProgramVisible,
+  programEntityVisible,
+} from "./publication";
 import { selectDiscoverRecommendation } from "./recommendation";
 import { DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS } from "./cache";
 import {
@@ -221,6 +225,61 @@ async function loadProgramOpportunities() {
   return rows
     .filter((row) => programEntityVisible(row as ProgramOpportunityRow))
     .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow));
+}
+
+/**
+ * The operator's own Programs/Pools, regardless of status or mission
+ * linkage — draft, undeployed setups that `loadProgramOpportunities`
+ * deliberately excludes from the shared PUBLIC cache. Queried per-request
+ * (never cached across viewers) so an operator can find and finish setting
+ * up a Pool that isn't publicly fundable yet, matching how a request's own
+ * unpublished drafts already stay visible to their creator only.
+ */
+async function loadOperatorProgramOpportunities(viewerId: string) {
+  const rows = await prisma.resolveProgram.findMany({
+    where: { userId: viewerId },
+    select: {
+      id: true,
+      name: true,
+      templateId: true,
+      status: true,
+      budgetUsd: true,
+      rulesJson: true,
+      metadataJson: true,
+      missionId: true,
+      lastDeployAt: true,
+      createdAt: true,
+      updatedAt: true,
+      user: {
+        select: {
+          id: true,
+          displayName: true,
+          githubUsername: true,
+          githubId: true,
+        },
+      },
+      install: {
+        select: {
+          communitySlug: true,
+          status: true,
+        },
+      },
+      fundStakes: {
+        where: { status: { in: ["active", "target_met"] } },
+        select: {
+          principalUsd: true,
+          releasedUsd: true,
+          status: true,
+        },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }],
+    take: 40,
+  });
+  return rows
+    .filter((row) => operatorProgramVisible(row as ProgramOpportunityRow))
+    .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow))
+    .filter((item) => item.marketplaceKind === "pool");
 }
 
 async function loadVerifiedGithubWork() {
@@ -2778,8 +2837,11 @@ export async function loadDiscoverPageData(
   const viewerRequests = viewerRequestRows.map((row) =>
     normalizePersistedOpportunity(row as PersistedOpportunityRow),
   );
+  const viewerPools = user
+    ? await loadOperatorProgramOpportunities(user.id).catch(() => [])
+    : [];
   const mergedOpportunityMap = new Map<string, MarketplaceOpportunity>();
-  for (const item of [...viewerRequests, ...opportunities.items]) {
+  for (const item of [...viewerRequests, ...viewerPools, ...opportunities.items]) {
     if (!mergedOpportunityMap.has(item.id)) mergedOpportunityMap.set(item.id, item);
   }
   const visibleBeforeWorkActions = [...mergedOpportunityMap.values()].map((item) => {

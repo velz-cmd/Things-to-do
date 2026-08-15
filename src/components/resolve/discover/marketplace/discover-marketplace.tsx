@@ -43,6 +43,7 @@ import type {
   EconomicActionItem,
   MarketplaceOpportunity,
 } from "@/lib/discover/marketplace/contracts";
+import { describeSignal } from "@/lib/discover/impact/impact-signals";
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
 import type { EconomicMatch } from "@/lib/discover/impact/economic-matching";
 import type { OpportunityFilters } from "@/lib/discover/marketplace/filters";
@@ -533,6 +534,57 @@ function EconomicMatchSummary({ match }: { match?: EconomicMatch }) {
   );
 }
 
+/**
+ * Deterministic, evidence-based reasons this outcome is in the feed.
+ *
+ * Deliberately not a score. "Impact 87/100" compresses unlike things into one
+ * number a reader cannot check; each line here is a statement they can verify
+ * against the evidence, and a line is only emitted when it is actually true.
+ */
+function whySurfaced(work: MarketplaceOpportunity): string[] {
+  const reasons: string[] = [];
+  const profile = work.impactProfile;
+
+  if (profile?.measurable) {
+    // describeSignal carries the scope caveat - repository-level adoption is
+    // explicitly not a claim about this specific change.
+    for (const signal of profile.signals.slice(0, 2)) {
+      reasons.push(describeSignal(signal));
+    }
+  }
+
+  const match = work.economicMatch;
+  if (match?.eligible.length) {
+    reasons.push(`${match.eligible[0]!.intent.label} accepts this class of outcome`);
+  }
+  if (match && match.coverage.length === 0) {
+    reasons.push("No previous obligation covers the same purpose");
+  }
+  if (work.entityState?.financialReadiness === "ready") {
+    reasons.push("Recipient payout route is ready");
+  }
+  return reasons;
+}
+
+function WhySurfaced({ work }: { work: MarketplaceOpportunity }) {
+  const reasons = whySurfaced(work);
+  if (!reasons.length) return null;
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300">
+        Why RESOLVE surfaced this
+      </summary>
+      <ul className="mt-1.5 space-y-1">
+        {reasons.map((reason) => (
+          <li key={reason} className="text-[11px] leading-4 text-slate-400">
+            · {reason}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function WorkRow({
   work,
   data,
@@ -612,6 +664,7 @@ function WorkRow({
         </div>
         <ImpactSummary profile={work.impactProfile} />
         <EconomicMatchSummary match={work.economicMatch} />
+        <WhySurfaced work={work} />
         {work.entityState?.blocker ? (
           <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
             {work.entityState.blocker}

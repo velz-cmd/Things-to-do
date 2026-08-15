@@ -1,4 +1,5 @@
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
+import type { EconomicMatch } from "@/lib/discover/impact/economic-matching";
 
 export const DISCOVER_VIEWS = [
   "for_you",
@@ -298,6 +299,12 @@ export type MarketplaceOpportunity = {
    * - see src/lib/discover/impact/impact-signals.ts.
    */
   impactProfile?: ImpactProfile;
+  /**
+   * Which real funding intents could fund this outcome, which were ruled out
+   * and why, whether a prior payment already covers it, and what RESOLVE
+   * recommends - see src/lib/discover/impact/economic-matching.ts.
+   */
+  economicMatch?: EconomicMatch;
   primaryAction?: DiscoverAction;
   secondaryActions?: DiscoverAction[];
 };

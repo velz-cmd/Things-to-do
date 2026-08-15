@@ -44,6 +44,7 @@ import type {
   MarketplaceOpportunity,
 } from "@/lib/discover/marketplace/contracts";
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
+import type { EconomicMatch } from "@/lib/discover/impact/economic-matching";
 import type { OpportunityFilters } from "@/lib/discover/marketplace/filters";
 
 type OpenAction = (action: DiscoverAction, item?: EconomicActionItem) => void;
@@ -451,6 +452,87 @@ function ImpactSummary({ profile }: { profile?: ImpactProfile }) {
   );
 }
 
+const MECHANISM_LABELS: Record<string, string> = {
+  pool_allocation: "Pool allocation",
+  sponsor_program: "Sponsor program",
+  funded_request: "Funded request",
+  recurring_support: "Recurring support",
+  direct_support: "Direct support",
+};
+
+/**
+ * Level 2 of the outcome row: which real capital could fund this, what was
+ * ruled out and why, and whether a prior payment already covers it. Excluded
+ * mechanisms stay behind a disclosure so the row stays dense, but they are
+ * never hidden - a funder needs to see what RESOLVE considered.
+ */
+function EconomicMatchSummary({ match }: { match?: EconomicMatch }) {
+  if (!match) return null;
+  const { eligible, excluded, coverage, overlap } = match;
+  if (!eligible.length && !excluded.length) return null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+        <span className="font-semibold text-violet-300">Funding match</span>
+        {match.recommended ? (
+          <span className="text-slate-200">
+            {MECHANISM_LABELS[match.recommended] ?? match.recommended}
+          </span>
+        ) : (
+          <span className="text-slate-400">
+            No funding intent currently covers this outcome
+          </span>
+        )}
+        {match.requiresReview ? (
+          <span className="rounded bg-amber-300/10 px-1.5 py-0.5 text-[11px] text-amber-200">
+            Needs funder review
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs leading-5 text-slate-400">
+        {match.recommendationReason}
+      </p>
+      {eligible.length ? (
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {eligible.map((entry) => (
+            <li
+              key={entry.intent.id}
+              className="rounded border border-emerald-300/20 bg-emerald-300/[0.06] px-2 py-0.5 text-[11px] text-emerald-200"
+            >
+              {entry.intent.label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {coverage.length ? (
+        <p className="mt-2 text-xs text-slate-400">
+          {coverage.length} prior payment{coverage.length === 1 ? "" : "s"} found.{" "}
+          {overlap === "duplicate_obligation"
+            ? "This obligation is already settled and must not be paid again."
+            : overlap === "possible_overlap"
+              ? "Purpose may overlap, so a funder decides."
+              : "Different economic purpose, so this is not a duplicate."}
+        </p>
+      ) : null}
+      {excluded.length ? (
+        <details className="mt-2 group">
+          <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300">
+            {excluded.length} mechanism{excluded.length === 1 ? "" : "s"} ruled out
+          </summary>
+          <ul className="mt-1.5 space-y-1">
+            {excluded.map((entry) => (
+              <li key={entry.intent.id} className="text-[11px] leading-4 text-slate-500">
+                <span className="text-slate-400">{entry.intent.label}</span> — {entry.reason}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function WorkRow({
   work,
   data,
@@ -477,10 +559,15 @@ function WorkRow({
           ? "Contributor unclaimed"
           : blocker.includes("payout")
             ? "Payout not ready"
-            : "Reward unavailable";
-  const coverageState = work.program?.name
-    ? `Covered by ${work.program.name}`
-    : "Not currently covered";
+            // "Reward unavailable" named a payment that was never offered and
+            // gave the reader nothing to act on. State the settlement fact.
+            : "No settlement route yet";
+  // Coverage is a matching result, not a guess from an attached program name.
+  const coverageState = work.economicMatch?.coverage.length
+    ? `${work.economicMatch.coverage.length} prior payment${work.economicMatch.coverage.length === 1 ? "" : "s"}`
+    : work.program?.name
+      ? `Covered by ${work.program.name}`
+      : "No prior payment found";
   const inspectEvidence =
     work.primaryAction?.id === "discover.open_evidence"
       ? work.primaryAction
@@ -524,6 +611,7 @@ function WorkRow({
           <span>{payoutState}</span>
         </div>
         <ImpactSummary profile={work.impactProfile} />
+        <EconomicMatchSummary match={work.economicMatch} />
         {work.entityState?.blocker ? (
           <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
             {work.entityState.blocker}

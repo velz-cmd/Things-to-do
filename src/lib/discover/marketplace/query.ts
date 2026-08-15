@@ -69,6 +69,7 @@ import { deriveUserCapabilities } from "@/lib/capabilities/user-capabilities";
 import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { discoverNavigationAction, workbenchAction } from "./action-contract";
+import { attachEconomicMatch } from "./attach-economic-match";
 
 const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
@@ -2920,13 +2921,31 @@ export async function loadDiscoverPageData(
     claimedPeople,
     requestAware,
   );
-  const allVisible = attachVerifiedWorkActions(
+  const workAware = attachVerifiedWorkActions(
     requestAware,
     people,
     user?.id,
   );
-  const communities = listCommunities(allVisible);
-  const pools = listPools(allVisible, user?.id);
+  const communities = listCommunities(workAware);
+  const pools = listPools(workAware, user?.id);
+  // Resolve each outcome against the funding intents that actually exist, so
+  // the marketplace can state why capital may or may not fund it rather than
+  // showing a bare button. Pools are unchanged by the work-action pass, so
+  // they are available to match against here.
+  const allVisible = attachEconomicMatch(workAware, {
+    pools,
+    viewerUserId: user?.id,
+    operatorOfPoolIds: new Set(
+      workAware
+        .filter(
+          (item) =>
+            item.marketplaceKind === "pool" &&
+            Boolean(user?.id) &&
+            item.creator.id === user?.id,
+        )
+        .map((item) => item.pool?.id ?? item.source.id),
+    ),
+  });
   const liveSettlementEnabled = isLiveArcEnabled();
   const agentBlocker = liveSettlementEnabled
     ? undefined

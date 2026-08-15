@@ -1,3 +1,5 @@
+import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
+
 export const DISCOVER_VIEWS = [
   "for_you",
   "explore",
@@ -282,6 +284,12 @@ export type MarketplaceOpportunity = {
   };
   sourceUrl?: string;
   entityState?: DiscoverEntityState;
+  /**
+   * Sourced adoption/outcome evidence, or an explicit statement that impact
+   * is not yet measurable. Never derived from stars, forks, or merge counts
+   * - see src/lib/discover/impact/impact-signals.ts.
+   */
+  impactProfile?: ImpactProfile;
   primaryAction?: DiscoverAction;
   secondaryActions?: DiscoverAction[];
 };

@@ -375,13 +375,13 @@ export function normalizeProgramOpportunity(
       : !treasuryReady
         ? "treasury"
         : "review";
-  const setupLabel = setupStep === "publication"
-    ? "Review publication"
-    : setupStep === "policy"
-      ? "Design policy"
-      : setupStep === "treasury"
-        ? "Add treasury destination"
-        : "Review program";
+  // No generic fallback: this label is only ever rendered on the not-ready
+  // path, where setupStep is always one of the three real prerequisites.
+  const setupLabel = setupStep === "policy"
+    ? "Design policy"
+    : setupStep === "treasury"
+      ? "Add treasury destination"
+      : "Review publication";
 
   return {
     id: `program:${row.id}`,

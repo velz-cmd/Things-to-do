@@ -391,6 +391,16 @@ export type DiscoverPool = {
   balanceState?: FundingAmountState;
   targetUsd?: number;
   pendingDepositsUsd?: number;
+  /**
+   * The next real checkpoint this Pool is working toward, and progress within
+   * the current segment.
+   *
+   * budgetUsd cannot be a goal: funding increments it, so a bar drawn against
+   * it moves the finish line every time someone deposits and can never fill.
+   * Checkpoints are the actual economic milestone that triggers distribution.
+   */
+  nextCheckpointUsd?: number;
+  checkpointProgressPct?: number;
   lifecycleState:
     | "setup_incomplete"
     | "configured"

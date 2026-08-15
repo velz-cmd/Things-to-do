@@ -739,19 +739,32 @@ function PoolCard({
       ) : null}
       <div className="mt-5">
         <div className="flex items-end justify-between text-xs">
-          <span className="text-slate-500">Confirmed funding</span>
+          <span className="text-slate-500">Confirmed on Arc</span>
           <span className="text-slate-200">
-            {money(confirmed) ?? "Not confirmed"}
-            {target ? ` / ${money(target)}` : ""}
+            {money(confirmed) ?? "Nothing confirmed yet"}
           </span>
         </div>
-        {progress != null ? (
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]">
-            <div
-              className="h-full rounded-full bg-emerald-400"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+        {/* The bar tracks the next checkpoint, not budgetUsd: funding
+            increments budgetUsd, so a bar drawn against it moved the finish
+            line on every deposit and could never fill. */}
+        {pool.nextCheckpointUsd && pool.checkpointProgressPct != null ? (
+          <>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+              <div
+                className="h-full rounded-full bg-emerald-400 transition-[width]"
+                style={{
+                  width: `${Math.min(100, Math.max(0, pool.checkpointProgressPct))}%`,
+                }}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              {pool.checkpointProgressPct}% to the next checkpoint at{" "}
+              {money(pool.nextCheckpointUsd)}
+              {confirmed && confirmed > 0
+                ? ` · ${money(Math.max(0, pool.nextCheckpointUsd - confirmed))} still needed`
+                : ""}
+            </p>
+          </>
         ) : null}
         {/* "Pending confirmation" claims a deposit is in flight on Arc. That
             is only true when a transaction was actually submitted. This number

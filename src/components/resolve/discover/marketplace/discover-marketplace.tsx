@@ -834,16 +834,16 @@ function ForYouView({
         item.source.type === "repository_snapshot",
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const rewardReady = work.filter(
+  const supportable = work.filter(
     (item) => item.primaryAction?.id === "discover.fund_verified_work",
   ).length;
-  const rewardTargets = work.flatMap((item) =>
+  const supportTargets = work.flatMap((item) =>
     item.primaryAction?.presentation.kind === "workbench" &&
     item.primaryAction.presentation.target.panel === "work_funding"
       ? [{ work: item, target: item.primaryAction.presentation.target }]
       : [],
   );
-  const selectedTargets = rewardTargets.filter(({ work: item }) =>
+  const selectedTargets = supportTargets.filter(({ work: item }) =>
     selectedWorkIds.includes(item.id),
   );
   const bundleAction: DiscoverAction = {
@@ -863,30 +863,36 @@ function ForYouView({
     },
   };
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold text-violet-300">Accepted work</p>
-          <h2 className="mt-1 text-2xl font-semibold text-white">
-            Verify the work, then reward the person who did it
+          <p className="text-xs font-semibold text-violet-300">Verified impact</p>
+          <h2 className="mt-1 text-xl font-semibold text-white">
+            Outcomes with evidence, and who they reached
           </h2>
+          {/* A merge is provenance, not value. This surface answers what
+              changed, what adoption evidence exists, and whether any capital
+              has declared an interest - not "who deserves a reward". */}
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-            Every row comes from a persisted accepted event and a current Evidence record. Inspecting proof is public. Rewards require a claimed contributor and a verified Arc payout destination.
+            Each row is a persisted outcome with a source record. Adoption
+            evidence is shown only where a connector observed it. Payment
+            appears when capital has an interest and the recipient can settle.
           </p>
         </div>
         {work.length ? (
           <div className="flex gap-2 text-xs">
             <span className="rounded-lg border border-white/[0.08] bg-[#091522] px-3 py-2 text-slate-300">
-              {work.length} accepted event{work.length === 1 ? "" : "s"}
+              {work.length} outcome{work.length === 1 ? "" : "s"}
             </span>
-            <span className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.04] px-3 py-2 text-emerald-200">
-              {rewardReady} reward ready
-            </span>
+            {supportable > 0 ? (
+              <span className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.04] px-3 py-2 text-emerald-200">
+                {supportable} can settle now
+              </span>
+            ) : null}
           </div>
         ) : null}
       </section>
-      <RepositoryAnalyzer />
-      {rewardTargets.length ? (
+      {supportTargets.length ? (
         <section className="flex flex-col gap-3 rounded-xl border border-violet-300/15 bg-violet-300/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-semibold text-white">Support several contributors</h3>
@@ -905,7 +911,7 @@ function ForYouView({
                 work={item}
                 data={data}
                 onOpen={onOpen}
-                selectable={rewardTargets.some(({ work: candidate }) => candidate.id === item.id)}
+                selectable={supportTargets.some(({ work: candidate }) => candidate.id === item.id)}
                 selected={selectedWorkIds.includes(item.id)}
                 onSelect={(checked) =>
                   setSelectedWorkIds((current) =>
@@ -920,10 +926,26 @@ function ForYouView({
         </section>
       ) : (
         <CompactEmpty
-          title="No accepted work matches the current source snapshot"
-          body="Analyse a public repository above. RESOLVE will persist only supported merged work. Provider failure keeps the last valid snapshot visible and reports the source reason instead of replacing it with fake or empty records."
+          title="No outcomes match the current source snapshot"
+          body="Connect a project below to observe its accepted work and adoption evidence. If a source fails, RESOLVE keeps the last valid snapshot and reports the reason rather than showing empty or invented records."
         />
       )}
+      {/* Source ingestion is a setup task, not a marketplace opportunity, so
+          it sits after the feed instead of occupying the first viewport. */}
+      <details className="group rounded-xl border border-white/[0.08] bg-[#091522]">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-slate-300 transition hover:text-white">
+          <span className="inline-flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-cyan-300" />
+            Add a project source
+            <span className="text-xs font-normal text-slate-500">
+              Observe accepted work and adoption evidence from a public repository
+            </span>
+          </span>
+        </summary>
+        <div className="border-t border-white/[0.06] px-4 py-4">
+          <RepositoryAnalyzer />
+        </div>
+      </details>
     </div>
   );
 }
@@ -997,14 +1019,18 @@ function RepositoryAnalyzer() {
       <div className="grid gap-4 lg:grid-cols-[minmax(260px,.75fr)_minmax(360px,1fr)] lg:items-center">
         <div>
           <p className="text-xs font-semibold text-cyan-300">
-            Repository analyzer
+            Project source
           </p>
           <h2 className="mt-1 font-semibold text-white">
-            Analyse accepted GitHub work
+            Observe a public repository
           </h2>
+          {/* Merges are recorded as provenance. Whether an outcome carries
+              economic weight depends on adoption evidence and on capital
+              declaring an interest - not on the merge itself. */}
           <p className="mt-1 text-xs leading-5 text-slate-400">
-            Merged supported activity is saved as evidence and appears in Work
-            after validation.
+            RESOLVE records accepted work as source evidence and observes
+            downstream adoption where a connector can measure it. Recording a
+            project does not by itself make its work payable.
           </p>
         </div>
         <form
@@ -1176,11 +1202,11 @@ function ExploreView({
   const openRequests = requests.filter((item) => item.status === "open");
   const personalRequests = requests.filter((item) => item.status !== "open");
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold text-cyan-300">Funded requests</p>
-          <h2 className="mt-1 text-2xl font-semibold text-white">
+          <h2 className="mt-1 text-xl font-semibold text-white">
             Ask for useful work, with proof and payment terms
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
@@ -1199,10 +1225,12 @@ function ExploreView({
           </div>
         </section>
       ) : (
+        /* The header already carries the single Post CTA. Repeating it here
+           was two buttons for one action; this space explains what an
+           outcome-backed request is instead. */
         <CompactEmpty
           title="No funded request is open right now"
-          body="Post a real request above. Drafts stay private and no opportunity is shown as open until Arc escrow confirms its budget."
-          action={<ContextualAction action={postAction} primary onOpen={onOpen} />}
+          body="An outcome-backed request names the problem, who it affects, the measurable result, and the source evidence that will prove completion. Its USDC budget is confirmed in Arc escrow before it becomes public, so a contributor can rely on it, and payment releases only against persisted evidence the requester approves."
         />
       )}
       {personalRequests.length ? (
@@ -1242,10 +1270,10 @@ function ActivityView({
       Boolean(item.pool),
   );
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <section>
         <p className="text-xs font-semibold text-emerald-300">Community funding</p>
-        <h2 className="mt-1 text-2xl font-semibold text-white">
+        <h2 className="mt-1 text-xl font-semibold text-white">
           Pools with visible rules, treasury state, and receipts
         </h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
@@ -1316,12 +1344,12 @@ function AgentMarketplaceView({
       )
     : data.agentMarketplace.services;
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <section>
         <p className="text-xs font-semibold text-cyan-300">
           Pay per useful result
         </p>
-        <h2 className="mt-1 text-2xl font-semibold text-white">
+        <h2 className="mt-1 text-xl font-semibold text-white">
           Agent Marketplace
         </h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
@@ -1401,10 +1429,10 @@ function OutcomesView({
     ["receipts", "Receipts"],
   ];
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <section>
         <p className="text-xs font-semibold text-violet-300">Your ledger</p>
-        <h2 className="mt-1 text-2xl font-semibold text-white">Activity and receipts</h2>
+        <h2 className="mt-1 text-xl font-semibold text-white">Activity and receipts</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
           Follow each real action from preparation through submission, confirmation, and receipt. Submitted transactions never appear as confirmed before Arc and RESOLVE both record proof.
         </p>

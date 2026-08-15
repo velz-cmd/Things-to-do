@@ -27,6 +27,7 @@ import {
   type ProgramOpportunityRow,
 } from "./normalize";
 import type {
+  DiscoverEntityState,
   DiscoverActivityItem,
   DiscoverCommunity,
   DiscoverInboxItem,
@@ -1767,6 +1768,23 @@ function poolType(item: MarketplaceOpportunity) {
   return "General Community Pool";
 }
 
+/**
+ * Names the exact remaining step so an operator card never says only
+ * "Review program". Each label is the work itself, not an invitation to go
+ * look at something.
+ */
+const POOL_SETUP_LABEL: Record<
+  NonNullable<DiscoverEntityState["setupStep"]>,
+  string
+> = {
+  create: "Create funding rule",
+  source: "Connect evidence source",
+  publication: "Publish Pool",
+  policy: "Define funding rule",
+  treasury: "Add treasury",
+  review: "Review distribution",
+};
+
 export function listPools(
   opportunities: MarketplaceOpportunity[],
   viewerUserId?: string,
@@ -1872,19 +1890,12 @@ export function listPools(
               ? workbenchAction(
                   {
                     id: "program.update_policy",
-                    label: item.entityState?.blocker
-                      ?.toLowerCase()
-                      .includes("publish")
-                      ? "Review publication"
-                      : item.entityState?.blocker
-                            ?.toLowerCase()
-                            .includes("policy")
-                        ? "Design policy"
-                        : item.entityState?.blocker
-                              ?.toLowerCase()
-                              .includes("treasury")
-                          ? "Add treasury destination"
-                          : "Review program",
+                    // Branch on the canonical setup step, never on blocker
+                    // prose. The blocker reads "Approve this Program for
+                    // public discovery", which matches none of the old
+                    // substrings, so every unconfigured Pool fell through to
+                    // a generic "Review program" that named no real work.
+                    label: POOL_SETUP_LABEL[item.entityState?.setupStep ?? "review"],
                     href: `/discover?view=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
                   },
                   {
@@ -1892,19 +1903,7 @@ export function listPools(
                     subjectId: item.pool.id ?? item.source.id,
                     programId: item.pool.id ?? item.source.id,
                     communitySlug: item.community.id ?? item.community.name,
-                    step: item.entityState?.blocker
-                      ?.toLowerCase()
-                      .includes("publish")
-                      ? "publication"
-                      : item.entityState?.blocker
-                            ?.toLowerCase()
-                            .includes("policy")
-                        ? "policy"
-                        : item.entityState?.blocker
-                              ?.toLowerCase()
-                              .includes("treasury")
-                          ? "treasury"
-                          : "review",
+                    step: item.entityState?.setupStep ?? "review",
                   },
                 )
               : workbenchAction(

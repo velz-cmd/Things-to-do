@@ -212,6 +212,14 @@ export type DiscoverEntityState = {
   financialReadiness:
     "not_applicable" | "setup_required" | "ready" | "submitted" | "confirmed";
   blocker?: string;
+  /**
+   * The canonical next setup step. Consumers must branch on this rather than
+   * pattern-matching `blocker` prose: the blocker copy "Approve this Program
+   * for public discovery" contains neither "publish" nor "policy" nor
+   * "treasury", so string sniffing silently fell through to a generic
+   * "Review program" label on every unconfigured Pool.
+   */
+  setupStep?: "create" | "source" | "publication" | "policy" | "treasury" | "review";
 };
 
 export type ProviderPreference =

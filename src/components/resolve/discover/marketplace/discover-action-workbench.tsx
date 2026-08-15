@@ -1532,25 +1532,38 @@ function ProgramSetupPanel({
           {error}
         </p>
       ) : null}
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void submit()}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-      >
-        {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-        {target.step === "create"
-          ? "Create program draft"
-          : target.step === "publication"
-            ? "Approve publication"
-            : target.step === "policy"
-              ? "Save and activate policy"
-              : target.step === "treasury"
-                ? "Save treasury destination"
-                : target.step === "source"
-                  ? "Refresh GitHub evidence"
-                  : "Refresh program state"}
-      </button>
+      {/* "review" means every prerequisite already passed. Offering a
+          "Refresh program state" button here was a dead end - refreshing
+          backend state is not customer work and changed nothing. Point at
+          the real next action instead. */}
+      {target.step === "review" ? (
+        <div className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-4">
+          <p className="font-semibold text-emerald-100">Setup is complete</p>
+          <p className="mt-2 text-sm leading-6 text-emerald-100/80">
+            Publication, funding policy and treasury destination are all in
+            place, so this Pool can receive capital. Close this panel and use
+            Fund Pool, or Review distribution once it holds confirmed funding.
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void submit()}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+          {target.step === "create"
+            ? "Create program draft"
+            : target.step === "publication"
+              ? "Approve publication"
+              : target.step === "policy"
+                ? "Save and activate policy"
+                : target.step === "treasury"
+                  ? "Save treasury destination"
+                  : "Refresh GitHub evidence"}
+        </button>
+      )}
     </div>
   );
 }

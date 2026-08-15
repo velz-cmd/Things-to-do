@@ -32,12 +32,36 @@ export type AgentSignalService = {
   discoverable: boolean;
   /** Example agent prompt (Circle-style) */
   examplePrompt: string;
+  /**
+   * Why a person would buy this, in decision terms.
+   *
+   * Deliberately does NOT claim which RESOLVE object will consume the result.
+   * Purchased output is not yet attachable as canonical evidence, and naming
+   * a workflow it cannot actually feed would be a promise the product does
+   * not keep. These fields describe only what the service itself does.
+   */
+  decisionContext?: {
+    /** The uncertainty this resolves. */
+    useWhen: string;
+    /** What comes back. */
+    produces: string;
+    /** What it cannot establish. Always stated - these are heuristics. */
+    limitations: string;
+  };
 };
 
 /** Phase 6 x402 micro-services, agents find, pay, and move on Arc. */
 const X402_MICRO_CATALOG: AgentSignalService[] = [
   {
     id: "sentiment-per-request",
+    decisionContext: {
+      useWhen:
+        "You have free-text feedback and need it classified before judging whether a complaint represents a real problem.",
+      produces:
+        "A sentiment classification for the supplied text.",
+      limitations:
+        "Classifies wording only. It does not establish how many people share the view, or that the issue is real.",
+    },
     name: "Sentiment",
     tagline: "Classify feedback per request",
     description:
@@ -55,6 +79,14 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
   },
   {
     id: "citation-verify",
+    decisionContext: {
+      useWhen:
+        "You need to know whether a citation identifier actually resolves, before treating the citation as reuse evidence.",
+      produces:
+        "DOI/arXiv identifiers found in the text, and whether each resolves.",
+      limitations:
+        "Confirms the identifier resolves. It does not establish that the citing work is legitimate or that the reuse was meaningful.",
+    },
     name: "Citation verify",
     tagline: "Verify DOI / arXiv in citation text",
     description:
@@ -73,6 +105,14 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
   },
   {
     id: "docs-review",
+    decisionContext: {
+      useWhen:
+        "You need a read on documentation quality before weighing a documentation-related outcome.",
+      produces:
+        "A heuristic documentation quality assessment.",
+      limitations:
+        "Heuristic only. It is not a measurement of whether anyone read or benefited from the documentation.",
+    },
     name: "Docs review",
     tagline: "Heuristic docs quality score",
     description:
@@ -91,6 +131,14 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
   },
   {
     id: "attribution-signal",
+    decisionContext: {
+      useWhen:
+        "You have a track or release reference and need artist/track attribution parsed before crediting a creator.",
+      produces:
+        "Parsed artist and track attribution for the supplied reference.",
+      limitations:
+        "Parses the reference given. It does not verify that the named artist is the rights holder.",
+    },
     name: "Attribution",
     tagline: "Parse artist/track attribution",
     description:
@@ -109,6 +157,14 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
   },
   {
     id: "security-signal",
+    decisionContext: {
+      useWhen:
+        "You are weighing a security-related outcome and need advisory text turned into concrete identifiers first.",
+      produces:
+        "CVE identifiers, severity hints and affected package references found in the advisory.",
+      limitations:
+        "Extracts what the advisory states. It does not confirm exploitability, or that a given fix resolved it.",
+    },
     name: "Security signal",
     tagline: "CVE extraction from advisory text",
     description:
@@ -127,6 +183,14 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
   },
   {
     id: "premium-research",
+    decisionContext: {
+      useWhen:
+        "You need the extended research signal behind a citation before treating it as adoption evidence.",
+      produces:
+        "The extended research record for the supplied reference.",
+      limitations:
+        "Returns what the upstream source holds. Absence is not evidence that reuse did not occur.",
+    },
     name: "Premium research unlock",
     tagline: "Paid evidence for mission reasoning",
     description:
@@ -148,6 +212,14 @@ const X402_MICRO_CATALOG: AgentSignalService[] = [
 const SENSOR_INGEST_SERVICES: AgentSignalService[] = [
   {
     id: "play-attribution",
+    decisionContext: {
+      useWhen:
+        "You are attributing listening activity to a creator and need each play resolved to an artist.",
+      produces:
+        "Per-play artist attribution from the connected listening source.",
+      limitations:
+        "Attributes plays the connected source recorded. It is not a complete picture of listening elsewhere.",
+    },
     name: "Play attribution (sensor)",
     tagline: "Pay per verified listen, ListenBrainz",
     description: "Sensor ingest path for user-centric royalties programs.",
@@ -164,6 +236,14 @@ const SENSOR_INGEST_SERVICES: AgentSignalService[] = [
   },
   {
     id: "citation-toll",
+    decisionContext: {
+      useWhen:
+        "You are metering citation reuse and need each citation event priced and attributed.",
+      produces:
+        "A per-citation attribution record for the supplied reference.",
+      limitations:
+        "Covers citations the connected source observed. It does not establish the scholarly weight of the citation.",
+    },
     name: "Citation toll (sensor)",
     tagline: "OpenAlex citation ingest",
     description: "Micropayment per verified citation via OpenAlex sensor.",

@@ -462,6 +462,17 @@ export type DiscoverAgentService = {
   domain: string;
   deliverables: string[];
   examplePrompt: string;
+  /**
+   * Why someone would buy this, in decision terms. Deliberately does not name
+   * a RESOLVE object that will consume the result: purchased output is not
+   * yet attachable as canonical evidence, and claiming otherwise would be a
+   * promise the product does not keep.
+   */
+  decisionContext?: {
+    useWhen: string;
+    produces: string;
+    limitations: string;
+  };
   paymentRail: "Arc Testnet USDC for x402-metered service";
   available: boolean;
   blocker?: string;

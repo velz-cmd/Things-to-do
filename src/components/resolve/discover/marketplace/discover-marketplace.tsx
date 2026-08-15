@@ -813,9 +813,36 @@ function AgentServiceCard({
           {service.available ? "Available" : "Payment paused"}
         </span>
       </div>
-      <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-300">
-        {service.description}
-      </p>
+      {/* A price and an endpoint do not tell anyone why to buy. Lead with the
+          uncertainty this resolves, and state what it cannot establish - these
+          are heuristics, and a buyer deciding where money goes needs to know
+          the difference. */}
+      {service.decisionContext ? (
+        <div className="mt-4 space-y-2">
+          <div>
+            <p className="text-[11px] font-semibold text-violet-300">Use this when</p>
+            <p className="mt-0.5 text-sm leading-6 text-slate-300">
+              {service.decisionContext.useWhen}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500">Produces</p>
+            <p className="mt-0.5 text-xs leading-5 text-slate-400">
+              {service.decisionContext.produces}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500">Cannot establish</p>
+            <p className="mt-0.5 text-xs leading-5 text-slate-400">
+              {service.decisionContext.limitations}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-300">
+          {service.description}
+        </p>
+      )}
       <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-3 text-xs">
         <div>
           <dt className="text-slate-500">Current price</dt>

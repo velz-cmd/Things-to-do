@@ -1759,7 +1759,7 @@ function poolType(item: MarketplaceOpportunity) {
   return "General Community Pool";
 }
 
-function listPools(
+export function listPools(
   opportunities: MarketplaceOpportunity[],
   viewerUserId?: string,
 ): DiscoverPool[] {
@@ -1911,11 +1911,31 @@ function listPools(
                     entityType: "pool",
                   },
                 ),
-        secondaryActions: (item.secondaryActions ?? []).filter(
-          (action) =>
-            action.presentation?.kind !== "navigation" ||
-            action.presentation.target !== "workspace",
-        ),
+        secondaryActions: [
+          ...(item.secondaryActions ?? []).filter(
+            (action) =>
+              action.presentation?.kind !== "navigation" ||
+              action.presentation.target !== "workspace",
+          ),
+          ...(operatorOwnsPool && financiallyReady
+            ? [
+                workbenchAction(
+                  {
+                    id: "capital.authorize_settlement",
+                    label: "Review distribution",
+                    href: `/discover?view=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                  },
+                  {
+                    panel: "pool_distribution",
+                    subjectId: item.pool.id ?? item.source.id,
+                    programId: item.pool.id ?? item.source.id,
+                    communitySlug: item.community.id ?? item.community.name,
+                    poolName: item.pool.name,
+                  },
+                ),
+              ]
+            : []),
+        ],
       },
     ];
   });

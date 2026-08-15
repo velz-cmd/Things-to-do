@@ -154,6 +154,7 @@ export const AMOUNT_STATE_LABELS = {
   confirmed: "Confirmed",
   failed: "Failed",
   reconciled: "Reconciled",
+  provenance_unavailable: "Provenance unavailable",
 } as const;
 
 export function amountStateLabel(state: keyof typeof AMOUNT_STATE_LABELS): string {

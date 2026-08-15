@@ -14,9 +14,11 @@ test.describe("Discover marketplace composition", () => {
       .getByRole("link", { name: "Verified Work" })
       .click();
     await expect(page).toHaveURL(/view=verified_work/);
+    // A merge is provenance, not value: this surface leads with outcomes and
+    // reach, never with "reward the person who did it".
     await expect(
       page.getByRole("heading", {
-        name: "Verify the work, then reward the person who did it",
+        name: "Outcomes with evidence, and who they reached",
       }),
     ).toBeVisible();
   });
@@ -29,7 +31,7 @@ test.describe("Discover marketplace composition", () => {
     });
 
     await expect(page.getByRole("heading", { name: "Discover", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Verify the work, then reward the person who did it" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Outcomes with evidence, and who they reached" })).toBeVisible();
     await expect(page.getByText("Economic Action Network", { exact: true })).toHaveCount(0);
     await expect(page.getByText("6 verified capabilities available", { exact: true })).toHaveCount(0);
     await expect(page.getByText("I want to", { exact: true })).toHaveCount(0);
@@ -50,7 +52,7 @@ test.describe("Discover marketplace composition", () => {
     await expect(page.getByText(/Sign in to view your economic activity|Activity and receipts/)).toBeVisible();
 
     await discoverTabs.getByRole("link", { name: "Verified Work" }).click();
-    await expect(page.getByRole("heading", { name: "Verify the work, then reward the person who did it" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Outcomes with evidence, and who they reached" })).toBeVisible();
   });
 
   test("keeps all five products usable on mobile", async ({ page }) => {

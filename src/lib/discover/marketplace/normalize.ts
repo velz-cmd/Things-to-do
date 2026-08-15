@@ -375,25 +375,32 @@ export function normalizeProgramOpportunity(
       : !treasuryReady
         ? "treasury"
         : "review";
-  const setupLabel = setupStep === "publication"
-    ? "Review publication"
-    : setupStep === "policy"
-      ? "Design policy"
-      : setupStep === "treasury"
-        ? "Add treasury destination"
-        : "Review program";
+  // No generic fallback: this label is only ever rendered on the not-ready
+  // path, where setupStep is always one of the three real prerequisites.
+  const setupLabel = setupStep === "policy"
+    ? "Design policy"
+    : setupStep === "treasury"
+      ? "Add treasury destination"
+      : "Review publication";
 
   return {
     id: `program:${row.id}`,
     slug: opaqueSlug("program", row.id, row.name),
     title: row.name,
+    // Never assert "active" from a default. A record that has not completed
+    // publication, policy and treasury setup cannot operate, and calling it
+    // active next to a "Setup incomplete" badge is a direct contradiction.
     summary:
       optionalString(metadata.summary) ??
-      `An active ${communityName} funding program for verified work.`,
+      (financialReady
+        ? `${communityName} funding program, ready to receive capital for verified outcomes.`
+        : `${communityName} funding program. Setup is not complete, so it cannot receive or distribute capital yet.`),
     description:
       optionalString(metadata.description) ??
       optionalString(rules.description) ??
-      `This program publishes a real funding budget and applies its configured verification rules before settlement.`,
+      (financialReady
+        ? `This program has an approved publication, an active funding policy and a treasury destination, and applies its configured verification rules before settlement.`
+        : `This program is still being configured. It will be able to accept funding once its publication, funding policy and treasury destination are in place.`),
     type,
     status: "open",
     creator: {
@@ -471,6 +478,7 @@ export function normalizeProgramOpportunity(
       lifecycle: publicationApproved ? "published" : "active",
       financialReadiness: financialReady ? "ready" : "setup_required",
       blocker: setupBlocker,
+      setupStep,
     },
     primaryAction: financialReady && marketplaceKind === "pool"
       ? workbenchAction({

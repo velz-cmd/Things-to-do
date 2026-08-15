@@ -155,7 +155,7 @@ export const DEFAULT_FOUNDER_INTENT: FounderIntent = {
 };
 
 export interface CouncilAgentVerdict {
-  agent: "code_impact" | "project_impact" | "economic_impact";
+  agent: "code_impact" | "project_impact" | "evidence_quality";
   score: number;
   reasoning: string;
   modelId?: string;
@@ -201,6 +201,18 @@ export interface FundingOpportunity {
   live: boolean;
   activity?: GitHubFundingActivitySnapshot;
   dependencies?: GitHubDependency[];
+  /**
+   * Authoritative downstream-adoption observation for this repository.
+   * Repository-scoped: it says how widely the repository is depended on,
+   * NOT that any specific change benefited those dependents. Absent when
+   * no connector produced an observation - impact is then reported as not
+   * yet measurable rather than substituted with stars or merge counts.
+   */
+  adoption?: {
+    dependentRepoCount?: number;
+    source: string;
+    observedAt: string;
+  };
 }
 
 export interface GitHubAllocationResult {

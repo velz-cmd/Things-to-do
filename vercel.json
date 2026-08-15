@@ -9,6 +9,7 @@
       "main": true,
       "codex/discover-final-production": true,
       "codex/discover-economic-actions": true,
+      "fix/discover-marketplace-completion": true,
       "release/**": false,
       "cursor/**": false,
       "codex/**": false,

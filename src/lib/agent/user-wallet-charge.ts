@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
+import { USDC_TOKEN_DECIMALS } from "@/lib/money/usdc";
 
 export type AgentWalletChargeResult =
   | {
@@ -19,7 +20,9 @@ export async function chargeUserForAgentSignal(input: {
   taskId: string;
   authorizationId?: string | null;
 }): Promise<AgentWalletChargeResult> {
-  const amount = Math.round(input.amountUsd * 10000) / 10000;
+  // USDC has 6 decimals; rounding a micro-price at 4dp can silently zero it.
+  const amount =
+    Math.round(input.amountUsd * 10 ** USDC_TOKEN_DECIMALS) / 10 ** USDC_TOKEN_DECIMALS;
   if (amount <= 0) {
     const bal = await getRealSpendableUsd(input.userId);
     return { ok: true, chargedUsd: 0, balanceUsd: bal.availableUsd, previousBalanceUsd: bal.availableUsd };

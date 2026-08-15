@@ -503,7 +503,7 @@ describe("Discover canonical projections", () => {
       entityState: { financialReadiness: "ready", blocker: undefined },
       primaryAction: {
         id: "discover.fund_verified_work",
-        label: "Reward this work",
+        label: "Support this work",
         requiresConfirmation: true,
         presentation: {
           kind: "workbench",
@@ -525,7 +525,7 @@ describe("Discover canonical projections", () => {
       creator: { id: "recipient-1" },
       primaryAction: {
         id: "discover.fund_verified_work",
-        label: "Reward this work",
+        label: "Support this work",
         enabled: false,
         disabledReason: expect.stringContaining("Arc settlement"),
       },

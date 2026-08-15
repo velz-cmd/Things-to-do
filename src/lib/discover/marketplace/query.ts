@@ -1313,7 +1313,15 @@ export function attachVerifiedWorkActions(
           ? workbenchAction(
               {
                 id: "discover.fund_verified_work",
-                label: "Reward this work",
+                // "Reward" implied RESOLVE had judged this work deserving of
+                // money. It has not: no funding intent is attached here, and
+                // a merge is provenance rather than value. This payment is
+                // the viewer's own voluntary decision to support verified
+                // work, so the label states whose intent it is. Mechanisms
+                // where capital has actually declared a mandate (Pool,
+                // sponsor Program, funded Request) are resolved separately
+                // by src/lib/discover/impact/economic-matching.ts.
+                label: "Support this work",
                 href: detailPath,
                 enabled: canFund,
                 disabledReason: canFund ? undefined : blocker,

@@ -1840,6 +1840,7 @@ export function listPools(
         publicationState,
         policyState: financiallyReady ? "active" : "setup_required",
         treasuryReadiness: financiallyReady ? "ready" : "setup_required",
+        setupStep: item.entityState?.setupStep,
         blocker:
           financiallyReady && !executionReady
             ? "Live Arc settlement is not enabled for this Pool."

@@ -40,7 +40,7 @@ function verdictToLegacy(v: ReasoningVerdict): PRWeightVerdict {
     agents: [
       { agent: "code_impact", score: Math.round(v.confidence.contribution * 100), reasoning: v.reasoning[1] ?? "" },
       { agent: "project_impact", score: Math.round(v.confidence.contribution * 100), reasoning: v.reasoning[2] ?? "" },
-      { agent: "economic_impact", score: Math.round(v.confidence.impact * 100), reasoning: v.reasoning[3] ?? "" },
+      { agent: "evidence_quality", score: Math.round(v.confidence.evidenceQuality * 100), reasoning: v.reasoning[3] ?? "" },
     ],
     finalWeight: v.valueWeight,
     confidence: v.confidence.settlement,
@@ -104,8 +104,6 @@ export async function runGithubPipeline(input: {
       await runCodeWorker(bus, pr);
     }
     await runImpactWorker(bus, pr, {
-      stars: ingest.stars,
-      forks: ingest.forks,
       fullName: ingest.fullName,
       librariesDependents,
     });

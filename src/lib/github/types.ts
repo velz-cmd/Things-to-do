@@ -155,7 +155,7 @@ export const DEFAULT_FOUNDER_INTENT: FounderIntent = {
 };
 
 export interface CouncilAgentVerdict {
-  agent: "code_impact" | "project_impact" | "economic_impact";
+  agent: "code_impact" | "project_impact" | "evidence_quality";
   score: number;
   reasoning: string;
   modelId?: string;

@@ -47,7 +47,6 @@ export interface NormalizedArtifact {
 export interface ConfidenceBundle {
   identity: number;
   contribution: number;
-  impact: number;
   evidenceQuality: number;
   settlement: number;
   tier: TrustTier;

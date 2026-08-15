@@ -29,21 +29,42 @@ function programSetupAction(
   item: MarketplaceOpportunity,
   returnTo: string,
 ): DiscoverAction {
+  // Use the structured setup step the normalizer already resolved. Sniffing
+  // the blocker prose silently mislabelled every publication-blocked Program:
+  // the copy reads "Approve this Program for public discovery", which contains
+  // "public" but not "publish", so each one fell through to a generic
+  // "Review program" button that named no real work.
+  // Prefer the structured step; fall back to the "<step>_required"
+  // verification status, which is also structured. Never parse the prose.
   const blocker = item.entityState?.blocker?.toLowerCase() ?? "";
-  const step = blocker.includes("publish")
-    ? "publication"
+  const setupSteps = ["create", "source", "publication", "policy", "treasury"] as const;
+  const statusStep = setupSteps.find(
+    (candidate) => item.verificationStatus === `${candidate}_required`,
+  );
+  // Prose is the last resort, and only because some producers still emit a
+  // blocker sentence without a structured step. The old keyword list looked
+  // for "publish", but the publication blocker reads "Approve this Program
+  // for public discovery" - so every publication-blocked Program fell through
+  // to a generic "Review program" button that named no real work.
+  const proseStep = blocker.includes("treasury")
+    ? ("treasury" as const)
     : blocker.includes("policy")
-      ? "policy"
-      : blocker.includes("treasury")
-        ? "treasury"
-        : "review";
-  const label = step === "publication"
-    ? "Review publication"
-    : step === "policy"
-      ? "Design policy"
-      : step === "treasury"
-        ? "Add treasury destination"
-        : "Review program";
+      ? ("policy" as const)
+      : blocker.includes("publish") || blocker.includes("public discovery")
+        ? ("publication" as const)
+        : blocker.includes("source")
+          ? ("source" as const)
+          : undefined;
+  const step = item.entityState?.setupStep ?? statusStep ?? proseStep ?? "publication";
+  const label = step === "policy"
+    ? "Design policy"
+    : step === "treasury"
+      ? "Add treasury destination"
+      : step === "source"
+        ? "Connect an evidence source"
+        : step === "create"
+          ? "Finish creating this Pool"
+          : "Review publication";
   const slug = item.community?.id ?? item.community?.name ?? "";
   const programId = item.pool?.id ?? item.source.id;
   return workbenchAction({

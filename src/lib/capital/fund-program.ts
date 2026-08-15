@@ -306,6 +306,38 @@ export async function fundCommunityProgram(input: {
     }
   }
 
+  // Discover Activity reads OperationalEvent; recordTimelineEvent writes to
+  // ResolveTimelineEvent. Those are different tables, so a real, confirmed,
+  // on-chain Pool deposit could never appear in the economic ledger - the
+  // ledger structurally could not show Pool funding at all. Record the
+  // canonical event too, carrying the Arc proof so Activity can show the
+  // amount and link the transaction.
+  void prisma.operationalEvent
+    .create({
+      data: {
+        eventType: "pool_funding_pending",
+        aggregateType: "ResolveProgram",
+        aggregateId: program.id,
+        userId: input.userId,
+        communitySlug: program.install?.communitySlug ?? null,
+        correlationId: funded.stake.id,
+        idempotencyKey: `pool_funding:${funded.stake.id}`,
+        payload: {
+          programId: program.id,
+          programName: program.name,
+          stakeId: funded.stake.id,
+          activityId: funded.activity.id,
+          amountUsdcMicro: String(Math.round(amount * 1_000_000)),
+          txHash: arcTxHash ?? null,
+          status: fundStatus,
+          fromWallet: user.walletAddress ?? null,
+        },
+      },
+    })
+    .catch((error) => {
+      console.error("[fund-program] operational event write failed", error);
+    });
+
   void recordTimelineEvent({
     userId: input.userId,
     ecosystemId: program.install?.ecosystemId ?? undefined,

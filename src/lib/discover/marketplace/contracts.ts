@@ -406,6 +406,16 @@ export type DiscoverPool = {
   publicationState: "legacy_active" | "approved" | "operator_review_required";
   policyState: "active" | "legacy_configured" | "setup_required";
   treasuryReadiness: "ready" | "setup_required";
+  /**
+   * The one prerequisite actually blocking this Pool.
+   *
+   * policyState and treasuryReadiness are both derived from a single
+   * financialReadiness boolean, so neither can distinguish "policy done,
+   * treasury still missing". Only this field tracks the real step, and it is
+   * what the card's action is built from - so anything grouping or labelling
+   * Pools must read this, or the heading and the button will disagree.
+   */
+  setupStep?: DiscoverEntityState["setupStep"];
   blocker?: string;
   primaryAction: DiscoverAction;
   secondaryActions: DiscoverAction[];

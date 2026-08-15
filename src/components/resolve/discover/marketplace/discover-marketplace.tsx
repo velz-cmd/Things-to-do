@@ -1509,27 +1509,45 @@ function operatorPoolGroups(pools: DiscoverPool[]): Array<{
   explanation: string;
   pools: DiscoverPool[];
 }> {
+  // Group on setupStep, the same field the card's action is built from.
+  // policyState/treasuryReadiness are both derived from one financialReadiness
+  // boolean, so grouping on them put a Pool whose policy was already active
+  // under "Needs a funding rule" while its button correctly said "Add
+  // treasury" - heading and action contradicting each other.
   const groups = [
     {
       key: "publication",
       title: "Waiting on your publication review",
       explanation:
         "These are configured but not yet approved for public discovery. Nobody else can fund them until you approve.",
-      match: (pool: DiscoverPool) => pool.publicationState !== "approved",
+      match: (pool: DiscoverPool) =>
+        pool.setupStep === "publication" ||
+        (!pool.setupStep && pool.publicationState !== "approved"),
     },
     {
       key: "policy",
       title: "Needs a funding rule",
       explanation:
         "A Pool cannot decide who qualifies for capital until a versioned funding policy is active.",
-      match: (pool: DiscoverPool) => pool.policyState === "setup_required",
+      match: (pool: DiscoverPool) =>
+        pool.setupStep === "policy" ||
+        (!pool.setupStep && pool.policyState === "setup_required"),
     },
     {
       key: "treasury",
       title: "Needs a treasury destination",
       explanation:
         "Capital has nowhere to settle until a valid Arc address is attached.",
-      match: (pool: DiscoverPool) => pool.treasuryReadiness === "setup_required",
+      match: (pool: DiscoverPool) =>
+        pool.setupStep === "treasury" ||
+        (!pool.setupStep && pool.treasuryReadiness === "setup_required"),
+    },
+    {
+      key: "source",
+      title: "Needs an evidence source",
+      explanation:
+        "Without a connected source there is no evidence to decide who qualifies for capital.",
+      match: (pool: DiscoverPool) => pool.setupStep === "source",
     },
   ];
 

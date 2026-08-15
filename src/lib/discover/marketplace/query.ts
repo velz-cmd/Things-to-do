@@ -70,6 +70,7 @@ import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { discoverNavigationAction, workbenchAction } from "./action-contract";
 import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
+import { fundStakeProvenanceAvailable } from "@/lib/db/ensure-fund-stake-arc-schema";
 import { attachEconomicMatch } from "./attach-economic-match";
 import { rankOpportunitiesForViewer, viewerRole } from "./role-ranked";
 
@@ -220,8 +221,12 @@ async function loadProgramOpportunities() {
           principalUsd: true,
           releasedUsd: true,
           status: true,
-          arcTxHash: true,
-          confirmedAt: true,
+          // Selected only when the columns exist. The build never runs
+          // migrations, so a projection that assumes them breaks the whole
+          // surface on any deployment that has not healed yet.
+          ...(await fundStakeProvenanceAvailable()
+            ? { arcTxHash: true, confirmedAt: true }
+            : {}),
         },
       },
     },
@@ -276,8 +281,12 @@ async function loadOperatorProgramOpportunities(viewerId: string) {
           principalUsd: true,
           releasedUsd: true,
           status: true,
-          arcTxHash: true,
-          confirmedAt: true,
+          // Selected only when the columns exist. The build never runs
+          // migrations, so a projection that assumes them breaks the whole
+          // surface on any deployment that has not healed yet.
+          ...(await fundStakeProvenanceAvailable()
+            ? { arcTxHash: true, confirmedAt: true }
+            : {}),
         },
       },
     },

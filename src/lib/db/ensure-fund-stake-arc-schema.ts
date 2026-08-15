@@ -33,6 +33,21 @@ async function columnsExist(): Promise<boolean> {
   }
 }
 
+/**
+ * Read-only check for consumers that must not attempt DDL.
+ *
+ * The Discover projection selects these columns, and selecting a column that
+ * does not exist throws and takes down the whole surface - so read paths ask
+ * first and simply omit the field when it is missing.
+ */
+let availability: boolean | null = null;
+export async function fundStakeProvenanceAvailable(): Promise<boolean> {
+  if (ensured) return true;
+  if (availability !== null) return availability;
+  availability = await columnsExist();
+  return availability;
+}
+
 /** Idempotent. Safe to call on every funding attempt. */
 export async function ensureFundStakeArcSchema(): Promise<boolean> {
   if (ensured) return true;

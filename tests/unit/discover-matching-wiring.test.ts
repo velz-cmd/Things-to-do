@@ -153,17 +153,16 @@ describe("role ranking orders without hiding", () => {
         measurable: true,
         signals: [
           {
-            source: "libraries.io",
-            observation: "dependent_repositories",
-            subject: "pkg",
+            id: "dependents",
+            label: "Dependent repositories",
+            value: "14",
+            scope: "repository",
+            source: "Libraries.io",
             observedAt: "2026-08-02T00:00:00.000Z",
-            scope: "ecosystem",
-            provenance: "api",
-            value: 14,
           },
         ],
       },
-    } as Partial<MarketplaceOpportunity>),
+    }),
   ];
 
   it("keeps every record after ranking", () => {

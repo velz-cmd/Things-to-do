@@ -612,9 +612,14 @@ function PoolCard({
             />
           </div>
         ) : null}
+        {/* "Pending confirmation" claims a deposit is in flight on Arc. That
+            is only true when a transaction was actually submitted. This number
+            is a sum of recorded stakes whose on-chain provenance RESOLVE
+            cannot verify, so it must not borrow the language of settlement. */}
         {pool.pendingDepositsUsd ? (
-          <p className="mt-2 text-xs text-amber-100">
-            {money(pool.pendingDepositsUsd)} pending confirmation
+          <p className="mt-2 text-xs text-slate-400">
+            {money(pool.pendingDepositsUsd)} recorded as committed. RESOLVE has
+            no on-chain record for it, so it is not counted as funding.
           </p>
         ) : null}
       </div>

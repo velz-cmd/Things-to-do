@@ -137,6 +137,13 @@ export type DiscoverWorkbenchTarget =
         "create" | "source" | "publication" | "policy" | "treasury" | "review";
     }
   | {
+      panel: "pool_distribution";
+      subjectId: string;
+      programId: string;
+      communitySlug: string;
+      poolName: string;
+    }
+  | {
       panel: "source_sync";
       subjectId: string;
       provider: "github";

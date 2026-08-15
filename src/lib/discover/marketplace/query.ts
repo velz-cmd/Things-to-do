@@ -41,7 +41,11 @@ import type {
   MarketplacePage,
 } from "./contracts";
 import type { OpportunityFilters } from "./filters";
-import { opportunityMatchesView, programEntityVisible } from "./publication";
+import {
+  opportunityMatchesView,
+  operatorProgramVisible,
+  programEntityVisible,
+} from "./publication";
 import { selectDiscoverRecommendation } from "./recommendation";
 import { DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS } from "./cache";
 import {
@@ -221,6 +225,61 @@ async function loadProgramOpportunities() {
   return rows
     .filter((row) => programEntityVisible(row as ProgramOpportunityRow))
     .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow));
+}
+
+/**
+ * The operator's own Programs/Pools, regardless of status or mission
+ * linkage — draft, undeployed setups that `loadProgramOpportunities`
+ * deliberately excludes from the shared PUBLIC cache. Queried per-request
+ * (never cached across viewers) so an operator can find and finish setting
+ * up a Pool that isn't publicly fundable yet, matching how a request's own
+ * unpublished drafts already stay visible to their creator only.
+ */
+async function loadOperatorProgramOpportunities(viewerId: string) {
+  const rows = await prisma.resolveProgram.findMany({
+    where: { userId: viewerId },
+    select: {
+      id: true,
+      name: true,
+      templateId: true,
+      status: true,
+      budgetUsd: true,
+      rulesJson: true,
+      metadataJson: true,
+      missionId: true,
+      lastDeployAt: true,
+      createdAt: true,
+      updatedAt: true,
+      user: {
+        select: {
+          id: true,
+          displayName: true,
+          githubUsername: true,
+          githubId: true,
+        },
+      },
+      install: {
+        select: {
+          communitySlug: true,
+          status: true,
+        },
+      },
+      fundStakes: {
+        where: { status: { in: ["active", "target_met"] } },
+        select: {
+          principalUsd: true,
+          releasedUsd: true,
+          status: true,
+        },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }],
+    take: 40,
+  });
+  return rows
+    .filter((row) => operatorProgramVisible(row as ProgramOpportunityRow))
+    .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow))
+    .filter((item) => item.marketplaceKind === "pool");
 }
 
 async function loadVerifiedGithubWork() {
@@ -1308,6 +1367,9 @@ export function attachRequestActions(
     } else if (["assigned", "under_review", "approved", "payment_submitted"].includes(item.status)) {
       id = "discover.track_request";
       label = "Track request";
+    } else if (item.status === "confirmed" && (owner || selected)) {
+      id = "discover.view_request";
+      label = "View receipt";
     }
     return {
       ...item,
@@ -1697,7 +1759,7 @@ function poolType(item: MarketplaceOpportunity) {
   return "General Community Pool";
 }
 
-function listPools(
+export function listPools(
   opportunities: MarketplaceOpportunity[],
   viewerUserId?: string,
 ): DiscoverPool[] {
@@ -1849,11 +1911,31 @@ function listPools(
                     entityType: "pool",
                   },
                 ),
-        secondaryActions: (item.secondaryActions ?? []).filter(
-          (action) =>
-            action.presentation?.kind !== "navigation" ||
-            action.presentation.target !== "workspace",
-        ),
+        secondaryActions: [
+          ...(item.secondaryActions ?? []).filter(
+            (action) =>
+              action.presentation?.kind !== "navigation" ||
+              action.presentation.target !== "workspace",
+          ),
+          ...(operatorOwnsPool && financiallyReady
+            ? [
+                workbenchAction(
+                  {
+                    id: "capital.authorize_settlement",
+                    label: "Review distribution",
+                    href: `/discover?view=pools&pool=${encodeURIComponent(item.pool.id ?? item.source.id)}`,
+                  },
+                  {
+                    panel: "pool_distribution",
+                    subjectId: item.pool.id ?? item.source.id,
+                    programId: item.pool.id ?? item.source.id,
+                    communitySlug: item.community.id ?? item.community.name,
+                    poolName: item.pool.name,
+                  },
+                ),
+              ]
+            : []),
+        ],
       },
     ];
   });
@@ -2076,20 +2158,41 @@ function friendlyActivityLabel(eventType: string) {
   );
 }
 
-function activityKindForEvent(eventType: string): DiscoverActivityItem["kind"] {
-  if (
-    eventType.includes("receipt") ||
-    eventType.includes("confirmed") ||
-    eventType.includes("received")
-  )
-    return "receipt";
-  if (eventType.includes("fund") || eventType.includes("settlement"))
-    return "funding";
-  if (eventType.includes("claim")) return "claim";
-  if (eventType.includes("program")) return "program";
-  if (eventType.includes("pool")) return "pool";
-  if (eventType.includes("evidence") || eventType.includes("repository"))
-    return "work";
+/**
+ * Explicit allowlist, not fuzzy substring matching. A loose
+ * `.includes("repository")` here previously classified
+ * "discover.repository_snapshot_captured" (a pure internal source-refresh
+ * event, not a customer economic action) as kind "work", which leaked it
+ * into the primary Activity economic feed alongside real work rewards.
+ * Anything not explicitly recognized here falls back to "account" and is
+ * excluded from the primary ledger — the safe default for an unrecognized
+ * event is "not economic content," not "guess and show it."
+ */
+const ACTIVITY_EVENT_KIND: Record<string, DiscoverActivityItem["kind"]> = {
+  "discover.direct_support_confirmed": "receipt",
+  "discover.direct_support_received": "receipt",
+  "discover.work_reward_confirmed": "receipt",
+  "discover.work_reward_received": "receipt",
+  "settlement.batch_reconciled": "receipt",
+  "settlement.package_prepared": "funding",
+  "request_payment_confirmed": "receipt",
+  "request_funded": "funding",
+  "request_created": "funding",
+  "request_assigned": "work",
+  "request_work_submitted": "work",
+  "request_work_approved": "work",
+  "pool_funding_pending": "pool",
+  "fund_program": "pool",
+  "program_rebalanced": "pool",
+  "qf.match": "pool",
+  "qf.contribution": "funding",
+  "application_submitted": "work",
+};
+
+export function activityKindForEvent(eventType: string): DiscoverActivityItem["kind"] {
+  const explicit = ACTIVITY_EVENT_KIND[eventType];
+  if (explicit) return explicit;
+  if (eventType.startsWith("program.")) return "program";
   return "account";
 }
 
@@ -2778,8 +2881,11 @@ export async function loadDiscoverPageData(
   const viewerRequests = viewerRequestRows.map((row) =>
     normalizePersistedOpportunity(row as PersistedOpportunityRow),
   );
+  const viewerPools = user
+    ? await loadOperatorProgramOpportunities(user.id).catch(() => [])
+    : [];
   const mergedOpportunityMap = new Map<string, MarketplaceOpportunity>();
-  for (const item of [...viewerRequests, ...opportunities.items]) {
+  for (const item of [...viewerRequests, ...viewerPools, ...opportunities.items]) {
     if (!mergedOpportunityMap.has(item.id)) mergedOpportunityMap.set(item.id, item);
   }
   const visibleBeforeWorkActions = [...mergedOpportunityMap.values()].map((item) => {

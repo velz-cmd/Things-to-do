@@ -49,12 +49,18 @@ export async function GET() {
       parseOpportunityFilters({}),
       "for_you",
     );
+    const diagnostics = (data as unknown as {
+      sourceDiagnostics?: Array<{ id: string; state: string; reason?: string }>;
+    }).sourceDiagnostics;
     out.discover = {
       ok: true,
       opportunities: data.opportunities.items.length,
       pools: data.pools.length,
       activity: (data.activity ?? []).length,
       signedIn: data.signedIn,
+      diagnostics: (diagnostics ?? []).map(
+        (d) => `${d.id}:${d.state}${d.reason ? ` (${d.reason.slice(0, 90)})` : ""}`,
+      ),
     };
   } catch (error) {
     out.discover = { ok: false, threw: describe(error) };

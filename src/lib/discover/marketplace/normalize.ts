@@ -88,10 +88,12 @@ export type ProgramOpportunityRow = {
     principalUsd: number;
     releasedUsd: number;
     status: string;
-    /** Present only when the deposit actually settled on Arc. */
-    arcTxHash?: string | null;
-    confirmedAt?: Date | null;
   }>;
+  /**
+   * Stake capital with an Arc transaction behind it, supplied separately so a
+   * deployment whose columns have not healed yet still renders.
+   */
+  confirmedStakeUsd?: number;
 };
 
 export type CampaignOpportunityRow = {
@@ -349,13 +351,13 @@ export function normalizeProgramOpportunity(
   // one is a recorded commitment RESOLVE cannot prove. Keeping these apart is
   // what lets the Pool state a real balance instead of calling everything
   // unverifiable.
-  const confirmedAmountUsd = liveStakes
-    .filter((stake) => Boolean(stake.arcTxHash))
-    .reduce((total, stake) => total + stake.principalUsd, 0);
-  const unprovenAmountUsd = liveStakes
-    .filter((stake) => !stake.arcTxHash)
-    .reduce((total, stake) => total + stake.principalUsd, 0);
-  const fundedAmountUsd = confirmedAmountUsd + unprovenAmountUsd;
+  const totalStakeUsd = liveStakes.reduce(
+    (total, stake) => total + stake.principalUsd,
+    0,
+  );
+  const confirmedAmountUsd = Math.min(row.confirmedStakeUsd ?? 0, totalStakeUsd);
+  const unprovenAmountUsd = Math.max(0, totalStakeUsd - confirmedAmountUsd);
+  const fundedAmountUsd = totalStakeUsd;
   const type =
     row.templateId.includes("repository") || optionalString(metadata.repository)
       ? "repository_fix"

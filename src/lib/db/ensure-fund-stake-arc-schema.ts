@@ -48,6 +48,42 @@ export async function fundStakeProvenanceAvailable(): Promise<boolean> {
   return availability;
 }
 
+/**
+ * Confirmed (on-chain proven) stake capital per program.
+ *
+ * Deliberately a raw query behind a total try/catch rather than a Prisma
+ * select: the columns may not exist on a given deployment, and a read path
+ * that can throw takes down the whole Discover surface. Any failure degrades
+ * to "nothing proven", which is the honest answer when provenance is
+ * unavailable.
+ */
+export async function confirmedStakeUsdByProgram(
+  programIds: string[],
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  if (programIds.length === 0) return totals;
+  try {
+    if (!(await fundStakeProvenanceAvailable())) return totals;
+    const rows = await prisma.$queryRaw<
+      Array<{ programId: string; total: number | string | null }>
+    >`
+      SELECT "programId", SUM("principalUsd") AS total
+      FROM "CommunityFundStake"
+      WHERE "arcTxHash" IS NOT NULL
+        AND "status" IN ('active', 'target_met')
+        AND "programId" = ANY(${programIds})
+      GROUP BY "programId"
+    `;
+    for (const row of rows) {
+      const value = Number(row.total ?? 0);
+      if (Number.isFinite(value) && value > 0) totals.set(row.programId, value);
+    }
+  } catch (error) {
+    console.error("[confirmedStakeUsdByProgram] falling back to unproven", error);
+  }
+  return totals;
+}
+
 /** Idempotent. Safe to call on every funding attempt. */
 export async function ensureFundStakeArcSchema(): Promise<boolean> {
   if (ensured) return true;

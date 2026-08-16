@@ -3061,6 +3061,8 @@ export async function loadDiscoverPageData(
           }))
       : { items: [] as DiscoverActivityItem[], error: null as string | null };
   const activity = activityResult.items;
+  // TEMPORARY diagnostic - remove with the diag route.
+  const activityDebug = `user=${Boolean(user)} view=${view} items=${activityResult.items?.length ?? "undefined"} err=${activityResult.error ?? "none"}`;
   const fallbackRecommendation = selectDiscoverRecommendation(
     readiness,
     allVisible,
@@ -3211,6 +3213,23 @@ export async function loadDiscoverPageData(
       secondaryActions: [],
     });
   }
+  sourceDiagnostics.push({
+    id: "diag:activity",
+    provider: "resolve",
+    state: "refresh_failed",
+    evaluationPeriod: activityDebug,
+    eventsInspected: null,
+    acceptedEvents: 0,
+    lastSuccessfulAt: null,
+    reason: activityDebug,
+    stale: false,
+    primaryAction: discoverNavigationAction({
+      id: "discover.open_activity",
+      label: "Activity",
+      href: "/discover?view=activity",
+    }),
+    secondaryActions: [],
+  });
   if (activityResult.error) {
     sourceDiagnostics.push({
       id: "resolve:personal-activity",

@@ -70,7 +70,7 @@ import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { discoverNavigationAction, workbenchAction } from "./action-contract";
 import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
-import { fundStakeProvenanceAvailable } from "@/lib/db/ensure-fund-stake-arc-schema";
+import { confirmedStakeUsdByProgram } from "@/lib/db/ensure-fund-stake-arc-schema";
 import { attachEconomicMatch } from "./attach-economic-match";
 import { rankOpportunitiesForViewer, viewerRole } from "./role-ranked";
 
@@ -184,12 +184,6 @@ async function loadPersistedOpportunities() {
 }
 
 async function loadProgramOpportunities() {
-  // Resolved once, before the query: the columns may not exist yet because
-  // the build never runs migrations, and selecting a missing column throws
-  // and takes the whole surface down.
-  const provenanceSelect = (await fundStakeProvenanceAvailable())
-    ? { arcTxHash: true as const, confirmedAt: true as const }
-    : {};
   const rows = await prisma.resolveProgram.findMany({
     where: {
       status: { in: ["active", "deployed"] },
@@ -227,16 +221,24 @@ async function loadProgramOpportunities() {
           principalUsd: true,
           releasedUsd: true,
           status: true,
-          ...provenanceSelect,
         },
       },
     },
     orderBy: [{ lastDeployAt: "desc" }, { createdAt: "desc" }],
     take: SOURCE_LIMIT,
   });
-  return rows
-    .filter((row) => programEntityVisible(row as ProgramOpportunityRow))
-    .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow));
+  const visible = rows.filter((row) =>
+    programEntityVisible(row as ProgramOpportunityRow),
+  );
+  // Provenance is fetched separately and tolerates its own failure, so a
+  // deployment whose columns have not healed yet still renders the surface.
+  const confirmed = await confirmedStakeUsdByProgram(visible.map((r) => r.id));
+  return visible.map((row) =>
+    normalizeProgramOpportunity({
+      ...(row as ProgramOpportunityRow),
+      confirmedStakeUsd: confirmed.get(row.id) ?? 0,
+    }),
+  );
 }
 
 /**
@@ -248,9 +250,6 @@ async function loadProgramOpportunities() {
  * unpublished drafts already stay visible to their creator only.
  */
 async function loadOperatorProgramOpportunities(viewerId: string) {
-  const provenanceSelect = (await fundStakeProvenanceAvailable())
-    ? { arcTxHash: true as const, confirmedAt: true as const }
-    : {};
   const rows = await prisma.resolveProgram.findMany({
     where: { userId: viewerId },
     select: {
@@ -285,16 +284,23 @@ async function loadOperatorProgramOpportunities(viewerId: string) {
           principalUsd: true,
           releasedUsd: true,
           status: true,
-          ...provenanceSelect,
         },
       },
     },
     orderBy: [{ updatedAt: "desc" }],
     take: 40,
   });
-  return rows
-    .filter((row) => operatorProgramVisible(row as ProgramOpportunityRow))
-    .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow))
+  const visible = rows.filter((row) =>
+    operatorProgramVisible(row as ProgramOpportunityRow),
+  );
+  const confirmed = await confirmedStakeUsdByProgram(visible.map((r) => r.id));
+  return visible
+    .map((row) =>
+      normalizeProgramOpportunity({
+        ...(row as ProgramOpportunityRow),
+        confirmedStakeUsd: confirmed.get(row.id) ?? 0,
+      }),
+    )
     .filter((item) => item.marketplaceKind === "pool");
 }
 

@@ -160,7 +160,7 @@ export function ProductionStack() {
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-resolve-muted">
             Multi-tier AI routing, Arc USDC settlement, and Supabase production
-            infrastructure — the stack judges can verify live at{" "}
+            infrastructure — verifiable live at{" "}
             <span className="text-white/90">resolve-self.vercel.app</span>.
           </p>
         </header>
@@ -376,7 +376,7 @@ export function ProductionStack() {
           <section>
             <SectionTitle
               title="Core stack"
-              description="Payments, auth, and data — what judges actually care about"
+              description="Payments, auth, and data"
             />
             <div className="grid gap-4 md:grid-cols-2">
               <StackGroup title="Payments" badge="Must be real">
@@ -444,7 +444,7 @@ export function ProductionStack() {
                 accent="sky"
                 items={[
                   "On-chain escrow and settlement",
-                  "Transaction verification for judges",
+                  "Independently verifiable transactions",
                   "EVM-compatible USDC rails",
                 ]}
               />

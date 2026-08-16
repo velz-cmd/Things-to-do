@@ -448,7 +448,7 @@ function SettlementReadiness({ slug, surface, unresolved, onTab }: { slug: strin
               ? <Link data-action-id="capital.retry_confirmation" data-testid="readiness-pending-transaction" href={`/capital?community=${encodeURIComponent(slug)}&tab=activity`}><Clock3 /> Open pending transaction</Link>
               : authorizationStatus === "confirmed"
                 ? <Link data-action-id="receipt.open" data-testid="readiness-view-receipt" href={`/capital?community=${encodeURIComponent(slug)}&tab=activity`}><BadgeCheck /> View confirmed receipt</Link>
-                : <button data-action-id="obligation.prepare_settlement" data-testid="readiness-review-authorization" type="button" disabled={preparing} onClick={() => void prepareSettlementPackage()} className={styles.cardPrimary}>{preparing ? <Loader2 className="animate-spin" /> : <ShieldCheck />}{preparing ? "Compiling packageâ€¦" : "Review authorization"} <ArrowRight /></button>;
+                : <button data-action-id="obligation.prepare_settlement" data-testid="readiness-review-authorization" type="button" disabled={preparing} onClick={() => void prepareSettlementPackage()} className={styles.cardPrimary}>{preparing ? <Loader2 className="animate-spin" /> : <ShieldCheck />}{preparing ? "Compiling package…" : "Review authorization"} <ArrowRight /></button>;
   return (
     <section id="settlement-readiness" className={styles.settlementDesk}>
       <div className={styles.panelHeading}><div><p className={styles.sectionKicker}>Capital handoff</p><h2>Settlement Readiness Desk</h2></div><span data-state={prerequisitesReady ? "ready" : "review"}>{prerequisitesReady ? "Ready to prepare" : "Blocked"}</span></div>

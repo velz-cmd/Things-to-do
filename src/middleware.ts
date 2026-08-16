@@ -47,7 +47,16 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  // Refreshing a stale session performs a network call to Supabase. If that
+  // call fails or times out, middleware must still return the response:
+  // throwing here turns every page request into a 500 before the app renders,
+  // which is exactly what a returning user hits on their first page load.
+  // A failed refresh is not fatal - the app handles a signed-out request.
+  try {
+    await supabase.auth.getUser();
+  } catch (error) {
+    console.error("[middleware] session refresh failed", error);
+  }
 
   return supabaseResponse;
 }

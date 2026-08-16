@@ -1,3 +1,10 @@
+import { createHash } from "node:crypto";
+import {
+  microToUsd,
+  reserveMissionSpend,
+  settleMissionSpend,
+  usdToMicro,
+} from "@/lib/mission/intelligence-budget";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -158,6 +165,45 @@ async function handleAgentInvoke(req: Request) {
     );
   }
 
+  // When the purchase belongs to a Mission, its intelligence budget is the
+  // authority - not the client-supplied maxSpend. The reservation is durable
+  // and idempotent, so a retry after a dropped connection cannot debit twice
+  // and two concurrent runs cannot jointly overspend.
+  let missionSpendId: string | null = null;
+  if (body.missionId) {
+    const reservation = await reserveMissionSpend({
+      missionId: body.missionId,
+      userId: ready.profile.id,
+      amountMicro: usdToMicro(priceUsd),
+      // Stable across retries of the same logical purchase: same Mission,
+      // same service, same input produces the same key.
+      idempotencyKey: `mission:${body.missionId}:service:${serviceId}:${
+        body.taskId ??
+        createHash("sha256").update(prompt).digest("hex").slice(0, 32)
+      }`,
+      serviceId,
+      reason: `Evidence purchase: ${service.name}`,
+    });
+    if (!reservation.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: reservation.code,
+          error: reservation.reason,
+          budget: {
+            grantedUsd: microToUsd(reservation.state.grantedMicro),
+            availableUsd: microToUsd(reservation.state.availableMicro),
+            perPurchaseLimitUsd: microToUsd(
+              reservation.state.perPurchaseLimitMicro,
+            ),
+          },
+        },
+        { status: 409 },
+      );
+    }
+    missionSpendId = reservation.spendId;
+  }
+
   let taskId = body.taskId;
   if (!taskId) {
     const task = await prisma.task.create({
@@ -247,6 +293,18 @@ async function handleAgentInvoke(req: Request) {
   const succeeded = result.ok && Boolean(result.data) && isAgentSignalSuccessful(serviceId, result.data);
 
   if (!succeeded) {
+    // Payment and execution are separate outcomes. If money settled, the
+    // budget stays committed and the spend is marked confirmed - the run
+    // failed, not the payment. Only an unpaid attempt returns its hold.
+    if (missionSpendId) {
+      await settleMissionSpend({
+        spendId: missionSpendId,
+        state: payment?.txHash ? "confirmed" : "released",
+        txHash: payment?.txHash,
+      }).catch((error) =>
+        console.error("[agent/invoke] mission spend settle failed", error),
+      );
+    }
     const execution = buildExecutionReport(result.data);
     const summary = buildSummary(serviceId, result.data);
     return NextResponse.json(
@@ -263,6 +321,16 @@ async function handleAgentInvoke(req: Request) {
         meteringMode: result.meteringMode,
       },
       { status: 502 },
+    );
+  }
+
+  if (missionSpendId) {
+    await settleMissionSpend({
+      spendId: missionSpendId,
+      state: payment?.txHash || result.txRef ? "confirmed" : "released",
+      txHash: payment?.txHash ?? result.txRef ?? undefined,
+    }).catch((error) =>
+      console.error("[agent/invoke] mission spend settle failed", error),
     );
   }
 

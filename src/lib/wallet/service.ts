@@ -5,8 +5,14 @@ import { getRealSpendableUsd } from "@/lib/wallet/sync-identity-balance";
 export async function getSessionUserId(): Promise<string | null> {
   const supabase = await createClient();
   if (!supabase) return null;
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id ?? null;
+  try {
+    // Same rotation race as getSessionUser: never throw out of a session read.
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    return data.user?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 type EnsureUserProfileInput = {

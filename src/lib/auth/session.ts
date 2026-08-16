@@ -13,8 +13,19 @@ type AuthError = { error: string; status: 401 | 403 | 404 };
 export async function getSessionUser() {
   const supabase = await createClient();
   if (!supabase) return null;
-  const { data } = await supabase.auth.getUser();
-  return data.user ?? null;
+  try {
+    // A stale access token triggers a refresh, and refresh tokens rotate and
+    // are single-use. Middleware refreshes on the same request, so the render
+    // can race it and get "already used" back. That must degrade to a
+    // signed-out read, never throw: throwing here 500s the first page load a
+    // returning user sees, and the retry then succeeds with the rotated
+    // token, which is why the failure looked intermittent.
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    return data.user ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function requireSessionUser(): Promise<

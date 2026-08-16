@@ -32,10 +32,22 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const initialState = cookieToInitialState(
-    wagmiConfig,
-    (await headers()).get("cookie")
-  );
+  // Restoring wagmi state is an optimisation, and it must never be able to
+  // break the page. This runs in the root layout, so a throw here returns 500
+  // for EVERY route in the app - and it throws on a wagmi.store cookie the
+  // app itself writes once a wallet is connected, which left anyone who had
+  // connected a wallet unable to load any page until they cleared cookies.
+  // API routes were unaffected because no layout renders for them.
+  let initialState: ReturnType<typeof cookieToInitialState>;
+  try {
+    initialState = cookieToInitialState(
+      wagmiConfig,
+      (await headers()).get("cookie")
+    );
+  } catch (error) {
+    console.error("[layout] ignoring unreadable wagmi cookie", error);
+    initialState = undefined;
+  }
 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>

@@ -85,7 +85,7 @@ const PAGE_SIZE = 18;
 const SOURCE_LIMIT = 100;
 const SOURCE_CACHE_SECONDS = 60;
 const ACTIVITY_CACHE_SECONDS = 30;
-const PERSONAL_ENRICHMENT_TIMEOUT_MS = 4_000;
+const PERSONAL_ENRICHMENT_TIMEOUT_MS = 12_000;
 const PERSONAL_ENRICHMENT_TIMEOUT_LABEL = `${PERSONAL_ENRICHMENT_TIMEOUT_MS / 1_000}-second personal-enrichment timeout`;
 // Workspace readiness is an enhancement for recommendations. It must not hold
 // the route longer than the persisted People and My Activity projections.

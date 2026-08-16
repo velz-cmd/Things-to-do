@@ -450,29 +450,56 @@ model PaymentEvent {
 
 /// Mission OS — persistent economic intelligence sessions
 model ResolveMission {
-  id           String                   @id @default(cuid())
-  userId       String
-  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title        String
-  scope        String?
-  status       String                   @default("created")
-  capability   String?
-  phase        String?
-  ecosystemId  String?
-  ecosystem    ResolveEcosystem?        @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
-  findingCount Int                      @default(0)
-  capitalUsd   Float?
-  metadataJson String?
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
-  turns        ResolveMissionTurn[]
-  timeline     ResolveTimelineEvent[]
-  knowledge    ResolveKnowledgeEntry[]
-  artifacts    ResolveMissionArtifact[]
+  id                           String                     @id @default(cuid())
+  userId                       String
+  user                         User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                        String
+  scope                        String?
+  status                       String                     @default("created")
+  capability                   String?
+  phase                        String?
+  ecosystemId                  String?
+  ecosystem                    ResolveEcosystem?          @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
+  findingCount                 Int                        @default(0)
+  capitalUsd                   Float?
+  metadataJson                 String?
+  /// Intelligence (evidence) budget in integer micro-USD. 0 means the Mission
+  /// has no autonomous spending authority - never "unlimited".
+  intelligenceBudgetMicro      Int                        @default(0)
+  intelligencePerPurchaseMicro Int                        @default(0)
+  createdAt                    DateTime                   @default(now())
+  updatedAt                    DateTime                   @updatedAt
+  spends                       MissionIntelligenceSpend[]
+  turns                        ResolveMissionTurn[]
+  timeline                     ResolveTimelineEvent[]
+  knowledge                    ResolveKnowledgeEntry[]
+  artifacts                    ResolveMissionArtifact[]
 
   @@index([userId, updatedAt])
   @@index([ecosystemId])
   @@index([status])
+}
+
+/// One authorised intelligence purchase against a Mission budget.
+/// Reserved/submitted/confirmed all still hold budget; only released and
+/// failed give it back, so money in flight can never be spent twice.
+model MissionIntelligenceSpend {
+  id             String         @id @default(cuid())
+  missionId      String
+  mission        ResolveMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  userId         String
+  amountMicro    Int
+  state          String         @default("reserved")
+  idempotencyKey String         @unique
+  serviceId      String?
+  reason         String?
+  txHash         String?
+  paymentRef     String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([missionId])
+  @@index([userId])
 }
 
 /// Versioned, runtime-validated Mission artifacts. Payload shape is selected by `kind`.

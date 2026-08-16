@@ -261,10 +261,17 @@ export function MissionAgentSignalCard({
   prompt,
   initialServiceId,
   onFollowUp,
+  missionId,
 }: {
   prompt: string;
   initialServiceId?: string;
   onFollowUp?: (text: string) => void;
+  /**
+   * When present, the Mission's durable intelligence budget is the spending
+   * authority and this card's local cap is only a per-signal preference.
+   * Authority must never depend on a value a browser can edit.
+   */
+  missionId?: string | null;
 }) {
   const { user } = useAuth();
   const { openSignIn } = useSignInModal();
@@ -381,6 +388,9 @@ export function MissionAgentSignalCard({
           prompt: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
           text: chainLabel ? `${prompt.trim()} — ${chainLabel}` : prompt.trim(),
           maxSpendUsd: agentCapUsd,
+          // With a Mission attached the server's durable intelligence budget
+          // is the authority; this client cap is only a per-signal preference.
+          missionId: missionId ?? undefined,
           paymentTxHash,
         }),
       });

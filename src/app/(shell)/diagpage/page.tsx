@@ -1,4 +1,3 @@
-import { DiscoverMarketplace } from "@/components/resolve/discover/marketplace/discover-marketplace";
 import { parseOpportunityFilters } from "@/lib/discover/marketplace/filters";
 import { loadDiscoverPageData } from "@/lib/discover/marketplace/query";
 
@@ -30,13 +29,24 @@ export default async function DiagPage() {
   }
 
   try {
+    // Report the shape rather than rendering: a throw inside the component
+    // happens after this function returns, so it cannot be caught here.
+    const shape: Record<string, string> = {};
+    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+      shape[key] = Array.isArray(value)
+        ? `array(${value.length})`
+        : value === null
+          ? "null"
+          : value === undefined
+            ? "UNDEFINED"
+            : typeof value === "object"
+              ? `object{${Object.keys(value as object).slice(0, 12).join(",")}}`
+              : `${typeof value}:${String(value).slice(0, 40)}`;
+    }
     return (
-      <>
-        <pre style={{ padding: 12, color: "#0f0" }}>
-          {`STAGE=render pools=${data.pools.length} activity=${(data.activity ?? []).length}`}
-        </pre>
-        <DiscoverMarketplace data={data} filters={filters} />
-      </>
+      <pre style={{ padding: 16, color: "#0f0", whiteSpace: "pre-wrap", fontSize: 12 }}>
+        {JSON.stringify(shape, null, 1)}
+      </pre>
     );
   } catch (error) {
     return (

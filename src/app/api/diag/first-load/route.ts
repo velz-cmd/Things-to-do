@@ -73,7 +73,39 @@ export async function GET() {
         take: 8,
         select: { eventType: true, occurredAt: true, communitySlug: true },
       });
-      out.ledger = { total, poolFunding, recentTypes: sample.map((s) => s.eventType) };
+      // Replicate the projection's own query to see where rows are lost.
+      const started = Date.now();
+      const matched = await prisma.operationalEvent.findMany({
+        where: {
+          userId,
+          OR: [
+            { eventType: { startsWith: "discover." } },
+            { eventType: { startsWith: "capital." } },
+            { eventType: { startsWith: "settlement." } },
+            { eventType: { startsWith: "program." } },
+            { eventType: { startsWith: "profile.payout" } },
+            { eventType: { startsWith: "source.sync" } },
+            { eventType: "pool_funding_pending" },
+            { eventType: "application_submitted" },
+          ],
+        },
+        orderBy: { occurredAt: "desc" },
+        take: 40,
+        select: { eventType: true },
+      });
+      const queryMs = Date.now() - started;
+      const agentTx = await prisma.walletTransaction.count({
+        where: { userId, type: "agent_service" },
+      });
+      out.ledger = {
+        total,
+        poolFunding,
+        recentTypes: sample.map((s) => s.eventType),
+        projectionQueryMatched: matched.length,
+        projectionQueryMs: queryMs,
+        matchedTypes: [...new Set(matched.map((m) => m.eventType))],
+        agentServiceTransactions: agentTx,
+      };
     } catch (error) {
       out.ledger = { threw: describe(error) };
     }

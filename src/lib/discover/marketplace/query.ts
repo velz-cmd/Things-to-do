@@ -2623,7 +2623,16 @@ async function loadPersonalDiscoverActivity(
           event.payload,
           event.communitySlug ?? event.aggregateId,
         ),
-        state: event.eventType.split(".").at(-1) ?? "recorded",
+        // The raw event name was rendered as the status chip, so a deposit
+        // that settled on Arc displayed as "Pool Funding Pending". Trust the
+        // payload: an Arc transaction hash with a completed status means
+        // confirmed, and nothing else may claim to be.
+        state:
+          typeof payload.txHash === "string" && payload.status === "completed"
+            ? "confirmed"
+            : payload.status === "pending_arc"
+              ? "submitted"
+              : (event.eventType.split(".").at(-1) ?? "recorded"),
         occurredAt: event.occurredAt.toISOString(),
         amountUsd:
           amountMicro === undefined || !Number.isFinite(amountMicro)

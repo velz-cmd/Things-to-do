@@ -98,7 +98,10 @@ export async function buildDomainRadars(opts?: DomainRadarsOpts): Promise<{
       domain: "oss",
       headline: o.fullName,
       why: o.headline,
-      whoBenefits: `${o.unfundedMaintainers} maintainers · ${o.stars.toLocaleString()} stars`,
+      // Stars are attention, not beneficiaries. Nobody benefits from a change
+      // by having starred the repository, so the count is not evidence of
+      // reach and must not be presented as who this helped.
+      whoBenefits: `${o.unfundedMaintainers} unfunded maintainer${o.unfundedMaintainers === 1 ? "" : "s"}`,
       proofSource: formatProofSource({
         connectorId: "github",
         githubScanAt: scanAt ?? undefined,

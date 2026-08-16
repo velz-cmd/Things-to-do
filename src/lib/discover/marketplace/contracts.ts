@@ -1,4 +1,5 @@
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
+import type { EconomicMatch } from "@/lib/discover/impact/economic-matching";
 
 export const DISCOVER_VIEWS = [
   "for_you",
@@ -298,6 +299,12 @@ export type MarketplaceOpportunity = {
    * - see src/lib/discover/impact/impact-signals.ts.
    */
   impactProfile?: ImpactProfile;
+  /**
+   * Which real funding intents could fund this outcome, which were ruled out
+   * and why, whether a prior payment already covers it, and what RESOLVE
+   * recommends - see src/lib/discover/impact/economic-matching.ts.
+   */
+  economicMatch?: EconomicMatch;
   primaryAction?: DiscoverAction;
   secondaryActions?: DiscoverAction[];
 };
@@ -384,6 +391,16 @@ export type DiscoverPool = {
   balanceState?: FundingAmountState;
   targetUsd?: number;
   pendingDepositsUsd?: number;
+  /**
+   * The next real checkpoint this Pool is working toward, and progress within
+   * the current segment.
+   *
+   * budgetUsd cannot be a goal: funding increments it, so a bar drawn against
+   * it moves the finish line every time someone deposits and can never fill.
+   * Checkpoints are the actual economic milestone that triggers distribution.
+   */
+  nextCheckpointUsd?: number;
+  checkpointProgressPct?: number;
   lifecycleState:
     | "setup_incomplete"
     | "configured"
@@ -399,6 +416,16 @@ export type DiscoverPool = {
   publicationState: "legacy_active" | "approved" | "operator_review_required";
   policyState: "active" | "legacy_configured" | "setup_required";
   treasuryReadiness: "ready" | "setup_required";
+  /**
+   * The one prerequisite actually blocking this Pool.
+   *
+   * policyState and treasuryReadiness are both derived from a single
+   * financialReadiness boolean, so neither can distinguish "policy done,
+   * treasury still missing". Only this field tracks the real step, and it is
+   * what the card's action is built from - so anything grouping or labelling
+   * Pools must read this, or the heading and the button will disagree.
+   */
+  setupStep?: DiscoverEntityState["setupStep"];
   blocker?: string;
   primaryAction: DiscoverAction;
   secondaryActions: DiscoverAction[];
@@ -455,6 +482,17 @@ export type DiscoverAgentService = {
   domain: string;
   deliverables: string[];
   examplePrompt: string;
+  /**
+   * Why someone would buy this, in decision terms. Deliberately does not name
+   * a RESOLVE object that will consume the result: purchased output is not
+   * yet attachable as canonical evidence, and claiming otherwise would be a
+   * promise the product does not keep.
+   */
+  decisionContext?: {
+    useWhen: string;
+    produces: string;
+    limitations: string;
+  };
   paymentRail: "Arc Testnet USDC for x402-metered service";
   available: boolean;
   blocker?: string;

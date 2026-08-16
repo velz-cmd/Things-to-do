@@ -43,6 +43,7 @@ export function discoverAgentServices() {
       connectorId: s.connectorId,
       rfbProgram: s.rfbProgram,
       examplePrompt: s.examplePrompt,
+      decisionContext: s.decisionContext,
       deliverables: micro?.deliverables ?? [s.tagline],
       x402: s.urlPath.startsWith("/api/x402/"),
       ingest: !s.urlPath.startsWith("/api/x402/"),

@@ -1,6 +1,5 @@
 import { API_CACHE } from "@/lib/api/cache-headers";
 import { safeApiGet } from "@/lib/api/safe-route";
-import { listHiddenBuilders } from "@/lib/weight/discovery";
 import { runLiveDiscoveryScan, scanGithubRepo } from "@/lib/discovery/github-scan";
 
 const BUILDERS_FALLBACK = {
@@ -51,26 +50,20 @@ export async function GET(req: Request) {
   return safeApiGet(
     req,
     async () => {
-      const [curated, live] = await Promise.all([
-        Promise.resolve(
-          listHiddenBuilders({ platform, minScore: minScore ? Number(minScore) : undefined }),
-        ),
-        runLiveDiscoveryScan(),
-      ]);
-
-      const merged = liveOnly
-        ? live
-        : [
-            ...live,
-            ...curated.filter((c) => !live.some((l) => l.name.toLowerCase() === c.name.toLowerCase())),
-          ];
+      // This endpoint used to merge a hardcoded list of invented people
+      // ("Lena Okonkwo", impactScore 91, $4,200 unpaid, "680k monthly
+      // downloads") into the live scan, with no marker separating the two -
+      // a consumer could not tell a real contributor from a fabricated one.
+      // Discovery now returns only what was actually scanned. An empty result
+      // is the correct answer when nothing real was found.
+      const merged = await runLiveDiscoveryScan();
 
       merged.sort((a, b) => b.impactScore - a.impactScore);
 
       return {
         index: "unpaid-value",
         discovered: merged.length,
-        liveScanned: live.length,
+        liveScanned: merged.length,
         builders: merged.slice(0, 20),
         updatedAt: new Date().toISOString(),
         thesis: "Find who should be paid — before anyone uploads a CSV or builds another registry",

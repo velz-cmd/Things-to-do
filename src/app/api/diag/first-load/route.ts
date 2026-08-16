@@ -127,6 +127,25 @@ export async function GET() {
       try {
         const t0 = Date.now();
         const direct = await loadPersonalDiscoverActivity(userId, [], []);
+        // Same call the page makes, with the real arrays.
+        try {
+          const pageData = await loadDiscoverPageData(
+            parseOpportunityFilters({}),
+            "for_you",
+          );
+          const withReal = await loadPersonalDiscoverActivity(
+            userId,
+            pageData.opportunities.items,
+            (pageData as unknown as { people?: [] }).people ?? [],
+          );
+          out.activityWithRealArrays = {
+            count: withReal.length,
+            opportunities: pageData.opportunities.items.length,
+            people: ((pageData as unknown as { people?: [] }).people ?? []).length,
+          };
+        } catch (error) {
+          out.activityWithRealArrays = { threw: describe(error) };
+        }
         out.activityDirect = {
           count: direct.length,
           ms: Date.now() - t0,

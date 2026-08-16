@@ -2192,9 +2192,21 @@ function friendlyActivityLabel(eventType: string) {
     "program.draft_created": "Program draft created",
     "program.policy_updated": "Program policy updated",
     "source.sync_completed": "Source refresh completed",
+    // Named explicitly: the fallback turned this into "pool funding pending",
+    // an internal event name shown to the user as a title.
+    pool_funding_pending: "Pool funded",
+    application_submitted: "Application submitted",
+    "program.setup_updated": "Pool setup updated",
+    "capital.wallet_verified": "Wallet ownership verified",
   };
   return (
-    labels[eventType] ?? eventType.replaceAll(".", " ").replaceAll("_", " ")
+    labels[eventType] ??
+    // Never surface a raw event name. Sentence-case the fallback so an
+    // unmapped type still reads as a product event, not a database value.
+    (() => {
+      const words = eventType.replaceAll(".", " ").replaceAll("_", " ").trim();
+      return words.charAt(0).toUpperCase() + words.slice(1);
+    })()
   );
 }
 

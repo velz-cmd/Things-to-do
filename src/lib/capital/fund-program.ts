@@ -323,22 +323,43 @@ export async function fundCommunityProgram(input: {
   // Persist the on-chain proof on the stake itself. Until this existed the
   // hash survived only inside a WalletTransaction label as free text, so the
   // projection had no way to tell settled capital from a bare promise.
+  //
+  // Bookkeeping must never fail the money path. The transfer has already
+  // settled on chain by this point, so anything below is best-effort and is
+  // bounded in time: a slow ALTER TABLE or a hung connection must not turn a
+  // successful transfer into a 500 that tells the funder it failed.
+  //
+  const bookkeeping = async <T,>(
+    label: string,
+    work: () => Promise<T>,
+  ): Promise<string | null> => {
+    try {
+      await Promise.race([
+        work(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`${label} timed out`)), 4_000),
+        ),
+      ]);
+      return null;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : `${label} failed`;
+      console.error(`[fund-program] ${label} failed`, error);
+      return message;
+    }
+  };
+
   let stakeProvenanceError: string | null = null;
   if (arcTxHash && fundStatus === "completed") {
-    try {
-      if (await ensureFundStakeArcSchema()) {
-        await prisma.communityFundStake.update({
-          where: { id: funded.stake.id },
-          data: { arcTxHash, confirmedAt: new Date() },
-        });
-      } else {
-        stakeProvenanceError = "fund stake arc columns unavailable";
+    stakeProvenanceError = await bookkeeping("stake provenance", async () => {
+      if (!(await ensureFundStakeArcSchema())) {
+        throw new Error("fund stake arc columns unavailable");
       }
-    } catch (error) {
-      stakeProvenanceError =
-        error instanceof Error ? error.message : "stake provenance write failed";
-      console.error("[fund-program] stake provenance write failed", error);
-    }
+      await prisma.communityFundStake.update({
+        where: { id: funded.stake.id },
+        data: { arcTxHash, confirmedAt: new Date() },
+      });
+    });
   }
 
   // Awaited, not fire-and-forget: this is the ledger record of money that
@@ -349,9 +370,8 @@ export async function fundCommunityProgram(input: {
   // The outcome is returned to the caller rather than swallowed: a failure
   // here means real money moved with no ledger entry, which must never be
   // silent again.
-  let ledgerEventError: string | null = null;
-  await prisma.operationalEvent
-    .create({
+  const ledgerEventError = await bookkeeping("ledger event", async () => {
+    await prisma.operationalEvent.create({
       data: {
         eventType: "pool_funding_pending",
         aggregateType: "ResolveProgram",
@@ -371,12 +391,8 @@ export async function fundCommunityProgram(input: {
           fromWallet: user.walletAddress ?? null,
         },
       },
-    })
-    .catch((error) => {
-      ledgerEventError =
-        error instanceof Error ? error.message : "ledger event write failed";
-      console.error("[fund-program] operational event write failed", error);
     });
+  });
 
   void recordTimelineEvent({
     userId: input.userId,

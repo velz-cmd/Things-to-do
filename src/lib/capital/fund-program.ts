@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { fundStakeProvenanceAvailable } from "@/lib/db/ensure-fund-stake-arc-schema";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { refreshProgramYieldCache } from "@/lib/capital/yield-service";
 import { runQfMatchAllocation } from "@/lib/capital/qf-allocator";
@@ -40,6 +41,13 @@ export type FundProgramResult =
       activityId: string;
       /** On-chain Arc tx hash when USDC moved from the funder's wallet */
       txHash?: string;
+      /**
+       * Set when money moved but the ledger/provenance write did not. Returned
+       * rather than logged so a silent gap between a confirmed transfer and an
+       * empty Activity ledger can never happen unnoticed again.
+       */
+      ledgerEventError?: string | null;
+      stakeProvenanceError?: string | null;
       message: string;
     }
   | { ok: false; error: string };
@@ -306,6 +314,89 @@ export async function fundCommunityProgram(input: {
     }
   }
 
+  // Discover Activity reads OperationalEvent; recordTimelineEvent writes to
+  // ResolveTimelineEvent. Those are different tables, so a real, confirmed,
+  // on-chain Pool deposit could never appear in the economic ledger - the
+  // ledger structurally could not show Pool funding at all. Record the
+  // canonical event too, carrying the Arc proof so Activity can show the
+  // amount and link the transaction.
+  // Persist the on-chain proof on the stake itself. Until this existed the
+  // hash survived only inside a WalletTransaction label as free text, so the
+  // projection had no way to tell settled capital from a bare promise.
+  //
+  // Bookkeeping must never fail the money path. The transfer has already
+  // settled on chain by this point, so anything below is best-effort and is
+  // bounded in time: a slow ALTER TABLE or a hung connection must not turn a
+  // successful transfer into a 500 that tells the funder it failed.
+  //
+  const bookkeeping = async <T,>(
+    label: string,
+    work: () => Promise<T>,
+  ): Promise<string | null> => {
+    try {
+      await Promise.race([
+        work(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`${label} timed out`)), 4_000),
+        ),
+      ]);
+      return null;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : `${label} failed`;
+      console.error(`[fund-program] ${label} failed`, error);
+      return message;
+    }
+  };
+
+  let stakeProvenanceError: string | null = null;
+  if (arcTxHash && fundStatus === "completed") {
+    stakeProvenanceError = await bookkeeping("stake provenance", async () => {
+      // Read-only check. Running DDL (ALTER TABLE) inside a funding request
+      // broke funding outright: schema migration does not belong in a path
+      // that moves money. Healing happens through the dedicated route.
+      if (!(await fundStakeProvenanceAvailable())) {
+        throw new Error("fund stake arc columns unavailable");
+      }
+      await prisma.communityFundStake.update({
+        where: { id: funded.stake.id },
+        data: { arcTxHash, confirmedAt: new Date() },
+      });
+    });
+  }
+
+  // Awaited, not fire-and-forget: this is the ledger record of money that
+  // actually moved. On a serverless runtime the response can return and the
+  // instance freeze before a floating promise resolves, which silently drops
+  // the write and leaves a confirmed on-chain transfer with no ledger entry.
+  //
+  // The outcome is returned to the caller rather than swallowed: a failure
+  // here means real money moved with no ledger entry, which must never be
+  // silent again.
+  const ledgerEventError = await bookkeeping("ledger event", async () => {
+    await prisma.operationalEvent.create({
+      data: {
+        eventType: "pool_funding_pending",
+        aggregateType: "ResolveProgram",
+        aggregateId: program.id,
+        userId: input.userId,
+        communitySlug: program.install?.communitySlug ?? null,
+        correlationId: funded.stake.id,
+        idempotencyKey: `pool_funding:${funded.stake.id}`,
+        payload: {
+          programId: program.id,
+          programName: program.name,
+          stakeId: funded.stake.id,
+          activityId: funded.activity.id,
+          amountUsdcMicro: String(Math.round(amount * 1_000_000)),
+          txHash: arcTxHash ?? null,
+          status: fundStatus,
+          fromWallet: user.walletAddress ?? null,
+        },
+      },
+    });
+  });
+
   void recordTimelineEvent({
     userId: input.userId,
     ecosystemId: program.install?.ecosystemId ?? undefined,
@@ -377,6 +468,8 @@ export async function fundCommunityProgram(input: {
     status: fundStatus,
     activityId: funded.activity.id,
     txHash: arcTxHash,
+    ledgerEventError,
+    stakeProvenanceError,
     message:
       fundStatus === "pending_arc"
         ? `Arc is confirming your $${amount.toFixed(2)} — open Capital if this takes more than a minute.`

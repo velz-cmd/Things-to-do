@@ -69,6 +69,10 @@ import { deriveUserCapabilities } from "@/lib/capabilities/user-capabilities";
 import { canonicalOutcomeHref } from "@/lib/discover/receipt-links";
 import { explorerTxUrl } from "@/lib/settlement/arc-config";
 import { discoverNavigationAction, workbenchAction } from "./action-contract";
+import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
+import { confirmedStakeUsdByProgram } from "@/lib/db/ensure-fund-stake-arc-schema";
+import { attachEconomicMatch } from "./attach-economic-match";
+import { rankOpportunitiesForViewer, viewerRole } from "./role-ranked";
 
 const SOURCE_TIMEOUT_MS = 4_000;
 const COLD_DATABASE_SOURCE_TIMEOUT_MS = 7_500;
@@ -223,9 +227,18 @@ async function loadProgramOpportunities() {
     orderBy: [{ lastDeployAt: "desc" }, { createdAt: "desc" }],
     take: SOURCE_LIMIT,
   });
-  return rows
-    .filter((row) => programEntityVisible(row as ProgramOpportunityRow))
-    .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow));
+  const visible = rows.filter((row) =>
+    programEntityVisible(row as ProgramOpportunityRow),
+  );
+  // Provenance is fetched separately and tolerates its own failure, so a
+  // deployment whose columns have not healed yet still renders the surface.
+  const confirmed = await confirmedStakeUsdByProgram(visible.map((r) => r.id));
+  return visible.map((row) =>
+    normalizeProgramOpportunity({
+      ...(row as ProgramOpportunityRow),
+      confirmedStakeUsd: confirmed.get(row.id) ?? 0,
+    }),
+  );
 }
 
 /**
@@ -277,9 +290,17 @@ async function loadOperatorProgramOpportunities(viewerId: string) {
     orderBy: [{ updatedAt: "desc" }],
     take: 40,
   });
-  return rows
-    .filter((row) => operatorProgramVisible(row as ProgramOpportunityRow))
-    .map((row) => normalizeProgramOpportunity(row as ProgramOpportunityRow))
+  const visible = rows.filter((row) =>
+    operatorProgramVisible(row as ProgramOpportunityRow),
+  );
+  const confirmed = await confirmedStakeUsdByProgram(visible.map((r) => r.id));
+  return visible
+    .map((row) =>
+      normalizeProgramOpportunity({
+        ...(row as ProgramOpportunityRow),
+        confirmedStakeUsd: confirmed.get(row.id) ?? 0,
+      }),
+    )
     .filter((item) => item.marketplaceKind === "pool");
 }
 
@@ -1830,6 +1851,17 @@ export function listPools(
         balanceState: item.funding?.amountState,
         targetUsd: target,
         pendingDepositsUsd: pendingDeposits,
+        // Progress is measured against the next checkpoint, computed from the
+        // capital RESOLVE can actually prove moved on chain.
+        ...(() => {
+          const segment = computePoolMilestoneSegment(balance);
+          return balance > 0 || segment.ceilingUsd > 0
+            ? {
+                nextCheckpointUsd: segment.ceilingUsd,
+                checkpointProgressPct: segment.progressPct,
+              }
+            : {};
+        })(),
         lifecycleState: executionReady
           ? "accepting_funding"
           : financiallyReady
@@ -1838,6 +1870,7 @@ export function listPools(
         publicationState,
         policyState: financiallyReady ? "active" : "setup_required",
         treasuryReadiness: financiallyReady ? "ready" : "setup_required",
+        setupStep: item.entityState?.setupStep,
         blocker:
           financiallyReady && !executionReady
             ? "Live Arc settlement is not enabled for this Pool."
@@ -2920,13 +2953,45 @@ export async function loadDiscoverPageData(
     claimedPeople,
     requestAware,
   );
-  const allVisible = attachVerifiedWorkActions(
+  const workAware = attachVerifiedWorkActions(
     requestAware,
     people,
     user?.id,
   );
-  const communities = listCommunities(allVisible);
-  const pools = listPools(allVisible, user?.id);
+  const communities = listCommunities(workAware);
+  const pools = listPools(workAware, user?.id);
+  // Resolve each outcome against the funding intents that actually exist, so
+  // the marketplace can state why capital may or may not fund it rather than
+  // showing a bare button. Pools are unchanged by the work-action pass, so
+  // they are available to match against here.
+  const operatorPoolIds = new Set(
+    workAware
+      .filter(
+        (item) =>
+          item.marketplaceKind === "pool" &&
+          Boolean(user?.id) &&
+          item.creator.id === user?.id,
+      )
+      .map((item) => item.pool?.id ?? item.source.id),
+  );
+  const matched = attachEconomicMatch(workAware, {
+    pools,
+    viewerUserId: user?.id,
+    operatorOfPoolIds: operatorPoolIds,
+  });
+  // Same canonical marketplace, ordered for who is looking at it. Ordering
+  // only: nothing is dropped, so a wrong role guess can never hide a record.
+  const allVisible = rankOpportunitiesForViewer(
+    matched,
+    viewerRole({
+      operatesPools: operatorPoolIds.size > 0,
+      hasSpendableCapital: false,
+      hasPayoutDestination: people.some(
+        (person) => person.id === user?.id && person.payoutReadiness === "ready",
+      ),
+    }),
+    user?.id,
+  );
   const liveSettlementEnabled = isLiveArcEnabled();
   const agentBlocker = liveSettlementEnabled
     ? undefined
@@ -2943,6 +3008,7 @@ export async function loadDiscoverPageData(
     domain: service.domain,
     deliverables: service.deliverables,
     examplePrompt: service.examplePrompt,
+    decisionContext: service.decisionContext,
     paymentRail: "Arc Testnet USDC for x402-metered service" as const,
     available: liveSettlementEnabled,
     blocker: agentBlocker,

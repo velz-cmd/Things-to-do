@@ -43,7 +43,9 @@ import type {
   EconomicActionItem,
   MarketplaceOpportunity,
 } from "@/lib/discover/marketplace/contracts";
+import { describeSignal } from "@/lib/discover/impact/impact-signals";
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
+import type { EconomicMatch } from "@/lib/discover/impact/economic-matching";
 import type { OpportunityFilters } from "@/lib/discover/marketplace/filters";
 
 type OpenAction = (action: DiscoverAction, item?: EconomicActionItem) => void;
@@ -451,6 +453,138 @@ function ImpactSummary({ profile }: { profile?: ImpactProfile }) {
   );
 }
 
+const MECHANISM_LABELS: Record<string, string> = {
+  pool_allocation: "Pool allocation",
+  sponsor_program: "Sponsor program",
+  funded_request: "Funded request",
+  recurring_support: "Recurring support",
+  direct_support: "Direct support",
+};
+
+/**
+ * Level 2 of the outcome row: which real capital could fund this, what was
+ * ruled out and why, and whether a prior payment already covers it. Excluded
+ * mechanisms stay behind a disclosure so the row stays dense, but they are
+ * never hidden - a funder needs to see what RESOLVE considered.
+ */
+function EconomicMatchSummary({ match }: { match?: EconomicMatch }) {
+  if (!match) return null;
+  const { eligible, excluded, coverage, overlap } = match;
+  if (!eligible.length && !excluded.length) return null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+        <span className="font-semibold text-violet-300">Funding match</span>
+        {match.recommended ? (
+          <span className="text-slate-200">
+            {MECHANISM_LABELS[match.recommended] ?? match.recommended}
+          </span>
+        ) : (
+          <span className="text-slate-400">
+            No funding intent currently covers this outcome
+          </span>
+        )}
+        {match.requiresReview ? (
+          <span className="rounded bg-amber-300/10 px-1.5 py-0.5 text-[11px] text-amber-200">
+            Needs funder review
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs leading-5 text-slate-400">
+        {match.recommendationReason}
+      </p>
+      {eligible.length ? (
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {eligible.map((entry) => (
+            <li
+              key={entry.intent.id}
+              className="rounded border border-emerald-300/20 bg-emerald-300/[0.06] px-2 py-0.5 text-[11px] text-emerald-200"
+            >
+              {entry.intent.label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {coverage.length ? (
+        <p className="mt-2 text-xs text-slate-400">
+          {coverage.length} prior payment{coverage.length === 1 ? "" : "s"} found.{" "}
+          {overlap === "duplicate_obligation"
+            ? "This obligation is already settled and must not be paid again."
+            : overlap === "possible_overlap"
+              ? "Purpose may overlap, so a funder decides."
+              : "Different economic purpose, so this is not a duplicate."}
+        </p>
+      ) : null}
+      {excluded.length ? (
+        <details className="mt-2 group">
+          <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300">
+            {excluded.length} mechanism{excluded.length === 1 ? "" : "s"} ruled out
+          </summary>
+          <ul className="mt-1.5 space-y-1">
+            {excluded.map((entry) => (
+              <li key={entry.intent.id} className="text-[11px] leading-4 text-slate-500">
+                <span className="text-slate-400">{entry.intent.label}</span> — {entry.reason}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Deterministic, evidence-based reasons this outcome is in the feed.
+ *
+ * Deliberately not a score. "Impact 87/100" compresses unlike things into one
+ * number a reader cannot check; each line here is a statement they can verify
+ * against the evidence, and a line is only emitted when it is actually true.
+ */
+function whySurfaced(work: MarketplaceOpportunity): string[] {
+  const reasons: string[] = [];
+  const profile = work.impactProfile;
+
+  if (profile?.measurable) {
+    // describeSignal carries the scope caveat - repository-level adoption is
+    // explicitly not a claim about this specific change.
+    for (const signal of profile.signals.slice(0, 2)) {
+      reasons.push(describeSignal(signal));
+    }
+  }
+
+  const match = work.economicMatch;
+  if (match?.eligible.length) {
+    reasons.push(`${match.eligible[0]!.intent.label} accepts this class of outcome`);
+  }
+  if (match && match.coverage.length === 0) {
+    reasons.push("No previous obligation covers the same purpose");
+  }
+  if (work.entityState?.financialReadiness === "ready") {
+    reasons.push("Recipient payout route is ready");
+  }
+  return reasons;
+}
+
+function WhySurfaced({ work }: { work: MarketplaceOpportunity }) {
+  const reasons = whySurfaced(work);
+  if (!reasons.length) return null;
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300">
+        Why RESOLVE surfaced this
+      </summary>
+      <ul className="mt-1.5 space-y-1">
+        {reasons.map((reason) => (
+          <li key={reason} className="text-[11px] leading-4 text-slate-400">
+            · {reason}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function WorkRow({
   work,
   data,
@@ -477,10 +611,15 @@ function WorkRow({
           ? "Contributor unclaimed"
           : blocker.includes("payout")
             ? "Payout not ready"
-            : "Reward unavailable";
-  const coverageState = work.program?.name
-    ? `Covered by ${work.program.name}`
-    : "Not currently covered";
+            // "Reward unavailable" named a payment that was never offered and
+            // gave the reader nothing to act on. State the settlement fact.
+            : "No settlement route yet";
+  // Coverage is a matching result, not a guess from an attached program name.
+  const coverageState = work.economicMatch?.coverage.length
+    ? `${work.economicMatch.coverage.length} prior payment${work.economicMatch.coverage.length === 1 ? "" : "s"}`
+    : work.program?.name
+      ? `Covered by ${work.program.name}`
+      : "No prior payment found";
   const inspectEvidence =
     work.primaryAction?.id === "discover.open_evidence"
       ? work.primaryAction
@@ -524,6 +663,8 @@ function WorkRow({
           <span>{payoutState}</span>
         </div>
         <ImpactSummary profile={work.impactProfile} />
+        <EconomicMatchSummary match={work.economicMatch} />
+        <WhySurfaced work={work} />
         {work.entityState?.blocker ? (
           <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
             {work.entityState.blocker}
@@ -598,19 +739,32 @@ function PoolCard({
       ) : null}
       <div className="mt-5">
         <div className="flex items-end justify-between text-xs">
-          <span className="text-slate-500">Confirmed funding</span>
+          <span className="text-slate-500">Confirmed on Arc</span>
           <span className="text-slate-200">
-            {money(confirmed) ?? "Not confirmed"}
-            {target ? ` / ${money(target)}` : ""}
+            {money(confirmed) ?? "Nothing confirmed yet"}
           </span>
         </div>
-        {progress != null ? (
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]">
-            <div
-              className="h-full rounded-full bg-emerald-400"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+        {/* The bar tracks the next checkpoint, not budgetUsd: funding
+            increments budgetUsd, so a bar drawn against it moved the finish
+            line on every deposit and could never fill. */}
+        {pool.nextCheckpointUsd && pool.checkpointProgressPct != null ? (
+          <>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+              <div
+                className="h-full rounded-full bg-emerald-400 transition-[width]"
+                style={{
+                  width: `${Math.min(100, Math.max(0, pool.checkpointProgressPct))}%`,
+                }}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              {pool.checkpointProgressPct}% to the next checkpoint at{" "}
+              {money(pool.nextCheckpointUsd)}
+              {confirmed && confirmed > 0
+                ? ` · ${money(Math.max(0, pool.nextCheckpointUsd - confirmed))} still needed`
+                : ""}
+            </p>
+          </>
         ) : null}
         {/* "Pending confirmation" claims a deposit is in flight on Arc. That
             is only true when a transaction was actually submitted. This number
@@ -672,9 +826,36 @@ function AgentServiceCard({
           {service.available ? "Available" : "Payment paused"}
         </span>
       </div>
-      <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-300">
-        {service.description}
-      </p>
+      {/* A price and an endpoint do not tell anyone why to buy. Lead with the
+          uncertainty this resolves, and state what it cannot establish - these
+          are heuristics, and a buyer deciding where money goes needs to know
+          the difference. */}
+      {service.decisionContext ? (
+        <div className="mt-4 space-y-2">
+          <div>
+            <p className="text-[11px] font-semibold text-violet-300">Use this when</p>
+            <p className="mt-0.5 text-sm leading-6 text-slate-300">
+              {service.decisionContext.useWhen}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500">Produces</p>
+            <p className="mt-0.5 text-xs leading-5 text-slate-400">
+              {service.decisionContext.produces}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500">Cannot establish</p>
+            <p className="mt-0.5 text-xs leading-5 text-slate-400">
+              {service.decisionContext.limitations}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-300">
+          {service.description}
+        </p>
+      )}
       <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-3 text-xs">
         <div>
           <dt className="text-slate-500">Current price</dt>
@@ -1298,14 +1479,22 @@ function ActivityView({
           body="Only operator-owned setup workspaces remain visible below. Public Pool cards appear after publication, policy, allocation, treasury and Arc preflight all pass."
         />
       )}
-      {operator.length ? (
-        <section>
-          <SectionTitle title="Your Pools to finish" count={operator.length} />
-          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            {operator.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
-          </div>
-        </section>
-      ) : null}
+      {/* A flat list of every unfinished Pool is a backlog, not a queue. The
+          same records grouped by the one prerequisite that is actually
+          blocking them tell the operator what to do next, and in what order. */}
+      {operator.length
+        ? operatorPoolGroups(operator).map((group) => (
+            <section key={group.key}>
+              <SectionTitle title={group.title} count={group.pools.length} />
+              <p className="mb-3 text-xs text-slate-500">{group.explanation}</p>
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                {group.pools.map((pool) => (
+                  <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />
+                ))}
+              </div>
+            </section>
+          ))
+        : null}
       {distributions.length ? (
         <section>
           <SectionTitle title="Confirmed distributions" count={distributions.length} />
@@ -1320,6 +1509,91 @@ function ActivityView({
       )}
     </div>
   );
+}
+
+/**
+ * Buckets operator-owned Pools by the first unmet prerequisite - the same
+ * precedence the normalizer uses to choose each card's action, so the group
+ * heading and the button inside it always agree.
+ */
+function operatorPoolGroups(pools: DiscoverPool[]): Array<{
+  key: string;
+  title: string;
+  explanation: string;
+  pools: DiscoverPool[];
+}> {
+  // Group on setupStep, the same field the card's action is built from.
+  // policyState/treasuryReadiness are both derived from one financialReadiness
+  // boolean, so grouping on them put a Pool whose policy was already active
+  // under "Needs a funding rule" while its button correctly said "Add
+  // treasury" - heading and action contradicting each other.
+  const groups = [
+    {
+      key: "publication",
+      title: "Waiting on your publication review",
+      explanation:
+        "These are configured but not yet approved for public discovery. Nobody else can fund them until you approve.",
+      match: (pool: DiscoverPool) =>
+        pool.setupStep === "publication" ||
+        (!pool.setupStep && pool.publicationState !== "approved"),
+    },
+    {
+      key: "policy",
+      title: "Needs a funding rule",
+      explanation:
+        "A Pool cannot decide who qualifies for capital until a versioned funding policy is active.",
+      match: (pool: DiscoverPool) =>
+        pool.setupStep === "policy" ||
+        (!pool.setupStep && pool.policyState === "setup_required"),
+    },
+    {
+      key: "treasury",
+      title: "Needs a treasury destination",
+      explanation:
+        "Capital has nowhere to settle until a valid Arc address is attached.",
+      match: (pool: DiscoverPool) =>
+        pool.setupStep === "treasury" ||
+        (!pool.setupStep && pool.treasuryReadiness === "setup_required"),
+    },
+    {
+      key: "source",
+      title: "Needs an evidence source",
+      explanation:
+        "Without a connected source there is no evidence to decide who qualifies for capital.",
+      match: (pool: DiscoverPool) => pool.setupStep === "source",
+    },
+  ];
+
+  const remaining = [...pools];
+  const result: Array<{
+    key: string;
+    title: string;
+    explanation: string;
+    pools: DiscoverPool[];
+  }> = [];
+
+  for (const group of groups) {
+    const matched = remaining.filter(group.match);
+    if (!matched.length) continue;
+    for (const pool of matched) remaining.splice(remaining.indexOf(pool), 1);
+    result.push({
+      key: group.key,
+      title: group.title,
+      explanation: group.explanation,
+      pools: matched,
+    });
+  }
+
+  if (remaining.length) {
+    result.push({
+      key: "other",
+      title: "Your other Pools",
+      explanation:
+        "Setup is complete for these. They are held here because Arc preflight has not passed yet.",
+      pools: remaining,
+    });
+  }
+  return result;
 }
 
 function AgentMarketplaceView({

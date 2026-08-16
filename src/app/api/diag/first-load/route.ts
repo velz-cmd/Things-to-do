@@ -40,7 +40,14 @@ export async function GET() {
       out.auth = { ok: false, error: ready.error, status: ready.status };
     } else {
       userId = ready.profile.id;
-      out.auth = { ok: true, userId };
+      const { getSessionUser } = await import("@/lib/auth/session");
+      const sessionUser = await getSessionUser();
+      out.auth = {
+        ok: true,
+        profileId: userId,
+        sessionUserId: sessionUser?.id ?? null,
+        idsMatch: sessionUser?.id === userId,
+      };
     }
   } catch (error) {
     out.auth = { ok: false, threw: describe(error) };

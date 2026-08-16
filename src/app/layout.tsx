@@ -38,12 +38,14 @@ export default async function RootLayout({
   // app itself writes once a wallet is connected, which left anyone who had
   // connected a wallet unable to load any page until they cleared cookies.
   // API routes were unaffected because no layout renders for them.
+  // headers() must be read OUTSIDE the catch. Next signals "this route is
+  // dynamic" by throwing DYNAMIC_SERVER_USAGE from headers(), so swallowing
+  // it breaks static/dynamic detection and fails the build.
+  const cookieHeader = (await headers()).get("cookie");
+
   let initialState: ReturnType<typeof cookieToInitialState>;
   try {
-    initialState = cookieToInitialState(
-      wagmiConfig,
-      (await headers()).get("cookie")
-    );
+    initialState = cookieToInitialState(wagmiConfig, cookieHeader);
   } catch (error) {
     console.error("[layout] ignoring unreadable wagmi cookie", error);
     initialState = undefined;

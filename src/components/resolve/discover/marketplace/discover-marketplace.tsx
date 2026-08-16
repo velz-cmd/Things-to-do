@@ -1691,7 +1691,16 @@ function OutcomesView({
       />
     );
   }
-  const supportedKinds = new Set(["work", "funding", "pool", "transaction", "receipt"]);
+  // agent_service was missing, so every paid agent run was filtered out of
+  // the ledger even though it settled on Arc and produced a result.
+  const supportedKinds = new Set([
+    "work",
+    "funding",
+    "pool",
+    "transaction",
+    "receipt",
+    "agent_service",
+  ]);
   const personal = (data.activity ?? []).filter((item) => supportedKinds.has(item.kind));
   const confirmedReceipts = data.projection.items;
   const activeFilter = params.get("state") ?? "all";

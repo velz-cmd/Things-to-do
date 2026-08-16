@@ -207,8 +207,17 @@ export async function createErc8183Escrow(input: {
 
   if (!jobId) throw new Error("Could not read JobCreated from createJob receipt");
 
+  // setBudget must be sent by the PROVIDER, not the client. Sending it from
+  // the client reverts with custom error 0x8e78f0cb and no escrow is ever
+  // created, which is why Request funding always failed with
+  // "setBudget failed in Circle: FAILED".
+  //
+  // Verified on chain against a working job on the same contract: for job
+  // 179705 the client (0x28c1658b) sent createJob and fund, while setBudget
+  // (selector 0xdd4ae9d4, identical to ours) was sent by the provider
+  // (0x2573fc67). Our selector was already correct; only the caller was wrong.
   await executeCircleContract({
-    walletAddress: ARC_CLIENT_WALLET_ADDRESS,
+    walletAddress: ARC_PROVIDER_WALLET_ADDRESS,
     abiFunctionSignature: "setBudget(uint256,uint256,bytes)",
     abiParameters: [jobId, amountTokenUnits, "0x"],
     label: "setBudget",

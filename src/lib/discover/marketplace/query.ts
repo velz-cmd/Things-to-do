@@ -85,7 +85,7 @@ const PAGE_SIZE = 18;
 const SOURCE_LIMIT = 100;
 const SOURCE_CACHE_SECONDS = 60;
 const ACTIVITY_CACHE_SECONDS = 30;
-const PERSONAL_ENRICHMENT_TIMEOUT_MS = 4_000;
+const PERSONAL_ENRICHMENT_TIMEOUT_MS = 12_000;
 const PERSONAL_ENRICHMENT_TIMEOUT_LABEL = `${PERSONAL_ENRICHMENT_TIMEOUT_MS / 1_000}-second personal-enrichment timeout`;
 // Workspace readiness is an enhancement for recommendations. It must not hold
 // the route longer than the persisted People and My Activity projections.
@@ -2192,9 +2192,21 @@ function friendlyActivityLabel(eventType: string) {
     "program.draft_created": "Program draft created",
     "program.policy_updated": "Program policy updated",
     "source.sync_completed": "Source refresh completed",
+    // Named explicitly: the fallback turned this into "pool funding pending",
+    // an internal event name shown to the user as a title.
+    pool_funding_pending: "Pool funded",
+    application_submitted: "Application submitted",
+    "program.setup_updated": "Pool setup updated",
+    "capital.wallet_verified": "Wallet ownership verified",
   };
   return (
-    labels[eventType] ?? eventType.replaceAll(".", " ").replaceAll("_", " ")
+    labels[eventType] ??
+    // Never surface a raw event name. Sentence-case the fallback so an
+    // unmapped type still reads as a product event, not a database value.
+    (() => {
+      const words = eventType.replaceAll(".", " ").replaceAll("_", " ").trim();
+      return words.charAt(0).toUpperCase() + words.slice(1);
+    })()
   );
 }
 
@@ -2611,7 +2623,16 @@ async function loadPersonalDiscoverActivity(
           event.payload,
           event.communitySlug ?? event.aggregateId,
         ),
-        state: event.eventType.split(".").at(-1) ?? "recorded",
+        // The raw event name was rendered as the status chip, so a deposit
+        // that settled on Arc displayed as "Pool Funding Pending". Trust the
+        // payload: an Arc transaction hash with a completed status means
+        // confirmed, and nothing else may claim to be.
+        state:
+          typeof payload.txHash === "string" && payload.status === "completed"
+            ? "confirmed"
+            : payload.status === "pending_arc"
+              ? "submitted"
+              : (event.eventType.split(".").at(-1) ?? "recorded"),
         occurredAt: event.occurredAt.toISOString(),
         amountUsd:
           amountMicro === undefined || !Number.isFinite(amountMicro)
@@ -3273,6 +3294,11 @@ export async function loadDiscoverPageData(
       blocker: agentBlocker,
     },
     savedIds: [],
+    // The projection computed this and then never returned it, so
+    // data.activity was always undefined and the Activity view rendered
+    // "No activity matches this state" no matter how many real, confirmed
+    // transactions existed.
+    activity,
     signedIn: Boolean(user),
     capabilities,
     stats: {

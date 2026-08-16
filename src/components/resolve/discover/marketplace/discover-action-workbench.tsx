@@ -1031,6 +1031,29 @@ type RequestDetail = {
   settlement: { status: string; error: string | null } | null;
 };
 
+/** Lifecycle steps in customer language - never a raw event name. */
+const REQUEST_LIFECYCLE_LABELS: Record<string, string> = {
+  request_created: "Request created",
+  request_funded: "Budget locked in Arc escrow",
+  request_published: "Published to contributors",
+  request_taken: "Contributor took the request",
+  request_assigned: "Contributor assigned",
+  work_submitted: "Work submitted",
+  request_under_review: "Awaiting requester review",
+  request_approved: "Requester approved the work",
+  payment_released: "Payment released",
+  request_payment_confirmed: "Payment confirmed on Arc",
+  request_cancelled: "Request cancelled",
+  request_refunded: "Budget refunded",
+};
+
+function requestLifecycleLabel(eventType: string): string {
+  const mapped = REQUEST_LIFECYCLE_LABELS[eventType];
+  if (mapped) return mapped;
+  const words = eventType.replaceAll("_", " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function RequestPanel({ action, onClose }: { action: DiscoverAction; onClose: () => void }) {
   const router = useRouter();
   const target =
@@ -1180,10 +1203,12 @@ function RequestPanel({ action, onClose }: { action: DiscoverAction; onClose: ()
         {detail.viewer.owner && request.status === "under_review" ? <button type="button" disabled={busy || note.trim().length < 3} onClick={() => void command({ action: "approve", opportunityId: request.id, note })} className="rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Approve submitted work</button> : null}
         {detail.viewer.owner && request.status === "approved" ? <button type="button" disabled={busy} onClick={() => void command({ action: "release", opportunityId: request.id })} className="rounded-lg bg-violet-500 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Release payment</button> : null}
         {detail.viewer.owner && ["ready_to_fund", "open", "assigned"].includes(request.status) && !showCancellation ? <button type="button" disabled={busy} onClick={() => setShowCancellation(true)} className="rounded-lg border border-rose-300/20 px-4 py-3 text-sm text-rose-100 disabled:opacity-50">{request.fundingStatus === "escrowed" ? "Cancel and refund" : "Cancel request"}</button> : null}
-        <button type="button" onClick={() => setReload((value) => value + 1)} disabled={busy || loading} className="rounded-lg border border-white/10 px-4 py-3 text-sm text-slate-300 disabled:opacity-50">Refresh state</button>
+        {/* "Refresh state" was a customer-facing button whose only effect was
+            re-reading the record. Every stage above already offers the real
+            action, so it only added noise next to them. */}
         <button type="button" onClick={onClose} className="rounded-lg border border-white/10 px-4 py-3 text-sm text-slate-300">Close</button>
       </div>
-      {detail.activity.length ? <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-xs font-semibold text-slate-300">Lifecycle</p><ol className="mt-3 space-y-3">{detail.activity.slice(0, 8).map((row) => <li key={row.id} className="text-xs"><p className="font-medium capitalize text-white">{row.eventType.replaceAll("_", " ")}</p><p className="mt-1 text-slate-400">{row.summary}</p></li>)}</ol></div> : null}
+      {detail.activity.length ? <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4"><p className="text-xs font-semibold text-slate-300">Lifecycle</p><ol className="mt-3 space-y-3">{detail.activity.slice(0, 8).map((row) => <li key={row.id} className="text-xs"><p className="font-medium text-white">{requestLifecycleLabel(row.eventType)}</p><p className="mt-1 text-slate-400">{row.summary}</p></li>)}</ol></div> : null}
     </div>
   );
 }

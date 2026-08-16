@@ -4,6 +4,20 @@ import { getSupabaseServerUrl } from "@/lib/supabase/admin";
 import { LEGACY_REDIRECTS } from "@/components/resolve/layout/nav";
 
 export async function middleware(request: NextRequest) {
+  // Middleware runs before every page. Anything that throws here returns a
+  // platform 500 before the app renders, and the failure is invisible to the
+  // app's own error reporting because it happens in the edge runtime. It must
+  // therefore be fail-open: refreshing a session is an optimisation, and a
+  // request that cannot be refreshed is simply a signed-out request.
+  try {
+    return await handleRequest(request);
+  } catch (error) {
+    console.error("[middleware] failing open", error);
+    return NextResponse.next({ request });
+  }
+}
+
+async function handleRequest(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
   // Password reset links use token_hash (not PKCE code) — see buildPasswordRecoveryUrl.
@@ -47,7 +61,16 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  // Refreshing a stale session performs a network call to Supabase. If that
+  // call fails or times out, middleware must still return the response:
+  // throwing here turns every page request into a 500 before the app renders,
+  // which is exactly what a returning user hits on their first page load.
+  // A failed refresh is not fatal - the app handles a signed-out request.
+  try {
+    await supabase.auth.getUser();
+  } catch (error) {
+    console.error("[middleware] session refresh failed", error);
+  }
 
   return supabaseResponse;
 }

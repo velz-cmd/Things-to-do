@@ -184,6 +184,12 @@ async function loadPersistedOpportunities() {
 }
 
 async function loadProgramOpportunities() {
+  // Resolved once, before the query: the columns may not exist yet because
+  // the build never runs migrations, and selecting a missing column throws
+  // and takes the whole surface down.
+  const provenanceSelect = (await fundStakeProvenanceAvailable())
+    ? { arcTxHash: true as const, confirmedAt: true as const }
+    : {};
   const rows = await prisma.resolveProgram.findMany({
     where: {
       status: { in: ["active", "deployed"] },
@@ -221,12 +227,7 @@ async function loadProgramOpportunities() {
           principalUsd: true,
           releasedUsd: true,
           status: true,
-          // Selected only when the columns exist. The build never runs
-          // migrations, so a projection that assumes them breaks the whole
-          // surface on any deployment that has not healed yet.
-          ...(await fundStakeProvenanceAvailable()
-            ? { arcTxHash: true, confirmedAt: true }
-            : {}),
+          ...provenanceSelect,
         },
       },
     },
@@ -247,6 +248,9 @@ async function loadProgramOpportunities() {
  * unpublished drafts already stay visible to their creator only.
  */
 async function loadOperatorProgramOpportunities(viewerId: string) {
+  const provenanceSelect = (await fundStakeProvenanceAvailable())
+    ? { arcTxHash: true as const, confirmedAt: true as const }
+    : {};
   const rows = await prisma.resolveProgram.findMany({
     where: { userId: viewerId },
     select: {
@@ -281,12 +285,7 @@ async function loadOperatorProgramOpportunities(viewerId: string) {
           principalUsd: true,
           releasedUsd: true,
           status: true,
-          // Selected only when the columns exist. The build never runs
-          // migrations, so a projection that assumes them breaks the whole
-          // surface on any deployment that has not healed yet.
-          ...(await fundStakeProvenanceAvailable()
-            ? { arcTxHash: true, confirmedAt: true }
-            : {}),
+          ...provenanceSelect,
         },
       },
     },

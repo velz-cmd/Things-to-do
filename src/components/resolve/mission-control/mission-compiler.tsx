@@ -337,14 +337,21 @@ export function MissionCompiler() {
         <header className="border-b border-white/8 px-5 py-4 md:px-7">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-violet-300">Evidence-to-decision compiler</p>
+              {/* Was "Evidence-to-decision compiler" over "Build a decision
+                  judges can inspect": internal architecture wording plus an
+                  audience this product does not have. The heading now states
+                  the objective, which is what the page is actually about. */}
+              <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-violet-300">Mission</p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white md:text-3xl">
-                {workflow ? workflow.mission.title : "Build a decision judges can inspect"}
+                {workflow ? workflow.mission.title : "What should RESOLVE decide?"}
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                {/* manifest v3 is internal bookkeeping, not something a person
+                    making a funding decision needs on the primary heading. It
+                    remains available in the mission details. */}
                 {workflow
-                  ? `${kindLabel(workflow.manifest.kind)} mission · manifest v${manifestVersion} · ${workflow.mission.status}`
-                  : "Define the decision, connect its sources, and move through only the operations that are currently valid."}
+                  ? `${kindLabel(workflow.manifest.kind)} mission · ${workflow.mission.status}`
+                  : "Describe the outcome you want RESOLVE to reach. It will gather the evidence it needs and come back with a decision you approve."}
               </p>
             </div>
             {workflow && (

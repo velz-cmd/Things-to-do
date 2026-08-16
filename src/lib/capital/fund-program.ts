@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { ensureFundStakeArcSchema } from "@/lib/db/ensure-fund-stake-arc-schema";
+import { fundStakeProvenanceAvailable } from "@/lib/db/ensure-fund-stake-arc-schema";
 import { recordTimelineEvent } from "@/lib/mission/server/timeline";
 import { refreshProgramYieldCache } from "@/lib/capital/yield-service";
 import { runQfMatchAllocation } from "@/lib/capital/qf-allocator";
@@ -352,7 +352,10 @@ export async function fundCommunityProgram(input: {
   let stakeProvenanceError: string | null = null;
   if (arcTxHash && fundStatus === "completed") {
     stakeProvenanceError = await bookkeeping("stake provenance", async () => {
-      if (!(await ensureFundStakeArcSchema())) {
+      // Read-only check. Running DDL (ALTER TABLE) inside a funding request
+      // broke funding outright: schema migration does not belong in a path
+      // that moves money. Healing happens through the dedicated route.
+      if (!(await fundStakeProvenanceAvailable())) {
         throw new Error("fund stake arc columns unavailable");
       }
       await prisma.communityFundStake.update({

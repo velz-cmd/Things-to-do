@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireReadyUser } from "@/lib/auth/session";
-import { loadDiscoverPageData } from "@/lib/discover/marketplace/query";
+import {
+  loadDiscoverPageData,
+  loadPersonalDiscoverActivity,
+} from "@/lib/discover/marketplace/query";
 import { parseOpportunityFilters } from "@/lib/discover/marketplace/filters";
 
 /**
@@ -112,6 +115,20 @@ export async function GET() {
         matchedTypes: [...new Set(matched.map((m) => m.eventType))],
         agentServiceTransactions: agentTx,
       };
+
+      // Call the loader directly to see whether it, or its caller, drops rows.
+      try {
+        const t0 = Date.now();
+        const direct = await loadPersonalDiscoverActivity(userId, [], []);
+        out.activityDirect = {
+          count: direct.length,
+          ms: Date.now() - t0,
+          kinds: [...new Set(direct.map((d) => d.kind))],
+          titles: direct.slice(0, 5).map((d) => d.title),
+        };
+      } catch (error) {
+        out.activityDirect = { threw: describe(error) };
+      }
     } catch (error) {
       out.ledger = { threw: describe(error) };
     }

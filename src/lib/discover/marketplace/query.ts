@@ -2274,7 +2274,7 @@ function discoverPaymentPackage(value: unknown) {
   };
 }
 
-async function loadPersonalDiscoverActivity(
+export async function loadPersonalDiscoverActivity(
   userId: string,
   opportunities: MarketplaceOpportunity[],
   people: DiscoverPerson[],

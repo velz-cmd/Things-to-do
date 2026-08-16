@@ -69,7 +69,12 @@ const publicViewId: Record<DiscoverView, string> = {
 
 function money(value?: number, token = "USDC") {
   if (value == null) return null;
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)} ${token}`;
+  // Two decimals renders a real 0.003 USDC agent charge as "0 USDC". A
+  // payment that happened must never display as nothing, so sub-cent amounts
+  // keep the precision that shows what actually moved.
+  const magnitude = Math.abs(value);
+  const maximumFractionDigits = value !== 0 && magnitude < 0.01 ? 6 : 2;
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(value)} ${token}`;
 }
 
 function dateLabel(value: string) {

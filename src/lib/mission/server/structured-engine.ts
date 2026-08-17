@@ -684,8 +684,11 @@ export async function createStructuredMission(userId: string, rawManifest: unkno
   return getStructuredMission(userId, mission.id);
 }
 
-async function currentManifest(missionId: string): Promise<MissionManifest> {
-  const row = await prisma.resolveMissionArtifact.findFirst({
+async function currentManifest(
+  missionId: string,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<MissionManifest> {
+  const row = await client.resolveMissionArtifact.findFirst({
     where: { missionId, kind: "manifest" },
     orderBy: { version: "desc" },
   });
@@ -983,48 +986,62 @@ export async function runStructuredMissionOperation(input: {
   });
   if (existing) return getStructuredMission(input.userId, input.missionId);
 
-  const manifest = await currentManifest(input.missionId);
-  const currentArtifacts = artifactRowsToStored(await prisma.resolveMissionArtifact.findMany({
-    where: { missionId: input.missionId },
-    orderBy: [{ createdAt: "asc" }, { version: "asc" }],
-  }));
-  const currentLatest = latestByKind(currentArtifacts);
-  const currentApproval = currentLatest.get("approval")?.payload;
-  const allowed = allowedMissionOperations({
-    kind: manifest.kind,
-    cancelled: mission.status === "cancelled",
-    hasEvidence: Boolean(currentLatest.get("evidence")?.sourceRefs.length),
-    hasClaimDecision: currentLatest.has("claim"),
-    hasComparisonDecision: currentLatest.has("comparison"),
-    hasSimulation: currentLatest.has("simulation"),
-    hasBlueprint: currentLatest.has("blueprint"),
-    approvalState: currentApproval?.kind === "approval" ? currentApproval.state : "none",
-    hasHandoff: currentLatest.has("handoff"),
-  });
-  if (!allowed.has(input.request.operationType)) {
-    throw new Error("This operation is not valid in the current Mission state.");
-  }
-  const manifestArtifact = await prisma.resolveMissionArtifact.findFirst({
-    where: { missionId: input.missionId, kind: "manifest" },
-    orderBy: { version: "desc" },
-    select: { version: true },
-  });
-  if (input.request.expectedVersion && input.request.expectedVersion !== manifestArtifact?.version) {
-    throw new Error("Mission requirements changed. Refresh before continuing.");
-  }
+  // The state-eligibility check and the ActionRun that claims this operation
+  // must be atomic. Without a lock, two concurrent requests for the same
+  // Mission (a double-click, a retried request racing the original) can both
+  // read "handoff is allowed" before either has recorded that it is running
+  // one - and both execute, which is exactly how a single Mission produces
+  // two obligations from one handoff. pg_advisory_xact_lock is transaction-
+  // scoped and released automatically on commit or rollback, so a crash can
+  // never leave the Mission locked.
+  const gate = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.missionId}))`;
 
-  const operation = await prisma.actionRun.create({
-    data: {
-      userId: input.userId,
-      actionId: input.request.operationType,
-      aggregateType: "ResolveMission",
-      aggregateId: input.missionId,
-      idempotencyKey: input.request.idempotencyKey,
-      state: "submitting",
-      recommendationReason: definition.description,
-      input: json(input.request),
-    },
+    const manifest = await currentManifest(input.missionId, tx);
+    const currentArtifacts = artifactRowsToStored(await tx.resolveMissionArtifact.findMany({
+      where: { missionId: input.missionId },
+      orderBy: [{ createdAt: "asc" }, { version: "asc" }],
+    }));
+    const currentLatest = latestByKind(currentArtifacts);
+    const currentApproval = currentLatest.get("approval")?.payload;
+    const allowed = allowedMissionOperations({
+      kind: manifest.kind,
+      cancelled: mission.status === "cancelled",
+      hasEvidence: Boolean(currentLatest.get("evidence")?.sourceRefs.length),
+      hasClaimDecision: currentLatest.has("claim"),
+      hasComparisonDecision: currentLatest.has("comparison"),
+      hasSimulation: currentLatest.has("simulation"),
+      hasBlueprint: currentLatest.has("blueprint"),
+      approvalState: currentApproval?.kind === "approval" ? currentApproval.state : "none",
+      hasHandoff: currentLatest.has("handoff"),
+    });
+    if (!allowed.has(input.request.operationType)) {
+      throw new Error("This operation is not valid in the current Mission state.");
+    }
+    const manifestArtifact = await tx.resolveMissionArtifact.findFirst({
+      where: { missionId: input.missionId, kind: "manifest" },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+    if (input.request.expectedVersion && input.request.expectedVersion !== manifestArtifact?.version) {
+      throw new Error("Mission requirements changed. Refresh before continuing.");
+    }
+
+    const created = await tx.actionRun.create({
+      data: {
+        userId: input.userId,
+        actionId: input.request.operationType,
+        aggregateType: "ResolveMission",
+        aggregateId: input.missionId,
+        idempotencyKey: input.request.idempotencyKey,
+        state: "submitting",
+        recommendationReason: definition.description,
+        input: json(input.request),
+      },
+    });
+    return { manifest, operation: created };
   });
+  const { manifest, operation } = gate;
 
   try {
     await executeRegisteredOperation(input.userId, input.missionId, operation.id, input.request, manifest);

@@ -1394,7 +1394,7 @@ function ExploreView({
             Ask for useful work, with proof and payment terms
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-            A request becomes public only after its USDC budget is confirmed in Arc escrow. Contributors submit persisted Evidence before the requester can release payment.
+            A request becomes public once its USDC budget is confirmed in Arc escrow. Contributors submit proof before the requester releases payment.
           </p>
         </div>
         <ContextualAction action={postAction} primary onOpen={onOpen} />
@@ -1413,13 +1413,13 @@ function ExploreView({
            was two buttons for one action; this space explains what an
            outcome-backed request is instead. */
         <CompactEmpty
-          title="No funded request is open right now"
-          body="An outcome-backed request names the problem, who it affects, the measurable result, and the source evidence that will prove completion. Its USDC budget is confirmed in Arc escrow before it becomes public, so a contributor can rely on it, and payment releases only against persisted evidence the requester approves."
+          title="No funded requests are open right now"
+          body="Need something done? Post a request above - it becomes public once its budget is confirmed in Arc escrow."
         />
       )}
       {personalRequests.length ? (
         <section>
-          <SectionTitle title="Your request workspaces" count={personalRequests.length} />
+          <SectionTitle title="Your requests" count={personalRequests.length} />
           <div className="grid gap-3 lg:grid-cols-2">
             {personalRequests.map((request) => (
               <RequestCard key={request.id} request={request} data={data} onOpen={onOpen} />

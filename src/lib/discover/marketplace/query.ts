@@ -2558,23 +2558,23 @@ async function loadPersonalDiscoverActivity(
   const githubHandle = self?.profilePath
     ?.match(/^https:\/\/github\.com\/([^/?#]+)/i)?.[1]
     ?.toLowerCase();
+  // Only confirmed outcomes and verified work belong here: they have a real
+  // settled fact to report. A Pool or Program's *current* status is not an
+  // event - it changes on its own schedule with no "occurred at" to report,
+  // and rendering it here read as "Video watch royalties - Open" every time
+  // the page loaded, regardless of whether anything had actually happened.
+  // Genuine Pool/Program activity (funded, rebalanced) already arrives
+  // through eventRows below, sourced from real OperationalEvent rows.
   const ownedMarketplace = opportunities.filter(
     (item) =>
-      item.creator.id === userId ||
-      (githubHandle && item.creator.name.toLowerCase() === githubHandle),
+      (item.creator.id === userId ||
+        (githubHandle && item.creator.name.toLowerCase() === githubHandle)) &&
+      (isConfirmedOutcome(item) || isVerifiedWork(item)),
   );
   const marketplaceRows: DiscoverActivityItem[] = ownedMarketplace.map(
     (item) => ({
       id: `owned:${item.id}`,
-      kind: isConfirmedOutcome(item)
-        ? "receipt"
-        : isVerifiedWork(item)
-          ? "work"
-          : isProgram(item)
-            ? "program"
-            : item.marketplaceKind === "pool"
-              ? "pool"
-              : "work",
+      kind: isConfirmedOutcome(item) ? "receipt" : "work",
       title: item.title,
       description: isVerifiedWork(item)
         ? `${item.repository ?? "Verified source"} / ${item.creator.name}`

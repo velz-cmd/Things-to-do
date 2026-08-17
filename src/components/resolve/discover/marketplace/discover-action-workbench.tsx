@@ -2615,6 +2615,23 @@ function AgentServicePanel({
         </dl>
       </section>
 
+      {service.decisionContext ? (
+        <section className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-xs">
+          <div>
+            <p className="font-semibold text-violet-300">When this is useful</p>
+            <p className="mt-1 leading-6 text-slate-300">{service.decisionContext.useWhen}</p>
+          </div>
+          <div className="mt-3">
+            <p className="font-semibold text-slate-400">What it returns</p>
+            <p className="mt-1 leading-5 text-slate-400">{service.decisionContext.produces}</p>
+          </div>
+          <div className="mt-3">
+            <p className="font-semibold text-amber-200">Limitations</p>
+            <p className="mt-1 leading-5 text-slate-400">{service.decisionContext.limitations}</p>
+          </div>
+        </section>
+      ) : null}
+
       {!service.available ? (
         <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-4">
           <p className="font-semibold text-amber-100">

@@ -271,6 +271,27 @@ export async function completeErc8183Job(jobId: string, reasonHash: string, idem
   });
 }
 
+/**
+ * Plain ERC-20 transfer, used for the second leg of a Request payout: moving
+ * approved USDC from the fixed ERC-8183 provider wallet (where `complete()`
+ * always lands funds) to the contributor's actual verified payout address.
+ */
+export async function transferUsdcPayout(input: {
+  fromWalletAddress: string;
+  toAddress: string;
+  amountTokenUnits: string;
+  idempotencyKey?: string;
+}): Promise<string> {
+  return executeCircleContractOn({
+    walletAddress: input.fromWalletAddress,
+    contractAddress: ARC_USDC_CONTRACT,
+    abiFunctionSignature: "transfer(address,uint256)",
+    abiParameters: [input.toAddress, input.amountTokenUnits],
+    label: "contributor payout transfer",
+    idempotencyKey: input.idempotencyKey,
+  });
+}
+
 export async function refundErc8183Job(jobId: string, idempotencyKey?: string) {
   if (!ARC_CLIENT_WALLET_ADDRESS) {
     throw new Error("Client wallet not configured");

@@ -1210,6 +1210,30 @@ model Receipt {
   @@index([communitySlug, issuedAt])
 }
 
+// Second settlement leg for a Request payout. ERC-8183 binds `provider` to a
+// fixed system wallet at createJob time (no on-chain function reassigns it),
+// so `complete()` always pays that wallet, never the contributor picked
+// later. This table tracks the follow-on internal transfer from that wallet
+// to the contributor's verified payout address, kept isolated from
+// DiscoverOpportunity/SettlementBatch so neither model's default select can
+// break on it.
+model RequestContributorPayout {
+  id                String    @id @default(cuid())
+  opportunityId     String    @unique
+  settlementBatchId String
+  fromAddress       String
+  toAddress         String
+  amountUsdcMicro   BigInt
+  status            String    @default("pending")
+  txHash            String?
+  idempotencyKey    String    @unique
+  error             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status])
+}
+
 model OperationalEvent {
   id             String   @id @default(cuid())
   eventType      String

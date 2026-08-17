@@ -1438,7 +1438,7 @@ function ExploreView({
   );
 }
 
-function ActivityView({
+function PoolsView({
   data,
   onOpen,
 }: {
@@ -1464,11 +1464,11 @@ function ActivityView({
     <div className="space-y-6">
       <section>
         <p className="text-xs font-semibold text-emerald-300">Community funding</p>
-        <h2 className="mt-1 text-xl font-semibold text-white">
-          Pools with visible rules, treasury state, and receipts
-        </h2>
+        <h2 className="mt-1 text-xl font-semibold text-white">Pools</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-          Fund only Pools whose publication, policy, allocation, treasury, and Arc preflight pass. Operator-owned Pools stay visible here with the exact setup action that remains.
+          {ready.length
+            ? `${ready.length} Pool${ready.length === 1 ? " is" : "s are"} ready for funding.`
+            : "No Pools are accepting funding right now."}
         </p>
       </section>
       {ready.length ? (
@@ -1480,26 +1480,47 @@ function ActivityView({
         </section>
       ) : (
         <CompactEmpty
-          title="No Pool has passed funding preflight"
-          body="Only operator-owned setup workspaces remain visible below. Public Pool cards appear after publication, policy, allocation, treasury and Arc preflight all pass."
+          title="No Pools are accepting funding right now"
+          body="A Pool becomes fundable once its policy, treasury, and evidence source are all configured and it passes review."
         />
       )}
-      {/* A flat list of every unfinished Pool is a backlog, not a queue. The
-          same records grouped by the one prerequisite that is actually
-          blocking them tell the operator what to do next, and in what order. */}
-      {operator.length
-        ? operatorPoolGroups(operator).map((group) => (
-            <section key={group.key}>
-              <SectionTitle title={group.title} count={group.pools.length} />
-              <p className="mb-3 text-xs text-slate-500">{group.explanation}</p>
-              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                {group.pools.map((pool) => (
-                  <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />
-                ))}
+      {/* Unfinished Pools you operate are your setup backlog, not market
+          inventory - a wall of full cards here made 17 admin to-dos read as
+          the marketplace itself. One compact row per Pool, grouped only by
+          the single prerequisite still blocking it. */}
+      {operator.length ? (
+        <section className="rounded-xl border border-amber-300/10 bg-amber-300/[0.03] p-4">
+          <p className="text-xs font-semibold text-amber-200">
+            Needs your attention · {operator.length} Pool{operator.length === 1 ? "" : "s"} you operate
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Not visible to funders until setup is complete.
+          </p>
+          <div className="mt-3 divide-y divide-white/[0.06]">
+            {operatorPoolGroups(operator).map((group) => (
+              <div key={group.key} className="py-3 first:pt-0 last:pb-0">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                  {group.title}
+                </p>
+                <div className="mt-2 space-y-2">
+                  {group.pools.map((pool) => (
+                    <div
+                      key={pool.id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.02] px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-white">{pool.name}</p>
+                        <p className="truncate text-xs text-slate-500">{pool.communitySlug}</p>
+                      </div>
+                      <ContextualAction action={pool.primaryAction} onOpen={onOpen} />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </section>
-          ))
-        : null}
+            ))}
+          </div>
+        </section>
+      ) : null}
       {distributions.length ? (
         <section>
           <SectionTitle title="Confirmed distributions" count={distributions.length} />
@@ -2088,7 +2109,7 @@ function DiscoverMarketplaceContent({
           ) : data.projection.kind === "explore" ? (
             <ExploreView data={data} filters={filters} onOpen={openWorkbench} />
           ) : data.projection.kind === "activity" ? (
-            <ActivityView data={data} onOpen={openWorkbench} />
+            <PoolsView data={data} onOpen={openWorkbench} />
           ) : data.view === "agents" ? (
             <AgentMarketplaceView
               data={data}

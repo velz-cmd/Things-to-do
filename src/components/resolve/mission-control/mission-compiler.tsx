@@ -124,6 +124,40 @@ function kindLabel(kind: MissionKind) {
   return kind[0]!.toUpperCase() + kind.slice(1);
 }
 
+/**
+ * Stage/status in customer language. The library card used to render the raw
+ * value - "collect_evidence", "handoff_communities" - directly, which is
+ * internal operation-type vocabulary from structured-contract.ts, not
+ * something a person deciding whether to open a Mission needs to parse.
+ */
+const MISSION_STAGE_LABELS: Record<string, string> = {
+  "mission.collect_evidence": "Collecting evidence",
+  "mission.verify_claim": "Verifying claim",
+  "mission.compare_options": "Comparing options",
+  "mission.run_simulation": "Simulating",
+  "mission.create_blueprint": "Drafting decision",
+  "mission.request_approval": "Awaiting your approval",
+  "mission.approve_blueprint": "Approved",
+  "mission.handoff_communities": "Handed off to Communities",
+  "mission.prepare_capital_review": "Ready for funding review",
+  created: "Draft",
+  running: "Running",
+  executing: "Running",
+  awaiting_user: "Needs your review",
+  completed: "Complete",
+  blocked: "Needs attention",
+  failed: "Needs attention",
+  cancelled: "Cancelled",
+};
+
+function missionStageLabel(stage?: string | null): string {
+  if (!stage) return "Draft";
+  const mapped = MISSION_STAGE_LABELS[stage];
+  if (mapped) return mapped;
+  const words = stage.replace(/^mission\./, "").replaceAll("_", " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export function MissionCompiler() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -319,12 +353,12 @@ export function MissionCompiler() {
                   : "border-transparent bg-white/[0.025] hover:border-white/10"
               }`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{mission.kind}</span>
-                <span className="text-[10px] text-slate-500">v{mission.manifestVersion}</span>
-              </div>
+              {/* manifest version is internal bookkeeping - it lives in the
+                  mission detail, not on the card a person scans to pick a
+                  Mission. */}
+              <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{mission.kind}</span>
               <p className="mt-2 line-clamp-2 text-xs font-medium leading-5 text-slate-200">{mission.title}</p>
-              <p className="mt-1 text-[11px] text-slate-500">{mission.stage ?? mission.status}</p>
+              <p className="mt-1 text-[11px] text-slate-500">{missionStageLabel(mission.stage ?? mission.status)}</p>
             </button>
           ))}
           {!loading && missions.length === 0 && !authRequired && (

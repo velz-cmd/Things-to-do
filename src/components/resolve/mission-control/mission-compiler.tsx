@@ -131,15 +131,15 @@ function kindLabel(kind: MissionKind) {
  * something a person deciding whether to open a Mission needs to parse.
  */
 const MISSION_STAGE_LABELS: Record<string, string> = {
-  "mission.collect_evidence": "Collecting evidence",
-  "mission.verify_claim": "Verifying claim",
-  "mission.compare_options": "Comparing options",
-  "mission.run_simulation": "Simulating",
-  "mission.create_blueprint": "Drafting decision",
-  "mission.request_approval": "Awaiting your approval",
-  "mission.approve_blueprint": "Approved",
-  "mission.handoff_communities": "Handed off to Communities",
-  "mission.prepare_capital_review": "Ready for funding review",
+  collect_evidence: "Collecting evidence",
+  verify_claim: "Verifying claim",
+  compare_options: "Comparing options",
+  run_simulation: "Simulating",
+  create_blueprint: "Drafting decision",
+  request_approval: "Awaiting your approval",
+  approve_blueprint: "Approved",
+  handoff_communities: "Handed off to Communities",
+  prepare_capital_review: "Ready for funding review",
   created: "Draft",
   running: "Running",
   executing: "Running",
@@ -152,9 +152,12 @@ const MISSION_STAGE_LABELS: Record<string, string> = {
 
 function missionStageLabel(stage?: string | null): string {
   if (!stage) return "Draft";
-  const mapped = MISSION_STAGE_LABELS[stage];
+  // Keys are stored without the "mission." prefix used in
+  // structured-contract.ts; strip it before lookup so either form matches.
+  const key = stage.replace(/^mission\./, "");
+  const mapped = MISSION_STAGE_LABELS[key] ?? MISSION_STAGE_LABELS[stage];
   if (mapped) return mapped;
-  const words = stage.replace(/^mission\./, "").replaceAll("_", " ").trim();
+  const words = key.replaceAll("_", " ").trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 

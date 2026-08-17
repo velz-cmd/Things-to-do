@@ -1285,7 +1285,7 @@ export function attachVerifiedWorkActions(
     const evidenceAction = workbenchAction(
       {
         id: "discover.open_evidence",
-        label: "Inspect evidence",
+        label: "View proof",
         href: detailPath,
       },
       {
@@ -1303,7 +1303,10 @@ export function attachVerifiedWorkActions(
     else if (isSelf && person && person.payoutReadiness !== "ready")
       blocker = "Choose a verified payout destination so future rewards can reach you.";
     else if (isSelf)
-      blocker = "You cannot reward work attributed to your own payout destination.";
+      // Self-attributed work isn't a payout problem to explain - it's just
+      // not something you pay yourself for. Say what it is, not what it
+      // isn't, so the reader gets a fact instead of a rejected request.
+      blocker = "This is your own attributed work.";
     else if (person.payoutReadiness !== "ready")
       blocker =
         "This contributor has not verified where work rewards should settle.";

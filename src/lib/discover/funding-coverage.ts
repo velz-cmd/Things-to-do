@@ -537,7 +537,7 @@ export function buildFundingCoverageCommandCentre(
               }
             : {
                 id: "discover.open_evidence",
-                label: "Inspect evidence",
+                label: "View proof",
                 reason: "Inspect the persisted evidence before another economic action is prepared.",
                 href: `/api/discover/oss-evidence/${encodeURIComponent(record.id)}`,
                 recordCount: 1,

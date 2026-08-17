@@ -118,7 +118,7 @@ export function normalizeGithubAcceptedWork(
           },
           primaryAction: workbenchAction({
             id: "discover.open_evidence",
-            label: "Inspect evidence",
+            label: "View proof",
             href: detailPath,
           }, {
             panel: "evidence",

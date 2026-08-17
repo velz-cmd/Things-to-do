@@ -462,7 +462,7 @@ describe("Discover canonical projections", () => {
       entityState: {
         financialReadiness: "setup_required",
       },
-      primaryAction: { label: "Inspect evidence" },
+      primaryAction: { label: "View proof" },
     });
     expect(result[0]?.reward).toBeUndefined();
     expect(result[0]?.primaryAction).toMatchObject({

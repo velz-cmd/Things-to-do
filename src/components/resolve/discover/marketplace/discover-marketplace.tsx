@@ -1377,15 +1377,49 @@ function ExploreView({
       {personalRequests.length ? (
         <section>
           <SectionTitle title="Your requests" count={personalRequests.length} />
-          <div className="grid gap-3 lg:grid-cols-2">
-            {personalRequests.map((request) => (
-              <RequestCard key={request.id} request={request} data={data} onOpen={onOpen} />
+          <div className="mt-3 space-y-5">
+            {personalRequestGroups(personalRequests).map((group) => (
+              <div key={group.key}>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                  {group.title} · {group.requests.length}
+                </p>
+                <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                  {group.requests.map((request) => (
+                    <RequestCard key={request.id} request={request} data={data} onOpen={onOpen} />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </section>
       ) : null}
     </div>
   );
+}
+
+/** Groups a requester's own requests by lifecycle stage instead of one flat
+ * list, so "needs your action now" (review, release) doesn't get lost
+ * between drafts and long-settled ones. */
+function personalRequestGroups(
+  requests: MarketplaceOpportunity[],
+): Array<{ key: string; title: string; requests: MarketplaceOpportunity[] }> {
+  const stageOrder: Array<{ key: string; title: string; statuses: string[] }> = [
+    { key: "needs_review", title: "Needs your review", statuses: ["under_review", "approved"] },
+    { key: "in_progress", title: "In progress", statuses: ["assigned", "payment_submitted"] },
+    { key: "ready_to_fund", title: "Ready to fund", statuses: ["ready_to_fund", "draft"] },
+    { key: "completed", title: "Completed", statuses: ["confirmed", "completed"] },
+    { key: "closed", title: "Closed", statuses: ["refunded", "cancelled"] },
+  ];
+  const remaining = [...requests];
+  const groups: Array<{ key: string; title: string; requests: MarketplaceOpportunity[] }> = [];
+  for (const stage of stageOrder) {
+    const matched = remaining.filter((request) => stage.statuses.includes(request.status));
+    if (!matched.length) continue;
+    for (const request of matched) remaining.splice(remaining.indexOf(request), 1);
+    groups.push({ key: stage.key, title: stage.title, requests: matched });
+  }
+  if (remaining.length) groups.push({ key: "other", title: "Other", requests: remaining });
+  return groups;
 }
 
 function PoolsView({

@@ -63,9 +63,13 @@ export async function searchOsmPlaces(name: string, limit = 5): Promise<OsmPlace
 
 export async function pingOverpass(): Promise<{ ok: boolean; message: string }> {
   try {
+    // Overpass returns 406 for requests without a descriptive User-Agent -
+    // the real query path (searchOsmPlaces above) already sends one; this
+    // ping was missing it and so reported the integration as failing even
+    // when it actually works.
     const res = await fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "RESOLVE/1.0" },
       body: "data=" + encodeURIComponent("[out:json];node(1);out;"),
       signal: AbortSignal.timeout(15_000),
     });

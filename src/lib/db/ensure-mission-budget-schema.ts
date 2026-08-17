@@ -27,10 +27,13 @@ CREATE TABLE IF NOT EXISTS "MissionIntelligenceBudget" (
   "missionId" TEXT NOT NULL,
   "budgetMicro" INTEGER NOT NULL DEFAULT 0,
   "perPurchaseMicro" INTEGER NOT NULL DEFAULT 0,
+  "revokedAt" TIMESTAMP(3),
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "MissionIntelligenceBudget_pkey" PRIMARY KEY ("missionId")
 );
+ALTER TABLE "MissionIntelligenceBudget"
+  ADD COLUMN IF NOT EXISTS "revokedAt" TIMESTAMP(3);
 CREATE TABLE IF NOT EXISTS "MissionIntelligenceSpend" (
   "id" TEXT NOT NULL,
   "missionId" TEXT NOT NULL,
@@ -57,7 +60,7 @@ CREATE INDEX IF NOT EXISTS "MissionIntelligenceSpend_userId_idx"
 async function schemaPresent(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1 FROM "MissionIntelligenceSpend" LIMIT 1`;
-    await prisma.$queryRaw`SELECT 1 FROM "MissionIntelligenceBudget" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "revokedAt" FROM "MissionIntelligenceBudget" LIMIT 1`;
     return true;
   } catch {
     return false;

@@ -136,3 +136,40 @@ describe("mission intelligence budget accounting", () => {
     expect(formatUsdc(0)).toBe("0 USDC");
   });
 });
+
+describe("kill switch overrides everything else", () => {
+  it("refuses a spend within budget once revoked", () => {
+    const state = computeBudgetState({
+      grantedMicro: usdToMicro(0.5),
+      perPurchaseLimitMicro: usdToMicro(0.1),
+      entries: [],
+      revoked: true,
+    });
+    const result = checkSpendAuthority({ amountMicro: usdToMicro(0.05), state });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("revoked");
+  });
+
+  it("checks revocation before amount validity, so the reason is never ambiguous", () => {
+    const state = computeBudgetState({
+      grantedMicro: usdToMicro(0.5),
+      perPurchaseLimitMicro: usdToMicro(0.1),
+      entries: [],
+      revoked: true,
+    });
+    // Even an invalid amount reports "revoked" first - the fact that made
+    // this Mission unable to spend at all outranks a malformed request.
+    const result = checkSpendAuthority({ amountMicro: -1, state });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("revoked");
+  });
+
+  it("does not revoke by default", () => {
+    const state = computeBudgetState({
+      grantedMicro: usdToMicro(0.5),
+      perPurchaseLimitMicro: usdToMicro(0.1),
+      entries: [],
+    });
+    expect(state.revoked).toBe(false);
+  });
+});

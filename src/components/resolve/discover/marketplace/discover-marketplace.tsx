@@ -31,6 +31,7 @@ import {
 } from "react";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketplace/discover-action-workbench";
+import { DISCOVER_VIEW_TO_ROUTE } from "@/lib/discover/marketplace/contracts";
 import type {
   DiscoverAction,
   DiscoverActivityItem,
@@ -59,13 +60,10 @@ const views: Array<{ id: DiscoverView; label: string; icon: typeof Activity }> =
     { id: "outcomes", label: "Activity", icon: History },
   ];
 
-const publicViewId: Record<DiscoverView, string> = {
-  for_you: "verified_work",
-  explore: "requests",
-  activity: "pools",
-  agents: "agents",
-  outcomes: "activity",
-};
+// Single canonical serializer, shared with the parser in filters.ts via
+// DISCOVER_VIEW_TO_ROUTE/DISCOVER_ROUTE_TO_VIEW so the two can never drift
+// out of sync the way the old locally-duplicated tables did.
+const publicViewId = DISCOVER_VIEW_TO_ROUTE;
 
 function money(value?: number, token = "USDC") {
   if (value == null) return null;

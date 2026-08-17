@@ -490,6 +490,11 @@ model MissionIntelligenceBudget {
   mission          ResolveMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
   budgetMicro      Int            @default(0)
   perPurchaseMicro Int            @default(0)
+  /// Kill switch. Once set, no new spend may be reserved under this Mission
+  /// regardless of remaining budget - checked fresh on every reservation
+  /// attempt, not only when authority was originally granted, so a run that
+  /// started before revocation cannot execute a purchase after it.
+  revokedAt        DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 }

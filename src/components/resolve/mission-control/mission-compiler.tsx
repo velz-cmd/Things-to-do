@@ -124,6 +124,40 @@ function kindLabel(kind: MissionKind) {
   return kind[0]!.toUpperCase() + kind.slice(1);
 }
 
+/**
+ * Stage/status in customer language. The library card used to render the raw
+ * value - "collect_evidence", "handoff_communities" - directly, which is
+ * internal operation-type vocabulary from structured-contract.ts, not
+ * something a person deciding whether to open a Mission needs to parse.
+ */
+const MISSION_STAGE_LABELS: Record<string, string> = {
+  "mission.collect_evidence": "Collecting evidence",
+  "mission.verify_claim": "Verifying claim",
+  "mission.compare_options": "Comparing options",
+  "mission.run_simulation": "Simulating",
+  "mission.create_blueprint": "Drafting decision",
+  "mission.request_approval": "Awaiting your approval",
+  "mission.approve_blueprint": "Approved",
+  "mission.handoff_communities": "Handed off to Communities",
+  "mission.prepare_capital_review": "Ready for funding review",
+  created: "Draft",
+  running: "Running",
+  executing: "Running",
+  awaiting_user: "Needs your review",
+  completed: "Complete",
+  blocked: "Needs attention",
+  failed: "Needs attention",
+  cancelled: "Cancelled",
+};
+
+function missionStageLabel(stage?: string | null): string {
+  if (!stage) return "Draft";
+  const mapped = MISSION_STAGE_LABELS[stage];
+  if (mapped) return mapped;
+  const words = stage.replace(/^mission\./, "").replaceAll("_", " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export function MissionCompiler() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -319,12 +353,12 @@ export function MissionCompiler() {
                   : "border-transparent bg-white/[0.025] hover:border-white/10"
               }`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{mission.kind}</span>
-                <span className="text-[10px] text-slate-500">v{mission.manifestVersion}</span>
-              </div>
+              {/* manifest version is internal bookkeeping - it lives in the
+                  mission detail, not on the card a person scans to pick a
+                  Mission. */}
+              <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{mission.kind}</span>
               <p className="mt-2 line-clamp-2 text-xs font-medium leading-5 text-slate-200">{mission.title}</p>
-              <p className="mt-1 text-[11px] text-slate-500">{mission.stage ?? mission.status}</p>
+              <p className="mt-1 text-[11px] text-slate-500">{missionStageLabel(mission.stage ?? mission.status)}</p>
             </button>
           ))}
           {!loading && missions.length === 0 && !authRequired && (
@@ -337,14 +371,21 @@ export function MissionCompiler() {
         <header className="border-b border-white/8 px-5 py-4 md:px-7">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-violet-300">Evidence-to-decision compiler</p>
+              {/* Was "Evidence-to-decision compiler" over "Build a decision
+                  judges can inspect": internal architecture wording plus an
+                  audience this product does not have. The heading now states
+                  the objective, which is what the page is actually about. */}
+              <p className="text-[11px] font-semibold uppercase tracking-[.2em] text-violet-300">Mission</p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white md:text-3xl">
-                {workflow ? workflow.mission.title : "Build a decision judges can inspect"}
+                {workflow ? workflow.mission.title : "What should RESOLVE decide?"}
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                {/* manifest v3 is internal bookkeeping, not something a person
+                    making a funding decision needs on the primary heading. It
+                    remains available in the mission details. */}
                 {workflow
-                  ? `${kindLabel(workflow.manifest.kind)} mission · manifest v${manifestVersion} · ${workflow.mission.status}`
-                  : "Define the decision, connect its sources, and move through only the operations that are currently valid."}
+                  ? `${kindLabel(workflow.manifest.kind)} mission · ${workflow.mission.status}`
+                  : "Describe the outcome you want RESOLVE to reach. It will gather the evidence it needs and come back with a decision you approve."}
               </p>
             </div>
             {workflow && (

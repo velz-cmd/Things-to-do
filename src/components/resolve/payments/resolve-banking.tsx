@@ -108,7 +108,7 @@ function SettlementBatchCard({
     );
   }
   if (query.isLoading) {
-    return <div className="mb-6 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 text-xs text-resolve-muted"><Loader2 className="h-4 w-4 animate-spin text-violet-300" />Verifying settlement packageâ€¦</div>;
+    return <div className="mb-6 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 text-xs text-resolve-muted"><Loader2 className="h-4 w-4 animate-spin text-violet-300" />Verifying settlement package…</div>;
   }
   if (query.isError || !query.data?.batch) {
     return (
@@ -156,8 +156,8 @@ function SettlementBatchCard({
           <p className="mt-1 max-w-md text-xs leading-relaxed text-resolve-muted">Evidence, policy, identities, and simulation are already compiled. Capital will execute this immutable package only after your confirmation.</p>
           <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
             <span className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 text-resolve-muted">{batch.payeeCount} payees</span>
-            <span className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 text-resolve-muted">Status Â· {batch.status}</span>
-            {batch.packageHash && <span title={batch.packageHash} className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 font-mono text-resolve-muted">Proof Â· {batch.packageHash.slice(0, 10)}â€¦</span>}
+            <span className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 text-resolve-muted">Status · {batch.status}</span>
+            {batch.packageHash && <span title={batch.packageHash} className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 font-mono text-resolve-muted">Proof · {batch.packageHash.slice(0, 10)}…</span>}
           </div>
         </div>
         <div className="min-w-32 rounded-xl border border-white/[0.08] bg-black/25 px-4 py-3 text-right">
@@ -178,7 +178,7 @@ function SettlementBatchCard({
           ) : (
             <Button data-action-id="capital.authorize_settlement" data-testid="capital-authorize-settlement" size="sm" disabled={submitting || !execution.enabled} onClick={() => void authorizeSettlement()}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
-              {submitting ? "Authorizingâ€¦" : `Authorize ${amountUsd.toFixed(2)} USDC`}
+              {submitting ? "Authorizing…" : `Authorize ${amountUsd.toFixed(2)} USDC`}
             </Button>
           )}
         </div>

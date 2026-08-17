@@ -18,6 +18,7 @@ import { listBrowsableCommunities, type CommunitySensorStatus } from "@/lib/sens
 import { InstallResolveCard } from "@/components/resolve/communities/install-resolve-card";
 import {
   CommunityOperateCard,
+  communityPrimaryAction,
   getCommunityOperationalState,
   type CommunityOperationalState,
 } from "@/components/resolve/communities/community-operate-card";
@@ -131,6 +132,26 @@ export function CommunitiesHub() {
     return raw ? displayVitals(raw) : null;
   }
 
+  // Real communities whose next action is not merely "operating normally",
+  // each with the exact concrete action from the same source the card below
+  // uses - so this list and the card can never point to different things.
+  const needsAttention = useMemo(
+    () =>
+      operating
+        .map(({ meta, summary: row }) => ({
+          meta,
+          state: getCommunityOperationalState(row?.hubOps ?? null, row?.vitals ?? null),
+          action: communityPrimaryAction({
+            slug: meta.slug,
+            hubOps: row?.hubOps ?? null,
+            vitals: row?.vitals ?? null,
+          }),
+        }))
+        .filter(({ state }) => state === "setup" || state === "review")
+        .slice(0, 6),
+    [operating],
+  );
+
   return (
     <main className={styles.workspace}>
       <div className={styles.backdrop} aria-hidden />
@@ -158,6 +179,25 @@ export function CommunitiesHub() {
               <RefreshCw className={clsx("h-3.5 w-3.5", isFetching && "animate-spin")} /> Refresh
             </button>
           </div>
+        )}
+
+        {needsAttention.length > 0 && (
+          <section className={styles.attentionSection} aria-label="Needs your attention">
+            <p className={styles.attentionHeading}>Needs your attention</p>
+            <div className={styles.attentionList}>
+              {needsAttention.map(({ meta, action }) => (
+                <div key={meta.slug} className={styles.attentionRow}>
+                  <p>
+                    <strong>{meta.name}</strong>
+                    <span>{action.reason}</span>
+                  </p>
+                  <Link data-action-id={action.actionId} href={action.href}>
+                    {action.label} <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         <section className={styles.statusRail} aria-label="Community operations summary">

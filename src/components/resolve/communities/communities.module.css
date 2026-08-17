@@ -55,6 +55,15 @@
 .syncBanner { margin-top: 12px; min-height: 39px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(228,182,90,.2); border-radius: 10px; background: rgba(228,182,90,.055); padding: 8px 12px; color: #d8c79e; font-size: .72rem; }
 .syncBanner button { display: inline-flex; align-items: center; gap: 6px; color: var(--communities-amber); }
 
+.attentionSection { margin-top: 16px; }
+.attentionHeading { font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--communities-amber, #d8c79e); }
+.attentionList { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.attentionRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(228,182,90,.18); border-radius: 10px; background: rgba(228,182,90,.04); padding: 10px 14px; }
+.attentionRow p { margin: 0; font-size: .78rem; color: var(--communities-text); }
+.attentionRow p strong { font-weight: 630; }
+.attentionRow span { display: block; margin-top: 2px; font-size: .72rem; color: var(--communities-text-muted); }
+.attentionRow a { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; border-radius: 8px; background: var(--communities-amber, #d8c79e); padding: 6px 12px; font-size: .74rem; font-weight: 600; color: #14110a; }
+
 .statusRail { margin-top: 14px; display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--communities-border-soft); border-radius: 13px; background: rgba(8,18,31,.8); overflow: hidden; }
 .statusMetric { min-width: 0; padding: 15px 17px; border-right: 1px solid var(--communities-border-soft); }
 .statusMetric:last-child { border-right: 0; }

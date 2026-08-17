@@ -109,9 +109,22 @@ function ComparisonCard({ card }: { card: Extract<ResolveResponseCard, { type: "
               ? "border-violet-300/40 bg-violet-300/[0.07]"
               : "border-white/8 bg-slate-950/45"
           }`}>
+            {/* A single 0-100 score compresses unlike criteria into one number
+                nobody can check, and it decided nothing: the comparison is
+                already carried by the criteria, findings and unresolved
+                evidence below. What a reader needs is which option is
+                recommended and what is still unknown about it. */}
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium text-white">{option.label}</span>
-              <span className="text-xs text-slate-300">{option.score}/100</span>
+              {option.label === card.recommendedOption ? (
+                <span className="rounded border border-violet-300/30 px-1.5 py-0.5 text-[10px] text-violet-200">
+                  Recommended
+                </span>
+              ) : option.missingEvidence.length ? (
+                <span className="text-[11px] text-amber-200">
+                  {option.missingEvidence.length} unresolved
+                </span>
+              ) : null}
             </div>
             {option.findings.slice(0, 3).map((finding) => (
               <p key={finding} className="mt-2 text-xs leading-5 text-slate-300">{finding}</p>

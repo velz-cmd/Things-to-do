@@ -114,10 +114,18 @@ export class ArcLiveAdapter implements SettlementAdapter {
       const reason = keccak256(
         toHex(input.reason ?? "deliverable-approved")
       );
+      // Circle's idempotency key caches the *outcome* of a key, not just
+      // dedupes concurrent sends - resubmitting the same key after a
+      // recorded failure returns the same failed result again rather than
+      // retrying, even once the underlying bug (e.g. a wrong signer wallet)
+      // is fixed. Salt with the previous failure's timestamp so a genuine
+      // retry gets a fresh key, while duplicate/concurrent calls before any
+      // failure has been recorded still collapse onto the same one.
+      const retrySalt = row.status === "failed" ? `:retry:${row.updatedAt.getTime()}` : "";
       const txHash = await completeErc8183Job(
         row.jobId,
         reason,
-        `task:${input.taskId}:release:${reason}`,
+        `task:${input.taskId}:release:${reason}${retrySalt}`,
       );
       await verifyArcTx(txHash);
       return saveSettlement(input.taskId, {

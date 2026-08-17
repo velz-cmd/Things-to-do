@@ -85,7 +85,7 @@ function titleFor(action: DiscoverAction) {
     case "receipt":
       return "Confirmed receipt";
     case "evidence":
-      return "Inspect evidence";
+      return "Proof";
     case "transaction":
       return "Track transaction";
     case "agent_service":

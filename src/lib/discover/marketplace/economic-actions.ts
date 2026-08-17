@@ -105,7 +105,7 @@ function actionFromOpportunity(
   const setupAction = program && owner ? programSetupAction(item, returnTo) : null;
   const detailAction: DiscoverAction = workbenchAction({
         id: "discover.open_evidence",
-        label: acceptedWork ? "Inspect evidence" : "Inspect economic state",
+        label: acceptedWork ? "View proof" : "Inspect economic state",
         href: `${returnTo}&action=discover.open_evidence&subject=${encodeURIComponent(item.source.id)}`,
       }, {
         panel: "evidence",

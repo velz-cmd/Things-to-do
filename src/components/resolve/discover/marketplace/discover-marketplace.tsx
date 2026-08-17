@@ -486,9 +486,7 @@ function EconomicMatchSummary({ match }: { match?: EconomicMatch }) {
             {MECHANISM_LABELS[match.recommended] ?? match.recommended}
           </span>
         ) : (
-          <span className="text-slate-400">
-            No funding intent currently covers this outcome
-          </span>
+          <span className="text-slate-400">No current funding match</span>
         )}
         {match.requiresReview ? (
           <span className="rounded bg-amber-300/10 px-1.5 py-0.5 text-[11px] text-amber-200">
@@ -524,7 +522,7 @@ function EconomicMatchSummary({ match }: { match?: EconomicMatch }) {
       {excluded.length ? (
         <details className="mt-2 group">
           <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300">
-            {excluded.length} mechanism{excluded.length === 1 ? "" : "s"} ruled out
+            Why? ({excluded.length})
           </summary>
           <ul className="mt-1.5 space-y-1">
             {excluded.map((entry) => (
@@ -630,7 +628,7 @@ function WorkRow({
       ? work.primaryAction
       : ((work.secondaryActions ?? []).find(
           (action) => action.id === "discover.open_evidence",
-        ) ?? detailAction("work", work.source.id, "Inspect evidence"));
+        ) ?? detailAction("work", work.source.id, "View proof"));
   return (
     <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
@@ -686,15 +684,10 @@ function WorkRow({
             onOpen={onOpen}
           />
         ) : null}
-        <ContextualAction
-          action={inspectEvidence}
-          item={context}
-          primary={
-            !work.primaryAction ||
-            work.primaryAction.id === "discover.open_evidence"
-          }
-          onOpen={onOpen}
-        />
+        {/* Proof is supporting evidence, not an economic action - it should
+            never be the one highlighted purple button on a card with no
+            real funding, tracking, or attribution action available. */}
+        <ContextualAction action={inspectEvidence} item={context} onOpen={onOpen} />
       </div>
     </article>
   );

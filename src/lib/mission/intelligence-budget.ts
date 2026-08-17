@@ -168,16 +168,13 @@ export async function reserveMissionSpend(input: {
   await ensureMissionBudgetSchema();
 
   return prisma.$transaction(async (tx) => {
-    const mission = await tx.resolveMission.findUnique({
-      where: { id: input.missionId },
-      select: {
-        intelligenceBudgetMicro: true,
-        intelligencePerPurchaseMicro: true,
-      },
+    const budgetRow = await tx.missionIntelligenceBudget.findUnique({
+      where: { missionId: input.missionId },
+      select: { budgetMicro: true, perPurchaseMicro: true },
     });
 
-    const grantedMicro = mission?.intelligenceBudgetMicro ?? 0;
-    const perPurchaseLimitMicro = mission?.intelligencePerPurchaseMicro ?? 0;
+    const grantedMicro = budgetRow?.budgetMicro ?? 0;
+    const perPurchaseLimitMicro = budgetRow?.perPurchaseMicro ?? 0;
 
     const existing = await tx.missionIntelligenceSpend.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
@@ -274,13 +271,10 @@ export async function missionBudgetState(
       entries: [],
     });
   }
-  const [mission, entries] = await Promise.all([
-    prisma.resolveMission.findUnique({
-      where: { id: missionId },
-      select: {
-        intelligenceBudgetMicro: true,
-        intelligencePerPurchaseMicro: true,
-      },
+  const [budgetRow, entries] = await Promise.all([
+    prisma.missionIntelligenceBudget.findUnique({
+      where: { missionId },
+      select: { budgetMicro: true, perPurchaseMicro: true },
     }),
     prisma.missionIntelligenceSpend.findMany({
       where: { missionId },
@@ -288,8 +282,8 @@ export async function missionBudgetState(
     }),
   ]);
   return computeBudgetState({
-    grantedMicro: mission?.intelligenceBudgetMicro ?? 0,
-    perPurchaseLimitMicro: mission?.intelligencePerPurchaseMicro ?? 0,
+    grantedMicro: budgetRow?.budgetMicro ?? 0,
+    perPurchaseLimitMicro: budgetRow?.perPurchaseMicro ?? 0,
     entries: entries as SpendEntry[],
   });
 }

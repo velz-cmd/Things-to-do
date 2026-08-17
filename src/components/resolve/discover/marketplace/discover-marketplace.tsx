@@ -805,81 +805,38 @@ function AgentServiceCard({
   onOpen: OpenAction;
 }) {
   const action = agentServiceAction(service);
+  // What this answers, what it costs, and where it's useful, at a glance -
+  // "Use this when / Produces / Cannot establish" on every card read as API
+  // documentation. The same detail (plus limitations) now lives one click
+  // away in the run drawer, where a buyer sees it right before paying.
+  const use = service.decisionContext?.useWhen ?? service.tagline;
   return (
-    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-xs font-medium text-cyan-300">
+    <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-cyan-300">
             <Bot className="h-3.5 w-3.5" />
             {service.provider}
+          </span>
+          {!service.available ? (
+            <span className="rounded-full border border-amber-300/20 px-2 py-0.5 text-[11px] text-amber-100">
+              Payment paused
+            </span>
+          ) : null}
+        </div>
+        <h3 className="mt-2 font-semibold text-white">{service.name}</h3>
+        <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-400">{use}</p>
+        <p className="mt-2 text-xs text-slate-500">
+          {service.priceUsd.toFixed(3)} USDC / {service.billingUnit}
+          {service.deliverables.length ? ` · ${service.deliverables[0]}` : ""}
+        </p>
+        {!service.available && service.blocker ? (
+          <p className="mt-2 max-w-lg text-xs leading-5 text-amber-100/80">
+            {service.blocker}
           </p>
-          <h3 className="mt-2 text-lg font-semibold text-white">
-            {service.name}
-          </h3>
-          <p className="mt-1 text-sm text-slate-400">{service.tagline}</p>
-        </div>
-        <span
-          className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] ${service.available ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-100"}`}
-        >
-          {service.available ? "Available" : "Payment paused"}
-        </span>
+        ) : null}
       </div>
-      {/* A price and an endpoint do not tell anyone why to buy. Lead with the
-          uncertainty this resolves, and state what it cannot establish - these
-          are heuristics, and a buyer deciding where money goes needs to know
-          the difference. */}
-      {service.decisionContext ? (
-        <div className="mt-4 space-y-2">
-          <div>
-            <p className="text-[11px] font-semibold text-violet-300">Use this when</p>
-            <p className="mt-0.5 text-sm leading-6 text-slate-300">
-              {service.decisionContext.useWhen}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Produces</p>
-            <p className="mt-0.5 text-xs leading-5 text-slate-400">
-              {service.decisionContext.produces}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Cannot establish</p>
-            <p className="mt-0.5 text-xs leading-5 text-slate-400">
-              {service.decisionContext.limitations}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-300">
-          {service.description}
-        </p>
-      )}
-      <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-3 text-xs">
-        <div>
-          <dt className="text-slate-500">Current price</dt>
-          <dd className="mt-1 font-medium text-white">
-            {service.priceUsd.toFixed(3)} USDC / {service.billingUnit}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Payment rail</dt>
-          <dd className="mt-1 text-white">{service.paymentRail}</dd>
-        </div>
-        <div className="col-span-2">
-          <dt className="text-slate-500">Returns</dt>
-          <dd className="mt-1 text-white">
-            {service.deliverables.slice(0, 3).join(" / ")}
-          </dd>
-        </div>
-      </dl>
-      {!service.available && service.blocker ? (
-        <p className="mt-3 rounded-lg bg-amber-300/[0.04] px-3 py-2 text-xs leading-5 text-amber-100">
-          {service.blocker}
-        </p>
-      ) : null}
-      <div className="mt-4">
-        <ContextualAction action={action} primary onOpen={onOpen} />
-      </div>
+      <ContextualAction action={action} primary onOpen={onOpen} />
     </article>
   );
 }
@@ -1670,8 +1627,8 @@ function AgentMarketplaceView({
       ) : null}
       {services.length ? (
         <section>
-          <SectionTitle title="Registered services" count={services.length} />
-          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          <SectionTitle title="Services" count={services.length} />
+          <div className="space-y-3">
             {services.map((service) => (
               <AgentServiceCard
                 key={service.id}
@@ -1960,7 +1917,7 @@ function LandingView({
       {work.length ? <section><SectionTitle title="Verified work ready for action" count={work.length} href="/discover?view=verified_work" /><div className="space-y-3">{work.map((item) => <WorkRow key={item.id} work={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {requests.length ? <section><SectionTitle title="Open and funded requests" count={requests.length} href="/discover?view=requests" /><div className="grid gap-3 lg:grid-cols-2">{requests.map((item) => <RequestCard key={item.id} request={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {pools.length ? <section><SectionTitle title="Pools accepting USDC" count={pools.length} href="/discover?view=pools" /><div className="grid gap-3 lg:grid-cols-2">{pools.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}</div></section> : null}
-      {agentServices.length ? <section><SectionTitle title="Agent services with live pricing" count={data.agentMarketplace.services.length} href="/discover?view=agents" /><div className="grid gap-3 lg:grid-cols-3">{agentServices.map((service) => <AgentServiceCard key={service.id} service={service} onOpen={onOpen} />)}</div></section> : null}
+      {agentServices.length ? <section><SectionTitle title="Agent services with live pricing" count={data.agentMarketplace.services.length} href="/discover?view=agents" /><div className="space-y-3">{agentServices.map((service) => <AgentServiceCard key={service.id} service={service} onOpen={onOpen} />)}</div></section> : null}
       {data.signedIn && inProgress.length ? <section><SectionTitle title="In progress" count={inProgress.length} href="/discover?view=activity" /><div className="space-y-2">{inProgress.map((item) => <ActivityRow key={item.id} item={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {noLiveSections ? <p className="rounded-xl border border-white/[0.08] px-4 py-3 text-sm text-slate-400">No persisted marketplace record is ready yet. Analyse accepted GitHub work, post a funded request, or finish an operator-owned Pool. RESOLVE won&apos;t fill this page with demo records.</p> : null}
     </div>

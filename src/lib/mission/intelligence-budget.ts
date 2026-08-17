@@ -61,6 +61,8 @@ export type BudgetState = {
   /** Everything still holding budget. */
   committedMicro: number;
   availableMicro: number;
+  /** Kill switch is engaged - no new spend may be reserved regardless of availableMicro. */
+  revoked: boolean;
 };
 
 /**
@@ -74,6 +76,7 @@ export function computeBudgetState(input: {
   grantedMicro: number;
   perPurchaseLimitMicro: number;
   entries: readonly SpendEntry[];
+  revoked?: boolean;
 }): BudgetState {
   let reservedMicro = 0;
   let submittedMicro = 0;
@@ -95,6 +98,7 @@ export function computeBudgetState(input: {
     confirmedMicro,
     committedMicro,
     availableMicro: Math.max(0, input.grantedMicro - committedMicro),
+    revoked: input.revoked ?? false,
   };
 }
 
@@ -102,7 +106,8 @@ export type SpendRefusal =
   | { ok: true }
   | { ok: false; code: "exceeds_per_purchase"; reason: string }
   | { ok: false; code: "exceeds_budget"; reason: string }
-  | { ok: false; code: "invalid_amount"; reason: string };
+  | { ok: false; code: "invalid_amount"; reason: string }
+  | { ok: false; code: "revoked"; reason: string };
 
 /**
  * Whether one purchase is within authority. Reasons are written for a person:
@@ -113,6 +118,13 @@ export function checkSpendAuthority(input: {
   state: BudgetState;
 }): SpendRefusal {
   const { amountMicro, state } = input;
+  if (state.revoked) {
+    return {
+      ok: false,
+      code: "revoked",
+      reason: "Spending authority for this Mission has been revoked.",
+    };
+  }
   if (!Number.isInteger(amountMicro) || amountMicro <= 0) {
     return {
       ok: false,
@@ -168,16 +180,13 @@ export async function reserveMissionSpend(input: {
   await ensureMissionBudgetSchema();
 
   return prisma.$transaction(async (tx) => {
-    const mission = await tx.resolveMission.findUnique({
-      where: { id: input.missionId },
-      select: {
-        intelligenceBudgetMicro: true,
-        intelligencePerPurchaseMicro: true,
-      },
+    const budgetRow = await tx.missionIntelligenceBudget.findUnique({
+      where: { missionId: input.missionId },
+      select: { budgetMicro: true, perPurchaseMicro: true, revokedAt: true },
     });
 
-    const grantedMicro = mission?.intelligenceBudgetMicro ?? 0;
-    const perPurchaseLimitMicro = mission?.intelligencePerPurchaseMicro ?? 0;
+    const grantedMicro = budgetRow?.budgetMicro ?? 0;
+    const perPurchaseLimitMicro = budgetRow?.perPurchaseMicro ?? 0;
 
     const existing = await tx.missionIntelligenceSpend.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
@@ -192,10 +201,23 @@ export async function reserveMissionSpend(input: {
       grantedMicro,
       perPurchaseLimitMicro,
       entries: entries as SpendEntry[],
+      revoked: Boolean(budgetRow?.revokedAt),
     });
 
     if (existing) {
       return { ok: true, spendId: existing.id, state, reused: true } as const;
+    }
+
+    // Revocation is checked fresh on every reservation, not only when
+    // authority was granted - a run that started before the kill switch was
+    // hit must not be able to execute a purchase after it.
+    if (budgetRow?.revokedAt) {
+      return {
+        ok: false,
+        code: "revoked",
+        reason: "Spending authority for this Mission has been revoked.",
+        state,
+      } as const;
     }
 
     const authority = checkSpendAuthority({
@@ -234,6 +256,7 @@ export async function reserveMissionSpend(input: {
           ...(entries as SpendEntry[]),
           { amountMicro: input.amountMicro, state: "reserved" },
         ],
+        revoked: Boolean(budgetRow?.revokedAt),
       }),
       reused: false,
     } as const;
@@ -274,13 +297,10 @@ export async function missionBudgetState(
       entries: [],
     });
   }
-  const [mission, entries] = await Promise.all([
-    prisma.resolveMission.findUnique({
-      where: { id: missionId },
-      select: {
-        intelligenceBudgetMicro: true,
-        intelligencePerPurchaseMicro: true,
-      },
+  const [budgetRow, entries] = await Promise.all([
+    prisma.missionIntelligenceBudget.findUnique({
+      where: { missionId },
+      select: { budgetMicro: true, perPurchaseMicro: true, revokedAt: true },
     }),
     prisma.missionIntelligenceSpend.findMany({
       where: { missionId },
@@ -288,8 +308,97 @@ export async function missionBudgetState(
     }),
   ]);
   return computeBudgetState({
-    grantedMicro: mission?.intelligenceBudgetMicro ?? 0,
-    perPurchaseLimitMicro: mission?.intelligencePerPurchaseMicro ?? 0,
+    revoked: Boolean(budgetRow?.revokedAt),
+    grantedMicro: budgetRow?.budgetMicro ?? 0,
+    perPurchaseLimitMicro: budgetRow?.perPurchaseMicro ?? 0,
     entries: entries as SpendEntry[],
   });
+}
+
+/**
+ * Sane ceiling on what any single grant can authorise. Not a product limit on
+ * how much a Mission could ever cost - a guard against a typo or a bug
+ * accidentally granting unbounded autonomous spending authority.
+ */
+const MAX_GRANT_MICRO = usdToMicro(5);
+const MAX_PER_PURCHASE_MICRO = usdToMicro(1);
+
+export type GrantResult =
+  | { ok: true; state: BudgetState }
+  | { ok: false; error: string };
+
+/**
+ * Grants (or updates) a Mission's autonomous spending authority. Idempotent
+ * upsert - calling it again changes the limits, it does not add to them, so
+ * repeating a grant can never silently compound authority.
+ */
+export async function grantMissionBudget(input: {
+  missionId: string;
+  budgetMicro: number;
+  perPurchaseMicro: number;
+}): Promise<GrantResult> {
+  if (
+    !Number.isInteger(input.budgetMicro) ||
+    input.budgetMicro < 0 ||
+    input.budgetMicro > MAX_GRANT_MICRO
+  ) {
+    return {
+      ok: false,
+      error: `Budget must be between 0 and ${formatUsdc(MAX_GRANT_MICRO)}.`,
+    };
+  }
+  if (
+    !Number.isInteger(input.perPurchaseMicro) ||
+    input.perPurchaseMicro < 0 ||
+    input.perPurchaseMicro > MAX_PER_PURCHASE_MICRO
+  ) {
+    return {
+      ok: false,
+      error: `Per-purchase limit must be between 0 and ${formatUsdc(MAX_PER_PURCHASE_MICRO)}.`,
+    };
+  }
+  if (input.perPurchaseMicro > input.budgetMicro) {
+    return {
+      ok: false,
+      error: "The per-purchase limit cannot exceed the total budget.",
+    };
+  }
+  await ensureMissionBudgetSchema();
+  await prisma.missionIntelligenceBudget.upsert({
+    where: { missionId: input.missionId },
+    create: {
+      missionId: input.missionId,
+      budgetMicro: input.budgetMicro,
+      perPurchaseMicro: input.perPurchaseMicro,
+    },
+    update: {
+      budgetMicro: input.budgetMicro,
+      perPurchaseMicro: input.perPurchaseMicro,
+      // A fresh grant re-authorises spending; it must not leave a prior
+      // revocation in place.
+      revokedAt: null,
+    },
+  });
+  return { ok: true, state: await missionBudgetState(input.missionId) };
+}
+
+/** Kill switch. Reserved/submitted/confirmed spend already in flight is unaffected - see settleMissionSpend. */
+export async function revokeMissionBudget(missionId: string): Promise<BudgetState> {
+  await ensureMissionBudgetSchema();
+  await prisma.missionIntelligenceBudget.upsert({
+    where: { missionId },
+    create: { missionId, budgetMicro: 0, perPurchaseMicro: 0, revokedAt: new Date() },
+    update: { revokedAt: new Date() },
+  });
+  return missionBudgetState(missionId);
+}
+
+/** Clears the kill switch. Does not change the budget/per-purchase limits. */
+export async function resumeMissionBudget(missionId: string): Promise<BudgetState> {
+  await ensureMissionBudgetSchema();
+  await prisma.missionIntelligenceBudget.updateMany({
+    where: { missionId },
+    data: { revokedAt: null },
+  });
+  return missionBudgetState(missionId);
 }

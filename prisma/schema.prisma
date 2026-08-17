@@ -450,34 +450,53 @@ model PaymentEvent {
 
 /// Mission OS — persistent economic intelligence sessions
 model ResolveMission {
-  id                           String                     @id @default(cuid())
-  userId                       String
-  user                         User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title                        String
-  scope                        String?
-  status                       String                     @default("created")
-  capability                   String?
-  phase                        String?
-  ecosystemId                  String?
-  ecosystem                    ResolveEcosystem?          @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
-  findingCount                 Int                        @default(0)
-  capitalUsd                   Float?
-  metadataJson                 String?
-  /// Intelligence (evidence) budget in integer micro-USD. 0 means the Mission
-  /// has no autonomous spending authority - never "unlimited".
-  intelligenceBudgetMicro      Int                        @default(0)
-  intelligencePerPurchaseMicro Int                        @default(0)
-  createdAt                    DateTime                   @default(now())
-  updatedAt                    DateTime                   @updatedAt
-  spends                       MissionIntelligenceSpend[]
-  turns                        ResolveMissionTurn[]
-  timeline                     ResolveTimelineEvent[]
-  knowledge                    ResolveKnowledgeEntry[]
-  artifacts                    ResolveMissionArtifact[]
+  id           String                     @id @default(cuid())
+  userId       String
+  user         User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  scope        String?
+  status       String                     @default("created")
+  capability   String?
+  phase        String?
+  ecosystemId  String?
+  ecosystem    ResolveEcosystem?          @relation(fields: [ecosystemId], references: [id], onDelete: SetNull)
+  findingCount Int                        @default(0)
+  capitalUsd   Float?
+  metadataJson String?
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  budget       MissionIntelligenceBudget?
+  spends       MissionIntelligenceSpend[]
+  turns        ResolveMissionTurn[]
+  timeline     ResolveTimelineEvent[]
+  knowledge    ResolveKnowledgeEntry[]
+  artifacts    ResolveMissionArtifact[]
 
   @@index([userId, updatedAt])
   @@index([ecosystemId])
   @@index([status])
+}
+
+/// A Mission's evidence-purchase authority, in integer micro-USD. Absence
+/// (no row) means the Mission has no autonomous spending authority - never
+/// "unlimited". Deliberately its own table rather than columns on
+/// ResolveMission: that model is read by nearly every Mission code path via
+/// unselected findFirst/findMany, and Prisma includes new scalar columns in
+/// the default select, so adding them there broke every such read until the
+/// schema healed. Isolating budget state here means only budget-aware code
+/// ever touches it.
+model MissionIntelligenceBudget {
+  missionId        String         @id
+  mission          ResolveMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  budgetMicro      Int            @default(0)
+  perPurchaseMicro Int            @default(0)
+  /// Kill switch. Once set, no new spend may be reserved under this Mission
+  /// regardless of remaining budget - checked fresh on every reservation
+  /// attempt, not only when authority was originally granted, so a run that
+  /// started before revocation cannot execute a purchase after it.
+  revokedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 }
 
 /// One authorised intelligence purchase against a Mission budget.

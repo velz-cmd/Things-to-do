@@ -122,6 +122,13 @@ type ExecutionReport = {
   inputPreview: string;
 };
 
+type MissionBudgetSummary = {
+  grantedUsd: number;
+  availableUsd: number;
+  perPurchaseLimitUsd: number;
+  revoked: boolean;
+};
+
 type InvokeResult = {
   ok: boolean;
   serviceName?: string;
@@ -282,6 +289,8 @@ export function MissionAgentSignalCard({
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [serviceId, setServiceId] = useState(initialServiceId ?? "");
   const [agentCapUsd, setAgentCapUsd] = useState(() => getMissionAgentBudgetCap());
+  const [missionBudget, setMissionBudget] = useState<MissionBudgetSummary | null>(null);
+  const [budgetBusy, setBudgetBusy] = useState(false);
   const [walletUsd, setWalletUsd] = useState<number | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [invoking, setInvoking] = useState(false);
@@ -325,6 +334,52 @@ export function MissionAgentSignalCard({
   useEffect(() => {
     if (initialServiceId) setServiceId(initialServiceId);
   }, [initialServiceId]);
+
+  const loadMissionBudget = useCallback(async () => {
+    if (!missionId || !signedIn) {
+      setMissionBudget(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/mission/${encodeURIComponent(missionId)}/intelligence-budget`, {
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; budget?: MissionBudgetSummary };
+      setMissionBudget(res.ok && data.budget ? data.budget : null);
+    } catch {
+      setMissionBudget(null);
+    }
+  }, [missionId, signedIn]);
+
+  useEffect(() => {
+    void loadMissionBudget();
+  }, [loadMissionBudget]);
+
+  const setMissionBudgetAction = useCallback(
+    async (action: "grant" | "revoke" | "resume") => {
+      if (!missionId) return;
+      setBudgetBusy(true);
+      try {
+        const res = await fetch(`/api/mission/${encodeURIComponent(missionId)}/intelligence-budget`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            action === "grant" ? { action, budgetUsd: 0.5, perPurchaseUsd: 0.1 } : { action },
+          ),
+        });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; budget?: MissionBudgetSummary; error?: string };
+        if (!res.ok || !data.ok) {
+          toast.error(data.error ?? "Could not update the Mission's intelligence budget");
+          return;
+        }
+        setMissionBudget(data.budget ?? null);
+      } finally {
+        setBudgetBusy(false);
+      }
+    },
+    [missionId],
+  );
 
   useEffect(() => {
     if (!signedIn) {
@@ -517,6 +572,50 @@ export function MissionAgentSignalCard({
               />
               <b>{formatAgentPrice(agentCapUsd)} max</b>
             </label>
+
+            {/* Durable server authority, distinct from the per-signal cap
+                above: that slider is a client preference; this is the
+                Mission's actual persisted spending authority, enforced
+                on the server regardless of what the browser sends. */}
+            {missionId ? (
+              <div className="mission-agent-budget-row" data-testid="mission-intelligence-budget">
+                {missionBudget && missionBudget.grantedUsd > 0 ? (
+                  <>
+                    <span>
+                      <strong>Mission intelligence budget</strong>
+                      <small>
+                        {missionBudget.revoked
+                          ? "Spending authority revoked"
+                          : `${formatAgentPrice(missionBudget.availableUsd)} available of ${formatAgentPrice(missionBudget.grantedUsd)}`}
+                      </small>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={budgetBusy}
+                      onClick={() => void setMissionBudgetAction(missionBudget.revoked ? "resume" : "revoke")}
+                      className="mission-agent-budget-toggle"
+                    >
+                      {missionBudget.revoked ? "Resume" : "Revoke"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      <strong>Mission intelligence budget</strong>
+                      <small>No autonomous spending authority granted yet</small>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={budgetBusy}
+                      onClick={() => void setMissionBudgetAction("grant")}
+                      className="mission-agent-budget-toggle"
+                    >
+                      Grant 0.50 USDC
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
 
             <details className="mission-agent-spend-details">
               <summary>How agent spending works</summary>

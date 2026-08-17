@@ -9,17 +9,31 @@ let ensurePromise: Promise<boolean> | null = null;
  *
  * The build never runs migrations (see scripts/vercel-build.sh), so schema is
  * applied at runtime through this repo's existing healing convention. DDL is
- * deliberately kept out of any request that moves money - an ALTER TABLE inside
- * a payment path previously turned settled transfers into 500s.
+ * deliberately kept out of any request that moves money - an ALTER TABLE
+ * inside a payment path previously turned settled transfers into 500s.
  *
- * Additive and nullable-safe: existing Missions default to a zero budget,
- * which means "no autonomous spending authority" rather than "unlimited".
+ * Budget state lives in its own table, not columns on ResolveMission. That
+ * model is read by nearly every Mission code path via unselected
+ * findFirst/findMany, and Prisma includes new scalar columns in the default
+ * select - adding budget columns directly to ResolveMission broke Mission
+ * detail reads (getMission -> getStructuredMission, used by both the mission
+ * detail route and runStructuredMissionOperation) until the schema healed,
+ * because nothing on that read path called this healer first. Isolating
+ * budget state in its own table means only budget-aware code ever touches
+ * it, so this class of bug cannot recur.
  */
 const MISSION_BUDGET_DDL = `
-ALTER TABLE "ResolveMission"
-  ADD COLUMN IF NOT EXISTS "intelligenceBudgetMicro" INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE "ResolveMission"
-  ADD COLUMN IF NOT EXISTS "intelligencePerPurchaseMicro" INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS "MissionIntelligenceBudget" (
+  "missionId" TEXT NOT NULL,
+  "budgetMicro" INTEGER NOT NULL DEFAULT 0,
+  "perPurchaseMicro" INTEGER NOT NULL DEFAULT 0,
+  "revokedAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "MissionIntelligenceBudget_pkey" PRIMARY KEY ("missionId")
+);
+ALTER TABLE "MissionIntelligenceBudget"
+  ADD COLUMN IF NOT EXISTS "revokedAt" TIMESTAMP(3);
 CREATE TABLE IF NOT EXISTS "MissionIntelligenceSpend" (
   "id" TEXT NOT NULL,
   "missionId" TEXT NOT NULL,
@@ -46,7 +60,7 @@ CREATE INDEX IF NOT EXISTS "MissionIntelligenceSpend_userId_idx"
 async function schemaPresent(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1 FROM "MissionIntelligenceSpend" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "intelligenceBudgetMicro" FROM "ResolveMission" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "revokedAt" FROM "MissionIntelligenceBudget" LIMIT 1`;
     return true;
   } catch {
     return false;

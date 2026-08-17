@@ -352,6 +352,8 @@
 .mission-agent-budget-row span small { margin-top: 2px; font-size: 7px; color: #5f6e84; }
 .mission-agent-budget-row input { width: 100%; height: 3px; accent-color: #8565ff; }
 .mission-agent-budget-row b { text-align: right; font-family: var(--font-geist-mono), monospace; font-size: 9px; font-weight: 520; color: #c2b6ee; }
+.mission-agent-budget-toggle { grid-column: 3; justify-self: end; min-height: 28px; padding-inline: 10px; border-radius: 7px; border: 1px solid rgba(135,155,199,.18); background: rgba(133,101,255,.08); font-size: 9px; font-weight: 560; color: #c2b6ee; }
+.mission-agent-budget-toggle:disabled { opacity: .5; }
 .mission-agent-spend-details { border-top: 1px solid rgba(135,155,199,.07); padding-top: 6px; }
 .mission-agent-spend-details summary { cursor: pointer; font-size: 8px; color: #6e7c91; }
 .mission-agent-spend-details p { margin-top: 5px; max-width: 620px; font-size: 8px; line-height: 1.5; color: #617086; }

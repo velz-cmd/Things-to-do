@@ -156,13 +156,26 @@ function detailAction(
   };
 }
 
+// "Run service" names the mechanism, not the question being answered - a
+// buyer decides from what they get back, not from a verb that fits every
+// service equally. Keyed by the real registered service id.
+const AGENT_SERVICE_RUN_LABEL: Record<string, string> = {
+  sentiment: "Classify feedback",
+  "citation-verify": "Check citation",
+  "docs-review": "Review documentation",
+  attribution: "Check attribution",
+  "security-signal": "Analyze security evidence",
+};
+
 function agentServiceAction(service: DiscoverAgentService): DiscoverAction {
   const run = service.available;
   return {
     id: run
       ? "discover.run_agent_service"
       : "discover.inspect_agent_service",
-    label: run ? "Run service" : "Inspect service",
+    label: run
+      ? (AGENT_SERVICE_RUN_LABEL[service.id] ?? "Get result")
+      : "Inspect service",
     href: `/discover?view=agents&action=${run ? "discover.run_agent_service" : "discover.inspect_agent_service"}&subject=${encodeURIComponent(service.id)}`,
     enabled: true,
     requiresConfirmation: run,
@@ -1687,13 +1700,20 @@ function AgentMarketplaceView({
       {data.agentMarketplace.blocker ? (
         <aside className="rounded-xl border border-amber-300/15 bg-amber-300/[0.04] px-4 py-3">
           <p className="text-sm font-medium text-amber-100">
-            Paid service execution is paused
+            Payment isn't available on this deployment yet
           </p>
           <p className="mt-1 text-xs leading-5 text-amber-200/70">
-            {data.agentMarketplace.blocker}. Service definitions and live
-            prices remain inspectable, and no payment or result will be
-            claimed while this gate is closed.
+            Prices and services below are real. No payment or result will be
+            claimed until this is resolved.
           </p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[11px] text-amber-200/50 hover:text-amber-200/80">
+              Why?
+            </summary>
+            <p className="mt-1 text-[11px] leading-5 text-amber-200/60">
+              {data.agentMarketplace.blocker}
+            </p>
+          </details>
         </aside>
       ) : null}
       {services.length ? (

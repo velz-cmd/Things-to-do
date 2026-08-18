@@ -79,6 +79,7 @@ export const RESOLVE_ACTION_IDS = [
   "discover.capture_repository_snapshot",
   "discover.select_repository",
   "discover.open_repository",
+  "discover.open_external_record",
   "discover.open_evidence",
   "discover.start_mission",
   "discover.open_program",

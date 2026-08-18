@@ -20,5 +20,11 @@
     "autoJobCancelation": true,
     "silent": true
   },
-  "ignoreCommand": "bash scripts/vercel-should-build.sh"
+  "ignoreCommand": "bash scripts/vercel-should-build.sh",
+  "crons": [
+    {
+      "path": "/api/cron/tick",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

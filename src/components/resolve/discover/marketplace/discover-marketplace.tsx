@@ -627,6 +627,37 @@ function WorkRow({
       : ((work.secondaryActions ?? []).find(
           (action) => action.id === "discover.open_evidence",
         ) ?? detailAction("work", work.source.id, "View proof"));
+  // Community-funding rows are already-confirmed outcomes from an external
+  // ledger, not unfunded GitHub work waiting on attribution/payout - running
+  // them through the GitHub-shaped payout/coverage logic above would show
+  // "No settlement route yet" on money that already moved.
+  if (work.source.type === "open_collective_contribution") {
+    return (
+      <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 text-emerald-300">
+              <CircleDollarSign className="h-3.5 w-3.5" />
+              Community funding
+            </span>
+            <span className="text-slate-600">{dateLabel(work.updatedAt)}</span>
+          </div>
+          <h3 className="mt-2 font-semibold text-white">{work.title}</h3>
+          <p className="mt-1 text-sm text-slate-400">{work.summary}</p>
+          <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+            <span className="text-emerald-300">
+              {money(work.funding?.fundedAmountUsd)} confirmed
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {work.primaryAction ? (
+            <ContextualAction action={work.primaryAction} item={context} onOpen={onOpen} />
+          ) : null}
+        </div>
+      </article>
+    );
+  }
   return (
     <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">

@@ -16,6 +16,7 @@ import {
 import { discoverAgentServices } from "@/lib/agent/commerce";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { buildLiveSettlements } from "@/lib/discover/live-settlements";
+import { loadCommunityFundingSignals } from "./community-funding-source";
 import { loadStoredOssOpportunities } from "@/lib/github/oss-scan-store";
 import {
   normalizeCampaignOpportunity,
@@ -455,6 +456,16 @@ function loadCachedConfirmedOutcomes() {
   );
 }
 
+function loadCachedCommunityFundingSignals() {
+  return cacheGetOrSetResilient(
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.communityFunding,
+    SOURCE_CACHE_SECONDS,
+    () =>
+      withTimeout(loadCommunityFundingSignals(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
+
 export function deduplicateMarketplaceOpportunities(
   items: MarketplaceOpportunity[],
 ) {
@@ -803,6 +814,12 @@ export async function listMarketplaceOpportunities(
     loaders.push({
       source: "confirmed_outcomes",
       promise: loadCachedConfirmedOutcomes(),
+    });
+  }
+  if (view !== "outcomes") {
+    loaders.push({
+      source: "community_funding_signals",
+      promise: loadCachedCommunityFundingSignals(),
     });
   }
   const settled = await Promise.allSettled(

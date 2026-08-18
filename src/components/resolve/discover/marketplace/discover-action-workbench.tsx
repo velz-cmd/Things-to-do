@@ -805,9 +805,14 @@ function PoolFundingPanel({
           <dd className="text-white">{target.communitySlug}</dd>
           <dt className="text-slate-500">Network</dt>
           <dd className="text-white">Arc Testnet USDC</dd>
-          <dt className="text-slate-500">Program</dt>
-          <dd className="break-all text-white">{target.programId}</dd>
         </dl>
+        <details className="mt-2">
+          <summary className="cursor-pointer text-slate-500 hover:text-slate-300">Technical details</summary>
+          <dl className="mt-2 grid grid-cols-[120px_1fr] gap-y-2">
+            <dt className="text-slate-500">Program</dt>
+            <dd className="break-all text-white">{target.programId}</dd>
+          </dl>
+        </details>
       </div>
       {preflightLoading ? (
         <p className="flex items-center gap-2 text-sm text-slate-400">

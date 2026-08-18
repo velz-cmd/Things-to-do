@@ -1326,11 +1326,19 @@ function RequestCard({
         <div>
           <dt className="text-slate-500">Payment protection</dt>
           <dd className="mt-1 text-white">
-            {request.funding?.status === "escrowed"
-              ? "Arc escrow confirmed"
-              : "Funding required before publication"}
+            {request.funding?.status === "funded"
+              ? "Payment confirmed on Arc"
+              : request.funding?.status === "escrowed"
+                ? "Arc escrow confirmed"
+                : "Funding required before publication"}
           </dd>
         </div>
+        {request.provider.selected ? (
+          <div>
+            <dt className="text-slate-500">Contributor</dt>
+            <dd className="mt-1 text-white">{request.provider.selected.name}</dd>
+          </div>
+        ) : null}
       </dl>
       <div className="mt-4 flex flex-wrap gap-2">
         {request.primaryAction ? (

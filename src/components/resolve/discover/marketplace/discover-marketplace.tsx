@@ -748,7 +748,9 @@ function WorkRow({
             button - but when there's real, unresolved uncertainty and no
             persisted Agent result yet, offering to resolve it is more
             useful here than a second "View proof" click. */}
-        {!work.primaryAction && !work.agentResult && agentReviewSecondaryAction(work) ? (
+        {(!work.primaryAction || work.primaryAction.id === "discover.open_evidence") &&
+        !work.agentResult &&
+        agentReviewSecondaryAction(work) ? (
           <ContextualAction action={agentReviewSecondaryAction(work)!} item={context} onOpen={onOpen} />
         ) : (
           <ContextualAction action={inspectEvidence} item={context} onOpen={onOpen} />

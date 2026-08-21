@@ -33,9 +33,29 @@ export async function findNpmPackagesForRepo(
 ): Promise<string[]> {
   const q = encodeURIComponent(`repository:github.com/${owner}/${repo}`);
   const data = await npmFetch<{
-    objects?: { package: { name: string } }[];
-  }>(`${REGISTRY}/-/v1/search?text=${q}&size=5`);
-  return (data?.objects ?? []).map((o) => o.package.name).filter(Boolean);
+    objects?: {
+      package: { name: string; links?: { repository?: string } };
+    }[];
+  }>(`${REGISTRY}/-/v1/search?text=${q}&size=20`);
+
+  // npm's search is fuzzy full-text ranking, not an exact field filter - it
+  // will happily rank an unrelated, more-downloaded package above the one
+  // that actually declares this repository. Only keep packages whose own
+  // `repository` link resolves to this exact owner/repo, so a citation
+  // never gets attributed to the wrong project.
+  const targetRepo = `github.com/${owner}/${repo}`.toLowerCase();
+  return (data?.objects ?? [])
+    .filter((o) => {
+      const link = o.package.links?.repository ?? "";
+      const normalized = link
+        .replace(/^git\+/, "")
+        .replace(/\.git$/, "")
+        .replace(/^https?:\/\//, "")
+        .toLowerCase();
+      return normalized === targetRepo;
+    })
+    .map((o) => o.package.name)
+    .filter(Boolean);
 }
 
 export async function fetchNpmDownloadStats(

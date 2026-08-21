@@ -18,6 +18,7 @@ import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { buildLiveSettlements } from "@/lib/discover/live-settlements";
 import { loadCommunityFundingSignals } from "./community-funding-source";
 import { loadResearchSignals } from "./research-signal-source";
+import { attachNpmDockerAdoption } from "./npm-docker-adoption";
 import {
   getAgentResultsForSubjects,
   type PersistedAgentResult,
@@ -329,7 +330,12 @@ async function loadVerifiedGithubWork() {
       sourceUrl: true,
     },
   });
-  return normalizeGithubAcceptedWork(stored.opportunities, evidence);
+  const normalized = normalizeGithubAcceptedWork(stored.opportunities, evidence);
+  try {
+    return await attachNpmDockerAdoption(normalized);
+  } catch {
+    return normalized;
+  }
 }
 
 function loadCachedStoredOssOpportunities() {

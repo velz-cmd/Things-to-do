@@ -33,6 +33,12 @@ const invokeBodySchema = z
     missionId: z.string().trim().min(1).max(160).optional(),
     maxSpendUsd: z.number().finite().positive().max(100).optional(),
     paymentTxHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/).optional(),
+    // What triggered this purchase - a specific Verified Work outcome, a
+    // Request, etc. Persisted so the result can be looked up and attached
+    // back to that same object, instead of the purchase being indistinguishable
+    // from a standalone Agent Marketplace run.
+    subjectType: z.string().trim().min(1).max(60).optional(),
+    subjectId: z.string().trim().min(1).max(200).optional(),
   })
   .refine((value) => Boolean(value.serviceId || value.prompt || value.text), {
     message: "serviceId or matching prompt required",
@@ -288,6 +294,10 @@ async function handleAgentInvoke(req: Request) {
     query: Object.keys(query).length ? query : undefined,
     maxSpendUsd: budgetUsd,
     prepaidArcTxHash: payment?.txHash,
+    subjectContext:
+      body.subjectType && body.subjectId
+        ? { subjectType: body.subjectType, subjectId: body.subjectId }
+        : undefined,
   });
 
   const succeeded = result.ok && Boolean(result.data) && isAgentSignalSuccessful(serviceId, result.data);

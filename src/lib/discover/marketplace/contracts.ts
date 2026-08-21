@@ -211,6 +211,14 @@ export type DiscoverWorkbenchTarget =
   | {
       panel: "agent_service";
       subjectId: string;
+      /**
+       * The Discover object that triggered this purchase (e.g. a specific
+       * Verified Work outcome), distinct from `subjectId` above which is the
+       * *service's* id. Threaded through to /api/agent/invoke so the result
+       * can be looked back up and attached to the same object later.
+       */
+      contextSubjectType?: string;
+      contextSubjectId?: string;
     }
   | {
       panel: "entity_details";
@@ -345,6 +353,17 @@ export type MarketplaceOpportunity = {
    * recommends - see src/lib/discover/impact/economic-matching.ts.
    */
   economicMatch?: EconomicMatch;
+  /**
+   * A real, persisted Agent-purchased result whose subjectContext points at
+   * this exact item - the contextual reintegration loop's read side. Present
+   * only when someone actually bought and RESOLVE actually persisted a
+   * result for this specific outcome, never inferred or invented.
+   */
+  agentResult?: {
+    serviceId: string;
+    summary: string | null;
+    occurredAt: string;
+  };
   primaryAction?: DiscoverAction;
   secondaryActions?: DiscoverAction[];
 };

@@ -568,6 +568,7 @@ describe("Discover canonical projections", () => {
       },
       secondaryActions: [
         expect.objectContaining({ id: "discover.open_evidence" }),
+        expect.objectContaining({ id: "discover.run_agent_service" }),
       ],
     });
     const blocked = attachVerifiedWorkActions(result, [claimedPerson], "recipient-1", true);

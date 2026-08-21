@@ -197,6 +197,16 @@ function findContext(data: DiscoverPageData, subjectId: string) {
   );
 }
 
+/** The contextual Agent-purchase action attachVerifiedWorkActions attaches
+ * when a work item has no persisted result yet - undefined once a result
+ * exists, since the point is to resolve one real uncertainty, not to keep
+ * offering the same purchase forever. */
+function agentReviewSecondaryAction(work: MarketplaceOpportunity): DiscoverAction | undefined {
+  return (work.secondaryActions ?? []).find(
+    (action) => action.id === "discover.run_agent_service",
+  );
+}
+
 function Header({
   filters,
   view,
@@ -710,6 +720,12 @@ function WorkRow({
         </div>
         <ImpactSummary profile={work.impactProfile} />
         <EconomicMatchSummary match={work.economicMatch} />
+        {work.agentResult?.summary ? (
+          <p className="mt-3 max-w-3xl text-xs leading-5 text-cyan-200/80">
+            <span className="font-medium text-cyan-200">Agent result:</span>{" "}
+            {work.agentResult.summary}
+          </p>
+        ) : null}
         <WhySurfaced work={work} />
         {work.entityState?.blocker ? (
           <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
@@ -727,10 +743,16 @@ function WorkRow({
             onOpen={onOpen}
           />
         ) : null}
-        {/* Proof is supporting evidence, not an economic action - it should
-            never be the one highlighted purple button on a card with no
-            real funding, tracking, or attribution action available. */}
-        <ContextualAction action={inspectEvidence} item={context} onOpen={onOpen} />
+        {/* Cap at one secondary action. Proof is supporting evidence, not an
+            economic action, so it never becomes the highlighted primary
+            button - but when there's real, unresolved uncertainty and no
+            persisted Agent result yet, offering to resolve it is more
+            useful here than a second "View proof" click. */}
+        {!work.primaryAction && !work.agentResult && agentReviewSecondaryAction(work) ? (
+          <ContextualAction action={agentReviewSecondaryAction(work)!} item={context} onOpen={onOpen} />
+        ) : (
+          <ContextualAction action={inspectEvidence} item={context} onOpen={onOpen} />
+        )}
       </div>
     </article>
   );

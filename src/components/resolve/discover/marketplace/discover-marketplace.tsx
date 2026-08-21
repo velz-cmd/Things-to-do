@@ -1721,7 +1721,7 @@ function AgentMarketplaceView({
       {data.agentMarketplace.blocker ? (
         <aside className="rounded-xl border border-amber-300/15 bg-amber-300/[0.04] px-4 py-3">
           <p className="text-sm font-medium text-amber-100">
-            Payment isn't available on this deployment yet
+            Payment is not available on this deployment yet
           </p>
           <p className="mt-1 text-xs leading-5 text-amber-200/70">
             Prices and services below are real. No payment or result will be

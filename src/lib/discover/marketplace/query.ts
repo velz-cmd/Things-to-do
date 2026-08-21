@@ -17,6 +17,7 @@ import { discoverAgentServices } from "@/lib/agent/commerce";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { buildLiveSettlements } from "@/lib/discover/live-settlements";
 import { loadCommunityFundingSignals } from "./community-funding-source";
+import { loadResearchSignals } from "./research-signal-source";
 import {
   getAgentResultsForSubjects,
   type PersistedAgentResult,
@@ -470,6 +471,15 @@ function loadCachedCommunityFundingSignals() {
   );
 }
 
+function loadCachedResearchSignals() {
+  return cacheGetOrSetResilient(
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.researchSignals,
+    SOURCE_CACHE_SECONDS,
+    () => withTimeout(loadResearchSignals(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
+
 export function deduplicateMarketplaceOpportunities(
   items: MarketplaceOpportunity[],
 ) {
@@ -824,6 +834,12 @@ export async function listMarketplaceOpportunities(
     loaders.push({
       source: "community_funding_signals",
       promise: loadCachedCommunityFundingSignals(),
+    });
+  }
+  if (view !== "outcomes") {
+    loaders.push({
+      source: "research_signals",
+      promise: loadCachedResearchSignals(),
     });
   }
   const settled = await Promise.allSettled(

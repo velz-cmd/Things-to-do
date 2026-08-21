@@ -141,6 +141,12 @@ describe("economic matching is wired into the marketplace", () => {
     ]);
     expect(outcomeClassFor(work())).toBe("security");
   });
+
+  it("classifies a research_request outcome as research even without an explicit category", () => {
+    expect(
+      outcomeClassFor(work({ category: undefined, type: "research_request" })),
+    ).toBe("research");
+  });
 });
 
 describe("role ranking orders without hiding", () => {

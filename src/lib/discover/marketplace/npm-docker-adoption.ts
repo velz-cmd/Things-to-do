@@ -30,7 +30,7 @@ async function loadAdoptionForRepo(fullName: string): Promise<NpmDockerAdoption>
   const [owner, repo] = fullName.split("/");
   if (!owner || !repo) return {};
   return cacheGetOrSetResilient(
-    `discover:marketplace:npm-docker-adoption:v1:${fullName.toLowerCase()}`,
+    `discover:marketplace:npm-docker-adoption:v2:${fullName.toLowerCase()}`,
     ADOPTION_CACHE_TTL_SECONDS,
     async () => {
       const [npm, docker] = await Promise.allSettled([

@@ -20,3 +20,4 @@ playwright-report
 .env*
 vercel-import.env
 tsconfig.tsbuildinfo
+scratchpad/

@@ -32,6 +32,7 @@ import {
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketplace/discover-action-workbench";
 import { DISCOVER_VIEW_TO_ROUTE } from "@/lib/discover/marketplace/contracts";
+import { isMarketListedPool } from "@/lib/discover/marketplace/pool-listing";
 import type {
   DiscoverAction,
   DiscoverActivityItem,
@@ -1480,14 +1481,12 @@ function PoolsView({
   onOpen: OpenAction;
 }) {
   if (data.projection.kind !== "activity") return null;
-  const ready = data.pools.filter(
-    (pool) => pool.lifecycleState === "accepting_funding",
-  );
-  const operator = data.pools.filter(
-    (pool) =>
-      pool.primaryAction.presentation.kind === "workbench" &&
-      pool.primaryAction.presentation.target.panel === "program_setup",
-  );
+  // One canonical authority for what belongs in the public market, instead
+  // of two independent heuristics (a lifecycle-state check that missed
+  // funded/distributing Pools entirely, and an action-shape check that
+  // classified "operator" by what button happened to render).
+  const ready = data.pools.filter((pool) => isMarketListedPool(pool));
+  const operator = data.pools.filter((pool) => !isMarketListedPool(pool));
   const distributions = data.opportunities.items.filter(
     (item) =>
       item.marketplaceKind === "outcome" &&
@@ -1501,20 +1500,20 @@ function PoolsView({
         <h2 className="mt-1 text-xl font-semibold text-white">Pools</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
           {ready.length
-            ? `${ready.length} Pool${ready.length === 1 ? " is" : "s are"} ready for funding.`
-            : "No Pools are accepting funding right now."}
+            ? `${ready.length} market-listed Pool${ready.length === 1 ? "" : "s"}.`
+            : "No Pools are market-listed right now."}
         </p>
       </section>
       {ready.length ? (
         <section>
-          <SectionTitle title="Ready to fund" count={ready.length} />
+          <SectionTitle title="Pools" count={ready.length} />
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {ready.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
           </div>
         </section>
       ) : (
         <CompactEmpty
-          title="No Pools are accepting funding right now"
+          title="No Pools are market-listed right now"
           body="A Pool becomes fundable once its policy, treasury, and evidence source are all configured and it passes review."
         />
       )}

@@ -34,6 +34,8 @@ export function outcomeClassFor(item: MarketplaceOpportunity): string {
   switch (item.type) {
     case "creator_collaboration":
       return "creator";
+    case "research_request":
+      return "research";
     case "repository_fix":
       return "software";
     default:

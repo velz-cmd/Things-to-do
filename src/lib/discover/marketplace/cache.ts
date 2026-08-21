@@ -11,6 +11,7 @@ export const DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS = {
   publicPeople: "discover:people:v2:public",
   outcomes: "discover:marketplace:confirmed-outcomes:v1",
   communityFunding: "discover:marketplace:community-funding:v1",
+  researchSignals: "discover:marketplace:research-signals:v1",
 } as const;
 
 export async function invalidateDiscoverGithubCache(): Promise<void> {

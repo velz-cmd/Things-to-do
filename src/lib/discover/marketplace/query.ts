@@ -257,7 +257,7 @@ async function loadProgramOpportunities() {
  * up a Pool that isn't publicly fundable yet, matching how a request's own
  * unpublished drafts already stay visible to their creator only.
  */
-async function loadOperatorProgramOpportunities(viewerId: string) {
+export async function loadOperatorProgramOpportunities(viewerId: string) {
   const rows = await prisma.resolveProgram.findMany({
     where: { userId: viewerId },
     select: {
@@ -303,12 +303,40 @@ async function loadOperatorProgramOpportunities(viewerId: string) {
   );
   const confirmed = await confirmedStakeUsdByProgram(visible.map((r) => r.id));
   return visible
-    .map((row) =>
-      normalizeProgramOpportunity({
+    .map((row) => {
+      const item = normalizeProgramOpportunity({
         ...(row as ProgramOpportunityRow),
         confirmedStakeUsd: confirmed.get(row.id) ?? 0,
-      }),
-    )
+      });
+      // This loader deliberately shows an operator every one of their own
+      // Programs regardless of deployment state, so they can find and
+      // finish an unfinished setup - see the doc comment above. But its
+      // normalized pool fields (lifecycleState/policyState/treasuryReadiness)
+      // reflect the Program's own internal rules config, which can already
+      // look fully "ready" before the Program has actually cleared
+      // programEntityVisible's real public-readiness bar (deployed status,
+      // a linked Mission, an active install). Without this override, an
+      // operator's own not-yet-public draft was computed as market-listed
+      // in their own view - "1 market-listed Pool... Accepting funds" -
+      // while every other viewer correctly saw it as not yet listed at all.
+      if (
+        item.marketplaceKind === "pool" &&
+        !programEntityVisible(row as ProgramOpportunityRow)
+      ) {
+        return {
+          ...item,
+          entityState: {
+            ...item.entityState,
+            provenance: item.entityState?.provenance ?? "operator_created",
+            lifecycle: item.entityState?.lifecycle ?? "configured",
+            financialReadiness: "setup_required" as const,
+            blocker: "Not yet deployed to a public Mission.",
+            setupStep: "publication" as const,
+          },
+        };
+      }
+      return item;
+    })
     .filter((item) => item.marketplaceKind === "pool");
 }
 

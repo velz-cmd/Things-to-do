@@ -1,0 +1,12 @@
+import { createRequire } from "node:module";
+const require = createRequire("C:/Users/hp/Things-to-do/package.json");
+const { chromium } = require("playwright");
+const BASE = "https://resolve-git-fix-discover-marketplace-completion-resolve-os-new.vercel.app";
+const b = await chromium.launch({ headless: true });
+const c = await b.newContext({ storageState: "./storage-state.json" });
+const p = await c.newPage();
+const res = await p.request.get(BASE + "/api/_debug/pools-trace");
+console.log(res.status());
+console.log(JSON.stringify(await res.json(), null, 2));
+await b.close();
+process.exit(0);

@@ -2559,6 +2559,8 @@ function AgentServicePanel({
           text: prompt.trim(),
           maxSpendUsd,
           paymentTxHash,
+          subjectType: target?.contextSubjectType,
+          subjectId: target?.contextSubjectId,
         }),
       });
       const body = (await response

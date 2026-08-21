@@ -17,6 +17,10 @@ import { discoverAgentServices } from "@/lib/agent/commerce";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { buildLiveSettlements } from "@/lib/discover/live-settlements";
 import { loadCommunityFundingSignals } from "./community-funding-source";
+import {
+  getAgentResultsForSubjects,
+  type PersistedAgentResult,
+} from "@/lib/agent/result-by-subject";
 import { loadStoredOssOpportunities } from "@/lib/github/oss-scan-store";
 import {
   normalizeCampaignOpportunity,
@@ -1258,6 +1262,7 @@ export function attachVerifiedWorkActions(
   people: DiscoverPerson[],
   viewerUserId?: string,
   liveSettlementEnabled = isLiveArcEnabled(),
+  agentResultsBySubject?: Map<string, PersistedAgentResult[]>,
 ): MarketplaceOpportunity[] {
   const personByGithub = new Map(
     people.flatMap((person) => {
@@ -1299,6 +1304,26 @@ export function attachVerifiedWorkActions(
     );
     const canFund = rewardRecipientReady && live;
     const detailPath = `/discover?view=verified_work&work=${encodeURIComponent(item.source.id)}`;
+    // The contextual Agent loop's read side: if someone already bought a
+    // result for this exact outcome, show it as a real fact. If not, offer
+    // one concrete purchase - never both, and never a menu of five.
+    const persistedResults = agentResultsBySubject?.get(item.source.id) ?? [];
+    const agentResult = persistedResults[0];
+    const agentReviewAction = agentResult
+      ? undefined
+      : workbenchAction(
+          {
+            id: "discover.run_agent_service",
+            label: "Review documentation · 0.02 USDC",
+            href: detailPath,
+          },
+          {
+            panel: "agent_service",
+            subjectId: "docs-review",
+            contextSubjectType: "verified_work",
+            contextSubjectId: item.source.id,
+          },
+        );
     const evidenceAction = workbenchAction(
       {
         id: "discover.open_evidence",
@@ -1381,7 +1406,17 @@ export function attachVerifiedWorkActions(
               { requiresConfirmation: true },
             )
           : evidenceAction,
-      secondaryActions: rewardRecipientReady ? [evidenceAction] : [],
+      secondaryActions: [
+        ...(rewardRecipientReady ? [evidenceAction] : []),
+        ...(agentReviewAction ? [agentReviewAction] : []),
+      ],
+      agentResult: agentResult
+        ? {
+            serviceId: agentResult.serviceId,
+            summary: agentResult.summary,
+            occurredAt: agentResult.occurredAt,
+          }
+        : undefined,
     } satisfies MarketplaceOpportunity;
   });
 }
@@ -3037,10 +3072,19 @@ export async function loadDiscoverPageData(
     claimedPeople,
     requestAware,
   );
+  const verifiedWorkSubjectIds = requestAware
+    .filter((item) => item.source.type === "github_evidence")
+    .map((item) => item.source.id);
+  const agentResultsBySubject = await getAgentResultsForSubjects(
+    "verified_work",
+    verifiedWorkSubjectIds,
+  );
   const workAware = attachVerifiedWorkActions(
     requestAware,
     people,
     user?.id,
+    undefined,
+    agentResultsBySubject,
   );
   const communities = listCommunities(workAware);
   const pools = listPools(workAware, user?.id);

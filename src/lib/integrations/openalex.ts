@@ -95,6 +95,77 @@ export async function fetchRepoResearchSignal(
   }
 }
 
+export type OpenAlexSearchResult = {
+  openAlexId: string;
+  title: string;
+  doi?: string;
+  publicationYear?: number;
+  citedByCount: number;
+  authorNames: string[];
+  landingPageUrl?: string;
+};
+
+/**
+ * General-purpose OpenAlex work search, independent of any specific GitHub
+ * repository - used to surface real author/work identity and citation
+ * context as its own market-index entries (Discover's research domain).
+ * Every result carries its DOI when OpenAlex has one, so a caller can
+ * deduplicate against the same work observed via another connector
+ * (e.g. Crossref) by DOI identity rather than risk showing the same paper
+ * twice as two different "outcomes".
+ */
+export async function searchOpenAlexWorks(
+  query: string,
+  perPage = 10,
+): Promise<OpenAlexSearchResult[]> {
+  const q = query.trim().slice(0, 200);
+  if (!q) return [];
+
+  const url = openAlexUrl("/works", {
+    search: q,
+    per_page: String(Math.min(perPage, 25)),
+    sort: "cited_by_count:desc",
+  });
+
+  try {
+    const res = await fetch(url, {
+      headers: openAlexHeaders(),
+      signal: AbortSignal.timeout(12_000),
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) return [];
+
+    const json = (await res.json()) as {
+      results?: Array<{
+        id: string;
+        title?: string;
+        doi?: string;
+        publication_year?: number;
+        cited_by_count?: number;
+        authorships?: Array<{ author?: { display_name?: string } }>;
+        primary_location?: { landing_page_url?: string };
+      }>;
+    };
+
+    return (json.results ?? [])
+      .filter((w) => w.title)
+      .map((w) => ({
+        openAlexId: w.id,
+        title: w.title!,
+        doi: w.doi ? w.doi.replace(/^https?:\/\/doi\.org\//i, "") : undefined,
+        publicationYear: w.publication_year,
+        citedByCount: w.cited_by_count ?? 0,
+        authorNames: (w.authorships ?? [])
+          .map((a) => a.author?.display_name)
+          .filter((name): name is string => Boolean(name)),
+        landingPageUrl: w.primary_location?.landing_page_url,
+      }));
+  } catch (e) {
+    console.warn("[openalex] search failed:", e);
+    return [];
+  }
+}
+
 export async function pingOpenAlex(): Promise<{ ok: boolean; message: string }> {
   try {
     const res = await fetch(openAlexUrl("/works", { per_page: "1" }), {

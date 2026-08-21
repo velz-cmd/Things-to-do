@@ -2268,6 +2268,19 @@ export function activityKindForEvent(eventType: string): DiscoverActivityItem["k
   return "account";
 }
 
+/**
+ * Every x402 micro-service result shares a `summary` field (see
+ * baseResult() in x402-micro.ts) - a human sentence, not raw payload. Falls
+ * back safely for any other result shape rather than dumping JSON.
+ */
+export function summarizeAgentResult(result: unknown): string | null {
+  if (result && typeof result === "object" && "summary" in result) {
+    const summary = (result as { summary?: unknown }).summary;
+    if (typeof summary === "string" && summary.trim()) return summary.trim().slice(0, 200);
+  }
+  return null;
+}
+
 function eventDescription(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload))
     return fallback;
@@ -2685,6 +2698,34 @@ async function loadPersonalDiscoverActivity(
       };
     });
 
+  const agentTaskIds = agentTransactions.flatMap((transaction) => {
+    const parts = transaction.label?.split(":") ?? [];
+    const taskId = (parts[0] === "agent" || parts[0] === "agent_tx") ? parts[2] : undefined;
+    return taskId ? [taskId] : [];
+  });
+  // The invocation ledger persists the actual structured result (citation
+  // resolution, security signal, etc.), not just the payment - see
+  // recordAgentInvocation. Look those up in bulk so a purchase's result can
+  // survive a page refresh instead of only existing transiently in the
+  // response that closed with the drawer.
+  const agentResultByTaskId = new Map<string, unknown>();
+  if (agentTaskIds.length) {
+    const authorizations = await prisma.paymentAuthorization.findMany({
+      where: { missionId: { in: agentTaskIds.map((id) => `agent-task:${id}`) } },
+      select: { missionId: true, evidenceJson: true },
+    });
+    for (const row of authorizations) {
+      if (!row.evidenceJson) continue;
+      const taskId = row.missionId.replace(/^agent-task:/, "");
+      try {
+        const parsed = JSON.parse(row.evidenceJson) as { raw?: { result?: unknown } };
+        if (parsed.raw?.result != null) agentResultByTaskId.set(taskId, parsed.raw.result);
+      } catch {
+        /* not persisted in the expected shape - no result to surface */
+      }
+    }
+  }
+
   const agentRows: DiscoverActivityItem[] = agentTransactions.map(
     (transaction) => {
       const labelParts = transaction.label?.split(":") ?? [];
@@ -2694,6 +2735,7 @@ async function loadPersonalDiscoverActivity(
       const taskId = hasKnownPrefix ? labelParts[2] : undefined;
       const txHash = hasKnownPrefix ? labelParts[3] : undefined;
       const service = serviceId ? getAgentSignalService(serviceId) : undefined;
+      const result = taskId ? agentResultByTaskId.get(taskId) : undefined;
       const primaryAction =
         txHash && /^0x[0-9a-f]{64}$/i.test(txHash)
           ? discoverNavigationAction(
@@ -2718,6 +2760,7 @@ async function loadPersonalDiscoverActivity(
             ? "Connected wallet"
             : "RESOLVE wallet",
           "Arc Testnet",
+          summarizeAgentResult(result) ? `Result: ${summarizeAgentResult(result)}` : null,
         ]
           .filter(Boolean)
           .join(" / "),

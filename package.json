@@ -23,7 +23,8 @@
     "deploy:escrow": "tsx scripts/deploy-escrow.ts",
     "test:integrations": "tsx scripts/test-integrations.ts",
     "test:github-integrations": "node --conditions=react-server --import tsx scripts/test-github-integrations.ts",
-    "circle:register-entity-secret": "tsx scripts/register-circle-entity-secret.ts"
+    "circle:register-entity-secret": "tsx scripts/register-circle-entity-secret.ts",
+    "verify:discover-release": "bash scripts/verify-discover-release.sh"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.83",

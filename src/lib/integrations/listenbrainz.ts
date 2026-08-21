@@ -88,7 +88,7 @@ export async function fetchListenBrainzListens(
 
   const res = await fetch(
     `https://api.listenbrainz.org/1/user/${encodeURIComponent(user)}/listens?count=${count}`,
-    { headers: h, signal: AbortSignal.timeout(15_000) },
+    { headers: h, signal: AbortSignal.timeout(10_000) },
   );
   if (!res.ok) return [];
 

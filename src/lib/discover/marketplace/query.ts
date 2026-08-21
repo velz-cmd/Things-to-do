@@ -491,7 +491,7 @@ function loadCachedMediaSignals() {
   return cacheGetOrSetResilient(
     DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.mediaSignals,
     SOURCE_CACHE_SECONDS,
-    () => withTimeout(loadMediaSignals(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    () => withTimeout(loadMediaSignals(), GITHUB_EVIDENCE_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },
   );
 }

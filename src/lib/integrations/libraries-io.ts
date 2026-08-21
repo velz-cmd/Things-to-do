@@ -61,11 +61,25 @@ export async function fetchPackageDependentsForRepo(
     `${BASE}/search?q=${encodeURIComponent(`${owner}/${repo}`)}`,
   );
   const results = search?.results ?? [];
-  const match = results.find(
-    (p) =>
-      p.repository_url?.toLowerCase().includes(`${owner}/${repo}`.toLowerCase()) &&
-      (p.dependents_count ?? 0) > 0,
-  );
+
+  // Libraries.io's search is relevance-ranked text search, not an exact
+  // field filter - the same class of bug that caused npm downloads to be
+  // falsely attributed to navidrome/navidrome (see npm-registry.ts). A
+  // substring `.includes()` on repository_url is not enough either: it
+  // would match "github.com/foo/reactjs" against a search for "foo/react".
+  // Only accept a result whose repository_url resolves to exactly this
+  // owner/repo.
+  const targetRepo = `github.com/${owner}/${repo}`.toLowerCase();
+  const match = results.find((p) => {
+    const url = p.repository_url ?? "";
+    const normalized = url
+      .replace(/^git\+/, "")
+      .replace(/\.git$/, "")
+      .replace(/^https?:\/\//, "")
+      .replace(/\/$/, "")
+      .toLowerCase();
+    return normalized === targetRepo && (p.dependents_count ?? 0) > 0;
+  });
   if (!match?.dependents_count) return null;
   return {
     platform: match.platform,

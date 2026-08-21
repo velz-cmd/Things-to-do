@@ -1218,18 +1218,18 @@ model Receipt {
 // DiscoverOpportunity/SettlementBatch so neither model's default select can
 // break on it.
 model RequestContributorPayout {
-  id                String    @id @default(cuid())
-  opportunityId     String    @unique
+  id                String   @id @default(cuid())
+  opportunityId     String   @unique
   settlementBatchId String
   fromAddress       String
   toAddress         String
   amountUsdcMicro   BigInt
-  status            String    @default("pending")
+  status            String   @default("pending")
   txHash            String?
-  idempotencyKey    String    @unique
+  idempotencyKey    String   @unique
   error             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([status])
 }

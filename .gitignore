@@ -21,3 +21,6 @@ playwright-report
 vercel-import.env
 tsconfig.tsbuildinfo
 scratchpad/
+storageState.json
+*.storageState.json
+*storage-state.json

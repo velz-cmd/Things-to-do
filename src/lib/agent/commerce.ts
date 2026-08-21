@@ -178,7 +178,13 @@ export async function invokeAgentService<T = unknown>(input: {
       amountUsd: pay.amountUsd,
       txRef: pay.txRef,
       contextLabel: `${service.name} · ${service.billingUnit}`,
-      rawMetadata: { url: pay.url },
+      // pay.data is the actual structured result (citation resolution,
+      // security signal, etc.) - it used to be returned to the caller and
+      // then discarded. Persisting it here is what makes the invocation
+      // ledger row a real, reusable result instead of just a payment
+      // receipt with a URL nobody can do anything with after the drawer
+      // closes.
+      rawMetadata: { url: pay.url, result: pay.data ?? null },
     });
     if (!recorded.skipped && recorded.authorization) {
       authorizationId = recorded.authorization.id;

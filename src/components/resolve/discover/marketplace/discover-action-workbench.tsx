@@ -85,7 +85,7 @@ function titleFor(action: DiscoverAction) {
     case "receipt":
       return "Confirmed receipt";
     case "evidence":
-      return "Inspect evidence";
+      return "Proof";
     case "transaction":
       return "Track transaction";
     case "agent_service":
@@ -805,9 +805,14 @@ function PoolFundingPanel({
           <dd className="text-white">{target.communitySlug}</dd>
           <dt className="text-slate-500">Network</dt>
           <dd className="text-white">Arc Testnet USDC</dd>
-          <dt className="text-slate-500">Program</dt>
-          <dd className="break-all text-white">{target.programId}</dd>
         </dl>
+        <details className="mt-2">
+          <summary className="cursor-pointer text-slate-500 hover:text-slate-300">Technical details</summary>
+          <dl className="mt-2 grid grid-cols-[120px_1fr] gap-y-2">
+            <dt className="text-slate-500">Program</dt>
+            <dd className="break-all text-white">{target.programId}</dd>
+          </dl>
+        </details>
       </div>
       {preflightLoading ? (
         <p className="flex items-center gap-2 text-sm text-slate-400">
@@ -2554,6 +2559,8 @@ function AgentServicePanel({
           text: prompt.trim(),
           maxSpendUsd,
           paymentTxHash,
+          subjectType: target?.contextSubjectType,
+          subjectId: target?.contextSubjectId,
         }),
       });
       const body = (await response
@@ -2614,6 +2621,23 @@ function AgentServicePanel({
           </div>
         </dl>
       </section>
+
+      {service.decisionContext ? (
+        <section className="rounded-xl border border-white/[0.08] bg-black/20 p-4 text-xs">
+          <div>
+            <p className="font-semibold text-violet-300">When this is useful</p>
+            <p className="mt-1 leading-6 text-slate-300">{service.decisionContext.useWhen}</p>
+          </div>
+          <div className="mt-3">
+            <p className="font-semibold text-slate-400">What it returns</p>
+            <p className="mt-1 leading-5 text-slate-400">{service.decisionContext.produces}</p>
+          </div>
+          <div className="mt-3">
+            <p className="font-semibold text-amber-200">Limitations</p>
+            <p className="mt-1 leading-5 text-slate-400">{service.decisionContext.limitations}</p>
+          </div>
+        </section>
+      ) : null}
 
       {!service.available ? (
         <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-4">

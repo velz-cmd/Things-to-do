@@ -16,6 +16,14 @@ import {
 import { discoverAgentServices } from "@/lib/agent/commerce";
 import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { buildLiveSettlements } from "@/lib/discover/live-settlements";
+import { loadCommunityFundingSignals } from "./community-funding-source";
+import { loadResearchSignals } from "./research-signal-source";
+import { loadMediaSignals } from "./media-signal-source";
+import { attachNpmDockerAdoption } from "./npm-docker-adoption";
+import {
+  getAgentResultsForSubjects,
+  type PersistedAgentResult,
+} from "@/lib/agent/result-by-subject";
 import { loadStoredOssOpportunities } from "@/lib/github/oss-scan-store";
 import {
   normalizeCampaignOpportunity,
@@ -164,7 +172,7 @@ function sourceFailure(
   };
 }
 
-async function loadPersistedOpportunities() {
+export async function loadPersistedOpportunities() {
   const rows = await prisma.discoverOpportunity.findMany({
     where: {
       visibility: "public",
@@ -249,7 +257,7 @@ async function loadProgramOpportunities() {
  * up a Pool that isn't publicly fundable yet, matching how a request's own
  * unpublished drafts already stay visible to their creator only.
  */
-async function loadOperatorProgramOpportunities(viewerId: string) {
+export async function loadOperatorProgramOpportunities(viewerId: string) {
   const rows = await prisma.resolveProgram.findMany({
     where: { userId: viewerId },
     select: {
@@ -295,12 +303,40 @@ async function loadOperatorProgramOpportunities(viewerId: string) {
   );
   const confirmed = await confirmedStakeUsdByProgram(visible.map((r) => r.id));
   return visible
-    .map((row) =>
-      normalizeProgramOpportunity({
+    .map((row) => {
+      const item = normalizeProgramOpportunity({
         ...(row as ProgramOpportunityRow),
         confirmedStakeUsd: confirmed.get(row.id) ?? 0,
-      }),
-    )
+      });
+      // This loader deliberately shows an operator every one of their own
+      // Programs regardless of deployment state, so they can find and
+      // finish an unfinished setup - see the doc comment above. But its
+      // normalized pool fields (lifecycleState/policyState/treasuryReadiness)
+      // reflect the Program's own internal rules config, which can already
+      // look fully "ready" before the Program has actually cleared
+      // programEntityVisible's real public-readiness bar (deployed status,
+      // a linked Mission, an active install). Without this override, an
+      // operator's own not-yet-public draft was computed as market-listed
+      // in their own view - "1 market-listed Pool... Accepting funds" -
+      // while every other viewer correctly saw it as not yet listed at all.
+      if (
+        item.marketplaceKind === "pool" &&
+        !programEntityVisible(row as ProgramOpportunityRow)
+      ) {
+        return {
+          ...item,
+          entityState: {
+            ...item.entityState,
+            provenance: item.entityState?.provenance ?? "operator_created",
+            lifecycle: item.entityState?.lifecycle ?? "configured",
+            financialReadiness: "setup_required" as const,
+            blocker: "Not yet deployed to a public Mission.",
+            setupStep: "publication" as const,
+          },
+        };
+      }
+      return item;
+    })
     .filter((item) => item.marketplaceKind === "pool");
 }
 
@@ -323,7 +359,12 @@ async function loadVerifiedGithubWork() {
       sourceUrl: true,
     },
   });
-  return normalizeGithubAcceptedWork(stored.opportunities, evidence);
+  const normalized = normalizeGithubAcceptedWork(stored.opportunities, evidence);
+  try {
+    return await attachNpmDockerAdoption(normalized);
+  } catch {
+    return normalized;
+  }
 }
 
 function loadCachedStoredOssOpportunities() {
@@ -451,6 +492,34 @@ function loadCachedConfirmedOutcomes() {
     DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.outcomes,
     SOURCE_CACHE_SECONDS,
     () => withTimeout(loadConfirmedOutcomes(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
+
+function loadCachedCommunityFundingSignals() {
+  return cacheGetOrSetResilient(
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.communityFunding,
+    SOURCE_CACHE_SECONDS,
+    () =>
+      withTimeout(loadCommunityFundingSignals(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
+
+function loadCachedResearchSignals() {
+  return cacheGetOrSetResilient(
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.researchSignals,
+    SOURCE_CACHE_SECONDS,
+    () => withTimeout(loadResearchSignals(), COLD_DATABASE_SOURCE_TIMEOUT_MS),
+    { staleSeconds: 86_400 },
+  );
+}
+
+function loadCachedMediaSignals() {
+  return cacheGetOrSetResilient(
+    DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS.mediaSignals,
+    SOURCE_CACHE_SECONDS,
+    () => withTimeout(loadMediaSignals(), GITHUB_EVIDENCE_SOURCE_TIMEOUT_MS),
     { staleSeconds: 86_400 },
   );
 }
@@ -803,6 +872,24 @@ export async function listMarketplaceOpportunities(
     loaders.push({
       source: "confirmed_outcomes",
       promise: loadCachedConfirmedOutcomes(),
+    });
+  }
+  if (view !== "outcomes") {
+    loaders.push({
+      source: "community_funding_signals",
+      promise: loadCachedCommunityFundingSignals(),
+    });
+  }
+  if (view !== "outcomes") {
+    loaders.push({
+      source: "research_signals",
+      promise: loadCachedResearchSignals(),
+    });
+  }
+  if (view !== "outcomes") {
+    loaders.push({
+      source: "media_signals",
+      promise: loadCachedMediaSignals(),
     });
   }
   const settled = await Promise.allSettled(
@@ -1241,6 +1328,7 @@ export function attachVerifiedWorkActions(
   people: DiscoverPerson[],
   viewerUserId?: string,
   liveSettlementEnabled = isLiveArcEnabled(),
+  agentResultsBySubject?: Map<string, PersistedAgentResult[]>,
 ): MarketplaceOpportunity[] {
   const personByGithub = new Map(
     people.flatMap((person) => {
@@ -1282,10 +1370,30 @@ export function attachVerifiedWorkActions(
     );
     const canFund = rewardRecipientReady && live;
     const detailPath = `/discover?view=verified_work&work=${encodeURIComponent(item.source.id)}`;
+    // The contextual Agent loop's read side: if someone already bought a
+    // result for this exact outcome, show it as a real fact. If not, offer
+    // one concrete purchase - never both, and never a menu of five.
+    const persistedResults = agentResultsBySubject?.get(item.source.id) ?? [];
+    const agentResult = persistedResults[0];
+    const agentReviewAction = agentResult
+      ? undefined
+      : workbenchAction(
+          {
+            id: "discover.run_agent_service",
+            label: "Review documentation · 0.02 USDC",
+            href: detailPath,
+          },
+          {
+            panel: "agent_service",
+            subjectId: "docs-review",
+            contextSubjectType: "verified_work",
+            contextSubjectId: item.source.id,
+          },
+        );
     const evidenceAction = workbenchAction(
       {
         id: "discover.open_evidence",
-        label: "Inspect evidence",
+        label: "View proof",
         href: detailPath,
       },
       {
@@ -1303,7 +1411,10 @@ export function attachVerifiedWorkActions(
     else if (isSelf && person && person.payoutReadiness !== "ready")
       blocker = "Choose a verified payout destination so future rewards can reach you.";
     else if (isSelf)
-      blocker = "You cannot reward work attributed to your own payout destination.";
+      // Self-attributed work isn't a payout problem to explain - it's just
+      // not something you pay yourself for. Say what it is, not what it
+      // isn't, so the reader gets a fact instead of a rejected request.
+      blocker = "This is your own attributed work.";
     else if (person.payoutReadiness !== "ready")
       blocker =
         "This contributor has not verified where work rewards should settle.";
@@ -1361,7 +1472,17 @@ export function attachVerifiedWorkActions(
               { requiresConfirmation: true },
             )
           : evidenceAction,
-      secondaryActions: rewardRecipientReady ? [evidenceAction] : [],
+      secondaryActions: [
+        ...(rewardRecipientReady ? [evidenceAction] : []),
+        ...(agentReviewAction ? [agentReviewAction] : []),
+      ],
+      agentResult: agentResult
+        ? {
+            serviceId: agentResult.serviceId,
+            summary: agentResult.summary,
+            occurredAt: agentResult.occurredAt,
+          }
+        : undefined,
     } satisfies MarketplaceOpportunity;
   });
 }
@@ -2248,6 +2369,19 @@ export function activityKindForEvent(eventType: string): DiscoverActivityItem["k
   return "account";
 }
 
+/**
+ * Every x402 micro-service result shares a `summary` field (see
+ * baseResult() in x402-micro.ts) - a human sentence, not raw payload. Falls
+ * back safely for any other result shape rather than dumping JSON.
+ */
+export function summarizeAgentResult(result: unknown): string | null {
+  if (result && typeof result === "object" && "summary" in result) {
+    const summary = (result as { summary?: unknown }).summary;
+    if (typeof summary === "string" && summary.trim()) return summary.trim().slice(0, 200);
+  }
+  return null;
+}
+
 function eventDescription(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload))
     return fallback;
@@ -2555,23 +2689,23 @@ async function loadPersonalDiscoverActivity(
   const githubHandle = self?.profilePath
     ?.match(/^https:\/\/github\.com\/([^/?#]+)/i)?.[1]
     ?.toLowerCase();
+  // Only confirmed outcomes and verified work belong here: they have a real
+  // settled fact to report. A Pool or Program's *current* status is not an
+  // event - it changes on its own schedule with no "occurred at" to report,
+  // and rendering it here read as "Video watch royalties - Open" every time
+  // the page loaded, regardless of whether anything had actually happened.
+  // Genuine Pool/Program activity (funded, rebalanced) already arrives
+  // through eventRows below, sourced from real OperationalEvent rows.
   const ownedMarketplace = opportunities.filter(
     (item) =>
-      item.creator.id === userId ||
-      (githubHandle && item.creator.name.toLowerCase() === githubHandle),
+      (item.creator.id === userId ||
+        (githubHandle && item.creator.name.toLowerCase() === githubHandle)) &&
+      (isConfirmedOutcome(item) || isVerifiedWork(item)),
   );
   const marketplaceRows: DiscoverActivityItem[] = ownedMarketplace.map(
     (item) => ({
       id: `owned:${item.id}`,
-      kind: isConfirmedOutcome(item)
-        ? "receipt"
-        : isVerifiedWork(item)
-          ? "work"
-          : isProgram(item)
-            ? "program"
-            : item.marketplaceKind === "pool"
-              ? "pool"
-              : "work",
+      kind: isConfirmedOutcome(item) ? "receipt" : "work",
       title: item.title,
       description: isVerifiedWork(item)
         ? `${item.repository ?? "Verified source"} / ${item.creator.name}`
@@ -2665,6 +2799,34 @@ async function loadPersonalDiscoverActivity(
       };
     });
 
+  const agentTaskIds = agentTransactions.flatMap((transaction) => {
+    const parts = transaction.label?.split(":") ?? [];
+    const taskId = (parts[0] === "agent" || parts[0] === "agent_tx") ? parts[2] : undefined;
+    return taskId ? [taskId] : [];
+  });
+  // The invocation ledger persists the actual structured result (citation
+  // resolution, security signal, etc.), not just the payment - see
+  // recordAgentInvocation. Look those up in bulk so a purchase's result can
+  // survive a page refresh instead of only existing transiently in the
+  // response that closed with the drawer.
+  const agentResultByTaskId = new Map<string, unknown>();
+  if (agentTaskIds.length) {
+    const authorizations = await prisma.paymentAuthorization.findMany({
+      where: { missionId: { in: agentTaskIds.map((id) => `agent-task:${id}`) } },
+      select: { missionId: true, evidenceJson: true },
+    });
+    for (const row of authorizations) {
+      if (!row.evidenceJson) continue;
+      const taskId = row.missionId.replace(/^agent-task:/, "");
+      try {
+        const parsed = JSON.parse(row.evidenceJson) as { raw?: { result?: unknown } };
+        if (parsed.raw?.result != null) agentResultByTaskId.set(taskId, parsed.raw.result);
+      } catch {
+        /* not persisted in the expected shape - no result to surface */
+      }
+    }
+  }
+
   const agentRows: DiscoverActivityItem[] = agentTransactions.map(
     (transaction) => {
       const labelParts = transaction.label?.split(":") ?? [];
@@ -2674,6 +2836,7 @@ async function loadPersonalDiscoverActivity(
       const taskId = hasKnownPrefix ? labelParts[2] : undefined;
       const txHash = hasKnownPrefix ? labelParts[3] : undefined;
       const service = serviceId ? getAgentSignalService(serviceId) : undefined;
+      const result = taskId ? agentResultByTaskId.get(taskId) : undefined;
       const primaryAction =
         txHash && /^0x[0-9a-f]{64}$/i.test(txHash)
           ? discoverNavigationAction(
@@ -2698,6 +2861,7 @@ async function loadPersonalDiscoverActivity(
             ? "Connected wallet"
             : "RESOLVE wallet",
           "Arc Testnet",
+          summarizeAgentResult(result) ? `Result: ${summarizeAgentResult(result)}` : null,
         ]
           .filter(Boolean)
           .join(" / "),
@@ -2974,10 +3138,19 @@ export async function loadDiscoverPageData(
     claimedPeople,
     requestAware,
   );
+  const verifiedWorkSubjectIds = requestAware
+    .filter((item) => item.source.type === "github_evidence")
+    .map((item) => item.source.id);
+  const agentResultsBySubject = await getAgentResultsForSubjects(
+    "verified_work",
+    verifiedWorkSubjectIds,
+  );
   const workAware = attachVerifiedWorkActions(
     requestAware,
     people,
     user?.id,
+    undefined,
+    agentResultsBySubject,
   );
   const communities = listCommunities(workAware);
   const pools = listPools(workAware, user?.id);

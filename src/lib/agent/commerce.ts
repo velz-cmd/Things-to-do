@@ -56,6 +56,11 @@ export function discoverAgentServices() {
  * Find → pay (x402) → authorize → return data — agent keeps moving.
  * Circle Agent Stack pattern unified with RESOLVE ledger.
  */
+export type AgentInvocationSubjectContext = {
+  subjectType: string;
+  subjectId: string;
+};
+
 export async function invokeAgentService<T = unknown>(input: {
   serviceId: string;
   taskId: string;
@@ -64,6 +69,13 @@ export async function invokeAgentService<T = unknown>(input: {
   maxSpendUsd?: number;
   /** User already paid on Arc — run intel only, no off-chain metered charge. */
   prepaidArcTxHash?: string;
+  /**
+   * What triggered this purchase, e.g. a specific Verified Work outcome.
+   * Persisted alongside the result so it can be looked back up and
+   * attached to the same outcome later - without this, a purchase from
+   * Discover is indistinguishable from a standalone Agent Marketplace run.
+   */
+  subjectContext?: AgentInvocationSubjectContext;
 }): Promise<AgentCommerceInvokeResult<T>> {
   const service = getAgentSignalService(input.serviceId);
   if (!service) {
@@ -178,7 +190,17 @@ export async function invokeAgentService<T = unknown>(input: {
       amountUsd: pay.amountUsd,
       txRef: pay.txRef,
       contextLabel: `${service.name} · ${service.billingUnit}`,
-      rawMetadata: { url: pay.url },
+      // pay.data is the actual structured result (citation resolution,
+      // security signal, etc.) - it used to be returned to the caller and
+      // then discarded. Persisting it here is what makes the invocation
+      // ledger row a real, reusable result instead of just a payment
+      // receipt with a URL nobody can do anything with after the drawer
+      // closes.
+      rawMetadata: {
+        url: pay.url,
+        result: pay.data ?? null,
+        context: input.subjectContext ?? null,
+      },
     });
     if (!recorded.skipped && recorded.authorization) {
       authorizationId = recorded.authorization.id;

@@ -17,6 +17,7 @@ import {
   isLiveArcEnabled,
 } from "@/lib/settlement/arc-config";
 import { getSettlementAdapter } from "@/lib/settlement/settlement-service";
+import { releaseContributorPayout } from "@/lib/settlement/contributor-payout";
 
 export const maxDuration = 120;
 
@@ -504,11 +505,11 @@ export async function POST(request: Request) {
       },
       orderBy: { verifiedAt: "desc" },
     });
-    if (!payout || !ARC_PROVIDER_WALLET_ADDRESS || payout.address.toLowerCase() !== ARC_PROVIDER_WALLET_ADDRESS.toLowerCase()) {
+    if (!payout || !ARC_PROVIDER_WALLET_ADDRESS) {
       return NextResponse.json(
         {
-          error: "Release is blocked because this escrow is bound to the configured provider wallet, not the assigned contributor payout address.",
-          code: "provider_payout_binding_required",
+          error: "Release is blocked until the assigned contributor has a verified Arc Testnet USDC payout address.",
+          code: "contributor_payout_destination_required",
         },
         { status: 409 },
       );
@@ -521,6 +522,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: settlement.error ?? "Arc release was not confirmed", settlement }, { status: 409 });
     }
     const totalUsdcMicro = BigInt(Math.round((opportunity.rewardAmountUsd ?? 0) * 1_000_000));
+    // complete() always pays the job's fixed provider wallet - ERC-8183 has
+    // no call to reassign it. When the contributor's real payout address
+    // differs (the normal case, since the contributor is only known after
+    // the job was created), a second explicit transfer moves the funds on
+    // from that wallet to the contributor. Kept as its own leg so a failure
+    // here never gets reported as the contributor being paid.
+    const contributorIsProviderWallet =
+      payout.address.toLowerCase() === ARC_PROVIDER_WALLET_ADDRESS.toLowerCase();
     const batchKey = `request-release:${opportunity.id}`;
     const publicReference = `request_${createHash("sha256").update(batchKey).digest("hex").slice(0, 24)}`;
     const receipt = await prisma.$transaction(async (tx) => {
@@ -548,9 +557,13 @@ export async function POST(request: Request) {
           providerTransactionId: settlement.jobId,
           chainId: ARC_TESTNET_CHAIN_ID,
           txHash: settlement.releaseTxHash,
+          // The escrow contract's complete() call always pays the job's
+          // fixed provider wallet, never the contributor directly - see the
+          // second leg below when that wallet isn't the contributor's own
+          // verified payout address.
           fromAddress:
             ready.profile.walletAddress ?? ARC_CLIENT_WALLET_ADDRESS ?? null,
-          toAddress: payout.address,
+          toAddress: ARC_PROVIDER_WALLET_ADDRESS,
           amountUsdcMicro: totalUsdcMicro,
           status: "confirmed",
           confirmedAt: new Date(),
@@ -571,7 +584,9 @@ export async function POST(request: Request) {
             taskId: opportunity.projectId,
             providerUserId: opportunity.selectedProviderId,
             evidenceRequirement: opportunity.evidenceRequirements,
-            transactionHash: settlement.releaseTxHash,
+            escrowReleaseTxHash: settlement.releaseTxHash,
+            contributorPayoutAddress: payout.address,
+            contributorPayoutPending: !contributorIsProviderWallet,
           }),
         },
         update: {},
@@ -591,16 +606,74 @@ export async function POST(request: Request) {
           opportunityId: opportunity.id,
           eventType: "request_payment_confirmed",
           actorId: ready.user.id,
-          summary: "Arc released the approved request payment and RESOLVE issued a receipt.",
+          summary: "Arc released the approved request payment from escrow.",
           metadata: json({ receiptId: receipt.id, publicReference, txHash: settlement.releaseTxHash }),
         },
       }),
     ]);
+
+    let payoutLeg: { status: "confirmed" | "failed" | "skipped"; txHash?: string; error?: string } = {
+      status: "skipped",
+    };
+    if (contributorIsProviderWallet) {
+      payoutLeg = { status: "skipped" };
+    } else {
+      const settlementBatch = await prisma.settlementBatch.findUnique({ where: { idempotencyKey: batchKey } });
+      const result = await releaseContributorPayout({
+        opportunityId: opportunity.id,
+        settlementBatchId: settlementBatch!.id,
+        fromAddress: ARC_PROVIDER_WALLET_ADDRESS,
+        toAddress: payout.address,
+        amountUsdcMicro: totalUsdcMicro,
+      });
+      if (result.status === "confirmed") {
+        payoutLeg = { status: "confirmed", txHash: result.txHash };
+        await prisma.$transaction([
+          prisma.chainTransaction.upsert({
+            where: { chainId_txHash: { chainId: ARC_TESTNET_CHAIN_ID, txHash: result.txHash } },
+            create: {
+              settlementBatchId: settlementBatch!.id,
+              provider: "circle_arc_erc20_transfer",
+              chainId: ARC_TESTNET_CHAIN_ID,
+              txHash: result.txHash,
+              fromAddress: ARC_PROVIDER_WALLET_ADDRESS,
+              toAddress: payout.address,
+              amountUsdcMicro: totalUsdcMicro,
+              status: "confirmed",
+              confirmedAt: new Date(),
+            },
+            update: { status: "confirmed", confirmedAt: new Date() },
+          }),
+          prisma.discoverOpportunityActivity.create({
+            data: {
+              opportunityId: opportunity.id,
+              eventType: "request_contributor_paid",
+              actorId: ready.user.id,
+              summary: "RESOLVE forwarded the released payment to the contributor's verified payout address.",
+              metadata: json({ receiptId: receipt.id, txHash: result.txHash, toAddress: payout.address }),
+            },
+          }),
+        ]);
+      } else {
+        payoutLeg = { status: "failed", error: result.error };
+        await prisma.discoverOpportunityActivity.create({
+          data: {
+            opportunityId: opportunity.id,
+            eventType: "request_contributor_payout_failed",
+            actorId: ready.user.id,
+            summary: `The escrow payment released, but forwarding it to the contributor failed: ${result.error}. This is retryable.`,
+            metadata: json({ receiptId: receipt.id, error: result.error }),
+          },
+        });
+      }
+    }
+
     await invalidateRequests();
     return NextResponse.json({
       ok: true,
       status: "confirmed",
       settlement,
+      payoutLeg,
       receiptId: receipt.id,
       receiptUrl: canonicalOutcomeHref(publicReference),
     });

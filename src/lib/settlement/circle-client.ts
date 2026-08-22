@@ -258,16 +258,43 @@ export async function submitErc8183Proof(jobId: string, proofHash: string, idemp
 }
 
 export async function completeErc8183Job(jobId: string, reasonHash: string, idempotencyKey?: string) {
-  if (!ARC_CLIENT_WALLET_ADDRESS) {
-    throw new Error("Client wallet not configured");
+  if (!ARC_PROVIDER_WALLET_ADDRESS) {
+    throw new Error("Provider wallet not configured");
   }
 
+  // complete() must be sent by the job's evaluator, not the client - the
+  // client wallet reverts with Unauthorized() (0x82b42900), the same custom
+  // error and root cause already found for setBudget. createJob sets our
+  // provider wallet as both provider and evaluator, so it is the caller
+  // that succeeds. Verified on chain against job 180159: the client wallet
+  // reverts on eth_call simulation, the provider wallet succeeds.
   return executeCircleContract({
-    walletAddress: ARC_CLIENT_WALLET_ADDRESS,
+    walletAddress: ARC_PROVIDER_WALLET_ADDRESS,
     abiFunctionSignature: "complete(uint256,bytes32,bytes)",
     abiParameters: [jobId, reasonHash, "0x"],
     label: "complete job",
     idempotencyKey,
+  });
+}
+
+/**
+ * Plain ERC-20 transfer, used for the second leg of a Request payout: moving
+ * approved USDC from the fixed ERC-8183 provider wallet (where `complete()`
+ * always lands funds) to the contributor's actual verified payout address.
+ */
+export async function transferUsdcPayout(input: {
+  fromWalletAddress: string;
+  toAddress: string;
+  amountTokenUnits: string;
+  idempotencyKey?: string;
+}): Promise<string> {
+  return executeCircleContractOn({
+    walletAddress: input.fromWalletAddress,
+    contractAddress: ARC_USDC_CONTRACT,
+    abiFunctionSignature: "transfer(address,uint256)",
+    abiParameters: [input.toAddress, input.amountTokenUnits],
+    label: "contributor payout transfer",
+    idempotencyKey: input.idempotencyKey,
   });
 }
 

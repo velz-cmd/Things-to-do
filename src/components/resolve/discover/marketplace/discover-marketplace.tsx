@@ -31,6 +31,8 @@ import {
 } from "react";
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketplace/discover-action-workbench";
+import { DISCOVER_VIEW_TO_ROUTE } from "@/lib/discover/marketplace/contracts";
+import { isMarketListedPool } from "@/lib/discover/marketplace/pool-listing";
 import type {
   DiscoverAction,
   DiscoverActivityItem,
@@ -59,13 +61,10 @@ const views: Array<{ id: DiscoverView; label: string; icon: typeof Activity }> =
     { id: "outcomes", label: "Activity", icon: History },
   ];
 
-const publicViewId: Record<DiscoverView, string> = {
-  for_you: "verified_work",
-  explore: "requests",
-  activity: "pools",
-  agents: "agents",
-  outcomes: "activity",
-};
+// Single canonical serializer, shared with the parser in filters.ts via
+// DISCOVER_VIEW_TO_ROUTE/DISCOVER_ROUTE_TO_VIEW so the two can never drift
+// out of sync the way the old locally-duplicated tables did.
+const publicViewId = DISCOVER_VIEW_TO_ROUTE;
 
 function money(value?: number, token = "USDC") {
   if (value == null) return null;
@@ -158,13 +157,26 @@ function detailAction(
   };
 }
 
+// "Run service" names the mechanism, not the question being answered - a
+// buyer decides from what they get back, not from a verb that fits every
+// service equally. Keyed by the real registered service id.
+const AGENT_SERVICE_RUN_LABEL: Record<string, string> = {
+  sentiment: "Classify feedback",
+  "citation-verify": "Check citation",
+  "docs-review": "Review documentation",
+  attribution: "Check attribution",
+  "security-signal": "Analyze security evidence",
+};
+
 function agentServiceAction(service: DiscoverAgentService): DiscoverAction {
   const run = service.available;
   return {
     id: run
       ? "discover.run_agent_service"
       : "discover.inspect_agent_service",
-    label: run ? "Run service" : "Inspect service",
+    label: run
+      ? (AGENT_SERVICE_RUN_LABEL[service.id] ?? "Get result")
+      : "Inspect service",
     href: `/discover?view=agents&action=${run ? "discover.run_agent_service" : "discover.inspect_agent_service"}&subject=${encodeURIComponent(service.id)}`,
     enabled: true,
     requiresConfirmation: run,
@@ -182,6 +194,16 @@ function findContext(data: DiscoverPageData, subjectId: string) {
       item.poolId === subjectId ||
       item.programId === subjectId ||
       item.receiptId === subjectId,
+  );
+}
+
+/** The contextual Agent-purchase action attachVerifiedWorkActions attaches
+ * when a work item has no persisted result yet - undefined once a result
+ * exists, since the point is to resolve one real uncertainty, not to keep
+ * offering the same purchase forever. */
+function agentReviewSecondaryAction(work: MarketplaceOpportunity): DiscoverAction | undefined {
+  return (work.secondaryActions ?? []).find(
+    (action) => action.id === "discover.run_agent_service",
   );
 }
 
@@ -486,9 +508,7 @@ function EconomicMatchSummary({ match }: { match?: EconomicMatch }) {
             {MECHANISM_LABELS[match.recommended] ?? match.recommended}
           </span>
         ) : (
-          <span className="text-slate-400">
-            No funding intent currently covers this outcome
-          </span>
+          <span className="text-slate-400">No current funding match</span>
         )}
         {match.requiresReview ? (
           <span className="rounded bg-amber-300/10 px-1.5 py-0.5 text-[11px] text-amber-200">
@@ -524,7 +544,7 @@ function EconomicMatchSummary({ match }: { match?: EconomicMatch }) {
       {excluded.length ? (
         <details className="mt-2 group">
           <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300">
-            {excluded.length} mechanism{excluded.length === 1 ? "" : "s"} ruled out
+            Why? ({excluded.length})
           </summary>
           <ul className="mt-1.5 space-y-1">
             {excluded.map((entry) => (
@@ -590,6 +610,48 @@ function WhySurfaced({ work }: { work: MarketplaceOpportunity }) {
   );
 }
 
+/** The real source ecosystem for the dense row's Ecosystem column - never a
+ * "GitHub" fallback for a non-GitHub source just because `repository` is
+ * unset. */
+function ecosystemLabel(work: MarketplaceOpportunity): string {
+  if (work.repository) return work.repository;
+  switch (work.source.type) {
+    case "research_work":
+      return "Research";
+    case "listenbrainz_listen":
+      return "Media";
+    case "open_collective_contribution":
+      return "Open Collective";
+    default:
+      return work.category ?? "Verified work";
+  }
+}
+
+/** The single strongest, most concrete impact fact for a dense row - never
+ * a blended score, always the first real connector-observed signal. */
+function strongestImpactFact(profile?: ImpactProfile): string | null {
+  if (!profile || !profile.measurable || !profile.signals.length) return null;
+  const top = profile.signals[0];
+  return `${top.value} ${top.label.toLowerCase()}`;
+}
+
+/** Normalizes the funding mechanics into one plain-language economic state,
+ * for the dense row's Funding column. Full mechanism detail (which intents
+ * were excluded and why) stays in the row's Details disclosure. */
+function fundingStateLabel(
+  work: MarketplaceOpportunity,
+  payoutState: string,
+): string {
+  if (work.economicMatch?.overlap === "duplicate_obligation") return "Already covered";
+  if (work.economicMatch?.overlap === "possible_overlap") return "Possible overlap";
+  if (work.economicMatch?.recommended) return "Funding match found";
+  if (payoutState === "Payout setup required" || payoutState === "Contributor unclaimed") {
+    return "Payout setup needed";
+  }
+  if (work.economicMatch?.coverage.length) return "Already covered";
+  return "No current funding match";
+}
+
 function WorkRow({
   work,
   data,
@@ -630,72 +692,153 @@ function WorkRow({
       ? work.primaryAction
       : ((work.secondaryActions ?? []).find(
           (action) => action.id === "discover.open_evidence",
-        ) ?? detailAction("work", work.source.id, "Inspect evidence"));
+        ) ?? detailAction("work", work.source.id, "View proof"));
+  // Community-funding rows are already-confirmed outcomes from an external
+  // ledger, not unfunded GitHub work waiting on attribution/payout - running
+  // them through the GitHub-shaped payout/coverage logic above would show
+  // "No settlement route yet" on money that already moved.
+  const ROW_GRID =
+    "grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,2.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_auto] md:items-center";
+
+  if (work.source.type === "open_collective_contribution") {
+    return (
+      <article className="rounded-xl border border-white/[0.08] bg-[#091522] px-4 py-3">
+        <div className={ROW_GRID}>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+              <span className="inline-flex items-center gap-1.5 text-emerald-300">
+                <CircleDollarSign className="h-3.5 w-3.5" />
+                Community funding
+              </span>
+              {dateLabel(work.updatedAt)}
+            </div>
+            <h3 className="mt-1 truncate font-semibold text-white">{work.title}</h3>
+          </div>
+          <div className="min-w-0 text-xs text-slate-400 md:truncate">Open Collective</div>
+          <div className="min-w-0 text-xs text-slate-400 md:truncate">{work.summary}</div>
+          <div className="min-w-0 text-xs text-emerald-300 md:truncate">
+            {money(work.funding?.fundedAmountUsd)} confirmed
+          </div>
+          <div className="min-w-0 text-xs text-slate-400 md:truncate">Confirmed</div>
+          <div className="flex flex-wrap gap-2 md:justify-end">
+            {work.primaryAction ? (
+              <ContextualAction action={work.primaryAction} item={context} onOpen={onOpen} primary />
+            ) : null}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  const impactFact = strongestImpactFact(work.impactProfile);
+  const fundingLabel = fundingStateLabel(work, payoutState);
+  const hasDetails = Boolean(
+    work.impactProfile ||
+      work.economicMatch ||
+      work.agentResult?.summary ||
+      whySurfaced(work).length ||
+      work.entityState?.blocker,
+  );
+
   return (
-    <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-      <div className="min-w-0">
-        {selectable ? (
-          <label className="mb-3 inline-flex items-center gap-2 text-xs text-slate-300">
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={(event) => onSelect?.(event.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-black/30 accent-violet-500"
-            />
-            Add to support bundle
-          </label>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 text-cyan-300">
-            <GitBranch className="h-3.5 w-3.5" />
-            {work.repository ?? "GitHub"}
-          </span>
-          <span className="text-slate-600">{dateLabel(work.updatedAt)}</span>
-        </div>
-        <h3 className="mt-2 font-semibold text-white">{work.title}</h3>
-        <p className="mt-1 text-sm text-slate-400">
-          {work.creator.name} /{" "}
-          {work.category?.replaceAll("_", " ") ?? "accepted contribution"}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-          <span className="text-emerald-300">
-            {work.verificationStatus === "verified" ||
-            work.verificationStatus.startsWith("verified_")
-              ? "Evidence verified"
-              : `Evidence ${work.verificationStatus.replaceAll("_", " ")}`}
-          </span>
-          <span>{coverageState}</span>
-          <span>{payoutState}</span>
-        </div>
-        <ImpactSummary profile={work.impactProfile} />
-        <EconomicMatchSummary match={work.economicMatch} />
-        <WhySurfaced work={work} />
-        {work.entityState?.blocker ? (
-          <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
-            {work.entityState.blocker}
-          </p>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {work.primaryAction &&
-        work.primaryAction.id !== "discover.open_evidence" ? (
-          <ContextualAction
-            action={work.primaryAction}
-            item={context}
-            primary
-            onOpen={onOpen}
+    <article className="rounded-xl border border-white/[0.08] bg-[#091522] px-4 py-3">
+      {selectable ? (
+        <label className="mb-2 inline-flex items-center gap-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(event) => onSelect?.(event.target.checked)}
+            className="h-4 w-4 rounded border-white/20 bg-black/30 accent-violet-500"
           />
-        ) : null}
-        <ContextualAction
-          action={inspectEvidence}
-          item={context}
-          primary={
-            !work.primaryAction ||
-            work.primaryAction.id === "discover.open_evidence"
-          }
-          onOpen={onOpen}
-        />
+          Add to support bundle
+        </label>
+      ) : null}
+      <div className={ROW_GRID}>
+        {/* Outcome */}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+            {dateLabel(work.updatedAt)}
+          </div>
+          <h3 className="mt-0.5 truncate font-semibold text-white">{work.title}</h3>
+          <p className="truncate text-xs text-slate-500">
+            {work.category?.replaceAll("_", " ") ?? "accepted contribution"}
+          </p>
+        </div>
+        {/* Ecosystem */}
+        <div className="flex min-w-0 items-center gap-1.5 text-xs text-cyan-300">
+          <GitBranch className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 truncate">{ecosystemLabel(work)}</span>
+        </div>
+        {/* Creator */}
+        <div className="min-w-0 text-xs text-slate-300 md:truncate">{work.creator.name}</div>
+        {/* Observed impact */}
+        <div className="min-w-0 text-xs md:truncate">
+          {impactFact ? (
+            <span className="font-medium text-white">{impactFact}</span>
+          ) : (
+            <span className="text-slate-500">Impact not yet measured</span>
+          )}
+        </div>
+        {/* Funding */}
+        <div className="min-w-0 text-xs text-slate-300 md:truncate">{fundingLabel}</div>
+        {/* Action */}
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          {work.primaryAction &&
+          work.primaryAction.id !== "discover.open_evidence" ? (
+            <ContextualAction
+              action={work.primaryAction}
+              item={context}
+              primary
+              onOpen={onOpen}
+            />
+          ) : null}
+          {/* Cap at one secondary action. Proof is supporting evidence, not an
+              economic action, so it never becomes the highlighted primary
+              button - but when there's real, unresolved uncertainty and no
+              persisted Agent result yet, offering to resolve it is more
+              useful here than a second "View proof" click. */}
+          {(!work.primaryAction || work.primaryAction.id === "discover.open_evidence") &&
+          !work.agentResult &&
+          agentReviewSecondaryAction(work) ? (
+            <ContextualAction action={agentReviewSecondaryAction(work)!} item={context} onOpen={onOpen} />
+          ) : (
+            <ContextualAction action={inspectEvidence} item={context} onOpen={onOpen} />
+          )}
+        </div>
       </div>
+      {hasDetails ? (
+        <details className="mt-2 group">
+          <summary className="cursor-pointer list-none text-[11px] text-slate-500 hover:text-slate-300">
+            Details
+          </summary>
+          <div className="mt-2 border-t border-white/[0.06] pt-3">
+            <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+              <span className="text-emerald-300">
+                {work.verificationStatus === "verified" ||
+                work.verificationStatus.startsWith("verified_")
+                  ? "Evidence verified"
+                  : `Evidence ${work.verificationStatus.replaceAll("_", " ")}`}
+              </span>
+              <span>{coverageState}</span>
+              <span>{payoutState}</span>
+            </div>
+            <ImpactSummary profile={work.impactProfile} />
+            <EconomicMatchSummary match={work.economicMatch} />
+            {work.agentResult?.summary ? (
+              <p className="mt-3 max-w-3xl text-xs leading-5 text-cyan-200/80">
+                <span className="font-medium text-cyan-200">Agent result:</span>{" "}
+                {work.agentResult.summary}
+              </p>
+            ) : null}
+            <WhySurfaced work={work} />
+            {work.entityState?.blocker ? (
+              <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
+                {work.entityState.blocker}
+              </p>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
     </article>
   );
 }
@@ -812,81 +955,38 @@ function AgentServiceCard({
   onOpen: OpenAction;
 }) {
   const action = agentServiceAction(service);
+  // What this answers, what it costs, and where it's useful, at a glance -
+  // "Use this when / Produces / Cannot establish" on every card read as API
+  // documentation. The same detail (plus limitations) now lives one click
+  // away in the run drawer, where a buyer sees it right before paying.
+  const use = service.decisionContext?.useWhen ?? service.tagline;
   return (
-    <article className="rounded-xl border border-white/[0.08] bg-[#091522] p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-xs font-medium text-cyan-300">
+    <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-cyan-300">
             <Bot className="h-3.5 w-3.5" />
             {service.provider}
+          </span>
+          {!service.available ? (
+            <span className="rounded-full border border-amber-300/20 px-2 py-0.5 text-[11px] text-amber-100">
+              Payment paused
+            </span>
+          ) : null}
+        </div>
+        <h3 className="mt-2 font-semibold text-white">{service.name}</h3>
+        <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-400">{use}</p>
+        <p className="mt-2 text-xs text-slate-500">
+          {service.priceUsd.toFixed(3)} USDC / {service.billingUnit}
+          {service.deliverables.length ? ` · ${service.deliverables[0]}` : ""}
+        </p>
+        {!service.available && service.blocker ? (
+          <p className="mt-2 max-w-lg text-xs leading-5 text-amber-100/80">
+            {service.blocker}
           </p>
-          <h3 className="mt-2 text-lg font-semibold text-white">
-            {service.name}
-          </h3>
-          <p className="mt-1 text-sm text-slate-400">{service.tagline}</p>
-        </div>
-        <span
-          className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] ${service.available ? "border-emerald-300/20 text-emerald-200" : "border-amber-300/20 text-amber-100"}`}
-        >
-          {service.available ? "Available" : "Payment paused"}
-        </span>
+        ) : null}
       </div>
-      {/* A price and an endpoint do not tell anyone why to buy. Lead with the
-          uncertainty this resolves, and state what it cannot establish - these
-          are heuristics, and a buyer deciding where money goes needs to know
-          the difference. */}
-      {service.decisionContext ? (
-        <div className="mt-4 space-y-2">
-          <div>
-            <p className="text-[11px] font-semibold text-violet-300">Use this when</p>
-            <p className="mt-0.5 text-sm leading-6 text-slate-300">
-              {service.decisionContext.useWhen}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Produces</p>
-            <p className="mt-0.5 text-xs leading-5 text-slate-400">
-              {service.decisionContext.produces}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500">Cannot establish</p>
-            <p className="mt-0.5 text-xs leading-5 text-slate-400">
-              {service.decisionContext.limitations}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-300">
-          {service.description}
-        </p>
-      )}
-      <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-white/[0.07] py-3 text-xs">
-        <div>
-          <dt className="text-slate-500">Current price</dt>
-          <dd className="mt-1 font-medium text-white">
-            {service.priceUsd.toFixed(3)} USDC / {service.billingUnit}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Payment rail</dt>
-          <dd className="mt-1 text-white">{service.paymentRail}</dd>
-        </div>
-        <div className="col-span-2">
-          <dt className="text-slate-500">Returns</dt>
-          <dd className="mt-1 text-white">
-            {service.deliverables.slice(0, 3).join(" / ")}
-          </dd>
-        </div>
-      </dl>
-      {!service.available && service.blocker ? (
-        <p className="mt-3 rounded-lg bg-amber-300/[0.04] px-3 py-2 text-xs leading-5 text-amber-100">
-          {service.blocker}
-        </p>
-      ) : null}
-      <div className="mt-4">
-        <ContextualAction action={action} primary onOpen={onOpen} />
-      </div>
+      <ContextualAction action={action} primary onOpen={onOpen} />
     </article>
   );
 }
@@ -1347,11 +1447,19 @@ function RequestCard({
         <div>
           <dt className="text-slate-500">Payment protection</dt>
           <dd className="mt-1 text-white">
-            {request.funding?.status === "escrowed"
-              ? "Arc escrow confirmed"
-              : "Funding required before publication"}
+            {request.funding?.status === "funded"
+              ? "Payment confirmed on Arc"
+              : request.funding?.status === "escrowed"
+                ? "Arc escrow confirmed"
+                : "Funding required before publication"}
           </dd>
         </div>
+        {request.provider.selected ? (
+          <div>
+            <dt className="text-slate-500">Contributor</dt>
+            <dd className="mt-1 text-white">{request.provider.selected.name}</dd>
+          </div>
+        ) : null}
       </dl>
       <div className="mt-4 flex flex-wrap gap-2">
         {request.primaryAction ? (
@@ -1401,7 +1509,7 @@ function ExploreView({
             Ask for useful work, with proof and payment terms
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-            A request becomes public only after its USDC budget is confirmed in Arc escrow. Contributors submit persisted Evidence before the requester can release payment.
+            A request becomes public once its USDC budget is confirmed in Arc escrow. Contributors submit proof before the requester releases payment.
           </p>
         </div>
         <ContextualAction action={postAction} primary onOpen={onOpen} />
@@ -1420,16 +1528,25 @@ function ExploreView({
            was two buttons for one action; this space explains what an
            outcome-backed request is instead. */
         <CompactEmpty
-          title="No funded request is open right now"
-          body="An outcome-backed request names the problem, who it affects, the measurable result, and the source evidence that will prove completion. Its USDC budget is confirmed in Arc escrow before it becomes public, so a contributor can rely on it, and payment releases only against persisted evidence the requester approves."
+          title="No funded requests are open right now"
+          body="Need something done? Post a request above - it becomes public once its budget is confirmed in Arc escrow."
         />
       )}
       {personalRequests.length ? (
         <section>
-          <SectionTitle title="Your request workspaces" count={personalRequests.length} />
-          <div className="grid gap-3 lg:grid-cols-2">
-            {personalRequests.map((request) => (
-              <RequestCard key={request.id} request={request} data={data} onOpen={onOpen} />
+          <SectionTitle title="Your requests" count={personalRequests.length} />
+          <div className="mt-3 space-y-5">
+            {personalRequestGroups(personalRequests).map((group) => (
+              <div key={group.key}>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                  {group.title} · {group.requests.length}
+                </p>
+                <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                  {group.requests.map((request) => (
+                    <RequestCard key={request.id} request={request} data={data} onOpen={onOpen} />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </section>
@@ -1438,7 +1555,32 @@ function ExploreView({
   );
 }
 
-function ActivityView({
+/** Groups a requester's own requests by lifecycle stage instead of one flat
+ * list, so "needs your action now" (review, release) doesn't get lost
+ * between drafts and long-settled ones. */
+function personalRequestGroups(
+  requests: MarketplaceOpportunity[],
+): Array<{ key: string; title: string; requests: MarketplaceOpportunity[] }> {
+  const stageOrder: Array<{ key: string; title: string; statuses: string[] }> = [
+    { key: "needs_review", title: "Needs your review", statuses: ["under_review", "approved"] },
+    { key: "in_progress", title: "In progress", statuses: ["assigned", "payment_submitted"] },
+    { key: "ready_to_fund", title: "Ready to fund", statuses: ["ready_to_fund", "draft"] },
+    { key: "completed", title: "Completed", statuses: ["confirmed", "completed"] },
+    { key: "closed", title: "Closed", statuses: ["refunded", "cancelled"] },
+  ];
+  const remaining = [...requests];
+  const groups: Array<{ key: string; title: string; requests: MarketplaceOpportunity[] }> = [];
+  for (const stage of stageOrder) {
+    const matched = remaining.filter((request) => stage.statuses.includes(request.status));
+    if (!matched.length) continue;
+    for (const request of matched) remaining.splice(remaining.indexOf(request), 1);
+    groups.push({ key: stage.key, title: stage.title, requests: matched });
+  }
+  if (remaining.length) groups.push({ key: "other", title: "Other", requests: remaining });
+  return groups;
+}
+
+function PoolsView({
   data,
   onOpen,
 }: {
@@ -1446,14 +1588,12 @@ function ActivityView({
   onOpen: OpenAction;
 }) {
   if (data.projection.kind !== "activity") return null;
-  const ready = data.pools.filter(
-    (pool) => pool.lifecycleState === "accepting_funding",
-  );
-  const operator = data.pools.filter(
-    (pool) =>
-      pool.primaryAction.presentation.kind === "workbench" &&
-      pool.primaryAction.presentation.target.panel === "program_setup",
-  );
+  // One canonical authority for what belongs in the public market, instead
+  // of two independent heuristics (a lifecycle-state check that missed
+  // funded/distributing Pools entirely, and an action-shape check that
+  // classified "operator" by what button happened to render).
+  const ready = data.pools.filter((pool) => isMarketListedPool(pool));
+  const operator = data.pools.filter((pool) => !isMarketListedPool(pool));
   const distributions = data.opportunities.items.filter(
     (item) =>
       item.marketplaceKind === "outcome" &&
@@ -1464,42 +1604,63 @@ function ActivityView({
     <div className="space-y-6">
       <section>
         <p className="text-xs font-semibold text-emerald-300">Community funding</p>
-        <h2 className="mt-1 text-xl font-semibold text-white">
-          Pools with visible rules, treasury state, and receipts
-        </h2>
+        <h2 className="mt-1 text-xl font-semibold text-white">Pools</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-          Fund only Pools whose publication, policy, allocation, treasury, and Arc preflight pass. Operator-owned Pools stay visible here with the exact setup action that remains.
+          {ready.length
+            ? `${ready.length} market-listed Pool${ready.length === 1 ? "" : "s"}.`
+            : "No Pools are market-listed right now."}
         </p>
       </section>
       {ready.length ? (
         <section>
-          <SectionTitle title="Ready to fund" count={ready.length} />
+          <SectionTitle title="Pools" count={ready.length} />
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {ready.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}
           </div>
         </section>
       ) : (
         <CompactEmpty
-          title="No Pool has passed funding preflight"
-          body="Only operator-owned setup workspaces remain visible below. Public Pool cards appear after publication, policy, allocation, treasury and Arc preflight all pass."
+          title="No Pools are market-listed right now"
+          body="A Pool becomes fundable once its policy, treasury, and evidence source are all configured and it passes review."
         />
       )}
-      {/* A flat list of every unfinished Pool is a backlog, not a queue. The
-          same records grouped by the one prerequisite that is actually
-          blocking them tell the operator what to do next, and in what order. */}
-      {operator.length
-        ? operatorPoolGroups(operator).map((group) => (
-            <section key={group.key}>
-              <SectionTitle title={group.title} count={group.pools.length} />
-              <p className="mb-3 text-xs text-slate-500">{group.explanation}</p>
-              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                {group.pools.map((pool) => (
-                  <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />
-                ))}
+      {/* Unfinished Pools you operate are your setup backlog, not market
+          inventory - a wall of full cards here made 17 admin to-dos read as
+          the marketplace itself. One compact row per Pool, grouped only by
+          the single prerequisite still blocking it. */}
+      {operator.length ? (
+        <section className="rounded-xl border border-amber-300/10 bg-amber-300/[0.03] p-4">
+          <p className="text-xs font-semibold text-amber-200">
+            Needs your attention · {operator.length} Pool{operator.length === 1 ? "" : "s"} you operate
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Not visible to funders until setup is complete.
+          </p>
+          <div className="mt-3 divide-y divide-white/[0.06]">
+            {operatorPoolGroups(operator).map((group) => (
+              <div key={group.key} className="py-3 first:pt-0 last:pb-0">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                  {group.title}
+                </p>
+                <div className="mt-2 space-y-2">
+                  {group.pools.map((pool) => (
+                    <div
+                      key={pool.id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.02] px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-white">{pool.name}</p>
+                        <p className="truncate text-xs text-slate-500">{pool.communitySlug}</p>
+                      </div>
+                      <ContextualAction action={pool.primaryAction} onOpen={onOpen} />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </section>
-          ))
-        : null}
+            ))}
+          </div>
+        </section>
+      ) : null}
       {distributions.length ? (
         <section>
           <SectionTitle title="Confirmed distributions" count={distributions.length} />
@@ -1645,19 +1806,26 @@ function AgentMarketplaceView({
       {data.agentMarketplace.blocker ? (
         <aside className="rounded-xl border border-amber-300/15 bg-amber-300/[0.04] px-4 py-3">
           <p className="text-sm font-medium text-amber-100">
-            Paid service execution is paused
+            Payment is not available on this deployment yet
           </p>
           <p className="mt-1 text-xs leading-5 text-amber-200/70">
-            {data.agentMarketplace.blocker}. Service definitions and live
-            prices remain inspectable, and no payment or result will be
-            claimed while this gate is closed.
+            Prices and services below are real. No payment or result will be
+            claimed until this is resolved.
           </p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[11px] text-amber-200/50 hover:text-amber-200/80">
+              Why?
+            </summary>
+            <p className="mt-1 text-[11px] leading-5 text-amber-200/60">
+              {data.agentMarketplace.blocker}
+            </p>
+          </details>
         </aside>
       ) : null}
       {services.length ? (
         <section>
-          <SectionTitle title="Registered services" count={services.length} />
-          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          <SectionTitle title="Services" count={services.length} />
+          <div className="space-y-3">
             {services.map((service) => (
               <AgentServiceCard
                 key={service.id}
@@ -1946,7 +2114,7 @@ function LandingView({
       {work.length ? <section><SectionTitle title="Verified work ready for action" count={work.length} href="/discover?view=verified_work" /><div className="space-y-3">{work.map((item) => <WorkRow key={item.id} work={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {requests.length ? <section><SectionTitle title="Open and funded requests" count={requests.length} href="/discover?view=requests" /><div className="grid gap-3 lg:grid-cols-2">{requests.map((item) => <RequestCard key={item.id} request={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {pools.length ? <section><SectionTitle title="Pools accepting USDC" count={pools.length} href="/discover?view=pools" /><div className="grid gap-3 lg:grid-cols-2">{pools.map((pool) => <PoolCard key={pool.id} pool={pool} data={data} onOpen={onOpen} />)}</div></section> : null}
-      {agentServices.length ? <section><SectionTitle title="Agent services with live pricing" count={data.agentMarketplace.services.length} href="/discover?view=agents" /><div className="grid gap-3 lg:grid-cols-3">{agentServices.map((service) => <AgentServiceCard key={service.id} service={service} onOpen={onOpen} />)}</div></section> : null}
+      {agentServices.length ? <section><SectionTitle title="Agent services with live pricing" count={data.agentMarketplace.services.length} href="/discover?view=agents" /><div className="space-y-3">{agentServices.map((service) => <AgentServiceCard key={service.id} service={service} onOpen={onOpen} />)}</div></section> : null}
       {data.signedIn && inProgress.length ? <section><SectionTitle title="In progress" count={inProgress.length} href="/discover?view=activity" /><div className="space-y-2">{inProgress.map((item) => <ActivityRow key={item.id} item={item} data={data} onOpen={onOpen} />)}</div></section> : null}
       {noLiveSections ? <p className="rounded-xl border border-white/[0.08] px-4 py-3 text-sm text-slate-400">No persisted marketplace record is ready yet. Analyse accepted GitHub work, post a funded request, or finish an operator-owned Pool. RESOLVE won&apos;t fill this page with demo records.</p> : null}
     </div>
@@ -2088,7 +2256,7 @@ function DiscoverMarketplaceContent({
           ) : data.projection.kind === "explore" ? (
             <ExploreView data={data} filters={filters} onOpen={openWorkbench} />
           ) : data.projection.kind === "activity" ? (
-            <ActivityView data={data} onOpen={openWorkbench} />
+            <PoolsView data={data} onOpen={openWorkbench} />
           ) : data.view === "agents" ? (
             <AgentMarketplaceView
               data={data}

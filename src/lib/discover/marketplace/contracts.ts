@@ -11,6 +11,46 @@ export const DISCOVER_VIEWS = [
 
 export type DiscoverView = (typeof DISCOVER_VIEWS)[number];
 
+/**
+ * The five Discover surfaces, by their one true public name. This is the
+ * ONLY view identifier that should ever appear in a URL, a Link href, or a
+ * test assertion about "which tab" - DiscoverView above is an internal
+ * engine detail (projection/query-layer naming carried over from an older
+ * IA) and must never leak into routing again. "activity" here means the
+ * real event ledger; the internal DiscoverView id "activity" means Pools -
+ * they are unrelated aliases that happen to share a string, which is
+ * exactly the kind of collision this type exists to make impossible: code
+ * that means "the Activity tab" now has to say DiscoverRouteView, and
+ * TypeScript enforces it goes through DISCOVER_VIEW_TO_ROUTE to become one.
+ */
+export const DISCOVER_ROUTE_VIEWS = [
+  "verified_work",
+  "requests",
+  "pools",
+  "agents",
+  "activity",
+] as const;
+
+export type DiscoverRouteView = (typeof DISCOVER_ROUTE_VIEWS)[number];
+
+/** The one canonical serializer: internal DiscoverView -> public route id. */
+export const DISCOVER_VIEW_TO_ROUTE: Record<DiscoverView, DiscoverRouteView> = {
+  for_you: "verified_work",
+  explore: "requests",
+  activity: "pools",
+  agents: "agents",
+  outcomes: "activity",
+};
+
+/** The one canonical parser target: public route id -> internal DiscoverView. */
+export const DISCOVER_ROUTE_TO_VIEW: Record<DiscoverRouteView, DiscoverView> = {
+  verified_work: "for_you",
+  requests: "explore",
+  pools: "activity",
+  agents: "agents",
+  activity: "outcomes",
+};
+
 export const DISCOVER_INTENTS = [
   "earn",
   "fund",
@@ -171,6 +211,14 @@ export type DiscoverWorkbenchTarget =
   | {
       panel: "agent_service";
       subjectId: string;
+      /**
+       * The Discover object that triggered this purchase (e.g. a specific
+       * Verified Work outcome), distinct from `subjectId` above which is the
+       * *service's* id. Threaded through to /api/agent/invoke so the result
+       * can be looked back up and attached to the same object later.
+       */
+      contextSubjectType?: string;
+      contextSubjectId?: string;
     }
   | {
       panel: "entity_details";
@@ -305,6 +353,17 @@ export type MarketplaceOpportunity = {
    * recommends - see src/lib/discover/impact/economic-matching.ts.
    */
   economicMatch?: EconomicMatch;
+  /**
+   * A real, persisted Agent-purchased result whose subjectContext points at
+   * this exact item - the contextual reintegration loop's read side. Present
+   * only when someone actually bought and RESOLVE actually persisted a
+   * result for this specific outcome, never inferred or invented.
+   */
+  agentResult?: {
+    serviceId: string;
+    summary: string | null;
+    occurredAt: string;
+  };
   primaryAction?: DiscoverAction;
   secondaryActions?: DiscoverAction[];
 };

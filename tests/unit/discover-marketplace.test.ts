@@ -22,7 +22,13 @@ import {
   sortMarketplaceOpportunities,
 } from "../../src/lib/discover/marketplace/query";
 import { importedOpportunitySchema } from "../../src/lib/discover/marketplace/import";
-import type { MarketplaceOpportunity } from "../../src/lib/discover/marketplace/contracts";
+import {
+  DISCOVER_ROUTE_TO_VIEW,
+  DISCOVER_ROUTE_VIEWS,
+  DISCOVER_VIEW_TO_ROUTE,
+  DISCOVER_VIEWS,
+  type MarketplaceOpportunity,
+} from "../../src/lib/discover/marketplace/contracts";
 import {
   normalizeConfirmedOutcomes,
   normalizeGithubAcceptedWork,
@@ -281,6 +287,37 @@ describe("Discover marketplace URL state and pagination", () => {
     expect(parseDiscoverView("opportunities")).toBe("for_you");
     expect(parseDiscoverView("saved")).toBe("for_you");
     expect(parseDiscoverView("unknown")).toBe("for_you");
+    // The canonical route id "activity" means the Activity ledger, even
+    // though the internal DiscoverView id "activity" separately means
+    // Pools - the two share a string by coincidence, not meaning.
+    expect(parseDiscoverView("activity")).toBe("outcomes");
+  });
+
+  it("resolves every canonical DiscoverRouteView to a distinct, correct DiscoverView - the exact case a hand-duplicated alias table let collide", () => {
+    expect(parseDiscoverView("verified_work")).toBe("for_you");
+    expect(parseDiscoverView("requests")).toBe("explore");
+    expect(parseDiscoverView("pools")).toBe("activity");
+    expect(parseDiscoverView("agents")).toBe("agents");
+    expect(parseDiscoverView("activity")).toBe("outcomes");
+    const resolved = new Set(
+      ["verified_work", "requests", "pools", "agents", "activity"].map(parseDiscoverView),
+    );
+    expect(resolved.size).toBe(5);
+  });
+
+  it("keeps the route<->view serializer and parser as exact inverses, for every surface", () => {
+    for (const route of DISCOVER_ROUTE_VIEWS) {
+      const view = DISCOVER_ROUTE_TO_VIEW[route];
+      expect(DISCOVER_VIEW_TO_ROUTE[view]).toBe(route);
+      expect(parseDiscoverView(route)).toBe(view);
+    }
+    for (const view of DISCOVER_VIEWS) {
+      const route = DISCOVER_VIEW_TO_ROUTE[view];
+      expect(DISCOVER_ROUTE_TO_VIEW[route]).toBe(view);
+    }
+  });
+
+  it("parses opportunity filters from search params", () => {
     expect(
       parseOpportunityFilters({
         q: "typescript",
@@ -462,7 +499,7 @@ describe("Discover canonical projections", () => {
       entityState: {
         financialReadiness: "setup_required",
       },
-      primaryAction: { label: "Inspect evidence" },
+      primaryAction: { label: "View proof" },
     });
     expect(result[0]?.reward).toBeUndefined();
     expect(result[0]?.primaryAction).toMatchObject({
@@ -531,6 +568,7 @@ describe("Discover canonical projections", () => {
       },
       secondaryActions: [
         expect.objectContaining({ id: "discover.open_evidence" }),
+        expect.objectContaining({ id: "discover.run_agent_service" }),
       ],
     });
     const blocked = attachVerifiedWorkActions(result, [claimedPerson], "recipient-1", true);

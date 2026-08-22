@@ -3,6 +3,7 @@ import { z } from "zod";
 import { API_CACHE, rateLimitHeaders } from "@/lib/api/cache-headers";
 import { getRequestClientId, rateLimitRequest } from "@/lib/cache/rate-limit";
 import { ingestRepository } from "@/lib/github/adapter";
+import { githubFetchOrThrow } from "@/lib/github/client";
 import { persistGithubEvidence } from "@/lib/github/evidence-store";
 import { buildFundingOpportunity } from "@/lib/github/opportunities";
 import { persistOssOpportunitySnapshot } from "@/lib/github/oss-scan-store";
@@ -72,6 +73,36 @@ export async function POST(req: Request) {
     );
   }
 
+  // ingestRepository's own repo-existence check collapses every failure -
+  // a genuine 404, an expired/invalid GITHUB_TOKEN, rate limiting, a GitHub
+  // outage - into the same `null`, which previously always surfaced as
+  // "Public GitHub repository not found" even when the repository plainly
+  // exists and the real problem was our own token/rate limit. Confirm
+  // existence independently first so those cases get an honest message.
+  try {
+    const exists = await githubFetchOrThrow(
+      `https://api.github.com/repos/${parsed.data.owner}/${parsed.data.repo}`,
+      { revalidate: 1800 },
+    );
+    if (!exists) {
+      return NextResponse.json(
+        {
+          error: "Public GitHub repository not found.",
+          code: "REPOSITORY_NOT_FOUND",
+        },
+        { status: 404, headers },
+      );
+    }
+  } catch {
+    return NextResponse.json(
+      {
+        error: "GitHub repository analysis is temporarily unavailable.",
+        code: "GITHUB_UNAVAILABLE",
+      },
+      { status: 502, headers },
+    );
+  }
+
   let ingest: Awaited<ReturnType<typeof ingestRepository>>;
   try {
     ingest = await ingestRepository(parsed.data.owner, parsed.data.repo);
@@ -87,10 +118,10 @@ export async function POST(req: Request) {
   if (!ingest) {
     return NextResponse.json(
       {
-        error: "Public GitHub repository not found.",
-        code: "REPOSITORY_NOT_FOUND",
+        error: "GitHub repository analysis is temporarily unavailable.",
+        code: "GITHUB_UNAVAILABLE",
       },
-      { status: 404, headers },
+      { status: 502, headers },
     );
   }
 

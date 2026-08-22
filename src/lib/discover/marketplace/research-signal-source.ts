@@ -58,6 +58,7 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
         source: "Crossref",
         sourceUrl: w.url,
         observedAt,
+        classification: "observed",
       });
     }
     byKey.set(key, { key, title: w.title, url: w.url, published: w.published, signals });
@@ -76,6 +77,7 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
             source: "OpenAlex",
             sourceUrl: w.landingPageUrl ?? w.openAlexId,
             observedAt,
+            classification: "observed",
           }
         : null;
     if (existing) {

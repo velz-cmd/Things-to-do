@@ -113,4 +113,16 @@ describe("Discover impact signals", () => {
     const profile = buildImpactProfile([null, null], "nothing observed");
     expect(profile.measurable).toBe(false);
   });
+
+  it("classifies every signal built through impactSignal() as 'observed', never 'heuristic' or 'derived'", () => {
+    const signal = impactSignal({
+      id: "dependent_repositories",
+      label: "Dependent repositories",
+      count: 12,
+      scope: "repository",
+      source: "Libraries.io",
+      observedAt,
+    });
+    expect(signal?.classification).toBe("observed");
+  });
 });

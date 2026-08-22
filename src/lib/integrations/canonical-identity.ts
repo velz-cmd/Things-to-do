@@ -63,3 +63,45 @@ export function repositoryLinkMatchesGithub(
 export function normalizeDoi(doi: string): string {
   return doi.trim().replace(/^https?:\/\/doi\.org\//i, "").toLowerCase();
 }
+
+/**
+ * Normalizes an arXiv identifier to its bare form (no `arXiv:` prefix, no
+ * `https://arxiv.org/abs/` URL, version suffix stripped so v1/v2/v3 of the
+ * same preprint resolve to one canonical identity).
+ */
+export function normalizeArxivId(id: string): string {
+  return id
+    .trim()
+    .replace(/^arxiv:/i, "")
+    .replace(/^https?:\/\/arxiv\.org\/abs\//i, "")
+    .replace(/v\d+$/i, "")
+    .toLowerCase();
+}
+
+/** Bare OpenAlex work ID (strips the `https://openalex.org/` URL form). */
+export function normalizeOpenAlexId(id: string): string {
+  return id.trim().replace(/^https?:\/\/openalex\.org\//i, "").toUpperCase();
+}
+
+/**
+ * Canonical identity for one observed media playback/recording event.
+ * Prefers the MusicBrainz recording ID when a connector supplied one -
+ * the only identity strong enough to be trusted across sources. Title +
+ * artist alone is not strong identity (two different artists can share a
+ * track title), so the fallback also folds in the exact observation
+ * timestamp rather than deduplicating by title/artist text.
+ */
+export function canonicalMediaId(input: {
+  recordingMbid?: string | null;
+  artistName: string;
+  trackTitle: string;
+  observedAt: string;
+}): { id: string; strong: boolean } {
+  if (input.recordingMbid) {
+    return { id: `mbid:${input.recordingMbid.trim().toLowerCase()}`, strong: true };
+  }
+  return {
+    id: `listen:${input.artistName.trim().toLowerCase()}:${input.trackTitle.trim().toLowerCase()}:${input.observedAt}`,
+    strong: false,
+  };
+}

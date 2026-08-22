@@ -4,6 +4,9 @@ import {
   normalizeRepositoryLink,
   repositoryLinkMatchesGithub,
   normalizeDoi,
+  normalizeArxivId,
+  normalizeOpenAlexId,
+  canonicalMediaId,
 } from "@/lib/integrations/canonical-identity";
 
 describe("canonicalGithubRepoId", () => {
@@ -85,5 +88,42 @@ describe("normalizeDoi", () => {
   it("strips the doi.org prefix and lowercases, so Crossref and OpenAlex agree on identity", () => {
     expect(normalizeDoi("https://doi.org/10.1234/ABC.567")).toBe("10.1234/abc.567");
     expect(normalizeDoi("10.1234/ABC.567")).toBe("10.1234/abc.567");
+  });
+});
+
+describe("normalizeArxivId", () => {
+  it("strips arXiv: prefix, the abs URL, and version suffixes so v1/v2/v3 collapse to one identity", () => {
+    expect(normalizeArxivId("arXiv:2301.00001")).toBe("2301.00001");
+    expect(normalizeArxivId("https://arxiv.org/abs/2301.00001v2")).toBe("2301.00001");
+    expect(normalizeArxivId("2301.00001v3")).toBe("2301.00001");
+  });
+});
+
+describe("normalizeOpenAlexId", () => {
+  it("strips the openalex.org URL form", () => {
+    expect(normalizeOpenAlexId("https://openalex.org/W123456")).toBe("W123456");
+    expect(normalizeOpenAlexId("w123456")).toBe("W123456");
+  });
+});
+
+describe("canonicalMediaId", () => {
+  it("prefers the MusicBrainz recording ID as strong identity when present", () => {
+    const result = canonicalMediaId({
+      recordingMbid: "abc-123",
+      artistName: "Artist",
+      trackTitle: "Track",
+      observedAt: "2026-08-01T00:00:00.000Z",
+    });
+    expect(result).toEqual({ id: "mbid:abc-123", strong: true });
+  });
+
+  it("falls back to a weak artist/track/timestamp identity when no MBID exists, never title-only", () => {
+    const result = canonicalMediaId({
+      artistName: "Artist",
+      trackTitle: "Track",
+      observedAt: "2026-08-01T00:00:00.000Z",
+    });
+    expect(result.strong).toBe(false);
+    expect(result.id).toContain("2026-08-01T00:00:00.000Z");
   });
 });

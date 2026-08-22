@@ -2136,6 +2136,39 @@ function DiscoverMarketplaceContent({
   } | null>(null);
   const pendingWorkbenchKey = useRef<string | null>(null);
   const landing = params.toString() === "";
+  // TEMPORARY diagnostic for React error #418 (authenticated hydration
+  // mismatch). Logs a render-pass digest on both the server render and the
+  // client's first hydration pass, so the two can be diffed directly from
+  // console output. No secrets: only booleans, counts, and IDs already
+  // visible in the page itself. Remove once the root cause is found.
+  if (typeof window !== "undefined" && !(window as unknown as { __discoverHydrationLogged?: boolean }).__discoverHydrationLogged) {
+    (window as unknown as { __discoverHydrationLogged?: boolean }).__discoverHydrationLogged = true;
+    console.log("[hydration-diag] CLIENT first render", JSON.stringify({
+      view: data.view,
+      signedIn: data.signedIn,
+      landing,
+      searchParams: params.toString(),
+      itemCount: data.opportunities.items.length,
+      firstIds: data.opportunities.items.slice(0, 5).map((i) => i.id),
+      poolCount: data.pools.length,
+      peopleCount: data.people.length,
+      savedIdsCount: data.savedIds.length,
+      capabilities: data.capabilities,
+    }));
+  } else if (typeof window === "undefined") {
+    console.log("[hydration-diag] SERVER render", JSON.stringify({
+      view: data.view,
+      signedIn: data.signedIn,
+      landing,
+      searchParams: params.toString(),
+      itemCount: data.opportunities.items.length,
+      firstIds: data.opportunities.items.slice(0, 5).map((i) => i.id),
+      poolCount: data.pools.length,
+      peopleCount: data.people.length,
+      savedIdsCount: data.savedIds.length,
+      capabilities: data.capabilities,
+    }));
+  }
   useEffect(() => track("discover_viewed", { view: data.view }), [data.view]);
   const openWorkbench: OpenAction = (action, item) => {
     if (action.presentation.kind !== "workbench") return;

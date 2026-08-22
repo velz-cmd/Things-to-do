@@ -2,6 +2,7 @@ import { ingestRepository } from "@/lib/github/adapter";
 import { fetchGithubProject } from "@/lib/integrations/libraries-io";
 import { findNpmPackagesForRepo } from "@/lib/integrations/npm-registry";
 import { fetchAdvisoriesForNpmPackage } from "@/lib/integrations/github-advisories";
+import { fetchFundingChannels } from "@/lib/integrations/github-funding-yaml";
 import { computeRepoHealth } from "@/lib/github/repo-health";
 import { buildGitHubFundingActivity } from "@/lib/github/funding-activity";
 import type { FundingOpportunity, RepoIngestResult } from "@/lib/github/types";
@@ -138,22 +139,39 @@ export function buildReleaseObservation(
   }));
 }
 
+/**
+ * Observes real external funding channels from .github/FUNDING.yml.
+ * Undefined when the file does not exist or nothing recognized was
+ * parsed - never a fabricated "no funding" claim standing in for
+ * "not observed".
+ */
+export async function observeExternalFundingContext(
+  owner: string,
+  repo: string,
+): Promise<FundingOpportunity["externalFundingContext"]> {
+  const channels = await fetchFundingChannels(owner, repo).catch(() => undefined);
+  if (channels === undefined) return undefined;
+  return { channels, observedAt: new Date().toISOString() };
+}
+
 export async function scanFundingOpportunity(
   owner: string,
   repo: string,
 ): Promise<FundingOpportunity | null> {
-  const [ingest, adoption, security] = await Promise.all([
+  const [ingest, adoption, security, externalFundingContext] = await Promise.all([
     ingestRepository(owner, repo, { prLimit: 8 }),
     observeRepositoryAdoption(owner, repo),
     observeSecurityAdvisories(owner, repo),
+    observeExternalFundingContext(owner, repo),
   ]);
   if (!ingest) return null;
-  return buildFundingOpportunity(
+  const opportunity = buildFundingOpportunity(
     ingest,
     adoption,
     security,
     buildReleaseObservation(ingest.releases),
   );
+  return externalFundingContext ? { ...opportunity, externalFundingContext } : opportunity;
 }
 
 export async function scanAllOpportunities(): Promise<FundingOpportunity[]> {

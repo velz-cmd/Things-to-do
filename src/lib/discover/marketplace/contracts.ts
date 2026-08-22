@@ -348,6 +348,18 @@ export type MarketplaceOpportunity = {
    */
   impactProfile?: ImpactProfile;
   /**
+   * Real external funding channels the project's own .github/FUNDING.yml
+   * advertises (see github-funding-yaml.ts) - presentation CONTEXT only.
+   * Proves "this project publishes an external funding channel", never
+   * "RESOLVE has a funding match" or "money was received". Economic
+   * matching/funding logic must never read this field - only
+   * economicMatch/funding below are authoritative for that.
+   */
+  externalFundingContext?: {
+    channels: Array<{ provider: string; account: string; url: string }>;
+    observedAt: string;
+  };
+  /**
    * Which real funding intents could fund this outcome, which were ruled out
    * and why, whether a prior payment already covers it, and what RESOLVE
    * recommends - see src/lib/discover/impact/economic-matching.ts.

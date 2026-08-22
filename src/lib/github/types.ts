@@ -248,6 +248,17 @@ export interface FundingOpportunity {
     author: string | null;
     prerelease: boolean;
   }>;
+  /**
+   * Real external funding channels this repository's own .github/FUNDING.yml
+   * advertises (see github-funding-yaml.ts). This proves only that the
+   * project publishes an external funding channel - it is presentation
+   * context, NEVER a RESOLVE economic-state claim. It must never be read
+   * by economic matching/funding-match logic.
+   */
+  externalFundingContext?: {
+    channels: Array<{ provider: string; account: string; url: string }>;
+    observedAt: string;
+  };
 }
 
 export interface GitHubAllocationResult {

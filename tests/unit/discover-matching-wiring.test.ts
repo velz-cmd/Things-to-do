@@ -147,6 +147,93 @@ describe("economic matching is wired into the marketplace", () => {
       outcomeClassFor(work({ category: undefined, type: "research_request" })),
     ).toBe("research");
   });
+
+  /**
+   * Phase 2 item 5: software impact never generates money by itself. A
+   * huge dependent count, a published release, or a resolved-looking
+   * advisory must never, by themselves, turn into a funding amount or a
+   * Pool match without a real Pool/Request/funding-intent actually
+   * existing. The recommended amount must always come from the Pool's
+   * own availableUsd, never a function of any impact signal's value.
+   */
+  it("a massive dependent-repository count never becomes a funding amount without a real Pool", () => {
+    const [item] = attachEconomicMatch(
+      [
+        work({
+          impactProfile: {
+            measurable: true,
+            signals: [
+              {
+                id: "dependent_repositories",
+                label: "Dependent repositories",
+                value: "999,999",
+                scope: "repository",
+                source: "Libraries.io",
+                observedAt: "2026-08-01T00:00:00.000Z",
+                classification: "observed",
+              },
+            ],
+          },
+        }),
+      ],
+      { pools: [] },
+    );
+    expect(item.economicMatch?.recommended).toBe("direct_support");
+    expect(item.economicMatch?.eligible.every((m) => m.intent.mechanism !== "pool_allocation")).toBe(true);
+  });
+
+  it("a published release alone never unlocks a Pool match without real Pool capital", () => {
+    const [item] = attachEconomicMatch(
+      [
+        work({
+          type: "project_contribution",
+          impactProfile: {
+            measurable: true,
+            signals: [
+              {
+                id: "advisories_with_published_fix",
+                label: "Patched versions available for advisories",
+                value: "3",
+                scope: "repository",
+                source: "GitHub Security Advisories",
+                observedAt: "2026-08-01T00:00:00.000Z",
+                classification: "observed",
+              },
+            ],
+          },
+        }),
+      ],
+      { pools: [] },
+    );
+    expect(item.economicMatch?.eligible.some((m) => m.intent.mechanism === "pool_allocation")).toBe(false);
+  });
+
+  it("a resolved-looking advisory signal never determines the recommended funding amount - only pool.availableUsd does", () => {
+    const highAdvisoryCount = work({
+      impactProfile: {
+        measurable: true,
+        signals: [
+          {
+            id: "advisories_with_published_fix",
+            label: "Patched versions available for advisories",
+            value: "50",
+            scope: "repository",
+            source: "GitHub Security Advisories",
+            observedAt: "2026-08-01T00:00:00.000Z",
+            classification: "observed",
+          },
+        ],
+      },
+    });
+    const [item] = attachEconomicMatch([highAdvisoryCount], {
+      pools: [pool({ availableUsd: 77 })],
+      operatorOfPoolIds: new Set(["pool-1"]),
+    });
+    const poolMatch = item.economicMatch?.eligible.find(
+      (m) => m.intent.mechanism === "pool_allocation",
+    );
+    expect(poolMatch?.intent.availableUsd).toBe(77);
+  });
 });
 
 describe("role ranking orders without hiding", () => {

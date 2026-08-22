@@ -111,6 +111,7 @@ export function normalizeGithubAcceptedWork(
             adoption: repository.adoption,
             security: repository.security,
           }),
+          externalFundingContext: repository.externalFundingContext,
           entityState: {
             provenance: "external_integration",
             lifecycle: "observed",
@@ -195,6 +196,7 @@ export function normalizeGithubReleases(
             adoption: repository.adoption,
             security: repository.security,
           }),
+          externalFundingContext: repository.externalFundingContext,
           entityState: {
             provenance: "external_integration",
             lifecycle: "observed",

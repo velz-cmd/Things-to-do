@@ -610,6 +610,31 @@ function WhySurfaced({ work }: { work: MarketplaceOpportunity }) {
   );
 }
 
+/** The single strongest, most concrete impact fact for a dense row - never
+ * a blended score, always the first real connector-observed signal. */
+function strongestImpactFact(profile?: ImpactProfile): string | null {
+  if (!profile || !profile.measurable || !profile.signals.length) return null;
+  const top = profile.signals[0];
+  return `${top.value} ${top.label.toLowerCase()}`;
+}
+
+/** Normalizes the funding mechanics into one plain-language economic state,
+ * for the dense row's Funding column. Full mechanism detail (which intents
+ * were excluded and why) stays in the row's Details disclosure. */
+function fundingStateLabel(
+  work: MarketplaceOpportunity,
+  payoutState: string,
+): string {
+  if (work.economicMatch?.overlap === "duplicate_obligation") return "Already covered";
+  if (work.economicMatch?.overlap === "possible_overlap") return "Possible overlap";
+  if (work.economicMatch?.recommended) return "Funding match found";
+  if (payoutState === "Payout setup required" || payoutState === "Contributor unclaimed") {
+    return "Payout setup needed";
+  }
+  if (work.economicMatch?.coverage.length) return "Already covered";
+  return "No current funding match";
+}
+
 function WorkRow({
   work,
   data,
@@ -655,107 +680,150 @@ function WorkRow({
   // ledger, not unfunded GitHub work waiting on attribution/payout - running
   // them through the GitHub-shaped payout/coverage logic above would show
   // "No settlement route yet" on money that already moved.
+  const ROW_GRID =
+    "grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,2.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_auto] md:items-center";
+
   if (work.source.type === "open_collective_contribution") {
     return (
-      <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-1.5 text-emerald-300">
-              <CircleDollarSign className="h-3.5 w-3.5" />
-              Community funding
-            </span>
-            <span className="text-slate-600">{dateLabel(work.updatedAt)}</span>
+      <article className="rounded-xl border border-white/[0.08] bg-[#091522] px-4 py-3">
+        <div className={ROW_GRID}>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+              <span className="inline-flex items-center gap-1.5 text-emerald-300">
+                <CircleDollarSign className="h-3.5 w-3.5" />
+                Community funding
+              </span>
+              {dateLabel(work.updatedAt)}
+            </div>
+            <h3 className="mt-1 truncate font-semibold text-white">{work.title}</h3>
           </div>
-          <h3 className="mt-2 font-semibold text-white">{work.title}</h3>
-          <p className="mt-1 text-sm text-slate-400">{work.summary}</p>
-          <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-            <span className="text-emerald-300">
-              {money(work.funding?.fundedAmountUsd)} confirmed
-            </span>
+          <div className="min-w-0 text-xs text-slate-400 md:truncate">Open Collective</div>
+          <div className="min-w-0 text-xs text-slate-400 md:truncate">{work.summary}</div>
+          <div className="min-w-0 text-xs text-emerald-300 md:truncate">
+            {money(work.funding?.fundedAmountUsd)} confirmed
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {work.primaryAction ? (
-            <ContextualAction action={work.primaryAction} item={context} onOpen={onOpen} />
-          ) : null}
+          <div className="min-w-0 text-xs text-slate-400 md:truncate">Confirmed</div>
+          <div className="flex flex-wrap gap-2 md:justify-end">
+            {work.primaryAction ? (
+              <ContextualAction action={work.primaryAction} item={context} onOpen={onOpen} primary />
+            ) : null}
+          </div>
         </div>
       </article>
     );
   }
+
+  const impactFact = strongestImpactFact(work.impactProfile);
+  const fundingLabel = fundingStateLabel(work, payoutState);
+  const hasDetails = Boolean(
+    work.impactProfile ||
+      work.economicMatch ||
+      work.agentResult?.summary ||
+      whySurfaced(work).length ||
+      work.entityState?.blocker,
+  );
+
   return (
-    <article className="grid gap-4 rounded-xl border border-white/[0.08] bg-[#091522] p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-      <div className="min-w-0">
-        {selectable ? (
-          <label className="mb-3 inline-flex items-center gap-2 text-xs text-slate-300">
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={(event) => onSelect?.(event.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-black/30 accent-violet-500"
-            />
-            Add to support bundle
-          </label>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 text-cyan-300">
-            <GitBranch className="h-3.5 w-3.5" />
-            {work.repository ?? "GitHub"}
-          </span>
-          <span className="text-slate-600">{dateLabel(work.updatedAt)}</span>
-        </div>
-        <h3 className="mt-2 font-semibold text-white">{work.title}</h3>
-        <p className="mt-1 text-sm text-slate-400">
-          {work.creator.name} /{" "}
-          {work.category?.replaceAll("_", " ") ?? "accepted contribution"}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-          <span className="text-emerald-300">
-            {work.verificationStatus === "verified" ||
-            work.verificationStatus.startsWith("verified_")
-              ? "Evidence verified"
-              : `Evidence ${work.verificationStatus.replaceAll("_", " ")}`}
-          </span>
-          <span>{coverageState}</span>
-          <span>{payoutState}</span>
-        </div>
-        <ImpactSummary profile={work.impactProfile} />
-        <EconomicMatchSummary match={work.economicMatch} />
-        {work.agentResult?.summary ? (
-          <p className="mt-3 max-w-3xl text-xs leading-5 text-cyan-200/80">
-            <span className="font-medium text-cyan-200">Agent result:</span>{" "}
-            {work.agentResult.summary}
-          </p>
-        ) : null}
-        <WhySurfaced work={work} />
-        {work.entityState?.blocker ? (
-          <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
-            {work.entityState.blocker}
-          </p>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {work.primaryAction &&
-        work.primaryAction.id !== "discover.open_evidence" ? (
-          <ContextualAction
-            action={work.primaryAction}
-            item={context}
-            primary
-            onOpen={onOpen}
+    <article className="rounded-xl border border-white/[0.08] bg-[#091522] px-4 py-3">
+      {selectable ? (
+        <label className="mb-2 inline-flex items-center gap-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(event) => onSelect?.(event.target.checked)}
+            className="h-4 w-4 rounded border-white/20 bg-black/30 accent-violet-500"
           />
-        ) : null}
-        {/* Cap at one secondary action. Proof is supporting evidence, not an
-            economic action, so it never becomes the highlighted primary
-            button - but when there's real, unresolved uncertainty and no
-            persisted Agent result yet, offering to resolve it is more
-            useful here than a second "View proof" click. */}
-        {(!work.primaryAction || work.primaryAction.id === "discover.open_evidence") &&
-        !work.agentResult &&
-        agentReviewSecondaryAction(work) ? (
-          <ContextualAction action={agentReviewSecondaryAction(work)!} item={context} onOpen={onOpen} />
-        ) : (
-          <ContextualAction action={inspectEvidence} item={context} onOpen={onOpen} />
-        )}
+          Add to support bundle
+        </label>
+      ) : null}
+      <div className={ROW_GRID}>
+        {/* Outcome */}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+            {dateLabel(work.updatedAt)}
+          </div>
+          <h3 className="mt-0.5 truncate font-semibold text-white">{work.title}</h3>
+          <p className="truncate text-xs text-slate-500">
+            {work.category?.replaceAll("_", " ") ?? "accepted contribution"}
+          </p>
+        </div>
+        {/* Ecosystem */}
+        <div className="min-w-0 text-xs text-cyan-300">
+          <span className="inline-flex items-center gap-1.5 md:truncate">
+            <GitBranch className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{work.repository ?? "GitHub"}</span>
+          </span>
+        </div>
+        {/* Creator */}
+        <div className="min-w-0 text-xs text-slate-300 md:truncate">{work.creator.name}</div>
+        {/* Observed impact */}
+        <div className="min-w-0 text-xs md:truncate">
+          {impactFact ? (
+            <span className="font-medium text-white">{impactFact}</span>
+          ) : (
+            <span className="text-slate-500">Impact not yet measured</span>
+          )}
+        </div>
+        {/* Funding */}
+        <div className="min-w-0 text-xs text-slate-300 md:truncate">{fundingLabel}</div>
+        {/* Action */}
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          {work.primaryAction &&
+          work.primaryAction.id !== "discover.open_evidence" ? (
+            <ContextualAction
+              action={work.primaryAction}
+              item={context}
+              primary
+              onOpen={onOpen}
+            />
+          ) : null}
+          {/* Cap at one secondary action. Proof is supporting evidence, not an
+              economic action, so it never becomes the highlighted primary
+              button - but when there's real, unresolved uncertainty and no
+              persisted Agent result yet, offering to resolve it is more
+              useful here than a second "View proof" click. */}
+          {(!work.primaryAction || work.primaryAction.id === "discover.open_evidence") &&
+          !work.agentResult &&
+          agentReviewSecondaryAction(work) ? (
+            <ContextualAction action={agentReviewSecondaryAction(work)!} item={context} onOpen={onOpen} />
+          ) : (
+            <ContextualAction action={inspectEvidence} item={context} onOpen={onOpen} />
+          )}
+        </div>
       </div>
+      {hasDetails ? (
+        <details className="mt-2 group">
+          <summary className="cursor-pointer list-none text-[11px] text-slate-500 hover:text-slate-300">
+            Details
+          </summary>
+          <div className="mt-2 border-t border-white/[0.06] pt-3">
+            <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+              <span className="text-emerald-300">
+                {work.verificationStatus === "verified" ||
+                work.verificationStatus.startsWith("verified_")
+                  ? "Evidence verified"
+                  : `Evidence ${work.verificationStatus.replaceAll("_", " ")}`}
+              </span>
+              <span>{coverageState}</span>
+              <span>{payoutState}</span>
+            </div>
+            <ImpactSummary profile={work.impactProfile} />
+            <EconomicMatchSummary match={work.economicMatch} />
+            {work.agentResult?.summary ? (
+              <p className="mt-3 max-w-3xl text-xs leading-5 text-cyan-200/80">
+                <span className="font-medium text-cyan-200">Agent result:</span>{" "}
+                {work.agentResult.summary}
+              </p>
+            ) : null}
+            <WhySurfaced work={work} />
+            {work.entityState?.blocker ? (
+              <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
+                {work.entityState.blocker}
+              </p>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
     </article>
   );
 }

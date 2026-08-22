@@ -610,6 +610,23 @@ function WhySurfaced({ work }: { work: MarketplaceOpportunity }) {
   );
 }
 
+/** The real source ecosystem for the dense row's Ecosystem column - never a
+ * "GitHub" fallback for a non-GitHub source just because `repository` is
+ * unset. */
+function ecosystemLabel(work: MarketplaceOpportunity): string {
+  if (work.repository) return work.repository;
+  switch (work.source.type) {
+    case "research_work":
+      return "Research";
+    case "listenbrainz_listen":
+      return "Media";
+    case "open_collective_contribution":
+      return "Open Collective";
+    default:
+      return work.category ?? "Verified work";
+  }
+}
+
 /** The single strongest, most concrete impact fact for a dense row - never
  * a blended score, always the first real connector-observed signal. */
 function strongestImpactFact(profile?: ImpactProfile): string | null {
@@ -748,11 +765,9 @@ function WorkRow({
           </p>
         </div>
         {/* Ecosystem */}
-        <div className="min-w-0 text-xs text-cyan-300">
-          <span className="inline-flex items-center gap-1.5 md:truncate">
-            <GitBranch className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{work.repository ?? "GitHub"}</span>
-          </span>
+        <div className="flex min-w-0 items-center gap-1.5 text-xs text-cyan-300">
+          <GitBranch className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 truncate">{ecosystemLabel(work)}</span>
         </div>
         {/* Creator */}
         <div className="min-w-0 text-xs text-slate-300 md:truncate">{work.creator.name}</div>

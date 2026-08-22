@@ -172,7 +172,7 @@ function sourceFailure(
   };
 }
 
-async function loadPersistedOpportunities() {
+export async function loadPersistedOpportunities() {
   const rows = await prisma.discoverOpportunity.findMany({
     where: {
       visibility: "public",

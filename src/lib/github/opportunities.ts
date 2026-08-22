@@ -1,5 +1,7 @@
 import { ingestRepository } from "@/lib/github/adapter";
 import { fetchGithubProject } from "@/lib/integrations/libraries-io";
+import { findNpmPackagesForRepo } from "@/lib/integrations/npm-registry";
+import { fetchAdvisoriesForNpmPackage } from "@/lib/integrations/github-advisories";
 import { computeRepoHealth } from "@/lib/github/repo-health";
 import { buildGitHubFundingActivity } from "@/lib/github/funding-activity";
 import type { FundingOpportunity, RepoIngestResult } from "@/lib/github/types";
@@ -20,6 +22,7 @@ export const RADAR_TARGETS = [
 export function buildFundingOpportunity(
   ingest: RepoIngestResult,
   adoption?: FundingOpportunity["adoption"],
+  security?: FundingOpportunity["security"],
 ): FundingOpportunity {
   const health = computeRepoHealth(ingest);
   const highImpactPrs = ingest.pullRequests.filter(
@@ -52,6 +55,7 @@ export function buildFundingOpportunity(
     activity: buildGitHubFundingActivity(ingest),
     dependencies: ingest.dependencies,
     adoption,
+    security,
   };
 }
 
@@ -76,16 +80,48 @@ export async function observeRepositoryAdoption(
   };
 }
 
+/**
+ * Observes GitHub Security Advisories with a published fix, scoped to
+ * exactly this repository's canonically-confirmed npm package name(s).
+ * Returns undefined when no connector produced an observation - callers
+ * must treat that as "not yet observed", never as "no advisories exist".
+ */
+export async function observeSecurityAdvisories(
+  owner: string,
+  repo: string,
+): Promise<FundingOpportunity["security"]> {
+  const packageNames = await findNpmPackagesForRepo(owner, repo).catch(() => []);
+  if (!packageNames.length) return undefined;
+
+  const results = await Promise.allSettled(
+    packageNames.map((name) => fetchAdvisoriesForNpmPackage(name)),
+  );
+  const advisoriesWithPublishedFix = results
+    .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof fetchAdvisoriesForNpmPackage>>> => r.status === "fulfilled")
+    .flatMap((r) => r.value)
+    .filter((advisory) => advisory.patchedVersions)
+    .map((advisory) => ({
+      ghsaId: advisory.ghsaId,
+      cveId: advisory.cveId,
+      patchedVersions: advisory.patchedVersions!,
+      htmlUrl: advisory.htmlUrl,
+    }));
+
+  if (!advisoriesWithPublishedFix.length) return undefined;
+  return { advisoriesWithPublishedFix, observedAt: new Date().toISOString() };
+}
+
 export async function scanFundingOpportunity(
   owner: string,
   repo: string,
 ): Promise<FundingOpportunity | null> {
-  const [ingest, adoption] = await Promise.all([
+  const [ingest, adoption, security] = await Promise.all([
     ingestRepository(owner, repo, { prLimit: 8 }),
     observeRepositoryAdoption(owner, repo),
+    observeSecurityAdvisories(owner, repo),
   ]);
   if (!ingest) return null;
-  return buildFundingOpportunity(ingest, adoption);
+  return buildFundingOpportunity(ingest, adoption, security);
 }
 
 export async function scanAllOpportunities(): Promise<FundingOpportunity[]> {

@@ -213,6 +213,24 @@ export interface FundingOpportunity {
     source: string;
     observedAt: string;
   };
+  /**
+   * Authoritative security-advisory disclosure for this repository's
+   * canonically-confirmed npm package(s). Each entry proves only that
+   * GitHub's advisory database defines a patched version for that
+   * advisory - it does NOT prove this repository's currently-published
+   * package has adopted that patched version (see
+   * security-advisory-signal-source's classification discipline). Absent
+   * when no connector produced an observation.
+   */
+  security?: {
+    advisoriesWithPublishedFix: Array<{
+      ghsaId: string;
+      cveId: string | null;
+      patchedVersions: string;
+      htmlUrl: string;
+    }>;
+    observedAt: string;
+  };
 }
 
 export interface GitHubAllocationResult {

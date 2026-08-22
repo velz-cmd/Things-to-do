@@ -189,8 +189,8 @@ export function toCanonicalPoolRecord(pool: DiscoverPool): CanonicalMarketRecord
       canonicalSubject: pool.communitySlug,
     },
     provenance: {
-      observedAt: pool.id,
-      lastObservedAt: pool.id,
+      observedAt: pool.observedAt,
+      lastObservedAt: pool.updatedAt,
       verificationStatus: pool.publicationState,
       provesClaim: pool.purpose ?? "A registered community funding Pool exists.",
       doesNotProveClaim:
@@ -266,6 +266,60 @@ export function toCanonicalAgentResultRecord(input: {
       title: `${result.serviceId} result`,
       context: result.summary ?? "No summary was returned.",
     },
+  };
+}
+
+/**
+ * Phase 1G corrective: canonical search-document projection.
+ *
+ * This is the searchable-index FOUNDATION only - a deterministic, pure
+ * projection of the fields a search index would key on. It is not Phase
+ * 12's search UI/engine; nothing here queries anything or ranks results.
+ * It exists so a future search implementation has one normalized shape to
+ * index, instead of every caller re-deciding which CanonicalMarketRecord
+ * fields count as "searchable" for its domain.
+ *
+ * canonicalSubject already covers repository/package/project identity for
+ * software; for domains where the record's own subject is its source
+ * record ID (research: DOI/arXiv id embedded in source.id; media: a
+ * recording identity), sourceRecordId is included so that identity is
+ * still searchable even when canonicalSubject is absent - never invented,
+ * only what the record already carries.
+ */
+export type CanonicalSearchDocument = {
+  canonicalId: string;
+  domain: CanonicalMarketDomain;
+  title: string;
+  canonicalSubject?: string;
+  actorName: string;
+  /** Deduplicated, trimmed terms a search index should key this record on. */
+  searchableTerms: string[];
+};
+
+export function toCanonicalSearchDocument(
+  record: CanonicalMarketRecord,
+): CanonicalSearchDocument {
+  const candidates = [
+    record.presentation.title,
+    record.identity.canonicalSubject,
+    record.identity.sourceRecordId,
+    record.attribution.actorName,
+  ];
+  const searchableTerms = [
+    ...new Set(
+      candidates
+        .map((term) => term?.trim())
+        .filter((term): term is string => Boolean(term)),
+    ),
+  ];
+
+  return {
+    canonicalId: record.identity.canonicalId,
+    domain: record.identity.domain,
+    title: record.presentation.title,
+    canonicalSubject: record.identity.canonicalSubject,
+    actorName: record.attribution.actorName,
+    searchableTerms,
   };
 }
 

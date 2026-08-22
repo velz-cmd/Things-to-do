@@ -205,8 +205,22 @@ export function githubWorkImpactProfile(input: {
     source?: string;
     observedAt?: string | null;
   } | null;
+  /**
+   * Durably persisted (see FundingOpportunity.security /
+   * discover-repository-snapshot) - never re-fetched per request. Naming
+   * matches the connector's own honesty discipline: this counts advisories
+   * for which GitHub's database defines a patched version, NOT advisories
+   * this repository has confirmed adopting.
+   */
+  security?: {
+    advisoriesWithPublishedFix?: Array<{ htmlUrl: string }> | null;
+    observedAt?: string | null;
+  } | null;
 }): ImpactProfile {
   const adoption = input.adoption;
+  const security = input.security;
+  const advisoryCount = security?.advisoriesWithPublishedFix?.length ?? 0;
+
   return buildImpactProfile(
     [
       impactSignal({
@@ -217,6 +231,18 @@ export function githubWorkImpactProfile(input: {
         source: adoption?.source ?? "Libraries.io",
         sourceUrl: `https://libraries.io/github/${input.repositoryFullName}`,
         observedAt: adoption?.observedAt,
+      }),
+      impactSignal({
+        id: "advisories_with_published_fix",
+        label: "Patched versions available for advisories",
+        count: advisoryCount,
+        scope: "repository",
+        source: "GitHub Security Advisories",
+        sourceUrl:
+          advisoryCount === 1
+            ? security!.advisoriesWithPublishedFix![0].htmlUrl
+            : `https://github.com/${input.repositoryFullName}/security/advisories`,
+        observedAt: security?.observedAt,
       }),
     ],
     "No connector has produced an adoption or outcome observation for this work yet, so its impact is not yet measurable.",

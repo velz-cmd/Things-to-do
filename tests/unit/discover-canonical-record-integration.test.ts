@@ -99,6 +99,8 @@ describe("canonical market record - Phase 1 multi-domain integration", () => {
     name: "Security response fund",
     owner: "Operator",
     communitySlug: "react",
+    observedAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-02T00:00:00.000Z",
     purpose: "Fund security remediation",
     type: "security",
     eligibleOpportunityTypes: [],
@@ -177,6 +179,21 @@ describe("canonical market record - Phase 1 multi-domain integration", () => {
     for (const r of records) {
       const json = JSON.stringify(r).toLowerCase();
       expect(json).not.toMatch(/\bdemo_|\bsample_|\bfake_|\bmock_/);
+    }
+  });
+
+  it("Phase 1 corrective D: every provenance timestamp is a real, valid ISO timestamp - never an entity ID substituted for one", () => {
+    for (const r of records) {
+      for (const field of [r.provenance.observedAt, r.provenance.lastObservedAt] as const) {
+        expect(field).toBeTruthy();
+        const parsed = new Date(field);
+        expect(Number.isNaN(parsed.getTime())).toBe(false);
+        expect(field).toBe(parsed.toISOString());
+      }
+      if (r.provenance.refreshedAt) {
+        const parsed = new Date(r.provenance.refreshedAt);
+        expect(Number.isNaN(parsed.getTime())).toBe(false);
+      }
     }
   });
 });

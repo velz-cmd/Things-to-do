@@ -109,6 +109,7 @@ export function normalizeGithubAcceptedWork(
           impactProfile: githubWorkImpactProfile({
             repositoryFullName: repository.fullName,
             adoption: repository.adoption,
+            security: repository.security,
           }),
           entityState: {
             provenance: "external_integration",

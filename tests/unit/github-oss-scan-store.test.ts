@@ -163,6 +163,70 @@ describe("GitHub OSS persisted store", () => {
     ]);
   });
 
+  it("Phase 1 corrective B: a confirmed security-advisory observation persisted through the durable store boundary survives a later live-provider failure", async () => {
+    // This is the actual durable-store boundary (mocked Prisma), not a
+    // mocked Redis cache: it proves the confirmed observation is read back
+    // from Postgres-shaped storage, independent of any cache TTL/eviction.
+    const withSecurity = opportunity("acme/widgets", "patched fix published");
+    withSecurity.security = {
+      advisoriesWithPublishedFix: [
+        {
+          ghsaId: "GHSA-real",
+          cveId: "CVE-2026-0001",
+          patchedVersions: ">=2.0.1",
+          htmlUrl: "https://github.com/advisories/GHSA-real",
+        },
+      ],
+      observedAt: "2026-08-01T00:00:00.000Z",
+    };
+    snapshotRows.mockResolvedValue([
+      {
+        owner: withSecurity.owner,
+        repo: withSecurity.repo,
+        fullName: withSecurity.fullName,
+        payload: withSecurity,
+        observedAt: new Date(),
+      },
+    ]);
+
+    const { loadStoredOssOpportunities } = await import(
+      "@/lib/github/oss-scan-store"
+    );
+    // Simulates: provider succeeded once (row above already persisted),
+    // then a later live refresh fails - loadStoredOssOpportunities never
+    // calls a live connector itself, so reading it again is exactly the
+    // "durable observation survives a later failed attempt" behavior.
+    const first = await loadStoredOssOpportunities();
+    const second = await loadStoredOssOpportunities();
+
+    for (const result of [first, second]) {
+      expect(result.opportunities[0]?.security).toEqual({
+        advisoriesWithPublishedFix: [
+          expect.objectContaining({ ghsaId: "GHSA-real", patchedVersions: ">=2.0.1" }),
+        ],
+        observedAt: "2026-08-01T00:00:00.000Z",
+      });
+    }
+  });
+
+  it("still returns the persisted record when its security field is absent (never observed), never substituting a fabricated zero-advisory state", async () => {
+    const noSecurity = opportunity("acme/no-advisories", "no advisories yet");
+    snapshotRows.mockResolvedValue([
+      {
+        owner: noSecurity.owner,
+        repo: noSecurity.repo,
+        fullName: noSecurity.fullName,
+        payload: noSecurity,
+        observedAt: new Date(),
+      },
+    ]);
+    const { loadStoredOssOpportunities } = await import(
+      "@/lib/github/oss-scan-store"
+    );
+    const result = await loadStoredOssOpportunities();
+    expect(result.opportunities[0]?.security).toBeUndefined();
+  });
+
   it("reports staleness per repository", async () => {
     const fresh = opportunity("owner/fresh", "fresh");
     const stale = opportunity("owner/stale", "stale");

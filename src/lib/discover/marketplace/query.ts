@@ -20,7 +20,6 @@ import { loadCommunityFundingSignals } from "./community-funding-source";
 import { loadResearchSignals } from "./research-signal-source";
 import { loadMediaSignals } from "./media-signal-source";
 import { attachNpmDockerAdoption } from "./npm-docker-adoption";
-import { attachSecurityAdvisorySignals } from "./security-advisory-signal-source";
 import {
   getAgentResultsForSubjects,
   type PersistedAgentResult,
@@ -362,8 +361,7 @@ async function loadVerifiedGithubWork() {
   });
   const normalized = normalizeGithubAcceptedWork(stored.opportunities, evidence);
   try {
-    const withAdoption = await attachNpmDockerAdoption(normalized);
-    return await attachSecurityAdvisorySignals(withAdoption);
+    return await attachNpmDockerAdoption(normalized);
   } catch {
     return normalized;
   }
@@ -1964,6 +1962,8 @@ export function listPools(
         name: item.pool.name,
         owner: item.creator.name,
         communitySlug: item.community.id ?? item.community.name,
+        observedAt: item.publishedAt,
+        updatedAt: item.updatedAt,
         purpose: item.summary,
         type: poolType(item),
         balanceUsd: balance,

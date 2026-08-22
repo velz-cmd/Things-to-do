@@ -1,5 +1,6 @@
 import { searchCrossref, pingCrossref } from "@/lib/integrations/crossref";
 import { searchOpenAlexWorks } from "@/lib/integrations/openalex";
+import { normalizeDoi } from "@/lib/integrations/canonical-identity";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
 import type { ImpactProfile, ImpactSignal } from "@/lib/discover/impact/impact-signals";
@@ -33,10 +34,6 @@ type MergedWork = {
   published?: string;
   signals: ImpactSignal[];
 };
-
-function normalizeDoi(doi: string): string {
-  return doi.trim().replace(/^https?:\/\/doi\.org\//i, "").toLowerCase();
-}
 
 export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
   const [crossrefWorks, openAlexWorks] = await Promise.all([

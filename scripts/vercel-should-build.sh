@@ -10,6 +10,7 @@ CANONICAL_PROJECT_ID="prj_0xIUtSzxZ2Cqeie8eHYB6iPAKIN0"
 DISCOVER_PREVIEW_REF="codex/discover-final-production"
 DISCOVER_ACTIONS_PREVIEW_REF="codex/discover-economic-actions"
 DISCOVER_COMPLETION_PREVIEW_REF="fix/discover-marketplace-completion"
+DISCOVER_HYDRATION_PREVIEW_REF="fix/discover-hydration-and-phases"
 
 if [ "$PROJECT_ID" != "$CANONICAL_PROJECT_ID" ]; then
   echo "skip: project $PROJECT_ID is not the canonical RESOLVE project"
@@ -21,7 +22,7 @@ if [ "$REF" = "main" ] && [ "$ENV" = "production" ]; then
   exit 1
 fi
 
-if [ "$ENV" = "preview" ] && { [ "$REF" = "$DISCOVER_PREVIEW_REF" ] || [ "$REF" = "$DISCOVER_ACTIONS_PREVIEW_REF" ] || [ "$REF" = "$DISCOVER_COMPLETION_PREVIEW_REF" ]; }; then
+if [ "$ENV" = "preview" ] && { [ "$REF" = "$DISCOVER_PREVIEW_REF" ] || [ "$REF" = "$DISCOVER_ACTIONS_PREVIEW_REF" ] || [ "$REF" = "$DISCOVER_COMPLETION_PREVIEW_REF" ] || [ "$REF" = "$DISCOVER_HYDRATION_PREVIEW_REF" ]; }; then
   echo "build: verified Discover preview ($REF)"
   exit 1
 fi

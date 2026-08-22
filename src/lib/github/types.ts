@@ -191,6 +191,8 @@ export interface FundingOpportunity {
   owner: string;
   repo: string;
   fullName: string;
+  /** Real timestamp this snapshot was ingested. Never fabricated - absent when the ingest that produced this record predates this field. */
+  observedAt?: string;
   description?: string;
   stars: number;
   forks: number;

@@ -44,6 +44,7 @@ export function buildFundingOpportunity(
     owner: ingest.owner,
     repo: ingest.repo,
     fullName: ingest.fullName,
+    observedAt: ingest.ingestedAt,
     description: ingest.description ?? undefined,
     stars: ingest.stars,
     forks: ingest.forks,

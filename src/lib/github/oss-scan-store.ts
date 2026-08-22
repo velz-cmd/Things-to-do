@@ -27,6 +27,7 @@ const fundingOpportunitySchema = z.object({
   owner: z.string().min(1),
   repo: z.string().min(1),
   fullName: z.string().regex(/^[^/]+\/[^/]+$/),
+  observedAt: z.string().optional(),
   description: z
     .string()
     .nullish()

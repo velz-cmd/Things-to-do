@@ -641,6 +641,35 @@ function ecosystemLabel(work: MarketplaceOpportunity): string {
   }
 }
 
+/** The real source platform name, for the row's quiet metadata line - never a decorative badge. */
+function platformLabel(work: MarketplaceOpportunity): string {
+  switch (work.source.type) {
+    case "github_evidence":
+    case "repository_snapshot":
+      return "GitHub";
+    case "research_work":
+      return "Research index";
+    case "listenbrainz_listen":
+      return "ListenBrainz";
+    case "open_collective_contribution":
+      return "Open Collective";
+    default:
+      return "";
+  }
+}
+
+/**
+ * Truthful role label (Phase 2 item 2/9): GitHub evidence proves
+ * contribution/authorship/publication, never "maintainer". A release
+ * outcome's creator published that release; every other GitHub-evidence
+ * outcome's creator contributed it. Never inflated for how it reads.
+ */
+function creatorRoleLabel(work: MarketplaceOpportunity): string {
+  if (work.id.startsWith("github-release:")) return "Release publisher";
+  if (work.source.type === "github_evidence") return "Contributor";
+  return "";
+}
+
 /** The single strongest, most concrete impact fact for a dense row - never
  * a blended score, always the first real connector-observed signal. */
 function strongestImpactFact(profile?: ImpactProfile): string | null {
@@ -711,30 +740,31 @@ function WorkRow({
   // ledger, not unfunded GitHub work waiting on attribution/payout - running
   // them through the GitHub-shaped payout/coverage logic above would show
   // "No settlement route yet" on money that already moved.
+  //
+  // Three visual zones, not six equal fields: outcome (title + quiet
+  // ecosystem/creator line), state (strongest fact + funding state), one
+  // action. Backend still carries every field; the row reads as one
+  // sentence, not six competing decisions.
   const ROW_GRID =
-    "grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,2.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)_auto] md:items-center";
+    "grid gap-x-5 gap-y-1.5 md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.5fr)_auto] md:items-center";
 
   if (work.source.type === "open_collective_contribution") {
     return (
       <article className="rounded-xl border border-white/[0.08] bg-[#091522] px-4 py-3">
         <div className={ROW_GRID}>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
-              <span className="inline-flex items-center gap-1.5 text-emerald-300">
-                <CircleDollarSign className="h-3.5 w-3.5" />
-                Community funding
-              </span>
-              {dateLabel(work.updatedAt)}
-            </div>
-            <h3 className="mt-1 truncate font-semibold text-white">{work.title}</h3>
+            <h3 className="truncate font-semibold text-white">{work.title}</h3>
+            <p className="mt-0.5 truncate text-xs text-slate-500">
+              Open Collective · {work.summary}
+            </p>
           </div>
-          <div className="min-w-0 text-xs text-slate-400 md:truncate">Open Collective</div>
-          <div className="min-w-0 text-xs text-slate-400 md:truncate">{work.summary}</div>
-          <div className="min-w-0 text-xs text-emerald-300 md:truncate">
-            {money(work.funding?.fundedAmountUsd)} confirmed
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium text-emerald-300">
+              {money(work.funding?.fundedAmountUsd)} confirmed
+            </p>
+            <p className="truncate text-[11px] text-slate-500">{dateLabel(work.updatedAt)}</p>
           </div>
-          <div className="min-w-0 text-xs text-slate-400 md:truncate">Confirmed</div>
-          <div className="flex flex-wrap gap-2 md:justify-end">
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
             {work.primaryAction ? (
               <ContextualAction action={work.primaryAction} item={context} onOpen={onOpen} primary />
             ) : null}
@@ -768,34 +798,34 @@ function WorkRow({
         </label>
       ) : null}
       <div className={ROW_GRID}>
-        {/* Outcome */}
+        {/* Outcome: title, then one quiet line - ecosystem/platform/creator role.
+            Rich data stays visible; it reads as one sentence, not three fields. */}
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
-            {dateLabel(work.updatedAt)}
-          </div>
-          <h3 className="mt-0.5 truncate font-semibold text-white">{work.title}</h3>
-          <p className="truncate text-xs text-slate-500">
-            {work.category?.replaceAll("_", " ") ?? "accepted contribution"}
+          <h3 className="truncate font-semibold text-white">{work.title}</h3>
+          <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 truncate text-xs text-slate-500">
+            <GitBranch className="h-3 w-3 shrink-0 text-slate-600" aria-hidden />
+            <span className="min-w-0 truncate">{ecosystemLabel(work)}</span>
+            {platformLabel(work) ? <span aria-hidden>·</span> : null}
+            {platformLabel(work) ? <span>{platformLabel(work)}</span> : null}
+            <span aria-hidden>·</span>
+            <span>
+              {creatorRoleLabel(work) ? `${creatorRoleLabel(work)} ` : ""}
+              {work.creator.name}
+            </span>
           </p>
         </div>
-        {/* Ecosystem */}
-        <div className="flex min-w-0 items-center gap-1.5 text-xs text-cyan-300">
-          <GitBranch className="h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0 truncate">{ecosystemLabel(work)}</span>
+        {/* State: the one strongest observed fact, then the funding state quietly beneath it. */}
+        <div className="min-w-0">
+          <p className="truncate text-xs">
+            {impactFact ? (
+              <span className="font-medium text-white">{impactFact}</span>
+            ) : (
+              <span className="text-slate-500">Impact not yet measured</span>
+            )}
+          </p>
+          <p className="mt-0.5 truncate text-[11px] text-slate-500">{fundingLabel}</p>
         </div>
-        {/* Creator */}
-        <div className="min-w-0 text-xs text-slate-300 md:truncate">{work.creator.name}</div>
-        {/* Observed impact */}
-        <div className="min-w-0 text-xs md:truncate">
-          {impactFact ? (
-            <span className="font-medium text-white">{impactFact}</span>
-          ) : (
-            <span className="text-slate-500">Impact not yet measured</span>
-          )}
-        </div>
-        {/* Funding */}
-        <div className="min-w-0 text-xs text-slate-300 md:truncate">{fundingLabel}</div>
-        {/* Action */}
+        {/* Action: exactly one primary, at most one quiet secondary. */}
         <div className="flex flex-wrap items-center gap-2 md:justify-end">
           {work.primaryAction &&
           work.primaryAction.id !== "discover.open_evidence" ? (

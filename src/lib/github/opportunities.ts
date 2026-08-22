@@ -89,6 +89,23 @@ export async function observeRepositoryAdoption(
  * exactly this repository's canonically-confirmed npm package name(s).
  * Returns undefined when no connector produced an observation - callers
  * must treat that as "not yet observed", never as "no advisories exist".
+ *
+ * Phase 2 item 3 (security <-> release linking) conclusion: a genuinely
+ * stronger claim ("Security fix release observed") would require proving
+ * GHSA-real.patchedVersions actually satisfies this repository's live
+ * published package version - i.e. real semver-range evaluation against
+ * GitHub's advisory data. GHSA's patched_versions string is not one
+ * standardized grammar (comma-joined ranges, "0" meaning "no fix", etc.),
+ * and this repo has no declared semver dependency to evaluate it safely
+ * (only a transitive, undeclared one exists in node_modules today). A
+ * wrong range parse would produce a confidently false "fix confirmed"
+ * claim, which is worse than the honest narrower signal this module
+ * already reports. Conclusion recorded per the product spec's own
+ * acceptable-outcome clause: security-release linking is NOT provable
+ * with current authoritative, safely-parseable data. The narrower
+ * "advisories_with_published_fix" signal (see impact-signals.ts) is the
+ * correct and final claim until a properly declared, tested semver
+ * dependency is added specifically for this purpose.
  */
 export async function observeSecurityAdvisories(
   owner: string,

@@ -2,7 +2,6 @@ import { ingestRepository } from "@/lib/github/adapter";
 import { fetchGithubProject } from "@/lib/integrations/libraries-io";
 import { findNpmPackagesForRepo } from "@/lib/integrations/npm-registry";
 import { fetchAdvisoriesForNpmPackage } from "@/lib/integrations/github-advisories";
-import { fetchReleasesForRepo } from "@/lib/integrations/github-releases";
 import { computeRepoHealth } from "@/lib/github/repo-health";
 import { buildGitHubFundingActivity } from "@/lib/github/funding-activity";
 import type { FundingOpportunity, RepoIngestResult } from "@/lib/github/types";
@@ -115,23 +114,24 @@ export async function observeSecurityAdvisories(
 }
 
 /**
- * Observes real, non-draft GitHub Releases for a repository. Undefined
- * when the connector produced nothing - never an empty array standing in
- * for "no releases exist" (an empty array IS a valid observation once the
- * connector actually ran; undefined means it never ran/produced data).
+ * Builds the durable release observation from the repository ingest that
+ * already ran (RepoIngestResult.releases, populated by adapter.ts's own
+ * GitHub Releases fetch - draft-excluded there already). Deliberately not
+ * a second network call: the ingest already fetched this exact data, and
+ * fetching it again per scan would duplicate an auth path that already
+ * exists. Undefined when nothing was observed - never an empty array
+ * standing in for "no releases exist".
  */
-export async function observeReleases(
-  owner: string,
-  repo: string,
-): Promise<FundingOpportunity["releases"]> {
-  const releases = await fetchReleasesForRepo(owner, repo).catch(() => []);
+export function buildReleaseObservation(
+  releases: RepoIngestResult["releases"],
+): FundingOpportunity["releases"] {
   if (!releases.length) return undefined;
   return releases.map((release) => ({
     id: release.id,
     tagName: release.tagName,
     name: release.name,
-    publishedAt: release.publishedAt,
-    htmlUrl: release.htmlUrl,
+    publishedAt: release.publishedAt ?? null,
+    htmlUrl: release.sourceUrl,
     author: release.author,
     prerelease: release.prerelease,
   }));
@@ -141,14 +141,18 @@ export async function scanFundingOpportunity(
   owner: string,
   repo: string,
 ): Promise<FundingOpportunity | null> {
-  const [ingest, adoption, security, releases] = await Promise.all([
+  const [ingest, adoption, security] = await Promise.all([
     ingestRepository(owner, repo, { prLimit: 8 }),
     observeRepositoryAdoption(owner, repo),
     observeSecurityAdvisories(owner, repo),
-    observeReleases(owner, repo),
   ]);
   if (!ingest) return null;
-  return buildFundingOpportunity(ingest, adoption, security, releases);
+  return buildFundingOpportunity(
+    ingest,
+    adoption,
+    security,
+    buildReleaseObservation(ingest.releases),
+  );
 }
 
 export async function scanAllOpportunities(): Promise<FundingOpportunity[]> {

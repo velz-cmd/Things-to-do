@@ -56,6 +56,7 @@ export interface GitHubRelease {
   author: string;
   publishedAt?: string;
   sourceUrl: string;
+  prerelease: boolean;
 }
 
 export interface GitHubDependency {

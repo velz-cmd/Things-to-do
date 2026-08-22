@@ -20,6 +20,7 @@ import { loadCommunityFundingSignals } from "./community-funding-source";
 import { loadResearchSignals } from "./research-signal-source";
 import { loadMediaSignals } from "./media-signal-source";
 import { attachNpmDockerAdoption } from "./npm-docker-adoption";
+import { attachSecurityAdvisorySignals } from "./security-advisory-signal-source";
 import {
   getAgentResultsForSubjects,
   type PersistedAgentResult,
@@ -361,7 +362,8 @@ async function loadVerifiedGithubWork() {
   });
   const normalized = normalizeGithubAcceptedWork(stored.opportunities, evidence);
   try {
-    return await attachNpmDockerAdoption(normalized);
+    const withAdoption = await attachNpmDockerAdoption(normalized);
+    return await attachSecurityAdvisorySignals(withAdoption);
   } catch {
     return normalized;
   }

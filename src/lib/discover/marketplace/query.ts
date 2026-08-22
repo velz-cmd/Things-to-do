@@ -136,7 +136,7 @@ async function loadConfirmedFundingUsd() {
   return confirmedFundingUsd(rows[0]?.total_micro_usdc);
 }
 
-function sourceFailure(
+export function sourceFailure(
   source: string,
   requestId: string,
   error: unknown,
@@ -758,6 +758,11 @@ export function sortMarketplaceOpportunities(
   items: MarketplaceOpportunity[],
   filters: OpportunityFilters,
 ) {
+  // Every branch ends in publishedAt then id so shared inventory order is
+  // fully deterministic even when two records tie on the primary sort key
+  // (same deadline, same funded amount, same publish instant) - it must
+  // never fall back to insertion/Promise-resolution order, which is not
+  // guaranteed stable across requests or connector latency.
   return [...items].sort((a, b) => {
     if (filters.sort === "closing_soon") {
       const aDeadline = a.deadline
@@ -767,20 +772,24 @@ export function sortMarketplaceOpportunities(
         ? new Date(b.deadline).getTime()
         : Number.MAX_SAFE_INTEGER;
       return (
-        aDeadline - bDeadline || b.publishedAt.localeCompare(a.publishedAt)
+        aDeadline - bDeadline ||
+        b.publishedAt.localeCompare(a.publishedAt) ||
+        b.id.localeCompare(a.id)
       );
     }
     if (filters.sort === "most_funded") {
       return (
         (b.funding?.fundedAmountUsd ?? -1) -
           (a.funding?.fundedAmountUsd ?? -1) ||
-        b.publishedAt.localeCompare(a.publishedAt)
+        b.publishedAt.localeCompare(a.publishedAt) ||
+        b.id.localeCompare(a.id)
       );
     }
     if (filters.sort === "most_active") {
       return (
         (b.applicationCount ?? 0) - (a.applicationCount ?? 0) ||
-        b.publishedAt.localeCompare(a.publishedAt)
+        b.publishedAt.localeCompare(a.publishedAt) ||
+        b.id.localeCompare(a.id)
       );
     }
     return (
@@ -1953,6 +1962,8 @@ export function listPools(
         name: item.pool.name,
         owner: item.creator.name,
         communitySlug: item.community.id ?? item.community.name,
+        observedAt: item.publishedAt,
+        updatedAt: item.updatedAt,
         purpose: item.summary,
         type: poolType(item),
         balanceUsd: balance,

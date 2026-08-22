@@ -1,4 +1,5 @@
 import { env, INTEGRATIONS } from "@/lib/integrations/config";
+import { repositoryLinkMatchesGithub } from "@/lib/integrations/canonical-identity";
 
 export type LibrariesIoGithubRepo = {
   name: string;
@@ -69,17 +70,11 @@ export async function fetchPackageDependentsForRepo(
   // would match "github.com/foo/reactjs" against a search for "foo/react".
   // Only accept a result whose repository_url resolves to exactly this
   // owner/repo.
-  const targetRepo = `github.com/${owner}/${repo}`.toLowerCase();
-  const match = results.find((p) => {
-    const url = p.repository_url ?? "";
-    const normalized = url
-      .replace(/^git\+/, "")
-      .replace(/\.git$/, "")
-      .replace(/^https?:\/\//, "")
-      .replace(/\/$/, "")
-      .toLowerCase();
-    return normalized === targetRepo && (p.dependents_count ?? 0) > 0;
-  });
+  const match = results.find(
+    (p) =>
+      repositoryLinkMatchesGithub(p.repository_url, owner, repo) &&
+      (p.dependents_count ?? 0) > 0,
+  );
   if (!match?.dependents_count) return null;
   return {
     platform: match.platform,

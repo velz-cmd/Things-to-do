@@ -95,6 +95,8 @@ const pool: DiscoverPool = {
   name: "Documentation Pool",
   owner: "Open Writers",
   communitySlug: "writers",
+  observedAt: "2026-08-01T00:00:00.000Z",
+  updatedAt: "2026-08-02T00:00:00.000Z",
   purpose: "Fund accepted documentation work.",
   type: "quadratic-funding",
   balanceUsd: 250,

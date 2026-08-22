@@ -1,4 +1,5 @@
 import { env, isConfigured } from "@/lib/integrations/config";
+import { repositoryLinkMatchesGithub } from "@/lib/integrations/canonical-identity";
 
 export type NpmDownloadStats = {
   packageName: string;
@@ -43,17 +44,8 @@ export async function findNpmPackagesForRepo(
   // that actually declares this repository. Only keep packages whose own
   // `repository` link resolves to this exact owner/repo, so a citation
   // never gets attributed to the wrong project.
-  const targetRepo = `github.com/${owner}/${repo}`.toLowerCase();
   return (data?.objects ?? [])
-    .filter((o) => {
-      const link = o.package.links?.repository ?? "";
-      const normalized = link
-        .replace(/^git\+/, "")
-        .replace(/\.git$/, "")
-        .replace(/^https?:\/\//, "")
-        .toLowerCase();
-      return normalized === targetRepo;
-    })
+    .filter((o) => repositoryLinkMatchesGithub(o.package.links?.repository, owner, repo))
     .map((o) => o.package.name)
     .filter(Boolean);
 }

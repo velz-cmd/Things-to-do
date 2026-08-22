@@ -1,5 +1,6 @@
 import { searchCrossref, pingCrossref } from "@/lib/integrations/crossref";
 import { searchOpenAlexWorks } from "@/lib/integrations/openalex";
+import { normalizeDoi } from "@/lib/integrations/canonical-identity";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
 import type { ImpactProfile, ImpactSignal } from "@/lib/discover/impact/impact-signals";
@@ -34,10 +35,6 @@ type MergedWork = {
   signals: ImpactSignal[];
 };
 
-function normalizeDoi(doi: string): string {
-  return doi.trim().replace(/^https?:\/\/doi\.org\//i, "").toLowerCase();
-}
-
 export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
   const [crossrefWorks, openAlexWorks] = await Promise.all([
     searchCrossref(RESEARCH_QUERY, MAX_WORKS).catch(() => []),
@@ -61,6 +58,7 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
         source: "Crossref",
         sourceUrl: w.url,
         observedAt,
+        classification: "observed",
       });
     }
     byKey.set(key, { key, title: w.title, url: w.url, published: w.published, signals });
@@ -79,6 +77,7 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
             source: "OpenAlex",
             sourceUrl: w.landingPageUrl ?? w.openAlexId,
             observedAt,
+            classification: "observed",
           }
         : null;
     if (existing) {

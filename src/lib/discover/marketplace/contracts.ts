@@ -433,6 +433,10 @@ export type DiscoverPool = {
   name: string;
   owner: string;
   communitySlug: string;
+  /** Real timestamp this Pool record was first observed/published, taken from its underlying opportunity. Never a substitute ID. */
+  observedAt: string;
+  /** Real timestamp of the last observed change to this Pool record. */
+  updatedAt: string;
   purpose?: string;
   type: string;
   balanceUsd?: number;

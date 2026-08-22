@@ -64,6 +64,22 @@ const fundingOpportunitySchema = z.object({
       observedAt: z.string().min(1),
     })
     .optional(),
+  // Optional so previously persisted scans (written before advisory
+  // observation existed) still parse - a missing value means "not yet
+  // observed", never "no advisories exist".
+  security: z
+    .object({
+      advisoriesWithPublishedFix: z.array(
+        z.object({
+          ghsaId: z.string().min(1),
+          cveId: z.string().nullable(),
+          patchedVersions: z.string().min(1),
+          htmlUrl: z.string().url(),
+        }),
+      ),
+      observedAt: z.string().min(1),
+    })
+    .optional(),
   activity: z
     .object({
       observedAt: z.string(),
@@ -152,6 +168,13 @@ export function fingerprintFundingOpportunity(
       ? {
           dependentRepoCount: opportunity.adoption.dependentRepoCount,
           source: opportunity.adoption.source,
+        }
+      : null,
+    security: opportunity.security
+      ? {
+          advisoriesWithPublishedFix: opportunity.security.advisoriesWithPublishedFix.map(
+            (a) => a.ghsaId,
+          ),
         }
       : null,
     records: (activity?.records ?? []).map((record) => ({

@@ -3,6 +3,7 @@ import {
   fetchListenBrainzListens,
   isListenBrainzConfigured,
 } from "@/lib/integrations/listenbrainz";
+import { canonicalMediaId } from "@/lib/integrations/canonical-identity";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
 
@@ -20,13 +21,26 @@ import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contract
  */
 const MAX_LISTENS = 10;
 
+/**
+ * A URL/key-safe identity for this listen event. Delegates the "do we
+ * have strong (MusicBrainz) identity, or only a weak title/artist match"
+ * decision to the shared canonical-identity module; keeps its own
+ * hash-based fallback format here since the shared module's fallback
+ * isn't guaranteed URL-safe for use in a slug.
+ */
 function listenIdentity(input: {
   recordingMbid?: string;
   artistName: string;
   trackTitle: string;
   listenedAt: string;
 }): string {
-  if (input.recordingMbid) return input.recordingMbid;
+  const canonical = canonicalMediaId({
+    recordingMbid: input.recordingMbid,
+    artistName: input.artistName,
+    trackTitle: input.trackTitle,
+    observedAt: input.listenedAt,
+  });
+  if (canonical.strong) return input.recordingMbid!;
   return createHash("sha256")
     .update(`${input.artistName}:${input.trackTitle}:${input.listenedAt}`)
     .digest("hex")
@@ -81,6 +95,7 @@ export async function loadMediaSignals(): Promise<MarketplaceOpportunity[]> {
             scope: "artifact",
             source: "ListenBrainz",
             observedAt: listen.listenedAt,
+            classification: "observed",
           },
         ],
       },

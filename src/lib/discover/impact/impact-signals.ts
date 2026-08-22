@@ -41,6 +41,28 @@ export type ImpactSignalScope =
   /** A property of this specific unit of work. */
   | "work_item";
 
+/**
+ * What kind of claim this signal actually is, so funding logic and UI can
+ * never accidentally treat a heuristic as authoritative economic truth:
+ *
+ * - "observed": a connector directly read this value from an external
+ *   source (a GitHub release, a Crossref citation count, a verified
+ *   ListenBrainz listen). Every ImpactSignal built today is this kind.
+ * - "derived": computed deterministically from one or more observations
+ *   plus policy (a funding match, a checkpoint threshold reached). Not an
+ *   ImpactSignal itself - this lives on EconomicMatch - but named here so
+ *   the same four-way vocabulary is used everywhere in Discover.
+ * - "heuristic": a model/AI-produced estimate with no authoritative
+ *   source. Must never be presented as impact or money.
+ * - "economic": a confirmed on-chain/ledger settlement event. Lives on
+ *   settlement/receipt records, not on ImpactSignal.
+ */
+export type ObservationClassification =
+  | "observed"
+  | "derived"
+  | "heuristic"
+  | "economic";
+
 export type ImpactSignal = {
   /** Stable key, unique within a profile. */
   id: string;
@@ -55,6 +77,14 @@ export type ImpactSignal = {
   sourceUrl?: string;
   /** ISO timestamp of the observation this value came from. */
   observedAt: string;
+  /**
+   * Always "observed" for an ImpactSignal - see ObservationClassification.
+   * A signal that isn't a direct external observation doesn't belong in
+   * ImpactSignal at all; it belongs in EconomicMatch (derived) or must be
+   * excluded entirely (heuristic). Defaults to "observed" so every existing
+   * caller of impactSignal()/buildImpactProfile() keeps working unchanged.
+   */
+  classification: ObservationClassification;
 };
 
 export type ImpactProfile =
@@ -122,6 +152,7 @@ export function impactSignal(input: {
     source: input.source,
     sourceUrl: input.sourceUrl,
     observedAt: input.observedAt,
+    classification: "observed",
   };
 }
 
@@ -174,8 +205,22 @@ export function githubWorkImpactProfile(input: {
     source?: string;
     observedAt?: string | null;
   } | null;
+  /**
+   * Durably persisted (see FundingOpportunity.security /
+   * discover-repository-snapshot) - never re-fetched per request. Naming
+   * matches the connector's own honesty discipline: this counts advisories
+   * for which GitHub's database defines a patched version, NOT advisories
+   * this repository has confirmed adopting.
+   */
+  security?: {
+    advisoriesWithPublishedFix?: Array<{ htmlUrl: string }> | null;
+    observedAt?: string | null;
+  } | null;
 }): ImpactProfile {
   const adoption = input.adoption;
+  const security = input.security;
+  const advisoryCount = security?.advisoriesWithPublishedFix?.length ?? 0;
+
   return buildImpactProfile(
     [
       impactSignal({
@@ -186,6 +231,18 @@ export function githubWorkImpactProfile(input: {
         source: adoption?.source ?? "Libraries.io",
         sourceUrl: `https://libraries.io/github/${input.repositoryFullName}`,
         observedAt: adoption?.observedAt,
+      }),
+      impactSignal({
+        id: "advisories_with_published_fix",
+        label: "Patched versions available for advisories",
+        count: advisoryCount,
+        scope: "repository",
+        source: "GitHub Security Advisories",
+        sourceUrl:
+          advisoryCount === 1
+            ? security!.advisoriesWithPublishedFix![0].htmlUrl
+            : `https://github.com/${input.repositoryFullName}/security/advisories`,
+        observedAt: security?.observedAt,
       }),
     ],
     "No connector has produced an adoption or outcome observation for this work yet, so its impact is not yet measurable.",

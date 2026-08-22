@@ -109,8 +109,44 @@ describe("Discover impact signals", () => {
     }
   });
 
+  it("surfaces an advisories-with-published-fix signal from durably-observed security data, never labeled 'resolved'", () => {
+    const profile = githubWorkImpactProfile({
+      repositoryFullName: "acme/widgets",
+      security: {
+        advisoriesWithPublishedFix: [
+          { htmlUrl: "https://github.com/advisories/GHSA-real" },
+        ],
+        observedAt,
+      },
+    });
+    expect(profile.measurable).toBe(true);
+    if (profile.measurable) {
+      const security = profile.signals.find((s) => s.id === "advisories_with_published_fix");
+      expect(security).toMatchObject({
+        value: "1",
+        scope: "repository",
+        source: "GitHub Security Advisories",
+        sourceUrl: "https://github.com/advisories/GHSA-real",
+        classification: "observed",
+      });
+      expect(security!.label.toLowerCase()).not.toContain("resolved");
+    }
+  });
+
   it("does not produce an empty but measurable profile", () => {
     const profile = buildImpactProfile([null, null], "nothing observed");
     expect(profile.measurable).toBe(false);
+  });
+
+  it("classifies every signal built through impactSignal() as 'observed', never 'heuristic' or 'derived'", () => {
+    const signal = impactSignal({
+      id: "dependent_repositories",
+      label: "Dependent repositories",
+      count: 12,
+      scope: "repository",
+      source: "Libraries.io",
+      observedAt,
+    });
+    expect(signal?.classification).toBe("observed");
   });
 });

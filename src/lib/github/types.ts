@@ -231,6 +231,20 @@ export interface FundingOpportunity {
     }>;
     observedAt: string;
   };
+  /**
+   * Real, non-draft GitHub Releases for this repository (see
+   * github-releases.ts). A release proves only that it was published -
+   * not adoption, not security remediation, not economic value.
+   */
+  releases?: Array<{
+    id: number;
+    tagName: string;
+    name: string | null;
+    publishedAt: string | null;
+    htmlUrl: string;
+    author: string | null;
+    prerelease: boolean;
+  }>;
 }
 
 export interface GitHubAllocationResult {

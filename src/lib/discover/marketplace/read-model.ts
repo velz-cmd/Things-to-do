@@ -135,6 +135,90 @@ export function normalizeGithubAcceptedWork(
   );
 }
 
+const MAX_RELEASES_PER_REPO = 3;
+
+/**
+ * Real GitHub Releases as their own truthful software outcome (Phase 2
+ * item 2/7): "release published" - not an outcome for every commit, and
+ * not the PR/issue title-keyword heuristic. A release proves only that it
+ * was published, so verificationStatus stays "verified_evidence_no_funding_rule"
+ * exactly like accepted-work records: real evidence, no funding claim
+ * until a policy creates one.
+ *
+ * Role semantics (Phase 2 item 5): GitHub proves this person published
+ * this release - it does not prove they are "the maintainer" of the
+ * project. creator.type stays "individual"; "Release publisher" is
+ * stated in the summary, never "maintainer", unless a separate
+ * authoritative source proves that role.
+ */
+export function normalizeGithubReleases(
+  repositories: FundingOpportunity[],
+): MarketplaceOpportunity[] {
+  return repositories.flatMap((repository) => {
+    const releases = (repository.releases ?? []).slice(0, MAX_RELEASES_PER_REPO);
+    return releases.flatMap((release) => {
+      if (!release.publishedAt || !release.author) return [];
+      const identity = `${repository.fullName.toLowerCase()}:release:${release.id}`;
+      const title = release.name?.trim() || `Release ${release.tagName}`;
+      const detailPath = `/discover?view=explore&kind=work&work=${encodeURIComponent(identity)}`;
+      return [
+        {
+          id: `github-release:${identity}`,
+          slug: opaqueSlug("github-release", identity, title),
+          title,
+          summary: `${release.author} published ${release.tagName}${release.prerelease ? " (prerelease)" : ""} for ${repository.fullName}.`,
+          description:
+            "This record comes from GitHub's Releases API. It proves a release was published - it does not by itself prove adoption, security remediation, or economic value.",
+          type: "project_contribution",
+          status: "verified",
+          creator: {
+            type: "individual",
+            name: release.author,
+            verified: true,
+          },
+          repository: repository.fullName,
+          category: "release_work",
+          skills: [],
+          deliverables: [title],
+          evidenceRequirements: ["Persisted GitHub release record"],
+          eligibility: [],
+          provider: { preference: "open" },
+          publishedAt: release.publishedAt,
+          updatedAt: release.publishedAt,
+          verificationStatus: "verified_evidence_no_funding_rule",
+          riskFlags: release.prerelease ? ["prerelease"] : [],
+          source: { type: "github_evidence", id: identity },
+          marketplaceKind: "verified_work",
+          sourceUrl: release.htmlUrl,
+          impactProfile: githubWorkImpactProfile({
+            repositoryFullName: repository.fullName,
+            adoption: repository.adoption,
+            security: repository.security,
+          }),
+          entityState: {
+            provenance: "external_integration",
+            lifecycle: "observed",
+            financialReadiness: "setup_required",
+            blocker: "No active funding policy covers this verified work.",
+          },
+          primaryAction: workbenchAction({
+            id: "discover.open_evidence",
+            label: "View proof",
+            href: detailPath,
+          }, {
+            panel: "evidence",
+            subjectId: identity,
+            sourceUrl: release.htmlUrl,
+            repository: repository.fullName,
+            evidenceIds: [identity],
+          }),
+          secondaryActions: [],
+        } satisfies MarketplaceOpportunity,
+      ];
+    });
+  });
+}
+
 export function normalizeConfirmedOutcomes(
   settlements: LiveSettlementRow[],
 ): MarketplaceOpportunity[] {

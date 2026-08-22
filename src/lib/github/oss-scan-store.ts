@@ -80,6 +80,19 @@ const fundingOpportunitySchema = z.object({
       observedAt: z.string().min(1),
     })
     .optional(),
+  releases: z
+    .array(
+      z.object({
+        id: z.number(),
+        tagName: z.string().min(1),
+        name: z.string().nullable(),
+        publishedAt: z.string().nullable(),
+        htmlUrl: z.string().url(),
+        author: z.string().nullable(),
+        prerelease: z.boolean(),
+      }),
+    )
+    .optional(),
   activity: z
     .object({
       observedAt: z.string(),
@@ -177,6 +190,12 @@ export function fingerprintFundingOpportunity(
           ),
         }
       : null,
+    releases: (opportunity.releases ?? []).map((r) => ({
+      id: r.id,
+      tagName: r.tagName,
+      publishedAt: r.publishedAt,
+      prerelease: r.prerelease,
+    })),
     records: (activity?.records ?? []).map((record) => ({
       id: record.id,
       title: record.title,

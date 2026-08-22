@@ -76,11 +76,25 @@ function money(value?: number, token = "USDC") {
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(value)} ${token}`;
 }
 
-function dateLabel(value: string) {
+/**
+ * Root cause of React error #418 (authenticated Discover hydration
+ * mismatch), found via a deterministic SSR/client digest comparison:
+ * data was provably identical between server and client render passes,
+ * and the error reproduced only in views that render this function
+ * (WorkRow, OutcomesView) - never in views that don't (Agent Marketplace).
+ * `Intl.DateTimeFormat` with no explicit `timeZone` uses the runtime's
+ * local zone: Vercel's server always runs in UTC, but the viewer's
+ * browser uses their own zone, so the same timestamp can format as a
+ * different calendar day (e.g. 2026-08-18T02:00Z is "Aug 18" in UTC but
+ * "Aug 17" in US Pacific) - a real text-node mismatch, not a false
+ * positive. Pinning UTC makes the two passes agree unconditionally.
+ */
+export function dateLabel(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   }).format(new Date(value));
 }
 

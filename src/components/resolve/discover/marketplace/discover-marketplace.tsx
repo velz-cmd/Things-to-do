@@ -2150,29 +2150,6 @@ function DiscoverMarketplaceContent({
   } | null>(null);
   const pendingWorkbenchKey = useRef<string | null>(null);
   const landing = params.toString() === "";
-  // TEMPORARY diagnostic for React error #418. Embeds a render-pass digest
-  // as a data attribute so the SSR value is readable straight from the
-  // response HTML (curl/fetch, no auth needed), and logs the equivalent
-  // digest on the client's first hydration pass to console, so the two can
-  // be diffed directly. No secrets: only booleans, counts, and IDs already
-  // visible in the page itself. Remove once the root cause is found.
-  const hydrationDigest = JSON.stringify({
-    isServer: typeof window === "undefined",
-    view: data.view,
-    signedIn: data.signedIn,
-    landing,
-    searchParams: params.toString(),
-    itemCount: data.opportunities.items.length,
-    firstIds: data.opportunities.items.slice(0, 5).map((i) => i.id),
-    poolCount: data.pools.length,
-    peopleCount: data.people.length,
-    savedIdsCount: data.savedIds.length,
-    capabilities: data.capabilities,
-  });
-  if (typeof window !== "undefined" && !(window as unknown as { __discoverHydrationLogged?: boolean }).__discoverHydrationLogged) {
-    (window as unknown as { __discoverHydrationLogged?: boolean }).__discoverHydrationLogged = true;
-    console.log("[hydration-diag] CLIENT first render", hydrationDigest);
-  }
   useEffect(() => track("discover_viewed", { view: data.view }), [data.view]);
   const openWorkbench: OpenAction = (action, item) => {
     if (action.presentation.kind !== "workbench") return;
@@ -2277,8 +2254,6 @@ function DiscoverMarketplaceContent({
   return (
     <div
       data-discover-marketplace
-      data-hydration-diag={hydrationDigest}
-      suppressHydrationWarning
       className="mx-auto min-h-screen w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8"
     >
       <Header filters={filters} view={data.view} />

@@ -1,5 +1,6 @@
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
 import type { EconomicMatch } from "@/lib/discover/impact/economic-matching";
+import type { SourceHealthState } from "@/lib/discover/marketplace/source-health";
 
 export const DISCOVER_VIEWS = [
   "for_you",
@@ -399,6 +400,23 @@ export type MarketplaceOpportunity = {
     publicationDate?: string;
     publicationYear?: number;
     publicationDatePrecision?: "day" | "month" | "year";
+    /**
+     * Independent per-provider health (Phase 3 Part D) - "Crossref
+     * healthy" never implies "OpenAlex healthy". Populated at refresh
+     * time and carried through durable persistence, so a read-only
+     * render still shows real freshness rather than recomputing it.
+     */
+    sourceHealth: Partial<Record<"Crossref" | "OpenAlex" | "arXiv", SourceHealthState>>;
+    /**
+     * Deterministic, structurally-detected uncertainty facts (Phase 3
+     * Part E) - e.g. citation indexes disagreeing, DOI unresolved. Never
+     * LLM-classified. Input for a future contextual Agent action
+     * (Phase 9/10); not itself an action or a claim of urgency.
+     */
+    uncertainties: Array<
+      | { kind: "citation_count_discrepancy"; sources: string[]; values: number[] }
+      | { kind: "doi_unresolved"; knownIdentity: "openalex" | "arxiv" }
+    >;
   };
   /**
    * Which real funding intents could fund this outcome, which were ruled out

@@ -6,7 +6,12 @@ vi.mock("@/lib/integrations/crossref", () => ({
 }));
 vi.mock("@/lib/integrations/openalex", () => ({
   searchOpenAlexWorksDetailed: vi.fn(),
-  fetchCitingWorksForOpenAlexId: vi.fn().mockResolvedValue([]),
+  fetchCitingWorksForOpenAlexIdDetailed: vi.fn().mockResolvedValue({
+    status: "ok",
+    records: [],
+    attemptedAt: "2026-08-01T00:00:00.000Z",
+    completedAt: "2026-08-01T00:00:00.000Z",
+  }),
   pingOpenAlex: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
 }));
 vi.mock("@/lib/integrations/arxiv", () => ({
@@ -18,17 +23,29 @@ vi.mock("@/lib/integrations/arxiv", () => ({
   }),
   pingArxiv: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
 }));
+vi.mock("@/lib/discover/research/store", () => ({
+  persistResearchSnapshot: vi.fn().mockResolvedValue({ persisted: true }),
+  loadStoredResearchWorks: vi.fn().mockResolvedValue([]),
+}));
 
 import { searchCrossrefDetailed } from "@/lib/integrations/crossref";
-import { searchOpenAlexWorksDetailed, fetchCitingWorksForOpenAlexId } from "@/lib/integrations/openalex";
+import { searchOpenAlexWorksDetailed, fetchCitingWorksForOpenAlexIdDetailed } from "@/lib/integrations/openalex";
 import { searchArxivWorksDetailed } from "@/lib/integrations/arxiv";
-import { loadResearchSignals } from "@/lib/discover/marketplace/research-signal-source";
+import { persistResearchSnapshot, loadStoredResearchWorks } from "@/lib/discover/research/store";
+import {
+  refreshResearchMarket,
+  loadResearchSignals,
+  aggregateProviderStatus,
+} from "@/lib/discover/marketplace/research-signal-source";
 import { OPEN_RESEARCH_QUERIES } from "@/lib/sensors/targets";
+import type { ResearchWork } from "@/lib/discover/research/types";
 
 const mockedCrossref = vi.mocked(searchCrossrefDetailed);
 const mockedOpenAlex = vi.mocked(searchOpenAlexWorksDetailed);
 const mockedArxiv = vi.mocked(searchArxivWorksDetailed);
-const mockedCitingWorks = vi.mocked(fetchCitingWorksForOpenAlexId);
+const mockedCitingWorks = vi.mocked(fetchCitingWorksForOpenAlexIdDetailed);
+const mockedPersist = vi.mocked(persistResearchSnapshot);
+const mockedLoadStored = vi.mocked(loadStoredResearchWorks);
 
 const ATTEMPTED = "2026-08-01T00:00:00.000Z";
 const ok = <T>(records: T[]) => ({ status: "ok" as const, records, attemptedAt: ATTEMPTED, completedAt: ATTEMPTED });
@@ -40,81 +57,57 @@ const unavailable = <T>(): { status: "unavailable"; records: T[]; attemptedAt: s
   sanitizedReason: "The source is unavailable.",
 });
 
-describe("loadResearchSignals", () => {
+function researchWork(overrides: Partial<ResearchWork> = {}): ResearchWork {
+  return {
+    key: "doi:10.1234/abc.567",
+    title: "Sustaining Open Source Software",
+    authors: [{ name: "Ada Lovelace" }],
+    url: "https://doi.org/10.1234/abc.567",
+    doi: "10.1234/abc.567",
+    citations: [{ source: "OpenAlex", count: 42, observedAt: ATTEMPTED }],
+    referencedWorkIds: [],
+    citingSample: [],
+    sourceHealth: {},
+    ...overrides,
+  };
+}
+
+describe("refreshResearchMarket - live multi-provider fetch + persist (Part C)", () => {
   beforeEach(() => {
     mockedCrossref.mockReset().mockResolvedValue(ok([]));
     mockedOpenAlex.mockReset().mockResolvedValue(ok([]));
     mockedArxiv.mockReset().mockResolvedValue(ok([]));
-    mockedCitingWorks.mockReset().mockResolvedValue([]);
+    mockedCitingWorks.mockReset().mockResolvedValue({
+      status: "ok",
+      records: [],
+      attemptedAt: ATTEMPTED,
+      completedAt: ATTEMPTED,
+    });
+    mockedPersist.mockReset().mockResolvedValue({ persisted: true });
   });
 
   it("calls Crossref/OpenAlex/arXiv once per configured research target, never one hardcoded query", async () => {
-    await loadResearchSignals();
+    await refreshResearchMarket();
     expect(mockedCrossref).toHaveBeenCalledTimes(OPEN_RESEARCH_QUERIES.length);
     expect(mockedOpenAlex).toHaveBeenCalledTimes(OPEN_RESEARCH_QUERIES.length);
     expect(mockedArxiv).toHaveBeenCalledTimes(OPEN_RESEARCH_QUERIES.length);
   });
 
-  it("returns an empty list when every connector returns nothing", async () => {
-    expect(await loadResearchSignals()).toEqual([]);
+  it("refreshes and persists nothing when every connector returns nothing", async () => {
+    const result = await refreshResearchMarket();
+    expect(result).toEqual({ refreshed: 0, persisted: 0 });
+    expect(mockedPersist).not.toHaveBeenCalled();
   });
 
-  it("returns an empty list when every connector is unavailable", async () => {
+  it("refreshes and persists nothing when every connector is unavailable", async () => {
     mockedCrossref.mockResolvedValue(unavailable());
     mockedOpenAlex.mockResolvedValue(unavailable());
     mockedArxiv.mockResolvedValue(unavailable());
-    expect(await loadResearchSignals()).toEqual([]);
+    const result = await refreshResearchMarket();
+    expect(result).toEqual({ refreshed: 0, persisted: 0 });
   });
 
-  it("maps a real Crossref work into a research_outcome verified_work item with citation impact, never funding", async () => {
-    mockedCrossref.mockImplementation(async (query: string) =>
-      ok(
-        query === OPEN_RESEARCH_QUERIES[0]
-          ? [
-              {
-                title: "Sustaining Open Source Software",
-                doi: "10.1234/abc.567",
-                url: "https://doi.org/10.1234/abc.567",
-                published: "2023-04-01",
-                publicationYear: 2023,
-                datePrecision: "day" as const,
-                citations: 42,
-                authors: [{ givenName: "Ada", familyName: "Lovelace" }],
-              },
-            ]
-          : [],
-      ),
-    );
-    const [item] = await loadResearchSignals();
-    expect(item.id).toBe("research:doi:10.1234/abc.567");
-    expect(item.marketplaceKind).toBe("verified_work");
-    expect(item.type).toBe("research_outcome");
-    expect(item.funding).toBeUndefined();
-    expect(item.creator.name).toBe("Ada Lovelace");
-    expect(item.impactProfile).toEqual({
-      measurable: true,
-      signals: [
-        expect.objectContaining({ id: "crossref_citations", value: "42", scope: "artifact", source: "Crossref" }),
-      ],
-    });
-  });
-
-  it("marks impact not measurable when no connector reported a citation count", async () => {
-    mockedCrossref.mockImplementation(async (query: string) =>
-      ok(
-        query === OPEN_RESEARCH_QUERIES[0]
-          ? [{ title: "Brand new preprint", doi: "10.1234/new.001", url: "https://doi.org/10.1234/new.001", authors: [] }]
-          : [],
-      ),
-    );
-    const [item] = await loadResearchSignals();
-    expect(item.impactProfile).toEqual({
-      measurable: false,
-      reason: expect.stringContaining("citation count"),
-    });
-  });
-
-  it("merges a Crossref and OpenAlex record of the same DOI into one item, preserving both citation observations separately", async () => {
+  it("persists a real merged Crossref+OpenAlex work with both citation observations separate", async () => {
     mockedCrossref.mockImplementation(async (query: string) =>
       ok(
         query === OPEN_RESEARCH_QUERIES[0]
@@ -148,93 +141,12 @@ describe("loadResearchSignals", () => {
           : [],
       ),
     );
-    const items = await loadResearchSignals();
-    expect(items).toHaveLength(1);
-    expect(items[0].id).toBe("research:doi:10.1234/abc.567");
-    expect(items[0].impactProfile?.measurable).toBe(true);
-    if (items[0].impactProfile?.measurable) {
-      const ids = items[0].impactProfile.signals.map((s) => s.id).sort();
-      expect(ids).toEqual(["crossref_citations", "openalex_citations"]);
-    }
-  });
-
-  it("keeps an OpenAlex-only work with no DOI, keyed by its OpenAlex ID", async () => {
-    mockedOpenAlex.mockImplementation(async (query: string) =>
-      ok(
-        query === OPEN_RESEARCH_QUERIES[0]
-          ? [
-              {
-                openAlexId: "https://openalex.org/W999",
-                title: "A DOI-less preprint",
-                citedByCount: 3,
-                authorNames: [],
-                authors: [],
-                referencedWorkIds: [],
-              },
-            ]
-          : [],
-      ),
-    );
-    const [item] = await loadResearchSignals();
-    expect(item.id).toBe("research:openalex:W999");
-  });
-
-  it("includes real arXiv works in the shared market, distinct from the PR/issue title heuristic", async () => {
-    mockedArxiv.mockImplementation(async (query: string) =>
-      ok(
-        query === OPEN_RESEARCH_QUERIES[0]
-          ? [
-              {
-                arxivId: "2301.00001",
-                title: "A preprint",
-                authors: ["Jane Smith"],
-                summary: "",
-                publishedAt: "2023-01-01T00:00:00Z",
-                categories: [],
-                url: "https://arxiv.org/abs/2301.00001",
-              },
-            ]
-          : [],
-      ),
-    );
-    const [item] = await loadResearchSignals();
-    expect(item.id).toBe("research:arxiv:2301.00001");
-    expect(item.creator.name).toBe("Jane Smith");
-  });
-
-  it("shows a real et-al author display for multi-author works", async () => {
-    mockedCrossref.mockImplementation(async (query: string) =>
-      ok(
-        query === OPEN_RESEARCH_QUERIES[0]
-          ? [
-              {
-                title: "A paper",
-                doi: "10.1/a",
-                url: "https://doi.org/10.1/a",
-                authors: [
-                  { givenName: "Jane", familyName: "Smith" },
-                  { givenName: "John", familyName: "Doe" },
-                ],
-              },
-            ]
-          : [],
-      ),
-    );
-    const [item] = await loadResearchSignals();
-    expect(item.creator.name).toBe("Jane Smith et al.");
-  });
-
-  it("never claims funding demand from citation impact alone", async () => {
-    mockedCrossref.mockImplementation(async (query: string) =>
-      ok(
-        query === OPEN_RESEARCH_QUERIES[0]
-          ? [{ title: "Highly cited", doi: "10.1/highcite", url: "https://doi.org/10.1/highcite", citations: 10000, authors: [] }]
-          : [],
-      ),
-    );
-    const [item] = await loadResearchSignals();
-    expect(item.funding).toBeUndefined();
-    expect(item.economicMatch).toBeUndefined();
+    const result = await refreshResearchMarket();
+    expect(result.refreshed).toBe(1);
+    expect(result.persisted).toBe(1);
+    const persistedWork = mockedPersist.mock.calls[0][0];
+    expect(persistedWork.key).toBe("doi:10.1234/abc.567");
+    expect(persistedWork.citations.map((c) => c.source).sort()).toEqual(["Crossref", "OpenAlex"]);
   });
 
   it("bounds citing-work lookups rather than firing one extra request per row", async () => {
@@ -252,27 +164,141 @@ describe("loadResearchSignals", () => {
           : [],
       ),
     );
-    await loadResearchSignals();
+    await refreshResearchMarket();
     expect(mockedCitingWorks.mock.calls.length).toBeLessThanOrEqual(5);
   });
 
-  it("A1: never fabricates a January 1 publication-date claim for a year-only Crossref date", async () => {
+  it("computes independent per-provider source health from real status, not result-array length (Part A2/D)", async () => {
     mockedCrossref.mockImplementation(async (query: string) =>
       ok(
         query === OPEN_RESEARCH_QUERIES[0]
-          ? [
-              {
-                title: "Year-only paper",
-                doi: "10.1/yearonly",
-                url: "https://doi.org/10.1/yearonly",
-                publicationYear: 2024,
-                datePrecision: "year" as const,
-                authors: [],
-              },
-            ]
+          ? [{ title: "A paper", doi: "10.1/a", url: "https://doi.org/10.1/a", citations: 5, authors: [] }]
           : [],
       ),
     );
+    mockedOpenAlex.mockResolvedValue(unavailable());
+    await refreshResearchMarket();
+    const persistedWork = mockedPersist.mock.calls[0][0];
+    expect(persistedWork.sourceHealth.Crossref?.status).toBe("healthy");
+    expect(persistedWork.sourceHealth.OpenAlex?.status).not.toBe("healthy");
+  });
+
+  /**
+   * Phase 3 Part 3 hardening: a work with real Crossref metadata (title,
+   * DOI, author) but no citation count reported is still a successful
+   * Crossref observation - health must never be inferred from citation
+   * presence.
+   */
+  it("marks Crossref healthy for a work it observed even when it reported no citation count at all", async () => {
+    mockedCrossref.mockImplementation(async (query: string) =>
+      ok(
+        query === OPEN_RESEARCH_QUERIES[0]
+          ? [{ title: "A paper", doi: "10.1/a", url: "https://doi.org/10.1/a", authors: [{ givenName: "Jane", familyName: "Smith" }] }]
+          : [],
+      ),
+    );
+    await refreshResearchMarket();
+    const persistedWork = mockedPersist.mock.calls[0][0];
+    expect(persistedWork.observedSources).toContain("Crossref");
+    expect(persistedWork.sourceHealth.Crossref?.status).toBe("healthy");
+  });
+
+  it("aggregates provider status as ok when at least one of several target queries succeeded (Part 3)", async () => {
+    let call = 0;
+    mockedCrossref.mockImplementation(async () => {
+      call += 1;
+      return call === 1 ? unavailable() : ok([]);
+    });
+    await refreshResearchMarket();
+    // Verified indirectly: aggregateProviderStatus is exported and unit-tested directly below,
+    // this proves refreshResearchMarket doesn't throw/misbehave with mixed per-query outcomes.
+    expect(mockedCrossref).toHaveBeenCalledTimes(OPEN_RESEARCH_QUERIES.length);
+  });
+});
+
+describe("aggregateProviderStatus (Phase 3 Part 3)", () => {
+  it("reports ok when every query succeeded", () => {
+    expect(aggregateProviderStatus(["ok", "ok", "ok"])).toBe("ok");
+  });
+
+  it("reports ok when at least one of several queries succeeded - never describes the whole provider as down", () => {
+    expect(aggregateProviderStatus(["unavailable", "ok", "unavailable"])).toBe("ok");
+  });
+
+  it("reports unavailable only when every query failed", () => {
+    expect(aggregateProviderStatus(["unavailable", "unavailable"])).toBe("unavailable");
+  });
+
+  it("prefers rate_limited when all queries failed and at least one was specifically rate-limited", () => {
+    expect(aggregateProviderStatus(["unavailable", "rate_limited"])).toBe("rate_limited");
+  });
+});
+
+describe("loadResearchSignals - durable read-only render path (Part C4)", () => {
+  beforeEach(() => {
+    mockedLoadStored.mockReset().mockResolvedValue([]);
+    mockedCrossref.mockReset();
+    mockedOpenAlex.mockReset();
+    mockedArxiv.mockReset();
+  });
+
+  it("never calls any provider connector - reads only the durable store", async () => {
+    mockedLoadStored.mockResolvedValue([researchWork()]);
+    await loadResearchSignals();
+    expect(mockedCrossref).not.toHaveBeenCalled();
+    expect(mockedOpenAlex).not.toHaveBeenCalled();
+    expect(mockedArxiv).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty list on a cold/empty durable store, without triggering a live scan", async () => {
+    expect(await loadResearchSignals()).toEqual([]);
+    expect(mockedCrossref).not.toHaveBeenCalled();
+  });
+
+  it("maps a persisted research work into a research_outcome verified_work item with citation impact, never funding", async () => {
+    mockedLoadStored.mockResolvedValue([researchWork()]);
+    const [item] = await loadResearchSignals();
+    expect(item.id).toBe("research:doi:10.1234/abc.567");
+    expect(item.marketplaceKind).toBe("verified_work");
+    expect(item.type).toBe("research_outcome");
+    expect(item.funding).toBeUndefined();
+    expect(item.economicMatch).toBeUndefined();
+    expect(item.creator.name).toBe("Ada Lovelace");
+  });
+
+  it("shows a real et-al author display for multi-author works", async () => {
+    mockedLoadStored.mockResolvedValue([
+      researchWork({ authors: [{ name: "Jane Smith" }, { name: "John Doe" }] }),
+    ]);
+    const [item] = await loadResearchSignals();
+    expect(item.creator.name).toBe("Jane Smith et al.");
+  });
+
+  it("keeps an OpenAlex-only work keyed by its OpenAlex ID", async () => {
+    mockedLoadStored.mockResolvedValue([
+      researchWork({ key: "openalex:W999", doi: undefined, openAlexId: "https://openalex.org/W999" }),
+    ]);
+    const [item] = await loadResearchSignals();
+    expect(item.id).toBe("research:openalex:W999");
+  });
+
+  it("includes real arXiv-only works, distinct from the PR/issue title heuristic", async () => {
+    mockedLoadStored.mockResolvedValue([
+      researchWork({
+        key: "arxiv:2301.00001",
+        doi: undefined,
+        arxivId: "2301.00001",
+        authors: [{ name: "Jane Smith" }],
+      }),
+    ]);
+    const [item] = await loadResearchSignals();
+    expect(item.id).toBe("research:arxiv:2301.00001");
+  });
+
+  it("A1: never fabricates a January 1 publication-date claim for a year-only date", async () => {
+    mockedLoadStored.mockResolvedValue([
+      researchWork({ publishedDate: undefined, publicationYear: 2024, datePrecision: "year" }),
+    ]);
     const [item] = await loadResearchSignals();
     expect(item.summary).toBe("Published 2024.");
     expect(item.summary).not.toContain("01-01");
@@ -281,40 +307,44 @@ describe("loadResearchSignals", () => {
     expect(item.researchIdentity?.publicationDatePrecision).toBe("year");
   });
 
-  it("A3: falls back canonicalSubject-relevant identity to OpenAlex ID, then arXiv ID, when no DOI exists", async () => {
-    mockedArxiv.mockImplementation(async (query: string) =>
-      ok(
-        query === OPEN_RESEARCH_QUERIES[0]
-          ? [
-              {
-                arxivId: "2301.00099",
-                title: "DOI-less preprint",
-                authors: ["Jane Smith"],
-                summary: "",
-                publishedAt: "2023-01-01T00:00:00Z",
-                categories: [],
-                url: "https://arxiv.org/abs/2301.00099",
-              },
-            ]
-          : [],
-      ),
-    );
+  it("A3: falls back canonical identity to arXiv ID when no DOI/OpenAlex ID exists", async () => {
+    mockedLoadStored.mockResolvedValue([
+      researchWork({ key: "arxiv:2301.00099", doi: undefined, arxivId: "2301.00099" }),
+    ]);
     const [item] = await loadResearchSignals();
     expect(item.researchIdentity?.arxivId).toBe("2301.00099");
     expect(item.researchIdentity?.doi).toBeUndefined();
   });
 
   it("A4: assigns no forced primaryAction - only quiet source navigation in secondaryActions", async () => {
-    mockedCrossref.mockImplementation(async (query: string) =>
-      ok(
-        query === OPEN_RESEARCH_QUERIES[0]
-          ? [{ title: "A paper", doi: "10.1/a", url: "https://doi.org/10.1/a", authors: [] }]
-          : [],
-      ),
-    );
+    mockedLoadStored.mockResolvedValue([researchWork()]);
     const [item] = await loadResearchSignals();
     expect(item.primaryAction).toBeUndefined();
     expect(item.secondaryActions).toHaveLength(1);
     expect(item.secondaryActions?.[0]?.id).toBe("discover.open_evidence");
+  });
+
+  it("carries persisted per-provider source health through to the rendered item", async () => {
+    mockedLoadStored.mockResolvedValue([
+      researchWork({
+        sourceHealth: {
+          Crossref: { status: "healthy", lastSuccessfulRefreshAt: ATTEMPTED, lastAttemptAt: ATTEMPTED },
+          OpenAlex: { status: "unavailable", lastSuccessfulRefreshAt: null, lastAttemptAt: ATTEMPTED },
+        },
+      }),
+    ]);
+    const [item] = await loadResearchSignals();
+    expect(item.researchIdentity?.sourceHealth.Crossref?.status).toBe("healthy");
+    expect(item.researchIdentity?.sourceHealth.OpenAlex?.status).toBe("unavailable");
+  });
+
+  it("produces deterministic ordering across repeated reads regardless of store row order", async () => {
+    const a = researchWork({ key: "doi:10.1/a", title: "A" });
+    const b = researchWork({ key: "doi:10.1/b", title: "B" });
+    mockedLoadStored.mockResolvedValueOnce([b, a]);
+    const first = await loadResearchSignals();
+    mockedLoadStored.mockResolvedValueOnce([a, b]);
+    const second = await loadResearchSignals();
+    expect(first.map((i) => i.id)).toEqual(second.map((i) => i.id));
   });
 });

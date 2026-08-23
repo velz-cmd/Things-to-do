@@ -800,6 +800,25 @@ model DiscoverRepositorySnapshot {
   @@index([observedAt])
 }
 
+/// Durable canonical research market record (Phase 3) - the "latest known
+/// good" state per canonical research work, mirroring GithubOssScan's
+/// single-row-per-subject pattern. canonicalKey matches research/merge.ts's
+/// key shape (doi:<doi> | openalex:<id> | arxiv:<id>). A ranking result
+/// falling out of the current target-query top-N does NOT mean the
+/// publication ceased to exist - rows are refreshed/merged, never deleted
+/// on ranking omission.
+model DiscoverResearchSnapshot {
+  id              String   @id @default(cuid())
+  canonicalKey    String   @unique
+  payloadJson     String   @db.Text
+  fingerprint     String
+  firstObservedAt DateTime @default(now())
+  lastObservedAt  DateTime
+  refreshedAt     DateTime @default(now())
+
+  @@index([lastObservedAt])
+}
+
 /// Per-user earnings aggregate — refreshed on cron and after ledger writes.
 model UserEarningsSnapshot {
   userId             String    @id

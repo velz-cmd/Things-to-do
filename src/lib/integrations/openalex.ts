@@ -222,12 +222,19 @@ export async function searchOpenAlexWorks(
  * confidence/amount-hint values and must not be touched or repointed by
  * Discover's research domain.
  */
-export async function fetchCitingWorksForOpenAlexId(
+/**
+ * Structured version - the only one that can honestly distinguish "OpenAlex
+ * succeeded and authoritatively reports zero citing works" from "the
+ * lookup failed", which the plain array-returning function below cannot
+ * (it collapses both to []).
+ */
+export async function fetchCitingWorksForOpenAlexIdDetailed(
   openAlexId: string,
   limit = 5,
-): Promise<OpenAlexCitingWork[]> {
+): Promise<ProviderFetchResult<OpenAlexCitingWork>> {
+  const attemptedAt = new Date().toISOString();
   const shortId = openAlexId.replace(/^https?:\/\/openalex\.org\//i, "");
-  if (!shortId) return [];
+  if (!shortId) return { status: "ok", records: [], attemptedAt, completedAt: attemptedAt };
 
   const url = openAlexUrl("/works", {
     filter: `cites:${shortId}`,
@@ -241,21 +248,39 @@ export async function fetchCitingWorksForOpenAlexId(
       signal: AbortSignal.timeout(12_000),
       next: { revalidate: 86400 },
     });
-    if (!res.ok) return [];
+    const outcome = classifyFetchOutcome({ response: res });
+    const completedAt = new Date().toISOString();
+    if (outcome.status !== "ok") {
+      return { ...outcome, records: [], attemptedAt, completedAt };
+    }
     const json = (await res.json()) as {
       results?: Array<{ id: string; title?: string; publication_year?: number }>;
     };
-    return (json.results ?? [])
+    const records = (json.results ?? [])
       .filter((w) => w.title)
       .map((w) => ({
         openAlexId: w.id,
         title: w.title!,
         publicationYear: w.publication_year,
       }));
-  } catch (e) {
-    console.warn("[openalex] citing-works fetch failed:", e);
-    return [];
+    return { status: "ok", records, attemptedAt, completedAt };
+  } catch {
+    const completedAt = new Date().toISOString();
+    return {
+      ...classifyFetchOutcome({ threwTimeoutOrNetworkError: true }),
+      records: [],
+      attemptedAt,
+      completedAt,
+    };
   }
+}
+
+export async function fetchCitingWorksForOpenAlexId(
+  openAlexId: string,
+  limit = 5,
+): Promise<OpenAlexCitingWork[]> {
+  const result = await fetchCitingWorksForOpenAlexIdDetailed(openAlexId, limit);
+  return result.records;
 }
 
 export async function pingOpenAlex(): Promise<{ ok: boolean; message: string }> {

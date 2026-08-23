@@ -1,7 +1,7 @@
 import { searchCrossrefDetailed, pingCrossref } from "@/lib/integrations/crossref";
 import {
   searchOpenAlexWorksDetailed,
-  fetchCitingWorksForOpenAlexId,
+  fetchCitingWorksForOpenAlexIdDetailed,
   pingOpenAlex,
 } from "@/lib/integrations/openalex";
 import { searchArxivWorksDetailed, pingArxiv } from "@/lib/integrations/arxiv";
@@ -9,6 +9,8 @@ import { normalizeDoi, normalizeOpenAlexId, normalizeArxivId } from "@/lib/integ
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import { classifySourceHealth } from "@/lib/discover/marketplace/source-health";
 import { mergeResearchWorks } from "@/lib/discover/research/merge";
+import { detectResearchUncertainties } from "@/lib/discover/research/uncertainty";
+import { persistResearchSnapshot, loadStoredResearchWorks } from "@/lib/discover/research/store";
 import { OPEN_RESEARCH_QUERIES } from "@/lib/sensors/targets";
 import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
 import type { ImpactProfile, ImpactSignal } from "@/lib/discover/impact/impact-signals";
@@ -48,6 +50,20 @@ function keyForArxiv(doi: string | undefined, arxivId: string): string {
 }
 
 /**
+ * Aggregates one provider's per-target-query outcomes into one status
+ * (Part 3): a provider that succeeded for ANY target query is "ok" - two
+ * successful queries and one failed query must never read as "the
+ * provider is unavailable." Only reports a failure status when every
+ * query for that provider failed this run, preferring rate_limited when
+ * any failure was specifically a rate limit.
+ */
+export function aggregateProviderStatus(statuses: ProviderFetchStatus[]): ProviderFetchStatus {
+  if (statuses.some((s) => s === "ok")) return "ok";
+  if (statuses.some((s) => s === "rate_limited")) return "rate_limited";
+  return "unavailable";
+}
+
+/**
  * Deterministic round-robin composition across research targets (Phase 3
  * item 18): a query's own rank never determines global order by itself.
  * Works are bucketed by the first target query that surfaced them, then
@@ -82,7 +98,19 @@ function composeDeterministic(
   return ordered;
 }
 
-export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
+/**
+ * Live multi-provider refresh (Phase 3 Part C): fetches Crossref/OpenAlex/
+ * arXiv, merges, and PERSISTS each composed work durably. This is the
+ * only function in this module that talks to external providers - it
+ * must only ever be invoked by the background cron job
+ * (src/app/api/cron/tick/route.ts), never from a normal page render.
+ * loadResearchSignals() below is the render-facing, durable-read-only
+ * function.
+ */
+export async function refreshResearchMarket(): Promise<{
+  refreshed: number;
+  persisted: number;
+}> {
   const observedAt = new Date().toISOString();
   const targets = OPEN_RESEARCH_QUERIES;
 
@@ -106,26 +134,16 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
     arxivPerQuery.push(await searchArxivWorksDetailed(query, MAX_WORKS_PER_QUERY));
   }
 
-  const crossrefStatus: ProviderFetchStatus = perQuery.some((r) => r.crossref.status !== "ok")
-    ? perQuery.every((r) => r.crossref.status !== "ok")
-      ? perQuery[0]?.crossref.status ?? "unavailable"
-      : "unavailable"
-    : "ok";
-  const openAlexStatus: ProviderFetchStatus = perQuery.some((r) => r.openAlex.status !== "ok")
-    ? perQuery.every((r) => r.openAlex.status !== "ok")
-      ? perQuery[0]?.openAlex.status ?? "unavailable"
-      : "unavailable"
-    : "ok";
-  const arxivStatus: ProviderFetchStatus = arxivPerQuery.some((r) => r.status !== "ok")
-    ? arxivPerQuery.every((r) => r.status !== "ok")
-      ? arxivPerQuery[0]?.status ?? "unavailable"
-      : "unavailable"
-    : "ok";
+  const crossrefStatus = aggregateProviderStatus(perQuery.map((r) => r.crossref.status));
+  const openAlexStatus = aggregateProviderStatus(perQuery.map((r) => r.openAlex.status));
+  const arxivStatus = aggregateProviderStatus(arxivPerQuery.map((r) => r.status));
 
   const allCrossref = perQuery.flatMap((r) => r.crossref.records);
   const allOpenAlex = perQuery.flatMap((r) => r.openAlex.records);
   const allArxiv = arxivPerQuery.flatMap((r) => r.records);
-  if (!allCrossref.length && !allOpenAlex.length && !allArxiv.length) return [];
+  if (!allCrossref.length && !allOpenAlex.length && !allArxiv.length) {
+    return { refreshed: 0, persisted: 0 };
+  }
 
   const merged = mergeResearchWorks({
     crossref: allCrossref,
@@ -159,16 +177,19 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
 
   // Bounded citing-work lookups - never one extra API call per row. Only
   // the works actually surfaced this run, and only up to MAX_CITING_LOOKUPS.
+  // citingSampleObserved is set true ONLY on a real successful response,
+  // so an authoritative empty result is never confused with "not
+  // attempted this run" (Part 1) - the merge layer needs that distinction.
   let citingLookups = 0;
   for (const work of composed) {
     if (!work.openAlexId || citingLookups >= MAX_CITING_LOOKUPS) continue;
     citingLookups += 1;
-    try {
-      const citing = await fetchCitingWorksForOpenAlexId(work.openAlexId, 3);
-      work.citingSample = citing.map((c) => ({ id: c.openAlexId, title: c.title }));
-    } catch {
-      /* leave citingSample empty - never fabricate a relationship */
+    const citing = await fetchCitingWorksForOpenAlexIdDetailed(work.openAlexId, 3);
+    if (citing.status === "ok") {
+      work.citingSample = citing.records.map((c) => ({ id: c.openAlexId, title: c.title }));
+      work.citingSampleObserved = true;
     }
+    /* on failure: leave citingSample/citingSampleObserved untouched - never fabricate a relationship */
   }
 
   // Real per-provider status (never inferred from result-array length) -
@@ -176,25 +197,25 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
   // indistinguishable from a timeout/500/429.
   const attemptedAt = observedAt;
   for (const work of composed) {
+    // A work can have real Crossref/OpenAlex metadata (title, DOI,
+    // authors) with no citation count reported - that is still a
+    // successful observation. Participation is tracked explicitly via
+    // observedSources (Part 3), never inferred from citation presence.
     work.sourceHealth = {
       Crossref: classifySourceHealth({
-        lastSuccessfulRefreshAt: work.citations.some((c) => c.source === "Crossref")
-          ? observedAt
-          : null,
+        lastSuccessfulRefreshAt: work.observedSources.includes("Crossref") ? observedAt : null,
         lastAttemptAt: attemptedAt,
         lastAttemptSucceeded: crossrefStatus === "ok",
         rateLimited: crossrefStatus === "rate_limited",
       }),
       OpenAlex: classifySourceHealth({
-        lastSuccessfulRefreshAt: work.citations.some((c) => c.source === "OpenAlex")
-          ? observedAt
-          : null,
+        lastSuccessfulRefreshAt: work.observedSources.includes("OpenAlex") ? observedAt : null,
         lastAttemptAt: attemptedAt,
         lastAttemptSucceeded: openAlexStatus === "ok",
         rateLimited: openAlexStatus === "rate_limited",
       }),
       arXiv: classifySourceHealth({
-        lastSuccessfulRefreshAt: work.arxivId ? observedAt : null,
+        lastSuccessfulRefreshAt: work.observedSources.includes("arXiv") ? observedAt : null,
         lastAttemptAt: attemptedAt,
         lastAttemptSucceeded: arxivStatus === "ok",
         rateLimited: arxivStatus === "rate_limited",
@@ -202,7 +223,31 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
     };
   }
 
-  return composed.map((work) => toMarketplaceOpportunity(work, observedAt));
+  let persisted = 0;
+  for (const work of composed) {
+    work.uncertainties = detectResearchUncertainties(work);
+    const result = await persistResearchSnapshot(work);
+    if (result.persisted) persisted += 1;
+  }
+
+  return { refreshed: composed.length, persisted };
+}
+
+/**
+ * Render-facing, durable-read-only (Phase 3 Part C): reads the persisted
+ * research market and projects it into MarketplaceOpportunity records.
+ * Never calls Crossref/OpenAlex/arXiv - a normal /discover page load must
+ * not fan out to external providers. Deterministic ordering by canonical
+ * key (stable regardless of DB row order), matching the same tie-break
+ * discipline used elsewhere in Discover's sort logic.
+ */
+export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
+  const works = await loadStoredResearchWorks();
+  const observedAt = new Date().toISOString();
+  return [...works]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((work) => ({ ...work, uncertainties: detectResearchUncertainties(work) }))
+    .map((work) => toMarketplaceOpportunity(work, observedAt));
 }
 
 /**
@@ -298,6 +343,8 @@ function toMarketplaceOpportunity(
       publicationDate: work.publishedDate,
       publicationYear: work.publicationYear,
       publicationDatePrecision: work.datePrecision,
+      sourceHealth: work.sourceHealth,
+      uncertainties: work.uncertainties,
     },
     entityState: {
       provenance: "external_integration",

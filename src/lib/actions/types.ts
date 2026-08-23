@@ -97,6 +97,7 @@ export const RESOLVE_ACTION_IDS = [
   "discover.open_funding_pools",
   "discover.open_verified_work",
   "discover.fund_verified_work",
+  "discover.review_funding",
   "discover.post_request",
   "discover.view_request",
   "discover.take_request",

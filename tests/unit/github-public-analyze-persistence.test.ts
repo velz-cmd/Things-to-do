@@ -75,6 +75,12 @@ describe("public GitHub analysis persistence", () => {
     });
   });
 
+  // This test's first dynamic import of the Next.js route module pulls in
+  // a large dependency graph; under a loaded/shared CI runner that
+  // compile+import step alone has been observed exceeding the default 5s
+  // timeout (consistently ~2.5s in isolation, occasionally 5s+ under
+  // parallel load) - not a logic issue, so the fix is real headroom, not
+  // a retry or a lowered bar.
   it("publishes accepted work into the persisted Discover snapshot", async () => {
     ingestRepository.mockResolvedValue(repository);
     persistOssOpportunitySnapshot.mockResolvedValue({
@@ -134,8 +140,9 @@ describe("public GitHub analysis persistence", () => {
       10,
       60,
     );
-  });
+  }, 15_000);
 
+  // Same first-import cost as above.
   it("does not publish a transient success when persistence fails", async () => {
     ingestRepository.mockResolvedValue(repository);
     persistOssOpportunitySnapshot.mockRejectedValue(
@@ -159,7 +166,7 @@ describe("public GitHub analysis persistence", () => {
     });
     expect(text).not.toContain("TEST_API_KEY");
     expect(text).not.toContain("do-not-expose");
-  });
+  }, 15_000);
 
   it("does not claim the Work is available when canonical Evidence fails", async () => {
     ingestRepository.mockResolvedValue(repository);

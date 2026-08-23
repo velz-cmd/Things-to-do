@@ -9,6 +9,7 @@ import { normalizeDoi, normalizeOpenAlexId, normalizeArxivId } from "@/lib/integ
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import { classifySourceHealth } from "@/lib/discover/marketplace/source-health";
 import { mergeResearchWorks } from "@/lib/discover/research/merge";
+import { detectResearchUncertainties } from "@/lib/discover/research/uncertainty";
 import { persistResearchSnapshot, loadStoredResearchWorks } from "@/lib/discover/research/store";
 import { OPEN_RESEARCH_QUERIES } from "@/lib/sensors/targets";
 import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
@@ -219,6 +220,7 @@ export async function refreshResearchMarket(): Promise<{
 
   let persisted = 0;
   for (const work of composed) {
+    work.uncertainties = detectResearchUncertainties(work);
     const result = await persistResearchSnapshot(work);
     if (result.persisted) persisted += 1;
   }
@@ -239,6 +241,7 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
   const observedAt = new Date().toISOString();
   return [...works]
     .sort((a, b) => a.key.localeCompare(b.key))
+    .map((work) => ({ ...work, uncertainties: detectResearchUncertainties(work) }))
     .map((work) => toMarketplaceOpportunity(work, observedAt));
 }
 
@@ -336,6 +339,7 @@ function toMarketplaceOpportunity(
       publicationYear: work.publicationYear,
       publicationDatePrecision: work.datePrecision,
       sourceHealth: work.sourceHealth,
+      uncertainties: work.uncertainties,
     },
     entityState: {
       provenance: "external_integration",

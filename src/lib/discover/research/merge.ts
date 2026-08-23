@@ -67,6 +67,7 @@ export function mergeResearchWorks(input: {
       referencedWorkIds: [],
       citingSample: [],
       sourceHealth: {},
+      uncertainties: [],
     };
     byKey.set(key, work);
   }
@@ -99,6 +100,7 @@ export function mergeResearchWorks(input: {
       referencedWorkIds: w.referencedWorkIds,
       citingSample: [],
       sourceHealth: {},
+      uncertainties: [],
     });
   }
 
@@ -128,6 +130,7 @@ export function mergeResearchWorks(input: {
       referencedWorkIds: [],
       citingSample: [],
       sourceHealth: {},
+      uncertainties: [],
     });
   }
 

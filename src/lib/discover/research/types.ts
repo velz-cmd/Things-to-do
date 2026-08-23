@@ -51,4 +51,26 @@ export type ResearchWork = {
   citingSample: ResearchCitingWork[];
   /** Per-provider health, so "Crossref healthy" never implies "OpenAlex healthy". */
   sourceHealth: Partial<Record<"Crossref" | "OpenAlex" | "arXiv", SourceHealthState>>;
+  /** Deterministic, structurally-detected uncertainty facts - see uncertainty.ts. Never LLM-classified. */
+  uncertainties: ResearchUncertainty[];
 };
+
+/**
+ * A deterministic fact about unresolved identity/evidence (Phase 3 Part
+ * E) - never an LLM's judgment call, and never framed as an error. Index
+ * variance between two real registries is expected and normal; this
+ * records the fact plainly so a future contextual Agent (Phase 9/10) has
+ * real structured state to act on, without inventing a reason to spend
+ * money resolving it.
+ */
+export type ResearchUncertainty =
+  | {
+      kind: "citation_count_discrepancy";
+      sources: Array<"Crossref" | "OpenAlex">;
+      values: number[];
+    }
+  | {
+      kind: "doi_unresolved";
+      /** What identity IS known, so "unresolved" doesn't read as "unidentified". */
+      knownIdentity: "openalex" | "arxiv";
+    };

@@ -416,6 +416,16 @@ export type MarketplaceOpportunity = {
         }
       >
     >;
+    /**
+     * Deterministic, structurally-detected uncertainty facts (Phase 3
+     * Part E) - e.g. citation indexes disagreeing, DOI unresolved. Never
+     * LLM-classified. Input for a future contextual Agent action
+     * (Phase 9/10); not itself an action or a claim of urgency.
+     */
+    uncertainties: Array<
+      | { kind: "citation_count_discrepancy"; sources: string[]; values: number[] }
+      | { kind: "doi_unresolved"; knownIdentity: "openalex" | "arxiv" }
+    >;
   };
   /**
    * Which real funding intents could fund this outcome, which were ruled out

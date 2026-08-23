@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   CoverageRecord,
   EconomicMatch,
@@ -447,4 +448,124 @@ export function resolveCanonicalEconomicStateFromLedgerRecord(
     provenance: "funding_coverage",
     nextAction: nextActionFor(state, coverage),
   };
+}
+
+/**
+ * Release Slice 2: policy fingerprint, stable obligation identity, period
+ * semantics, and coverage-by-obligation.
+ *
+ * Audit note (do not rebuild what already exists): this repo already has a
+ * real, Prisma-persisted ProgramVersion/PolicyVersion/Obligation system
+ * (prisma/schema.prisma - PolicyVersion.contentHash, unique on
+ * [programVersionId, version]; Obligation.lineageHash, unique) wired
+ * through src/lib/obligations/normalize-community.ts and consumed by the
+ * separate Communities/Programs settlement routes
+ * (/api/communities/[slug]/obligations, /api/settlement/batch). Discover's
+ * own Pools are confirmed to be the same underlying `ResolveProgram` rows
+ * (see loadProgramOpportunities() in query.ts), so that system is
+ * genuinely applicable here in principle. It is NOT wired into it in this
+ * slice: `ensureProgramPolicyVersion()` writes ProgramVersion/PolicyVersion
+ * rows transactionally as a side effect, which is the wrong shape for a
+ * marketplace READ path (a page view should not silently create database
+ * rows), and connecting Discover's canonical resolver to that write-capable
+ * system safely is a larger, separate piece of work. What follows are pure,
+ * deterministic functions usable independent of that system today, and
+ * cross-checkable against PolicyVersion.contentHash/Obligation.lineageHash
+ * once a read-only bridge to it is built.
+ */
+
+/** The rules a policy applies, excluding anything that is capital STATE rather than the rule itself (availableUsd changes as money moves; the rule producing eligibility/amount does not). */
+export type PolicyRules = {
+  mechanism: FundingMechanism;
+  eligibleClasses: string[];
+  /** Fixed amount, rate, percentage, cap, or another auditable deterministic rule - never an LLM output (Phase 5 section 14). */
+  amountRule: { kind: "fixed" | "rate" | "percentage" | "cap"; value: number } | null;
+};
+
+/**
+ * Deterministic fingerprint of a policy's rules. Equivalent policy content
+ * with keys in a different order must produce the same fingerprint -
+ * achieved by only ever hashing an object built with an explicit, fixed
+ * key order below (never by re-hashing an arbitrary caller-supplied
+ * object), and by sorting eligibleClasses (array order is not semantically
+ * meaningful there - two policies eligible for ["a","b"] and ["b","a"] are
+ * the same policy).
+ */
+export function computePolicyFingerprint(rules: PolicyRules): string {
+  const stable = {
+    mechanism: rules.mechanism,
+    eligibleClasses: [...rules.eligibleClasses].sort(),
+    amountRule: rules.amountRule
+      ? { kind: rules.amountRule.kind, value: rules.amountRule.value }
+      : null,
+  };
+  return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
+}
+
+/**
+ * Canonical economic period for an obligation (Phase 5 section 12). Not
+ * every domain is a calendar month - a one-time reward, a Request's own
+ * lifetime, and a recurring creator period are different shapes - but
+ * coverage comparison must be able to tell whether two obligations cover
+ * the SAME period without knowing which shape it is.
+ */
+export type CanonicalPeriod =
+  | { kind: "one_time" }
+  | { kind: "calendar_month"; year: number; month: number }
+  | { kind: "policy_window"; windowId: string };
+
+/** A stable string key for a period - two obligations cover the same period iff their period keys are equal. */
+export function periodKey(period: CanonicalPeriod): string {
+  switch (period.kind) {
+    case "one_time":
+      return "one_time";
+    case "calendar_month":
+      return `month:${period.year}-${String(period.month).padStart(2, "0")}`;
+    case "policy_window":
+      return `window:${period.windowId}`;
+  }
+}
+
+/**
+ * Stable obligation identity (Phase 5 section 11). Two obligations are the
+ * SAME obligation - and therefore idempotent/duplicate-preventable -
+ * exactly when mechanism, canonical subject, purpose, period, beneficiary,
+ * and policy fingerprint all match. A one-time obligation never repeats
+ * (its period is always "one_time", so an identical mechanism/subject/
+ * purpose/beneficiary/policy combination genuinely is the same obligation
+ * if computed twice - which is the correct, desired idempotency behavior,
+ * not a bug).
+ */
+export function computeObligationId(input: {
+  mechanism: FundingMechanism;
+  canonicalSubjectId: string;
+  purpose: string;
+  period: CanonicalPeriod;
+  beneficiaryId: string;
+  policyFingerprint: string;
+}): string {
+  const stable = {
+    mechanism: input.mechanism,
+    canonicalSubjectId: input.canonicalSubjectId,
+    purpose: input.purpose.trim().toLowerCase(),
+    period: periodKey(input.period),
+    beneficiaryId: input.beneficiaryId,
+    policyFingerprint: input.policyFingerprint,
+  };
+  return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
+}
+
+/**
+ * Coverage-by-obligation (Phase 5 section 7): coverage must only include
+ * settlements matching the CURRENT obligation, never every payment ever
+ * sent to the beneficiary. A record with no `obligationId` at all cannot
+ * be proven to match, so it is excluded rather than assumed relevant -
+ * silently including untagged records would let an unrelated payment
+ * appear to cover this obligation.
+ */
+export function filterCoverageByObligation(
+  records: CoverageRecord[],
+  obligationId: string,
+): CoverageRecord[] {
+  return records.filter((record) => record.obligationId === obligationId);
 }

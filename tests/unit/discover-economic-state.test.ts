@@ -7,8 +7,14 @@ import type {
 import type { FundingCoverageLedgerRecord } from "@/lib/discover/funding-coverage";
 import {
   computeCanonicalCoverage,
+  computeObligationId,
+  computePolicyFingerprint,
+  filterCoverageByObligation,
+  periodKey,
   resolveCanonicalEconomicStateFromLedgerRecord,
   resolveCanonicalEconomicStateFromMatch,
+  type CanonicalPeriod,
+  type PolicyRules,
 } from "@/lib/discover/marketplace/economic-state";
 
 function pool(overrides: Partial<FundingIntentCandidate> = {}): FundingIntentCandidate {
@@ -401,5 +407,150 @@ describe("resolveCanonicalEconomicStateFromLedgerRecord - funding-coverage.ts as
     expect(canonical.coverage.confirmedUsd).toBe(0);
     expect(canonical.coverage.pendingUsd).toBe(80);
     expect(canonical.state).toBe("partially_covered");
+  });
+});
+
+describe("computePolicyFingerprint - deterministic, order-independent", () => {
+  function rules(overrides: Partial<PolicyRules> = {}): PolicyRules {
+    return {
+      mechanism: "pool_allocation",
+      eligibleClasses: ["security"],
+      amountRule: { kind: "fixed", value: 100 },
+      ...overrides,
+    };
+  }
+
+  it("the same policy content produces the same fingerprint", () => {
+    expect(computePolicyFingerprint(rules())).toBe(computePolicyFingerprint(rules()));
+  });
+
+  it("eligibleClasses in a different order produces the same fingerprint - array order is not semantically meaningful there", () => {
+    const a = computePolicyFingerprint(rules({ eligibleClasses: ["security", "research"] }));
+    const b = computePolicyFingerprint(rules({ eligibleClasses: ["research", "security"] }));
+    expect(a).toBe(b);
+  });
+
+  it("a real rule change (amount value) produces a different fingerprint", () => {
+    const a = computePolicyFingerprint(rules({ amountRule: { kind: "fixed", value: 100 } }));
+    const b = computePolicyFingerprint(rules({ amountRule: { kind: "fixed", value: 150 } }));
+    expect(a).not.toBe(b);
+  });
+
+  it("a cap change produces a different fingerprint", () => {
+    const a = computePolicyFingerprint(rules({ amountRule: { kind: "cap", value: 500 } }));
+    const b = computePolicyFingerprint(rules({ amountRule: { kind: "cap", value: 1000 } }));
+    expect(a).not.toBe(b);
+  });
+
+  it("an eligible-class change produces a different fingerprint", () => {
+    const a = computePolicyFingerprint(rules({ eligibleClasses: ["security"] }));
+    const b = computePolicyFingerprint(rules({ eligibleClasses: ["research"] }));
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("periodKey - canonical period separation", () => {
+  it("one_time is always the same key", () => {
+    expect(periodKey({ kind: "one_time" })).toBe(periodKey({ kind: "one_time" }));
+  });
+
+  it("different calendar months produce different keys", () => {
+    const aug: CanonicalPeriod = { kind: "calendar_month", year: 2026, month: 8 };
+    const sep: CanonicalPeriod = { kind: "calendar_month", year: 2026, month: 9 };
+    expect(periodKey(aug)).not.toBe(periodKey(sep));
+  });
+
+  it("the same calendar month across two computations produces the same key", () => {
+    const a: CanonicalPeriod = { kind: "calendar_month", year: 2026, month: 8 };
+    const b: CanonicalPeriod = { kind: "calendar_month", year: 2026, month: 8 };
+    expect(periodKey(a)).toBe(periodKey(b));
+  });
+
+  it("different policy windows produce different keys", () => {
+    const a: CanonicalPeriod = { kind: "policy_window", windowId: "q3-2026" };
+    const b: CanonicalPeriod = { kind: "policy_window", windowId: "q4-2026" };
+    expect(periodKey(a)).not.toBe(periodKey(b));
+  });
+});
+
+describe("computeObligationId - stable obligation identity", () => {
+  const base = {
+    mechanism: "pool_allocation" as const,
+    canonicalSubjectId: "github.com/acme/widget#pr-1",
+    purpose: "Security remediation",
+    period: { kind: "one_time" as const },
+    beneficiaryId: "user-1",
+    policyFingerprint: "fp-1",
+  };
+
+  it("the exact same obligation computed twice produces the same identity - required for idempotency", () => {
+    expect(computeObligationId(base)).toBe(computeObligationId({ ...base }));
+  });
+
+  it("purpose is case/whitespace-insensitive - the same real obligation should not fork identity over formatting", () => {
+    expect(computeObligationId(base)).toBe(
+      computeObligationId({ ...base, purpose: "  security remediation  " }),
+    );
+  });
+
+  it("a different period produces a different obligation identity - next period is a new obligation", () => {
+    const nextMonth = computeObligationId({
+      ...base,
+      period: { kind: "calendar_month", year: 2026, month: 9 },
+    });
+    const thisMonth = computeObligationId({
+      ...base,
+      period: { kind: "calendar_month", year: 2026, month: 8 },
+    });
+    expect(nextMonth).not.toBe(thisMonth);
+  });
+
+  it("a different purpose produces a different obligation identity", () => {
+    const a = computeObligationId(base);
+    const b = computeObligationId({ ...base, purpose: "Documentation review" });
+    expect(a).not.toBe(b);
+  });
+
+  it("a material policy change (different fingerprint) produces a new obligation identity", () => {
+    const a = computeObligationId(base);
+    const b = computeObligationId({ ...base, policyFingerprint: "fp-2" });
+    expect(a).not.toBe(b);
+  });
+
+  it("a different beneficiary produces a different obligation identity", () => {
+    const a = computeObligationId(base);
+    const b = computeObligationId({ ...base, beneficiaryId: "user-2" });
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("filterCoverageByObligation - coverage must match the current obligation, not the whole beneficiary history", () => {
+  const records: CoverageRecord[] = [
+    { id: "1", mechanism: "pool_allocation", amountUsd: 40, purpose: "security fix", obligationId: "obl-1" },
+    { id: "2", mechanism: "pool_allocation", amountUsd: 25, purpose: "docs review", obligationId: "obl-2" },
+    { id: "3", mechanism: "direct_support", amountUsd: 10, purpose: "general support" },
+  ];
+
+  it("only returns records tagged with the exact current obligation id", () => {
+    const filtered = filterCoverageByObligation(records, "obl-1");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.id).toBe("1");
+  });
+
+  it("a same-beneficiary payment for a different obligation is excluded, never summed in", () => {
+    const filtered = filterCoverageByObligation(records, "obl-2");
+    expect(filtered.map((r) => r.id)).toEqual(["2"]);
+  });
+
+  it("an untagged record (no obligationId) is never assumed to match - excluded rather than guessed", () => {
+    const filtered = filterCoverageByObligation(records, "obl-1");
+    expect(filtered.some((r) => r.id === "3")).toBe(false);
+  });
+
+  it("feeds directly into computeCanonicalCoverage for an obligation-scoped amount", () => {
+    const filtered = filterCoverageByObligation(records, "obl-1");
+    const coverage = computeCanonicalCoverage(filtered, 100);
+    expect(coverage.confirmedUsd).toBe(40);
+    expect(coverage.remainingUsd).toBe(60);
   });
 });

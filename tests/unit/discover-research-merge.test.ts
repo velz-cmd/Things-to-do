@@ -218,3 +218,35 @@ describe("mergeResearchWorks - author identity", () => {
     expect(work.authors).toEqual([]);
   });
 });
+
+describe("mergeResearchWorks - observedSources participation (Phase 3 Part 1/3)", () => {
+  it("records Crossref as an observed source even with no citation count reported", () => {
+    const [work] = mergeResearchWorks({
+      crossref: [crossref({ citations: undefined })],
+      openAlex: [],
+      arxiv: [],
+      observedAt,
+    });
+    expect(work.observedSources).toEqual(["Crossref"]);
+  });
+
+  it("records all three providers as observed sources when all three contribute to the same work", () => {
+    const [work] = mergeResearchWorks({
+      crossref: [crossref({ doi: "10.1234/example" })],
+      openAlex: [openAlex({ doi: "10.1234/example" })],
+      arxiv: [arxiv({ doi: "10.1234/example" })],
+      observedAt,
+    });
+    expect(work.observedSources.sort()).toEqual(["Crossref", "OpenAlex", "arXiv"]);
+  });
+
+  it("records only the providers that actually contributed, not all three by default", () => {
+    const [work] = mergeResearchWorks({
+      crossref: [crossref()],
+      openAlex: [],
+      arxiv: [],
+      observedAt,
+    });
+    expect(work.observedSources).toEqual(["Crossref"]);
+  });
+});

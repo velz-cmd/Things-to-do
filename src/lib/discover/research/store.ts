@@ -15,7 +15,16 @@ import type { ResearchWork } from "./types";
  * deleted on ranking omission (Part B4).
  */
 
-function fingerprint(work: ResearchWork): string {
+/**
+ * Deterministic fingerprint (Part 2): identical semantic state must
+ * fingerprint identically regardless of provider response ordering.
+ * citations/referencedWorkIds/citingSample have no meaningful order (they
+ * are sets/samples, not a sequence a reader depends on) and are sorted
+ * before hashing. `authors` is deliberately left in its original order -
+ * author order on a scholarly work is meaningful authorship information,
+ * never safe to reorder for hashing convenience.
+ */
+export function computeResearchFingerprint(work: ResearchWork): string {
   const stable = {
     title: work.title,
     authors: work.authors,
@@ -28,20 +37,25 @@ function fingerprint(work: ResearchWork): string {
     datePrecision: work.datePrecision,
     containerTitle: work.containerTitle,
     workType: work.workType,
-    citations: work.citations.map((c) => ({ source: c.source, count: c.count })),
-    referencedWorkIds: work.referencedWorkIds,
-    citingSample: work.citingSample,
+    citations: [...work.citations]
+      .map((c) => ({ source: c.source, count: c.count }))
+      .sort((a, b) => a.source.localeCompare(b.source)),
+    referencedWorkIds: [...work.referencedWorkIds].sort(),
+    citingSample: [...work.citingSample].sort((a, b) => a.id.localeCompare(b.id)),
   };
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
 
 /**
- * Source-aware merge (Part B3): a field this run's fetch did not touch is
- * retained from the previous confirmed record, never blanked to
- * undefined/empty just because one provider failed or wasn't re-fetched
- * this run. Citations are merged per-source - a source present in `fresh`
- * always wins for that source (even a real change to a lower count);
- * a source absent from `fresh` retains its previous observation.
+ * Source-aware merge (Part B3, hardened Part 1): a field this run's fetch
+ * did not touch is retained from the previous confirmed record, never
+ * blanked to undefined/empty just because one provider failed or wasn't
+ * re-fetched this run. Participation is decided from `observedSources`/
+ * `citingSampleObserved` - explicit "did this provider actually respond
+ * this run" flags - never from whether an array happens to be non-empty.
+ * An authoritative empty result (provider succeeded, genuinely reports
+ * nothing) always replaces stale data; a provider that didn't respond
+ * this run never overwrites what was previously confirmed.
  */
 export function mergeWithLastConfirmedResearch(
   fresh: ResearchWork,
@@ -51,6 +65,8 @@ export function mergeWithLastConfirmedResearch(
 
   const freshSources = new Set(fresh.citations.map((c) => c.source));
   const retainedCitations = previous.citations.filter((c) => !freshSources.has(c.source));
+
+  const openAlexObservedThisRun = fresh.observedSources.includes("OpenAlex");
 
   return {
     ...fresh,
@@ -67,10 +83,21 @@ export function mergeWithLastConfirmedResearch(
     containerTitle: fresh.containerTitle ?? previous.containerTitle,
     workType: fresh.workType ?? previous.workType,
     citations: [...fresh.citations, ...retainedCitations],
-    referencedWorkIds: fresh.referencedWorkIds.length
+    // OpenAlex actually responded for this work this run -> its (possibly
+    // empty) referencedWorkIds is authoritative and replaces stale data.
+    // OpenAlex did not respond this run -> retain the previous sample.
+    referencedWorkIds: openAlexObservedThisRun
       ? fresh.referencedWorkIds
       : previous.referencedWorkIds,
-    citingSample: fresh.citingSample.length ? fresh.citingSample : previous.citingSample,
+    // citingSample is a SEPARATE bounded lookup from the base OpenAlex
+    // record fetch - most works never attempt it on a given run, so its
+    // own citingSampleObserved flag (not observedSources) decides
+    // authoritative-empty vs. retained-stale.
+    citingSample: fresh.citingSampleObserved ? fresh.citingSample : previous.citingSample,
+    // Both fields intentionally reflect only THIS run's real participants
+    // (not a cumulative union) - future merges always read the fresh
+    // object's own observedSources/citingSampleObserved to decide
+    // retention, exactly like sourceHealth below never being retained.
   };
 }
 
@@ -107,14 +134,14 @@ export async function persistResearchSnapshot(
       create: {
         canonicalKey: work.key,
         payloadJson: JSON.stringify(merged),
-        fingerprint: fingerprint(merged),
+        fingerprint: computeResearchFingerprint(merged),
         firstObservedAt: now,
         lastObservedAt: now,
         refreshedAt: now,
       },
       update: {
         payloadJson: JSON.stringify(merged),
-        fingerprint: fingerprint(merged),
+        fingerprint: computeResearchFingerprint(merged),
         lastObservedAt: now,
         refreshedAt: now,
       },

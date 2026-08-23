@@ -22,6 +22,9 @@ function work(overrides: Partial<ResearchWork> = {}): ResearchWork {
     referencedWorkIds: [],
     citingSample: [],
     sourceHealth: {},
+    uncertainties: [],
+    observedSources: [],
+    citingSampleObserved: false,
     ...overrides,
   };
 }
@@ -89,6 +92,131 @@ describe("mergeWithLastConfirmedResearch (Phase 3 Part B3)", () => {
     expect(merged.citations).toEqual([
       { source: "OpenAlex", count: 42, observedAt: "2026-08-02T00:00:00.000Z" },
     ]);
+  });
+
+  /**
+   * Phase 3 Part 1 hardening: participation (observedSources /
+   * citingSampleObserved) - never array length - decides authoritative-
+   * empty vs. retained-stale. A provider that genuinely succeeded with an
+   * empty result must overwrite stale data; a provider that didn't
+   * respond this run must never be presented as if it had.
+   */
+  it("OpenAlex succeeds with zero citations - zero remains authoritative, not merged away", async () => {
+    const { mergeWithLastConfirmedResearch } = await import("@/lib/discover/research/store");
+    const previous = work({
+      citations: [{ source: "OpenAlex", count: 10, observedAt: "2026-08-01T00:00:00.000Z" }],
+      observedSources: ["OpenAlex"],
+    });
+    const fresh = work({
+      citations: [{ source: "OpenAlex", count: 0, observedAt: "2026-08-02T00:00:00.000Z" }],
+      observedSources: ["OpenAlex"],
+    });
+    const merged = mergeWithLastConfirmedResearch(fresh, previous);
+    expect(merged.citations).toEqual([
+      { source: "OpenAlex", count: 0, observedAt: "2026-08-02T00:00:00.000Z" },
+    ]);
+  });
+
+  it("OpenAlex succeeds with zero referenced works - previous reference list is authoritatively replaced", async () => {
+    const { mergeWithLastConfirmedResearch } = await import("@/lib/discover/research/store");
+    const previous = work({ referencedWorkIds: ["W1", "W2"] });
+    const fresh = work({ referencedWorkIds: [], observedSources: ["OpenAlex"] });
+    const merged = mergeWithLastConfirmedResearch(fresh, previous);
+    expect(merged.referencedWorkIds).toEqual([]);
+  });
+
+  it("OpenAlex referenced-work lookup did not run this run - previous reference list is retained, not blanked", async () => {
+    const { mergeWithLastConfirmedResearch } = await import("@/lib/discover/research/store");
+    const previous = work({ referencedWorkIds: ["W1", "W2"] });
+    const fresh = work({ referencedWorkIds: [], observedSources: [] });
+    const merged = mergeWithLastConfirmedResearch(fresh, previous);
+    expect(merged.referencedWorkIds).toEqual(["W1", "W2"]);
+  });
+
+  it("citing-sample lookup succeeds with zero results - previous sample is not falsely presented as fresh, replaced by authoritative empty", async () => {
+    const { mergeWithLastConfirmedResearch } = await import("@/lib/discover/research/store");
+    const previous = work({ citingSample: [{ id: "W9", title: "Old citing work" }] });
+    const fresh = work({ citingSample: [], citingSampleObserved: true });
+    const merged = mergeWithLastConfirmedResearch(fresh, previous);
+    expect(merged.citingSample).toEqual([]);
+  });
+
+  it("citing-sample lookup did not run this run (bounded/not attempted) - previous sample is retained", async () => {
+    const { mergeWithLastConfirmedResearch } = await import("@/lib/discover/research/store");
+    const previous = work({ citingSample: [{ id: "W9", title: "Old citing work" }] });
+    const fresh = work({ citingSample: [], citingSampleObserved: false });
+    const merged = mergeWithLastConfirmedResearch(fresh, previous);
+    expect(merged.citingSample).toEqual([{ id: "W9", title: "Old citing work" }]);
+  });
+
+  it("OpenAlex unavailable this run - previous citation/reference/citing data all retained together", async () => {
+    const { mergeWithLastConfirmedResearch } = await import("@/lib/discover/research/store");
+    const previous = work({
+      citations: [{ source: "OpenAlex", count: 31, observedAt: "2026-08-01T00:00:00.000Z" }],
+      referencedWorkIds: ["W1"],
+      citingSample: [{ id: "W2", title: "Citing work" }],
+    });
+    const fresh = work({ citations: [], referencedWorkIds: [], citingSample: [], observedSources: [] });
+    const merged = mergeWithLastConfirmedResearch(fresh, previous);
+    expect(merged.citations).toEqual(previous.citations);
+    expect(merged.referencedWorkIds).toEqual(previous.referencedWorkIds);
+    expect(merged.citingSample).toEqual(previous.citingSample);
+  });
+
+  it("Crossref unavailable this run - previous Crossref observation retained", async () => {
+    const { mergeWithLastConfirmedResearch } = await import("@/lib/discover/research/store");
+    const previous = work({
+      citations: [{ source: "Crossref", count: 27, observedAt: "2026-08-01T00:00:00.000Z" }],
+    });
+    const fresh = work({ citations: [], observedSources: [] });
+    const merged = mergeWithLastConfirmedResearch(fresh, previous);
+    expect(merged.citations).toEqual(previous.citations);
+  });
+
+  it("arXiv unavailable this run - previous arXiv identity/version retained", async () => {
+    const { mergeWithLastConfirmedResearch } = await import("@/lib/discover/research/store");
+    const previous = work({ arxivId: "2301.00001", arxivVersion: "v3" });
+    const fresh = work({ arxivId: undefined, arxivVersion: undefined, observedSources: [] });
+    const merged = mergeWithLastConfirmedResearch(fresh, previous);
+    expect(merged.arxivId).toBe("2301.00001");
+    expect(merged.arxivVersion).toBe("v3");
+  });
+});
+
+describe("computeResearchFingerprint (Phase 3 Part 2 - deterministic ordering)", () => {
+  it("produces an identical fingerprint for identical semantic state regardless of array ordering", async () => {
+    const { computeResearchFingerprint } = await import("@/lib/discover/research/store");
+    const a = work({
+      citations: [
+        { source: "Crossref", count: 27, observedAt: "2026-08-01T00:00:00.000Z" },
+        { source: "OpenAlex", count: 31, observedAt: "2026-08-01T00:00:00.000Z" },
+      ],
+      referencedWorkIds: ["W2", "W1"],
+      citingSample: [{ id: "W9", title: "B" }, { id: "W1", title: "A" }],
+    });
+    const b = work({
+      citations: [
+        { source: "OpenAlex", count: 31, observedAt: "2026-08-01T00:00:00.000Z" },
+        { source: "Crossref", count: 27, observedAt: "2026-08-01T00:00:00.000Z" },
+      ],
+      referencedWorkIds: ["W1", "W2"],
+      citingSample: [{ id: "W1", title: "A" }, { id: "W9", title: "B" }],
+    });
+    expect(computeResearchFingerprint(a)).toBe(computeResearchFingerprint(b));
+  });
+
+  it("produces a different fingerprint when authorship order actually differs - never reorders authors", async () => {
+    const { computeResearchFingerprint } = await import("@/lib/discover/research/store");
+    const a = work({ authors: [{ name: "Jane Smith" }, { name: "John Doe" }] });
+    const b = work({ authors: [{ name: "John Doe" }, { name: "Jane Smith" }] });
+    expect(computeResearchFingerprint(a)).not.toBe(computeResearchFingerprint(b));
+  });
+
+  it("produces a different fingerprint when the citation count actually changes", async () => {
+    const { computeResearchFingerprint } = await import("@/lib/discover/research/store");
+    const a = work({ citations: [{ source: "OpenAlex", count: 31, observedAt: "2026-08-01T00:00:00.000Z" }] });
+    const b = work({ citations: [{ source: "OpenAlex", count: 32, observedAt: "2026-08-01T00:00:00.000Z" }] });
+    expect(computeResearchFingerprint(a)).not.toBe(computeResearchFingerprint(b));
   });
 });
 

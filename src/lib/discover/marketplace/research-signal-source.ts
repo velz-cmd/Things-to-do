@@ -1,7 +1,7 @@
 import { searchCrossrefDetailed, pingCrossref } from "@/lib/integrations/crossref";
 import {
   searchOpenAlexWorksDetailed,
-  fetchCitingWorksForOpenAlexId,
+  fetchCitingWorksForOpenAlexIdDetailed,
   pingOpenAlex,
 } from "@/lib/integrations/openalex";
 import { searchArxivWorksDetailed, pingArxiv } from "@/lib/integrations/arxiv";
@@ -47,6 +47,20 @@ function keyForOpenAlex(doi: string | undefined, openAlexId: string): string {
 }
 function keyForArxiv(doi: string | undefined, arxivId: string): string {
   return doi ? `doi:${normalizeDoi(doi)}` : `arxiv:${normalizeArxivId(arxivId)}`;
+}
+
+/**
+ * Aggregates one provider's per-target-query outcomes into one status
+ * (Part 3): a provider that succeeded for ANY target query is "ok" - two
+ * successful queries and one failed query must never read as "the
+ * provider is unavailable." Only reports a failure status when every
+ * query for that provider failed this run, preferring rate_limited when
+ * any failure was specifically a rate limit.
+ */
+export function aggregateProviderStatus(statuses: ProviderFetchStatus[]): ProviderFetchStatus {
+  if (statuses.some((s) => s === "ok")) return "ok";
+  if (statuses.some((s) => s === "rate_limited")) return "rate_limited";
+  return "unavailable";
 }
 
 /**
@@ -120,21 +134,9 @@ export async function refreshResearchMarket(): Promise<{
     arxivPerQuery.push(await searchArxivWorksDetailed(query, MAX_WORKS_PER_QUERY));
   }
 
-  const crossrefStatus: ProviderFetchStatus = perQuery.some((r) => r.crossref.status !== "ok")
-    ? perQuery.every((r) => r.crossref.status !== "ok")
-      ? perQuery[0]?.crossref.status ?? "unavailable"
-      : "unavailable"
-    : "ok";
-  const openAlexStatus: ProviderFetchStatus = perQuery.some((r) => r.openAlex.status !== "ok")
-    ? perQuery.every((r) => r.openAlex.status !== "ok")
-      ? perQuery[0]?.openAlex.status ?? "unavailable"
-      : "unavailable"
-    : "ok";
-  const arxivStatus: ProviderFetchStatus = arxivPerQuery.some((r) => r.status !== "ok")
-    ? arxivPerQuery.every((r) => r.status !== "ok")
-      ? arxivPerQuery[0]?.status ?? "unavailable"
-      : "unavailable"
-    : "ok";
+  const crossrefStatus = aggregateProviderStatus(perQuery.map((r) => r.crossref.status));
+  const openAlexStatus = aggregateProviderStatus(perQuery.map((r) => r.openAlex.status));
+  const arxivStatus = aggregateProviderStatus(arxivPerQuery.map((r) => r.status));
 
   const allCrossref = perQuery.flatMap((r) => r.crossref.records);
   const allOpenAlex = perQuery.flatMap((r) => r.openAlex.records);
@@ -175,16 +177,19 @@ export async function refreshResearchMarket(): Promise<{
 
   // Bounded citing-work lookups - never one extra API call per row. Only
   // the works actually surfaced this run, and only up to MAX_CITING_LOOKUPS.
+  // citingSampleObserved is set true ONLY on a real successful response,
+  // so an authoritative empty result is never confused with "not
+  // attempted this run" (Part 1) - the merge layer needs that distinction.
   let citingLookups = 0;
   for (const work of composed) {
     if (!work.openAlexId || citingLookups >= MAX_CITING_LOOKUPS) continue;
     citingLookups += 1;
-    try {
-      const citing = await fetchCitingWorksForOpenAlexId(work.openAlexId, 3);
-      work.citingSample = citing.map((c) => ({ id: c.openAlexId, title: c.title }));
-    } catch {
-      /* leave citingSample empty - never fabricate a relationship */
+    const citing = await fetchCitingWorksForOpenAlexIdDetailed(work.openAlexId, 3);
+    if (citing.status === "ok") {
+      work.citingSample = citing.records.map((c) => ({ id: c.openAlexId, title: c.title }));
+      work.citingSampleObserved = true;
     }
+    /* on failure: leave citingSample/citingSampleObserved untouched - never fabricate a relationship */
   }
 
   // Real per-provider status (never inferred from result-array length) -
@@ -192,25 +197,25 @@ export async function refreshResearchMarket(): Promise<{
   // indistinguishable from a timeout/500/429.
   const attemptedAt = observedAt;
   for (const work of composed) {
+    // A work can have real Crossref/OpenAlex metadata (title, DOI,
+    // authors) with no citation count reported - that is still a
+    // successful observation. Participation is tracked explicitly via
+    // observedSources (Part 3), never inferred from citation presence.
     work.sourceHealth = {
       Crossref: classifySourceHealth({
-        lastSuccessfulRefreshAt: work.citations.some((c) => c.source === "Crossref")
-          ? observedAt
-          : null,
+        lastSuccessfulRefreshAt: work.observedSources.includes("Crossref") ? observedAt : null,
         lastAttemptAt: attemptedAt,
         lastAttemptSucceeded: crossrefStatus === "ok",
         rateLimited: crossrefStatus === "rate_limited",
       }),
       OpenAlex: classifySourceHealth({
-        lastSuccessfulRefreshAt: work.citations.some((c) => c.source === "OpenAlex")
-          ? observedAt
-          : null,
+        lastSuccessfulRefreshAt: work.observedSources.includes("OpenAlex") ? observedAt : null,
         lastAttemptAt: attemptedAt,
         lastAttemptSucceeded: openAlexStatus === "ok",
         rateLimited: openAlexStatus === "rate_limited",
       }),
       arXiv: classifySourceHealth({
-        lastSuccessfulRefreshAt: work.arxivId ? observedAt : null,
+        lastSuccessfulRefreshAt: work.observedSources.includes("arXiv") ? observedAt : null,
         lastAttemptAt: attemptedAt,
         lastAttemptSucceeded: arxivStatus === "ok",
         rateLimited: arxivStatus === "rate_limited",

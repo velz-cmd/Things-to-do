@@ -3,6 +3,7 @@ import {
   searchOpenAlexWorks,
   searchOpenAlexWorksDetailed,
   fetchCitingWorksForOpenAlexId,
+  fetchCitingWorksForOpenAlexIdDetailed,
 } from "@/lib/integrations/openalex";
 
 describe("searchOpenAlexWorks", () => {
@@ -114,6 +115,33 @@ describe("fetchCitingWorksForOpenAlexId", () => {
   it("returns an empty list on provider failure rather than throwing", async () => {
     fetchSpy.mockResolvedValueOnce({ ok: false } as Response);
     expect(await fetchCitingWorksForOpenAlexId("https://openalex.org/W1")).toEqual([]);
+  });
+});
+
+describe("fetchCitingWorksForOpenAlexIdDetailed - honest status (Phase 3 item A2/Part 1)", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => fetchSpy.mockRestore());
+
+  it("distinguishes a successful zero-result response from a failure - the exact ambiguity Part 1 requires resolved", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ results: [] }) } as Response);
+    const result = await fetchCitingWorksForOpenAlexIdDetailed("https://openalex.org/W1");
+    expect(result.status).toBe("ok");
+    expect(result.records).toEqual([]);
+  });
+
+  it("reports unavailable on a provider failure, never silently equal to a successful empty result", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+    const result = await fetchCitingWorksForOpenAlexIdDetailed("https://openalex.org/W1");
+    expect(result.status).toBe("unavailable");
+  });
+
+  it("reports rate_limited on HTTP 429", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: false, status: 429 } as Response);
+    const result = await fetchCitingWorksForOpenAlexIdDetailed("https://openalex.org/W1");
+    expect(result.status).toBe("rate_limited");
   });
 });
 

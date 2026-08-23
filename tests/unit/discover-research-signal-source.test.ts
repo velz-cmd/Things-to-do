@@ -6,7 +6,12 @@ vi.mock("@/lib/integrations/crossref", () => ({
 }));
 vi.mock("@/lib/integrations/openalex", () => ({
   searchOpenAlexWorksDetailed: vi.fn(),
-  fetchCitingWorksForOpenAlexId: vi.fn().mockResolvedValue([]),
+  fetchCitingWorksForOpenAlexIdDetailed: vi.fn().mockResolvedValue({
+    status: "ok",
+    records: [],
+    attemptedAt: "2026-08-01T00:00:00.000Z",
+    completedAt: "2026-08-01T00:00:00.000Z",
+  }),
   pingOpenAlex: vi.fn().mockResolvedValue({ ok: true, message: "ok" }),
 }));
 vi.mock("@/lib/integrations/arxiv", () => ({
@@ -24,17 +29,21 @@ vi.mock("@/lib/discover/research/store", () => ({
 }));
 
 import { searchCrossrefDetailed } from "@/lib/integrations/crossref";
-import { searchOpenAlexWorksDetailed, fetchCitingWorksForOpenAlexId } from "@/lib/integrations/openalex";
+import { searchOpenAlexWorksDetailed, fetchCitingWorksForOpenAlexIdDetailed } from "@/lib/integrations/openalex";
 import { searchArxivWorksDetailed } from "@/lib/integrations/arxiv";
 import { persistResearchSnapshot, loadStoredResearchWorks } from "@/lib/discover/research/store";
-import { refreshResearchMarket, loadResearchSignals } from "@/lib/discover/marketplace/research-signal-source";
+import {
+  refreshResearchMarket,
+  loadResearchSignals,
+  aggregateProviderStatus,
+} from "@/lib/discover/marketplace/research-signal-source";
 import { OPEN_RESEARCH_QUERIES } from "@/lib/sensors/targets";
 import type { ResearchWork } from "@/lib/discover/research/types";
 
 const mockedCrossref = vi.mocked(searchCrossrefDetailed);
 const mockedOpenAlex = vi.mocked(searchOpenAlexWorksDetailed);
 const mockedArxiv = vi.mocked(searchArxivWorksDetailed);
-const mockedCitingWorks = vi.mocked(fetchCitingWorksForOpenAlexId);
+const mockedCitingWorks = vi.mocked(fetchCitingWorksForOpenAlexIdDetailed);
 const mockedPersist = vi.mocked(persistResearchSnapshot);
 const mockedLoadStored = vi.mocked(loadStoredResearchWorks);
 
@@ -68,7 +77,12 @@ describe("refreshResearchMarket - live multi-provider fetch + persist (Part C)",
     mockedCrossref.mockReset().mockResolvedValue(ok([]));
     mockedOpenAlex.mockReset().mockResolvedValue(ok([]));
     mockedArxiv.mockReset().mockResolvedValue(ok([]));
-    mockedCitingWorks.mockReset().mockResolvedValue([]);
+    mockedCitingWorks.mockReset().mockResolvedValue({
+      status: "ok",
+      records: [],
+      attemptedAt: ATTEMPTED,
+      completedAt: ATTEMPTED,
+    });
     mockedPersist.mockReset().mockResolvedValue({ persisted: true });
   });
 
@@ -167,6 +181,56 @@ describe("refreshResearchMarket - live multi-provider fetch + persist (Part C)",
     const persistedWork = mockedPersist.mock.calls[0][0];
     expect(persistedWork.sourceHealth.Crossref?.status).toBe("healthy");
     expect(persistedWork.sourceHealth.OpenAlex?.status).not.toBe("healthy");
+  });
+
+  /**
+   * Phase 3 Part 3 hardening: a work with real Crossref metadata (title,
+   * DOI, author) but no citation count reported is still a successful
+   * Crossref observation - health must never be inferred from citation
+   * presence.
+   */
+  it("marks Crossref healthy for a work it observed even when it reported no citation count at all", async () => {
+    mockedCrossref.mockImplementation(async (query: string) =>
+      ok(
+        query === OPEN_RESEARCH_QUERIES[0]
+          ? [{ title: "A paper", doi: "10.1/a", url: "https://doi.org/10.1/a", authors: [{ givenName: "Jane", familyName: "Smith" }] }]
+          : [],
+      ),
+    );
+    await refreshResearchMarket();
+    const persistedWork = mockedPersist.mock.calls[0][0];
+    expect(persistedWork.observedSources).toContain("Crossref");
+    expect(persistedWork.sourceHealth.Crossref?.status).toBe("healthy");
+  });
+
+  it("aggregates provider status as ok when at least one of several target queries succeeded (Part 3)", async () => {
+    let call = 0;
+    mockedCrossref.mockImplementation(async () => {
+      call += 1;
+      return call === 1 ? unavailable() : ok([]);
+    });
+    await refreshResearchMarket();
+    // Verified indirectly: aggregateProviderStatus is exported and unit-tested directly below,
+    // this proves refreshResearchMarket doesn't throw/misbehave with mixed per-query outcomes.
+    expect(mockedCrossref).toHaveBeenCalledTimes(OPEN_RESEARCH_QUERIES.length);
+  });
+});
+
+describe("aggregateProviderStatus (Phase 3 Part 3)", () => {
+  it("reports ok when every query succeeded", () => {
+    expect(aggregateProviderStatus(["ok", "ok", "ok"])).toBe("ok");
+  });
+
+  it("reports ok when at least one of several queries succeeded - never describes the whole provider as down", () => {
+    expect(aggregateProviderStatus(["unavailable", "ok", "unavailable"])).toBe("ok");
+  });
+
+  it("reports unavailable only when every query failed", () => {
+    expect(aggregateProviderStatus(["unavailable", "unavailable"])).toBe("unavailable");
+  });
+
+  it("prefers rate_limited when all queries failed and at least one was specifically rate-limited", () => {
+    expect(aggregateProviderStatus(["unavailable", "rate_limited"])).toBe("rate_limited");
   });
 });
 

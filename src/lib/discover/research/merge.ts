@@ -68,6 +68,7 @@ export function mergeResearchWorks(input: {
       citingSample: [],
       sourceHealth: {},
       uncertainties: [],
+      observedSources: ["Crossref"],
     };
     byKey.set(key, work);
   }
@@ -80,7 +81,11 @@ export function mergeResearchWorks(input: {
     if (existing) {
       existing.openAlexId = w.openAlexId;
       existing.citations.push(citation);
+      // OpenAlex actually responded for this work this run - an empty
+      // referencedWorkIds array here is authoritative ("no references"),
+      // not "we don't know" - see store.ts's use of observedSources.
       existing.referencedWorkIds = w.referencedWorkIds;
+      existing.observedSources.push("OpenAlex");
       if (!existing.authors.length) existing.authors = openAlexAuthorsToResearchAuthors(w);
       if (!existing.publicationYear) existing.publicationYear = w.publicationYear;
       if (!existing.containerTitle) existing.containerTitle = w.sourceDisplayName;
@@ -101,6 +106,7 @@ export function mergeResearchWorks(input: {
       citingSample: [],
       sourceHealth: {},
       uncertainties: [],
+      observedSources: ["OpenAlex"],
     });
   }
 
@@ -111,6 +117,7 @@ export function mergeResearchWorks(input: {
     if (existing) {
       existing.arxivId = w.arxivId;
       existing.arxivVersion = w.version;
+      existing.observedSources.push("arXiv");
       if (!existing.authors.length) existing.authors = w.authors.map((name) => ({ name }));
       continue;
     }
@@ -131,6 +138,7 @@ export function mergeResearchWorks(input: {
       citingSample: [],
       sourceHealth: {},
       uncertainties: [],
+      observedSources: ["arXiv"],
     });
   }
 

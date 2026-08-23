@@ -18,7 +18,7 @@ import { getAgentSignalService } from "@/lib/agent/service-registry";
 import { buildLiveSettlements } from "@/lib/discover/live-settlements";
 import { loadCommunityFundingSignals } from "./community-funding-source";
 import { loadResearchSignals } from "./research-signal-source";
-import { loadMediaSignals } from "./media-signal-source";
+import { loadMediaSignals, loadMediaSourceDiagnostic } from "./media-signal-source";
 import { attachNpmDockerAdoption } from "./npm-docker-adoption";
 import {
   getAgentResultsForSubjects,
@@ -2929,6 +2929,7 @@ async function loadDiscoverSourceDiagnostics(
       ...stored.opportunities.map((item) => item.fullName),
     ]),
   ];
+  const mediaDiagnostic = await loadMediaSourceDiagnostic().catch(() => null);
   if (!names.length && readiness) {
     return [
       {
@@ -2949,9 +2950,10 @@ async function loadDiscoverSourceDiagnostics(
         }),
         secondaryActions: [],
       },
+      ...(mediaDiagnostic ? [mediaDiagnostic] : []),
     ];
   }
-  return names.slice(0, 12).map((name) => {
+  const githubDiagnostics = names.slice(0, 12).map((name) => {
     const snapshot = byName.get(name.toLowerCase());
     const records = snapshot?.activity?.records ?? [];
     const accepted = snapshot
@@ -3002,6 +3004,7 @@ async function loadDiscoverSourceDiagnostics(
       ],
     } satisfies DiscoverSourceDiagnostic;
   });
+  return [...githubDiagnostics, ...(mediaDiagnostic ? [mediaDiagnostic] : [])];
 }
 
 export async function loadDiscoverPageData(

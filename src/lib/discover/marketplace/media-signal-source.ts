@@ -2,10 +2,14 @@ import { createHash } from "node:crypto";
 import {
   fetchListenBrainzListens,
   isListenBrainzConfigured,
+  pingListenBrainz,
 } from "@/lib/integrations/listenbrainz";
 import { canonicalMediaId } from "@/lib/integrations/canonical-identity";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
-import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
+import type {
+  DiscoverSourceDiagnostic,
+  MarketplaceOpportunity,
+} from "@/lib/discover/marketplace/contracts";
 
 /**
  * Real media-domain outcomes: individually verified plays observed on
@@ -115,4 +119,35 @@ export async function loadMediaSignals(): Promise<MarketplaceOpportunity[]> {
       secondaryActions: [],
     };
   });
+}
+
+/**
+ * Real per-provider health for the media source, surfaced next to GitHub's
+ * repository diagnostics instead of failing silently. `loadMediaSignals()`
+ * itself must stay resilient (empty array on any failure, per its existing
+ * contract with callers), so this is a separate live check - it never
+ * blocks or changes what `loadMediaSignals()` returns.
+ */
+export async function loadMediaSourceDiagnostic(): Promise<DiscoverSourceDiagnostic | null> {
+  if (!isListenBrainzConfigured()) return null;
+
+  const result = await pingListenBrainz();
+  const checkedAt = new Date().toISOString();
+  return {
+    id: "listenbrainz:account",
+    provider: "listenbrainz",
+    state: result.ok ? "connected" : "refresh_failed",
+    evaluationPeriod: "Most recent verified listens",
+    eventsInspected: null,
+    acceptedEvents: 0,
+    lastSuccessfulAt: result.ok ? checkedAt : null,
+    reason: result.message,
+    stale: !result.ok,
+    primaryAction: discoverNavigationAction({
+      id: "discover.open_external_record",
+      label: result.ok ? "View on ListenBrainz" : "Review source status",
+      href: result.ok ? "https://listenbrainz.org" : "/discover?view=activity",
+    }),
+    secondaryActions: [],
+  };
 }

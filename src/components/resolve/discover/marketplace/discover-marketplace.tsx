@@ -2064,15 +2064,11 @@ function OutcomesView({
   const { openSignIn } = useSignInModal();
   const params = useSearchParams();
   if (data.projection.kind !== "outcomes") return null;
-  if (!data.signedIn) {
-    return (
-      <CompactEmpty
-        title="Sign in to view your economic activity"
-        body="Your requests, rewards, Pool funding, transaction states and receipts are private to your RESOLVE session."
-        action={<button type="button" onClick={openSignIn} className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-white">Sign in</button>}
-      />
-    );
-  }
+  // Confirmed settlements are network-wide (loadConfirmedOutcomes takes no
+  // viewer parameter) - this is real shared-market activity, not account
+  // history. It must render for every visitor, signed in or not; only the
+  // personal ledger below is actually private to a session.
+  const confirmedReceipts = data.projection.items;
   // agent_service was missing, so every paid agent run was filtered out of
   // the ledger even though it settled on Arc and produced a result.
   const supportedKinds = new Set([
@@ -2084,7 +2080,6 @@ function OutcomesView({
     "agent_service",
   ]);
   const personal = (data.activity ?? []).filter((item) => supportedKinds.has(item.kind));
-  const confirmedReceipts = data.projection.items;
   const activeFilter = params.get("state") ?? "all";
   const filtered = personal.filter((item) => {
     if (activeFilter === "receipts") return item.kind === "receipt";
@@ -2101,30 +2096,47 @@ function OutcomesView({
   return (
     <div className="space-y-6">
       <section>
-        <p className="text-xs font-semibold text-violet-300">Your ledger</p>
-        <h2 className="mt-1 text-xl font-semibold text-white">Activity and receipts</h2>
+        <p className="text-xs font-semibold text-emerald-300">Shared market</p>
+        <h2 className="mt-1 text-xl font-semibold text-white">Activity</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-          Follow each real action from preparation through submission, confirmation, and receipt. Submitted transactions never appear as confirmed before Arc and RESOLVE both record proof.
+          Confirmed outcomes across the whole network - visible to every visitor, not only your own account.
         </p>
-        <nav aria-label="Activity state" className="mt-4 flex gap-1 overflow-x-auto">
-          {tabs.map(([id, label]) => <Link key={id} href={`/discover?view=activity&state=${id}`} className={`rounded-full border px-3 py-1.5 text-xs ${activeFilter === id ? "border-violet-300/30 bg-violet-400/10 text-white" : "border-white/10 text-slate-400"}`}>{label}</Link>)}
-        </nav>
       </section>
-      {filtered.length ? (
-        <section className="rounded-xl border border-white/[0.08] bg-[#091522] px-4">
-          {filtered.map((item) => <ActivityRow key={item.id} item={item} data={data} onOpen={onOpen} />)}
-        </section>
-      ) : (
-        <CompactEmpty title="No activity matches this state" body="Only canonical records tied to your account are shown. Start a request, reward verified work, or fund a ready Pool to create a real lifecycle record." />
-      )}
       {confirmedReceipts.length ? (
         <section>
-          <SectionTitle title="Receipt archive" count={confirmedReceipts.length} />
+          <SectionTitle title="Confirmed outcomes" count={confirmedReceipts.length} />
           <div className="space-y-2">{confirmedReceipts.map((outcome) => <OutcomeRow key={outcome.id} outcome={outcome} data={data} onOpen={onOpen} />)}</div>
         </section>
       ) : (
-        <p className="text-xs text-slate-500">No receipt-backed outcome is confirmed for this account.</p>
+        <CompactEmpty title="No confirmed outcomes yet" body="Confirmed settlements will appear here for every visitor as soon as Arc records them." />
       )}
+      <section className="border-t border-white/[0.06] pt-6">
+        <p className="text-xs font-semibold text-violet-300">Your ledger</p>
+        <h2 className="mt-1 text-xl font-semibold text-white">Your activity and receipts</h2>
+        {!data.signedIn ? (
+          <CompactEmpty
+            title="Sign in to view your own activity"
+            body="Your requests, rewards, Pool funding, transaction states and receipts are private to your RESOLVE session. The shared market activity above is public and needs no sign-in."
+            action={<button type="button" onClick={openSignIn} className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-semibold text-white">Sign in</button>}
+          />
+        ) : (
+          <>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+              Follow each real action from preparation through submission, confirmation, and receipt. Submitted transactions never appear as confirmed before Arc and RESOLVE both record proof.
+            </p>
+            <nav aria-label="Activity state" className="mt-4 flex gap-1 overflow-x-auto">
+              {tabs.map(([id, label]) => <Link key={id} href={`/discover?view=activity&state=${id}`} className={`rounded-full border px-3 py-1.5 text-xs ${activeFilter === id ? "border-violet-300/30 bg-violet-400/10 text-white" : "border-white/10 text-slate-400"}`}>{label}</Link>)}
+            </nav>
+            {filtered.length ? (
+              <section className="mt-4 rounded-xl border border-white/[0.08] bg-[#091522] px-4">
+                {filtered.map((item) => <ActivityRow key={item.id} item={item} data={data} onOpen={onOpen} />)}
+              </section>
+            ) : (
+              <CompactEmpty title="No activity matches this state" body="Only canonical records tied to your account are shown. Start a request, reward verified work, or fund a ready Pool to create a real lifecycle record." />
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }
@@ -2476,7 +2488,10 @@ function DiscoverMarketplaceContent({
             <OutcomesView data={data} onOpen={openWorkbench} />
           )}
         </div>
-        <SourceDiagnostics data={data} onOpen={openWorkbench} />
+        {/* Connector/repository refresh health is engineering diagnostics,
+            not shared-market activity - it must never render for an
+            anonymous or clean visitor, who has no source to diagnose. */}
+        {data.signedIn ? <SourceDiagnostics data={data} onOpen={openWorkbench} /> : null}
       </div>
       <DiscoverActionWorkbench
         action={active?.action ?? null}

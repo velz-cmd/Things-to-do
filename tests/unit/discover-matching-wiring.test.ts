@@ -362,6 +362,79 @@ describe("economic matching is wired into the marketplace", () => {
     );
     expect(direct).toBeUndefined();
   });
+
+  /**
+   * Phase 5 fix: listenbrainz_listen (media) items were entirely excluded
+   * from attachEconomicMatch, so a real Creator Pool could never match a
+   * verified play even though poolOutcomeClasses()/outcomeClassFor()
+   * already handled the "creator" class correctly - the match was
+   * unreachable, not absent. Mirrors the same negative-guarantee coverage
+   * already proven for research (citation count never manufactures demand).
+   */
+  function mediaWork(overrides: Partial<MarketplaceOpportunity> = {}): MarketplaceOpportunity {
+    return work({
+      type: "creator_collaboration",
+      category: undefined,
+      source: { type: "listenbrainz_listen", id: "mbid:example" },
+      entityState: {
+        provenance: "external_integration",
+        lifecycle: "confirmed",
+        financialReadiness: "not_applicable",
+      },
+      impactProfile: {
+        measurable: true,
+        signals: [
+          {
+            id: "listenbrainz_verified_listen",
+            label: "Verified listen",
+            value: "1",
+            scope: "artifact",
+            source: "ListenBrainz",
+            observedAt: "2026-08-01T00:00:00.000Z",
+            classification: "observed",
+          },
+        ],
+      },
+      ...overrides,
+    });
+  }
+
+  it("a verified listen with no funding intent produces no funding amount", () => {
+    const [item] = attachEconomicMatch([mediaWork()], { pools: [] });
+    expect(item.economicMatch?.recommended).toBeNull();
+    expect(
+      item.economicMatch?.eligible.some((m) => m.intent.mechanism === "pool_allocation"),
+    ).toBe(false);
+  });
+
+  it("a real eligible Creator Pool may match a verified listen - the match is reachable, not manufactured", () => {
+    const [item] = attachEconomicMatch([mediaWork()], {
+      pools: [pool({ type: "creator royalty pool", availableUsd: 150 })],
+      operatorOfPoolIds: new Set(["pool-1"]),
+    });
+    const poolMatch = item.economicMatch?.eligible.find(
+      (m) => m.intent.mechanism === "pool_allocation",
+    );
+    expect(poolMatch).toBeDefined();
+    expect(poolMatch?.intent.availableUsd).toBe(150);
+  });
+
+  it("a Pool funding a different class never matches a verified listen", () => {
+    const [item] = attachEconomicMatch([mediaWork()], {
+      pools: [pool({ type: "security response fund" })],
+    });
+    expect(
+      item.economicMatch?.eligible.some((m) => m.intent.mechanism === "pool_allocation"),
+    ).toBe(false);
+  });
+
+  it("playback observation alone never grants payout readiness or direct-support eligibility", () => {
+    const [item] = attachEconomicMatch([mediaWork()], { pools: [] });
+    const direct = item.economicMatch?.eligible.find(
+      (m) => m.intent.mechanism === "direct_support",
+    );
+    expect(direct).toBeUndefined();
+  });
 });
 
 describe("role ranking orders without hiding", () => {

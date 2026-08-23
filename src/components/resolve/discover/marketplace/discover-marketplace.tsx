@@ -856,6 +856,75 @@ function ResearchWorkRow({
   );
 }
 
+/**
+ * Media rows are one specific, timestamped playback observation - never a
+ * GitHub-shaped "Contributor"/payout row (no GitBranch icon, no fabricated
+ * fund CTA). The primary action is whatever loadMediaSignals() actually
+ * set ("View on ListenBrainz"); no funding button is invented here since
+ * attachVerifiedWorkActions() deliberately never touches non-GitHub
+ * sources.
+ */
+function MediaWorkRow({
+  work,
+  data,
+  onOpen,
+}: {
+  work: MarketplaceOpportunity;
+  data: DiscoverPageData;
+  onOpen: OpenAction;
+}) {
+  const context = findContext(data, work.source.id);
+  const impactFact = strongestImpactFact(work.impactProfile);
+
+  return (
+    <details className="group rounded-xl border border-white/[0.08] bg-[#091522] px-4 py-3">
+      <summary className="grid cursor-pointer list-none gap-x-5 gap-y-1.5 md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.5fr)_auto] md:items-center">
+        <div className="min-w-0">
+          <h3 className="truncate font-semibold text-white group-open:whitespace-normal">
+            {work.title}
+          </h3>
+          <p className="mt-0.5 truncate text-xs text-slate-500">Media · ListenBrainz</p>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-xs">
+            {impactFact ? (
+              <span className="font-medium text-white">{impactFact}</span>
+            ) : (
+              <span className="text-slate-500">Impact not yet measured</span>
+            )}
+          </p>
+          <p className="mt-0.5 truncate text-[11px] text-slate-500">{dateLabel(work.publishedAt)}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          {work.primaryAction ? (
+            <ContextualAction action={work.primaryAction} item={context} primary onOpen={onOpen} />
+          ) : null}
+        </div>
+      </summary>
+      <div className="mt-3 border-t border-white/[0.06] pt-3">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          Observed playback
+        </p>
+        <ImpactSummary profile={work.impactProfile} />
+        {work.economicMatch ? (
+          <>
+            <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              Funding
+            </p>
+            <EconomicMatchSummary match={work.economicMatch} />
+          </>
+        ) : null}
+        <p className="mt-3 max-w-3xl text-xs leading-5 text-slate-500">{work.description}</p>
+        {work.riskFlags.length ? (
+          <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
+            {work.riskFlags[0]}
+          </p>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 function WorkRow({
   work,
   data,
@@ -873,6 +942,9 @@ function WorkRow({
 }) {
   if (work.source.type === "research_work") {
     return <ResearchWorkRow work={work} data={data} onOpen={onOpen} />;
+  }
+  if (work.source.type === "listenbrainz_listen") {
+    return <MediaWorkRow work={work} data={data} onOpen={onOpen} />;
   }
 
   const context = findContext(data, work.source.id);

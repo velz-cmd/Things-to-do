@@ -108,13 +108,22 @@ export function attachEconomicMatch(
   const poolIntents = fundingIntentsFromPools(input.pools);
 
   return opportunities.map((item) => {
-    // Phase 3: research outcomes feed into the same deterministic matcher
-    // as software work - a real Research Pool/Request can match a real
-    // publication, but citation count alone never manufactures demand
-    // (hasSourcedImpact below only gates delegated-capital eligibility,
-    // never the recommended amount, which always comes from the intent's
-    // own availableUsd).
-    if (item.source.type !== "github_evidence" && item.source.type !== "research_work") {
+    // Phase 3/5: research and media outcomes feed into the same
+    // deterministic matcher as software work - a real Research/Creator
+    // Pool can match a real publication or verified listen, but citation
+    // count or play count alone never manufactures demand (hasSourcedImpact
+    // below only gates delegated-capital eligibility, never the recommended
+    // amount, which always comes from the intent's own availableUsd).
+    //
+    // Phase 5 fix: listenbrainz_listen was excluded here entirely, so a
+    // real Creator Pool could never match a media outcome even though
+    // poolOutcomeClasses()/outcomeClassFor() both already handle the
+    // "creator" class correctly - the match was unreachable, not absent.
+    if (
+      item.source.type !== "github_evidence" &&
+      item.source.type !== "research_work" &&
+      item.source.type !== "listenbrainz_listen"
+    ) {
       return item;
     }
 

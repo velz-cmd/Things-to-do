@@ -915,6 +915,11 @@ function MediaWorkRow({
           </>
         ) : null}
         <p className="mt-3 max-w-3xl text-xs leading-5 text-slate-500">{work.description}</p>
+        {work.riskFlags.length ? (
+          <p className="mt-3 max-w-3xl text-xs leading-5 text-amber-100/80">
+            {work.riskFlags[0]}
+          </p>
+        ) : null}
       </div>
     </details>
   );

@@ -51,6 +51,25 @@ function listenIdentity(input: {
     .slice(0, 16);
 }
 
+/**
+ * Deterministic media uncertainty (Phase 4 parity with research's Part E).
+ * Pure function, no network calls - a plain fact about what remains
+ * unresolved, never an alarm.
+ *
+ * The only detectable category today: whether identity rests on a real
+ * MusicBrainz recording ID or the weak artist/track/timestamp fallback -
+ * two different recordings can share a title, so the fallback identity is
+ * genuinely less certain. ListenBrainz is the only provider in this
+ * pipeline, so there is no second source to cross-check against - unlike
+ * research's Crossref/OpenAlex citation-count comparison, a
+ * discrepancy-between-sources category does not exist here yet because
+ * there is only one source.
+ */
+function mediaIdentityUncertainty(hasRecordingMbid: boolean): string | null {
+  if (hasRecordingMbid) return null;
+  return "No MusicBrainz recording ID is confirmed for this listen - identity is currently based on artist/track text and the exact observation timestamp, which two different recordings could coincidentally share.";
+}
+
 export async function loadMediaSignals(): Promise<MarketplaceOpportunity[]> {
   if (!isListenBrainzConfigured()) return [];
 
@@ -64,6 +83,7 @@ export async function loadMediaSignals(): Promise<MarketplaceOpportunity[]> {
 
   return listens.map((listen): MarketplaceOpportunity => {
     const identity = listenIdentity(listen);
+    const uncertainty = mediaIdentityUncertainty(Boolean(listen.recordingMbid));
     return {
       id: `listenbrainz:${identity}`,
       slug: `listenbrainz-${identity}`,
@@ -85,7 +105,7 @@ export async function loadMediaSignals(): Promise<MarketplaceOpportunity[]> {
       publishedAt: listen.listenedAt,
       updatedAt: listen.listenedAt,
       verificationStatus: "confirmed_external_record",
-      riskFlags: [],
+      riskFlags: uncertainty ? [uncertainty] : [],
       source: { type: "listenbrainz_listen", id: identity },
       marketplaceKind: "verified_work",
       sourceUrl: `https://listenbrainz.org`,

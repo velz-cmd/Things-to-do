@@ -72,6 +72,34 @@ describe("loadMediaSignals", () => {
     const [item] = await loadMediaSignals();
     expect(item.id).toMatch(/^listenbrainz:[0-9a-f]{16}$/);
   });
+
+  it("flags a real, deterministic identity uncertainty when no MusicBrainz recording ID exists", async () => {
+    mockedConfigured.mockReturnValueOnce(true);
+    mockedFetch.mockResolvedValueOnce([
+      {
+        listenedAt: "2026-08-01T12:00:00.000Z",
+        artistName: "No Mbid Artist",
+        trackTitle: "No Mbid Track",
+      },
+    ]);
+    const [item] = await loadMediaSignals();
+    expect(item.riskFlags).toHaveLength(1);
+    expect(item.riskFlags[0]).toContain("No MusicBrainz recording ID is confirmed");
+  });
+
+  it("never flags identity uncertainty when a real MusicBrainz recording ID exists", async () => {
+    mockedConfigured.mockReturnValueOnce(true);
+    mockedFetch.mockResolvedValueOnce([
+      {
+        listenedAt: "2026-08-01T12:00:00.000Z",
+        artistName: "Test Artist",
+        trackTitle: "Test Track",
+        recordingMbid: "mbid-123",
+      },
+    ]);
+    const [item] = await loadMediaSignals();
+    expect(item.riskFlags).toEqual([]);
+  });
 });
 
 describe("loadMediaSourceDiagnostic", () => {

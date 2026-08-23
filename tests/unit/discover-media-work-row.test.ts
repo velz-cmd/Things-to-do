@@ -38,4 +38,9 @@ describe("Media rows render through a dedicated component, never the generic Git
     expect(body).not.toContain("GitBranch");
     expect(body).not.toContain("discover.fund_verified_work");
   });
+
+  it("MediaWorkRow surfaces a real deterministic uncertainty (riskFlags) instead of populating an invisible field", () => {
+    const body = extractFunction("MediaWorkRow");
+    expect(body).toContain("work.riskFlags");
+  });
 });

@@ -3,16 +3,22 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/integrations/listenbrainz", () => ({
   fetchListenBrainzListens: vi.fn(),
   isListenBrainzConfigured: vi.fn(),
+  pingListenBrainz: vi.fn(),
 }));
 
 import {
   fetchListenBrainzListens,
   isListenBrainzConfigured,
+  pingListenBrainz,
 } from "@/lib/integrations/listenbrainz";
-import { loadMediaSignals } from "@/lib/discover/marketplace/media-signal-source";
+import {
+  loadMediaSignals,
+  loadMediaSourceDiagnostic,
+} from "@/lib/discover/marketplace/media-signal-source";
 
 const mockedFetch = vi.mocked(fetchListenBrainzListens);
 const mockedConfigured = vi.mocked(isListenBrainzConfigured);
+const mockedPing = vi.mocked(pingListenBrainz);
 
 describe("loadMediaSignals", () => {
   it("returns an empty list when ListenBrainz is not configured", async () => {
@@ -65,5 +71,42 @@ describe("loadMediaSignals", () => {
     ]);
     const [item] = await loadMediaSignals();
     expect(item.id).toMatch(/^listenbrainz:[0-9a-f]{16}$/);
+  });
+});
+
+describe("loadMediaSourceDiagnostic", () => {
+  it("returns null when ListenBrainz is not configured - never a fabricated diagnostic entry", async () => {
+    mockedConfigured.mockReturnValueOnce(false);
+    expect(await loadMediaSourceDiagnostic()).toBeNull();
+    expect(mockedPing).not.toHaveBeenCalled();
+  });
+
+  it("reports connected state from a real successful ping", async () => {
+    mockedConfigured.mockReturnValueOnce(true);
+    mockedPing.mockResolvedValueOnce({
+      ok: true,
+      message: "ListenBrainz connected · 3 recent listens · latest 2026-08-01 12:00",
+    });
+    const diagnostic = await loadMediaSourceDiagnostic();
+    expect(diagnostic).toMatchObject({
+      provider: "listenbrainz",
+      state: "connected",
+      stale: false,
+      reason: "ListenBrainz connected · 3 recent listens · latest 2026-08-01 12:00",
+    });
+    expect(diagnostic?.lastSuccessfulAt).not.toBeNull();
+  });
+
+  it("reports refresh_failed state and no lastSuccessfulAt from a real failed ping - never fabricates recency", async () => {
+    mockedConfigured.mockReturnValueOnce(true);
+    mockedPing.mockResolvedValueOnce({ ok: false, message: "ListenBrainz HTTP 503" });
+    const diagnostic = await loadMediaSourceDiagnostic();
+    expect(diagnostic).toMatchObject({
+      provider: "listenbrainz",
+      state: "refresh_failed",
+      stale: true,
+      reason: "ListenBrainz HTTP 503",
+      lastSuccessfulAt: null,
+    });
   });
 });

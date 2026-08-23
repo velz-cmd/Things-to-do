@@ -35,6 +35,7 @@ export function outcomeClassFor(item: MarketplaceOpportunity): string {
     case "creator_collaboration":
       return "creator";
     case "research_request":
+    case "research_outcome":
       return "research";
     case "repository_fix":
       return "software";

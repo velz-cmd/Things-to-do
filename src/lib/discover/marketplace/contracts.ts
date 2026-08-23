@@ -83,6 +83,15 @@ export const OPPORTUNITY_TYPES = [
   "project_contribution",
   "repository_fix",
   "research_request",
+  /**
+   * An observed, published scholarly work (Crossref/OpenAlex/arXiv) - not
+   * a request for research to be done. "research_request" is a real,
+   * separate type already used by user-submitted funded Requests
+   * (see request-contract.ts); reusing it for observed publications would
+   * make Discover's own type vocabulary claim publications are funding
+   * asks, which they are not.
+   */
+  "research_outcome",
   "community_proposal",
   "creator_collaboration",
   "agent_service_request",

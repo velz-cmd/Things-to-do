@@ -95,14 +95,30 @@ export async function fetchRepoResearchSignal(
   }
 }
 
+export type OpenAlexAuthor = {
+  displayName: string;
+  openAlexAuthorId?: string;
+};
+
 export type OpenAlexSearchResult = {
   openAlexId: string;
   title: string;
   doi?: string;
   publicationYear?: number;
   citedByCount: number;
+  /** Kept for backward compatibility - display names only. */
   authorNames: string[];
+  authors: OpenAlexAuthor[];
   landingPageUrl?: string;
+  sourceDisplayName?: string;
+  /** Bounded sample of OpenAlex work IDs this work cites (its own references). */
+  referencedWorkIds: string[];
+};
+
+export type OpenAlexCitingWork = {
+  openAlexId: string;
+  title: string;
+  publicationYear?: number;
 };
 
 /**
@@ -142,26 +158,81 @@ export async function searchOpenAlexWorks(
         doi?: string;
         publication_year?: number;
         cited_by_count?: number;
-        authorships?: Array<{ author?: { display_name?: string } }>;
-        primary_location?: { landing_page_url?: string };
+        authorships?: Array<{ author?: { id?: string; display_name?: string } }>;
+        primary_location?: { landing_page_url?: string; source?: { display_name?: string } };
+        referenced_works?: string[];
       }>;
     };
 
     return (json.results ?? [])
       .filter((w) => w.title)
+      .map((w) => {
+        const authors: OpenAlexAuthor[] = (w.authorships ?? [])
+          .filter((a) => Boolean(a.author?.display_name))
+          .map((a) => ({
+            displayName: a.author!.display_name!,
+            openAlexAuthorId: a.author?.id,
+          }));
+        return {
+          openAlexId: w.id,
+          title: w.title!,
+          doi: w.doi ? w.doi.replace(/^https?:\/\/doi\.org\//i, "") : undefined,
+          publicationYear: w.publication_year,
+          citedByCount: w.cited_by_count ?? 0,
+          authorNames: authors.map((a) => a.displayName),
+          authors,
+          landingPageUrl: w.primary_location?.landing_page_url,
+          sourceDisplayName: w.primary_location?.source?.display_name,
+          referencedWorkIds: (w.referenced_works ?? []).slice(0, 25),
+        };
+      });
+  } catch (e) {
+    console.warn("[openalex] search failed:", e);
+    return [];
+  }
+}
+
+/**
+ * Bounded sample of works that cite a given OpenAlex work - the real
+ * scholarly relationship graph (`cites:` filter), not an inference from
+ * title similarity. Shares the exact same fetch pattern already proven in
+ * src/lib/sensors/openalex-citations.ts, kept as a separate function here
+ * deliberately - that Mission sensor computes its own policy-driven
+ * confidence/amount-hint values and must not be touched or repointed by
+ * Discover's research domain.
+ */
+export async function fetchCitingWorksForOpenAlexId(
+  openAlexId: string,
+  limit = 5,
+): Promise<OpenAlexCitingWork[]> {
+  const shortId = openAlexId.replace(/^https?:\/\/openalex\.org\//i, "");
+  if (!shortId) return [];
+
+  const url = openAlexUrl("/works", {
+    filter: `cites:${shortId}`,
+    per_page: String(Math.min(limit, 25)),
+    sort: "publication_date:desc",
+  });
+
+  try {
+    const res = await fetch(url, {
+      headers: openAlexHeaders(),
+      signal: AbortSignal.timeout(12_000),
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      results?: Array<{ id: string; title?: string; publication_year?: number }>;
+    };
+    return (json.results ?? [])
+      .filter((w) => w.title)
       .map((w) => ({
         openAlexId: w.id,
         title: w.title!,
-        doi: w.doi ? w.doi.replace(/^https?:\/\/doi\.org\//i, "") : undefined,
         publicationYear: w.publication_year,
-        citedByCount: w.cited_by_count ?? 0,
-        authorNames: (w.authorships ?? [])
-          .map((a) => a.author?.display_name)
-          .filter((name): name is string => Boolean(name)),
-        landingPageUrl: w.primary_location?.landing_page_url,
       }));
   } catch (e) {
-    console.warn("[openalex] search failed:", e);
+    console.warn("[openalex] citing-works fetch failed:", e);
     return [];
   }
 }

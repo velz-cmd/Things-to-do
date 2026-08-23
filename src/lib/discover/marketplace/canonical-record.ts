@@ -161,7 +161,12 @@ export function toCanonicalMarketRecord(
       entityKind: item.marketplaceKind ?? "opportunity",
       source: item.source.type,
       sourceRecordId: item.source.id,
-      canonicalSubject: item.repository ?? item.projectId ?? research?.doi,
+      canonicalSubject:
+        item.repository ??
+        item.projectId ??
+        research?.doi ??
+        research?.openAlexId ??
+        research?.arxivId,
       aliases: researchAliases.length ? researchAliases : undefined,
     },
     provenance: {

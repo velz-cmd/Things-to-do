@@ -386,6 +386,19 @@ export type MarketplaceOpportunity = {
     citations: Array<{ source: string; count: number; observedAt: string }>;
     citingSample: Array<{ id: string; title: string }>;
     referencedWorkIds: string[];
+    /**
+     * The real, precision-honest publication date/year - the ONLY fields
+     * the UI may display as "when this was published". A source that only
+     * reports a year (e.g. Crossref with year-level granularity) must
+     * render as "Published 2024", never a fabricated "Published Jan 1,
+     * 2024". Top-level `publishedAt`/`updatedAt` above remain required
+     * generic ordering fields (sort/filter compatibility across all
+     * Discover domains) and are NEVER a publication-date claim for
+     * research - see research-signal-source.ts's toMarketplaceOpportunity.
+     */
+    publicationDate?: string;
+    publicationYear?: number;
+    publicationDatePrecision?: "day" | "month" | "year";
   };
   /**
    * Which real funding intents could fund this outcome, which were ruled out

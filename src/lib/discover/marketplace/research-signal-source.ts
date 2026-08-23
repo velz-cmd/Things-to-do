@@ -1,10 +1,10 @@
-import { searchCrossref, pingCrossref } from "@/lib/integrations/crossref";
+import { searchCrossrefDetailed, pingCrossref } from "@/lib/integrations/crossref";
 import {
-  searchOpenAlexWorks,
+  searchOpenAlexWorksDetailed,
   fetchCitingWorksForOpenAlexId,
   pingOpenAlex,
 } from "@/lib/integrations/openalex";
-import { searchArxivWorks, pingArxiv } from "@/lib/integrations/arxiv";
+import { searchArxivWorksDetailed, pingArxiv } from "@/lib/integrations/arxiv";
 import { normalizeDoi, normalizeOpenAlexId, normalizeArxivId } from "@/lib/integrations/canonical-identity";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import { classifySourceHealth } from "@/lib/discover/marketplace/source-health";
@@ -13,6 +13,7 @@ import { OPEN_RESEARCH_QUERIES } from "@/lib/sensors/targets";
 import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
 import type { ImpactProfile, ImpactSignal } from "@/lib/discover/impact/impact-signals";
 import type { ResearchWork } from "@/lib/discover/research/types";
+import type { ProviderFetchStatus } from "@/lib/discover/research/provider-result";
 
 /**
  * Real research-domain outcomes (Phase 3), sourced from three independent
@@ -85,37 +86,45 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
   const observedAt = new Date().toISOString();
   const targets = OPEN_RESEARCH_QUERIES;
 
+  // Structured results (ProviderFetchResult) are used throughout instead
+  // of plain arrays specifically so health can never be inferred from
+  // "result array happened to be empty" - see provider-result.ts (A2).
   const perQuery = await Promise.all(
     targets.map(async (query) => {
-      const [crossrefResult, openAlexResult] = await Promise.allSettled([
-        searchCrossref(query, MAX_WORKS_PER_QUERY),
-        searchOpenAlexWorks(query, MAX_WORKS_PER_QUERY),
+      const [crossref, openAlex] = await Promise.all([
+        searchCrossrefDetailed(query, MAX_WORKS_PER_QUERY),
+        searchOpenAlexWorksDetailed(query, MAX_WORKS_PER_QUERY),
       ]);
-      return {
-        crossrefWorks: crossrefResult.status === "fulfilled" ? crossrefResult.value : [],
-        crossrefFailed: crossrefResult.status === "rejected",
-        openAlexWorks: openAlexResult.status === "fulfilled" ? openAlexResult.value : [],
-        openAlexFailed: openAlexResult.status === "rejected",
-      };
+      return { crossref, openAlex };
     }),
   );
 
   // arXiv is queried strictly sequentially across targets, respecting its
   // slower request etiquette - never fired concurrently like Crossref/OpenAlex.
-  const arxivPerQuery: Awaited<ReturnType<typeof searchArxivWorks>>[] = [];
-  let arxivFailed = false;
+  const arxivPerQuery: Awaited<ReturnType<typeof searchArxivWorksDetailed>>[] = [];
   for (const query of targets) {
-    try {
-      arxivPerQuery.push(await searchArxivWorks(query, MAX_WORKS_PER_QUERY));
-    } catch {
-      arxivPerQuery.push([]);
-      arxivFailed = true;
-    }
+    arxivPerQuery.push(await searchArxivWorksDetailed(query, MAX_WORKS_PER_QUERY));
   }
 
-  const allCrossref = perQuery.flatMap((r) => r.crossrefWorks);
-  const allOpenAlex = perQuery.flatMap((r) => r.openAlexWorks);
-  const allArxiv = arxivPerQuery.flat();
+  const crossrefStatus: ProviderFetchStatus = perQuery.some((r) => r.crossref.status !== "ok")
+    ? perQuery.every((r) => r.crossref.status !== "ok")
+      ? perQuery[0]?.crossref.status ?? "unavailable"
+      : "unavailable"
+    : "ok";
+  const openAlexStatus: ProviderFetchStatus = perQuery.some((r) => r.openAlex.status !== "ok")
+    ? perQuery.every((r) => r.openAlex.status !== "ok")
+      ? perQuery[0]?.openAlex.status ?? "unavailable"
+      : "unavailable"
+    : "ok";
+  const arxivStatus: ProviderFetchStatus = arxivPerQuery.some((r) => r.status !== "ok")
+    ? arxivPerQuery.every((r) => r.status !== "ok")
+      ? arxivPerQuery[0]?.status ?? "unavailable"
+      : "unavailable"
+    : "ok";
+
+  const allCrossref = perQuery.flatMap((r) => r.crossref.records);
+  const allOpenAlex = perQuery.flatMap((r) => r.openAlex.records);
+  const allArxiv = arxivPerQuery.flatMap((r) => r.records);
   if (!allCrossref.length && !allOpenAlex.length && !allArxiv.length) return [];
 
   const merged = mergeResearchWorks({
@@ -126,18 +135,18 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
   });
 
   const queryIndexByKey = new Map<string, number>();
-  perQuery.forEach(({ crossrefWorks, openAlexWorks }, queryIndex) => {
-    for (const w of crossrefWorks) {
+  perQuery.forEach(({ crossref, openAlex }, queryIndex) => {
+    for (const w of crossref.records) {
       const key = keyForCrossref(w.doi);
       if (key && !queryIndexByKey.has(key)) queryIndexByKey.set(key, queryIndex);
     }
-    for (const w of openAlexWorks) {
+    for (const w of openAlex.records) {
       const key = keyForOpenAlex(w.doi, w.openAlexId);
       if (!queryIndexByKey.has(key)) queryIndexByKey.set(key, queryIndex);
     }
   });
-  arxivPerQuery.forEach((works, queryIndex) => {
-    for (const w of works) {
+  arxivPerQuery.forEach(({ records }, queryIndex) => {
+    for (const w of records) {
       const key = keyForArxiv(w.doi, w.arxivId);
       if (!queryIndexByKey.has(key)) queryIndexByKey.set(key, queryIndex);
     }
@@ -162,6 +171,9 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
     }
   }
 
+  // Real per-provider status (never inferred from result-array length) -
+  // a provider that returned HTTP 200 with zero matches is "ok", not
+  // indistinguishable from a timeout/500/429.
   const attemptedAt = observedAt;
   for (const work of composed) {
     work.sourceHealth = {
@@ -170,19 +182,22 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
           ? observedAt
           : null,
         lastAttemptAt: attemptedAt,
-        lastAttemptSucceeded: !perQuery.some((r) => r.crossrefFailed),
+        lastAttemptSucceeded: crossrefStatus === "ok",
+        rateLimited: crossrefStatus === "rate_limited",
       }),
       OpenAlex: classifySourceHealth({
         lastSuccessfulRefreshAt: work.citations.some((c) => c.source === "OpenAlex")
           ? observedAt
           : null,
         lastAttemptAt: attemptedAt,
-        lastAttemptSucceeded: !perQuery.some((r) => r.openAlexFailed),
+        lastAttemptSucceeded: openAlexStatus === "ok",
+        rateLimited: openAlexStatus === "rate_limited",
       }),
       arXiv: classifySourceHealth({
         lastSuccessfulRefreshAt: work.arxivId ? observedAt : null,
         lastAttemptAt: attemptedAt,
-        lastAttemptSucceeded: !arxivFailed,
+        lastAttemptSucceeded: arxivStatus === "ok",
+        rateLimited: arxivStatus === "rate_limited",
       }),
     };
   }
@@ -255,7 +270,13 @@ function toMarketplaceOpportunity(
     evidenceRequirements: [],
     eligibility: [],
     provider: { preference: "open" },
-    publishedAt: work.publishedDate ?? (work.publicationYear ? `${work.publicationYear}-01-01` : observedAt),
+    // Generic ordering field only (sort/filter compatibility) - never a
+    // displayed publication-date claim. A real full date is used when one
+    // exists; otherwise this falls back to observation time rather than
+    // fabricating a day/month the source never reported. The actual,
+    // precision-honest publication date/year for display lives in
+    // researchIdentity.publicationDate/publicationYear below.
+    publishedAt: work.publishedDate ?? observedAt,
     updatedAt: observedAt,
     verificationStatus: "confirmed_external_record",
     riskFlags: [],
@@ -274,21 +295,34 @@ function toMarketplaceOpportunity(
       citations: work.citations,
       citingSample: work.citingSample,
       referencedWorkIds: work.referencedWorkIds,
+      publicationDate: work.publishedDate,
+      publicationYear: work.publicationYear,
+      publicationDatePrecision: work.datePrecision,
     },
     entityState: {
       provenance: "external_integration",
       lifecycle: "confirmed",
       financialReadiness: "not_applicable",
     },
-    primaryAction: discoverNavigationAction(
-      {
-        id: "discover.open_external_record",
-        label: "View research record",
-        href: work.url,
-      },
-      { target: "external", secondary: true },
-    ),
-    secondaryActions: [],
+    // No forced primary CTA (Phase 3 item 23/A4): a research outcome with
+    // no real funding match, no monitoring state, and no purchasable
+    // citation-resolution action has zero legitimate RESOLVE actions -
+    // that is an allowed, honest state, not a gap to paper over with
+    // source navigation dressed up as a decision. "View research record"
+    // is quiet secondary navigation only, reusing the same
+    // discover.open_evidence id the shared row already treats as the
+    // quiet source/evidence link.
+    primaryAction: undefined,
+    secondaryActions: [
+      discoverNavigationAction(
+        {
+          id: "discover.open_evidence",
+          label: "View research record",
+          href: work.url,
+        },
+        { target: "external", secondary: true },
+      ),
+    ],
   };
 }
 

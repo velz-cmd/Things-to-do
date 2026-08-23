@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { searchCrossref } from "@/lib/integrations/crossref";
+import { searchCrossref, searchCrossrefDetailed } from "@/lib/integrations/crossref";
 
 describe("searchCrossref", () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
@@ -94,5 +94,36 @@ describe("searchCrossref", () => {
   it("returns an empty list on a provider failure rather than throwing", async () => {
     fetchSpy.mockResolvedValueOnce({ ok: false } as Response);
     expect(await searchCrossref("x")).toEqual([]);
+  });
+});
+
+describe("searchCrossrefDetailed - honest status (Phase 3 item A2)", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => fetchSpy.mockRestore());
+
+  it("distinguishes a successful zero-result response from a failure", async () => {
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ message: { items: [] } }),
+    } as Response);
+    const result = await searchCrossrefDetailed("x");
+    expect(result.status).toBe("ok");
+    expect(result.records).toEqual([]);
+  });
+
+  it("reports rate_limited on HTTP 429, not unavailable", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: false, status: 429 } as Response);
+    const result = await searchCrossrefDetailed("x");
+    expect(result.status).toBe("rate_limited");
+  });
+
+  it("reports unavailable on a thrown timeout/network error", async () => {
+    fetchSpy.mockRejectedValueOnce(new Error("timeout"));
+    const result = await searchCrossrefDetailed("x");
+    expect(result.status).toBe("unavailable");
   });
 });

@@ -1,5 +1,7 @@
 /** arXiv Atom API — free, no key, 3s polite delay between calls. */
 
+import { classifyFetchOutcome, type ProviderFetchResult } from "@/lib/discover/research/provider-result";
+
 export type ArxivPaper = {
   id: string;
   title: string;
@@ -167,9 +169,14 @@ export async function searchArxiv(input: {
  * searchArxiv() above, which builds its own query from Mission
  * community/question context; that function's behavior is unchanged.
  */
-export async function searchArxivWorks(query: string, maxResults = 5): Promise<ArxivWork[]> {
+/** Structured version - honestly distinguishes zero results from failure. */
+export async function searchArxivWorksDetailed(
+  query: string,
+  maxResults = 5,
+): Promise<ProviderFetchResult<ArxivWork>> {
+  const attemptedAt = new Date().toISOString();
   const q = query.trim().slice(0, 200);
-  if (!q) return [];
+  if (!q) return { status: "ok", records: [], attemptedAt, completedAt: attemptedAt };
   const max = Math.min(maxResults, 20);
 
   const url = new URL("https://export.arxiv.org/api/query");
@@ -185,12 +192,27 @@ export async function searchArxivWorks(query: string, maxResults = 5): Promise<A
       signal: AbortSignal.timeout(15_000),
       next: { revalidate: 3600 },
     });
-    if (!res.ok) return [];
+    const outcome = classifyFetchOutcome({ response: res });
+    const completedAt = new Date().toISOString();
+    if (outcome.status !== "ok") {
+      return { ...outcome, records: [], attemptedAt, completedAt };
+    }
     const xml = await res.text();
-    return parseArxivAtomWorks(xml);
+    return { status: "ok", records: parseArxivAtomWorks(xml), attemptedAt, completedAt };
   } catch {
-    return [];
+    const completedAt = new Date().toISOString();
+    return {
+      ...classifyFetchOutcome({ threwTimeoutOrNetworkError: true }),
+      records: [],
+      attemptedAt,
+      completedAt,
+    };
   }
+}
+
+export async function searchArxivWorks(query: string, maxResults = 5): Promise<ArxivWork[]> {
+  const result = await searchArxivWorksDetailed(query, maxResults);
+  return result.records;
 }
 
 export async function pingArxiv(): Promise<{ ok: boolean; message: string }> {

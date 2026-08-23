@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { searchArxivWorks } from "@/lib/integrations/arxiv";
+import { searchArxivWorks, searchArxivWorksDetailed } from "@/lib/integrations/arxiv";
 
 function atomEntry(overrides: {
   id?: string;
@@ -106,5 +106,32 @@ describe("searchArxivWorks", () => {
   it("never throws on malformed XML", async () => {
     fetchSpy.mockResolvedValueOnce({ ok: true, text: async () => "{{{ not xml ]][[" } as Response);
     await expect(searchArxivWorks("test")).resolves.toEqual([]);
+  });
+});
+
+describe("searchArxivWorksDetailed - honest status (Phase 3 item A2)", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => fetchSpy.mockRestore());
+
+  it("distinguishes a successful zero-result response from a failure", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: true, status: 200, text: async () => feed([]) } as Response);
+    const result = await searchArxivWorksDetailed("test");
+    expect(result.status).toBe("ok");
+    expect(result.records).toEqual([]);
+  });
+
+  it("reports rate_limited on HTTP 429", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: false, status: 429 } as Response);
+    const result = await searchArxivWorksDetailed("test");
+    expect(result.status).toBe("rate_limited");
+  });
+
+  it("reports unavailable on a thrown timeout", async () => {
+    fetchSpy.mockRejectedValueOnce(new Error("timeout"));
+    const result = await searchArxivWorksDetailed("test");
+    expect(result.status).toBe("unavailable");
   });
 });

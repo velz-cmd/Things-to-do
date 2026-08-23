@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { searchOpenAlexWorks, fetchCitingWorksForOpenAlexId } from "@/lib/integrations/openalex";
+import {
+  searchOpenAlexWorks,
+  searchOpenAlexWorksDetailed,
+  fetchCitingWorksForOpenAlexId,
+} from "@/lib/integrations/openalex";
 
 describe("searchOpenAlexWorks", () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
@@ -110,5 +114,32 @@ describe("fetchCitingWorksForOpenAlexId", () => {
   it("returns an empty list on provider failure rather than throwing", async () => {
     fetchSpy.mockResolvedValueOnce({ ok: false } as Response);
     expect(await fetchCitingWorksForOpenAlexId("https://openalex.org/W1")).toEqual([]);
+  });
+});
+
+describe("searchOpenAlexWorksDetailed - honest status (Phase 3 item A2)", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+  afterEach(() => fetchSpy.mockRestore());
+
+  it("distinguishes a successful zero-result response from a failure", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ results: [] }) } as Response);
+    const result = await searchOpenAlexWorksDetailed("x");
+    expect(result.status).toBe("ok");
+    expect(result.records).toEqual([]);
+  });
+
+  it("reports rate_limited on HTTP 429", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: false, status: 429 } as Response);
+    const result = await searchOpenAlexWorksDetailed("x");
+    expect(result.status).toBe("rate_limited");
+  });
+
+  it("reports unavailable on HTTP 500", async () => {
+    fetchSpy.mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+    const result = await searchOpenAlexWorksDetailed("x");
+    expect(result.status).toBe("unavailable");
   });
 });

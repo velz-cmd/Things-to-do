@@ -1,4 +1,5 @@
 import { env, INTEGRATIONS } from "@/lib/integrations/config";
+import { classifyFetchOutcome, type ProviderFetchResult } from "@/lib/discover/research/provider-result";
 
 export function openAlexPoliteUserAgent(): string {
   const email = env("OPENALEX_EMAIL") ?? env("RESOLVE_CONTACT_EMAIL") ?? "resolve@arc.network";
@@ -130,12 +131,14 @@ export type OpenAlexCitingWork = {
  * (e.g. Crossref) by DOI identity rather than risk showing the same paper
  * twice as two different "outcomes".
  */
-export async function searchOpenAlexWorks(
+/** Structured version - honestly distinguishes zero results from failure. */
+export async function searchOpenAlexWorksDetailed(
   query: string,
   perPage = 10,
-): Promise<OpenAlexSearchResult[]> {
+): Promise<ProviderFetchResult<OpenAlexSearchResult>> {
+  const attemptedAt = new Date().toISOString();
   const q = query.trim().slice(0, 200);
-  if (!q) return [];
+  if (!q) return { status: "ok", records: [], attemptedAt, completedAt: attemptedAt };
 
   const url = openAlexUrl("/works", {
     search: q,
@@ -149,7 +152,11 @@ export async function searchOpenAlexWorks(
       signal: AbortSignal.timeout(12_000),
       next: { revalidate: 86400 },
     });
-    if (!res.ok) return [];
+    const outcome = classifyFetchOutcome({ response: res });
+    const completedAt = new Date().toISOString();
+    if (outcome.status !== "ok") {
+      return { ...outcome, records: [], attemptedAt, completedAt };
+    }
 
     const json = (await res.json()) as {
       results?: Array<{
@@ -164,7 +171,7 @@ export async function searchOpenAlexWorks(
       }>;
     };
 
-    return (json.results ?? [])
+    const records = (json.results ?? [])
       .filter((w) => w.title)
       .map((w) => {
         const authors: OpenAlexAuthor[] = (w.authorships ?? [])
@@ -186,10 +193,24 @@ export async function searchOpenAlexWorks(
           referencedWorkIds: (w.referenced_works ?? []).slice(0, 25),
         };
       });
-  } catch (e) {
-    console.warn("[openalex] search failed:", e);
-    return [];
+    return { status: "ok", records, attemptedAt, completedAt };
+  } catch {
+    const completedAt = new Date().toISOString();
+    return {
+      ...classifyFetchOutcome({ threwTimeoutOrNetworkError: true }),
+      records: [],
+      attemptedAt,
+      completedAt,
+    };
   }
+}
+
+export async function searchOpenAlexWorks(
+  query: string,
+  perPage = 10,
+): Promise<OpenAlexSearchResult[]> {
+  const result = await searchOpenAlexWorksDetailed(query, perPage);
+  return result.records;
 }
 
 /**

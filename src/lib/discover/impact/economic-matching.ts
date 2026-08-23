@@ -58,6 +58,16 @@ export type CoverageRecord = {
   /** Canonical obligation this settled, when it settled one. */
   obligationId?: string;
   receiptReference?: string;
+  /**
+   * Settlement status of this record. Absent means "confirmed" - every
+   * caller and test that existed before this field was added already
+   * treats a CoverageRecord as a confirmed prior payment, so this default
+   * preserves that behavior exactly. Set explicitly to "pending" for a
+   * submitted-but-unconfirmed transaction (Phase 5: pending money must
+   * never count as confirmed coverage) or "failed" for a settlement that
+   * did not complete (excluded from coverage entirely).
+   */
+  status?: "confirmed" | "pending" | "failed";
 };
 
 export type OverlapVerdict =

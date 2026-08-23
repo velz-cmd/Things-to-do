@@ -7,6 +7,7 @@ import { refreshStaleSensors } from "@/lib/sensors/maintenance";
 import { refreshStaleEarningsSnapshots } from "@/lib/earn/earnings-snapshot";
 import { refreshAllCommunityVitalsSnapshots } from "@/lib/communities/vitals-snapshot";
 import { refreshOssOpportunityStore } from "@/lib/github/oss-scan-store";
+import { refreshResearchMarket } from "@/lib/discover/marketplace/research-signal-source";
 import { releaseClaimableWithinTreasury } from "@/lib/treasury/claimable-release";
 import { reconcilePendingFundTransactions } from "@/lib/capital/reconcile-pending-funds";
 
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [tasks, userSensors, sensors, notify, claimableRelease, earningsSnapshots, vitalsSnapshots, ossScan, fundReconcile, checkpointSettle] =
+  const [tasks, userSensors, sensors, notify, claimableRelease, earningsSnapshots, vitalsSnapshots, ossScan, researchRefresh, fundReconcile, checkpointSettle] =
     await Promise.all([
     processScheduledTasks(),
     syncAllUsersSensors().catch((e) => ({
@@ -39,6 +40,9 @@ export async function GET(req: Request) {
     refreshOssOpportunityStore().catch((e) => ({
       error: e instanceof Error ? e.message : "oss_scan_failed",
     })),
+    refreshResearchMarket().catch((e) => ({
+      error: e instanceof Error ? e.message : "research_refresh_failed",
+    })),
     reconcilePendingFundTransactions().catch((e) => ({
       error: e instanceof Error ? e.message : "fund_reconcile_failed",
     })),
@@ -61,6 +65,7 @@ export async function GET(req: Request) {
     earningsSnapshots,
     vitalsSnapshots,
     ossScan,
+    researchRefresh,
     fundReconcile,
     checkpointSettle,
   });

@@ -399,6 +399,23 @@ export type MarketplaceOpportunity = {
     publicationDate?: string;
     publicationYear?: number;
     publicationDatePrecision?: "day" | "month" | "year";
+    /**
+     * Independent per-provider health (Phase 3 Part D) - "Crossref
+     * healthy" never implies "OpenAlex healthy". Populated at refresh
+     * time and carried through durable persistence, so a read-only
+     * render still shows real freshness rather than recomputing it.
+     */
+    sourceHealth: Partial<
+      Record<
+        "Crossref" | "OpenAlex" | "arXiv",
+        {
+          status: "healthy" | "stale" | "rate_limited" | "unavailable";
+          lastSuccessfulRefreshAt: string | null;
+          lastAttemptAt: string;
+          reason?: string;
+        }
+      >
+    >;
   };
   /**
    * Which real funding intents could fund this outcome, which were ruled out

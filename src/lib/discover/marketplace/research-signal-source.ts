@@ -9,6 +9,7 @@ import { normalizeDoi, normalizeOpenAlexId, normalizeArxivId } from "@/lib/integ
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import { classifySourceHealth } from "@/lib/discover/marketplace/source-health";
 import { mergeResearchWorks } from "@/lib/discover/research/merge";
+import { persistResearchSnapshot, loadStoredResearchWorks } from "@/lib/discover/research/store";
 import { OPEN_RESEARCH_QUERIES } from "@/lib/sensors/targets";
 import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
 import type { ImpactProfile, ImpactSignal } from "@/lib/discover/impact/impact-signals";
@@ -82,7 +83,19 @@ function composeDeterministic(
   return ordered;
 }
 
-export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
+/**
+ * Live multi-provider refresh (Phase 3 Part C): fetches Crossref/OpenAlex/
+ * arXiv, merges, and PERSISTS each composed work durably. This is the
+ * only function in this module that talks to external providers - it
+ * must only ever be invoked by the background cron job
+ * (src/app/api/cron/tick/route.ts), never from a normal page render.
+ * loadResearchSignals() below is the render-facing, durable-read-only
+ * function.
+ */
+export async function refreshResearchMarket(): Promise<{
+  refreshed: number;
+  persisted: number;
+}> {
   const observedAt = new Date().toISOString();
   const targets = OPEN_RESEARCH_QUERIES;
 
@@ -125,7 +138,9 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
   const allCrossref = perQuery.flatMap((r) => r.crossref.records);
   const allOpenAlex = perQuery.flatMap((r) => r.openAlex.records);
   const allArxiv = arxivPerQuery.flatMap((r) => r.records);
-  if (!allCrossref.length && !allOpenAlex.length && !allArxiv.length) return [];
+  if (!allCrossref.length && !allOpenAlex.length && !allArxiv.length) {
+    return { refreshed: 0, persisted: 0 };
+  }
 
   const merged = mergeResearchWorks({
     crossref: allCrossref,
@@ -202,7 +217,29 @@ export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
     };
   }
 
-  return composed.map((work) => toMarketplaceOpportunity(work, observedAt));
+  let persisted = 0;
+  for (const work of composed) {
+    const result = await persistResearchSnapshot(work);
+    if (result.persisted) persisted += 1;
+  }
+
+  return { refreshed: composed.length, persisted };
+}
+
+/**
+ * Render-facing, durable-read-only (Phase 3 Part C): reads the persisted
+ * research market and projects it into MarketplaceOpportunity records.
+ * Never calls Crossref/OpenAlex/arXiv - a normal /discover page load must
+ * not fan out to external providers. Deterministic ordering by canonical
+ * key (stable regardless of DB row order), matching the same tie-break
+ * discipline used elsewhere in Discover's sort logic.
+ */
+export async function loadResearchSignals(): Promise<MarketplaceOpportunity[]> {
+  const works = await loadStoredResearchWorks();
+  const observedAt = new Date().toISOString();
+  return [...works]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((work) => toMarketplaceOpportunity(work, observedAt));
 }
 
 /**
@@ -298,6 +335,7 @@ function toMarketplaceOpportunity(
       publicationDate: work.publishedDate,
       publicationYear: work.publicationYear,
       publicationDatePrecision: work.datePrecision,
+      sourceHealth: work.sourceHealth,
     },
     entityState: {
       provenance: "external_integration",

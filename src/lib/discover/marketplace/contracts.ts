@@ -1,5 +1,6 @@
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
 import type { EconomicMatch } from "@/lib/discover/impact/economic-matching";
+import type { SourceHealthState } from "@/lib/discover/marketplace/source-health";
 
 export const DISCOVER_VIEWS = [
   "for_you",
@@ -405,17 +406,7 @@ export type MarketplaceOpportunity = {
      * time and carried through durable persistence, so a read-only
      * render still shows real freshness rather than recomputing it.
      */
-    sourceHealth: Partial<
-      Record<
-        "Crossref" | "OpenAlex" | "arXiv",
-        {
-          status: "healthy" | "stale" | "rate_limited" | "unavailable";
-          lastSuccessfulRefreshAt: string | null;
-          lastAttemptAt: string;
-          reason?: string;
-        }
-      >
-    >;
+    sourceHealth: Partial<Record<"Crossref" | "OpenAlex" | "arXiv", SourceHealthState>>;
     /**
      * Deterministic, structurally-detected uncertainty facts (Phase 3
      * Part E) - e.g. citation indexes disagreeing, DOI unresolved. Never

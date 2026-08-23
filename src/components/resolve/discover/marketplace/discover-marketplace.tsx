@@ -33,6 +33,8 @@ import { useSignInModal } from "@/components/auth/sign-in-context";
 import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketplace/discover-action-workbench";
 import { DISCOVER_VIEW_TO_ROUTE } from "@/lib/discover/marketplace/contracts";
 import { isMarketListedPool } from "@/lib/discover/marketplace/pool-listing";
+import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
+import { describeSourceHealth } from "@/lib/discover/marketplace/source-health";
 import type {
   DiscoverAction,
   DiscoverActivityItem,
@@ -695,6 +697,165 @@ function fundingStateLabel(
   return "No current funding match";
 }
 
+/**
+ * Research-domain row (Phase 3 Part 7-14): deliberately its own renderer,
+ * not "swap the GitBranch icon". No GitHub visual language (no icon, no
+ * "Contributor" label), a domain-correct quiet metadata line (author ·
+ * journal · year), and the whole row is the Details affordance via a
+ * native <details>/<summary> instead of a separate "View proof"/"Details"
+ * link stacked next to a primary action - reducing decisions, not just
+ * relabeling them.
+ */
+function researchMetaLine(work: MarketplaceOpportunity): string {
+  const parts = [work.creator.name];
+  const journal = work.researchIdentity?.containerTitle;
+  if (journal) parts.push(journal);
+  const year = work.researchIdentity?.publicationYear;
+  if (year) parts.push(String(year));
+  return parts.join(" · ");
+}
+
+function researchFundingStateLabel(work: MarketplaceOpportunity): string {
+  if (work.economicMatch?.overlap === "duplicate_obligation") return "Already covered";
+  if (work.economicMatch?.overlap === "possible_overlap") return "Possible overlap";
+  if (work.economicMatch?.recommended) return "Funding match found";
+  if (work.economicMatch?.coverage.length) return "Already covered";
+  return "No current funding match";
+}
+
+/** Only a real, derivable action - "Review funding" when a real match exists. Zero actions is correct otherwise. */
+function researchPrimaryAction(work: MarketplaceOpportunity): DiscoverAction | undefined {
+  if (work.economicMatch?.recommended) {
+    return discoverNavigationAction(
+      {
+        id: "discover.review_funding",
+        label: "Review funding",
+        href: `/discover?view=explore&item=${encodeURIComponent(work.id)}`,
+      },
+      { target: "discover" },
+    );
+  }
+  return undefined;
+}
+
+function ResearchWorkRow({
+  work,
+  data,
+  onOpen,
+}: {
+  work: MarketplaceOpportunity;
+  data: DiscoverPageData;
+  onOpen: OpenAction;
+}) {
+  const context = findContext(data, work.source.id);
+  const impactFact = strongestImpactFact(work.impactProfile);
+  const fundingLabel = researchFundingStateLabel(work);
+  const primaryAction = researchPrimaryAction(work);
+  const research = work.researchIdentity;
+  const identityLine = [
+    research?.doi ? `DOI ${research.doi}` : null,
+    research?.openAlexId ? "OpenAlex" : null,
+    research?.arxivId ? `arXiv${research.arxivVersion ? ` ${research.arxivVersion}` : ""}` : null,
+  ].filter(Boolean);
+
+  return (
+    <details className="group rounded-xl border border-white/[0.08] bg-[#091522] px-4 py-3">
+      <summary className="grid cursor-pointer list-none gap-x-5 gap-y-1.5 md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.5fr)_auto] md:items-center">
+        <div className="min-w-0">
+          <h3 className="truncate font-semibold text-white group-open:whitespace-normal">
+            {work.title}
+          </h3>
+          <p className="mt-0.5 truncate text-xs text-slate-500">{researchMetaLine(work)}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-xs">
+            {impactFact ? (
+              <span className="font-medium text-white">{impactFact}</span>
+            ) : (
+              <span className="text-slate-500">Impact not yet measured</span>
+            )}
+          </p>
+          <p className="mt-0.5 truncate text-[11px] text-slate-500">{fundingLabel}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          {primaryAction ? (
+            <ContextualAction action={primaryAction} item={context} primary onOpen={onOpen} />
+          ) : null}
+        </div>
+      </summary>
+      <div className="mt-3 border-t border-white/[0.06] pt-3">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Research</p>
+        {identityLine.length ? (
+          <p className="mt-1 text-xs text-slate-400">{identityLine.join(" · ")}</p>
+        ) : null}
+
+        {research?.authors.length ? (
+          <>
+            <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              Authors
+            </p>
+            <p className="mt-1 text-xs text-slate-300">
+              {research.authors
+                .map((a) => (a.orcid ? `${a.name} (ORCID ${a.orcid})` : a.name))
+                .join(", ")}
+            </p>
+          </>
+        ) : null}
+
+        <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          Observed scholarly reuse
+        </p>
+        <ImpactSummary profile={work.impactProfile} />
+
+        {research?.citingSample.length ? (
+          <>
+            <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              Cited by
+            </p>
+            <ul className="mt-1 space-y-0.5 text-xs text-slate-400">
+              {research.citingSample.slice(0, 5).map((c) => (
+                <li key={c.id} className="truncate">
+                  {c.title}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+
+        <p className="mt-3 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+          Funding
+        </p>
+        <p className="mt-1 text-xs text-slate-300">{fundingLabel}</p>
+        <EconomicMatchSummary match={work.economicMatch} />
+
+        <p className="mt-3 max-w-3xl text-xs leading-5 text-slate-500">
+          This is a real, published scholarly-registry record. It does not by itself establish
+          RESOLVE or any funder has paid for this work, research quality, or economic value.
+        </p>
+
+        {research?.sourceHealth
+          ? (["Crossref", "OpenAlex", "arXiv"] as const)
+              .filter((source) => research.sourceHealth[source])
+              .map((source) => (
+                <p key={source} className="mt-1 text-[11px] text-slate-500">
+                  {source}: {describeSourceHealth(research.sourceHealth[source]!)}
+                </p>
+              ))
+          : null}
+
+        <a
+          href={work.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block text-xs text-cyan-300 underline-offset-2 hover:underline"
+        >
+          View research record
+        </a>
+      </div>
+    </details>
+  );
+}
+
 function WorkRow({
   work,
   data,
@@ -710,6 +871,10 @@ function WorkRow({
   selected?: boolean;
   onSelect?: (selected: boolean) => void;
 }) {
+  if (work.source.type === "research_work") {
+    return <ResearchWorkRow work={work} data={data} onOpen={onOpen} />;
+  }
+
   const context = findContext(data, work.source.id);
   const blocker = work.entityState?.blocker?.toLowerCase() ?? "";
   const payoutState =

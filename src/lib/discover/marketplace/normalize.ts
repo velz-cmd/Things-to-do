@@ -126,6 +126,7 @@ const opportunityTypes = new Set<OpportunityType>([
   "project_contribution",
   "repository_fix",
   "research_request",
+  "research_outcome",
   "community_proposal",
   "creator_collaboration",
   "agent_service_request",

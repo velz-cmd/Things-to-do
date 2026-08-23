@@ -2,6 +2,7 @@ import { ingestRepository } from "@/lib/github/adapter";
 import { fetchGithubProject } from "@/lib/integrations/libraries-io";
 import { findNpmPackagesForRepo } from "@/lib/integrations/npm-registry";
 import { fetchAdvisoriesForNpmPackage } from "@/lib/integrations/github-advisories";
+import { fetchFundingChannels } from "@/lib/integrations/github-funding-yaml";
 import { computeRepoHealth } from "@/lib/github/repo-health";
 import { buildGitHubFundingActivity } from "@/lib/github/funding-activity";
 import type { FundingOpportunity, RepoIngestResult } from "@/lib/github/types";
@@ -23,6 +24,7 @@ export function buildFundingOpportunity(
   ingest: RepoIngestResult,
   adoption?: FundingOpportunity["adoption"],
   security?: FundingOpportunity["security"],
+  releases?: FundingOpportunity["releases"],
 ): FundingOpportunity {
   const health = computeRepoHealth(ingest);
   const highImpactPrs = ingest.pullRequests.filter(
@@ -43,6 +45,7 @@ export function buildFundingOpportunity(
     owner: ingest.owner,
     repo: ingest.repo,
     fullName: ingest.fullName,
+    observedAt: ingest.ingestedAt,
     description: ingest.description ?? undefined,
     stars: ingest.stars,
     forks: ingest.forks,
@@ -56,6 +59,7 @@ export function buildFundingOpportunity(
     dependencies: ingest.dependencies,
     adoption,
     security,
+    releases,
   };
 }
 
@@ -85,6 +89,23 @@ export async function observeRepositoryAdoption(
  * exactly this repository's canonically-confirmed npm package name(s).
  * Returns undefined when no connector produced an observation - callers
  * must treat that as "not yet observed", never as "no advisories exist".
+ *
+ * Phase 2 item 3 (security <-> release linking) conclusion: a genuinely
+ * stronger claim ("Security fix release observed") would require proving
+ * GHSA-real.patchedVersions actually satisfies this repository's live
+ * published package version - i.e. real semver-range evaluation against
+ * GitHub's advisory data. GHSA's patched_versions string is not one
+ * standardized grammar (comma-joined ranges, "0" meaning "no fix", etc.),
+ * and this repo has no declared semver dependency to evaluate it safely
+ * (only a transitive, undeclared one exists in node_modules today). A
+ * wrong range parse would produce a confidently false "fix confirmed"
+ * claim, which is worse than the honest narrower signal this module
+ * already reports. Conclusion recorded per the product spec's own
+ * acceptable-outcome clause: security-release linking is NOT provable
+ * with current authoritative, safely-parseable data. The narrower
+ * "advisories_with_published_fix" signal (see impact-signals.ts) is the
+ * correct and final claim until a properly declared, tested semver
+ * dependency is added specifically for this purpose.
  */
 export async function observeSecurityAdvisories(
   owner: string,
@@ -111,17 +132,63 @@ export async function observeSecurityAdvisories(
   return { advisoriesWithPublishedFix, observedAt: new Date().toISOString() };
 }
 
+/**
+ * Builds the durable release observation from the repository ingest that
+ * already ran (RepoIngestResult.releases, populated by adapter.ts's own
+ * GitHub Releases fetch - draft-excluded there already). Deliberately not
+ * a second network call: the ingest already fetched this exact data, and
+ * fetching it again per scan would duplicate an auth path that already
+ * exists. Undefined when nothing was observed - never an empty array
+ * standing in for "no releases exist".
+ */
+export function buildReleaseObservation(
+  releases: RepoIngestResult["releases"],
+): FundingOpportunity["releases"] {
+  if (!releases.length) return undefined;
+  return releases.map((release) => ({
+    id: release.id,
+    tagName: release.tagName,
+    name: release.name,
+    publishedAt: release.publishedAt ?? null,
+    htmlUrl: release.sourceUrl,
+    author: release.author,
+    prerelease: release.prerelease,
+  }));
+}
+
+/**
+ * Observes real external funding channels from .github/FUNDING.yml.
+ * Undefined when the file does not exist or nothing recognized was
+ * parsed - never a fabricated "no funding" claim standing in for
+ * "not observed".
+ */
+export async function observeExternalFundingContext(
+  owner: string,
+  repo: string,
+): Promise<FundingOpportunity["externalFundingContext"]> {
+  const channels = await fetchFundingChannels(owner, repo).catch(() => undefined);
+  if (channels === undefined) return undefined;
+  return { channels, observedAt: new Date().toISOString() };
+}
+
 export async function scanFundingOpportunity(
   owner: string,
   repo: string,
 ): Promise<FundingOpportunity | null> {
-  const [ingest, adoption, security] = await Promise.all([
+  const [ingest, adoption, security, externalFundingContext] = await Promise.all([
     ingestRepository(owner, repo, { prLimit: 8 }),
     observeRepositoryAdoption(owner, repo),
     observeSecurityAdvisories(owner, repo),
+    observeExternalFundingContext(owner, repo),
   ]);
   if (!ingest) return null;
-  return buildFundingOpportunity(ingest, adoption, security);
+  const opportunity = buildFundingOpportunity(
+    ingest,
+    adoption,
+    security,
+    buildReleaseObservation(ingest.releases),
+  );
+  return externalFundingContext ? { ...opportunity, externalFundingContext } : opportunity;
 }
 
 export async function scanAllOpportunities(): Promise<FundingOpportunity[]> {

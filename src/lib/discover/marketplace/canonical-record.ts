@@ -45,6 +45,14 @@ export type CanonicalIdentity = {
   sourceRecordId: string;
   /** The real-world subject this record is about, when distinct from the record itself (e.g. a repository, a DOI, a recording). */
   canonicalSubject?: string;
+  /**
+   * Alternate strong identities the same real-world subject is also
+   * known by (e.g. a research work's OpenAlex ID and arXiv ID alongside
+   * its DOI). Never invented - only identities a connector actually
+   * observed and research/merge.ts (or an equivalent) actually confirmed
+   * belong to this exact subject.
+   */
+  aliases?: string[];
 };
 
 export type CanonicalProvenance = {
@@ -101,6 +109,13 @@ export type CanonicalMarketRecord = {
   impact: CanonicalImpactSignal[];
   economicState: CanonicalEconomicState;
   presentation: CanonicalPresentation;
+  /**
+   * Additional real, observed identity/attribution terms a search index
+   * should key this record on beyond title/subject/actor - e.g. a
+   * research work's full co-author list, ORCIDs, and journal/container
+   * name. Never invented; only what a connector actually observed.
+   */
+  searchTerms?: string[];
 };
 
 function domainForOpportunity(item: MarketplaceOpportunity): CanonicalMarketDomain {
@@ -132,6 +147,12 @@ export function toCanonicalMarketRecord(
   const domain = domainForOpportunity(item);
   const impact: CanonicalImpactSignal[] =
     item.impactProfile?.measurable === true ? item.impactProfile.signals : [];
+  const research = item.researchIdentity;
+  const researchAliases = research
+    ? [research.doi, research.openAlexId, research.arxivId].filter(
+        (v): v is string => Boolean(v),
+      )
+    : [];
 
   return {
     identity: {
@@ -140,7 +161,13 @@ export function toCanonicalMarketRecord(
       entityKind: item.marketplaceKind ?? "opportunity",
       source: item.source.type,
       sourceRecordId: item.source.id,
-      canonicalSubject: item.repository ?? item.projectId,
+      canonicalSubject:
+        item.repository ??
+        item.projectId ??
+        research?.doi ??
+        research?.openAlexId ??
+        research?.arxivId,
+      aliases: researchAliases.length ? researchAliases : undefined,
     },
     provenance: {
       sourceUrl: item.sourceUrl,
@@ -174,6 +201,13 @@ export function toCanonicalMarketRecord(
       context: item.summary,
       primaryActionId: item.primaryAction?.id,
     },
+    searchTerms: research
+      ? [
+          ...research.authors.map((a) => a.name),
+          ...research.authors.map((a) => a.orcid).filter((v): v is string => Boolean(v)),
+          research.containerTitle,
+        ].filter((v): v is string => Boolean(v))
+      : undefined,
   };
 }
 
@@ -304,6 +338,8 @@ export function toCanonicalSearchDocument(
     record.identity.canonicalSubject,
     record.identity.sourceRecordId,
     record.attribution.actorName,
+    ...(record.identity.aliases ?? []),
+    ...(record.searchTerms ?? []),
   ];
   const searchableTerms = [
     ...new Set(

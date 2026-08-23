@@ -60,6 +60,7 @@ import { DISCOVER_MARKETPLACE_SOURCE_CACHE_KEYS } from "./cache";
 import {
   normalizeConfirmedOutcomes,
   normalizeGithubAcceptedWork,
+  normalizeGithubReleases,
 } from "./read-model";
 import {
   actionMatchesExploreKind,
@@ -359,7 +360,10 @@ async function loadVerifiedGithubWork() {
       sourceUrl: true,
     },
   });
-  const normalized = normalizeGithubAcceptedWork(stored.opportunities, evidence);
+  const normalized = [
+    ...normalizeGithubAcceptedWork(stored.opportunities, evidence),
+    ...normalizeGithubReleases(stored.opportunities),
+  ];
   try {
     return await attachNpmDockerAdoption(normalized);
   } catch {

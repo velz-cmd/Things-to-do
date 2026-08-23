@@ -56,6 +56,7 @@ export interface GitHubRelease {
   author: string;
   publishedAt?: string;
   sourceUrl: string;
+  prerelease: boolean;
 }
 
 export interface GitHubDependency {
@@ -190,6 +191,8 @@ export interface FundingOpportunity {
   owner: string;
   repo: string;
   fullName: string;
+  /** Real timestamp this snapshot was ingested. Never fabricated - absent when the ingest that produced this record predates this field. */
+  observedAt?: string;
   description?: string;
   stars: number;
   forks: number;
@@ -229,6 +232,31 @@ export interface FundingOpportunity {
       patchedVersions: string;
       htmlUrl: string;
     }>;
+    observedAt: string;
+  };
+  /**
+   * Real, non-draft GitHub Releases for this repository (see
+   * github-releases.ts). A release proves only that it was published -
+   * not adoption, not security remediation, not economic value.
+   */
+  releases?: Array<{
+    id: number;
+    tagName: string;
+    name: string | null;
+    publishedAt: string | null;
+    htmlUrl: string;
+    author: string | null;
+    prerelease: boolean;
+  }>;
+  /**
+   * Real external funding channels this repository's own .github/FUNDING.yml
+   * advertises (see github-funding-yaml.ts). This proves only that the
+   * project publishes an external funding channel - it is presentation
+   * context, NEVER a RESOLVE economic-state claim. It must never be read
+   * by economic matching/funding-match logic.
+   */
+  externalFundingContext?: {
+    channels: Array<{ provider: string; account: string; url: string }>;
     observedAt: string;
   };
 }

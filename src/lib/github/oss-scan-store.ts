@@ -27,6 +27,7 @@ const fundingOpportunitySchema = z.object({
   owner: z.string().min(1),
   repo: z.string().min(1),
   fullName: z.string().regex(/^[^/]+\/[^/]+$/),
+  observedAt: z.string().optional(),
   description: z
     .string()
     .nullish()
@@ -79,6 +80,31 @@ const fundingOpportunitySchema = z.object({
       ),
       observedAt: z.string().min(1),
     })
+    .optional(),
+  externalFundingContext: z
+    .object({
+      channels: z.array(
+        z.object({
+          provider: z.string().min(1),
+          account: z.string().min(1),
+          url: z.string().url(),
+        }),
+      ),
+      observedAt: z.string().min(1),
+    })
+    .optional(),
+  releases: z
+    .array(
+      z.object({
+        id: z.number(),
+        tagName: z.string().min(1),
+        name: z.string().nullable(),
+        publishedAt: z.string().nullable(),
+        htmlUrl: z.string().url(),
+        author: z.string().nullable(),
+        prerelease: z.boolean(),
+      }),
+    )
     .optional(),
   activity: z
     .object({
@@ -177,6 +203,15 @@ export function fingerprintFundingOpportunity(
           ),
         }
       : null,
+    externalFundingContext: opportunity.externalFundingContext
+      ? { channels: opportunity.externalFundingContext.channels.map((c) => `${c.provider}:${c.url}`) }
+      : null,
+    releases: (opportunity.releases ?? []).map((r) => ({
+      id: r.id,
+      tagName: r.tagName,
+      publishedAt: r.publishedAt,
+      prerelease: r.prerelease,
+    })),
     records: (activity?.records ?? []).map((record) => ({
       id: record.id,
       title: record.title,
@@ -200,24 +235,59 @@ export function fingerprintFundingOpportunity(
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
 
+/**
+ * Phase 2 item 6/7: a single transient connector failure during one scan
+ * (npm/Docker/advisories/FUNDING.yml all momentarily unreachable) must
+ * never erase a previously confirmed observation - the fresh scan would
+ * otherwise pass `undefined` for that field and this write path would
+ * happily persist that as the new "latest" state. This reads the last
+ * confirmed row for the same repository and fills in any field the fresh
+ * scan did not observe this run, so "last confirmed 2h ago" survives
+ * exactly as it must, rather than silently becoming "not observed".
+ */
+async function mergeWithLastConfirmed(
+  fresh: FundingOpportunity,
+): Promise<FundingOpportunity> {
+  try {
+    const previousRow = await prisma.githubOssScan.findUnique({
+      where: { owner_repo: { owner: fresh.owner, repo: fresh.repo } },
+      select: { payloadJson: true },
+    });
+    if (!previousRow?.payloadJson) return fresh;
+    const previous = rowToOpportunity({ payloadJson: previousRow.payloadJson, owner: fresh.owner, repo: fresh.repo });
+    if (!previous) return fresh;
+    return {
+      ...fresh,
+      adoption: fresh.adoption ?? previous.adoption,
+      security: fresh.security ?? previous.security,
+      releases: fresh.releases ?? previous.releases,
+      externalFundingContext: fresh.externalFundingContext ?? previous.externalFundingContext,
+    };
+  } catch (error) {
+    if (isMissingTableError(error) || isPrismaUnavailableError(error)) return fresh;
+    return fresh;
+  }
+}
+
 export async function persistOssOpportunitySnapshot(
   opportunity: FundingOpportunity,
   observedAt = new Date(),
 ) {
-  const fingerprint = fingerprintFundingOpportunity(opportunity);
-  const payload = serializableOpportunity(opportunity);
+  const merged = await mergeWithLastConfirmed(opportunity);
+  const fingerprint = fingerprintFundingOpportunity(merged);
+  const payload = serializableOpportunity(merged);
 
   // The immutable snapshot is the source of truth for user-requested analysis.
   // Keep the legacy aggregate cache best-effort so a missing cache table cannot
   // roll back a valid snapshot or leave Discover stuck after a GitHub scan.
   await prisma.discoverRepositorySnapshot.upsert({
     where: {
-      fullName_fingerprint: { fullName: opportunity.fullName, fingerprint },
+      fullName_fingerprint: { fullName: merged.fullName, fingerprint },
     },
     create: {
-      owner: opportunity.owner,
-      repo: opportunity.repo,
-      fullName: opportunity.fullName,
+      owner: merged.owner,
+      repo: merged.repo,
+      fullName: merged.fullName,
       fingerprint,
       payload,
       observedAt,
@@ -228,24 +298,24 @@ export async function persistOssOpportunitySnapshot(
   try {
     await prisma.githubOssScan.upsert({
       where: {
-        owner_repo: { owner: opportunity.owner, repo: opportunity.repo },
+        owner_repo: { owner: merged.owner, repo: merged.repo },
       },
       create: {
-        owner: opportunity.owner,
-        repo: opportunity.repo,
-        fullName: opportunity.fullName,
-        payloadJson: JSON.stringify(opportunity),
-        stars: opportunity.stars,
-        fundingGapUsd: opportunity.health.fundingGapUsd,
-        priority: opportunity.priority,
+        owner: merged.owner,
+        repo: merged.repo,
+        fullName: merged.fullName,
+        payloadJson: JSON.stringify(merged),
+        stars: merged.stars,
+        fundingGapUsd: merged.health.fundingGapUsd,
+        priority: merged.priority,
         scannedAt: observedAt,
       },
       update: {
-        fullName: opportunity.fullName,
-        payloadJson: JSON.stringify(opportunity),
-        stars: opportunity.stars,
-        fundingGapUsd: opportunity.health.fundingGapUsd,
-        priority: opportunity.priority,
+        fullName: merged.fullName,
+        payloadJson: JSON.stringify(merged),
+        stars: merged.stars,
+        fundingGapUsd: merged.health.fundingGapUsd,
+        priority: merged.priority,
         scannedAt: observedAt,
       },
     });

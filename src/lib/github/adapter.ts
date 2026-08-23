@@ -58,6 +58,7 @@ type GhRelease = {
   published_at?: string;
   html_url: string;
   draft: boolean;
+  prerelease: boolean;
 };
 
 type GhContent = {
@@ -352,6 +353,7 @@ export async function ingestRepository(
       author: release.author?.login ?? owner,
       publishedAt: release.published_at,
       sourceUrl: release.html_url,
+      prerelease: release.prerelease,
     }));
 
   return {

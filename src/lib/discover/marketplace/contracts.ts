@@ -83,6 +83,15 @@ export const OPPORTUNITY_TYPES = [
   "project_contribution",
   "repository_fix",
   "research_request",
+  /**
+   * An observed, published scholarly work (Crossref/OpenAlex/arXiv) - not
+   * a request for research to be done. "research_request" is a real,
+   * separate type already used by user-submitted funded Requests
+   * (see request-contract.ts); reusing it for observed publications would
+   * make Discover's own type vocabulary claim publications are funding
+   * asks, which they are not.
+   */
+  "research_outcome",
   "community_proposal",
   "creator_collaboration",
   "agent_service_request",
@@ -347,6 +356,50 @@ export type MarketplaceOpportunity = {
    * - see src/lib/discover/impact/impact-signals.ts.
    */
   impactProfile?: ImpactProfile;
+  /**
+   * Real external funding channels the project's own .github/FUNDING.yml
+   * advertises (see github-funding-yaml.ts) - presentation CONTEXT only.
+   * Proves "this project publishes an external funding channel", never
+   * "RESOLVE has a funding match" or "money was received". Economic
+   * matching/funding logic must never read this field - only
+   * economicMatch/funding below are authoritative for that.
+   */
+  externalFundingContext?: {
+    channels: Array<{ provider: string; account: string; url: string }>;
+    observedAt: string;
+  };
+  /**
+   * Real research-domain identity/provenance (Phase 3) - present only on
+   * research_outcome items. Carries the alias set (DOI/OpenAlex/arXiv IDs)
+   * and author identity a canonical search document needs, since a single
+   * merged research work can legitimately hold more than one source's
+   * identity - see research/merge.ts and research/types.ts.
+   */
+  researchIdentity?: {
+    doi?: string;
+    openAlexId?: string;
+    arxivId?: string;
+    arxivVersion?: string;
+    authors: Array<{ name: string; orcid?: string; openAlexAuthorId?: string }>;
+    containerTitle?: string;
+    workType?: string;
+    citations: Array<{ source: string; count: number; observedAt: string }>;
+    citingSample: Array<{ id: string; title: string }>;
+    referencedWorkIds: string[];
+    /**
+     * The real, precision-honest publication date/year - the ONLY fields
+     * the UI may display as "when this was published". A source that only
+     * reports a year (e.g. Crossref with year-level granularity) must
+     * render as "Published 2024", never a fabricated "Published Jan 1,
+     * 2024". Top-level `publishedAt`/`updatedAt` above remain required
+     * generic ordering fields (sort/filter compatibility across all
+     * Discover domains) and are NEVER a publication-date claim for
+     * research - see research-signal-source.ts's toMarketplaceOpportunity.
+     */
+    publicationDate?: string;
+    publicationYear?: number;
+    publicationDatePrecision?: "day" | "month" | "year";
+  };
   /**
    * Which real funding intents could fund this outcome, which were ruled out
    * and why, whether a prior payment already covers it, and what RESOLVE

@@ -234,6 +234,134 @@ describe("economic matching is wired into the marketplace", () => {
     );
     expect(poolMatch?.intent.availableUsd).toBe(77);
   });
+
+  /**
+   * Phase 3 item 19: citation != funding demand. A research outcome now
+   * feeds into the same deterministic matcher as software work (see
+   * attach-economic-match.ts), and these prove the same invariant holds:
+   * citation magnitude never manufactures a funding amount or a Pool
+   * match without a real, eligible Pool/Request actually existing.
+   */
+  function researchWork(overrides: Partial<MarketplaceOpportunity> = {}): MarketplaceOpportunity {
+    return work({
+      type: "research_outcome",
+      category: undefined,
+      source: { type: "research_work", id: "doi:10.1/example" },
+      entityState: {
+        provenance: "external_integration",
+        lifecycle: "confirmed",
+        financialReadiness: "not_applicable",
+      },
+      ...overrides,
+    });
+  }
+
+  it("10,000 citations with no funding intent produces no funding amount", () => {
+    const [item] = attachEconomicMatch(
+      [
+        researchWork({
+          impactProfile: {
+            measurable: true,
+            signals: [
+              {
+                id: "openalex_citations",
+                label: "Times cited (OpenAlex)",
+                value: "10,000",
+                scope: "artifact",
+                source: "OpenAlex",
+                observedAt: "2026-08-01T00:00:00.000Z",
+                classification: "observed",
+              },
+            ],
+          },
+        }),
+      ],
+      { pools: [] },
+    );
+    expect(item.economicMatch?.recommended).toBeNull();
+    expect(
+      item.economicMatch?.eligible.some((m) => m.intent.mechanism === "pool_allocation"),
+    ).toBe(false);
+  });
+
+  it("0 citations with a real eligible research Pool may still match - eligibility is not gated on the citation number", () => {
+    const [item] = attachEconomicMatch(
+      [
+        researchWork({
+          impactProfile: {
+            measurable: true,
+            signals: [
+              {
+                id: "openalex_citations",
+                label: "Times cited (OpenAlex)",
+                value: "0",
+                scope: "artifact",
+                source: "OpenAlex",
+                observedAt: "2026-08-01T00:00:00.000Z",
+                classification: "observed",
+              },
+            ],
+          },
+        }),
+      ],
+      {
+        pools: [pool({ type: "research grant pool", availableUsd: 200 })],
+        operatorOfPoolIds: new Set(["pool-1"]),
+      },
+    );
+    const poolMatch = item.economicMatch?.eligible.find(
+      (m) => m.intent.mechanism === "pool_allocation",
+    );
+    expect(poolMatch).toBeDefined();
+  });
+
+  it("a citation-count discrepancy between sources never itself changes the funding amount", () => {
+    const [item] = attachEconomicMatch(
+      [
+        researchWork({
+          impactProfile: {
+            measurable: true,
+            signals: [
+              {
+                id: "openalex_citations",
+                label: "Times cited (OpenAlex)",
+                value: "31",
+                scope: "artifact",
+                source: "OpenAlex",
+                observedAt: "2026-08-01T00:00:00.000Z",
+                classification: "observed",
+              },
+              {
+                id: "crossref_citations",
+                label: "Times cited (Crossref)",
+                value: "27",
+                scope: "artifact",
+                source: "Crossref",
+                observedAt: "2026-08-01T00:00:00.000Z",
+                classification: "observed",
+              },
+            ],
+          },
+        }),
+      ],
+      {
+        pools: [pool({ type: "research grant pool", availableUsd: 90 })],
+        operatorOfPoolIds: new Set(["pool-1"]),
+      },
+    );
+    const poolMatch = item.economicMatch?.eligible.find(
+      (m) => m.intent.mechanism === "pool_allocation",
+    );
+    expect(poolMatch?.intent.availableUsd).toBe(90);
+  });
+
+  it("research authorship alone never grants payout readiness or direct-support eligibility", () => {
+    const [item] = attachEconomicMatch([researchWork()], { pools: [] });
+    const direct = item.economicMatch?.eligible.find(
+      (m) => m.intent.mechanism === "direct_support",
+    );
+    expect(direct).toBeUndefined();
+  });
 });
 
 describe("role ranking orders without hiding", () => {

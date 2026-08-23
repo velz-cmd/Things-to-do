@@ -369,6 +369,25 @@ export type MarketplaceOpportunity = {
     observedAt: string;
   };
   /**
+   * Real research-domain identity/provenance (Phase 3) - present only on
+   * research_outcome items. Carries the alias set (DOI/OpenAlex/arXiv IDs)
+   * and author identity a canonical search document needs, since a single
+   * merged research work can legitimately hold more than one source's
+   * identity - see research/merge.ts and research/types.ts.
+   */
+  researchIdentity?: {
+    doi?: string;
+    openAlexId?: string;
+    arxivId?: string;
+    arxivVersion?: string;
+    authors: Array<{ name: string; orcid?: string; openAlexAuthorId?: string }>;
+    containerTitle?: string;
+    workType?: string;
+    citations: Array<{ source: string; count: number; observedAt: string }>;
+    citingSample: Array<{ id: string; title: string }>;
+    referencedWorkIds: string[];
+  };
+  /**
    * Which real funding intents could fund this outcome, which were ruled out
    * and why, whether a prior payment already covers it, and what RESOLVE
    * recommends - see src/lib/discover/impact/economic-matching.ts.

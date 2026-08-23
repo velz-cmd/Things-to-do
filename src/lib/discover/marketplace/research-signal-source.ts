@@ -263,6 +263,18 @@ function toMarketplaceOpportunity(
     marketplaceKind: "verified_work",
     sourceUrl: work.url,
     impactProfile,
+    researchIdentity: {
+      doi: work.doi,
+      openAlexId: work.openAlexId,
+      arxivId: work.arxivId,
+      arxivVersion: work.arxivVersion,
+      authors: work.authors,
+      containerTitle: work.containerTitle,
+      workType: work.workType,
+      citations: work.citations,
+      citingSample: work.citingSample,
+      referencedWorkIds: work.referencedWorkIds,
+    },
     entityState: {
       provenance: "external_integration",
       lifecycle: "confirmed",

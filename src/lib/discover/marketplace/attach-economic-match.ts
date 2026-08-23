@@ -108,7 +108,15 @@ export function attachEconomicMatch(
   const poolIntents = fundingIntentsFromPools(input.pools);
 
   return opportunities.map((item) => {
-    if (item.source.type !== "github_evidence") return item;
+    // Phase 3: research outcomes feed into the same deterministic matcher
+    // as software work - a real Research Pool/Request can match a real
+    // publication, but citation count alone never manufactures demand
+    // (hasSourcedImpact below only gates delegated-capital eligibility,
+    // never the recommended amount, which always comes from the intent's
+    // own availableUsd).
+    if (item.source.type !== "github_evidence" && item.source.type !== "research_work") {
+      return item;
+    }
 
     const recipientReady =
       item.entityState?.financialReadiness === "ready";

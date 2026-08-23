@@ -5,7 +5,7 @@ phase's status, a blocker's state, or a cross-tab regression changes.
 Never delete an unresolved item — mark it resolved with evidence, or
 leave it open.
 
-Last updated: 2026-08-23 · HEAD `33466a74ae30718e854a3cb2b3403768269712ee`
+Last updated: 2026-08-23 · HEAD `487dacb5`
 
 ## Phase status
 
@@ -14,7 +14,8 @@ Last updated: 2026-08-23 · HEAD `33466a74ae30718e854a3cb2b3403768269712ee`
 | 1 — Economic data foundation | PASS | Canonical market layer, source health, deterministic ordering |
 | 2 — Software economic graph | PASS | Releases, dependency edges, FUNDING.yml, role truth, durable merge |
 | 3 — Research economic graph | **BLOCKED** | Code-complete; `DiscoverResearchSnapshot` migration not yet applied to Supabase (external schema gate) |
-| 4–37 | Not started / in progress | See individual phase reports as they land |
+| 4 — Media/Creator economic graph | IN PROGRESS | ListenBrainz playback signals + real source health now shipped (this session). Still missing: durable persistence with source-aware merge (mirroring Phase 3's pattern — blocked on the same Supabase reachability gate as Phase 3 if attempted now), dedicated media-vocabulary UI row (currently reuses generic `WorkRow` with correct but non-dedicated "Media"/"ListenBrainz" labels), deterministic uncertainty detection. Economic matching already correct (real Pool eligibility via `creator` class, no fabricated per-play rate). |
+| 5–37 | Not started / in progress | See individual phase reports as they land |
 
 ## Global blockers (carry forward every session — do not drop)
 
@@ -26,7 +27,7 @@ Last updated: 2026-08-23 · HEAD `33466a74ae30718e854a3cb2b3403768269712ee`
 - **Public Request market**: verified via live Preview screenshot — public funded Requests render independent of viewer.
 - **Verified Work composition**: verified via live Preview screenshot (authenticated) — 12 real outcomes, currently all software/GitHub (navidrome releases) rows. This is expected, not a bug: research rows can't populate until the Phase 3 Supabase migration is applied, and media rows don't exist until Phase 4 ships. Re-check composition after each of those lands.
 - **Activity tab public/private gating**: FIXED and shipped (commit `13663aeb`) — confirmed outcomes now render unconditionally, personal ledger sign-in-gated separately. Static regression guard in `tests/unit/discover-activity-shared-market.test.ts`.
-- **Media shared market**: not yet built (Phase 4, not started).
+- **Media shared market**: IN PROGRESS (Phase 4). Real ListenBrainz playback signals were already live (pre-existing, cache-resilient, correct "proves playback only" semantics, real Pool-based economic matching). This session added real per-provider source health (`loadMediaSourceDiagnostic()`, commit `487dacb5`) — previously every ListenBrainz failure was silently swallowed with zero visibility, unlike GitHub's connector diagnostics. Remaining Phase 4 gap: durable Postgres persistence with source-aware merge (same pattern as Phase 3's `DiscoverResearchSnapshot` — deliberately NOT started yet, since this sandbox cannot reach Supabase over the Postgres wire protocol and adding a second blocked migration would just duplicate the Phase 3 gate); a dedicated media UI row/Details drawer (currently correct but generic); deterministic media uncertainty detection.
 
 ## Cross-tab regression checklist (run after every phase)
 
@@ -45,4 +46,5 @@ Last updated: 2026-08-23 · HEAD `33466a74ae30718e854a3cb2b3403768269712ee`
 - Found and fixed a real bug: Activity tab's `OutcomesView` early-returned on `!data.signedIn`, hiding genuinely public confirmed settlements (`loadConfirmedOutcomes()`, viewer-independent) from anonymous/clean visitors. Restructured to render the public section unconditionally, personal ledger sign-in-gated separately. Added static regression guard. Also root-caused and fixed a real CI timing flake (`github-public-analyze-persistence.test.ts` first-dynamic-import cost exceeding default 5s timeout on `pull_request` runs). Both shipped: commit → push → CI green → Vercel Preview exact-SHA verified → 5-tab smoke PASS. Final HEAD `33466a74`.
 - Verified Agent Marketplace payment truth: `isLiveArcEnabled()` is genuinely true on this Preview (real Circle credentials + ERC-8183 flag + no live blockers) — all 6 services show live CTAs, no "Payment paused" badge. Corrected the ledger's prior stale claim that payments were not live-enabled. No transaction was triggered during verification.
 - Verified Verified Work composition: 12 real software/GitHub outcomes, no research/media rows yet — expected given Phase 3 is schema-blocked and Phase 4 hasn't started.
-- Next: continue directly into Phase 4 (Media/Creator Economic Graph) — audit existing `src/lib/integrations/{musicbrainz,listenbrainz,lastfm,jellyfin,navidrome}*.ts` and `src/lib/discover/marketplace/media-signal-source.ts` before writing new code. Keep Phase 3 BLOCKED until the Supabase migration is applied.
+- Started Phase 4 (Media/Creator Economic Graph). Audited existing code first per this session's standing discipline: `loadMediaSignals()` (ListenBrainz playback signals) and its wiring in `query.ts` already existed from an earlier session, already correct on identity (strong MusicBrainz recording ID preferred, `canonicalMediaId()`), semantics (never infers royalty/ownership/popularity from a play), UI labeling (no GitHub-styled leak — "Media"/"ListenBrainz" labels), and economic matching (real Pool `creator`-class eligibility, no fabricated per-play rate). `musicbrainz-oauth.ts`/`jellyfin-*.ts`/`navidrome*.ts` turned out to be the user's own Navidrome→ListenBrainz scrobble-pipeline account-linking utilities, not additional independent Discover market data sources — no gap there. The one real, previously-undiagnosed gap: `loadMediaSignals()` swallowed every ListenBrainz failure silently with zero surfaced health, unlike GitHub's connector diagnostics. Added `loadMediaSourceDiagnostic()` (reuses the existing real `pingListenBrainz()` network check, reports connected/refresh_failed honestly, never fabricates `lastSuccessfulAt` on failure) and wired it into the same `sourceDiagnostics` list. Shipped: typecheck clean, 671/671 tests passing (7 new), CI green, Vercel Preview exact-SHA verified (`487dacb`), 5-tab smoke PASS. Final HEAD `487dacb5`.
+- Next: close the remaining Phase 4 gaps that don't require Postgres reachability (dedicated media UI row/Details drawer, deterministic media uncertainty detection), continue deferring durable media persistence until the Phase 3 Supabase gate is resolved (avoid duplicating the same external blocker). Keep Phase 3 BLOCKED until the Supabase migration is applied.

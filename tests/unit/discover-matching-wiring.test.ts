@@ -176,6 +176,45 @@ describe("economic matching is wired into the marketplace", () => {
     expect(outcomeClassFor(work())).toBe("security");
   });
 
+  /**
+   * Phase 5 Release Slice 7: purpose was a single hardcoded generic string
+   * for every outcome, discarding each work's own real title/purpose.
+   * Coverage is looked up per-work (source.id), so this never caused a
+   * cross-work collision, but it also meant overlap comparisons described
+   * a placeholder instead of something real.
+   */
+  it("uses the work's own real title as its purpose, never a generic placeholder", () => {
+    const [item] = attachEconomicMatch(
+      [work({ title: "Patch the SSRF vulnerability in the webhook handler" })],
+      { pools: [] },
+    );
+    expect(item.economicMatch?.overlapReason).toContain(
+      "No prior payment is recorded",
+    );
+    // Prove the real title flows through overlap comparison: a prior
+    // payment recorded for the exact same title is same-purpose overlap.
+    const [covered] = attachEconomicMatch(
+      [work({ title: "Patch the SSRF vulnerability in the webhook handler" })],
+      {
+        pools: [],
+        coverageBySourceId: new Map([
+          [
+            "evidence-1",
+            [
+              {
+                id: "prior-1",
+                mechanism: "direct_support",
+                amountUsd: 20,
+                purpose: "Patch the SSRF vulnerability in the webhook handler",
+              },
+            ],
+          ],
+        ]),
+      },
+    );
+    expect(covered.economicMatch?.overlap).toBe("possible_overlap");
+  });
+
   it("classifies a research_request outcome as research even without an explicit category", () => {
     expect(
       outcomeClassFor(work({ category: undefined, type: "research_request" })),

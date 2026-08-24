@@ -222,9 +222,18 @@ export function attachEconomicMatch(
     const coverage =
       input.coverageBySourceId?.get(item.source.id) ?? ([] as CoverageRecord[]);
 
+    // Release Slice 7: purpose was a single hardcoded generic string for
+    // every outcome regardless of domain. Coverage is looked up per-work
+    // (by source.id), so this never caused a cross-work collision - but
+    // it also meant a real Campaign's own objective, or a specific
+    // work's own title, was discarded in favor of a placeholder. The
+    // work's own title is real, specific, and already exists on every
+    // item reaching this matcher - using it costs nothing and makes
+    // overlap comparisons ("a prior payment for a different purpose")
+    // describe something real instead of a generic phrase.
     const match = matchImpactToCapital({
       outcomeClass: outcomeClassFor(item),
-      purpose: "verified outcome support",
+      purpose: item.title,
       hasSourcedImpact,
       intents,
       coverage,

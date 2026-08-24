@@ -7,6 +7,7 @@ import {
 import {
   computePolicyFingerprint,
   resolveCanonicalEconomicStateFromMatch,
+  resolveSettlementStateFromCoverage,
   type CanonicalPayoutState,
 } from "@/lib/discover/marketplace/economic-state";
 import type { PersistedPolicyProvenance } from "@/lib/discover/marketplace/policy-provenance-bridge";
@@ -272,6 +273,14 @@ export function attachEconomicMatch(
     // mechanism eligibility; `economicState` is the one canonical current
     // state derived from it, so a component reads one field instead of
     // reimplementing the same precedence logic each time.
+    // Release Slice 10: real settlement state, derived from the same real
+    // coverage records already loaded (Slice 8) - see
+    // resolveSettlementStateFromCoverage()'s doc comment for why confirmed
+    // coverage is deliberately left to the resolver's existing
+    // duplicate_obligation/fully_covered precedence rather than
+    // short-circuited here.
+    const { settlementState, reconciliationIssue } = resolveSettlementStateFromCoverage(coverage);
+
     const economicState = resolveCanonicalEconomicStateFromMatch({
       match,
       purpose: item.title,
@@ -279,6 +288,8 @@ export function attachEconomicMatch(
       policyFingerprint: persistedPolicy?.policyFingerprint ?? provisionalFingerprint,
       policyProvenance: persistedPolicy ? "persisted" : winningIntent ? "provisional" : undefined,
       period: winningIntent ? { kind: "one_time" } : undefined,
+      settlementState,
+      reconciliationIssue,
     });
 
     return { ...item, economicMatch: match, economicState } satisfies MarketplaceOpportunity;

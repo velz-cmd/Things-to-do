@@ -710,3 +710,44 @@ export function detectReconciliationIssue(input: {
   }
   return null;
 }
+
+/**
+ * Release Slice 10: real settlement state fed into the canonical resolver
+ * from the same real coverage records already loaded (Release Slice 8's
+ * `loadCoverageBySourceId()`) - no new query, no inferred timestamps.
+ *
+ * Deliberately does NOT special-case a confirmed record into
+ * `settlementState: "confirmed"` here: `resolveCanonicalEconomicStateFromMatch()`'s
+ * existing precedence (duplicate_obligation / fully_covered, both already
+ * derived from these same coverage records) already correctly handles
+ * confirmed payment, including the important eligibility=false /
+ * overlapReason nuance for a fully-paid obligation. Short-circuiting that
+ * through settlementState here would silently discard that nuance - not a
+ * gap this slice should "fix" by overriding already-correct behavior.
+ *
+ * What genuinely was never surfaced before this slice: a transfer that is
+ * literally in flight right now (a real `pending_external` ActionRun) only
+ * ever showed up as generic "partially covered" coverage math - never as
+ * the real "settlement_confirming" state. And two separate in-flight
+ * transfers for the same obligation is a real, detectable inconsistency
+ * (duplicate_submission) worth stopping on, not silently summing.
+ */
+export function resolveSettlementStateFromCoverage(coverage: CoverageRecord[]): {
+  settlementState: CanonicalSettlementState;
+  reconciliationIssue?: ReconciliationIssue;
+} {
+  const pending = coverage.filter((record) => record.status === "pending");
+  if (pending.length > 1) {
+    return {
+      settlementState: "reconciliation_required",
+      reconciliationIssue: {
+        kind: "duplicate_submission",
+        detail: `${pending.length} separate transfers are simultaneously in flight for the same obligation.`,
+      },
+    };
+  }
+  if (pending.length === 1) {
+    return { settlementState: "confirming" };
+  }
+  return { settlementState: "not_started" };
+}

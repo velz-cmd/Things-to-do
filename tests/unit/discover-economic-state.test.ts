@@ -14,6 +14,7 @@ import {
   periodKey,
   resolveCanonicalEconomicStateFromLedgerRecord,
   resolveCanonicalEconomicStateFromMatch,
+  resolveSettlementStateFromCoverage,
   type CanonicalEconomicState,
   type CanonicalPeriod,
   type PolicyRules,
@@ -828,5 +829,62 @@ describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surf
     });
     expect(canonical.obligation?.policyFingerprint).toBeUndefined();
     expect(canonical.obligation?.policyProvenance).toBeUndefined();
+  });
+});
+
+describe("resolveSettlementStateFromCoverage - real settlement state from already-loaded coverage records (Release Slice 10)", () => {
+  it("no coverage records at all - not_started", () => {
+    expect(resolveSettlementStateFromCoverage([])).toEqual({ settlementState: "not_started" });
+  });
+
+  it("only confirmed records - still not_started here, since confirmed payment is already handled by the resolver's own duplicate_obligation/fully_covered precedence, not this function", () => {
+    const records: CoverageRecord[] = [
+      { id: "1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "confirmed" },
+    ];
+    expect(resolveSettlementStateFromCoverage(records)).toEqual({ settlementState: "not_started" });
+  });
+
+  it("one real transfer in flight - confirming, never invented from a timestamp", () => {
+    const records: CoverageRecord[] = [
+      { id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+    ];
+    expect(resolveSettlementStateFromCoverage(records)).toEqual({ settlementState: "confirming" });
+  });
+
+  it("two separate transfers simultaneously in flight for the same obligation - a real, detectable inconsistency, not silently summed", () => {
+    const records: CoverageRecord[] = [
+      { id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+      { id: "run-2", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+    ];
+    const result = resolveSettlementStateFromCoverage(records);
+    expect(result.settlementState).toBe("reconciliation_required");
+    expect(result.reconciliationIssue).toEqual({
+      kind: "duplicate_submission",
+      detail: "2 separate transfers are simultaneously in flight for the same obligation.",
+    });
+  });
+
+  it("a real in-flight transfer flows through resolveCanonicalEconomicStateFromMatch as settlement_confirming, with no legitimate next action while it is genuinely in flight", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "Fix authentication bypass",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [{ id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" }],
+    });
+    const { settlementState, reconciliationIssue } = resolveSettlementStateFromCoverage([
+      { id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+    ]);
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState,
+      reconciliationIssue,
+    });
+    expect(canonical.state).toBe("settlement_confirming");
+    expect(canonical.settlement).toBe("confirming");
+    expect(canonical.nextAction).toBe("none");
   });
 });

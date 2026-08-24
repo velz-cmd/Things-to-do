@@ -801,3 +801,59 @@ describe("role ranking orders without hiding", () => {
     expect(ranked[0]?.id).toBe("b");
   });
 });
+
+/**
+ * Phase 5 Release Slice 10: real settlement state flows end to end through
+ * attachEconomicMatch() - a real in-flight transfer (from coverageBySourceId,
+ * the same real data Slice 8 already loads) now surfaces as
+ * settlement_confirming, not just generic partial coverage.
+ */
+describe("real settlement state flows through attachEconomicMatch() (Release Slice 10)", () => {
+  it("a real transfer in flight for this work surfaces as settlement_confirming, not a generic coverage amount", () => {
+    const [item] = attachEconomicMatch([work()], {
+      pools: [pool()],
+      coverageBySourceId: new Map([
+        ["evidence-1", [{ id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" }]],
+      ]),
+    });
+    expect(item.economicState?.state).toBe("settlement_confirming");
+    expect(item.economicState?.settlement).toBe("confirming");
+    expect(item.economicState?.nextAction).toBe("none");
+  });
+
+  it("two real transfers simultaneously in flight for the same work surfaces as reconciliation_required with the real duplicate_submission detail", () => {
+    const [item] = attachEconomicMatch([work()], {
+      pools: [pool()],
+      coverageBySourceId: new Map([
+        [
+          "evidence-1",
+          [
+            { id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+            { id: "run-2", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+          ],
+        ],
+      ]),
+    });
+    expect(item.economicState?.state).toBe("reconciliation_required");
+    expect(item.economicState?.reconciliation).toEqual({
+      kind: "duplicate_submission",
+      detail: "2 separate transfers are simultaneously in flight for the same obligation.",
+    });
+  });
+
+  it("a work item with no coverage at all is unaffected - settlement stays not_started", () => {
+    const [item] = attachEconomicMatch([work()], { pools: [pool()] });
+    expect(item.economicState?.settlement).toBe("not_started");
+  });
+
+  it("a work item with only confirmed coverage is still resolved through the existing fully_covered/duplicate_obligation precedence, not short-circuited by settlement state", () => {
+    const [item] = attachEconomicMatch([work()], {
+      pools: [pool()],
+      coverageBySourceId: new Map([
+        ["evidence-1", [{ id: "receipt-1", mechanism: "direct_support", amountUsd: 40, purpose: "Fix authentication bypass", status: "confirmed" }]],
+      ]),
+    });
+    expect(item.economicState?.settlement).not.toBe("confirming");
+    expect(item.economicState?.state).not.toBe("settlement_confirming");
+  });
+});

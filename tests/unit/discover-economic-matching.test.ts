@@ -179,3 +179,132 @@ describe("Economic matching engine", () => {
     expect(match.excluded[0]?.reason).toContain("below the $900.00 required");
   });
 });
+
+/**
+ * Phase 5 Release Slice 13: status-aware overlap semantics. FAILED != a
+ * confirmed prior payment (never coverage, never "already paid"). PENDING
+ * != CONFIRMED (a real transaction in flight still blocks a second
+ * payment, but must never claim money already moved).
+ */
+describe("assessOverlap - status-aware, never conflates failed/pending/confirmed", () => {
+  it("a failed settlement is never coverage and never blocks a legitimate new attempt", () => {
+    const { verdict, reason } = assessOverlap({
+      purpose: "implementation delivery",
+      obligationId: "obl-1",
+      coverage: [
+        {
+          id: "r1",
+          mechanism: "pool_allocation",
+          amountUsd: 500,
+          purpose: "implementation delivery",
+          obligationId: "obl-1",
+          status: "failed",
+        },
+      ],
+    });
+    expect(verdict).toBe("no_conflict");
+    expect(reason).toMatch(/no prior payment/i);
+  });
+
+  it("a pending record for the exact same obligation blocks further spend as settlement_in_progress, never duplicate_obligation - nothing has actually settled twice", () => {
+    const { verdict, reason } = assessOverlap({
+      purpose: "implementation delivery",
+      obligationId: "obl-1",
+      coverage: [
+        {
+          id: "r1",
+          mechanism: "pool_allocation",
+          amountUsd: 500,
+          purpose: "implementation delivery",
+          obligationId: "obl-1",
+          status: "pending",
+        },
+      ],
+    });
+    expect(verdict).toBe("settlement_in_progress");
+    expect(reason).toMatch(/already in progress/i);
+    expect(reason).not.toMatch(/already settled/i);
+    expect(reason).not.toMatch(/already paid/i);
+  });
+
+  it("a confirmed record for the exact same obligation is duplicate_obligation, with real 'already settled' language", () => {
+    const { verdict, reason } = assessOverlap({
+      purpose: "implementation delivery",
+      obligationId: "obl-1",
+      coverage: [
+        {
+          id: "r1",
+          mechanism: "pool_allocation",
+          amountUsd: 500,
+          purpose: "implementation delivery",
+          obligationId: "obl-1",
+          status: "confirmed",
+        },
+      ],
+    });
+    expect(verdict).toBe("duplicate_obligation");
+    expect(reason).toMatch(/already settled/i);
+  });
+
+  it("a pending record for the same purpose (no obligationId match) is settlement_in_progress, never possible_overlap phrased as 'already paid'", () => {
+    const { verdict, reason } = assessOverlap({
+      purpose: "implementation delivery",
+      coverage: [
+        {
+          id: "r1",
+          mechanism: "funded_request",
+          amountUsd: 500,
+          purpose: "implementation delivery",
+          status: "pending",
+        },
+      ],
+    });
+    expect(verdict).toBe("settlement_in_progress");
+    expect(reason).not.toMatch(/already paid/i);
+  });
+
+  it("matchImpactToCapital blocks further spend for settlement_in_progress the same way as duplicate_obligation", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "implementation delivery",
+      obligationId: "obl-1",
+      hasSourcedImpact: true,
+      intents: [securityPool],
+      coverage: [
+        {
+          id: "r1",
+          mechanism: "pool_allocation",
+          amountUsd: 500,
+          purpose: "implementation delivery",
+          obligationId: "obl-1",
+          status: "pending",
+        },
+      ],
+    });
+    expect(match.overlap).toBe("settlement_in_progress");
+    expect(match.recommended).toBeNull();
+    expect(match.eligible).toHaveLength(0);
+  });
+
+  it("a failed record never blocks matchImpactToCapital's recommendation - the funder may legitimately retry", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "implementation delivery",
+      obligationId: "obl-1",
+      hasSourcedImpact: true,
+      intents: [securityPool],
+      coverage: [
+        {
+          id: "r1",
+          mechanism: "pool_allocation",
+          amountUsd: 500,
+          purpose: "implementation delivery",
+          obligationId: "obl-1",
+          status: "failed",
+        },
+      ],
+    });
+    expect(match.overlap).toBe("no_conflict");
+    expect(match.recommended).toBe("pool_allocation");
+  });
+});

@@ -27,19 +27,40 @@ export type PersistedPolicyProvenance = {
 };
 
 /**
+ * Release Slice 13: real per-batch availability, distinct from "the lookup
+ * succeeded and this Program genuinely has no persisted PolicyVersion yet."
+ * A caller must never fold "unavailable" (the query itself failed) into
+ * the same bucket as "absent" (queried successfully, no row exists) -
+ * ABSENT POLICY != POLICY LOOKUP FAILED. When "unavailable", the returned
+ * map is always empty - a caller cannot trust ANY id's absence from it as
+ * meaningful in that case, and must label every affected Pool's policy
+ * provenance as "unavailable," never silently downgrade it to
+ * "provisional."
+ */
+export type PolicyProvenanceLoadResult = {
+  byProgramId: Map<string, PersistedPolicyProvenance>;
+  availability: "available" | "unavailable";
+};
+
+/**
  * Batch-loads the latest persisted PolicyVersion.contentHash for each real
  * Pool/Program id that has one. A Pool with no ProgramVersion/PolicyVersion
  * yet (most Pools today - this system is not universally adopted) is
- * simply absent from the returned map; callers must fall back to a
- * provisional fingerprint (computePolicyFingerprint() in economic-state.ts)
- * rather than treating absence as an error.
+ * simply absent from the returned map when the lookup itself succeeded;
+ * callers must fall back to a provisional fingerprint
+ * (computePolicyFingerprint() in economic-state.ts) rather than treating
+ * that absence as an error. A real DB failure is reported via
+ * `availability: "unavailable"`, never silently collapsed into the same
+ * "absent" bucket.
  */
 export async function loadPolicyProvenanceByProgramId(
   programIds: string[],
-): Promise<Map<string, PersistedPolicyProvenance>> {
+): Promise<PolicyProvenanceLoadResult> {
   const map = new Map<string, PersistedPolicyProvenance>();
   const ids = [...new Set(programIds.filter((id) => id.trim().length > 0))];
-  if (!ids.length || !process.env.DATABASE_URL) return map;
+  if (!ids.length || !process.env.DATABASE_URL) {
+    return { byProgramId: map, availability: "available" };
+  }
 
   try {
     const programVersions = await prisma.programVersion.findMany({
@@ -47,7 +68,7 @@ export async function loadPolicyProvenanceByProgramId(
       orderBy: { version: "desc" },
       select: { id: true, programId: true, version: true },
     });
-    if (!programVersions.length) return map;
+    if (!programVersions.length) return { byProgramId: map, availability: "available" };
 
     // Keep only the latest ProgramVersion per program - a program can have
     // several historical versions, only the current one is authoritative.
@@ -95,8 +116,8 @@ export async function loadPolicyProvenanceByProgramId(
       });
     }
   } catch {
-    return new Map();
+    return { byProgramId: new Map(), availability: "unavailable" };
   }
 
-  return map;
+  return { byProgramId: map, availability: "available" };
 }

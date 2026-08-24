@@ -11,6 +11,7 @@ import {
   computePolicyFingerprint,
   detectReconciliationIssue,
   filterCoverageByObligation,
+  periodForMechanism,
   periodKey,
   resolveCanonicalEconomicStateFromLedgerRecord,
   resolveCanonicalEconomicStateFromMatch,
@@ -431,6 +432,7 @@ describe("computePolicyFingerprint - deterministic, order-independent", () => {
       mechanism: "pool_allocation",
       eligibleClasses: ["security"],
       amountRule: { kind: "fixed", value: 100 },
+      subjectId: "pool-1",
       ...overrides,
     };
   }
@@ -461,6 +463,18 @@ describe("computePolicyFingerprint - deterministic, order-independent", () => {
     const a = computePolicyFingerprint(rules({ eligibleClasses: ["security"] }));
     const b = computePolicyFingerprint(rules({ eligibleClasses: ["research"] }));
     expect(a).not.toBe(b);
+  });
+
+  it("Release Slice 13: two DIFFERENT Pools with the identical mechanism and eligibleClasses never collide into the same fingerprint - the real bug this slice closes", () => {
+    const poolA = computePolicyFingerprint(rules({ subjectId: "pool-creator-a" }));
+    const poolB = computePolicyFingerprint(rules({ subjectId: "pool-creator-b" }));
+    expect(poolA).not.toBe(poolB);
+  });
+
+  it("the SAME funding intent's policy recomputed twice still produces the same fingerprint - idempotency is preserved, not broken by subjectId", () => {
+    const a = computePolicyFingerprint(rules({ subjectId: "pool-1" }));
+    const b = computePolicyFingerprint(rules({ subjectId: "pool-1" }));
+    expect(a).toBe(b);
   });
 });
 
@@ -886,5 +900,94 @@ describe("resolveSettlementStateFromCoverage - real settlement state from alread
     expect(canonical.state).toBe("settlement_confirming");
     expect(canonical.settlement).toBe("confirming");
     expect(canonical.nextAction).toBe("none");
+  });
+});
+
+describe("periodForMechanism - real period derivation, never a blanket one_time (Release Slice 13)", () => {
+  it("every mechanism this codebase can currently construct is genuinely one_time", () => {
+    expect(periodForMechanism("funded_request")).toEqual({ kind: "one_time" });
+    expect(periodForMechanism("pool_allocation")).toEqual({ kind: "one_time" });
+    expect(periodForMechanism("sponsor_program")).toEqual({ kind: "one_time" });
+    expect(periodForMechanism("direct_support")).toEqual({ kind: "one_time" });
+  });
+
+  it("recurring_support is genuinely unknown, never forced into one_time - no real period-window data exists to derive one from", () => {
+    expect(periodForMechanism("recurring_support")).toBeUndefined();
+  });
+});
+
+describe("resolveCanonicalEconomicStateFromMatch - verification_unavailable, UNKNOWN != EMPTY (Release Slice 13)", () => {
+  const match = matchImpactToCapital({
+    outcomeClass: "security",
+    purpose: "Fix authentication bypass",
+    hasSourcedImpact: true,
+    intents: [pool()],
+    coverage: [],
+  });
+
+  it("a real mechanism with unavailable coverage data returns verification_unavailable, never a state implying zero coverage is confirmed", () => {
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      coverageDataAvailability: "unavailable",
+    });
+    expect(canonical.state).toBe("verification_unavailable");
+    expect(canonical.eligibility.eligible).toBe(false);
+    expect(canonical.nextAction).toBe("none");
+    expect(canonical.coverage.dataAvailability).toBe("unavailable");
+  });
+
+  it("verification_unavailable takes precedence over every coverage-derived rule - fullyCovered/duplicate reasoning must not be trusted when its own source failed", () => {
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 0, // would otherwise read as trivially fullyCovered
+      payout: "destination_ready",
+      coverageDataAvailability: "unavailable",
+    });
+    expect(canonical.state).toBe("verification_unavailable");
+    expect(canonical.state).not.toBe("fully_covered");
+  });
+
+  it("defaults to available for every pre-existing caller - exact prior behavior preserved when the param is omitted", () => {
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+    });
+    expect(canonical.state).not.toBe("verification_unavailable");
+    expect(canonical.coverage.dataAvailability).toBe("available");
+  });
+
+  it("no real mechanism at all with unavailable coverage still reports the honest no_demand/blocked result - nothing to verify money against", () => {
+    const noMechanismMatch = matchImpactToCapital({
+      outcomeClass: "documentation",
+      purpose: "unrelated purpose",
+      hasSourcedImpact: true,
+      intents: [],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "unrelated purpose",
+      match: noMechanismMatch,
+      payout: "not_required",
+      coverageDataAvailability: "unavailable",
+    });
+    expect(canonical.state).toBe("no_demand");
+  });
+});
+
+describe("computeCanonicalCoverage - dataAvailability (Release Slice 13)", () => {
+  it("defaults to available - every pre-existing caller keeps its exact prior behavior", () => {
+    const coverage = computeCanonicalCoverage([], 100);
+    expect(coverage.dataAvailability).toBe("available");
+  });
+
+  it("explicitly marks unavailable when passed", () => {
+    const coverage = computeCanonicalCoverage([], 100, "unavailable");
+    expect(coverage.dataAvailability).toBe("unavailable");
   });
 });

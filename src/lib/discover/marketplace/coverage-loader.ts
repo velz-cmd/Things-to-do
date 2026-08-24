@@ -33,7 +33,30 @@ import type { CoverageRecord } from "@/lib/discover/impact/economic-matching";
  * (economic-matching.ts), which already reports "possible_overlap"
  * rather than a false-confident duplicate match - the correct, already-
  * built behavior for ambiguous legacy coverage, not new logic.
+ *
+ * Release Slice 13: failure semantics. The confirmed and pending queries
+ * used to run through a single `Promise.all([...]).catch(() => [[], []])`
+ * - if EITHER query failed, BOTH result sets silently disappeared, even
+ * the one that genuinely succeeded. Worse, a real DB failure produced the
+ * exact same return value as "queried successfully, no prior payment
+ * exists," which a money-mutation caller cannot tell apart from a
+ * legitimately clean record - UNKNOWN must never read as EMPTY. Now uses
+ * `Promise.allSettled()` so one query's failure never deletes the other's
+ * successfully loaded records, and returns real per-source availability
+ * so a money-mutation caller (Slice 12's `/api/wallet/send` check) can
+ * fail closed instead of silently treating "unavailable" as "zero
+ * coverage, safe to fund."
  */
+
+export type SourceAvailability = "available" | "unavailable";
+
+export type CoverageLoadResult = {
+  recordsBySourceId: Map<string, CoverageRecord[]>;
+  /** Whether the confirmed-settlement (Receipt/ChainTransaction) query actually completed. */
+  confirmedAvailability: SourceAvailability;
+  /** Whether the pending-transfer (ActionRun) query actually completed. */
+  pendingAvailability: SourceAvailability;
+};
 
 type ConfirmedWorkRewardRow = {
   work_subject_id: string | null;
@@ -51,12 +74,14 @@ type PendingWorkRewardRun = {
 
 export async function loadCoverageBySourceId(
   sourceIds: string[],
-): Promise<Map<string, CoverageRecord[]>> {
-  const map = new Map<string, CoverageRecord[]>();
+): Promise<CoverageLoadResult> {
+  const recordsBySourceId = new Map<string, CoverageRecord[]>();
   const ids = [...new Set(sourceIds.filter((id) => id.trim().length > 0))];
-  if (!ids.length || !process.env.DATABASE_URL) return map;
+  if (!ids.length || !process.env.DATABASE_URL) {
+    return { recordsBySourceId, confirmedAvailability: "available", pendingAvailability: "available" };
+  }
 
-  const [confirmed, pending] = await Promise.all([
+  const [confirmedResult, pendingResult] = await Promise.allSettled([
     prisma.$queryRaw<ConfirmedWorkRewardRow[]>`
       SELECT
         r.payload->'work'->>'subjectId' AS work_subject_id,
@@ -81,45 +106,57 @@ export async function loadCoverageBySourceId(
       },
       select: { id: true, aggregateId: true, input: true },
     }),
-  ]).catch(
-    () => [[], []] as [ConfirmedWorkRewardRow[], PendingWorkRewardRun[]],
-  );
+  ]);
 
-  for (const row of confirmed) {
-    if (!row.work_subject_id) continue;
-    const records = map.get(row.work_subject_id) ?? [];
-    records.push({
-      id: row.public_reference,
-      mechanism: "direct_support",
-      amountUsd: Number(row.amount_micro_usdc) / 1_000_000,
-      purpose: row.work_title ?? "verified outcome support",
-      receiptReference: row.tx_hash ?? row.public_reference,
-      status: "confirmed",
-    });
-    map.set(row.work_subject_id, records);
+  const confirmedAvailability: SourceAvailability =
+    confirmedResult.status === "fulfilled" ? "available" : "unavailable";
+  const pendingAvailability: SourceAvailability =
+    pendingResult.status === "fulfilled" ? "available" : "unavailable";
+
+  if (confirmedResult.status === "fulfilled") {
+    for (const row of confirmedResult.value) {
+      if (!row.work_subject_id) continue;
+      const records = recordsBySourceId.get(row.work_subject_id) ?? [];
+      records.push({
+        id: row.public_reference,
+        mechanism: "direct_support",
+        amountUsd: Number(row.amount_micro_usdc) / 1_000_000,
+        purpose: row.work_title ?? "verified outcome support",
+        receiptReference: row.tx_hash ?? row.public_reference,
+        status: "confirmed",
+      });
+      recordsBySourceId.set(row.work_subject_id, records);
+    }
   }
 
-  for (const run of pending) {
-    if (!run.aggregateId) continue;
-    const input =
-      run.input && typeof run.input === "object" && !Array.isArray(run.input)
-        ? (run.input as Record<string, unknown>)
-        : null;
-    const amountUsd = typeof input?.amountUsd === "number" ? input.amountUsd : null;
-    if (amountUsd == null) continue;
-    const records = map.get(run.aggregateId) ?? [];
-    // ActionRun.input does not persist the work's title (only
-    // workSubjectId/repository/sourceUrl - see wallet/send/route.ts) -
-    // fall back honestly rather than inventing one.
-    records.push({
-      id: run.id,
-      mechanism: "direct_support",
-      amountUsd,
-      purpose: "verified outcome support",
-      status: "pending",
-    });
-    map.set(run.aggregateId, records);
+  if (pendingResult.status === "fulfilled") {
+    for (const run of pendingResult.value) {
+      if (!run.aggregateId) continue;
+      const input =
+        run.input && typeof run.input === "object" && !Array.isArray(run.input)
+          ? (run.input as Record<string, unknown>)
+          : null;
+      const amountUsd = typeof input?.amountUsd === "number" ? input.amountUsd : null;
+      if (amountUsd == null) continue;
+      const records = recordsBySourceId.get(run.aggregateId) ?? [];
+      // Release Slice 13: ActionRun.input now persists the real work title
+      // (workTitle, written by the wallet/send route at submission time) -
+      // use it when present. Historical rows written before this field
+      // existed have no real title to recover, so they fall back to an
+      // honestly-labeled "unknown/legacy purpose" rather than a fabricated
+      // exact-match string - never claim a specific purpose RESOLVE cannot
+      // actually prove.
+      const workTitle = typeof input?.workTitle === "string" ? input.workTitle : null;
+      records.push({
+        id: run.id,
+        mechanism: "direct_support",
+        amountUsd,
+        purpose: workTitle ?? "unknown/legacy purpose (submitted before purpose was persisted)",
+        status: "pending",
+      });
+      recordsBySourceId.set(run.aggregateId, records);
+    }
   }
 
-  return map;
+  return { recordsBySourceId, confirmedAvailability, pendingAvailability };
 }

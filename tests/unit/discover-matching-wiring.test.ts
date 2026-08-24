@@ -857,3 +857,85 @@ describe("real settlement state flows through attachEconomicMatch() (Release Sli
     expect(item.economicState?.state).not.toBe("settlement_confirming");
   });
 });
+
+/**
+ * Phase 5 Release Slice 13: real failure-semantics flow end to end through
+ * attachEconomicMatch() - UNKNOWN != EMPTY, ABSENT POLICY != POLICY LOOKUP
+ * FAILED, and two different Pools never share a policy fingerprint.
+ */
+describe("real failure semantics flow through attachEconomicMatch() (Release Slice 13)", () => {
+  it("coverageDataAvailable: false produces verification_unavailable end to end, never a state implying zero coverage was confirmed", () => {
+    const [item] = attachEconomicMatch([work()], {
+      pools: [pool()],
+      coverageBySourceId: new Map(),
+      coverageDataAvailable: false,
+    });
+    expect(item.economicState?.state).toBe("verification_unavailable");
+    expect(item.economicState?.coverage.dataAvailability).toBe("unavailable");
+  });
+
+  it("coverageDataAvailable omitted defaults to available - exact prior behavior for every existing caller", () => {
+    const [item] = attachEconomicMatch([work()], { pools: [pool()] });
+    expect(item.economicState?.state).not.toBe("verification_unavailable");
+    expect(item.economicState?.coverage.dataAvailability).toBe("available");
+  });
+
+  it("policyProvenanceAvailable: false labels the winning mechanism's policy provenance as unavailable, never silently downgraded to provisional", () => {
+    const [item] = attachEconomicMatch(
+      [
+        work({
+          impactProfile: {
+            measurable: true,
+            signals: [
+              {
+                id: "advisories_with_published_fix",
+                label: "Patched versions available for advisories",
+                value: "1",
+                scope: "repository",
+                source: "GitHub Security Advisories",
+                observedAt: "2026-08-01T00:00:00.000Z",
+                classification: "observed",
+              },
+            ],
+          },
+        }),
+      ],
+      {
+        pools: [pool()],
+        operatorOfPoolIds: new Set(["pool-1"]),
+        policyProvenanceAvailable: false,
+      },
+    );
+    expect(item.economicState?.obligation?.policyProvenance).toBe("unavailable");
+  });
+
+  it("two different Pools matched in the same call never collide into the same provisional policy fingerprint", () => {
+    const impactProfile = {
+      measurable: true,
+      signals: [
+        {
+          id: "advisories_with_published_fix",
+          label: "Patched versions available for advisories",
+          value: "1",
+          scope: "repository",
+          source: "GitHub Security Advisories",
+          observedAt: "2026-08-01T00:00:00.000Z",
+          classification: "observed" as const,
+        },
+      ],
+    };
+    const [itemA] = attachEconomicMatch(
+      [work({ id: "work-a", source: { type: "github_evidence", id: "evidence-a" }, impactProfile })],
+      { pools: [pool({ id: "pool-a" })], operatorOfPoolIds: new Set(["pool-a"]) },
+    );
+    const [itemB] = attachEconomicMatch(
+      [work({ id: "work-b", source: { type: "github_evidence", id: "evidence-b" }, impactProfile })],
+      { pools: [pool({ id: "pool-b" })], operatorOfPoolIds: new Set(["pool-b"]) },
+    );
+    expect(itemA.economicState?.obligation?.mechanism).toBe("pool_allocation");
+    expect(itemA.economicState?.obligation?.policyFingerprint).toBeDefined();
+    expect(itemA.economicState?.obligation?.policyFingerprint).not.toBe(
+      itemB.economicState?.obligation?.policyFingerprint,
+    );
+  });
+});

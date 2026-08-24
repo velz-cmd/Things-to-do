@@ -2580,7 +2580,13 @@ function DiscoverMarketplaceContent({
           .filter((action): action is DiscoverAction => Boolean(action))
           .map((action) => ({
             action,
-            item: findContext(data, opportunity.source.id),
+            // Release Slice 16 fix (live-verified regression): this is the
+            // URL-restore path (?action=&subject=) - openWorkbench()'s
+            // router.replace() re-triggers this effect right after a click
+            // sets the correct item, silently overwriting it with one
+            // missing economicState unless the same fallback is applied
+            // here too.
+            item: findContext(data, opportunity.source.id, opportunity.economicState),
           })),
       ),
       ...data.people.flatMap((person) =>
@@ -2607,7 +2613,11 @@ function DiscoverMarketplaceContent({
       ),
       ...generatedDetails.map((action) => ({
         action,
-        item: findContext(data, subjectId),
+        item: findContext(
+          data,
+          subjectId,
+          data.opportunities.items.find((o) => o.source.id === subjectId)?.economicState,
+        ),
       })),
     ];
     const match = candidates.find(

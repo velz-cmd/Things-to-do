@@ -35,6 +35,7 @@ import { DISCOVER_VIEW_TO_ROUTE } from "@/lib/discover/marketplace/contracts";
 import { isMarketListedPool } from "@/lib/discover/marketplace/pool-listing";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import { describeSourceHealth } from "@/lib/discover/marketplace/source-health";
+import { canonicalStateLabel } from "@/lib/discover/marketplace/economic-state";
 import type {
   DiscoverAction,
   DiscoverActivityItem,
@@ -893,7 +894,12 @@ function MediaWorkRow({
               <span className="text-slate-500">Impact not yet measured</span>
             )}
           </p>
-          <p className="mt-0.5 truncate text-[11px] text-slate-500">{dateLabel(work.publishedAt)}</p>
+          {/* Phase 5 Release Slice 3: the canonical economic state, one
+              line, in customer language - never a second, contradictory
+              funding label invented separately from economicMatch. */}
+          <p className="mt-0.5 truncate text-[11px] text-slate-500">
+            {work.economicState ? canonicalStateLabel(work.economicState) : dateLabel(work.publishedAt)}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:justify-end">
           {work.primaryAction ? (

@@ -435,6 +435,84 @@ describe("economic matching is wired into the marketplace", () => {
     );
     expect(direct).toBeUndefined();
   });
+
+  /**
+   * Phase 5 Release Slice 3: attachEconomicMatch() now also attaches the
+   * canonical economicState projection, so components read one field
+   * instead of reimplementing the same funding/payout precedence logic.
+   */
+  describe("attaches the canonical economicState alongside economicMatch", () => {
+    // attachEconomicMatch() always adds a direct_support intent (the
+    // viewer's own voluntary option), so "no_demand" is unreachable
+    // through this path - there is always at least one intent considered,
+    // landing in eligible or excluded. With no Pool and no ready recipient,
+    // that intent is excluded, which is genuinely "blocked" (demand was
+    // considered, nothing could currently fund it), not "no demand at all".
+    it("no Pool and no ready recipient -> blocked, not no_demand (direct_support was considered and excluded)", () => {
+      const [item] = attachEconomicMatch([work({ entityState: undefined })], { pools: [] });
+      expect(item.economicState?.state).toBe("blocked");
+    });
+
+    it("a ready recipient with a real eligible mechanism (direct_support here, since no Pool evidence exists) -> funding_available", () => {
+      const [item] = attachEconomicMatch(
+        [work({ entityState: { provenance: "operator_created", lifecycle: "published", financialReadiness: "ready" } })],
+        { pools: [] },
+      );
+      expect(item.economicState?.state).toBe("funding_available");
+      expect(item.economicState?.payout).toBe("destination_ready");
+      expect(item.economicState?.mechanism).toBe("direct_support");
+    });
+
+    it("financialReadiness setup_required maps to destination_missing, overriding funding_available to payout_setup_required", () => {
+      // Needs a real impactProfile so the Pool intent is genuinely eligible
+      // (pool_allocation requires sourced evidence) - direct_support alone
+      // would be excluded here (recipient not ready), so without evidence
+      // neither mechanism would be eligible and the state would be
+      // "blocked", not exercising the payout override this test checks.
+      const [item] = attachEconomicMatch(
+        [
+          work({
+            entityState: {
+              provenance: "operator_created",
+              lifecycle: "published",
+              financialReadiness: "setup_required",
+            },
+            impactProfile: {
+              measurable: true,
+              signals: [
+                {
+                  id: "advisories_with_published_fix",
+                  label: "Patched versions available for advisories",
+                  value: "3",
+                  scope: "repository",
+                  source: "GitHub Security Advisories",
+                  observedAt: "2026-08-01T00:00:00.000Z",
+                  classification: "observed",
+                },
+              ],
+            },
+          }),
+        ],
+        { pools: [pool()], operatorOfPoolIds: new Set(["pool-1"]) },
+      );
+      expect(item.economicState?.payout).toBe("destination_missing");
+      expect(item.economicState?.state).toBe("payout_setup_required");
+    });
+
+    it("financialReadiness not_applicable maps to not_required (media's real payout state today)", () => {
+      const [item] = attachEconomicMatch([mediaWork()], { pools: [] });
+      expect(item.economicState?.payout).toBe("not_required");
+    });
+
+    it("a non-work record never receives economicState, matching its economicMatch absence", () => {
+      const program = work({
+        source: { type: "community_program", id: "program-1" },
+        marketplaceKind: "pool",
+      });
+      const [item] = attachEconomicMatch([program], { pools: [pool()] });
+      expect(item.economicState).toBeUndefined();
+    });
+  });
 });
 
 describe("role ranking orders without hiding", () => {

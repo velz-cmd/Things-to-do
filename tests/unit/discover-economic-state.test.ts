@@ -6,6 +6,7 @@ import type {
 } from "@/lib/discover/impact/economic-matching";
 import type { FundingCoverageLedgerRecord } from "@/lib/discover/funding-coverage";
 import {
+  canonicalStateLabel,
   computeCanonicalCoverage,
   computeObligationId,
   computePolicyFingerprint,
@@ -13,6 +14,7 @@ import {
   periodKey,
   resolveCanonicalEconomicStateFromLedgerRecord,
   resolveCanonicalEconomicStateFromMatch,
+  type CanonicalEconomicState,
   type CanonicalPeriod,
   type PolicyRules,
 } from "@/lib/discover/marketplace/economic-state";
@@ -552,5 +554,86 @@ describe("filterCoverageByObligation - coverage must match the current obligatio
     const coverage = computeCanonicalCoverage(filtered, 100);
     expect(coverage.confirmedUsd).toBe(40);
     expect(coverage.remainingUsd).toBe(60);
+  });
+});
+
+describe("canonicalStateLabel - customer language, one place to change wording", () => {
+  function stateFixture(overrides: Partial<CanonicalEconomicState> = {}): CanonicalEconomicState {
+    return {
+      state: "no_demand",
+      demand: false,
+      eligibility: { eligible: false, reason: "" },
+      obligation: null,
+      coverage: {
+        requiredUsd: null,
+        confirmedUsd: 0,
+        pendingUsd: 0,
+        remainingUsd: null,
+        currency: "USDC",
+        records: [],
+        fullyCovered: false,
+      },
+      authorization: { required: false, granted: false },
+      payout: "not_required",
+      settlement: "not_started",
+      mechanism: null,
+      provenance: "economic_match",
+      nextAction: "none",
+      ...overrides,
+    };
+  }
+
+  it("includes the real remaining amount for partially_covered, never a generic label when a number is known", () => {
+    const label = canonicalStateLabel(
+      stateFixture({
+        state: "partially_covered",
+        coverage: {
+          requiredUsd: 100,
+          confirmedUsd: 40,
+          pendingUsd: 0,
+          remainingUsd: 60,
+          currency: "USDC",
+          records: [],
+          fullyCovered: false,
+        },
+      }),
+    );
+    expect(label).toBe("60.00 USDC remaining");
+  });
+
+  it("falls back to a plain label when no amount is known", () => {
+    const label = canonicalStateLabel(stateFixture({ state: "partially_covered" }));
+    expect(label).toBe("Partially funded");
+  });
+
+  it("no_demand and blocked read as distinct, honest sentences - never the same generic copy", () => {
+    expect(canonicalStateLabel(stateFixture({ state: "no_demand" }))).toBe(
+      "No current funding demand",
+    );
+    expect(canonicalStateLabel(stateFixture({ state: "blocked" }))).toBe(
+      "No current funding match",
+    );
+  });
+
+  it("every canonical state value produces a non-empty label - no missing case falls through silently", () => {
+    const states: CanonicalEconomicState["state"][] = [
+      "no_demand",
+      "demand_found",
+      "possible_match",
+      "eligible",
+      "funding_available",
+      "authorization_required",
+      "payout_setup_required",
+      "partially_covered",
+      "fully_covered",
+      "settlement_submitted",
+      "settlement_confirming",
+      "settlement_confirmed",
+      "reconciliation_required",
+      "blocked",
+    ];
+    for (const state of states) {
+      expect(canonicalStateLabel(stateFixture({ state })).length).toBeGreaterThan(0);
+    }
   });
 });

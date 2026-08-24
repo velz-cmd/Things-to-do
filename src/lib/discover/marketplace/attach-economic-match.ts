@@ -4,7 +4,11 @@ import {
   type EconomicMatch,
   type FundingIntentCandidate,
 } from "@/lib/discover/impact/economic-matching";
-import type { DiscoverPool, MarketplaceOpportunity } from "./contracts";
+import {
+  resolveCanonicalEconomicStateFromMatch,
+  type CanonicalPayoutState,
+} from "@/lib/discover/marketplace/economic-state";
+import type { DiscoverEntityState, DiscoverPool, MarketplaceOpportunity } from "./contracts";
 
 /**
  * Bridges the matching engine to the live marketplace.
@@ -88,6 +92,30 @@ export function directSupportIntent(input: {
   };
 }
 
+/**
+ * Beneficiary identity and payout identity are separate (Phase 5 section
+ * 18) - `financialReadiness` already IS that payout dimension for verified
+ * work, just under domain-specific naming. This maps it into the
+ * canonical vocabulary once, rather than each consumer reinventing the
+ * mapping.
+ */
+function payoutFromFinancialReadiness(
+  financialReadiness: DiscoverEntityState["financialReadiness"] | undefined,
+): CanonicalPayoutState {
+  switch (financialReadiness) {
+    case "not_applicable":
+      return "not_required";
+    case "setup_required":
+      return "destination_missing";
+    case "ready":
+    case "submitted":
+    case "confirmed":
+      return "destination_ready";
+    default:
+      return "unknown_recipient";
+  }
+}
+
 export type EconomicMatchInput = {
   pools: DiscoverPool[];
   viewerUserId?: string;
@@ -155,7 +183,17 @@ export function attachEconomicMatch(
       viewerRoles: input.operatorOfPoolIds?.size ? ["operator"] : [],
     });
 
-    return { ...item, economicMatch: match } satisfies MarketplaceOpportunity;
+    // Release Slice 3: wire the canonical projection into the real
+    // marketplace. `economicMatch` remains the source of truth for
+    // mechanism eligibility; `economicState` is the one canonical current
+    // state derived from it, so a component reads one field instead of
+    // reimplementing the same precedence logic each time.
+    const economicState = resolveCanonicalEconomicStateFromMatch({
+      match,
+      payout: payoutFromFinancialReadiness(item.entityState?.financialReadiness),
+    });
+
+    return { ...item, economicMatch: match, economicState } satisfies MarketplaceOpportunity;
   });
 }
 

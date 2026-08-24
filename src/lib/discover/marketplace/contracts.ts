@@ -1,6 +1,7 @@
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
 import type { EconomicMatch } from "@/lib/discover/impact/economic-matching";
 import type { SourceHealthState } from "@/lib/discover/marketplace/source-health";
+import type { CanonicalEconomicState } from "@/lib/discover/marketplace/economic-state";
 
 export const DISCOVER_VIEWS = [
   "for_you",
@@ -424,6 +425,16 @@ export type MarketplaceOpportunity = {
    * recommends - see src/lib/discover/impact/economic-matching.ts.
    */
   economicMatch?: EconomicMatch;
+  /**
+   * Phase 5 canonical projection (Release Slice 1/3) - one current
+   * economic state derived from economicMatch (or, for GitHub work, from
+   * funding-coverage.ts's ledger record), never invented separately by a
+   * component. See src/lib/discover/marketplace/economic-state.ts. Present
+   * only for items that went through the canonical resolver; absent means
+   * "not yet wired for this item," never "no demand" - check
+   * economicMatch/funding below for that.
+   */
+  economicState?: CanonicalEconomicState;
   /**
    * A real, persisted Agent-purchased result whose subjectContext points at
    * this exact item - the contextual reintegration loop's read side. Present

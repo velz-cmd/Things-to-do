@@ -35,7 +35,7 @@ import { DISCOVER_VIEW_TO_ROUTE } from "@/lib/discover/marketplace/contracts";
 import { isMarketListedPool } from "@/lib/discover/marketplace/pool-listing";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import { describeSourceHealth } from "@/lib/discover/marketplace/source-health";
-import { canonicalStateLabel } from "@/lib/discover/marketplace/economic-state";
+import { canonicalStateLabel } from "@/lib/discover/marketplace/economic-state-labels";
 import type {
   DiscoverAction,
   DiscoverActivityItem,
@@ -684,10 +684,23 @@ function strongestImpactFact(profile?: ImpactProfile): string | null {
 /** Normalizes the funding mechanics into one plain-language economic state,
  * for the dense row's Funding column. Full mechanism detail (which intents
  * were excluded and why) stays in the row's Details disclosure. */
+/**
+ * Phase 5 Release Slice 4: reads the canonical projection instead of
+ * re-deriving state from economicMatch fields ad hoc - this and
+ * researchFundingStateLabel() below used to be two near-identical
+ * hand-written if-chains, exactly the "Verified Work says one thing,
+ * something else says another" duplication Phase 5 exists to close.
+ * Falls back to the pre-Phase-5 logic only when economicState is genuinely
+ * absent (defensive - attachEconomicMatch() always sets both fields
+ * together for every domain it processes, so this path should not be
+ * reachable in practice, but a missing canonical projection must never
+ * crash the row).
+ */
 function fundingStateLabel(
   work: MarketplaceOpportunity,
   payoutState: string,
 ): string {
+  if (work.economicState) return canonicalStateLabel(work.economicState);
   if (work.economicMatch?.overlap === "duplicate_obligation") return "Already covered";
   if (work.economicMatch?.overlap === "possible_overlap") return "Possible overlap";
   if (work.economicMatch?.recommended) return "Funding match found";
@@ -716,7 +729,9 @@ function researchMetaLine(work: MarketplaceOpportunity): string {
   return parts.join(" · ");
 }
 
+/** Phase 5 Release Slice 4: see fundingStateLabel() above - same canonical-first, ad-hoc-fallback pattern. */
 function researchFundingStateLabel(work: MarketplaceOpportunity): string {
+  if (work.economicState) return canonicalStateLabel(work.economicState);
   if (work.economicMatch?.overlap === "duplicate_obligation") return "Already covered";
   if (work.economicMatch?.overlap === "possible_overlap") return "Possible overlap";
   if (work.economicMatch?.recommended) return "Funding match found";

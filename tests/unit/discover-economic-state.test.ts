@@ -6,7 +6,6 @@ import type {
 } from "@/lib/discover/impact/economic-matching";
 import type { FundingCoverageLedgerRecord } from "@/lib/discover/funding-coverage";
 import {
-  canonicalStateLabel,
   computeCanonicalCoverage,
   computeObligationId,
   computePolicyFingerprint,
@@ -18,6 +17,7 @@ import {
   type CanonicalPeriod,
   type PolicyRules,
 } from "@/lib/discover/marketplace/economic-state";
+import { canonicalStateLabel } from "@/lib/discover/marketplace/economic-state-labels";
 
 function pool(overrides: Partial<FundingIntentCandidate> = {}): FundingIntentCandidate {
   return {

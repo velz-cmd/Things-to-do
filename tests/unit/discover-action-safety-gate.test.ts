@@ -107,6 +107,65 @@ describe("applyCanonicalActionSafetyGate - restriction-only cutover", () => {
     expect(gated.primaryAction?.enabled).toBe(false);
   });
 
+  /**
+   * Phase 5 Release Slice 17 (Section 18's full action-convergence audit):
+   * the gate is driven generically by resolveCanonicalAction()'s
+   * nextAction switch, not special-cased per economic state - these tests
+   * prove that generic wiring genuinely covers the FULL canonical state
+   * space (all 15 CanonicalEconomicStateValue members), not just the 3
+   * illustrative disagreements Release Slice 11's parity matrix
+   * originally found. Every state whose nextAction is anything other than
+   * "fund" must disable an already-enabled legacy fund button.
+   */
+  it("disables an enabled fund action when the item is already fully covered (fully_covered / view_receipt) - legacy has no concept of 'already paid, show the receipt' at all", () => {
+    const [gated] = applyCanonicalActionSafetyGate([
+      item(state({ nextAction: "view_receipt", state: "fully_covered", settlement: "confirmed" })),
+    ]);
+    expect(gated.primaryAction?.enabled).toBe(false);
+  });
+
+  it("disables an enabled fund action when a confirmed settlement exists (settlement_confirmed / view_receipt)", () => {
+    const [gated] = applyCanonicalActionSafetyGate([
+      item(state({ nextAction: "view_receipt", state: "settlement_confirmed", settlement: "confirmed" })),
+    ]);
+    expect(gated.primaryAction?.enabled).toBe(false);
+  });
+
+  it("disables an enabled fund action when human authorization is required (authorization_required / authorize)", () => {
+    const [gated] = applyCanonicalActionSafetyGate([
+      item(state({ nextAction: "authorize", state: "authorization_required" })),
+    ]);
+    expect(gated.primaryAction?.enabled).toBe(false);
+  });
+
+  it("disables an enabled fund action when only a possible/ambiguous overlap exists (review_funding, not a clean fund)", () => {
+    const [gated] = applyCanonicalActionSafetyGate([
+      item(state({ nextAction: "review_funding", state: "possible_match" })),
+    ]);
+    expect(gated.primaryAction?.enabled).toBe(false);
+  });
+
+  it("disables an enabled fund action when partial coverage requires review before funding the remainder", () => {
+    const [gated] = applyCanonicalActionSafetyGate([
+      item(state({ nextAction: "review_funding", state: "partially_covered" })),
+    ]);
+    expect(gated.primaryAction?.enabled).toBe(false);
+  });
+
+  it("disables an enabled fund action when the item is generically blocked", () => {
+    const [gated] = applyCanonicalActionSafetyGate([
+      item(state({ nextAction: "none", state: "blocked", demand: true })),
+    ]);
+    expect(gated.primaryAction?.enabled).toBe(false);
+  });
+
+  it("leaves the fund action enabled ONLY for the one state whose real economic recommendation is fund (funding_available) - the single case where canonical and legacy genuinely agree", () => {
+    const [gated] = applyCanonicalActionSafetyGate([
+      item(state({ nextAction: "fund", state: "funding_available" })),
+    ]);
+    expect(gated.primaryAction?.enabled).toBe(true);
+  });
+
   it("never touches an item whose primary action is not the fund action - evidence-only, self-attributed, and payout-setup items pass through unchanged", () => {
     const evidenceItem = item(state({ nextAction: "none" }), {
       id: "discover.open_evidence",

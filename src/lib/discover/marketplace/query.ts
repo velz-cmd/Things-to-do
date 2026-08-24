@@ -81,6 +81,7 @@ import { discoverNavigationAction, workbenchAction } from "./action-contract";
 import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
 import { confirmedStakeUsdByProgram } from "@/lib/db/ensure-fund-stake-arc-schema";
 import { attachEconomicMatch } from "./attach-economic-match";
+import { applyCanonicalActionSafetyGate } from "./canonical-action-resolver";
 import { loadCoverageBySourceId } from "./coverage-loader";
 import { loadPolicyProvenanceByProgramId } from "./policy-provenance-bridge";
 import { rankOpportunitiesForViewer, viewerRole } from "./role-ranked";
@@ -3214,10 +3215,17 @@ export async function loadDiscoverPageData(
     coverageBySourceId,
     policyProvenanceByProgramId,
   });
+  // Phase 5 Release Slice 12: the safe cutover. Restriction-only - can only
+  // turn an already-enabled fund action off when the canonical resolver
+  // (armed with real economicState, which attachVerifiedWorkActions() never
+  // sees) disagrees; never grants an action the legacy system withheld. See
+  // canonical-action-resolver.ts's doc comment for the full precondition
+  // reasoning and the Release Slice 11 parity matrix this is gated on.
+  const safetyGated = applyCanonicalActionSafetyGate(matched);
   // Same canonical marketplace, ordered for who is looking at it. Ordering
   // only: nothing is dropped, so a wrong role guess can never hide a record.
   const allVisible = rankOpportunitiesForViewer(
-    matched,
+    safetyGated,
     viewerRole({
       operatesPools: operatorPoolIds.size > 0,
       hasSpendableCapital: false,

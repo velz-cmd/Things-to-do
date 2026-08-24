@@ -136,6 +136,40 @@ export async function POST(req: Request) {
     }, { status: 409 });
   }
 
+  // Phase 5 Release Slice 12: server-side stale-state revalidation. The
+  // idempotency-key dedup below only catches a retry of THIS SAME
+  // submission - it never checks whether a DIFFERENT submission (a second
+  // tab, a second user, a retried request with a fresh idempotency key)
+  // already confirmed or has a real transfer in flight for this exact work
+  // reward. Reuses the already-built, already-tested Slice 8 coverage
+  // loader rather than duplicating its query - the same authoritative
+  // confirmed/pending contract, checked here before any new ActionRun is
+  // created. This closes the double-payment race the canonical action
+  // resolver's Release Slice 11 parity matrix proved the UI alone cannot
+  // prevent (a stale client can always render a fund button before this
+  // check runs); it is not a fully atomic guarantee absent a DB-level
+  // uniqueness constraint on the work subject id, which is a schema change
+  // out of scope for this session - documented here rather than silently
+  // assumed solved.
+  if (work) {
+    const { loadCoverageBySourceId } = await import("@/lib/discover/marketplace/coverage-loader");
+    const coverage = (await loadCoverageBySourceId([work.subjectId])).get(work.subjectId) ?? [];
+    const alreadyConfirmed = coverage.some((record) => record.status !== "pending" && record.status !== "failed");
+    const alreadyPending = coverage.some((record) => record.status === "pending");
+    if (alreadyConfirmed) {
+      return NextResponse.json({
+        error: "This work reward has already been paid.",
+        code: "work_reward_already_settled",
+      }, { status: 409 });
+    }
+    if (alreadyPending) {
+      return NextResponse.json({
+        error: "A payment for this work reward is already in progress.",
+        code: "work_reward_settlement_in_progress",
+      }, { status: 409 });
+    }
+  }
+
   const actionKey = directSupportActionKey(
     ready.user.id,
     parsed.data.idempotencyKey,

@@ -1,4 +1,5 @@
 import type { CanonicalEconomicState } from "@/lib/discover/marketplace/economic-state";
+import type { MarketplaceOpportunity } from "@/lib/discover/marketplace/contracts";
 
 /**
  * Phase 5 Release Slice 11: a canonical primary-action resolver, run in
@@ -93,4 +94,71 @@ export function moreRestrictiveAction(
   b: CanonicalActionId,
 ): CanonicalActionId {
   return RESTRICTIVENESS_RANK[b] > RESTRICTIVENESS_RANK[a] ? b : a;
+}
+
+/** A real, specific reason for each way the canonical resolver restricts an action the legacy system would have allowed. Never a generic "not available" string. */
+function restrictionReason(state: CanonicalEconomicState | undefined): string {
+  switch (state?.state) {
+    case "settlement_confirming":
+      return "A transfer for this work reward is already in progress.";
+    case "reconciliation_required":
+      return "This work reward has a payment inconsistency awaiting review before more funds can move.";
+    case "fully_covered":
+      return "This work reward has already been paid.";
+    default:
+      return "No active funding mechanism currently applies to this work.";
+  }
+}
+
+/**
+ * Release Slice 12: the safe cutover. This does NOT replace
+ * `attachVerifiedWorkActions()` - it runs AFTER it (and after
+ * `attachEconomicMatch()`, once `economicState` exists) as a
+ * restriction-only gate: it can only ever turn an already-enabled
+ * `discover.fund_verified_work` action into a disabled one when the
+ * canonical resolver - now armed with real economic state
+ * `attachVerifiedWorkActions()` never sees - disagrees. It can never grant
+ * an action the legacy system withheld (Phase 5 section 19's explicit
+ * safety rule). This is deliberately narrower than a full migration: every
+ * other legacy action path (self-attribution, payout setup, unclaimed
+ * contributor) is untouched, because the Release Slice 11 parity matrix
+ * proved those paths already agree.
+ *
+ * The three facts assumed true when the gate is even reached
+ * (recipient profile exists, viewer is not the recipient, recipient payout
+ * is ready, live settlement is enabled) are exactly the legacy
+ * preconditions for `enabled: true` on `discover.fund_verified_work` in
+ * the first place - see `query.ts`'s `attachVerifiedWorkActions()`. If the
+ * legacy system already disabled or withheld the action, this gate does
+ * nothing, by construction (`RESTRICTIVENESS_RANK` is never consulted to
+ * loosen anything here - only to fail loudly in tests if that were ever
+ * attempted).
+ */
+export function applyCanonicalActionSafetyGate(
+  items: MarketplaceOpportunity[],
+): MarketplaceOpportunity[] {
+  return items.map((item) => {
+    if (
+      item.primaryAction?.id !== "discover.fund_verified_work" ||
+      item.primaryAction.enabled !== true
+    ) {
+      return item;
+    }
+    const canonical = resolveCanonicalAction({
+      economicState: item.economicState,
+      hasRecipientProfile: true,
+      viewerIsRecipient: false,
+      recipientPayoutReady: true,
+      liveSettlementEnabled: true,
+    });
+    if (canonical === "discover.fund_verified_work") return item;
+    return {
+      ...item,
+      primaryAction: {
+        ...item.primaryAction,
+        enabled: false,
+        disabledReason: restrictionReason(item.economicState),
+      },
+    } satisfies MarketplaceOpportunity;
+  });
 }

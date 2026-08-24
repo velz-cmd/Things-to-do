@@ -27,12 +27,23 @@ import type { CoverageRecord } from "@/lib/discover/impact/economic-matching";
  * persisted record the wallet/send route itself creates while a transfer
  * is in flight, before any Receipt exists.
  *
- * Legacy receipts have no obligationId/period/policy fingerprint - this
- * loader does not invent them. Coverage records without an obligationId
- * fall through to assessOverlap()'s existing same-purpose comparison
+ * Legacy receipts (written before Release Slice 14) have no
+ * obligationId/period/policy fingerprint - this loader does not invent
+ * them for those rows. Coverage records without an obligationId fall
+ * through to assessOverlap()'s existing same-purpose comparison
  * (economic-matching.ts), which already reports "possible_overlap"
  * rather than a false-confident duplicate match - the correct, already-
  * built behavior for ambiguous legacy coverage, not new logic.
+ *
+ * Release Slice 14: new receipts/ActionRuns DO carry a real, server-computed
+ * obligationId (wallet/send/route.ts, via computeObligationId() in
+ * economic-state.ts) - additively persisted into the existing JSON
+ * payload/input fields, no schema migration required. This loader now
+ * actually reads and returns it, which is what makes assessOverlap()'s
+ * exact-obligation duplicate/in-flight detection genuinely engage for
+ * real work-reward payments for the first time - before this, the field
+ * existed on CoverageRecord but this loader never populated it, so every
+ * comparison silently fell through to the weaker purpose-text match.
  *
  * Release Slice 13: failure semantics. The confirmed and pending queries
  * used to run through a single `Promise.all([...]).catch(() => [[], []])`
@@ -64,6 +75,7 @@ type ConfirmedWorkRewardRow = {
   amount_micro_usdc: bigint;
   public_reference: string;
   tx_hash: string | null;
+  obligation_id: string | null;
 };
 
 type PendingWorkRewardRun = {
@@ -88,7 +100,8 @@ export async function loadCoverageBySourceId(
         r.payload->'work'->>'title' AS work_title,
         r."totalUsdcMicro" AS amount_micro_usdc,
         r."publicReference" AS public_reference,
-        t."txHash" AS tx_hash
+        t."txHash" AS tx_hash,
+        r.payload->>'obligationId' AS obligation_id
       FROM "Receipt" r
       INNER JOIN "ChainTransaction" t ON t.id = r."chainTransactionId"
       WHERE t.status = 'confirmed'
@@ -124,6 +137,7 @@ export async function loadCoverageBySourceId(
         purpose: row.work_title ?? "verified outcome support",
         receiptReference: row.tx_hash ?? row.public_reference,
         status: "confirmed",
+        obligationId: row.obligation_id ?? undefined,
       });
       recordsBySourceId.set(row.work_subject_id, records);
     }
@@ -147,12 +161,14 @@ export async function loadCoverageBySourceId(
       // exact-match string - never claim a specific purpose RESOLVE cannot
       // actually prove.
       const workTitle = typeof input?.workTitle === "string" ? input.workTitle : null;
+      const pendingObligationId = typeof input?.obligationId === "string" ? input.obligationId : undefined;
       records.push({
         id: run.id,
         mechanism: "direct_support",
         amountUsd,
         purpose: workTitle ?? "unknown/legacy purpose (submitted before purpose was persisted)",
         status: "pending",
+        obligationId: pendingObligationId,
       });
       recordsBySourceId.set(run.aggregateId, records);
     }

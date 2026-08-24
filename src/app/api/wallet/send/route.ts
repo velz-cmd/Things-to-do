@@ -14,6 +14,11 @@ import {
   directSupportRequestSchema,
 } from "@/lib/discover/direct-support-contract";
 import { resolvePayableVerifiedWork } from "@/lib/discover/verified-work-payment";
+import {
+  computeObligationId,
+  computePolicyFingerprint,
+  periodForMechanism,
+} from "@/lib/discover/marketplace/economic-state";
 
 export const maxDuration = 120;
 
@@ -135,6 +140,31 @@ export async function POST(req: Request) {
       code: "verified_work_required",
     }, { status: 409 });
   }
+
+  // Phase 5 Release Slice 14: real obligation identity, computed
+  // server-side and persisted additively into the existing JSON payloads
+  // (ActionRun.input / Receipt.payload) - no schema migration required.
+  // Only meaningful for a work_reward, which has a real canonical subject
+  // (work.subjectId) to be an identity FOR; plain direct_support has none,
+  // matching coverage-loader.ts's own existing scope. direct_support has
+  // no persisted-policy concept (an individual's own voluntary choice), so
+  // its fingerprint uses a stable constant subjectId rather than inventing
+  // a rule that does not exist.
+  const obligationId = work
+    ? computeObligationId({
+        mechanism: "direct_support",
+        canonicalSubjectId: work.subjectId,
+        purpose: work.title,
+        period: periodForMechanism("direct_support") ?? { kind: "one_time" },
+        beneficiaryId: parsed.data.recipientUserId!,
+        policyFingerprint: computePolicyFingerprint({
+          mechanism: "direct_support",
+          eligibleClasses: [],
+          amountRule: null,
+          subjectId: "direct_support",
+        }),
+      })
+    : undefined;
 
   // Phase 5 Release Slice 12: server-side stale-state revalidation. The
   // idempotency-key dedup below only catches a retry of THIS SAME
@@ -289,6 +319,7 @@ export async function POST(req: Request) {
           purpose: parsed.data.purpose,
           workSubjectId: work?.subjectId,
           workTitle: work?.title,
+          obligationId,
           repository: work?.repository,
           sourceUrl: work?.sourceUrl,
         },
@@ -372,6 +403,7 @@ export async function POST(req: Request) {
           purpose: parsed.data.purpose,
           workSubjectId: work?.subjectId,
           workTitle: work?.title,
+          obligationId,
           repository: work?.repository,
           sourceUrl: work?.sourceUrl,
         },
@@ -403,6 +435,7 @@ export async function POST(req: Request) {
             evidenceIds: work.evidenceIds,
           }
         : undefined,
+      obligationId,
     });
     return NextResponse.json({ ok: true, status: "confirmed", replayed: false, ...result });
   } catch (error) {
@@ -429,6 +462,7 @@ export async function POST(req: Request) {
                 purpose: parsed.data.purpose,
                 workSubjectId: work?.subjectId,
                 workTitle: work?.title,
+                obligationId,
                 repository: work?.repository,
                 sourceUrl: work?.sourceUrl,
               },

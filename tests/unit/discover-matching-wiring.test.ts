@@ -6,6 +6,10 @@ import {
   outcomeClassFor,
 } from "../../src/lib/discover/marketplace/attach-economic-match";
 import { rankOpportunitiesForViewer } from "../../src/lib/discover/marketplace/role-ranked";
+import {
+  computeObligationId,
+  computePolicyFingerprint,
+} from "../../src/lib/discover/marketplace/economic-state";
 import type {
   DiscoverPool,
   MarketplaceOpportunity,
@@ -937,5 +941,81 @@ describe("real failure semantics flow through attachEconomicMatch() (Release Sli
     expect(itemA.economicState?.obligation?.policyFingerprint).not.toBe(
       itemB.economicState?.obligation?.policyFingerprint,
     );
+  });
+
+  it("Release Slice 14: real obligation identity is computed on the read side and matches the exact identity wallet/send/route.ts persists on the write side - a confirmed record with that exact obligationId is recognized as duplicate_obligation, not just a weaker purpose-text possible_overlap", () => {
+    // Mirrors wallet/send/route.ts's own computation exactly: mechanism
+    // direct_support, canonicalSubjectId = work.source.id, purpose =
+    // work.title, beneficiaryId = the attributed creator's id.
+    const realObligationId = computeObligationId({
+      mechanism: "direct_support",
+      canonicalSubjectId: "evidence-1",
+      purpose: "Fix authentication bypass",
+      period: { kind: "one_time" },
+      beneficiaryId: "user-2",
+      policyFingerprint: computePolicyFingerprint({
+        mechanism: "direct_support",
+        eligibleClasses: [],
+        amountRule: null,
+        subjectId: "direct_support",
+      }),
+    });
+    const [item] = attachEconomicMatch([work()], {
+      pools: [],
+      coverageBySourceId: new Map([
+        [
+          "evidence-1",
+          [
+            {
+              id: "receipt-1",
+              mechanism: "direct_support",
+              amountUsd: 25,
+              purpose: "Fix authentication bypass",
+              obligationId: realObligationId,
+              status: "confirmed",
+            },
+          ],
+        ],
+      ]),
+    });
+    expect(item.economicMatch?.overlap).toBe("duplicate_obligation");
+    expect(item.economicState?.state).toBe("fully_covered");
+  });
+
+  it("Release Slice 14: a confirmed record for a DIFFERENT beneficiary (different obligationId) does not falsely trigger duplicate_obligation, even with the same purpose text", () => {
+    const differentBeneficiaryObligationId = computeObligationId({
+      mechanism: "direct_support",
+      canonicalSubjectId: "evidence-1",
+      purpose: "Fix authentication bypass",
+      period: { kind: "one_time" },
+      beneficiaryId: "someone-else-entirely",
+      policyFingerprint: computePolicyFingerprint({
+        mechanism: "direct_support",
+        eligibleClasses: [],
+        amountRule: null,
+        subjectId: "direct_support",
+      }),
+    });
+    const [item] = attachEconomicMatch([work()], {
+      pools: [],
+      coverageBySourceId: new Map([
+        [
+          "evidence-1",
+          [
+            {
+              id: "receipt-1",
+              mechanism: "direct_support",
+              amountUsd: 25,
+              purpose: "Fix authentication bypass",
+              obligationId: differentBeneficiaryObligationId,
+              status: "confirmed",
+            },
+          ],
+        ],
+      ]),
+    });
+    // Falls through to the purpose-text match instead - still correctly
+    // flagged for review, just not as a false-certain exact duplicate.
+    expect(item.economicMatch?.overlap).toBe("possible_overlap");
   });
 });

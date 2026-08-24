@@ -205,14 +205,36 @@ function agentServiceAction(service: DiscoverAgentService): DiscoverAction {
   };
 }
 
-function findContext(data: DiscoverPageData, subjectId: string) {
-  return data.economicActions.find(
+/**
+ * Phase 5 Release Slice 16 fix: `data.economicActions` is the VIEW-FILTERED
+ * feed (query.ts filters it by intent/view before serializing it to the
+ * client) - a real work item can legitimately be excluded from it while
+ * its own row (a `MarketplaceOpportunity`) still renders fine, since rows
+ * read `economicState` directly off themselves, a completely separate data
+ * path. That meant the Details drawer's new Funding section (Slice 16)
+ * silently rendered nothing for exactly the items a filtered feed had
+ * dropped, even though the real economicState existed and was visible one
+ * line away in the row itself. `fallbackEconomicState` closes this by
+ * reusing that ALREADY-COMPUTED value - never a second resolver, never
+ * recomputed, just propagated into the object actually handed to the
+ * panel. Verified live on Preview: the previous behavior showed a
+ * completely empty Funding section for a real "Funding available" row.
+ */
+export function findContext(
+  data: DiscoverPageData,
+  subjectId: string,
+  fallbackEconomicState?: EconomicActionItem["economicState"],
+) {
+  const found = data.economicActions.find(
     (item) =>
       item.subjectId === subjectId ||
       item.poolId === subjectId ||
       item.programId === subjectId ||
       item.receiptId === subjectId,
   );
+  if (!fallbackEconomicState) return found;
+  if (!found) return found;
+  return found.economicState ? found : { ...found, economicState: fallbackEconomicState };
 }
 
 /** The contextual Agent-purchase action attachVerifiedWorkActions attaches
@@ -764,7 +786,7 @@ function ResearchWorkRow({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
-  const context = findContext(data, work.source.id);
+  const context = findContext(data, work.source.id, work.economicState);
   const impactFact = strongestImpactFact(work.impactProfile);
   const fundingLabel = researchFundingStateLabel(work);
   const primaryAction = researchPrimaryAction(work);
@@ -890,7 +912,7 @@ function MediaWorkRow({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
-  const context = findContext(data, work.source.id);
+  const context = findContext(data, work.source.id, work.economicState);
   const impactFact = strongestImpactFact(work.impactProfile);
 
   return (
@@ -969,7 +991,7 @@ function WorkRow({
     return <MediaWorkRow work={work} data={data} onOpen={onOpen} />;
   }
 
-  const context = findContext(data, work.source.id);
+  const context = findContext(data, work.source.id, work.economicState);
   const blocker = work.entityState?.blocker?.toLowerCase() ?? "";
   const payoutState =
     work.primaryAction?.id === "discover.fund_verified_work"

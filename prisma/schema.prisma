@@ -1544,10 +1544,20 @@ model ActionRun {
   errorMessage         String?
   startedAt            DateTime  @default(now())
   completedAt          DateTime?
+  /// Phase 5 Release Slice 15: the real canonical obligation identity this
+  /// run is claiming, as a genuine column (not just inside `input`'s JSON)
+  /// specifically so a database-level constraint can enforce it. See the
+  /// migration for the actual atomicity guarantee - a partial unique index
+  /// scoped to "state IN ('submitting', 'pending_external')" cannot be
+  /// expressed in Prisma's schema DSL (no WHERE-clause unique index
+  /// support), so it exists only in raw migration SQL, matching this
+  /// repo's own established pattern for hand-written migrations.
+  obligationId         String?
 
   @@index([userId, startedAt])
   @@index([aggregateType, aggregateId, startedAt])
   @@index([actionId, state])
+  @@index([obligationId])
 }
 
 /// Canonical public marketplace record. Source-specific payloads are normalised

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
 
 /**
  * Phase 5 Release Slice 12: the required negative test (explicit user
@@ -176,5 +177,60 @@ describe("POST /api/wallet/send - server-side stale-state revalidation (Release 
     expect(response.status).toBe(503);
     expect(sendIdentityUsdc).not.toHaveBeenCalled();
     expect(createActionRun).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Phase 5 Release Slice 15: the required concurrency test (explicit user
+   * instruction) - two requests for the same real obligation, racing past
+   * the Slice 12 check-then-act coverage guard (which is not atomic on its
+   * own), must still result in at most ONE reaching the money-send
+   * boundary. The actual atomicity is a real database-level partial unique
+   * index (migration 20260824151209_action_run_obligation_uniqueness,
+   * ActionRun.obligationId, scoped to state IN ('submitting',
+   * 'pending_external')) - this sandbox has no live Postgres to prove the
+   * index itself fires (DATABASE_URL is unconfigured here, the same
+   * external blocker already documented for the Phase 3 research schema
+   * migration), so this test proves the half that IS testable without one:
+   * the route correctly recognizes the real Prisma P2002 that Postgres
+   * would raise on that unique-index violation, and turns the LOSING
+   * request into a safe, honest "already in progress" response - never a
+   * silent duplicate ActionRun, never a crash, never a false 200.
+   */
+  it("Release Slice 15: a concurrent request racing the same real obligation past the coverage check is rejected by the database-level constraint, not silently allowed to double-send", async () => {
+    createActionRun.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields: (`obligationId`)", {
+        code: "P2002",
+        clientVersion: "6.19.3",
+        meta: { target: ["obligationId"] },
+      }),
+    );
+    const { POST } = await import("@/app/api/wallet/send/route");
+    const response = await POST(postRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("work_reward_settlement_in_progress");
+    expect(sendIdentityUsdc).not.toHaveBeenCalled();
+  });
+
+  it("Release Slice 15: an unrelated unique-constraint conflict (the pre-existing idempotencyKey race) is still handled distinctly from an obligationId conflict", async () => {
+    createActionRun.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields: (`idempotencyKey`)", {
+        code: "P2002",
+        clientVersion: "6.19.3",
+        meta: { target: ["idempotencyKey"] },
+      }),
+    );
+    // First call is the pre-existing "existing" lookup (must be null so the
+    // route proceeds to create); second call is the post-P2002 "raced"
+    // lookup this test is actually about.
+    findUniqueActionRun.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "raced-run" });
+    const { POST } = await import("@/app/api/wallet/send/route");
+    const response = await POST(postRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(body.code).toBe("operation_in_progress");
+    expect(body.code).not.toBe("work_reward_settlement_in_progress");
   });
 });

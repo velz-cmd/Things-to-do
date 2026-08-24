@@ -310,6 +310,11 @@ export async function POST(req: Request) {
         recommendationReason: parsed.data.purpose === "work_reward"
           ? "The user explicitly confirmed a voluntary reward for persisted GitHub work attributed to a recipient with a verified Arc payout destination."
           : "The user explicitly confirmed direct support for a recipient with a verified Arc payout destination.",
+        // Release Slice 15: a real column, not just inside `input`'s JSON,
+        // specifically so the database-level partial unique index
+        // (migration 20260824151209) can enforce it - see that migration's
+        // comment for the full atomicity reasoning.
+        obligationId,
         input: {
           recipientUserId: parsed.data.recipientUserId,
           amountUsd: parsed.data.amountUsd,
@@ -327,6 +332,22 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      // Release Slice 15: distinguish the two real, distinct P2002 causes.
+      // Prisma reports the violated constraint/index in error.meta.target -
+      // for the hand-written partial unique index (not modeled as a
+      // Prisma-level @@unique, since Prisma's schema DSL cannot express a
+      // WHERE clause), Postgres/Prisma surfaces the column name
+      // ("obligationId") or the index name itself, either of which this
+      // check catches.
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(",")
+        : String(error.meta?.target ?? "");
+      if (target.includes("obligationId") || target.includes("active_obligation")) {
+        return NextResponse.json({
+          error: "A payment for this exact obligation is already in progress - it was claimed by a concurrent request a moment ago.",
+          code: "work_reward_settlement_in_progress",
+        }, { status: 409 });
+      }
       const raced = await prisma.actionRun.findUnique({ where: { idempotencyKey: actionKey } });
       return NextResponse.json({
         error: "This payment is already being processed.",

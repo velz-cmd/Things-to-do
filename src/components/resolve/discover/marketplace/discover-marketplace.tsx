@@ -47,6 +47,7 @@ import type {
   DiscoverView,
   EconomicActionItem,
   MarketplaceOpportunity,
+  MarketplacePage,
 } from "@/lib/discover/marketplace/contracts";
 import { describeSignal } from "@/lib/discover/impact/impact-signals";
 import type { ImpactProfile } from "@/lib/discover/impact/impact-signals";
@@ -1411,6 +1412,7 @@ function SourceFailure({ data }: { data: DiscoverPageData }) {
 
 function ForYouView({
   data,
+  filters,
   onOpen,
 }: {
   data: DiscoverPageData;
@@ -1418,8 +1420,16 @@ function ForYouView({
   onOpen: OpenAction;
 }) {
   const [selectedWorkIds, setSelectedWorkIds] = useState<string[]>([]);
+  // Phase 6: the server already computes real cursor-based pagination
+  // (data.opportunities.nextCursor/total) and /api/discover/opportunities
+  // already serves it - this was simply never surfaced in the UI, so any
+  // result set beyond one page silently truncated with no way to see more.
+  const [extraItems, setExtraItems] = useState<MarketplaceOpportunity[]>([]);
+  const [cursor, setCursor] = useState<string | null>(data.opportunities.nextCursor);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   if (data.projection.kind !== "for_you") return null;
-  const work = data.opportunities.items
+  const work = [...data.opportunities.items, ...extraItems]
     .filter(
       (item) =>
         item.marketplaceKind === "verified_work" ||
@@ -1427,6 +1437,31 @@ function ForYouView({
         item.source.type === "repository_snapshot",
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  async function loadMore() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    setLoadMoreError(null);
+    try {
+      const params = new URLSearchParams();
+      params.set("view", "verified_work");
+      params.set("cursor", cursor);
+      if (filters.q) params.set("q", filters.q);
+      const response = await fetch(`/api/discover/opportunities?${params.toString()}`);
+      const body = (await response.json()) as MarketplacePage<MarketplaceOpportunity> & {
+        error?: string;
+      };
+      if (!response.ok) throw new Error(body.error ?? "Could not load more verified work.");
+      setExtraItems((current) => [...current, ...body.items]);
+      setCursor(body.nextCursor);
+    } catch (cause) {
+      setLoadMoreError(
+        cause instanceof Error ? cause.message : "Could not load more verified work.",
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const supportable = work.filter(
     (item) => item.primaryAction?.id === "discover.fund_verified_work",
   ).length;
@@ -1516,6 +1551,23 @@ function ForYouView({
               />
             ))}
           </div>
+          {cursor ? (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="rounded-lg border border-white/[0.08] bg-[#091522] px-4 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loadingMore
+                  ? "Loading…"
+                  : `Load more (${work.length} of ${data.opportunities.total})`}
+              </button>
+              {loadMoreError ? (
+                <p className="text-xs text-amber-200">{loadMoreError}</p>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ) : (
         <CompactEmpty

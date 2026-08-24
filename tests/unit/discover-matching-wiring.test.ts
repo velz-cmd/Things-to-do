@@ -683,6 +683,87 @@ describe("economic matching is wired into the marketplace", () => {
       expect(intent?.executable).toBe(false);
     });
   });
+
+  /**
+   * Phase 5 Release Slice 9: real policy provenance is wired end to end
+   * through attachEconomicMatch() - a Pool with a real persisted
+   * PolicyVersion gets its authoritative contentHash; a Pool with none
+   * (most Pools today) gets a real, reproducible provisional fingerprint
+   * computed from its own visible rules, never a fabricated one.
+   */
+  describe("real policy provenance flows through attachEconomicMatch()", () => {
+    it("a Pool with a real persisted PolicyVersion carries its authoritative fingerprint, marked persisted", () => {
+      const [item] = attachEconomicMatch(
+        [
+          work({
+            impactProfile: {
+              measurable: true,
+              signals: [
+                {
+                  id: "advisories_with_published_fix",
+                  label: "Patched versions available for advisories",
+                  value: "1",
+                  scope: "repository",
+                  source: "GitHub Security Advisories",
+                  observedAt: "2026-08-01T00:00:00.000Z",
+                  classification: "observed",
+                },
+              ],
+            },
+          }),
+        ],
+        {
+          pools: [pool()],
+          operatorOfPoolIds: new Set(["pool-1"]),
+          policyProvenanceByProgramId: new Map([
+            ["pool-1", { policyFingerprint: "persisted-hash-abc", policyVersion: 2, provenance: "persisted" }],
+          ]),
+        },
+      );
+      expect(item.economicState?.obligation?.policyFingerprint).toBe("persisted-hash-abc");
+      expect(item.economicState?.obligation?.policyProvenance).toBe("persisted");
+    });
+
+    it("a Pool with no persisted PolicyVersion gets a real provisional fingerprint, never a fabricated one", () => {
+      const [item] = attachEconomicMatch(
+        [
+          work({
+            impactProfile: {
+              measurable: true,
+              signals: [
+                {
+                  id: "advisories_with_published_fix",
+                  label: "Patched versions available for advisories",
+                  value: "1",
+                  scope: "repository",
+                  source: "GitHub Security Advisories",
+                  observedAt: "2026-08-01T00:00:00.000Z",
+                  classification: "observed",
+                },
+              ],
+            },
+          }),
+        ],
+        { pools: [pool()] },
+      );
+      expect(item.economicState?.obligation?.policyProvenance).toBe("provisional");
+      expect(item.economicState?.obligation?.policyFingerprint).toBeDefined();
+      expect(item.economicState?.obligation?.policyFingerprint?.length).toBeGreaterThan(0);
+    });
+
+    it("every current mechanism pays a real one-time reward - period is wired as one_time, not a fabricated calendar period", () => {
+      const [item] = attachEconomicMatch([work()], { pools: [] });
+      expect(item.economicState?.obligation?.period).toEqual({ kind: "one_time" });
+    });
+
+    it("no policy provenance is invented when no mechanism was matched at all", () => {
+      const [item] = attachEconomicMatch(
+        [work({ entityState: undefined })],
+        { pools: [] },
+      );
+      expect(item.economicState?.obligation).toBeNull();
+    });
+  });
 });
 
 describe("role ranking orders without hiding", () => {
@@ -718,5 +799,61 @@ describe("role ranking orders without hiding", () => {
   it("promotes sourced impact for a funder", () => {
     const ranked = rankOpportunitiesForViewer(items, "funder", "user-1");
     expect(ranked[0]?.id).toBe("b");
+  });
+});
+
+/**
+ * Phase 5 Release Slice 10: real settlement state flows end to end through
+ * attachEconomicMatch() - a real in-flight transfer (from coverageBySourceId,
+ * the same real data Slice 8 already loads) now surfaces as
+ * settlement_confirming, not just generic partial coverage.
+ */
+describe("real settlement state flows through attachEconomicMatch() (Release Slice 10)", () => {
+  it("a real transfer in flight for this work surfaces as settlement_confirming, not a generic coverage amount", () => {
+    const [item] = attachEconomicMatch([work()], {
+      pools: [pool()],
+      coverageBySourceId: new Map([
+        ["evidence-1", [{ id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" }]],
+      ]),
+    });
+    expect(item.economicState?.state).toBe("settlement_confirming");
+    expect(item.economicState?.settlement).toBe("confirming");
+    expect(item.economicState?.nextAction).toBe("none");
+  });
+
+  it("two real transfers simultaneously in flight for the same work surfaces as reconciliation_required with the real duplicate_submission detail", () => {
+    const [item] = attachEconomicMatch([work()], {
+      pools: [pool()],
+      coverageBySourceId: new Map([
+        [
+          "evidence-1",
+          [
+            { id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+            { id: "run-2", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+          ],
+        ],
+      ]),
+    });
+    expect(item.economicState?.state).toBe("reconciliation_required");
+    expect(item.economicState?.reconciliation).toEqual({
+      kind: "duplicate_submission",
+      detail: "2 separate transfers are simultaneously in flight for the same obligation.",
+    });
+  });
+
+  it("a work item with no coverage at all is unaffected - settlement stays not_started", () => {
+    const [item] = attachEconomicMatch([work()], { pools: [pool()] });
+    expect(item.economicState?.settlement).toBe("not_started");
+  });
+
+  it("a work item with only confirmed coverage is still resolved through the existing fully_covered/duplicate_obligation precedence, not short-circuited by settlement state", () => {
+    const [item] = attachEconomicMatch([work()], {
+      pools: [pool()],
+      coverageBySourceId: new Map([
+        ["evidence-1", [{ id: "receipt-1", mechanism: "direct_support", amountUsd: 40, purpose: "Fix authentication bypass", status: "confirmed" }]],
+      ]),
+    });
+    expect(item.economicState?.settlement).not.toBe("confirming");
+    expect(item.economicState?.state).not.toBe("settlement_confirming");
   });
 });

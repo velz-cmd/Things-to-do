@@ -14,6 +14,7 @@ import {
   periodKey,
   resolveCanonicalEconomicStateFromLedgerRecord,
   resolveCanonicalEconomicStateFromMatch,
+  resolveSettlementStateFromCoverage,
   type CanonicalEconomicState,
   type CanonicalPeriod,
   type PolicyRules,
@@ -96,6 +97,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       payout: "not_required",
     });
@@ -113,6 +115,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       payout: "not_required",
     });
@@ -129,6 +132,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -147,6 +151,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_missing",
@@ -166,6 +171,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       ],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -187,6 +193,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       ],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -214,6 +221,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       ],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       payout: "destination_ready",
     });
@@ -235,6 +243,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
     // No coverage counted toward THIS obligation (different obligationId / no id match),
     // but the matcher itself already flags this as requiresReview via possible_overlap.
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       payout: "destination_ready",
     });
@@ -253,6 +262,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -273,6 +283,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       ],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -291,6 +302,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -720,6 +732,7 @@ describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surf
       isDuplicateSubmission: false,
     })!;
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -740,6 +753,7 @@ describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surf
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -748,5 +762,129 @@ describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surf
     });
     expect(canonical.state).toBe("settlement_confirmed");
     expect(canonical.reconciliation).toBeUndefined();
+  });
+
+  /**
+   * Phase 5 Release Slice 9: a real, previously-unnoticed bug found while
+   * wiring policy provenance - obligation.purpose was populated from
+   * match.overlapReason (an overlap-reasoning SENTENCE, e.g. "No prior
+   * payment is recorded for this work.") instead of the actual economic
+   * purpose, because EconomicMatch itself never carried the real purpose
+   * value at all. purpose is now a required input specifically so this
+   * cannot recur silently.
+   */
+  it("obligation.purpose is the real supplied purpose, never the overlap-reasoning sentence", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "Fix authentication bypass",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+    });
+    expect(canonical.obligation?.purpose).toBe("Fix authentication bypass");
+    expect(canonical.obligation?.purpose).not.toContain("No prior payment is recorded");
+  });
+
+  it("carries real policy provenance and period through to the obligation when supplied", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "Fix authentication bypass",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      policyFingerprint: "fp-real",
+      policyProvenance: "persisted",
+      period: { kind: "one_time" },
+    });
+    expect(canonical.obligation?.policyFingerprint).toBe("fp-real");
+    expect(canonical.obligation?.policyProvenance).toBe("persisted");
+    expect(canonical.obligation?.period).toEqual({ kind: "one_time" });
+  });
+
+  it("never fabricates policy provenance when none was supplied", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "Fix authentication bypass",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+    });
+    expect(canonical.obligation?.policyFingerprint).toBeUndefined();
+    expect(canonical.obligation?.policyProvenance).toBeUndefined();
+  });
+});
+
+describe("resolveSettlementStateFromCoverage - real settlement state from already-loaded coverage records (Release Slice 10)", () => {
+  it("no coverage records at all - not_started", () => {
+    expect(resolveSettlementStateFromCoverage([])).toEqual({ settlementState: "not_started" });
+  });
+
+  it("only confirmed records - still not_started here, since confirmed payment is already handled by the resolver's own duplicate_obligation/fully_covered precedence, not this function", () => {
+    const records: CoverageRecord[] = [
+      { id: "1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "confirmed" },
+    ];
+    expect(resolveSettlementStateFromCoverage(records)).toEqual({ settlementState: "not_started" });
+  });
+
+  it("one real transfer in flight - confirming, never invented from a timestamp", () => {
+    const records: CoverageRecord[] = [
+      { id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+    ];
+    expect(resolveSettlementStateFromCoverage(records)).toEqual({ settlementState: "confirming" });
+  });
+
+  it("two separate transfers simultaneously in flight for the same obligation - a real, detectable inconsistency, not silently summed", () => {
+    const records: CoverageRecord[] = [
+      { id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+      { id: "run-2", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+    ];
+    const result = resolveSettlementStateFromCoverage(records);
+    expect(result.settlementState).toBe("reconciliation_required");
+    expect(result.reconciliationIssue).toEqual({
+      kind: "duplicate_submission",
+      detail: "2 separate transfers are simultaneously in flight for the same obligation.",
+    });
+  });
+
+  it("a real in-flight transfer flows through resolveCanonicalEconomicStateFromMatch as settlement_confirming, with no legitimate next action while it is genuinely in flight", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "Fix authentication bypass",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [{ id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" }],
+    });
+    const { settlementState, reconciliationIssue } = resolveSettlementStateFromCoverage([
+      { id: "run-1", mechanism: "direct_support", amountUsd: 40, purpose: "p", status: "pending" },
+    ]);
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState,
+      reconciliationIssue,
+    });
+    expect(canonical.state).toBe("settlement_confirming");
+    expect(canonical.settlement).toBe("confirming");
+    expect(canonical.nextAction).toBe("none");
   });
 });

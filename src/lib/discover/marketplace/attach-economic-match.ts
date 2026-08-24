@@ -5,9 +5,12 @@ import {
   type FundingIntentCandidate,
 } from "@/lib/discover/impact/economic-matching";
 import {
+  computePolicyFingerprint,
   resolveCanonicalEconomicStateFromMatch,
+  resolveSettlementStateFromCoverage,
   type CanonicalPayoutState,
 } from "@/lib/discover/marketplace/economic-state";
+import type { PersistedPolicyProvenance } from "@/lib/discover/marketplace/policy-provenance-bridge";
 import type { DiscoverEntityState, DiscoverPool, MarketplaceOpportunity } from "./contracts";
 
 /**
@@ -169,6 +172,8 @@ export type EconomicMatchInput = {
   coverageBySourceId?: Map<string, CoverageRecord[]>;
   /** Source ids the viewer operates a Pool for. */
   operatorOfPoolIds?: Set<string>;
+  /** Release Slice 9: real persisted policy provenance per Pool/Program id, from the read-only bridge (never invented here). */
+  policyProvenanceByProgramId?: Map<string, PersistedPolicyProvenance>;
 };
 
 /**
@@ -240,14 +245,51 @@ export function attachEconomicMatch(
       viewerRoles: input.operatorOfPoolIds?.size ? ["operator"] : [],
     });
 
+    // Release Slice 9: real policy provenance for the recommended
+    // mechanism, when one is a Pool with a persisted PolicyVersion (via
+    // the read-only bridge - never invented, never written here). No
+    // persisted policy exists for most Pools today, so this falls back to
+    // a provisional fingerprint computed from the winning intent's own
+    // currently-visible rules - real and reproducible, just not yet
+    // backed by a persisted row. Every current mechanism (Pool allocation,
+    // funded Request, direct support) pays a one-time reward - period
+    // "one_time" is the correct real period today, not a gap.
+    const winningIntent = match.recommended
+      ? match.eligible.find((entry) => entry.intent.mechanism === match.recommended)?.intent
+      : undefined;
+    const persistedPolicy = winningIntent
+      ? input.policyProvenanceByProgramId?.get(winningIntent.id)
+      : undefined;
+    const provisionalFingerprint = winningIntent
+      ? computePolicyFingerprint({
+          mechanism: winningIntent.mechanism,
+          eligibleClasses: winningIntent.eligibleClasses,
+          amountRule: null,
+        })
+      : undefined;
+
     // Release Slice 3: wire the canonical projection into the real
     // marketplace. `economicMatch` remains the source of truth for
     // mechanism eligibility; `economicState` is the one canonical current
     // state derived from it, so a component reads one field instead of
     // reimplementing the same precedence logic each time.
+    // Release Slice 10: real settlement state, derived from the same real
+    // coverage records already loaded (Slice 8) - see
+    // resolveSettlementStateFromCoverage()'s doc comment for why confirmed
+    // coverage is deliberately left to the resolver's existing
+    // duplicate_obligation/fully_covered precedence rather than
+    // short-circuited here.
+    const { settlementState, reconciliationIssue } = resolveSettlementStateFromCoverage(coverage);
+
     const economicState = resolveCanonicalEconomicStateFromMatch({
       match,
+      purpose: item.title,
       payout: payoutFromFinancialReadiness(item.entityState?.financialReadiness),
+      policyFingerprint: persistedPolicy?.policyFingerprint ?? provisionalFingerprint,
+      policyProvenance: persistedPolicy ? "persisted" : winningIntent ? "provisional" : undefined,
+      period: winningIntent ? { kind: "one_time" } : undefined,
+      settlementState,
+      reconciliationIssue,
     });
 
     return { ...item, economicMatch: match, economicState } satisfies MarketplaceOpportunity;

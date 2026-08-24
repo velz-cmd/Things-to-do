@@ -73,6 +73,52 @@ export function fundingIntentsFromPools(
 }
 
 /**
+ * Release Slice 6: a funded, public Campaign/Request is real explicit
+ * demand (Phase 5 section 14) - "funded_request" was already a real
+ * FundingMechanism value in economic-matching.ts, but nothing in this
+ * codebase ever actually constructed one. The mechanism was defined but
+ * unreachable, the same class of bug already found and fixed for media
+ * Pool matching (Release Slice 0/attach-economic-match's original gap).
+ *
+ * A Campaign's remaining budget is its own goal minus what it has already
+ * committed - never re-derived from anything else. An expired or
+ * fully-committed Campaign is still included (excluded, with its real
+ * reason), matching the existing Pool pattern: showing why capital can't
+ * currently fund something is more useful than hiding it.
+ */
+function campaignOutcomeClasses(item: MarketplaceOpportunity): string[] {
+  const category = item.category?.trim().toLowerCase();
+  return category ? [category] : [];
+}
+
+export function fundingIntentsFromCampaigns(
+  opportunities: MarketplaceOpportunity[],
+): FundingIntentCandidate[] {
+  return opportunities
+    .filter((item) => item.source.type === "outcome_campaign")
+    .map((item) => {
+      const goalUsd = item.funding?.goalAmountUsd ?? 0;
+      const fundedUsd = item.funding?.fundedAmountUsd ?? 0;
+      const availableUsd = Math.max(goalUsd - fundedUsd, 0);
+      const expired = item.deadline != null && new Date(item.deadline).getTime() < Date.now();
+      const blocker = expired
+        ? `${item.title}'s funding deadline has passed.`
+        : availableUsd <= 0
+          ? `${item.title}'s budget is already fully committed.`
+          : undefined;
+      return {
+        id: item.source.id,
+        mechanism: "funded_request" as const,
+        label: item.title,
+        eligibleClasses: campaignOutcomeClasses(item),
+        availableUsd,
+        executable: item.status === "open" && !expired && availableUsd > 0,
+        blocker,
+      };
+    });
+}
+
+/**
  * Direct support is the viewer's own voluntary intent, not a RESOLVE judgement
  * that the work deserves money. It is only offered when the recipient can
  * actually settle.
@@ -134,6 +180,7 @@ export function attachEconomicMatch(
   input: EconomicMatchInput,
 ): MarketplaceOpportunity[] {
   const poolIntents = fundingIntentsFromPools(input.pools);
+  const campaignIntents = fundingIntentsFromCampaigns(opportunities);
 
   return opportunities.map((item) => {
     // Phase 3/5: research and media outcomes feed into the same
@@ -159,6 +206,7 @@ export function attachEconomicMatch(
       item.entityState?.financialReadiness === "ready";
     const intents = [
       ...poolIntents,
+      ...campaignIntents,
       directSupportIntent({
         recipientReady,
         blocker: item.entityState?.blocker,

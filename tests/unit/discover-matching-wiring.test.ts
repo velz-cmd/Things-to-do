@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   attachEconomicMatch,
+  fundingIntentsFromCampaigns,
   fundingIntentsFromPools,
   outcomeClassFor,
 } from "../../src/lib/discover/marketplace/attach-economic-match";
@@ -60,6 +61,39 @@ function work(overrides: Partial<MarketplaceOpportunity> = {}): MarketplaceOppor
       provenance: "operator_created",
       lifecycle: "published",
       financialReadiness: "ready",
+    },
+    ...overrides,
+  } as MarketplaceOpportunity;
+}
+
+/** A funded, public Campaign/Request - real demand (Phase 5 section 14). */
+function campaign(overrides: Partial<MarketplaceOpportunity> = {}): MarketplaceOpportunity {
+  return {
+    id: "campaign-1",
+    slug: "campaign-1",
+    title: "Fix the login race condition",
+    summary: "",
+    description: "",
+    type: "campaign",
+    status: "open",
+    category: "security",
+    creator: { type: "creator", id: "user-3", name: "Requester", verified: true },
+    updatedAt: "2026-08-01T00:00:00.000Z",
+    publishedAt: "2026-08-01T00:00:00.000Z",
+    verificationStatus: "verified",
+    riskFlags: [],
+    evidenceRequirements: [],
+    eligibility: [],
+    skills: [],
+    deliverables: [],
+    provider: { preference: "open" },
+    source: { type: "outcome_campaign", id: "campaign-source-1" },
+    marketplaceKind: "opportunity",
+    funding: {
+      fundedAmountUsd: 0,
+      goalAmountUsd: 200,
+      status: "unfunded",
+      source: "Outcome campaign budget",
     },
     ...overrides,
   } as MarketplaceOpportunity;
@@ -511,6 +545,103 @@ describe("economic matching is wired into the marketplace", () => {
       });
       const [item] = attachEconomicMatch([program], { pools: [pool()] });
       expect(item.economicState).toBeUndefined();
+    });
+  });
+
+  /**
+   * Phase 5 Release Slice 6: "funded_request" was already a real
+   * FundingMechanism value in economic-matching.ts, but nothing in this
+   * codebase ever actually constructed one - a funded, public Campaign
+   * could exist and still never match a real outcome. Mirrors the same
+   * "the mechanism was unreachable, not absent" pattern already found and
+   * fixed for media Pool matching.
+   */
+  describe("fundingIntentsFromCampaigns - real funded Requests/Campaigns are reachable demand", () => {
+    it("a funded campaign with the matching category becomes an eligible funded_request intent", () => {
+      const [intent] = fundingIntentsFromCampaigns([campaign()]);
+      expect(intent).toMatchObject({
+        mechanism: "funded_request",
+        eligibleClasses: ["security"],
+        availableUsd: 200,
+        executable: true,
+      });
+    });
+
+    it("remaining budget is goal minus already-committed funding, never re-derived from anything else", () => {
+      const [intent] = fundingIntentsFromCampaigns([
+        campaign({ funding: { fundedAmountUsd: 120, goalAmountUsd: 200, status: "partially_funded" } }),
+      ]);
+      expect(intent?.availableUsd).toBe(80);
+    });
+
+    it("a fully-committed campaign is still included, excluded with its real reason - never hidden", () => {
+      const [intent] = fundingIntentsFromCampaigns([
+        campaign({ funding: { fundedAmountUsd: 200, goalAmountUsd: 200, status: "funded" } }),
+      ]);
+      expect(intent?.availableUsd).toBe(0);
+      expect(intent?.executable).toBe(false);
+      expect(intent?.blocker).toContain("fully committed");
+    });
+
+    it("an expired campaign is not executable, with its real deadline reason", () => {
+      const [intent] = fundingIntentsFromCampaigns([
+        campaign({ deadline: "2020-01-01T00:00:00.000Z" }),
+      ]);
+      expect(intent?.executable).toBe(false);
+      expect(intent?.blocker).toContain("deadline has passed");
+    });
+
+    it("a real funded campaign genuinely matches a same-class verified outcome through attachEconomicMatch end to end", () => {
+      // funded_request requires sourced impact evidence, same as
+      // pool_allocation (delegated capital carries a mandate) - a bare
+      // work() fixture with no impactProfile would leave the campaign
+      // excluded for missing evidence, not exercising the real match this
+      // test checks.
+      const [item] = attachEconomicMatch(
+        [
+          work({
+            impactProfile: {
+              measurable: true,
+              signals: [
+                {
+                  id: "advisories_with_published_fix",
+                  label: "Patched versions available for advisories",
+                  value: "1",
+                  scope: "repository",
+                  source: "GitHub Security Advisories",
+                  observedAt: "2026-08-01T00:00:00.000Z",
+                  classification: "observed",
+                },
+              ],
+            },
+          }),
+          campaign(),
+        ],
+        { pools: [] },
+      );
+      const requestMatch = item.economicMatch?.eligible.find(
+        (m) => m.intent.mechanism === "funded_request",
+      );
+      expect(requestMatch).toBeDefined();
+      // funded_request is the highest-priority mechanism - a real explicit
+      // Request is more specific/committed capital than a broad Pool or
+      // voluntary direct support.
+      expect(item.economicMatch?.recommended).toBe("funded_request");
+    });
+
+    it("a campaign funding a different class never matches an unrelated outcome", () => {
+      const [item] = attachEconomicMatch(
+        [work({ category: "documentation" }), campaign({ category: "security" })],
+        { pools: [] },
+      );
+      expect(
+        item.economicMatch?.eligible.some((m) => m.intent.mechanism === "funded_request"),
+      ).toBe(false);
+    });
+
+    it("draft/non-open campaigns are not treated as public funding demand", () => {
+      const [intent] = fundingIntentsFromCampaigns([campaign({ status: "draft" })]);
+      expect(intent?.executable).toBe(false);
     });
   });
 });

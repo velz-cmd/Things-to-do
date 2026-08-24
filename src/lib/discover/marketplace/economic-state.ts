@@ -104,6 +104,22 @@ export type CanonicalObligation = {
   amountUsd: number | null;
   purpose: string;
   mechanism: FundingMechanism | null;
+  /**
+   * Release Slice 9: policy provenance, when a mechanism has one.
+   * "persisted" means this fingerprint came from a real PolicyVersion row
+   * (via the read-only bridge in policy-provenance-bridge.ts) - the
+   * authoritative source once a policy engine has actually created one.
+   * "provisional" means no persisted policy exists yet, so this is a
+   * deterministic fingerprint computed from the mechanism's own
+   * currently-visible rules (computePolicyFingerprint()) - a real,
+   * reproducible value, not invented, but not yet backed by a persisted
+   * row. Absent entirely for mechanisms with no policy concept
+   * (e.g. an individual's own direct_support has no "policy").
+   */
+  policyFingerprint?: string;
+  policyProvenance?: "persisted" | "provisional";
+  /** A one-time work reward is genuinely one-time - not a gap, the correct period for this mechanism today. */
+  period?: CanonicalPeriod;
 };
 
 export type CanonicalNextAction =
@@ -223,11 +239,27 @@ function nextActionFor(state: CanonicalEconomicStateValue, coverage: CanonicalCo
  */
 export function resolveCanonicalEconomicStateFromMatch(input: {
   match: EconomicMatch;
+  /**
+   * The real economic purpose (e.g. item.title, or a Campaign's own
+   * objective) - required, not optional, because EconomicMatch itself
+   * never carries this value. A real, previously-unnoticed bug (Release
+   * Slice 9): before this parameter existed, obligation.purpose was
+   * populated from match.overlapReason (an overlap-reasoning SENTENCE
+   * like "No prior payment is recorded for this work.") instead of the
+   * actual purpose - required here specifically so that mistake cannot
+   * recur silently.
+   */
+  purpose: string;
   requiredUsd?: number | null;
   payout: CanonicalPayoutState;
   settlementState?: CanonicalSettlementState;
   /** Release Slice 5: the specific real inconsistency, when settlementState is "reconciliation_required" or "failed". */
   reconciliationIssue?: ReconciliationIssue;
+  /** Release Slice 9: real persisted policy provenance for the recommended mechanism, when one exists (never invented - see policy-provenance-bridge.ts). */
+  policyFingerprint?: string;
+  policyProvenance?: "persisted" | "provisional";
+  /** Release Slice 9: the real period this obligation covers - a one-time work reward is genuinely one-time, not a gap. */
+  period?: CanonicalPeriod;
 }): CanonicalEconomicState {
   const { match } = input;
   const requiredUsd = input.requiredUsd ?? null;
@@ -239,8 +271,11 @@ export function resolveCanonicalEconomicStateFromMatch(input: {
     mechanism != null
       ? {
           amountUsd: requiredUsd,
-          purpose: match.overlapReason,
+          purpose: input.purpose,
           mechanism,
+          policyFingerprint: input.policyFingerprint,
+          policyProvenance: input.policyProvenance,
+          period: input.period,
         }
       : null;
 

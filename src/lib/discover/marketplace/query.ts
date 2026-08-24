@@ -82,6 +82,7 @@ import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progre
 import { confirmedStakeUsdByProgram } from "@/lib/db/ensure-fund-stake-arc-schema";
 import { attachEconomicMatch } from "./attach-economic-match";
 import { loadCoverageBySourceId } from "./coverage-loader";
+import { loadPolicyProvenanceByProgramId } from "./policy-provenance-bridge";
 import { rankOpportunitiesForViewer, viewerRole } from "./role-ranked";
 
 const SOURCE_TIMEOUT_MS = 4_000;
@@ -3200,11 +3201,18 @@ export async function loadDiscoverPageData(
     )
     .map((item) => item.source.id);
   const coverageBySourceId = await loadCoverageBySourceId(coverageSourceIds);
+  // Phase 5 Release Slice 9: real persisted policy provenance for every
+  // Pool being matched, via the read-only bridge to the existing
+  // ProgramVersion/PolicyVersion system - never written here, only read.
+  const policyProvenanceByProgramId = await loadPolicyProvenanceByProgramId(
+    pools.map((pool) => pool.id),
+  );
   const matched = attachEconomicMatch(workAware, {
     pools,
     viewerUserId: user?.id,
     operatorOfPoolIds: operatorPoolIds,
     coverageBySourceId,
+    policyProvenanceByProgramId,
   });
   // Same canonical marketplace, ordered for who is looking at it. Ordering
   // only: nothing is dropped, so a wrong role guess can never hide a record.

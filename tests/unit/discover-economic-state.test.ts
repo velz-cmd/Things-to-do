@@ -96,6 +96,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       payout: "not_required",
     });
@@ -113,6 +114,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       payout: "not_required",
     });
@@ -129,6 +131,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -147,6 +150,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_missing",
@@ -166,6 +170,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       ],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -187,6 +192,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       ],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -214,6 +220,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       ],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       payout: "destination_ready",
     });
@@ -235,6 +242,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
     // No coverage counted toward THIS obligation (different obligationId / no id match),
     // but the matcher itself already flags this as requiresReview via possible_overlap.
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       payout: "destination_ready",
     });
@@ -253,6 +261,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -273,6 +282,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       ],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -291,6 +301,7 @@ describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", 
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -720,6 +731,7 @@ describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surf
       isDuplicateSubmission: false,
     })!;
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -740,6 +752,7 @@ describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surf
       coverage: [],
     });
     const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "test purpose",
       match,
       requiredUsd: 100,
       payout: "destination_ready",
@@ -748,5 +761,72 @@ describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surf
     });
     expect(canonical.state).toBe("settlement_confirmed");
     expect(canonical.reconciliation).toBeUndefined();
+  });
+
+  /**
+   * Phase 5 Release Slice 9: a real, previously-unnoticed bug found while
+   * wiring policy provenance - obligation.purpose was populated from
+   * match.overlapReason (an overlap-reasoning SENTENCE, e.g. "No prior
+   * payment is recorded for this work.") instead of the actual economic
+   * purpose, because EconomicMatch itself never carried the real purpose
+   * value at all. purpose is now a required input specifically so this
+   * cannot recur silently.
+   */
+  it("obligation.purpose is the real supplied purpose, never the overlap-reasoning sentence", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "Fix authentication bypass",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+    });
+    expect(canonical.obligation?.purpose).toBe("Fix authentication bypass");
+    expect(canonical.obligation?.purpose).not.toContain("No prior payment is recorded");
+  });
+
+  it("carries real policy provenance and period through to the obligation when supplied", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "Fix authentication bypass",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      policyFingerprint: "fp-real",
+      policyProvenance: "persisted",
+      period: { kind: "one_time" },
+    });
+    expect(canonical.obligation?.policyFingerprint).toBe("fp-real");
+    expect(canonical.obligation?.policyProvenance).toBe("persisted");
+    expect(canonical.obligation?.period).toEqual({ kind: "one_time" });
+  });
+
+  it("never fabricates policy provenance when none was supplied", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "Fix authentication bypass",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      purpose: "Fix authentication bypass",
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+    });
+    expect(canonical.obligation?.policyFingerprint).toBeUndefined();
+    expect(canonical.obligation?.policyProvenance).toBeUndefined();
   });
 });

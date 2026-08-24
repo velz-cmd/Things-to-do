@@ -683,6 +683,87 @@ describe("economic matching is wired into the marketplace", () => {
       expect(intent?.executable).toBe(false);
     });
   });
+
+  /**
+   * Phase 5 Release Slice 9: real policy provenance is wired end to end
+   * through attachEconomicMatch() - a Pool with a real persisted
+   * PolicyVersion gets its authoritative contentHash; a Pool with none
+   * (most Pools today) gets a real, reproducible provisional fingerprint
+   * computed from its own visible rules, never a fabricated one.
+   */
+  describe("real policy provenance flows through attachEconomicMatch()", () => {
+    it("a Pool with a real persisted PolicyVersion carries its authoritative fingerprint, marked persisted", () => {
+      const [item] = attachEconomicMatch(
+        [
+          work({
+            impactProfile: {
+              measurable: true,
+              signals: [
+                {
+                  id: "advisories_with_published_fix",
+                  label: "Patched versions available for advisories",
+                  value: "1",
+                  scope: "repository",
+                  source: "GitHub Security Advisories",
+                  observedAt: "2026-08-01T00:00:00.000Z",
+                  classification: "observed",
+                },
+              ],
+            },
+          }),
+        ],
+        {
+          pools: [pool()],
+          operatorOfPoolIds: new Set(["pool-1"]),
+          policyProvenanceByProgramId: new Map([
+            ["pool-1", { policyFingerprint: "persisted-hash-abc", policyVersion: 2, provenance: "persisted" }],
+          ]),
+        },
+      );
+      expect(item.economicState?.obligation?.policyFingerprint).toBe("persisted-hash-abc");
+      expect(item.economicState?.obligation?.policyProvenance).toBe("persisted");
+    });
+
+    it("a Pool with no persisted PolicyVersion gets a real provisional fingerprint, never a fabricated one", () => {
+      const [item] = attachEconomicMatch(
+        [
+          work({
+            impactProfile: {
+              measurable: true,
+              signals: [
+                {
+                  id: "advisories_with_published_fix",
+                  label: "Patched versions available for advisories",
+                  value: "1",
+                  scope: "repository",
+                  source: "GitHub Security Advisories",
+                  observedAt: "2026-08-01T00:00:00.000Z",
+                  classification: "observed",
+                },
+              ],
+            },
+          }),
+        ],
+        { pools: [pool()] },
+      );
+      expect(item.economicState?.obligation?.policyProvenance).toBe("provisional");
+      expect(item.economicState?.obligation?.policyFingerprint).toBeDefined();
+      expect(item.economicState?.obligation?.policyFingerprint?.length).toBeGreaterThan(0);
+    });
+
+    it("every current mechanism pays a real one-time reward - period is wired as one_time, not a fabricated calendar period", () => {
+      const [item] = attachEconomicMatch([work()], { pools: [] });
+      expect(item.economicState?.obligation?.period).toEqual({ kind: "one_time" });
+    });
+
+    it("no policy provenance is invented when no mechanism was matched at all", () => {
+      const [item] = attachEconomicMatch(
+        [work({ entityState: undefined })],
+        { pools: [] },
+      );
+      expect(item.economicState?.obligation).toBeNull();
+    });
+  });
 });
 
 describe("role ranking orders without hiding", () => {

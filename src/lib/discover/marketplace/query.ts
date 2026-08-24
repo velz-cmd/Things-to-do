@@ -81,6 +81,7 @@ import { discoverNavigationAction, workbenchAction } from "./action-contract";
 import { computePoolMilestoneSegment } from "@/lib/capital/pool-milestone-progress";
 import { confirmedStakeUsdByProgram } from "@/lib/db/ensure-fund-stake-arc-schema";
 import { attachEconomicMatch } from "./attach-economic-match";
+import { loadCoverageBySourceId } from "./coverage-loader";
 import { rankOpportunitiesForViewer, viewerRole } from "./role-ranked";
 
 const SOURCE_TIMEOUT_MS = 4_000;
@@ -3186,10 +3187,24 @@ export async function loadDiscoverPageData(
       )
       .map((item) => item.pool?.id ?? item.source.id),
   );
+  // Phase 5 Release Slice 8: real confirmed/pending coverage, loaded once
+  // for every id the matcher will actually process - never one query per
+  // row. Traced from repository truth: Receipt.payload.work.subjectId is
+  // already the same canonical id used here (see coverage-loader.ts).
+  const coverageSourceIds = workAware
+    .filter(
+      (item) =>
+        item.source.type === "github_evidence" ||
+        item.source.type === "research_work" ||
+        item.source.type === "listenbrainz_listen",
+    )
+    .map((item) => item.source.id);
+  const coverageBySourceId = await loadCoverageBySourceId(coverageSourceIds);
   const matched = attachEconomicMatch(workAware, {
     pools,
     viewerUserId: user?.id,
     operatorOfPoolIds: operatorPoolIds,
+    coverageBySourceId,
   });
   // Same canonical marketplace, ordered for who is looking at it. Ordering
   // only: nothing is dropped, so a wrong role guess can never hide a record.

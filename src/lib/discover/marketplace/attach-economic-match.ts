@@ -6,6 +6,7 @@ import {
 } from "@/lib/discover/impact/economic-matching";
 import {
   computePolicyFingerprint,
+  periodForMechanism,
   resolveCanonicalEconomicStateFromMatch,
   resolveSettlementStateFromCoverage,
   type CanonicalPayoutState,
@@ -170,10 +171,27 @@ export type EconomicMatchInput = {
   viewerUserId?: string;
   /** Prior payments known for a given work source id. */
   coverageBySourceId?: Map<string, CoverageRecord[]>;
+  /**
+   * Release Slice 13: whether `coverageBySourceId` was actually fully
+   * retrieved. Defaults to true (every pre-existing caller keeps its exact
+   * prior behavior). When false, every item this function processes gets
+   * `economicState.state === "verification_unavailable"` instead of
+   * silently treating `coverageBySourceId`'s emptiness as "verified: no
+   * prior payment" - UNKNOWN != EMPTY. See coverage-loader.ts.
+   */
+  coverageDataAvailable?: boolean;
   /** Source ids the viewer operates a Pool for. */
   operatorOfPoolIds?: Set<string>;
   /** Release Slice 9: real persisted policy provenance per Pool/Program id, from the read-only bridge (never invented here). */
   policyProvenanceByProgramId?: Map<string, PersistedPolicyProvenance>;
+  /**
+   * Release Slice 13: whether `policyProvenanceByProgramId` was actually
+   * fully retrieved. Defaults to true. When false, a winning mechanism's
+   * `policyProvenance` is labeled "unavailable" rather than silently
+   * downgraded to "provisional" - ABSENT POLICY != POLICY LOOKUP FAILED.
+   * See policy-provenance-bridge.ts.
+   */
+  policyProvenanceAvailable?: boolean;
 };
 
 /**
@@ -260,13 +278,19 @@ export function attachEconomicMatch(
     const persistedPolicy = winningIntent
       ? input.policyProvenanceByProgramId?.get(winningIntent.id)
       : undefined;
+    // Release Slice 13: subjectId included so two different funding
+    // intents with the same mechanism/eligibleClasses (e.g. two unrelated
+    // "creator" Pools) never collide into the same provisional fingerprint
+    // - see PolicyRules's doc comment in economic-state.ts.
     const provisionalFingerprint = winningIntent
       ? computePolicyFingerprint({
           mechanism: winningIntent.mechanism,
           eligibleClasses: winningIntent.eligibleClasses,
           amountRule: null,
+          subjectId: winningIntent.id,
         })
       : undefined;
+    const policyProvenanceAvailable = input.policyProvenanceAvailable ?? true;
 
     // Release Slice 3: wire the canonical projection into the real
     // marketplace. `economicMatch` remains the source of truth for
@@ -286,10 +310,17 @@ export function attachEconomicMatch(
       purpose: item.title,
       payout: payoutFromFinancialReadiness(item.entityState?.financialReadiness),
       policyFingerprint: persistedPolicy?.policyFingerprint ?? provisionalFingerprint,
-      policyProvenance: persistedPolicy ? "persisted" : winningIntent ? "provisional" : undefined,
-      period: winningIntent ? { kind: "one_time" } : undefined,
+      policyProvenance: persistedPolicy
+        ? "persisted"
+        : winningIntent
+          ? (policyProvenanceAvailable ? "provisional" : "unavailable")
+          : undefined,
+      // Release Slice 13: real per-mechanism period, not a blanket
+      // one_time - see periodForMechanism()'s doc comment.
+      period: winningIntent ? periodForMechanism(winningIntent.mechanism) : undefined,
       settlementState,
       reconciliationIssue,
+      coverageDataAvailability: input.coverageDataAvailable === false ? "unavailable" : "available",
     });
 
     return { ...item, economicMatch: match, economicState } satisfies MarketplaceOpportunity;

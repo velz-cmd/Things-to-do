@@ -53,6 +53,12 @@ export function canonicalStateLabel(state: CanonicalEconomicState): string {
       return "Payment confirmed";
     case "reconciliation_required":
       return state.reconciliation ? state.reconciliation.detail : "Payment needs reconciliation";
+    case "verification_unavailable":
+      // Release Slice 13: UNKNOWN != EMPTY - this must never read like a
+      // real "no funding" result. Distinct wording from every other state
+      // so a viewer (and a future maintainer) can never mistake this for
+      // a settled fact.
+      return "Coverage could not be verified right now";
     case "blocked":
       return "No current funding match";
   }

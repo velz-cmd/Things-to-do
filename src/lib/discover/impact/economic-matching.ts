@@ -73,7 +73,16 @@ export type CoverageRecord = {
 export type OverlapVerdict =
   | "no_conflict"
   | "possible_overlap"
-  | "duplicate_obligation";
+  | "duplicate_obligation"
+  /**
+   * A prior record for the same obligation or purpose exists but is
+   * PENDING (submitted, not yet confirmed on-chain) - a real transaction is
+   * in flight, so a second payment must still be blocked, but it is never
+   * "already settled" or "already paid": nothing has actually moved yet.
+   * Distinct from "duplicate_obligation" specifically so the reason text
+   * downstream never claims a payment happened that has not.
+   */
+  | "settlement_in_progress";
 
 export type MechanismMatch = {
   intent: FundingIntentCandidate;
@@ -122,47 +131,71 @@ function classMatches(intent: FundingIntentCandidate, outcomeClass: string): boo
 /**
  * Classifies prior payments against the work now being considered.
  *
- * - Same obligation already settled -> duplicate_obligation. Never repay.
- * - Same stated purpose -> possible_overlap. A human decides.
- * - Different purpose -> no_conflict. Legitimately fundable again.
+ * Phase 5 Release Slice 13: status-aware. A `CoverageRecord.status` of
+ * "failed" means the settlement never actually completed - it must never
+ * read as "already paid" nor block a legitimate new attempt, so it is
+ * excluded entirely before any comparison runs. A "pending" record is real
+ * (a transaction is genuinely in flight) and must still block a second
+ * payment, but the verdict and reason text must say "in progress," never
+ * "already settled" or "already paid" - only a "confirmed" (or legacy,
+ * status-absent) record represents money that has actually moved.
+ *
+ * - Same obligation, confirmed -> duplicate_obligation. Never repay.
+ * - Same obligation, pending -> settlement_in_progress. Block, don't claim paid.
+ * - Same stated purpose, confirmed -> possible_overlap. A human decides.
+ * - Same stated purpose, pending -> settlement_in_progress. Block, don't claim paid.
+ * - Different purpose (or only failed records) -> no_conflict.
  */
 export function assessOverlap(input: {
   purpose: string;
   obligationId?: string;
   coverage: CoverageRecord[];
 }): { verdict: OverlapVerdict; reason: string } {
-  if (!input.coverage.length) {
+  const relevant = input.coverage.filter((row) => row.status !== "failed");
+  if (!relevant.length) {
     return {
       verdict: "no_conflict",
       reason: "No prior payment is recorded for this work.",
     };
   }
 
-  const settledObligation = input.obligationId
-    ? input.coverage.find((row) => row.obligationId === input.obligationId)
+  const obligationMatch = input.obligationId
+    ? relevant.find((row) => row.obligationId === input.obligationId)
     : undefined;
-  if (settledObligation) {
+  if (obligationMatch) {
+    if (obligationMatch.status === "pending") {
+      return {
+        verdict: "settlement_in_progress",
+        reason: `A payment for this exact obligation is already in progress via ${obligationMatch.mechanism.replaceAll("_", " ")} ($${obligationMatch.amountUsd.toFixed(2)}, not yet confirmed). Wait for it to confirm or fail before trying again.`,
+      };
+    }
     return {
       verdict: "duplicate_obligation",
-      reason: `This exact obligation was already settled by ${settledObligation.mechanism.replaceAll("_", " ")}${
-        settledObligation.receiptReference
-          ? ` (receipt ${settledObligation.receiptReference})`
+      reason: `This exact obligation was already settled by ${obligationMatch.mechanism.replaceAll("_", " ")}${
+        obligationMatch.receiptReference
+          ? ` (receipt ${obligationMatch.receiptReference})`
           : ""
       }. Paying again would settle the same obligation twice.`,
     };
   }
 
-  const samePurpose = input.coverage.find(
+  const purposeMatch = relevant.find(
     (row) => row.purpose.trim().toLowerCase() === input.purpose.trim().toLowerCase(),
   );
-  if (samePurpose) {
+  if (purposeMatch) {
+    if (purposeMatch.status === "pending") {
+      return {
+        verdict: "settlement_in_progress",
+        reason: `A payment for "${purposeMatch.purpose}" is already in progress via ${purposeMatch.mechanism.replaceAll("_", " ")} ($${purposeMatch.amountUsd.toFixed(2)}, not yet confirmed). A funder should confirm this is a different obligation before a new payment proceeds.`,
+      };
+    }
     return {
       verdict: "possible_overlap",
-      reason: `${samePurpose.mechanism.replaceAll("_", " ")} already paid $${samePurpose.amountUsd.toFixed(2)} for "${samePurpose.purpose}". A funder should confirm this new payment has a different economic purpose before it proceeds.`,
+      reason: `${purposeMatch.mechanism.replaceAll("_", " ")} already paid $${purposeMatch.amountUsd.toFixed(2)} for "${purposeMatch.purpose}". A funder should confirm this new payment has a different economic purpose before it proceeds.`,
     };
   }
 
-  const priorPurposes = input.coverage.map((row) => `"${row.purpose}"`).join(", ");
+  const priorPurposes = relevant.map((row) => `"${row.purpose}"`).join(", ");
   return {
     verdict: "no_conflict",
     reason: `Prior payments exist for a different purpose (${priorPurposes}), so this does not duplicate them.`,
@@ -254,7 +287,11 @@ export function matchImpactToCapital(input: {
     coverage: input.coverage,
   });
 
-  if (overlap.verdict === "duplicate_obligation") {
+  // A confirmed duplicate (never repay) and a real in-flight settlement
+  // (block until it resolves) both hard-stop further spend the same way -
+  // the distinction is in the verdict/reason text a caller renders, not in
+  // whether money may move right now.
+  if (overlap.verdict === "duplicate_obligation" || overlap.verdict === "settlement_in_progress") {
     return {
       eligible: [],
       excluded: [...excluded, ...eligible.map((m) => ({ ...m, eligible: false, reason: overlap.reason }))],

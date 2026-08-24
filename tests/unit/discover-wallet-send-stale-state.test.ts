@@ -72,6 +72,17 @@ function postRequest(body: Record<string, unknown> = validBody) {
   });
 }
 
+/** Release Slice 13: loadCoverageBySourceId() now returns a result object, not a bare Map. */
+function coverageResult(
+  records: Array<{ id: string; mechanism: string; amountUsd: number; purpose: string; status: string }>,
+) {
+  return {
+    recordsBySourceId: new Map([["evidence-1", records]]),
+    confirmedAvailability: "available" as const,
+    pendingAvailability: "available" as const,
+  };
+}
+
 describe("POST /api/wallet/send - server-side stale-state revalidation (Release Slice 12)", () => {
   beforeEach(() => {
     findUniqueActionRun.mockReset().mockResolvedValue(null);
@@ -82,7 +93,7 @@ describe("POST /api/wallet/send - server-side stale-state revalidation (Release 
       verifiedAt: new Date("2026-08-01T00:00:00.000Z"),
     });
     findUniqueUser.mockReset().mockResolvedValue({ displayName: "Recipient", githubUsername: null });
-    loadCoverageBySourceId.mockReset().mockResolvedValue(new Map());
+    loadCoverageBySourceId.mockReset().mockResolvedValue(coverageResult([]));
     createActionRun.mockReset().mockResolvedValue({ id: "run-new" });
     updateActionRun.mockReset().mockResolvedValue({});
     sendIdentityUsdc.mockReset().mockRejectedValue(new Error("Circle not configured in this test"));
@@ -90,9 +101,7 @@ describe("POST /api/wallet/send - server-side stale-state revalidation (Release 
 
   it("rejects a second submission when the work reward already has a real confirmed payment - never trusts a stale client that thinks it's still unpaid", async () => {
     loadCoverageBySourceId.mockResolvedValue(
-      new Map([
-        ["evidence-1", [{ id: "receipt-1", mechanism: "direct_support", amountUsd: 25, purpose: "p", status: "confirmed" }]],
-      ]),
+      coverageResult([{ id: "receipt-1", mechanism: "direct_support", amountUsd: 25, purpose: "p", status: "confirmed" }]),
     );
     const { POST } = await import("@/app/api/wallet/send/route");
     const response = await POST(postRequest());
@@ -104,9 +113,7 @@ describe("POST /api/wallet/send - server-side stale-state revalidation (Release 
 
   it("rejects a second submission racing a real transfer that is already in flight for the same work reward - the exact double-payment race named in the Phase 5 spec", async () => {
     loadCoverageBySourceId.mockResolvedValue(
-      new Map([
-        ["evidence-1", [{ id: "run-1", mechanism: "direct_support", amountUsd: 25, purpose: "p", status: "pending" }]],
-      ]),
+      coverageResult([{ id: "run-1", mechanism: "direct_support", amountUsd: 25, purpose: "p", status: "pending" }]),
     );
     const { POST } = await import("@/app/api/wallet/send/route");
     const response = await POST(postRequest());
@@ -118,9 +125,7 @@ describe("POST /api/wallet/send - server-side stale-state revalidation (Release 
 
   it("checks server-persisted coverage, not any client-supplied state - the request body carries no coverage claim at all, yet the rejection still happens", async () => {
     loadCoverageBySourceId.mockResolvedValue(
-      new Map([
-        ["evidence-1", [{ id: "run-1", mechanism: "direct_support", amountUsd: 25, purpose: "p", status: "pending" }]],
-      ]),
+      coverageResult([{ id: "run-1", mechanism: "direct_support", amountUsd: 25, purpose: "p", status: "pending" }]),
     );
     const { POST } = await import("@/app/api/wallet/send/route");
     const response = await POST(postRequest());
@@ -131,8 +136,8 @@ describe("POST /api/wallet/send - server-side stale-state revalidation (Release 
   });
 
   it("does not block a genuinely unpaid, uncontested work reward - the check is real, not a blanket rejection", async () => {
-    // Empty coverage map (the default beforeEach setup): no confirmed or
-    // pending record exists for this work at all. The stale-state check
+    // Empty coverage records (the default beforeEach setup): no confirmed
+    // or pending record exists for this work at all. The stale-state check
     // must let a genuine first submission continue past it - this test
     // proves it reaches real downstream processing (the mocked
     // sendIdentityUsdc is actually invoked) rather than the new check
@@ -140,5 +145,36 @@ describe("POST /api/wallet/send - server-side stale-state revalidation (Release 
     const { POST } = await import("@/app/api/wallet/send/route");
     await POST(postRequest());
     expect(sendIdentityUsdc).toHaveBeenCalled();
+  });
+
+  it("Release Slice 13: fails closed (never open) when the confirmed-coverage query itself could not complete - a real DB failure must never read as 'verified: unpaid, safe to send'", async () => {
+    loadCoverageBySourceId.mockResolvedValue({
+      recordsBySourceId: new Map(),
+      confirmedAvailability: "unavailable" as const,
+      pendingAvailability: "available" as const,
+    });
+    const { POST } = await import("@/app/api/wallet/send/route");
+    const response = await POST(postRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.code).toBe("coverage_verification_unavailable");
+    expect(body.retryable).toBe(true);
+    expect(sendIdentityUsdc).not.toHaveBeenCalled();
+    expect(createActionRun).not.toHaveBeenCalled();
+  });
+
+  it("Release Slice 13: fails closed when the pending-coverage query itself could not complete", async () => {
+    loadCoverageBySourceId.mockResolvedValue({
+      recordsBySourceId: new Map(),
+      confirmedAvailability: "available" as const,
+      pendingAvailability: "unavailable" as const,
+    });
+    const { POST } = await import("@/app/api/wallet/send/route");
+    const response = await POST(postRequest());
+
+    expect(response.status).toBe(503);
+    expect(sendIdentityUsdc).not.toHaveBeenCalled();
+    expect(createActionRun).not.toHaveBeenCalled();
   });
 });

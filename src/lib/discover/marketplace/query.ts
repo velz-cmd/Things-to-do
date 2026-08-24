@@ -3201,19 +3201,26 @@ export async function loadDiscoverPageData(
         item.source.type === "listenbrainz_listen",
     )
     .map((item) => item.source.id);
-  const coverageBySourceId = await loadCoverageBySourceId(coverageSourceIds);
+  // Release Slice 13: loadCoverageBySourceId() now returns real per-source
+  // availability alongside the records, so a query-level failure never
+  // silently reads as "verified: no prior payment" - see coverage-loader.ts.
+  const coverageLoad = await loadCoverageBySourceId(coverageSourceIds);
   // Phase 5 Release Slice 9: real persisted policy provenance for every
   // Pool being matched, via the read-only bridge to the existing
   // ProgramVersion/PolicyVersion system - never written here, only read.
-  const policyProvenanceByProgramId = await loadPolicyProvenanceByProgramId(
+  const policyProvenanceLoad = await loadPolicyProvenanceByProgramId(
     pools.map((pool) => pool.id),
   );
   const matched = attachEconomicMatch(workAware, {
     pools,
     viewerUserId: user?.id,
     operatorOfPoolIds: operatorPoolIds,
-    coverageBySourceId,
-    policyProvenanceByProgramId,
+    coverageBySourceId: coverageLoad.recordsBySourceId,
+    coverageDataAvailable:
+      coverageLoad.confirmedAvailability === "available" &&
+      coverageLoad.pendingAvailability === "available",
+    policyProvenanceByProgramId: policyProvenanceLoad.byProgramId,
+    policyProvenanceAvailable: policyProvenanceLoad.availability === "available",
   });
   // Phase 5 Release Slice 12: the safe cutover. Restriction-only - can only
   // turn an already-enabled fund action off when the canonical resolver

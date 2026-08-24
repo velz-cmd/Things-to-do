@@ -50,6 +50,7 @@ export type CanonicalEconomicStateValue =
   | "settlement_confirming"
   | "settlement_confirmed"
   | "reconciliation_required"
+  | "verification_unavailable"
   | "blocked";
 
 /**
@@ -98,6 +99,18 @@ export type CanonicalCoverage = {
   records: CoverageRecord[];
   /** True only when requiredUsd is known and confirmedUsd meets or exceeds it. */
   fullyCovered: boolean;
+  /**
+   * Release Slice 13: whether the underlying coverage source was actually
+   * retrievable. "unavailable" means the lookup itself failed (a real DB
+   * error) - UNKNOWN != EMPTY. `confirmedUsd`/`pendingUsd` are 0 in that
+   * case only because nothing could be read, never because RESOLVE
+   * verified there is genuinely no prior payment. A money-mutation
+   * decision must never treat "unavailable" as "zero coverage, safe to
+   * fund" - see resolveCanonicalEconomicStateFromMatch's
+   * "verification_unavailable" state, which exists specifically to make
+   * this distinction impossible to skip.
+   */
+  dataAvailability: "available" | "unavailable";
 };
 
 export type CanonicalObligation = {
@@ -109,15 +122,18 @@ export type CanonicalObligation = {
    * "persisted" means this fingerprint came from a real PolicyVersion row
    * (via the read-only bridge in policy-provenance-bridge.ts) - the
    * authoritative source once a policy engine has actually created one.
-   * "provisional" means no persisted policy exists yet, so this is a
-   * deterministic fingerprint computed from the mechanism's own
-   * currently-visible rules (computePolicyFingerprint()) - a real,
-   * reproducible value, not invented, but not yet backed by a persisted
-   * row. Absent entirely for mechanisms with no policy concept
-   * (e.g. an individual's own direct_support has no "policy").
+   * "provisional" means the lookup itself succeeded and genuinely found no
+   * persisted policy, so this is a deterministic fingerprint computed from
+   * the mechanism's own currently-visible rules (computePolicyFingerprint())
+   * - a real, reproducible value, not invented, but not yet backed by a
+   * persisted row. "unavailable" (Release Slice 13) means the lookup
+   * itself FAILED (a real DB error) - this must never be silently folded
+   * into "provisional": ABSENT POLICY != POLICY LOOKUP FAILED. Absent
+   * entirely for mechanisms with no policy concept (e.g. an individual's
+   * own direct_support has no "policy").
    */
   policyFingerprint?: string;
-  policyProvenance?: "persisted" | "provisional";
+  policyProvenance?: "persisted" | "provisional" | "unavailable";
   /** A one-time work reward is genuinely one-time - not a gap, the correct period for this mechanism today. */
   period?: CanonicalPeriod;
 };
@@ -165,6 +181,7 @@ export type CanonicalEconomicState = {
 export function computeCanonicalCoverage(
   records: CoverageRecord[],
   requiredUsd: number | null,
+  dataAvailability: "available" | "unavailable" = "available",
 ): CanonicalCoverage {
   let confirmedUsd = 0;
   let pendingUsd = 0;
@@ -187,6 +204,7 @@ export function computeCanonicalCoverage(
     currency: "USDC",
     records,
     fullyCovered,
+    dataAvailability,
   };
 }
 
@@ -199,6 +217,7 @@ function nextActionFor(state: CanonicalEconomicStateValue, coverage: CanonicalCo
     case "settlement_submitted":
     case "settlement_confirming":
     case "reconciliation_required":
+    case "verification_unavailable":
       return "none";
     case "possible_match":
     case "eligible":
@@ -236,6 +255,14 @@ function nextActionFor(state: CanonicalEconomicStateValue, coverage: CanonicalCo
  * 6. Payout readiness - a real match with nowhere for money to land is
  *    "payout_setup_required," not "funding_available."
  * 7. Whether any real mechanism was found at all.
+ *
+ * Release Slice 13 adds precedence 0, ABOVE all of the above: if the real
+ * coverage source could not actually be verified (a DB failure, not a
+ * legitimate empty result), every rule from 1-7 is unsafe to apply, because
+ * `match.overlap`, `settlementState`, and `coverage.fullyCovered` are ALL
+ * themselves derived from the same coverage records that failed to load -
+ * they would silently read as "no prior payment," which is exactly the
+ * unsafe UNKNOWN-read-as-EMPTY collapse this slice exists to prevent.
  */
 export function resolveCanonicalEconomicStateFromMatch(input: {
   match: EconomicMatch;
@@ -257,14 +284,23 @@ export function resolveCanonicalEconomicStateFromMatch(input: {
   reconciliationIssue?: ReconciliationIssue;
   /** Release Slice 9: real persisted policy provenance for the recommended mechanism, when one exists (never invented - see policy-provenance-bridge.ts). */
   policyFingerprint?: string;
-  policyProvenance?: "persisted" | "provisional";
+  policyProvenance?: "persisted" | "provisional" | "unavailable";
   /** Release Slice 9: the real period this obligation covers - a one-time work reward is genuinely one-time, not a gap. */
   period?: CanonicalPeriod;
+  /**
+   * Release Slice 13: whether the coverage records behind `match.coverage`
+   * were actually retrievable. Defaults to "available" (every pre-existing
+   * caller keeps its exact prior behavior). When "unavailable", this
+   * function returns "verification_unavailable" before evaluating anything
+   * that depends on coverage - see the precedence-0 note above.
+   */
+  coverageDataAvailability?: "available" | "unavailable";
 }): CanonicalEconomicState {
   const { match } = input;
   const requiredUsd = input.requiredUsd ?? null;
   const settlementState = input.settlementState ?? "not_started";
-  const coverage = computeCanonicalCoverage(match.coverage, requiredUsd);
+  const coverageDataAvailability = input.coverageDataAvailability ?? "available";
+  const coverage = computeCanonicalCoverage(match.coverage, requiredUsd, coverageDataAvailability);
   const hasAnyIntent = match.eligible.length + match.excluded.length > 0;
   const mechanism = match.recommended;
   const obligation: CanonicalObligation | null =
@@ -278,6 +314,30 @@ export function resolveCanonicalEconomicStateFromMatch(input: {
           period: input.period,
         }
       : null;
+
+  // 0. Coverage verification itself failed - every rule below is unsafe to
+  // apply (see the precedence-0 doc note above). A real mechanism must
+  // exist for this to matter at all - "no demand" with no coverage lookup
+  // needed is still a legitimate, honest result.
+  if (coverageDataAvailability === "unavailable" && mechanism != null) {
+    const state: CanonicalEconomicStateValue = "verification_unavailable";
+    return {
+      state,
+      demand: true,
+      eligibility: {
+        eligible: false,
+        reason: "Coverage could not be verified right now, so RESOLVE cannot safely confirm whether this has already been paid.",
+      },
+      obligation,
+      coverage,
+      authorization: { required: false, granted: false },
+      payout: input.payout,
+      settlement: "not_started",
+      mechanism,
+      provenance: "economic_match",
+      nextAction: nextActionFor(state, coverage),
+    };
+  }
 
   // 1. A settlement in flight or resolved is the authoritative current fact.
   if (settlementState !== "not_started") {
@@ -324,6 +384,27 @@ export function resolveCanonicalEconomicStateFromMatch(input: {
       authorization: { required: false, granted: true },
       payout: input.payout,
       settlement: "confirmed",
+      mechanism: null,
+      provenance: "economic_match",
+      nextAction: nextActionFor(state, coverage),
+    };
+  }
+
+  // 2b. Release Slice 13: a real transfer for this exact obligation/purpose
+  // is already in flight (assessOverlap's "settlement_in_progress" verdict)
+  // - block further spend the same way as an already-settled duplicate,
+  // but never claim money has already moved (PENDING != CONFIRMED).
+  if (match.overlap === "settlement_in_progress") {
+    const state: CanonicalEconomicStateValue = "settlement_confirming";
+    return {
+      state,
+      demand: true,
+      eligibility: { eligible: false, reason: match.overlapReason },
+      obligation,
+      coverage,
+      authorization: { required: false, granted: false },
+      payout: input.payout,
+      settlement: "confirming",
       mechanism: null,
       provenance: "economic_match",
       nextAction: nextActionFor(state, coverage),
@@ -446,6 +527,9 @@ export function resolveCanonicalEconomicStateFromLedgerRecord(
     currency: "USDC",
     records: [],
     fullyCovered,
+    // This adapter's source (FundingCoverageLedgerRecord) is always
+    // synchronously available - no async lookup can fail here.
+    dataAvailability: "available",
   };
 
   const mechanism: FundingMechanism | null = record.poolName ? "pool_allocation" : null;
@@ -526,6 +610,24 @@ export type PolicyRules = {
   eligibleClasses: string[];
   /** Fixed amount, rate, percentage, cap, or another auditable deterministic rule - never an LLM output (Phase 5 section 14). */
   amountRule: { kind: "fixed" | "rate" | "percentage" | "cap"; value: number } | null;
+  /**
+   * Release Slice 13: the real, unique id of the funding intent this policy
+   * belongs to (a Pool/Program/Request's own `id`, already real and always
+   * available on every `FundingIntentCandidate`). Required, not optional -
+   * before this field existed, two DIFFERENT Pools with the same mechanism
+   * and eligibleClasses (e.g. two unrelated "creator" Pools) silently
+   * produced the IDENTICAL provisional fingerprint, which is exactly the
+   * cross-Pool collision this fingerprint exists to prevent. This does not
+   * make the fingerprint a complete semantic hash of every policy dimension
+   * a Pool could have (rate/cap/period/eligible-artist scoping and similar
+   * are not yet real, queryable fields anywhere in this codebase's Pool/
+   * Program data model - fabricating them here would violate NO-FAKE, not
+   * satisfy it) - it guarantees no two DIFFERENT funding intents ever
+   * collide, which is the concrete, provable bug this closes. A genuinely
+   * complete policy fingerprint remains LATER PHASE work, tracked in
+   * SHIP_LEDGER, pending those real fields existing to hash.
+   */
+  subjectId: string;
 };
 
 /**
@@ -544,6 +646,7 @@ export function computePolicyFingerprint(rules: PolicyRules): string {
     amountRule: rules.amountRule
       ? { kind: rules.amountRule.kind, value: rules.amountRule.value }
       : null,
+    subjectId: rules.subjectId,
   };
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
@@ -559,6 +662,37 @@ export type CanonicalPeriod =
   | { kind: "one_time" }
   | { kind: "calendar_month"; year: number; month: number }
   | { kind: "policy_window"; windowId: string };
+
+/**
+ * Release Slice 13: real period derivation from the mechanism that
+ * actually won, instead of a blanket `{ kind: "one_time" }` applied to
+ * every mechanism regardless of what it means. `FundingMechanism` already
+ * includes `recurring_support` - a mechanism whose whole point is that it
+ * is NOT one-time - so "every current mechanism is one_time" cannot be
+ * universally true by construction. Audited every mechanism-constructing
+ * site in `attach-economic-match.ts` (`fundingIntentsFromPools()`,
+ * `fundingIntentsFromCampaigns()`, `directSupportIntent()`): none of them
+ * construct a `recurring_support` intent today, so `funded_request`,
+ * `pool_allocation`, `sponsor_program`, and `direct_support` genuinely are
+ * one-time for every intent this codebase can currently produce - not a
+ * convenient assumption, a verified fact about the live intent factories.
+ * `recurring_support` returns `undefined` (genuinely unknown) rather than
+ * a fabricated period, since no real calendar/window data exists anywhere
+ * in this codebase's data model to derive one from yet - if/when a real
+ * recurring intent becomes constructible, this function must not silently
+ * mislabel it as one-time.
+ */
+export function periodForMechanism(mechanism: FundingMechanism): CanonicalPeriod | undefined {
+  switch (mechanism) {
+    case "funded_request":
+    case "pool_allocation":
+    case "sponsor_program":
+    case "direct_support":
+      return { kind: "one_time" };
+    case "recurring_support":
+      return undefined;
+  }
+}
 
 /** A stable string key for a period - two obligations cover the same period iff their period keys are equal. */
 export function periodKey(period: CanonicalPeriod): string {

@@ -151,9 +151,28 @@ export async function POST(req: Request) {
   // uniqueness constraint on the work subject id, which is a schema change
   // out of scope for this session - documented here rather than silently
   // assumed solved.
+  //
+  // Release Slice 13: fail closed, never fail open. If the coverage lookup
+  // itself could not complete (a real DB error), the loader now says so
+  // explicitly (SourceAvailability) instead of silently returning an empty
+  // result indistinguishable from "verified: genuinely no prior payment."
+  // Trusting that silence here would defeat the entire stale-state guard -
+  // an attacker (or just bad luck) could send during a DB hiccup and this
+  // endpoint would proceed as if it had confirmed no coverage exists. The
+  // user does not lose the ability to pay permanently; they get a safe,
+  // retryable "try again shortly" response instead of either a false
+  // rejection or a false green light.
   if (work) {
     const { loadCoverageBySourceId } = await import("@/lib/discover/marketplace/coverage-loader");
-    const coverage = (await loadCoverageBySourceId([work.subjectId])).get(work.subjectId) ?? [];
+    const result = await loadCoverageBySourceId([work.subjectId]);
+    if (result.confirmedAvailability === "unavailable" || result.pendingAvailability === "unavailable") {
+      return NextResponse.json({
+        error: "RESOLVE could not verify whether this work reward has already been paid. Please try again shortly.",
+        code: "coverage_verification_unavailable",
+        retryable: true,
+      }, { status: 503 });
+    }
+    const coverage = result.recordsBySourceId.get(work.subjectId) ?? [];
     const alreadyConfirmed = coverage.some((record) => record.status !== "pending" && record.status !== "failed");
     const alreadyPending = coverage.some((record) => record.status === "pending");
     if (alreadyConfirmed) {
@@ -269,6 +288,7 @@ export async function POST(req: Request) {
           txHash: parsed.data.txHash,
           purpose: parsed.data.purpose,
           workSubjectId: work?.subjectId,
+          workTitle: work?.title,
           repository: work?.repository,
           sourceUrl: work?.sourceUrl,
         },
@@ -351,6 +371,7 @@ export async function POST(req: Request) {
           senderAddress,
           purpose: parsed.data.purpose,
           workSubjectId: work?.subjectId,
+          workTitle: work?.title,
           repository: work?.repository,
           sourceUrl: work?.sourceUrl,
         },
@@ -407,6 +428,7 @@ export async function POST(req: Request) {
                 senderAddress: submittedSenderAddress,
                 purpose: parsed.data.purpose,
                 workSubjectId: work?.subjectId,
+                workTitle: work?.title,
                 repository: work?.repository,
                 sourceUrl: work?.sourceUrl,
               },

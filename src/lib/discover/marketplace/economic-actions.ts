@@ -91,7 +91,7 @@ function isWork(item: MarketplaceOpportunity) {
   return workTypes.has(item.type);
 }
 
-function actionFromOpportunity(
+export function actionFromOpportunity(
   item: MarketplaceOpportunity,
   viewerUserId?: string,
 ): EconomicActionItem {

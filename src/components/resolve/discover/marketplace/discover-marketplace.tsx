@@ -32,6 +32,7 @@ import {
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketplace/discover-action-workbench";
 import { DISCOVER_VIEW_TO_ROUTE } from "@/lib/discover/marketplace/contracts";
+import { actionFromOpportunity } from "@/lib/discover/marketplace/economic-actions";
 import { isMarketListedPool } from "@/lib/discover/marketplace/pool-listing";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import { describeSourceHealth } from "@/lib/discover/marketplace/source-health";
@@ -206,24 +207,32 @@ function agentServiceAction(service: DiscoverAgentService): DiscoverAction {
 }
 
 /**
- * Phase 5 Release Slice 16 fix: `data.economicActions` is the VIEW-FILTERED
- * feed (query.ts filters it by intent/view before serializing it to the
- * client) - a real work item can legitimately be excluded from it while
- * its own row (a `MarketplaceOpportunity`) still renders fine, since rows
- * read `economicState` directly off themselves, a completely separate data
- * path. That meant the Details drawer's new Funding section (Slice 16)
- * silently rendered nothing for exactly the items a filtered feed had
- * dropped, even though the real economicState existed and was visible one
- * line away in the row itself. `fallbackEconomicState` closes this by
- * reusing that ALREADY-COMPUTED value - never a second resolver, never
- * recomputed, just propagated into the object actually handed to the
- * panel. Verified live on Preview: the previous behavior showed a
- * completely empty Funding section for a real "Funding available" row.
+ * Phase 5 Release Slice 16 fix (two real root causes found via live
+ * screenshot verification, not guessed): `data.economicActions` is the
+ * VIEW-FILTERED feed (query.ts filters it by intent/view before
+ * serializing it to the client) - a real work item can be excluded from
+ * it ENTIRELY while its own row (a `MarketplaceOpportunity`) still renders
+ * fine, since rows read `economicState` directly off themselves, a
+ * completely separate data path. The first fix attempt only patched the
+ * case where a match was found but missing `economicState` - live
+ * verification proved the real case here is a full miss (`found ===
+ * undefined`), which that version silently returned unfixed.
+ *
+ * This version closes it correctly: when there is no match at all,
+ * `fallbackOpportunity` (the row's own real `MarketplaceOpportunity`) is
+ * run through the SAME real `actionFromOpportunity()` builder
+ * `buildEconomicActions()` already uses server-side - not a fabricated
+ * object, not a second resolver, the identical construction applied to
+ * data that happened to be filtered out of the feed. When a match IS
+ * found but is missing `economicState` specifically, only that one field
+ * is patched from the real row data, preserving every other real field
+ * the matched entry already had.
  */
 export function findContext(
   data: DiscoverPageData,
   subjectId: string,
-  fallbackEconomicState?: EconomicActionItem["economicState"],
+  fallbackOpportunity?: MarketplaceOpportunity,
+  viewerUserId?: string,
 ) {
   const found = data.economicActions.find(
     (item) =>
@@ -232,9 +241,13 @@ export function findContext(
       item.programId === subjectId ||
       item.receiptId === subjectId,
   );
-  if (!fallbackEconomicState) return found;
-  if (!found) return found;
-  return found.economicState ? found : { ...found, economicState: fallbackEconomicState };
+  if (found) {
+    if (found.economicState || !fallbackOpportunity) return found;
+    return { ...found, economicState: fallbackOpportunity.economicState };
+  }
+  return fallbackOpportunity
+    ? actionFromOpportunity(fallbackOpportunity, viewerUserId)
+    : undefined;
 }
 
 /** The contextual Agent-purchase action attachVerifiedWorkActions attaches
@@ -786,7 +799,7 @@ function ResearchWorkRow({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
-  const context = findContext(data, work.source.id, work.economicState);
+  const context = findContext(data, work.source.id, work);
   const impactFact = strongestImpactFact(work.impactProfile);
   const fundingLabel = researchFundingStateLabel(work);
   const primaryAction = researchPrimaryAction(work);
@@ -912,7 +925,7 @@ function MediaWorkRow({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
-  const context = findContext(data, work.source.id, work.economicState);
+  const context = findContext(data, work.source.id, work);
   const impactFact = strongestImpactFact(work.impactProfile);
 
   return (
@@ -991,7 +1004,7 @@ function WorkRow({
     return <MediaWorkRow work={work} data={data} onOpen={onOpen} />;
   }
 
-  const context = findContext(data, work.source.id, work.economicState);
+  const context = findContext(data, work.source.id, work);
   const blocker = work.entityState?.blocker?.toLowerCase() ?? "";
   const payoutState =
     work.primaryAction?.id === "discover.fund_verified_work"
@@ -2586,7 +2599,7 @@ function DiscoverMarketplaceContent({
             // sets the correct item, silently overwriting it with one
             // missing economicState unless the same fallback is applied
             // here too.
-            item: findContext(data, opportunity.source.id, opportunity.economicState),
+            item: findContext(data, opportunity.source.id, opportunity),
           })),
       ),
       ...data.people.flatMap((person) =>
@@ -2616,7 +2629,7 @@ function DiscoverMarketplaceContent({
         item: findContext(
           data,
           subjectId,
-          data.opportunities.items.find((o) => o.source.id === subjectId)?.economicState,
+          data.opportunities.items.find((o) => o.source.id === subjectId),
         ),
       })),
     ];

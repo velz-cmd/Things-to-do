@@ -9,6 +9,7 @@ import {
   computeCanonicalCoverage,
   computeObligationId,
   computePolicyFingerprint,
+  detectReconciliationIssue,
   filterCoverageByObligation,
   periodKey,
   resolveCanonicalEconomicStateFromLedgerRecord,
@@ -635,5 +636,117 @@ describe("canonicalStateLabel - customer language, one place to change wording",
     for (const state of states) {
       expect(canonicalStateLabel(stateFixture({ state })).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("detectReconciliationIssue - real inconsistencies, never silently resolved", () => {
+  function clean(overrides: Partial<Parameters<typeof detectReconciliationIssue>[0]> = {}) {
+    return {
+      chainConfirmed: true,
+      receiptExists: true,
+      expectedAmountUsd: 100,
+      confirmedAmountUsd: 100,
+      expectedRecipientId: "wallet-a",
+      confirmedRecipientId: "wallet-a",
+      isDuplicateSubmission: false,
+      ...overrides,
+    };
+  }
+
+  it("a fully consistent settlement (chain confirmed, receipt exists, amount and recipient match) has no issue", () => {
+    expect(detectReconciliationIssue(clean())).toBeNull();
+  });
+
+  it("chain confirmed but no receipt persisted -> receipt_missing", () => {
+    const issue = detectReconciliationIssue(clean({ receiptExists: false }));
+    expect(issue?.kind).toBe("receipt_missing");
+  });
+
+  it("receipt persisted but no chain confirmation -> transaction_missing (never assumed confirmed)", () => {
+    const issue = detectReconciliationIssue(
+      clean({ chainConfirmed: false, confirmedAmountUsd: undefined, confirmedRecipientId: undefined }),
+    );
+    expect(issue?.kind).toBe("transaction_missing");
+  });
+
+  it("confirmed amount differs from expected -> amount_mismatch, with both real numbers in the detail", () => {
+    const issue = detectReconciliationIssue(clean({ confirmedAmountUsd: 85 }));
+    expect(issue?.kind).toBe("amount_mismatch");
+    expect(issue?.detail).toContain("100.00");
+    expect(issue?.detail).toContain("85.00");
+  });
+
+  it("confirmed recipient differs from expected -> recipient_mismatch", () => {
+    const issue = detectReconciliationIssue(clean({ confirmedRecipientId: "wallet-b" }));
+    expect(issue?.kind).toBe("recipient_mismatch");
+  });
+
+  it("a duplicate submission is reported first, ahead of any other real discrepancy it might also have", () => {
+    const issue = detectReconciliationIssue(
+      clean({ isDuplicateSubmission: true, confirmedAmountUsd: 85 }),
+    );
+    expect(issue?.kind).toBe("duplicate_submission");
+  });
+
+  it("pending (unconfirmed) settlement with no receipt yet is not itself a reconciliation issue - both are simply absent, consistently", () => {
+    const issue = detectReconciliationIssue(
+      clean({
+        chainConfirmed: false,
+        receiptExists: false,
+        confirmedAmountUsd: undefined,
+        confirmedRecipientId: undefined,
+      }),
+    );
+    expect(issue).toBeNull();
+  });
+});
+
+describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surfaced, never invented", () => {
+  it("carries the real reconciliation reason through to the canonical state when settlement failed", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const issue = detectReconciliationIssue({
+      chainConfirmed: true,
+      receiptExists: false,
+      expectedAmountUsd: 100,
+      confirmedAmountUsd: 100,
+      expectedRecipientId: "wallet-a",
+      confirmedRecipientId: "wallet-a",
+      isDuplicateSubmission: false,
+    })!;
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState: "reconciliation_required",
+      reconciliationIssue: issue,
+    });
+    expect(canonical.state).toBe("reconciliation_required");
+    expect(canonical.reconciliation?.kind).toBe("receipt_missing");
+    expect(canonicalStateLabel(canonical)).toBe(issue.detail);
+  });
+
+  it("never populates reconciliation for a state other than reconciliation_required, even if an issue was passed in", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState: "confirmed",
+      reconciliationIssue: { kind: "amount_mismatch", detail: "should never appear" },
+    });
+    expect(canonical.state).toBe("settlement_confirmed");
+    expect(canonical.reconciliation).toBeUndefined();
   });
 });

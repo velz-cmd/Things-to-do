@@ -52,7 +52,7 @@ export function canonicalStateLabel(state: CanonicalEconomicState): string {
     case "settlement_confirmed":
       return "Payment confirmed";
     case "reconciliation_required":
-      return "Payment needs reconciliation";
+      return state.reconciliation ? state.reconciliation.detail : "Payment needs reconciliation";
     case "blocked":
       return "No current funding match";
   }

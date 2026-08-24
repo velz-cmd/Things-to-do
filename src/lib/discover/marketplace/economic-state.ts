@@ -130,6 +130,14 @@ export type CanonicalEconomicState = {
   provenance: "economic_match" | "funding_coverage";
   /** The single legitimate next action for this state. Never more than one. */
   nextAction: CanonicalNextAction;
+  /**
+   * Present only when state is "reconciliation_required" - the specific
+   * real inconsistency a human needs to resolve (Release Slice 5). Never
+   * populated speculatively; absence here means no known inconsistency,
+   * not "checked and clean" (reconciliation detection requires real
+   * settlement facts the caller must supply).
+   */
+  reconciliation?: ReconciliationIssue;
 };
 
 /**
@@ -218,6 +226,8 @@ export function resolveCanonicalEconomicStateFromMatch(input: {
   requiredUsd?: number | null;
   payout: CanonicalPayoutState;
   settlementState?: CanonicalSettlementState;
+  /** Release Slice 5: the specific real inconsistency, when settlementState is "reconciliation_required" or "failed". */
+  reconciliationIssue?: ReconciliationIssue;
 }): CanonicalEconomicState {
   const { match } = input;
   const requiredUsd = input.requiredUsd ?? null;
@@ -263,6 +273,7 @@ export function resolveCanonicalEconomicStateFromMatch(input: {
       mechanism,
       provenance: "economic_match",
       nextAction: nextActionFor(state, coverage),
+      reconciliation: state === "reconciliation_required" ? input.reconciliationIssue : undefined,
     };
   }
 
@@ -573,3 +584,94 @@ export function filterCoverageByObligation(
 // canonicalStateLabel() moved to economic-state-labels.ts - this file
 // imports node:crypto at module scope, so nothing here may be safely
 // value-imported into a client component. See that file's header comment.
+
+/**
+ * Release Slice 5: reconciliation and negative financial states (Phase 5
+ * section 23/28). Real inconsistencies between what was authorized, what
+ * was submitted, and what actually confirmed on-chain must surface as
+ * reconciliation_required - never be silently resolved in either
+ * direction (never "assume it's fine", never "assume it failed").
+ *
+ * A confirmed on-chain transaction with no matching persisted receipt is
+ * exactly as suspicious as a receipt with no matching transaction - both
+ * mean RESOLVE's own records disagree with reality, and no further
+ * automatic spend against this obligation should proceed until a human
+ * resolves which side is wrong.
+ */
+export type ReconciliationIssueKind =
+  | "receipt_missing"
+  | "transaction_missing"
+  | "amount_mismatch"
+  | "recipient_mismatch"
+  | "duplicate_submission";
+
+export type ReconciliationIssue = {
+  kind: ReconciliationIssueKind;
+  detail: string;
+};
+
+/**
+ * Compares what was actually confirmed against what RESOLVE's own records
+ * expect. Pure and deterministic - every comparison is an explicit field
+ * equality/inequality check, never inferred from a probability or a model.
+ * Returns the FIRST issue found (checked in a fixed order, most severe
+ * first) rather than a list, since canonical state exposes one current
+ * state and reconciliation_required already means "stop and get a human"
+ * regardless of how many things disagree.
+ */
+export function detectReconciliationIssue(input: {
+  /** Whether a confirmed on-chain transaction hash exists for this obligation. */
+  chainConfirmed: boolean;
+  /** Whether a persisted RESOLVE receipt exists for this obligation. */
+  receiptExists: boolean;
+  /** The amount RESOLVE's own record expected to settle, in USD. */
+  expectedAmountUsd: number;
+  /** The amount the chain transaction actually moved, in USD. Undefined when no transaction exists yet. */
+  confirmedAmountUsd?: number;
+  /** The recipient RESOLVE's own record expected to receive funds. */
+  expectedRecipientId: string;
+  /** The recipient the chain transaction actually paid. Undefined when no transaction exists yet. */
+  confirmedRecipientId?: string;
+  /** True when another obligation already claims this same transaction hash. */
+  isDuplicateSubmission: boolean;
+}): ReconciliationIssue | null {
+  if (input.isDuplicateSubmission) {
+    return {
+      kind: "duplicate_submission",
+      detail: "This transaction is already recorded against a different obligation.",
+    };
+  }
+  if (input.chainConfirmed && !input.receiptExists) {
+    return {
+      kind: "receipt_missing",
+      detail: "A transaction confirmed on-chain, but no matching RESOLVE receipt was persisted.",
+    };
+  }
+  if (input.receiptExists && !input.chainConfirmed) {
+    return {
+      kind: "transaction_missing",
+      detail: "A RESOLVE receipt exists, but no matching on-chain confirmation was found.",
+    };
+  }
+  if (
+    input.chainConfirmed &&
+    input.confirmedAmountUsd != null &&
+    input.confirmedAmountUsd !== input.expectedAmountUsd
+  ) {
+    return {
+      kind: "amount_mismatch",
+      detail: `Expected ${input.expectedAmountUsd.toFixed(2)} USDC to settle, but the confirmed transaction moved ${input.confirmedAmountUsd.toFixed(2)} USDC.`,
+    };
+  }
+  if (
+    input.chainConfirmed &&
+    input.confirmedRecipientId != null &&
+    input.confirmedRecipientId !== input.expectedRecipientId
+  ) {
+    return {
+      kind: "recipient_mismatch",
+      detail: "The confirmed transaction's recipient does not match the expected beneficiary.",
+    };
+  }
+  return null;
+}

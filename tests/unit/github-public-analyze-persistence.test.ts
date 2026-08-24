@@ -2,17 +2,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RepoIngestResult } from "@/lib/github/types";
 
 const {
+  githubFetchOrThrow,
   ingestRepository,
   persistGithubEvidence,
   persistOssOpportunitySnapshot,
   rateLimitRequest,
 } = vi.hoisted(() => ({
+  githubFetchOrThrow: vi.fn(),
   ingestRepository: vi.fn(),
   persistGithubEvidence: vi.fn(),
   persistOssOpportunitySnapshot: vi.fn(),
   rateLimitRequest: vi.fn(),
 }));
 
+// The route independently confirms repository existence via a real network
+// call (githubFetchOrThrow) before ever reaching ingestRepository - left
+// un-mocked, this made every test in this file depend on a real,
+// un-mocked call to api.github.com succeeding, which has intermittently
+// failed both locally and in CI (a real, recurring flake, not a one-off -
+// see docs/discover/SHIP_LEDGER.md for the investigation). A unit test
+// asserting this route's own logic must not depend on live network state.
+vi.mock("@/lib/github/client", () => ({ githubFetchOrThrow }));
 vi.mock("@/lib/github/adapter", () => ({ ingestRepository }));
 vi.mock("@/lib/github/oss-scan-store", () => ({
   persistOssOpportunitySnapshot,
@@ -65,6 +75,7 @@ const repository: RepoIngestResult = {
 
 describe("public GitHub analysis persistence", () => {
   beforeEach(() => {
+    githubFetchOrThrow.mockReset().mockResolvedValue({ id: 1 });
     ingestRepository.mockReset();
     persistOssOpportunitySnapshot.mockReset();
     persistGithubEvidence.mockReset().mockResolvedValue([]);

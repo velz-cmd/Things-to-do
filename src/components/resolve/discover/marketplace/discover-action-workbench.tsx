@@ -18,6 +18,8 @@ import type {
   EconomicActionItem,
 } from "@/lib/discover/marketplace/contracts";
 import type { FundingSource } from "@/lib/wallet/funding-source";
+import { canonicalStateLabel } from "@/lib/discover/marketplace/economic-state-labels";
+import { buildFundingRows } from "@/components/resolve/discover/marketplace/funding-section";
 import { useSpendableUsd } from "@/hooks/use-spendable-usd";
 import { useResolveAccess } from "@/hooks/use-resolve-access";
 import { useFundProgramExecution } from "@/hooks/use-fund-program-execution";
@@ -2219,6 +2221,39 @@ type EvidenceDetail = {
   attributionState?: string;
 };
 
+/**
+ * Phase 5 Release Slice 16: the Details projection. Reads the SAME
+ * canonical economicState already live everywhere else (Slices 1-15) -
+ * never a second query, never recomputed here. Row content comes from
+ * buildFundingRows() (funding-section.ts), which only includes rows
+ * actually meaningful for THIS item's real state - never all fields
+ * unconditionally (Phase 5 section 14/15: simplify the decision surface,
+ * never hide useful information). Distinguishes UNKNOWN from EMPTY: a
+ * verification_unavailable state gets its own honest sentence, never
+ * silently reads as "no funding."
+ */
+function FundingSection({ state }: { state?: EconomicActionItem["economicState"] }) {
+  if (!state) return null;
+  const rows = buildFundingRows(state);
+
+  return (
+    <section className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-4">
+      <p className="text-xs font-semibold text-cyan-300">Funding</p>
+      <p className="mt-1 text-sm text-white">{canonicalStateLabel(state)}</p>
+      {rows.length > 0 ? (
+        <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
+          {rows.map((row) => (
+            <div key={row.label}>
+              <dt className="text-slate-500">{row.label}</dt>
+              <dd className="mt-1 text-white">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </section>
+  );
+}
+
 function EvidencePanel({
   action,
   item,
@@ -2377,6 +2412,7 @@ function EvidencePanel({
           </a>
         </article>
       ))}
+      <FundingSection state={item?.economicState} />
     </div>
   );
 }

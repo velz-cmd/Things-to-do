@@ -787,6 +787,17 @@ export type EconomicActionItem = {
   visibility: "public" | "private" | "community";
   createdAt: string;
   updatedAt: string;
+  /**
+   * Phase 5 Release Slice 16: the same canonical projection already live on
+   * `MarketplaceOpportunity.economicState` (Slice 3+), copied across when
+   * `buildEconomicActions()` can match this item to its source
+   * `MarketplaceOpportunity` - never independently recomputed here, which
+   * would risk a second, competing notion of economic truth. Absent when
+   * no match exists (e.g. this feed item has no corresponding Discover
+   * marketplace row) - absence is a legitimate, honest result, not an
+   * error to paper over.
+   */
+  economicState?: CanonicalEconomicState;
 };
 
 export type DiscoverSourceDiagnostic = {

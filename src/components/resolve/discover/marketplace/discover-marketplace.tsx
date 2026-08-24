@@ -32,6 +32,7 @@ import {
 import { useSignInModal } from "@/components/auth/sign-in-context";
 import { DiscoverActionWorkbench } from "@/components/resolve/discover/marketplace/discover-action-workbench";
 import { DISCOVER_VIEW_TO_ROUTE } from "@/lib/discover/marketplace/contracts";
+import { actionFromOpportunity } from "@/lib/discover/marketplace/economic-actions";
 import { isMarketListedPool } from "@/lib/discover/marketplace/pool-listing";
 import { discoverNavigationAction } from "@/lib/discover/marketplace/action-contract";
 import { describeSourceHealth } from "@/lib/discover/marketplace/source-health";
@@ -205,14 +206,48 @@ function agentServiceAction(service: DiscoverAgentService): DiscoverAction {
   };
 }
 
-function findContext(data: DiscoverPageData, subjectId: string) {
-  return data.economicActions.find(
+/**
+ * Phase 5 Release Slice 16 fix (two real root causes found via live
+ * screenshot verification, not guessed): `data.economicActions` is the
+ * VIEW-FILTERED feed (query.ts filters it by intent/view before
+ * serializing it to the client) - a real work item can be excluded from
+ * it ENTIRELY while its own row (a `MarketplaceOpportunity`) still renders
+ * fine, since rows read `economicState` directly off themselves, a
+ * completely separate data path. The first fix attempt only patched the
+ * case where a match was found but missing `economicState` - live
+ * verification proved the real case here is a full miss (`found ===
+ * undefined`), which that version silently returned unfixed.
+ *
+ * This version closes it correctly: when there is no match at all,
+ * `fallbackOpportunity` (the row's own real `MarketplaceOpportunity`) is
+ * run through the SAME real `actionFromOpportunity()` builder
+ * `buildEconomicActions()` already uses server-side - not a fabricated
+ * object, not a second resolver, the identical construction applied to
+ * data that happened to be filtered out of the feed. When a match IS
+ * found but is missing `economicState` specifically, only that one field
+ * is patched from the real row data, preserving every other real field
+ * the matched entry already had.
+ */
+export function findContext(
+  data: DiscoverPageData,
+  subjectId: string,
+  fallbackOpportunity?: MarketplaceOpportunity,
+  viewerUserId?: string,
+) {
+  const found = data.economicActions.find(
     (item) =>
       item.subjectId === subjectId ||
       item.poolId === subjectId ||
       item.programId === subjectId ||
       item.receiptId === subjectId,
   );
+  if (found) {
+    if (found.economicState || !fallbackOpportunity) return found;
+    return { ...found, economicState: fallbackOpportunity.economicState };
+  }
+  return fallbackOpportunity
+    ? actionFromOpportunity(fallbackOpportunity, viewerUserId)
+    : undefined;
 }
 
 /** The contextual Agent-purchase action attachVerifiedWorkActions attaches
@@ -764,7 +799,7 @@ function ResearchWorkRow({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
-  const context = findContext(data, work.source.id);
+  const context = findContext(data, work.source.id, work);
   const impactFact = strongestImpactFact(work.impactProfile);
   const fundingLabel = researchFundingStateLabel(work);
   const primaryAction = researchPrimaryAction(work);
@@ -890,7 +925,7 @@ function MediaWorkRow({
   data: DiscoverPageData;
   onOpen: OpenAction;
 }) {
-  const context = findContext(data, work.source.id);
+  const context = findContext(data, work.source.id, work);
   const impactFact = strongestImpactFact(work.impactProfile);
 
   return (
@@ -969,7 +1004,7 @@ function WorkRow({
     return <MediaWorkRow work={work} data={data} onOpen={onOpen} />;
   }
 
-  const context = findContext(data, work.source.id);
+  const context = findContext(data, work.source.id, work);
   const blocker = work.entityState?.blocker?.toLowerCase() ?? "";
   const payoutState =
     work.primaryAction?.id === "discover.fund_verified_work"
@@ -2558,7 +2593,13 @@ function DiscoverMarketplaceContent({
           .filter((action): action is DiscoverAction => Boolean(action))
           .map((action) => ({
             action,
-            item: findContext(data, opportunity.source.id),
+            // Release Slice 16 fix (live-verified regression): this is the
+            // URL-restore path (?action=&subject=) - openWorkbench()'s
+            // router.replace() re-triggers this effect right after a click
+            // sets the correct item, silently overwriting it with one
+            // missing economicState unless the same fallback is applied
+            // here too.
+            item: findContext(data, opportunity.source.id, opportunity),
           })),
       ),
       ...data.people.flatMap((person) =>
@@ -2585,7 +2626,11 @@ function DiscoverMarketplaceContent({
       ),
       ...generatedDetails.map((action) => ({
         action,
-        item: findContext(data, subjectId),
+        item: findContext(
+          data,
+          subjectId,
+          data.opportunities.items.find((o) => o.source.id === subjectId),
+        ),
       })),
     ];
     const match = candidates.find(

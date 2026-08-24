@@ -14,6 +14,11 @@ import {
   directSupportRequestSchema,
 } from "@/lib/discover/direct-support-contract";
 import { resolvePayableVerifiedWork } from "@/lib/discover/verified-work-payment";
+import {
+  computeObligationId,
+  computePolicyFingerprint,
+  periodForMechanism,
+} from "@/lib/discover/marketplace/economic-state";
 
 export const maxDuration = 120;
 
@@ -135,6 +140,31 @@ export async function POST(req: Request) {
       code: "verified_work_required",
     }, { status: 409 });
   }
+
+  // Phase 5 Release Slice 14: real obligation identity, computed
+  // server-side and persisted additively into the existing JSON payloads
+  // (ActionRun.input / Receipt.payload) - no schema migration required.
+  // Only meaningful for a work_reward, which has a real canonical subject
+  // (work.subjectId) to be an identity FOR; plain direct_support has none,
+  // matching coverage-loader.ts's own existing scope. direct_support has
+  // no persisted-policy concept (an individual's own voluntary choice), so
+  // its fingerprint uses a stable constant subjectId rather than inventing
+  // a rule that does not exist.
+  const obligationId = work
+    ? computeObligationId({
+        mechanism: "direct_support",
+        canonicalSubjectId: work.subjectId,
+        purpose: work.title,
+        period: periodForMechanism("direct_support") ?? { kind: "one_time" },
+        beneficiaryId: parsed.data.recipientUserId!,
+        policyFingerprint: computePolicyFingerprint({
+          mechanism: "direct_support",
+          eligibleClasses: [],
+          amountRule: null,
+          subjectId: "direct_support",
+        }),
+      })
+    : undefined;
 
   // Phase 5 Release Slice 12: server-side stale-state revalidation. The
   // idempotency-key dedup below only catches a retry of THIS SAME
@@ -280,6 +310,11 @@ export async function POST(req: Request) {
         recommendationReason: parsed.data.purpose === "work_reward"
           ? "The user explicitly confirmed a voluntary reward for persisted GitHub work attributed to a recipient with a verified Arc payout destination."
           : "The user explicitly confirmed direct support for a recipient with a verified Arc payout destination.",
+        // Release Slice 15: a real column, not just inside `input`'s JSON,
+        // specifically so the database-level partial unique index
+        // (migration 20260824151209) can enforce it - see that migration's
+        // comment for the full atomicity reasoning.
+        obligationId,
         input: {
           recipientUserId: parsed.data.recipientUserId,
           amountUsd: parsed.data.amountUsd,
@@ -289,6 +324,7 @@ export async function POST(req: Request) {
           purpose: parsed.data.purpose,
           workSubjectId: work?.subjectId,
           workTitle: work?.title,
+          obligationId,
           repository: work?.repository,
           sourceUrl: work?.sourceUrl,
         },
@@ -296,6 +332,22 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      // Release Slice 15: distinguish the two real, distinct P2002 causes.
+      // Prisma reports the violated constraint/index in error.meta.target -
+      // for the hand-written partial unique index (not modeled as a
+      // Prisma-level @@unique, since Prisma's schema DSL cannot express a
+      // WHERE clause), Postgres/Prisma surfaces the column name
+      // ("obligationId") or the index name itself, either of which this
+      // check catches.
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(",")
+        : String(error.meta?.target ?? "");
+      if (target.includes("obligationId") || target.includes("active_obligation")) {
+        return NextResponse.json({
+          error: "A payment for this exact obligation is already in progress - it was claimed by a concurrent request a moment ago.",
+          code: "work_reward_settlement_in_progress",
+        }, { status: 409 });
+      }
       const raced = await prisma.actionRun.findUnique({ where: { idempotencyKey: actionKey } });
       return NextResponse.json({
         error: "This payment is already being processed.",
@@ -372,6 +424,7 @@ export async function POST(req: Request) {
           purpose: parsed.data.purpose,
           workSubjectId: work?.subjectId,
           workTitle: work?.title,
+          obligationId,
           repository: work?.repository,
           sourceUrl: work?.sourceUrl,
         },
@@ -403,6 +456,7 @@ export async function POST(req: Request) {
             evidenceIds: work.evidenceIds,
           }
         : undefined,
+      obligationId,
     });
     return NextResponse.json({ ok: true, status: "confirmed", replayed: false, ...result });
   } catch (error) {
@@ -429,6 +483,7 @@ export async function POST(req: Request) {
                 purpose: parsed.data.purpose,
                 workSubjectId: work?.subjectId,
                 workTitle: work?.title,
+                obligationId,
                 repository: work?.repository,
                 sourceUrl: work?.sourceUrl,
               },

@@ -5,6 +5,7 @@ import {
   type FundingIntentCandidate,
 } from "@/lib/discover/impact/economic-matching";
 import {
+  computeObligationId,
   computePolicyFingerprint,
   periodForMechanism,
   resolveCanonicalEconomicStateFromMatch,
@@ -254,9 +255,40 @@ export function attachEconomicMatch(
     // item reaching this matcher - using it costs nothing and makes
     // overlap comparisons ("a prior payment for a different purpose")
     // describe something real instead of a generic phrase.
+    //
+    // Release Slice 14: real obligation identity, computed with the exact
+    // same inputs wallet/send/route.ts uses when it PERSISTS one at
+    // settlement time (mechanism "direct_support", canonicalSubjectId =
+    // item.source.id, purpose = item.title, beneficiaryId =
+    // item.creator.id) - when they match, assessOverlap()'s exact-
+    // obligation comparison genuinely engages against real prior coverage
+    // instead of always falling through to the weaker purpose-text match.
+    // Only computable for a github_evidence work item with a resolved
+    // recipient - Pool/Request mechanisms aren't known until AFTER
+    // matching resolves them, so no equivalent candidate exists for those
+    // (the same real constraint that already existed before this slice,
+    // not introduced by it).
+    const directSupportObligationId =
+      item.source.type === "github_evidence" && item.creator.id
+        ? computeObligationId({
+            mechanism: "direct_support",
+            canonicalSubjectId: item.source.id,
+            purpose: item.title,
+            period: periodForMechanism("direct_support") ?? { kind: "one_time" },
+            beneficiaryId: item.creator.id,
+            policyFingerprint: computePolicyFingerprint({
+              mechanism: "direct_support",
+              eligibleClasses: [],
+              amountRule: null,
+              subjectId: "direct_support",
+            }),
+          })
+        : undefined;
+
     const match = matchImpactToCapital({
       outcomeClass: outcomeClassFor(item),
       purpose: item.title,
+      obligationId: directSupportObligationId,
       hasSourcedImpact,
       intents,
       coverage,

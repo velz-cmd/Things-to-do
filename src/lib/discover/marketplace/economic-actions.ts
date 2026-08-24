@@ -91,7 +91,7 @@ function isWork(item: MarketplaceOpportunity) {
   return workTypes.has(item.type);
 }
 
-function actionFromOpportunity(
+export function actionFromOpportunity(
   item: MarketplaceOpportunity,
   viewerUserId?: string,
 ): EconomicActionItem {
@@ -215,6 +215,12 @@ function actionFromOpportunity(
     visibility: "public",
     createdAt: item.publishedAt,
     updatedAt: item.updatedAt,
+    // Phase 5 Release Slice 16: the SAME canonical economicState already
+    // live on MarketplaceOpportunity (Slice 3 onward) - copied through
+    // as-is, never recomputed. This is the one thing the Details drawer
+    // needs to render a real Funding section instead of a second,
+    // competing economic-state query.
+    economicState: item.economicState,
   };
 }
 

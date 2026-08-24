@@ -73,6 +73,57 @@ describe("loadCoverageBySourceId - real confirmed/pending coverage, batch-loaded
     });
   });
 
+  it("Release Slice 14: a real persisted obligationId (from Receipt.payload) is read and returned, making exact-obligation duplicate detection possible", async () => {
+    queryRaw.mockResolvedValueOnce([
+      {
+        work_subject_id: "evidence-1",
+        work_title: "Fix authentication bypass",
+        amount_micro_usdc: 20_000_000n,
+        public_reference: "work_abc123",
+        tx_hash: "0xdeadbeef",
+        obligation_id: "obl-real-hash-abc",
+      },
+    ]);
+    const { loadCoverageBySourceId } = await import(
+      "@/lib/discover/marketplace/coverage-loader"
+    );
+    const result = await loadCoverageBySourceId(["evidence-1"]);
+    expect(result.recordsBySourceId.get("evidence-1")?.[0]?.obligationId).toBe("obl-real-hash-abc");
+  });
+
+  it("Release Slice 14: a legacy confirmed receipt with no persisted obligationId leaves it undefined - never invented", async () => {
+    queryRaw.mockResolvedValueOnce([
+      {
+        work_subject_id: "evidence-1",
+        work_title: "Fix authentication bypass",
+        amount_micro_usdc: 20_000_000n,
+        public_reference: "work_abc123",
+        tx_hash: "0xdeadbeef",
+        obligation_id: null,
+      },
+    ]);
+    const { loadCoverageBySourceId } = await import(
+      "@/lib/discover/marketplace/coverage-loader"
+    );
+    const result = await loadCoverageBySourceId(["evidence-1"]);
+    expect(result.recordsBySourceId.get("evidence-1")?.[0]?.obligationId).toBeUndefined();
+  });
+
+  it("Release Slice 14: a real persisted obligationId on a pending ActionRun (from input.obligationId) is read and returned", async () => {
+    findMany.mockResolvedValueOnce([
+      {
+        id: "run-1",
+        aggregateId: "evidence-1",
+        input: { amountUsd: 15, workTitle: "Fix authentication bypass", obligationId: "obl-real-hash-abc" },
+      },
+    ]);
+    const { loadCoverageBySourceId } = await import(
+      "@/lib/discover/marketplace/coverage-loader"
+    );
+    const result = await loadCoverageBySourceId(["evidence-1"]);
+    expect(result.recordsBySourceId.get("evidence-1")?.[0]?.obligationId).toBe("obl-real-hash-abc");
+  });
+
   it("an unrelated work subject id never receives coverage meant for a different work", async () => {
     queryRaw.mockResolvedValueOnce([
       {

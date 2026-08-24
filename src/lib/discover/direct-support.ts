@@ -21,6 +21,8 @@ export type ConfirmedDirectSupport = {
   destinationAddress: string;
   purpose: "direct_support" | "work_reward";
   workSubjectId?: string;
+  /** Release Slice 14: the real canonical obligation identity this settlement was recorded against, when one exists (work_reward only). */
+  obligationId?: string;
 };
 
 export async function recordConfirmedDirectSupport(input: {
@@ -42,6 +44,17 @@ export async function recordConfirmedDirectSupport(input: {
     sourceUrl: string;
     evidenceIds: string[];
   };
+  /**
+   * Phase 5 Release Slice 14: the real canonical obligation identity for
+   * this settlement, computed server-side (computeObligationId() in
+   * economic-state.ts) at submission time - additive to the existing
+   * Receipt.payload JSON, no schema migration required. Only meaningful
+   * for a work_reward, which has a real canonical subject to be an
+   * obligation identity FOR; plain direct_support (no work attached) has
+   * no such subject, matching coverage-loader.ts's own existing scope
+   * (its query already filters to `payload->>'type' = 'work_reward'`).
+   */
+  obligationId?: string;
 }): Promise<ConfirmedDirectSupport> {
   const purpose = input.purpose ?? "direct_support";
   if (purpose === "work_reward" && !input.work) {
@@ -89,6 +102,7 @@ export async function recordConfirmedDirectSupport(input: {
           destinationAddress: input.destinationAddress,
           amountUsdcMicro: amountUsdcMicro.toString(),
           work: input.work,
+          obligationId: input.obligationId,
         }),
       },
       update: {},
@@ -148,6 +162,7 @@ export async function recordConfirmedDirectSupport(input: {
           transactionHash: input.txHash,
           packageHash,
           work: input.work,
+          obligationId: input.obligationId,
         }),
       },
       update: {},
@@ -163,6 +178,7 @@ export async function recordConfirmedDirectSupport(input: {
       destinationAddress: input.destinationAddress,
       purpose,
       workSubjectId: input.work?.subjectId,
+      obligationId: input.obligationId,
     };
     await tx.actionRun.update({
       where: { id: input.actionRunId },

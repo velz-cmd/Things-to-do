@@ -4,7 +4,11 @@ import {
   type EconomicMatch,
   type FundingIntentCandidate,
 } from "@/lib/discover/impact/economic-matching";
-import type { DiscoverPool, MarketplaceOpportunity } from "./contracts";
+import {
+  resolveCanonicalEconomicStateFromMatch,
+  type CanonicalPayoutState,
+} from "@/lib/discover/marketplace/economic-state";
+import type { DiscoverEntityState, DiscoverPool, MarketplaceOpportunity } from "./contracts";
 
 /**
  * Bridges the matching engine to the live marketplace.
@@ -69,6 +73,52 @@ export function fundingIntentsFromPools(
 }
 
 /**
+ * Release Slice 6: a funded, public Campaign/Request is real explicit
+ * demand (Phase 5 section 14) - "funded_request" was already a real
+ * FundingMechanism value in economic-matching.ts, but nothing in this
+ * codebase ever actually constructed one. The mechanism was defined but
+ * unreachable, the same class of bug already found and fixed for media
+ * Pool matching (Release Slice 0/attach-economic-match's original gap).
+ *
+ * A Campaign's remaining budget is its own goal minus what it has already
+ * committed - never re-derived from anything else. An expired or
+ * fully-committed Campaign is still included (excluded, with its real
+ * reason), matching the existing Pool pattern: showing why capital can't
+ * currently fund something is more useful than hiding it.
+ */
+function campaignOutcomeClasses(item: MarketplaceOpportunity): string[] {
+  const category = item.category?.trim().toLowerCase();
+  return category ? [category] : [];
+}
+
+export function fundingIntentsFromCampaigns(
+  opportunities: MarketplaceOpportunity[],
+): FundingIntentCandidate[] {
+  return opportunities
+    .filter((item) => item.source.type === "outcome_campaign")
+    .map((item) => {
+      const goalUsd = item.funding?.goalAmountUsd ?? 0;
+      const fundedUsd = item.funding?.fundedAmountUsd ?? 0;
+      const availableUsd = Math.max(goalUsd - fundedUsd, 0);
+      const expired = item.deadline != null && new Date(item.deadline).getTime() < Date.now();
+      const blocker = expired
+        ? `${item.title}'s funding deadline has passed.`
+        : availableUsd <= 0
+          ? `${item.title}'s budget is already fully committed.`
+          : undefined;
+      return {
+        id: item.source.id,
+        mechanism: "funded_request" as const,
+        label: item.title,
+        eligibleClasses: campaignOutcomeClasses(item),
+        availableUsd,
+        executable: item.status === "open" && !expired && availableUsd > 0,
+        blocker,
+      };
+    });
+}
+
+/**
  * Direct support is the viewer's own voluntary intent, not a RESOLVE judgement
  * that the work deserves money. It is only offered when the recipient can
  * actually settle.
@@ -86,6 +136,30 @@ export function directSupportIntent(input: {
     executable: input.recipientReady,
     blocker: input.blocker,
   };
+}
+
+/**
+ * Beneficiary identity and payout identity are separate (Phase 5 section
+ * 18) - `financialReadiness` already IS that payout dimension for verified
+ * work, just under domain-specific naming. This maps it into the
+ * canonical vocabulary once, rather than each consumer reinventing the
+ * mapping.
+ */
+function payoutFromFinancialReadiness(
+  financialReadiness: DiscoverEntityState["financialReadiness"] | undefined,
+): CanonicalPayoutState {
+  switch (financialReadiness) {
+    case "not_applicable":
+      return "not_required";
+    case "setup_required":
+      return "destination_missing";
+    case "ready":
+    case "submitted":
+    case "confirmed":
+      return "destination_ready";
+    default:
+      return "unknown_recipient";
+  }
 }
 
 export type EconomicMatchInput = {
@@ -106,6 +180,7 @@ export function attachEconomicMatch(
   input: EconomicMatchInput,
 ): MarketplaceOpportunity[] {
   const poolIntents = fundingIntentsFromPools(input.pools);
+  const campaignIntents = fundingIntentsFromCampaigns(opportunities);
 
   return opportunities.map((item) => {
     // Phase 3/5: research and media outcomes feed into the same
@@ -131,6 +206,7 @@ export function attachEconomicMatch(
       item.entityState?.financialReadiness === "ready";
     const intents = [
       ...poolIntents,
+      ...campaignIntents,
       directSupportIntent({
         recipientReady,
         blocker: item.entityState?.blocker,
@@ -146,16 +222,35 @@ export function attachEconomicMatch(
     const coverage =
       input.coverageBySourceId?.get(item.source.id) ?? ([] as CoverageRecord[]);
 
+    // Release Slice 7: purpose was a single hardcoded generic string for
+    // every outcome regardless of domain. Coverage is looked up per-work
+    // (by source.id), so this never caused a cross-work collision - but
+    // it also meant a real Campaign's own objective, or a specific
+    // work's own title, was discarded in favor of a placeholder. The
+    // work's own title is real, specific, and already exists on every
+    // item reaching this matcher - using it costs nothing and makes
+    // overlap comparisons ("a prior payment for a different purpose")
+    // describe something real instead of a generic phrase.
     const match = matchImpactToCapital({
       outcomeClass: outcomeClassFor(item),
-      purpose: "verified outcome support",
+      purpose: item.title,
       hasSourcedImpact,
       intents,
       coverage,
       viewerRoles: input.operatorOfPoolIds?.size ? ["operator"] : [],
     });
 
-    return { ...item, economicMatch: match } satisfies MarketplaceOpportunity;
+    // Release Slice 3: wire the canonical projection into the real
+    // marketplace. `economicMatch` remains the source of truth for
+    // mechanism eligibility; `economicState` is the one canonical current
+    // state derived from it, so a component reads one field instead of
+    // reimplementing the same precedence logic each time.
+    const economicState = resolveCanonicalEconomicStateFromMatch({
+      match,
+      payout: payoutFromFinancialReadiness(item.entityState?.financialReadiness),
+    });
+
+    return { ...item, economicMatch: match, economicState } satisfies MarketplaceOpportunity;
   });
 }
 

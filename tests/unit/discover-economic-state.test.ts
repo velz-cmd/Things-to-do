@@ -1,0 +1,752 @@
+import { describe, expect, it } from "vitest";
+import { matchImpactToCapital } from "@/lib/discover/impact/economic-matching";
+import type {
+  CoverageRecord,
+  FundingIntentCandidate,
+} from "@/lib/discover/impact/economic-matching";
+import type { FundingCoverageLedgerRecord } from "@/lib/discover/funding-coverage";
+import {
+  computeCanonicalCoverage,
+  computeObligationId,
+  computePolicyFingerprint,
+  detectReconciliationIssue,
+  filterCoverageByObligation,
+  periodKey,
+  resolveCanonicalEconomicStateFromLedgerRecord,
+  resolveCanonicalEconomicStateFromMatch,
+  type CanonicalEconomicState,
+  type CanonicalPeriod,
+  type PolicyRules,
+} from "@/lib/discover/marketplace/economic-state";
+import { canonicalStateLabel } from "@/lib/discover/marketplace/economic-state-labels";
+
+function pool(overrides: Partial<FundingIntentCandidate> = {}): FundingIntentCandidate {
+  return {
+    id: "pool-1",
+    mechanism: "pool_allocation",
+    label: "Security Response Fund",
+    eligibleClasses: ["security"],
+    availableUsd: 500,
+    executable: true,
+    ...overrides,
+  };
+}
+
+describe("computeCanonicalCoverage - amount-based coverage", () => {
+  it("returns null remaining and not-fully-covered when required amount is unknown", () => {
+    const coverage = computeCanonicalCoverage([], null);
+    expect(coverage).toMatchObject({
+      requiredUsd: null,
+      confirmedUsd: 0,
+      pendingUsd: 0,
+      remainingUsd: null,
+      fullyCovered: false,
+    });
+  });
+
+  it("sums only confirmed records into confirmedUsd - pending is never counted as coverage", () => {
+    const records: CoverageRecord[] = [
+      { id: "1", mechanism: "pool_allocation", amountUsd: 40, purpose: "p", status: "confirmed" },
+      { id: "2", mechanism: "pool_allocation", amountUsd: 20, purpose: "p", status: "pending" },
+    ];
+    const coverage = computeCanonicalCoverage(records, 100);
+    expect(coverage.confirmedUsd).toBe(40);
+    expect(coverage.pendingUsd).toBe(20);
+    expect(coverage.remainingUsd).toBe(60);
+    expect(coverage.fullyCovered).toBe(false);
+  });
+
+  it("a record with no status field defaults to confirmed - preserves every pre-existing caller", () => {
+    const records: CoverageRecord[] = [
+      { id: "1", mechanism: "direct_support", amountUsd: 30, purpose: "p" },
+    ];
+    const coverage = computeCanonicalCoverage(records, 30);
+    expect(coverage.confirmedUsd).toBe(30);
+    expect(coverage.fullyCovered).toBe(true);
+  });
+
+  it("excludes failed records entirely from both confirmed and pending", () => {
+    const records: CoverageRecord[] = [
+      { id: "1", mechanism: "pool_allocation", amountUsd: 100, purpose: "p", status: "failed" },
+    ];
+    const coverage = computeCanonicalCoverage(records, 100);
+    expect(coverage.confirmedUsd).toBe(0);
+    expect(coverage.pendingUsd).toBe(0);
+    expect(coverage.remainingUsd).toBe(100);
+  });
+
+  it("overfunding never produces a negative remaining amount", () => {
+    const records: CoverageRecord[] = [
+      { id: "1", mechanism: "pool_allocation", amountUsd: 120, purpose: "p", status: "confirmed" },
+    ];
+    const coverage = computeCanonicalCoverage(records, 100);
+    expect(coverage.remainingUsd).toBe(0);
+    expect(coverage.fullyCovered).toBe(true);
+    expect(coverage.confirmedUsd).toBe(120);
+  });
+});
+
+describe("resolveCanonicalEconomicStateFromMatch - canonical state precedence", () => {
+  it("no funding intent at all -> no_demand, no action", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      payout: "not_required",
+    });
+    expect(canonical.state).toBe("no_demand");
+    expect(canonical.demand).toBe(false);
+    expect(canonical.nextAction).toBe("none");
+  });
+
+  it("intents exist but none match this class -> blocked, not no_demand (real demand was considered)", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "documentation",
+      purpose: "docs",
+      hasSourcedImpact: true,
+      intents: [pool({ eligibleClasses: ["security"] })],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      payout: "not_required",
+    });
+    expect(canonical.state).toBe("blocked");
+    expect(canonical.demand).toBe(true);
+  });
+
+  it("a real eligible mechanism with no coverage yet and no review needed -> funding_available, action fund", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+    });
+    expect(canonical.state).toBe("funding_available");
+    expect(canonical.nextAction).toBe("fund");
+    expect(canonical.mechanism).toBe("pool_allocation");
+  });
+
+  it("a real match but the recipient has no payout destination -> payout_setup_required, never funding_available", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_missing",
+    });
+    expect(canonical.state).toBe("payout_setup_required");
+    expect(canonical.nextAction).toBe("set_payout");
+  });
+
+  it("partial confirmed coverage -> partially_covered, action review_funding", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [
+        { id: "1", mechanism: "pool_allocation", amountUsd: 40, purpose: "different purpose", status: "confirmed" },
+      ],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+    });
+    expect(canonical.state).toBe("partially_covered");
+    expect(canonical.coverage.confirmedUsd).toBe(40);
+    expect(canonical.coverage.remainingUsd).toBe(60);
+    expect(canonical.nextAction).toBe("review_funding");
+  });
+
+  it("full confirmed coverage -> fully_covered, action view_receipt", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [
+        { id: "1", mechanism: "pool_allocation", amountUsd: 100, purpose: "different purpose", status: "confirmed" },
+      ],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+    });
+    expect(canonical.state).toBe("fully_covered");
+    expect(canonical.nextAction).toBe("view_receipt");
+  });
+
+  it("same obligation already settled (duplicate_obligation) -> fully_covered, never pay twice", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix vuln",
+      obligationId: "obl-1",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [
+        {
+          id: "1",
+          mechanism: "pool_allocation",
+          amountUsd: 100,
+          purpose: "fix vuln",
+          obligationId: "obl-1",
+          status: "confirmed",
+        },
+      ],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      payout: "destination_ready",
+    });
+    expect(canonical.state).toBe("fully_covered");
+    expect(canonical.eligibility.eligible).toBe(false);
+    expect(canonical.mechanism).toBeNull();
+  });
+
+  it("possible overlap (same purpose, different obligation) requires human review -> authorization_required", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix vuln",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [
+        { id: "1", mechanism: "direct_support", amountUsd: 20, purpose: "fix vuln", status: "confirmed" },
+      ],
+    });
+    // No coverage counted toward THIS obligation (different obligationId / no id match),
+    // but the matcher itself already flags this as requiresReview via possible_overlap.
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      payout: "destination_ready",
+    });
+    expect(match.requiresReview).toBe(true);
+    expect(canonical.state).toBe("authorization_required");
+    expect(canonical.authorization).toEqual({ required: true, granted: false });
+    expect(canonical.nextAction).toBe("authorize");
+  });
+
+  it("a real settlement already submitted takes precedence over the matcher's own recommendation", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState: "submitted",
+    });
+    expect(canonical.state).toBe("settlement_submitted");
+    expect(canonical.nextAction).toBe("none");
+  });
+
+  it("a confirmed settlement resolves to settlement_confirmed with a receipt action", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [
+        { id: "1", mechanism: "pool_allocation", amountUsd: 100, purpose: "fix", status: "confirmed" },
+      ],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState: "confirmed",
+    });
+    expect(canonical.state).toBe("settlement_confirmed");
+    expect(canonical.nextAction).toBe("view_receipt");
+  });
+
+  it("a failed settlement requires reconciliation, never silently resolved", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState: "failed",
+    });
+    expect(canonical.state).toBe("reconciliation_required");
+    expect(canonical.nextAction).toBe("none");
+  });
+});
+
+function ledgerRecord(
+  overrides: Partial<FundingCoverageLedgerRecord> = {},
+): FundingCoverageLedgerRecord {
+  return {
+    id: "record-1",
+    repository: "acme/widget",
+    workType: "Merged pull request",
+    category: "code",
+    title: "Fix crash on startup",
+    contributor: "@dev",
+    acceptedAt: "2026-08-01T00:00:00.000Z",
+    sourceUrl: "https://github.com/acme/widget/pull/1",
+    evidenceState: "verified",
+    evidenceId: "evidence-1",
+    policyState: "covered",
+    policyReason: "Maintenance Pool covers code contributions.",
+    policyVersion: 1,
+    identityState: "ready",
+    amountState: "claimable",
+    amountUsd: 80,
+    poolState: "available",
+    poolName: "Maintenance Pool",
+    blocker: "",
+    nextAction: {
+      id: "capital.open_funding",
+      label: "Fund",
+      reason: "",
+      href: "/discover",
+      recordCount: 1,
+    },
+    filter: "ready",
+    freshness: "current",
+    timeline: [],
+    ...overrides,
+  };
+}
+
+describe("resolveCanonicalEconomicStateFromLedgerRecord - funding-coverage.ts as a domain adapter", () => {
+  it("the section 5 worked example: a real obligation, partially confirmed, produces partially_covered", () => {
+    const canonical = resolveCanonicalEconomicStateFromLedgerRecord(
+      ledgerRecord({ amountState: "partially_confirmed", amountUsd: 80 }),
+    );
+    expect(canonical.state).toBe("partially_covered");
+    expect(canonical.coverage.requiredUsd).toBe(80);
+    expect(canonical.nextAction).toBe("review_funding");
+  });
+
+  it("no amount at all -> no_demand when no Pool is attached", () => {
+    const canonical = resolveCanonicalEconomicStateFromLedgerRecord(
+      ledgerRecord({
+        amountState: "no_amount",
+        amountUsd: null,
+        policyState: "uncovered",
+        poolState: "not_attached",
+        poolName: null,
+      }),
+    );
+    expect(canonical.state).toBe("no_demand");
+    expect(canonical.demand).toBe(false);
+  });
+
+  it("uncovered by policy but a Pool exists -> blocked, not no_demand", () => {
+    const canonical = resolveCanonicalEconomicStateFromLedgerRecord(
+      ledgerRecord({ policyState: "uncovered", amountState: "no_amount", amountUsd: null }),
+    );
+    expect(canonical.state).toBe("blocked");
+  });
+
+  it("claimable with a ready payout destination -> funding_available", () => {
+    const canonical = resolveCanonicalEconomicStateFromLedgerRecord(
+      ledgerRecord({ amountState: "claimable", identityState: "ready" }),
+    );
+    expect(canonical.state).toBe("funding_available");
+    expect(canonical.payout).toBe("destination_ready");
+    expect(canonical.nextAction).toBe("fund");
+  });
+
+  it("a real obligation but the contributor's payout is blocked -> payout_setup_required, not funding_available", () => {
+    const canonical = resolveCanonicalEconomicStateFromLedgerRecord(
+      ledgerRecord({ amountState: "claimable", identityState: "payout_blocked" }),
+    );
+    expect(canonical.state).toBe("payout_setup_required");
+    expect(canonical.nextAction).toBe("set_payout");
+  });
+
+  it("confirmed amount -> fully_covered with the full amount as confirmedUsd", () => {
+    const canonical = resolveCanonicalEconomicStateFromLedgerRecord(
+      ledgerRecord({ amountState: "confirmed", amountUsd: 80 }),
+    );
+    expect(canonical.state).toBe("fully_covered");
+    expect(canonical.coverage.confirmedUsd).toBe(80);
+    expect(canonical.coverage.remainingUsd).toBe(0);
+  });
+
+  it("a failed settlement requires reconciliation, never silently resolved", () => {
+    const canonical = resolveCanonicalEconomicStateFromLedgerRecord(
+      ledgerRecord({ amountState: "failed" }),
+    );
+    expect(canonical.state).toBe("reconciliation_required");
+    expect(canonical.settlement).toBe("failed");
+  });
+
+  it("submitted amount is pending, never confirmed coverage", () => {
+    const canonical = resolveCanonicalEconomicStateFromLedgerRecord(
+      ledgerRecord({ amountState: "submitted", amountUsd: 80 }),
+    );
+    expect(canonical.coverage.confirmedUsd).toBe(0);
+    expect(canonical.coverage.pendingUsd).toBe(80);
+    expect(canonical.state).toBe("partially_covered");
+  });
+});
+
+describe("computePolicyFingerprint - deterministic, order-independent", () => {
+  function rules(overrides: Partial<PolicyRules> = {}): PolicyRules {
+    return {
+      mechanism: "pool_allocation",
+      eligibleClasses: ["security"],
+      amountRule: { kind: "fixed", value: 100 },
+      ...overrides,
+    };
+  }
+
+  it("the same policy content produces the same fingerprint", () => {
+    expect(computePolicyFingerprint(rules())).toBe(computePolicyFingerprint(rules()));
+  });
+
+  it("eligibleClasses in a different order produces the same fingerprint - array order is not semantically meaningful there", () => {
+    const a = computePolicyFingerprint(rules({ eligibleClasses: ["security", "research"] }));
+    const b = computePolicyFingerprint(rules({ eligibleClasses: ["research", "security"] }));
+    expect(a).toBe(b);
+  });
+
+  it("a real rule change (amount value) produces a different fingerprint", () => {
+    const a = computePolicyFingerprint(rules({ amountRule: { kind: "fixed", value: 100 } }));
+    const b = computePolicyFingerprint(rules({ amountRule: { kind: "fixed", value: 150 } }));
+    expect(a).not.toBe(b);
+  });
+
+  it("a cap change produces a different fingerprint", () => {
+    const a = computePolicyFingerprint(rules({ amountRule: { kind: "cap", value: 500 } }));
+    const b = computePolicyFingerprint(rules({ amountRule: { kind: "cap", value: 1000 } }));
+    expect(a).not.toBe(b);
+  });
+
+  it("an eligible-class change produces a different fingerprint", () => {
+    const a = computePolicyFingerprint(rules({ eligibleClasses: ["security"] }));
+    const b = computePolicyFingerprint(rules({ eligibleClasses: ["research"] }));
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("periodKey - canonical period separation", () => {
+  it("one_time is always the same key", () => {
+    expect(periodKey({ kind: "one_time" })).toBe(periodKey({ kind: "one_time" }));
+  });
+
+  it("different calendar months produce different keys", () => {
+    const aug: CanonicalPeriod = { kind: "calendar_month", year: 2026, month: 8 };
+    const sep: CanonicalPeriod = { kind: "calendar_month", year: 2026, month: 9 };
+    expect(periodKey(aug)).not.toBe(periodKey(sep));
+  });
+
+  it("the same calendar month across two computations produces the same key", () => {
+    const a: CanonicalPeriod = { kind: "calendar_month", year: 2026, month: 8 };
+    const b: CanonicalPeriod = { kind: "calendar_month", year: 2026, month: 8 };
+    expect(periodKey(a)).toBe(periodKey(b));
+  });
+
+  it("different policy windows produce different keys", () => {
+    const a: CanonicalPeriod = { kind: "policy_window", windowId: "q3-2026" };
+    const b: CanonicalPeriod = { kind: "policy_window", windowId: "q4-2026" };
+    expect(periodKey(a)).not.toBe(periodKey(b));
+  });
+});
+
+describe("computeObligationId - stable obligation identity", () => {
+  const base = {
+    mechanism: "pool_allocation" as const,
+    canonicalSubjectId: "github.com/acme/widget#pr-1",
+    purpose: "Security remediation",
+    period: { kind: "one_time" as const },
+    beneficiaryId: "user-1",
+    policyFingerprint: "fp-1",
+  };
+
+  it("the exact same obligation computed twice produces the same identity - required for idempotency", () => {
+    expect(computeObligationId(base)).toBe(computeObligationId({ ...base }));
+  });
+
+  it("purpose is case/whitespace-insensitive - the same real obligation should not fork identity over formatting", () => {
+    expect(computeObligationId(base)).toBe(
+      computeObligationId({ ...base, purpose: "  security remediation  " }),
+    );
+  });
+
+  it("a different period produces a different obligation identity - next period is a new obligation", () => {
+    const nextMonth = computeObligationId({
+      ...base,
+      period: { kind: "calendar_month", year: 2026, month: 9 },
+    });
+    const thisMonth = computeObligationId({
+      ...base,
+      period: { kind: "calendar_month", year: 2026, month: 8 },
+    });
+    expect(nextMonth).not.toBe(thisMonth);
+  });
+
+  it("a different purpose produces a different obligation identity", () => {
+    const a = computeObligationId(base);
+    const b = computeObligationId({ ...base, purpose: "Documentation review" });
+    expect(a).not.toBe(b);
+  });
+
+  it("a material policy change (different fingerprint) produces a new obligation identity", () => {
+    const a = computeObligationId(base);
+    const b = computeObligationId({ ...base, policyFingerprint: "fp-2" });
+    expect(a).not.toBe(b);
+  });
+
+  it("a different beneficiary produces a different obligation identity", () => {
+    const a = computeObligationId(base);
+    const b = computeObligationId({ ...base, beneficiaryId: "user-2" });
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("filterCoverageByObligation - coverage must match the current obligation, not the whole beneficiary history", () => {
+  const records: CoverageRecord[] = [
+    { id: "1", mechanism: "pool_allocation", amountUsd: 40, purpose: "security fix", obligationId: "obl-1" },
+    { id: "2", mechanism: "pool_allocation", amountUsd: 25, purpose: "docs review", obligationId: "obl-2" },
+    { id: "3", mechanism: "direct_support", amountUsd: 10, purpose: "general support" },
+  ];
+
+  it("only returns records tagged with the exact current obligation id", () => {
+    const filtered = filterCoverageByObligation(records, "obl-1");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.id).toBe("1");
+  });
+
+  it("a same-beneficiary payment for a different obligation is excluded, never summed in", () => {
+    const filtered = filterCoverageByObligation(records, "obl-2");
+    expect(filtered.map((r) => r.id)).toEqual(["2"]);
+  });
+
+  it("an untagged record (no obligationId) is never assumed to match - excluded rather than guessed", () => {
+    const filtered = filterCoverageByObligation(records, "obl-1");
+    expect(filtered.some((r) => r.id === "3")).toBe(false);
+  });
+
+  it("feeds directly into computeCanonicalCoverage for an obligation-scoped amount", () => {
+    const filtered = filterCoverageByObligation(records, "obl-1");
+    const coverage = computeCanonicalCoverage(filtered, 100);
+    expect(coverage.confirmedUsd).toBe(40);
+    expect(coverage.remainingUsd).toBe(60);
+  });
+});
+
+describe("canonicalStateLabel - customer language, one place to change wording", () => {
+  function stateFixture(overrides: Partial<CanonicalEconomicState> = {}): CanonicalEconomicState {
+    return {
+      state: "no_demand",
+      demand: false,
+      eligibility: { eligible: false, reason: "" },
+      obligation: null,
+      coverage: {
+        requiredUsd: null,
+        confirmedUsd: 0,
+        pendingUsd: 0,
+        remainingUsd: null,
+        currency: "USDC",
+        records: [],
+        fullyCovered: false,
+      },
+      authorization: { required: false, granted: false },
+      payout: "not_required",
+      settlement: "not_started",
+      mechanism: null,
+      provenance: "economic_match",
+      nextAction: "none",
+      ...overrides,
+    };
+  }
+
+  it("includes the real remaining amount for partially_covered, never a generic label when a number is known", () => {
+    const label = canonicalStateLabel(
+      stateFixture({
+        state: "partially_covered",
+        coverage: {
+          requiredUsd: 100,
+          confirmedUsd: 40,
+          pendingUsd: 0,
+          remainingUsd: 60,
+          currency: "USDC",
+          records: [],
+          fullyCovered: false,
+        },
+      }),
+    );
+    expect(label).toBe("60.00 USDC remaining");
+  });
+
+  it("falls back to a plain label when no amount is known", () => {
+    const label = canonicalStateLabel(stateFixture({ state: "partially_covered" }));
+    expect(label).toBe("Partially funded");
+  });
+
+  it("no_demand and blocked read as distinct, honest sentences - never the same generic copy", () => {
+    expect(canonicalStateLabel(stateFixture({ state: "no_demand" }))).toBe(
+      "No current funding demand",
+    );
+    expect(canonicalStateLabel(stateFixture({ state: "blocked" }))).toBe(
+      "No current funding match",
+    );
+  });
+
+  it("every canonical state value produces a non-empty label - no missing case falls through silently", () => {
+    const states: CanonicalEconomicState["state"][] = [
+      "no_demand",
+      "demand_found",
+      "possible_match",
+      "eligible",
+      "funding_available",
+      "authorization_required",
+      "payout_setup_required",
+      "partially_covered",
+      "fully_covered",
+      "settlement_submitted",
+      "settlement_confirming",
+      "settlement_confirmed",
+      "reconciliation_required",
+      "blocked",
+    ];
+    for (const state of states) {
+      expect(canonicalStateLabel(stateFixture({ state })).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("detectReconciliationIssue - real inconsistencies, never silently resolved", () => {
+  function clean(overrides: Partial<Parameters<typeof detectReconciliationIssue>[0]> = {}) {
+    return {
+      chainConfirmed: true,
+      receiptExists: true,
+      expectedAmountUsd: 100,
+      confirmedAmountUsd: 100,
+      expectedRecipientId: "wallet-a",
+      confirmedRecipientId: "wallet-a",
+      isDuplicateSubmission: false,
+      ...overrides,
+    };
+  }
+
+  it("a fully consistent settlement (chain confirmed, receipt exists, amount and recipient match) has no issue", () => {
+    expect(detectReconciliationIssue(clean())).toBeNull();
+  });
+
+  it("chain confirmed but no receipt persisted -> receipt_missing", () => {
+    const issue = detectReconciliationIssue(clean({ receiptExists: false }));
+    expect(issue?.kind).toBe("receipt_missing");
+  });
+
+  it("receipt persisted but no chain confirmation -> transaction_missing (never assumed confirmed)", () => {
+    const issue = detectReconciliationIssue(
+      clean({ chainConfirmed: false, confirmedAmountUsd: undefined, confirmedRecipientId: undefined }),
+    );
+    expect(issue?.kind).toBe("transaction_missing");
+  });
+
+  it("confirmed amount differs from expected -> amount_mismatch, with both real numbers in the detail", () => {
+    const issue = detectReconciliationIssue(clean({ confirmedAmountUsd: 85 }));
+    expect(issue?.kind).toBe("amount_mismatch");
+    expect(issue?.detail).toContain("100.00");
+    expect(issue?.detail).toContain("85.00");
+  });
+
+  it("confirmed recipient differs from expected -> recipient_mismatch", () => {
+    const issue = detectReconciliationIssue(clean({ confirmedRecipientId: "wallet-b" }));
+    expect(issue?.kind).toBe("recipient_mismatch");
+  });
+
+  it("a duplicate submission is reported first, ahead of any other real discrepancy it might also have", () => {
+    const issue = detectReconciliationIssue(
+      clean({ isDuplicateSubmission: true, confirmedAmountUsd: 85 }),
+    );
+    expect(issue?.kind).toBe("duplicate_submission");
+  });
+
+  it("pending (unconfirmed) settlement with no receipt yet is not itself a reconciliation issue - both are simply absent, consistently", () => {
+    const issue = detectReconciliationIssue(
+      clean({
+        chainConfirmed: false,
+        receiptExists: false,
+        confirmedAmountUsd: undefined,
+        confirmedRecipientId: undefined,
+      }),
+    );
+    expect(issue).toBeNull();
+  });
+});
+
+describe("resolveCanonicalEconomicStateFromMatch - reconciliation detail is surfaced, never invented", () => {
+  it("carries the real reconciliation reason through to the canonical state when settlement failed", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const issue = detectReconciliationIssue({
+      chainConfirmed: true,
+      receiptExists: false,
+      expectedAmountUsd: 100,
+      confirmedAmountUsd: 100,
+      expectedRecipientId: "wallet-a",
+      confirmedRecipientId: "wallet-a",
+      isDuplicateSubmission: false,
+    })!;
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState: "reconciliation_required",
+      reconciliationIssue: issue,
+    });
+    expect(canonical.state).toBe("reconciliation_required");
+    expect(canonical.reconciliation?.kind).toBe("receipt_missing");
+    expect(canonicalStateLabel(canonical)).toBe(issue.detail);
+  });
+
+  it("never populates reconciliation for a state other than reconciliation_required, even if an issue was passed in", () => {
+    const match = matchImpactToCapital({
+      outcomeClass: "security",
+      purpose: "fix",
+      hasSourcedImpact: true,
+      intents: [pool()],
+      coverage: [],
+    });
+    const canonical = resolveCanonicalEconomicStateFromMatch({
+      match,
+      requiredUsd: 100,
+      payout: "destination_ready",
+      settlementState: "confirmed",
+      reconciliationIssue: { kind: "amount_mismatch", detail: "should never appear" },
+    });
+    expect(canonical.state).toBe("settlement_confirmed");
+    expect(canonical.reconciliation).toBeUndefined();
+  });
+});

@@ -43,4 +43,16 @@ describe("Media rows render through a dedicated component, never the generic Git
     const body = extractFunction("MediaWorkRow");
     expect(body).toContain("work.riskFlags");
   });
+
+  /**
+   * Phase 5 Release Slice 3: the row must read its funding-state line from
+   * the canonical projection (economicState), never a second, separately
+   * invented funding label - that duplication is exactly the "Verified
+   * Work says one thing, Command Centre says another" risk Phase 5 exists
+   * to close.
+   */
+  it("MediaWorkRow reads its funding-state line from the canonical economicState projection, not an invented label", () => {
+    const body = extractFunction("MediaWorkRow");
+    expect(body).toContain("canonicalStateLabel(work.economicState)");
+  });
 });

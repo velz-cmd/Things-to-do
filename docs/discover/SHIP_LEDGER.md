@@ -5,7 +5,7 @@ phase's status, a blocker's state, or a cross-tab regression changes.
 Never delete an unresolved item — mark it resolved with evidence, or
 leave it open.
 
-Last updated: 2026-08-24 · HEAD `0ff740b5`
+Last updated: 2026-08-24 · HEAD `d16e2483`
 
 ## Phase status
 
